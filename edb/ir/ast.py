@@ -690,7 +690,7 @@ class ComputableInfo(typing.NamedTuple):
 
 class Statement(Command):
 
-    expr: typing.Union[Set, Expr]
+    expr: Set
     views: typing.Dict[sn.Name, s_types.Type]
     params: typing.List[Param]
     globals: typing.List[Global]

@@ -2092,11 +2092,9 @@ class ConstraintCommand(MetaCommand):
                 and not context.is_deleting(base)
             ):
                 subject = base.get_subject(schema)
-                schemac_to_backendc = \
-                    schemamech.ConstraintMech.\
-                    schema_constraint_to_backend_constraint
-                bconstr = schemac_to_backendc(
-                    subject, base, schema, context, source_context)
+                bconstr = schemamech.compile_constraint(
+                    subject, base, schema, source_context
+                )
                 op.add_command(bconstr.alter_ops(
                     bconstr, only_modify_enabled=True))
 
@@ -2110,12 +2108,9 @@ class ConstraintCommand(MetaCommand):
             subject = constraint.get_subject(schema)
 
             if subject is not None:
-                schemac_to_backendc = \
-                    schemamech.ConstraintMech.\
-                    schema_constraint_to_backend_constraint
-                bconstr = schemac_to_backendc(
-                    subject, constraint, schema, context,
-                    source_context)
+                bconstr = schemamech.compile_constraint(
+                    subject, constraint, schema, source_context
+                )
 
                 op.add_command(bconstr.create_ops())
 
@@ -2129,12 +2124,9 @@ class ConstraintCommand(MetaCommand):
             subject = constraint.get_subject(schema)
 
             if subject is not None:
-                schemac_to_backendc = \
-                    schemamech.ConstraintMech.\
-                    schema_constraint_to_backend_constraint
-                bconstr = schemac_to_backendc(
-                    subject, constraint, schema, context,
-                    source_context)
+                bconstr = schemamech.compile_constraint(
+                    subject, constraint, schema, source_context
+                )
 
                 op.add_command(bconstr.delete_ops())
 
@@ -2148,12 +2140,9 @@ class ConstraintCommand(MetaCommand):
             subject = constraint.get_subject(schema)
 
             if subject is not None:
-                schemac_to_backendc = \
-                    schemamech.ConstraintMech.\
-                    schema_constraint_to_backend_constraint
-                bconstr = schemac_to_backendc(
-                    subject, constraint, schema, context,
-                    source_context)
+                bconstr = schemamech.compile_constraint(
+                    subject, constraint, schema, source_context
+                )
 
                 return bconstr.enforce_ops()
         else:
@@ -2233,18 +2222,14 @@ class AlterConstraint(
             return schema
 
         if subject is not None:
-            schemac_to_backendc = \
-                schemamech.ConstraintMech.\
-                schema_constraint_to_backend_constraint
+            bconstr = schemamech.compile_constraint(
+                subject, constraint, schema, self.source_context
+            )
 
-            bconstr = schemac_to_backendc(
-                subject, constraint, schema, context, self.source_context)
-
-            orig_bconstr = schemac_to_backendc(
+            orig_bconstr = schemamech.compile_constraint(
                 constraint.get_subject(orig_schema),
                 constraint,
                 orig_schema,
-                context,
                 self.source_context,
             )
 
@@ -2254,18 +2239,16 @@ class AlterConstraint(
 
                 # XXX: I don't think any of this logic is needed??
                 for child in constraint.children(schema):
-                    orig_cbconstr = schemac_to_backendc(
+                    orig_cbconstr = schemamech.compile_constraint(
                         child.get_subject(orig_schema),
                         child,
                         orig_schema,
-                        context,
                         self.source_context,
                     )
-                    cbconstr = schemac_to_backendc(
+                    cbconstr = schemamech.compile_constraint(
                         child.get_subject(schema),
                         child,
                         schema,
-                        context,
                         self.source_context,
                     )
                     op.add_command(cbconstr.alter_ops(orig_cbconstr))
@@ -2273,18 +2256,16 @@ class AlterConstraint(
                 op.add_command(bconstr.alter_ops(orig_bconstr))
 
                 for child in constraint.children(schema):
-                    orig_cbconstr = schemac_to_backendc(
+                    orig_cbconstr = schemamech.compile_constraint(
                         child.get_subject(orig_schema),
                         child,
                         orig_schema,
-                        context,
                         self.source_context,
                     )
-                    cbconstr = schemac_to_backendc(
+                    cbconstr = schemamech.compile_constraint(
                         child.get_subject(schema),
                         child,
                         schema,
-                        context,
                         self.source_context,
                     )
                     op.add_command(cbconstr.alter_ops(orig_cbconstr))
@@ -3176,7 +3157,7 @@ class CompositeMetaCommand(MetaCommand):
         if pg_schema is not None:
             inhview_name = (pg_schema, inhview_name[1])
 
-        ptrs = {}
+        ptrs: Dict[sn.UnqualName, Tuple[str, Tuple[str, ...]]] = {}
 
         if isinstance(obj, s_sources.Source):
             pointers = list(obj.get_pointers(schema).items(schema))
@@ -3204,7 +3185,7 @@ class CompositeMetaCommand(MetaCommand):
 
         else:
             # MULTI PROPERTY
-            ptrs[sn.UnqualName('source')] = ('source', 'uuid')
+            ptrs[sn.UnqualName('source')] = ('source', ('uuid',))
             lp_info = types.get_pointer_storage_info(
                 obj,
                 link_bias=True,
@@ -3944,6 +3925,7 @@ class PointerMetaCommand(
         if isinstance(source_op, sd.CreateObject):
             return
 
+        assert ptr_stor_info.table_name
         tab = q(*ptr_stor_info.table_name)
         target_col = ptr_stor_info.column_name
         source = ptr.get_source(orig_schema)
@@ -4143,6 +4125,7 @@ class PointerMetaCommand(
 
         if fill_expr is not None:
 
+            assert ptr_stor_info.table_name
             tab = q(*ptr_stor_info.table_name)
             target_col = ptr_stor_info.column_name
             source = ptr.get_source(orig_schema)

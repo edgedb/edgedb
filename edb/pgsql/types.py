@@ -429,10 +429,11 @@ class _PointerStorageInfo:
 
 @functools.lru_cache()
 def get_pointer_storage_info(
-        pointer, *, schema, source=None, resolve_type=True,
-        link_bias=False):
-    assert not pointer.generic(schema), \
-        "only specialized pointers can be stored"
+    pointer, *, schema, source=None, resolve_type=True, link_bias=False
+) -> PointerStorageInfo:
+    assert not pointer.generic(
+        schema
+    ), "only specialized pointers can be stored"
     if pointer.get_computable(schema):
         material_ptrcls = None
     else:
