@@ -149,9 +149,9 @@ database. However, we can't impose a shape on it:
 
 As written, EdgeDB infers the *type* of this expression to be
 :eql:type:`BaseObject`. Why? Because in theory, there may be
-several links named ``author`` that point to ``User``. And there
-is no guarantee that each of these links will have a property
-called ``text``.
+several links named ``author`` from different object types
+that point to ``User``. And there is no guarantee that each 
+of these links will have a property called ``text``.
 
 .. note::
   ``BaseObject`` is the root ancestor of all object types and it only contains
