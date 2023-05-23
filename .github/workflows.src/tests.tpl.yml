@@ -53,7 +53,6 @@ jobs:
 
     - name: Handle Rust extensions build cache
       uses: actions/cache@v3
-      id: rust-cache
       with:
         path: ${{ env.BUILD_TEMP }}/rust/extensions
         key: edb-rust-build-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
