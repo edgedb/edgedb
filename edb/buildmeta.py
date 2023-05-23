@@ -44,7 +44,7 @@ from edb.common import verutils
 
 
 # Increment this whenever the database layout or stdlib changes.
-EDGEDB_CATALOG_VERSION = 2023_05_04_00_02
+EDGEDB_CATALOG_VERSION = 2023_05_23_00_00
 EDGEDB_MAJOR_VERSION = 4
 
 
