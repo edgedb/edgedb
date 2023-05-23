@@ -54,6 +54,11 @@ class ScalarType(
         coerce=True, compcoef=0.909,
     )
 
+    sql_type = so.SchemaField(
+        str, default=None, compcoef=0.9,
+        patch_level=1,
+    )
+
     enum_values = so.SchemaField(
         checked.FrozenCheckedList[str], default=None,
         coerce=True, compcoef=0.8,
@@ -337,6 +342,7 @@ class ScalarTypeCommand(
             and not context.stdmode
             and not abstract
             and not enum
+            and not self.get_attribute_value('sql_type')
         ):
             if not ancestors:
                 hint = (

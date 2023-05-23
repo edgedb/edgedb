@@ -4098,6 +4098,7 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
     text = f'''
         SELECT
             coalesce(
+                sql_type::regtype::oid,
                 (
                     SELECT
                         tn::regtype::oid
@@ -4182,6 +4183,7 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
                 ('typeid', ('uuid',)),
                 ('kind', ('text',)),
                 ('elemid', ('uuid',)),
+                ('sql_type', ('text',)),
             ],
             returns=('bigint',),
             volatility='stable',
@@ -4853,6 +4855,16 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
         'name': "(e.value->>'name')",
         'name__internal': "(e.value->>'name__internal')",
         'script': "(e.value->>'script')",
+        'sql_extensions': '''
+            COALESCE(
+                (SELECT array_agg(edgedb.jsonb_extract_scalar(q.v, 'string'))
+                FROM jsonb_array_elements(
+                    e.value->'sql_extensions'
+                ) AS q(v)),
+                ARRAY[]::text[]
+            )
+        ''',
+        'ext_module': "(e.value->>'ext_module')",
         'computed_fields': 'ARRAY[]::text[]',
         'builtin': "(e.value->>'builtin')::bool",
         'internal': "(e.value->>'internal')::bool",

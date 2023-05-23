@@ -302,6 +302,12 @@ class EdgeQLMigrationBodyParser(EdgeQLParserBase):
         return migration_body
 
 
+class EdgeQLExtensionPackageBodyParser(EdgeQLParserBase):
+    def get_parser_spec_module(self):
+        from .grammar import extension_package_body
+        return extension_package_body
+
+
 class EdgeSDLParser(EdgeQLParserBase):
     def get_parser_spec_module(self):
         from .grammar import sdldocument
