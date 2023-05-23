@@ -477,15 +477,19 @@ def _build_object_mutation_shape(
                     f'backend_id := sys::_get_pg_type_for_edgedb_type('
                     f'<uuid>$__{var_prefix}id, '
                     f'{kind}, '
-                    f'<uuid>$__{var_prefix}element_type)'
+                    f'<uuid>$__{var_prefix}element_type, '
+                    f'<str>$__{var_prefix}sql_type), '
                 )
             else:
                 assignments.append(
                     f'backend_id := sys::_get_pg_type_for_edgedb_type('
-                    f'<uuid>$__{var_prefix}id, {kind}, <uuid>{{}})'
+                    f'<uuid>$__{var_prefix}id, {kind}, <uuid>{{}}, '
+                    f'<str>$__{var_prefix}sql_type), '
                 )
             variables[f'__{var_prefix}id'] = json.dumps(
                 str(cmd.get_attribute_value('id')))
+            variables[f'__{var_prefix}sql_type'] = json.dumps(
+                cmd.get_attribute_value('sql_type'))
 
     shape = ',\n'.join(assignments)
 
