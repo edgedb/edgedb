@@ -1703,8 +1703,7 @@ def _compile_ql_transaction(
     )
 
 
-def _compile_ql_sess_state(ctx: CompileContext,
-                           ql: qlast.BaseSessionCommand):
+def _compile_ql_sess_state(ctx: CompileContext, ql: qlast.SessionCommand):
     current_tx = ctx.state.current_tx()
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
 
@@ -1865,7 +1864,7 @@ def _compile_dispatch_ql(
             enums.Capability.TRANSACTION,
         )
 
-    elif isinstance(ql, (qlast.BaseSessionSet, qlast.BaseSessionReset)):
+    elif isinstance(ql, qlast.SessionCommand):
         return (
             _compile_ql_sess_state(ctx, ql),
             enums.Capability.SESSION_CONFIG,

@@ -594,7 +594,7 @@ def _trace_item_layout(
 
     assert fq_name is not None
 
-    if isinstance(node, qlast.BasesMixin):
+    if isinstance(node, qlast.BasedOnTuple):
         bases = []
         # construct the parents set, used later in ancestors graph
         parents = set()
@@ -1326,7 +1326,7 @@ def _get_bases(
     ctx: LayoutTraceContext
 ) -> List[s_name.QualName]:
     """Resolve object bases from the "extends" declaration."""
-    if not isinstance(decl, qlast.BasesMixin):
+    if not isinstance(decl, qlast.BasedOnTuple):
         return []
 
     bases = []

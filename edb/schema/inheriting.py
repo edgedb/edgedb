@@ -800,7 +800,7 @@ class CreateInheritingObject(
 
             if explicit_bases:
                 if isinstance(node, qlast.CreateObject):
-                    if isinstance(node, qlast.BasesMixin):
+                    if isinstance(node, qlast.BasedOnTuple):
                         node.bases = [
                             qlast.TypeName(maintype=utils.name_to_ast_ref(b))
                             for b in explicit_bases
