@@ -192,6 +192,7 @@ class ObjectType(
             if (
                 lnk.get_shortname(schema).name == name
                 and not lnk.get_source_type(schema).is_view(schema)
+                and not lnk.get_source_type(schema).is_union_type(schema)
                 # Only grab the "base" pointers
                 and all(
                     b.generic(schema)
