@@ -155,6 +155,7 @@ class OperatorCommand(
         context: sd.CommandContext,
     ) -> sn.QualName:
         assert isinstance(astnode, qlast.OperatorCommand)
+        assert isinstance(astnode, qlast.ObjectDDL)
         name = super()._classname_from_ast(schema, astnode, context)
 
         params = cls._get_param_desc_from_ast(
