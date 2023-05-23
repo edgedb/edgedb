@@ -176,16 +176,16 @@ Or parsed one step at a time, the above queries can be read as follows:
 
 .. code-block:: edgeql
 
-    User.<        Objects that link to the user
-    author        via a link named author
+    # User.<        Objects that link to the user
+    # author        via a link named author
 
-    User.<        Objects that link to the user
-    author        via a link named author
-    [is BlogPost] that are BlogPosts
+    # User.<        Objects that link to the user
+    # author        via a link named author
+    # [is BlogPost] that are BlogPosts
 
-    User.<        Objects that link to the user
-    author        via a link named author
-    [is Comment]  that are Comments
+    # User.<        Objects that link to the user
+    # author        via a link named author
+    # [is Comment]  that are Comments
 
 Backlinks can be inserted into a schema with the same format, except
 that the type name (in this case ``User``) doesn't need to be specified.
