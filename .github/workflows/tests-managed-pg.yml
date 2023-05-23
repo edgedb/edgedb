@@ -31,7 +31,7 @@ jobs:
         python-version: '3.10'
 
     - name: Cache virtualenv
-      id: py-cache
+      id: venv-cache
       uses: actions/cache@v3
       with:
         path: |
@@ -39,7 +39,7 @@ jobs:
         key: virtualenv-${{ runner.os }}-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
 
     - name: Create virtualenv if not cached
-      if: steps.py-cache.outputs.cache-hit != 'true'
+      if: steps.venv-cache.outputs.cache-hit != 'true'
       run: python -m venv test-venv
 
     - name: Initialize virtualenv
@@ -386,7 +386,7 @@ jobs:
         python-version: '3.10'
 
     - name: Cache virtualenv
-      id: py-cache
+      id: venv-cache
       uses: actions/cache@v3
       with:
         path: |
@@ -394,7 +394,7 @@ jobs:
         key: virtualenv-${{ runner.os }}-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
 
     - name: Create virtualenv if not cached
-      if: steps.py-cache.outputs.cache-hit != 'true'
+      if: steps.venv-cache.outputs.cache-hit != 'true'
       run: python -m venv test-venv
 
     - name: Initialize virtualenv
@@ -600,7 +600,7 @@ jobs:
         python-version: '3.10'
 
     - name: Cache virtualenv
-      id: py-cache
+      id: venv-cache
       uses: actions/cache@v3
       with:
         path: |
@@ -608,7 +608,7 @@ jobs:
         key: virtualenv-${{ runner.os }}-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
 
     - name: Create virtualenv if not cached
-      if: steps.py-cache.outputs.cache-hit != 'true'
+      if: steps.venv-cache.outputs.cache-hit != 'true'
       run: python -m venv test-venv
 
     - name: Initialize virtualenv
@@ -862,7 +862,7 @@ jobs:
         python-version: '3.10'
 
     - name: Cache virtualenv
-      id: py-cache
+      id: venv-cache
       uses: actions/cache@v3
       with:
         path: |
@@ -870,7 +870,7 @@ jobs:
         key: virtualenv-${{ runner.os }}-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
 
     - name: Create virtualenv if not cached
-      if: steps.py-cache.outputs.cache-hit != 'true'
+      if: steps.venv-cache.outputs.cache-hit != 'true'
       run: python -m venv test-venv
 
     - name: Initialize virtualenv
@@ -1090,7 +1090,7 @@ jobs:
         python-version: '3.10'
 
     - name: Cache virtualenv
-      id: py-cache
+      id: venv-cache
       uses: actions/cache@v3
       with:
         path: |
@@ -1098,7 +1098,7 @@ jobs:
         key: virtualenv-${{ runner.os }}-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
 
     - name: Create virtualenv if not cached
-      if: steps.py-cache.outputs.cache-hit != 'true'
+      if: steps.venv-cache.outputs.cache-hit != 'true'
       run: python -m venv test-venv
 
     - name: Initialize virtualenv
@@ -1306,7 +1306,7 @@ jobs:
         python-version: '3.10'
 
     - name: Cache virtualenv
-      id: py-cache
+      id: venv-cache
       uses: actions/cache@v3
       with:
         path: |
@@ -1314,7 +1314,7 @@ jobs:
         key: virtualenv-${{ runner.os }}-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
 
     - name: Create virtualenv if not cached
-      if: steps.py-cache.outputs.cache-hit != 'true'
+      if: steps.venv-cache.outputs.cache-hit != 'true'
       run: python -m venv test-venv
 
     - name: Initialize virtualenv
