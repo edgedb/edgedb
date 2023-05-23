@@ -108,7 +108,8 @@ friend of another User*.
 
 Paths can traverse to an arbitrary depth in a series of nested links.
 The ``select`` below ends up showing the author of the BlogPost
-(The friend of the friend of the BlogPost, which is the author)
+(The friends of the friends of the author of the BlogPost, 
+which in this case is just the author)
 
 .. code-block:: edgeql
 
