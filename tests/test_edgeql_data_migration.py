@@ -2340,6 +2340,22 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 );
         """)
 
+    async def test_edgeql_migration_function_06(self):
+        await self.migrate("""
+            type Foo;
+            type Bar;
+            type Baz {
+                optional link baz -> (Foo | Bar)
+            };
+            function getBaz(bar: Baz) -> optional (Foo | Bar)
+                using(bar.baz)
+        """)
+        await self.con.execute('insert test::Baz {}')
+        await self.assert_query_result(
+            "select test::getBaz((select test::Baz limit 1))",
+            [])
+        await self.con.execute("drop function test::getBaz(baz: test::Baz)")
+
     async def test_edgeql_migration_constraint_01(self):
         await self.migrate('''
             abstract constraint not_bad {
