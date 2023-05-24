@@ -25,15 +25,6 @@ from edb.testbase import server as tb
 class DumpTestCaseMixin:
 
     async def ensure_schema_data_integrity(self):
-        # HACK, FIXME(#5529): If we go straight into a
-        # transaction as the first thing we do on our new connection
-        # to the post-restore database, the query_execution_timeout
-        # value doesn't properly get applied. allow_user_specified_id
-        # works, which makes me think this issue is specific to things
-        # with backend meaning. Executing a query before entering the
-        # transaction fixes it.
-        await self.con.query('select 1')
-
         tx = self.con.transaction()
         await tx.start()
         try:
