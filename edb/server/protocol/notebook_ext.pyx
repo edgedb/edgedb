@@ -188,7 +188,11 @@ async def execute(db, server, queries: list):
                 query_unit_group = dbstate.QueryUnitGroup()
                 query_unit_group.append(query_unit)
 
-                if query_unit.capabilities & ~ALLOWED_CAPABILITIES:
+                allowed_capabilities = ALLOWED_CAPABILITIES
+                if server.is_readonly():
+                    allowed_capabilities &= ~enums.Capability.WRITE
+
+                if query_unit.capabilities & ~allowed_capabilities:
                     raise query_unit.capabilities.make_error(
                         ALLOWED_CAPABILITIES,
                         errors.UnsupportedCapabilityError,

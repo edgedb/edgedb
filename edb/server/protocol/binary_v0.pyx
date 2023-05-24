@@ -1034,6 +1034,9 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
 
             compiled = self._last_anon_compiled
 
+        if self.server.is_readonly():
+            allow_capabilities &= ~enums.Capability.WRITE
+
         if compiled.query_unit_group.capabilities & ~allow_capabilities:
             raise compiled.query_unit_group.capabilities.make_error(
                 allow_capabilities,
@@ -1111,6 +1114,9 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                     raise errors.BinaryProtocolError(
                         f'unexpected message header: {k}'
                     )
+
+        if self.server.is_readonly():
+            allow_capabilities &= ~enums.Capability.WRITE
 
         eql = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
