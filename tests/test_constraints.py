@@ -1742,3 +1742,14 @@ class TestConstraintsDDL(tb.DDLTestCase):
                 };
             """
             )
+
+    async def test_constraints_no_refs(self):
+        await self.con.execute(
+            """
+            create type X {
+                create property name -> str {
+                    create constraint std::expression on (true);
+                };
+            };
+        """
+        )
