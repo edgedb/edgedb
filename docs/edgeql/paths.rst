@@ -107,9 +107,9 @@ friend of another User*.
     select User.friends;
 
 Paths can traverse to an arbitrary depth in a series of nested links.
-The ``select`` below ends up showing the author of the BlogPost
-(The friends of the friends of the author of the BlogPost, 
-which in this case is just the author)
+Both ``select`` queries below ends up showing the author of the ``BlogPost``.
+The second query returns the friends of the friends of the author of the
+ ``BlogPost``, which in this case is just the author.
 
 .. code-block:: edgeql
 
@@ -151,7 +151,7 @@ As written, EdgeDB infers the *type* of this expression to be
 :eql:type:`BaseObject`. Why? Because in theory, there may be
 several links named ``author`` from different object types
 that point to ``User``. And there is no guarantee that each 
-of these links will have a property called ``text``.
+of these types will have a property called ``text``.
 
 .. note::
   ``BaseObject`` is the root ancestor of all object types and it only contains
@@ -174,18 +174,28 @@ To do so, use the :eql:op:`type intersection <isintersect>` operator:
 
 Or parsed one step at a time, the above queries can be read as follows:
 
-.. code-block:: edgeql
+================================ ===================================
+Syntax                           Meaning
+================================ ===================================
+``User.<``                       Objects that link to the user
+``author``                       via a link named author
+================================ ===================================
 
-    # User.<        Objects that link to the user
-    # author        via a link named author
+================================ ===================================
+Syntax                           Meaning
+================================ ===================================
+``User.<``                       Objects that link to the user
+``author``                       via a link named author
+``[is BlogPost]``                that are ``BlogPost`` objects
+================================ ===================================
 
-    # User.<        Objects that link to the user
-    # author        via a link named author
-    # [is BlogPost] that are BlogPosts
-
-    # User.<        Objects that link to the user
-    # author        via a link named author
-    # [is Comment]  that are Comments
+================================ ===================================
+Syntax                           Meaning
+================================ ===================================
+``User.<``                       Objects that link to the user
+``author``                       via a link named author
+``[is Comment]``                 that are ``Comment`` objects
+================================ ===================================
 
 Backlinks can be inserted into a schema with the same format, except
 that the type name (in this case ``User``) doesn't need to be specified.
