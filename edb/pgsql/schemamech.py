@@ -279,8 +279,15 @@ def compile_constraint(
         subject_db_name, info = next(iter(ref_tables.items()))
         table_type = info[0][3].table_type
     else:
+        # the expression does don't have any refs: default to the subject table
+
+        if isinstance(subject, s_pointers.Pointer):
+            subject_table = subject.get_source(schema)
+        else:
+            subject_table = subject
+
         subject_db_name = common.get_backend_name(
-            schema, subject, catenate=False
+            schema, subject_table, catenate=False
         )
         table_type = 'ObjectType'
 
