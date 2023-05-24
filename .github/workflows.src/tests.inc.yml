@@ -275,21 +275,20 @@
 
     # Install edgedb-server and populate egg-info
 
-    - name: Cache egg-info
-      id: egg-cache
-      uses: actions/cache@v3
-      with:
-        path: ./edgedb_server.egg-info
-        key: edgedb_server-egg-info-${{ hashFiles('setup.py', 'pyproject.toml') }}
-
     - name: Install edgedb-server and populate egg-info
-      if: steps.egg-cache.outputs.cache-hit != 'true'
+      if: steps.venv-cache.outputs.cache-hit != 'true'
       env:
+        CACHE_HIT: ${{ steps.py-cache.outputs.cache-hit }}
         BUILD_EXT_MODE: skip
       run: |
+        if [[ "$CACHE_HIT" == "true" ]]; then
+          rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+        else
           # --no-build-isolation because we have explicitly installed all deps
           # and don't want them to be reinstalled in an "isolated env".
           pip install --no-build-isolation --no-deps -e .[test,docs]
+          rsync -av ./edgedb_server.egg-info/ $VIRTUAL_ENV/edgedb_server.egg-info/
+        fi
 
     # Refresh the bootstrap cache
 
