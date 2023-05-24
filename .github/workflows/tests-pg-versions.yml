@@ -498,7 +498,6 @@ jobs:
     - name: Test
       env:
         EDGEDB_TEST_POSTGRES_VERSION: ${{ matrix.postgres-version }}
-      continue-on-error: ${{ matrix.postgres-version == 15 }}
       run: |
         if [[ "${{ matrix.single-mode }}" ]]; then
           export EDGEDB_TEST_BACKEND_DSN=postgres://singles:test@localhost/singles
