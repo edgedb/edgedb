@@ -264,3 +264,12 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest):
             'create global foo -> int64',
         ])
         self.assertNotIn('error', results['results'][0])
+
+    def test_http_notebook_09(self):
+        results = self.run_queries([
+            '''
+            select <duration>'15m' < <duration>'1h';
+            ''',
+        ])
+
+        self.assertNotIn('error', results['results'][0])
