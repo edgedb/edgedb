@@ -434,13 +434,12 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             raise errors.AuthenticationError('authentication failed')
 
         skey = self.server.get_jws_key()
+        token = jwt.JWT(algs=["RS256", "ES256"])
+        # Allow for some clock skew, but not as much as the default 60 seconds.
+        token.leeway = 5  # seconds
 
         try:
-            token = jwt.JWT(
-                key=skey,
-                algs=["RS256", "ES256"],
-                jwt=encoded_token,
-            )
+            token.deserialize(encoded_token, skey)
         except jwt.JWException as e:
             logger.debug('authentication failure', exc_info=True)
             raise errors.AuthenticationError(
