@@ -9702,4 +9702,3 @@ class TestCreateMigration(tb.BaseSchemaTest):
                 }};
             '''
         )
-
