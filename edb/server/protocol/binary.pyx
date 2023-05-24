@@ -853,6 +853,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.write(self.make_state_data_description_msg())
             raise
 
+        if self.server.is_readonly():
+            allow_capabilities &= ~enums.Capability.WRITE
+
         return dbview.QueryRequestInfo(
             self._tokenize(query),
             self.protocol_version,

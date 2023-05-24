@@ -944,6 +944,9 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
 
         source = self._tokenize(eql)
 
+        if self.server.is_readonly():
+            allow_capabilities &= ~enums.Capability.WRITE
+
         query_req = dbview.QueryRequestInfo(
             source,
             self.protocol_version,
