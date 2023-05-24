@@ -46,7 +46,7 @@ jobs:
       run: |
         set -e
         python -m pip install -U pip setuptools wheel build
-        python -m pip install -U .[test]
+        python -m pip install -U .[test,build-system]
         pip list
 
     # Prepare environment variables and shared artifacts
