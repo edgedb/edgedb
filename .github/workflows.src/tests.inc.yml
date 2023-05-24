@@ -25,12 +25,9 @@
         path: ./test-venv
         key: virtualenv-${{ runner.os }}-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
 
-    - name: Create virtualenv if not cached
-      if: steps.venv-cache.outputs.cache-hit != 'true'
-      run: python -m venv test-venv
-
     - name: Initialize virtualenv
       run: |
+        python -m venv test-venv
         source ./test-venv/bin/activate
         echo "VIRTUAL_ENV: $VIRTUAL_ENV"
         echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
