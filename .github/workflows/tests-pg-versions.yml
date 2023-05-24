@@ -49,7 +49,9 @@ jobs:
       run: python -m venv $VIRTUAL_ENV
 
     - name: Activate virtualenv
-      run: source $VIRTUAL_ENV/bin/activate
+      run: |
+        source $VIRTUAL_ENV/bin/activate
+        pip list
 
     - name: Install Python dependencies
       shell: bash
@@ -395,7 +397,9 @@ jobs:
       run: python -m venv $VIRTUAL_ENV
 
     - name: Activate virtualenv
-      run: source $VIRTUAL_ENV/bin/activate
+      run: |
+        source $VIRTUAL_ENV/bin/activate
+        pip list
 
     # Restore the artifacts and environment variables
 
