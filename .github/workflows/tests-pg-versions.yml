@@ -42,10 +42,7 @@ jobs:
       run: |
         set -e
         python -m pip install -U pip setuptools wheel build
-        bdeps_script="import build; print('\n'.join(build.ProjectBuilder('.').build_system_requires))"
-        readarray -t build_deps < <(python -c "${bdeps_script}")
-        python -m pip download "${build_deps[@]}" .[test]
-        python -m pip install -U --no-index .[test]
+        python -m pip install -U .[test]
         pip list
 
     # Prepare environment variables and shared artifacts
