@@ -645,7 +645,7 @@ def _trace_item_layout(
                 raise errors.InvalidDefinitionError(
                     f'cannot create a link property on a property',
                     context=decl.context,
-                    hint='Link property can only be created on links, whose '
+                    hint='Link properties can only be created on links, whose '
                          'target types are object types.',
                 )
 
