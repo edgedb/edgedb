@@ -1079,13 +1079,13 @@ class CreateCallableObject(
         if hasattr(astnode, 'returning'):
             assert isinstance(astnode, (qlast.CreateOperator,
                                         qlast.CreateFunction))
-            assert isinstance(astnode.returning, qlast.TypeName)
             modaliases = context.modaliases
 
             return_type = utils.ast_to_type_shell(
                 astnode.returning,
                 metaclass=s_types.Type,
                 modaliases=modaliases,
+                module=cmd.classname.module,
                 schema=schema,
             )
 
