@@ -433,7 +433,7 @@ class TestExpressions(tb.QueryTestCase):
                                     'interval field value out of range'):
             async with self.con.transaction():
                 await self.con.query_single(
-                    r'''SELECT <duration>'3074457345618258602us' ''',
+                    r'''SELECT <duration>'13074457345618258602us' ''',
                 )
 
     async def test_edgeql_expr_op_02(self):

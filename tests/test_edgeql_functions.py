@@ -2804,7 +2804,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
-            SELECT to_str(DT, 'FMDDth of FMMonth, YYYY');
+            SELECT to_str(DT, 'FMDDth "of" FMMonth, YYYY');
             ''',
             {'7th of May, 2018'},
         )
@@ -2887,7 +2887,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             WITH DT := <cal::local_date>'2018-05-07'
-            SELECT to_str(DT, 'FMDDth of FMMonth, YYYY');
+            SELECT to_str(DT, 'FMDDth "of" FMMonth, YYYY');
             ''',
             {'7th of May, 2018'},
         )
