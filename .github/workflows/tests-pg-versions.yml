@@ -30,20 +30,12 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Cache virtualenv
-      id: venv-cache
+    - name: Cache python environment
+      id: py-cache
       uses: actions/cache@v3
       with:
-        path: ./test-venv
-        key: virtualenv-${{ runner.os }}-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
-
-    - name: Initialize virtualenv
-      run: |
-        python -m venv test-venv
-        source ./test-venv/bin/activate
-        echo "VIRTUAL_ENV: $VIRTUAL_ENV"
-        echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
-        pip list
+        path: ${{ env.pythonLocation }}
+        key: python-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
 
     - name: Install Python dependencies
       shell: bash
@@ -52,8 +44,9 @@ jobs:
         python -m pip install -U pip setuptools wheel build
         bdeps_script="import build; print('\n'.join(build.ProjectBuilder('.').build_system_requires))"
         readarray -t build_deps < <(python -c "${bdeps_script}")
-        python -m pip download --dest=$VIRTUAL_ENV/deps "${build_deps[@]}" .[test]
-        python -m pip install -U --no-index --find-links=$VIRTUAL_ENV/deps $VIRTUAL_ENV/deps/*
+        python -m pip download "${build_deps[@]}" .[test]
+        python -m pip install -U --no-index .[test]
+        pip list
 
     # Prepare environment variables and shared artifacts
 
@@ -285,19 +278,21 @@ jobs:
 
     # Install edgedb-server and populate egg-info
 
+    - name: Cache egg-info
+      id: egg-cache
+      uses: actions/cache@v3
+      with:
+        path: ./edgedb_server.egg-info
+        key: edgedb_server-egg-info-${{ hashFiles('setup.py', 'pyproject.toml') }}
+
     - name: Install edgedb-server and populate egg-info
+      if: steps.egg-cache.outputs.cache-hit != 'true'
       env:
-        CACHE_HIT: ${{ steps.venv-cache.outputs.cache-hit }}
         BUILD_EXT_MODE: skip
       run: |
-        if [[ "$CACHE_HIT" == "true" ]]; then
-          rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
-        else
           # --no-build-isolation because we have explicitly installed all deps
           # and don't want them to be reinstalled in an "isolated env".
           pip install --no-build-isolation --no-deps -e .[test,docs]
-          rsync -av ./edgedb_server.egg-info/ $VIRTUAL_ENV/edgedb_server.egg-info/
-        fi
 
     # Refresh the bootstrap cache
 
@@ -367,20 +362,12 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Cache virtualenv
-      id: venv-cache
+    - name: Cache python environment
+      id: py-cache
       uses: actions/cache@v3
       with:
-        path: ./test-venv
-        key: virtualenv-${{ runner.os }}-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
-
-    - name: Initialize virtualenv
-      run: |
-        python -m venv test-venv
-        source ./test-venv/bin/activate
-        echo "VIRTUAL_ENV: $VIRTUAL_ENV"
-        echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
-        pip list
+        path: ${{ env.pythonLocation }}
+        key: python-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
 
     # Restore the artifacts and environment variables
 
@@ -451,7 +438,7 @@ jobs:
 
     - name: Stop if we cannot retrieve the cache
       if: |
-        steps.venv-cache.outputs.cache-hit != 'true' ||
+        steps.py-cache.outputs.cache-hit != 'true' ||
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true' ||
         steps.ext-cache.outputs.cache-hit != 'true' ||
@@ -470,7 +457,6 @@ jobs:
         rsync -av ./build/extensions/edb/ ./edb/
         rsync -av ./build/lib/edb/ ./edb/
         cp build/postgres/install/stamp build/postgres/
-        rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
 
     # Run the test
 
