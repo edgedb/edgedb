@@ -30,19 +30,36 @@ jobs:
       with:
         python-version: '3.10'
 
+    - name: Set VIRTUAL_ENV environment
+      run: |
+        VIRTUAL_ENV=~/.virtualenvs
+        mkdir -p $VIRTUAL_ENV
+        echo $VIRTUAL_ENV
+        echo VIRTUAL_ENV=$VIRTUAL_ENV >> $GITHUB_ENV
+
     - name: Cache python environment
-      id: py-cache
+      id: venv-cache
       uses: actions/cache@v3
       with:
-        path: ${{ env.pythonLocation }}
-        key: python-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
+        path: ${{ env.VIRTUAL_ENV }}
+        key: virtualenv-${{ runner.os }}-${{ env.VIRTUAL_ENV }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
+
+    - name: Create virtualenv if none exists
+      if: steps.venv-cache.outputs.cache-hit != 'true'
+      run: python -m venv $VIRTUAL_ENV
+
+    - name: Activate virtualenv
+      run: source $VIRTUAL_ENV/bin/activate
 
     - name: Install Python dependencies
       shell: bash
       run: |
         set -e
         python -m pip install -U pip setuptools wheel build
-        python -m pip install -U .[test,build-system]
+        bdeps_script="import build; print('\n'.join(build.ProjectBuilder('.').build_system_requires))"
+        readarray -t build_deps < <(python -c "${bdeps_script}")
+        python -m pip download --dest=$VIRTUAL_ENV/deps "${build_deps[@]}" .[test]
+        python -m pip install -U --no-index --find-links=$VIRTUAL_ENV/deps $VIRTUAL_ENV/deps/*
         pip list
 
     # Prepare environment variables and shared artifacts
@@ -359,12 +376,26 @@ jobs:
       with:
         python-version: '3.10'
 
+    - name: Set VIRTUAL_ENV environment
+      run: |
+        VIRTUAL_ENV=~/.virtualenvs
+        mkdir -p $VIRTUAL_ENV
+        echo $VIRTUAL_ENV
+        echo VIRTUAL_ENV=$VIRTUAL_ENV >> $GITHUB_ENV
+
     - name: Cache python environment
-      id: py-cache
+      id: venv-cache
       uses: actions/cache@v3
       with:
-        path: ${{ env.pythonLocation }}
-        key: python-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
+        path: ${{ env.VIRTUAL_ENV }}
+        key: virtualenv-${{ runner.os }}-${{ env.VIRTUAL_ENV }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
+
+    - name: Create virtualenv if none exists
+      if: steps.venv-cache.outputs.cache-hit != 'true'
+      run: python -m venv $VIRTUAL_ENV
+
+    - name: Activate virtualenv
+      run: source $VIRTUAL_ENV/bin/activate
 
     # Restore the artifacts and environment variables
 
@@ -435,7 +466,7 @@ jobs:
 
     - name: Stop if we cannot retrieve the cache
       if: |
-        steps.py-cache.outputs.cache-hit != 'true' ||
+        steps.venv-cache.outputs.cache-hit != 'true' ||
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true' ||
         steps.ext-cache.outputs.cache-hit != 'true' ||
