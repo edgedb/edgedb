@@ -351,6 +351,17 @@ class TestSchema(tb.BaseSchemaLoadTest):
             type T { multi link following extending abs -> T {using (T)} }
         """
 
+    @tb.must_fail(errors.InvalidDefinitionError,
+                  "cannot create a link property on a property")
+    def test_schema_link_prop_on_prop_01(self):
+        """
+            type Test1 {
+                title : str {
+                    sub_title : str
+                }
+            };
+        """
+
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "invalid property type: expected a scalar type, "
                   "or a scalar collection, got object type 'test::Object'",

@@ -639,6 +639,16 @@ def _trace_item_layout(
     for decl in node.commands:
         if isinstance(decl, qlast.CreateConcretePointer):
             assert isinstance(obj, qltracer.Source)
+
+            # do not allow link property on properties
+            if isinstance(node, qlast.CreateConcreteProperty):
+                raise errors.InvalidDefinitionError(
+                    f'cannot create a link property on a property',
+                    context=decl.context,
+                    hint='Link properties can only be created on links, whose '
+                         'target types are object types.',
+                )
+
             target: Optional[qltracer.TypeLike]
             target_expr: Optional[qlast.Expr]
             if isinstance(decl.target, qlast.TypeExpr):
