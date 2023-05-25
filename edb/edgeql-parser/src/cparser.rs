@@ -1,11 +1,17 @@
 use std::collections::HashMap;
-use serde_json::Value;
-use serde_json::json;
 
-#[derive(Debug)]
+use serde::Deserialize;
+use serde::Serialize;
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
 pub enum Action {
     Shift(usize),
-    Reduce(String, String, usize),
+    Reduce {
+        nonterm: String,
+        production: String,
+        cnt: usize,
+    },
 }
 
 pub struct Spec {
@@ -14,146 +20,107 @@ pub struct Spec {
     pub start: String,
 }
 
-pub fn load(jspec: &str) -> Result<Spec, String>
-{
-    let v: Value = serde_json::from_str(jspec).map_err(
-        |e| format!("Error: {e}"))?;
-
-    let mut sactions = Vec::new();
-
-    // ERRORS
-    let actions = v.get("actions").ok_or("missing actions")?.as_array().
-        ok_or("actions not array")?;
-    let goto = v.get("goto").ok_or("missing goto")?.as_array().
-        ok_or("goto not array")?;
-
-    for jaction in actions {
-        // println!("tok: {:?}", jaction);
-        let sacts = jaction.as_array(). ok_or("actions not array")?;
-        let mut acts = HashMap::new();
-
-        for sact in sacts {
-            let stok = sact.get(0).ok_or("bad entry")?.as_str().
-                ok_or("tok not string")?;
-            let sact2 = sact.get(1).ok_or("bad entry")?;
-
-            let act = match sact2 {
-                Value::Number(next) => {
-                    Action::Shift(next.as_u64().ok_or("bad state")? as usize)
-                }
-                Value::Object(m) => {
-                    let nonterm = m.get("nonterm").ok_or("no nonterm")?.
-                        as_str().ok_or("nonterm not string")?;
-                    let prod = m.get("production").ok_or("no prod")?.
-                        as_str().ok_or("prod not string")?;
-                    let cnt = m.get("cnt").ok_or("no cnt")?.
-                        as_u64().ok_or("cnt not int")?;
-
-                    Action::Reduce(
-                        String::from(nonterm), String::from(prod), cnt as usize)
-                }
-                _ => {
-                    Err("shit")?
-                }
-            };
-            acts.insert(String::from(stok), act);
-
-        }
-        sactions.push(acts);
-    }
-
-
-    let mut sgoto = Vec::new();
-
-    for jgoto in goto {
-        // println!("tok: {:?}", jaction);
-        let jsgotos = jgoto.as_array(). ok_or("goto not array")?;
-        let mut gotos = HashMap::new();
-
-        for jgoto in jsgotos {
-            let stok = jgoto.get(0).ok_or("bad entry")?.as_str().
-                ok_or("tok not string")?;
-            let snext = jgoto.get(1).ok_or("bad entry")?.
-                as_u64().ok_or("bad state")? as usize;
-            gotos.insert(String::from(stok), snext);
-        }
-        sgoto.push(gotos);
-    }
-
-
-    let start = v.get("start").ok_or("no start")?.as_str().ok_or("bad start")?;
-
-    // println!("SPEC: {:?}", spec);
-
-    Ok(Spec { actions: sactions, goto: sgoto, start: String::from(start) })
+#[derive(Deserialize)]
+pub struct SpecJson {
+    pub actions: Vec<Vec<(String, Action)>>,
+    pub goto: Vec<Vec<(String, usize)>>,
+    pub start: String,
 }
 
-fn cparse_main(
-    spec: &Spec, input: &[(String, String)]
-) -> Result<serde_json::Value, String> {
-    // let mut stack: Vec<(&str, usize, serde_json::Value)> = Vec::new();
-    // stack.push((&*spec.1, 0, Value::Null));
-    let mut stack: Vec<(usize, serde_json::Value)> = Vec::new();
-    stack.push((0, Value::Null));
+pub fn load(jspec: &str) -> Result<Spec, String> {
+    let v = serde_json::from_str::<SpecJson>(jspec).map_err(|e| format!("Error: {e}"))?;
+
+    Ok(Spec {
+        actions: v.actions.into_iter().map(HashMap::from_iter).collect(),
+        goto: v.goto.into_iter().map(HashMap::from_iter).collect(),
+        start: v.start,
+    })
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+pub enum CSTNode<'a> {
+    Empty,
+    Token {
+        token: &'a String,
+        text: &'a String,
+    },
+    Value {
+        nonterm: String,
+        production: String,
+        args: Vec<CSTNode<'a>>,
+    },
+}
+
+struct StackNode<'a> {
+    state: usize,
+    value: CSTNode<'a>,
+}
+
+fn cparse_main<'a>(spec: &Spec, input: &'a [(String, String)]) -> Result<CSTNode<'a>, String> {
+    let mut stack: Vec<StackNode> = Vec::new();
+    stack.push(StackNode {
+        state: 0,
+        value: CSTNode::Empty,
+    });
 
     let actions = &spec.actions;
 
     for (tok, text) in input {
         loop {
-            let state = stack[stack.len() - 1].0;
+            let state = stack[stack.len() - 1].state;
             // println!("seeing {} at {}", tok, state);
 
             let action = match actions[state].get(tok) {
-                Some(v) => { v }
-                None => {
-                    Err(format!("unexpected token {} in state {}", tok, state))?
-                }
+                Some(v) => v,
+                None => Err(format!("unexpected token {} in state {}", tok, state))?,
             };
             match action {
                 Action::Shift(next) => {
                     // println!("shifting {}/{} at {}", tok, next, state);
-                    stack.push((
-                        *next,
-                        json!({"token": tok, "text": text}),
-                    ));
+                    stack.push(StackNode {
+                        state: *next,
+                        value: CSTNode::Token { token: tok, text },
+                    });
                     break;
                 }
-                Action::Reduce(nonterm, prod, cnt) => {
+                Action::Reduce {
+                    nonterm,
+                    production,
+                    cnt,
+                } => {
                     // let next = spec.goto[state][nonterm];
-                    let mut parts = Vec::new();
-                    for _ in 0..*cnt {
-                        parts.push(stack.pop().unwrap().1);
-                    }
-                    let rparts: Vec<_> = parts.into_iter().rev().collect();
-                    let val = json!(
-                        {"nonterm": nonterm, "prod": prod, "args": rparts}
-                    );
 
-                    let nstate = stack[stack.len() - 1].0;
+                    let args = stack
+                        .drain((stack.len() - cnt)..)
+                        .map(|n| n.value)
+                        .collect();
+
+                    let value = CSTNode::Value {
+                        nonterm: nonterm.clone(),
+                        production: production.clone(),
+                        args,
+                    };
+
+                    let nstate = stack[stack.len() - 1].state;
                     // println!("reducing {}/{} ({} popped) at {}/{}",
                     //          nonterm, prod, cnt, state, nstate);
-                    let next = *spec.goto[nstate].get(nonterm)
+                    let next = *spec.goto[nstate]
+                        .get(nonterm)
                         .ok_or(format!("{} at {} fucked", nonterm, nstate))?;
 
-                    stack.push((next, val));
+                    stack.push(StackNode { state: next, value });
                 }
             }
-
         }
-
     }
 
     stack.pop();
     let out = stack.pop().ok_or("stack empty")?;
-    Ok(out.1)
+    Ok(out.value)
 }
 
-
-pub fn cparse(
-    jspec: String, input: Vec<(String, String)>) -> Result<String, String>
-{
-    let spec = load(&*jspec)?;
-    let val = cparse_main(&spec, &*input)?;
-
-    Ok(val.to_string())
+pub fn cparse(jspec: String, input: &[(String, String)]) -> Result<CSTNode, String> {
+    let spec = load(&jspec)?;
+    cparse_main(&spec, input)
 }

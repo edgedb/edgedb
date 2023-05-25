@@ -256,9 +256,13 @@ pub fn parse_cheese(
     })?;
     let cheese = convert_tokens_cheese(py, rust_tokens, token_stream.current_pos())?;
 
-    let out = cparse(String::from(spec.to_string(py)?), cheese).map_err(|s| {
-        TokenizerError::new(py, (s, py.None()))
-    })?;
+    let out = cparse(String::from(spec.to_string(py)?), &cheese)
+        .and_then(|out| {
+            serde_json::to_string(&out).map_err(|e| format!("cannot serialize CST: {e}"))
+        })
+        .map_err(|s| {
+            TokenizerError::new(py, (s, py.None()))
+        })?;
 
     Ok(PyString::new(py, &*out))
 }
