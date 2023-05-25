@@ -60,14 +60,15 @@ these commands:
 
   .. code-block:: bash
 
-      edgedb instance create <github-username>/<instance-name>
+      $ edgedb instance create <github-username>/<instance-name>
 
 * :ref:`ref_cli_edgedb_project_init` with the ``--server-instance`` option. Set
   the server instance name to ``<github-username>/<instance-name>``.
 
   .. code-block:: bash
 
-      edgedb project init --server-instance <github-username>/<instance-name>
+      $ edgedb project init \
+        --server-instance <github-username>/<instance-name>
 
 
 3. Configure your application
