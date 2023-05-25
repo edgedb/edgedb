@@ -21,6 +21,7 @@ unicode-width = "0.1.8"
 edgeql-parser-derive = { path = "edgeql-parser-derive", optional = true }
 cpython = { version = "0.7.0", optional = true }
 indexmap = "1.9.3"
+serde_json = {version="1.0", features=["preserve_order"]}
 
 [features]
 default = []

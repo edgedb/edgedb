@@ -210,6 +210,7 @@ dependencies = [
  "indexmap",
  "memchr",
  "serde",
+ "serde_json",
  "sha2",
  "snafu",
  "thiserror",
@@ -237,7 +238,6 @@ dependencies = [
  "edgedb-protocol",
  "edgeql-parser",
  "num-bigint 0.4.3",
- "serde_json",
 ]
 
 [[package]]

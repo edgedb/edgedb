@@ -1,4 +1,5 @@
 pub mod ast;
+pub mod cparser;
 pub mod expr;
 pub mod hash;
 pub mod helpers;

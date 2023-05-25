@@ -9,13 +9,12 @@ mod keywords;
 pub mod normalize;
 mod position;
 mod pynormalize;
-mod cparser;
 mod tokenizer;
 
 use errors::TokenizerError;
 use position::{offset_of_line, SourcePoint};
 use pynormalize::normalize;
-use tokenizer::{get_unpickle_fn, tokenize, parse_cheese, Token};
+use tokenizer::{get_unpickle_fn, parse_cheese, tokenize, Token};
 
 py_module_initializer!(
     _edgeql_parser,
@@ -31,8 +30,11 @@ py_module_initializer!(
         )?;
 
         m.add(py, "tokenize", py_fn!(py, tokenize(data: &PyString)))?;
-        m.add(py, "parse_cheese",
-              py_fn!(py, parse_cheese(spec: &PyString, data: &PyString)))?;
+        m.add(
+            py,
+            "parse_cheese",
+            py_fn!(py, parse_cheese(spec: &PyString, data: &PyString)),
+        )?;
         m.add(py, "_unpickle_token", get_unpickle_fn(py))?;
         m.add(py, "Token", py.get_type::<Token>())?;
         m.add(py, "TokenizerError", py.get_type::<TokenizerError>())?;
