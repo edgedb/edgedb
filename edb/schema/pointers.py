@@ -1929,45 +1929,25 @@ class PointerCommand(
             so.ObjectShell(name=source_name, schemaclass=s_sources.Source),
         )
 
-        # FIXME: this is an approximate solution
-        targets = qlast.get_targets(astnode.target)
         target_ref: Union[None, s_types.TypeShell[s_types.Type], ComputableRef]
 
-        if len(targets) > 1:
-            assert isinstance(source_name, sn.QualName)
-
-            new_targets = [
-                utils.ast_to_type_shell(
-                    t,  # type: ignore
-                    metaclass=s_types.Type,
-                    modaliases=context.modaliases,
-                    schema=schema,
-                )
-                for t in targets
-            ]
-
-            target_ref = s_types.UnionTypeShell(
-                components=new_targets,
-                module=source_name.module,
-                schemaclass=s_types.Type,
-            )
-        elif targets:
-            target_expr = targets[0]
-            if isinstance(target_expr, qlast.TypeExpr):
+        if astnode.target:
+            if isinstance(astnode.target, qlast.TypeExpr):
                 target_ref = utils.ast_to_type_shell(
-                    target_expr,
+                    astnode.target,
                     metaclass=s_types.Type,
                     modaliases=context.modaliases,
+                    module=source_name.module,
                     schema=schema,
                 )
             else:
                 # computable
                 qlcompiler.normalize(
-                    target_expr,
+                    astnode.target,
                     schema=schema,
                     modaliases=context.modaliases
                 )
-                target_ref = ComputableRef(target_expr)
+                target_ref = ComputableRef(astnode.target)
         else:
             # Target is inherited.
             target_ref = None

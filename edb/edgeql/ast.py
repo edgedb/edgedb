@@ -1539,17 +1539,6 @@ class Schema(SDL):
 #
 
 
-def get_targets(
-    target: typing.Union[None, TypeExpr, Expr]
-) -> typing.List[typing.Union[TypeExpr, Expr]]:
-    if target is None:
-        return []
-    elif isinstance(target, TypeOp):
-        return get_targets(target.left) + get_targets(target.right)
-    else:
-        return [target]
-
-
 def get_ddl_field_command(
     ddlcmd: DDLOperation,
     name: str,
