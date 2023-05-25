@@ -777,6 +777,68 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 rf.close()
                 os.unlink(rf_name)
 
+    async def test_server_ops_readonly(self):
+        rf_no, rf_name = tempfile.mkstemp(text=True)
+        rf = open(rf_no, "wt")
+
+        try:
+            print("default", file=rf, flush=True)
+
+            async with tb.start_edgedb_server(
+                readiness_state_file=rf_name,
+            ) as sd:
+                conn = await sd.connect()
+                await conn.execute("create type A")
+                await conn.execute("insert A")
+                await conn.execute(
+                    "configure current database "
+                    "set allow_user_specified_id := true"
+                )
+
+                # Make read-only explicitly
+                rf.seek(0)
+                print("read_only", file=rf, flush=True)
+                await asyncio.sleep(0.05)
+                async for tr in self.try_until_succeeds(
+                    ignore=(errors.AccessError, AssertionError),
+                ):
+                    async with tr:
+                        with self.assertRaisesRegex(
+                            edgedb.DisabledCapabilityError,
+                            "the server is currently in read-only mode",
+                        ):
+                            await conn.execute("insert A")
+
+                with self.assertRaisesRegex(
+                    edgedb.DisabledCapabilityError,
+                    "the server is currently in read-only mode",
+                ):
+                    await conn.execute("create type B")
+                with self.assertRaisesRegex(
+                    edgedb.DisabledCapabilityError,
+                    "the server is currently in read-only mode",
+                ):
+                    await conn.execute(
+                        "configure current database "
+                        "set allow_user_specified_id := false"
+                    )
+
+                # Clear read-only by removing the file
+                rf.close()
+                os.unlink(rf_name)
+                await asyncio.sleep(0.05)
+                async for tr in self.try_until_succeeds(
+                    ignore=(errors.AccessError, AssertionError),
+                ):
+                    async with tr:
+                        await conn.execute("insert A")
+
+                await conn.aclose()
+        finally:
+            if os.path.exists(rf_name):
+                rf.close()
+                os.unlink(rf_name)
+
     async def test_server_ops_restore_with_schema_signal(self):
         async def test(pgdata_path):
             backend_dsn = f'postgres:///?user=postgres&host={pgdata_path}'
