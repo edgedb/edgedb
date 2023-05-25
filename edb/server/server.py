@@ -329,6 +329,9 @@ class Server(ha_base.ClusterProtocol):
     def is_ready(self) -> bool:
         return self._readiness is srvargs.ReadinessState.Default
 
+    def is_readonly(self) -> bool:
+        return self._readiness is srvargs.ReadinessState.ReadOnly
+
     def get_pg_dbname(self, dbname: str) -> str:
         return self._cluster.get_db_name(dbname)
 

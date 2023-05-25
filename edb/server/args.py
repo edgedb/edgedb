@@ -94,6 +94,7 @@ class ReadinessState(enum.StrEnum):
 
     Default = "default"
     NotReady = "not_ready"
+    ReadOnly = "read_only"
 
 
 class ServerAuthMethod(enum.StrEnum):
