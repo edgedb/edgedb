@@ -70,6 +70,10 @@ these commands:
       $ edgedb project init \
         --server-instance <github-username>/<instance-name>
 
+  Alternatively, you can run ``edgedb project init`` *without* the
+  ``--server-instance`` option and enter an instance name in the
+  ``<github-username>/<instance-name>`` format when prompted interactively.
+
 
 3. Configure your application
 -----------------------------
