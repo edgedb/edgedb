@@ -44,3 +44,7 @@ create type Foo {
         }
     );
 };
+
+configure current database set allow_user_specified_id := true;
+configure current database set query_execution_timeout :=
+  <std::duration>'1 hour 20 minutes 13 seconds';
