@@ -311,8 +311,8 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                     -- Disable transaction or query execution timeout
                     -- limits. Both clients and the server can be slow
                     -- during the dump/restore process.
-                    SET idle_in_transaction_session_timeout = 0;
-                    SET statement_timeout = 0;
+                    SET LOCAL idle_in_transaction_session_timeout = 0;
+                    SET LOCAL statement_timeout = 0;
                 ''',
             )
 
@@ -504,8 +504,8 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                     -- Disable transaction or query execution timeout
                     -- limits. Both clients and the server can be slow
                     -- during the dump/restore process.
-                    SET idle_in_transaction_session_timeout = 0;
-                    SET statement_timeout = 0;
+                    SET LOCAL idle_in_transaction_session_timeout = 0;
+                    SET LOCAL statement_timeout = 0;
                 ''',
             )
 
