@@ -11,6 +11,7 @@ use edgeql_parser::keywords::{PARTIAL_RESERVED_KEYWORDS, UNRESERVED_KEYWORDS};
 use edgeql_parser::keywords::{CURRENT_RESERVED_KEYWORDS};
 use edgeql_parser::keywords::{FUTURE_RESERVED_KEYWORDS};
 
+use crate::cparser::cparse;
 use crate::errors::TokenizerError;
 use crate::pynormalize::{py_pos, value_to_py_object};
 
@@ -216,6 +217,50 @@ pub fn convert_tokens(py: Python, rust_tokens: Vec<PToken<'_>>,
         )?.into_object()
     );
     Ok(PyList::new(py, &buf[..]))
+}
+
+// XXX positions
+pub fn convert_tokens_cheese(py: Python, rust_tokens: Vec<PToken<'_>>,
+    _end_pos: Pos)
+    -> PyResult<Vec<(String, String)>>
+{
+    let tokens = unsafe { TOKENS.as_ref().expect("module initialized") };
+    let mut cache = Cache {
+        keyword_buf: String::with_capacity(MAX_KEYWORD_LENGTH),
+    };
+    let mut buf = Vec::with_capacity(rust_tokens.len());
+    for tok in rust_tokens {
+        let (name, text) = get_token_kind_and_name(py, tokens, &mut cache, &tok);
+
+        buf.push((
+            String::from(name.to_string(py)?),
+            String::from(text.to_string(py)?),
+        ))
+    }
+    buf.push((
+        String::from(tokens.eof.to_string(py)?),
+        String::from(tokens.empty.to_string(py)?),
+    ));
+    Ok(buf)
+}
+
+pub fn parse_cheese(
+    py: Python, spec: &PyString, s: &PyString) -> PyResult<PyString> {
+    let data = s.to_string(py)?;
+
+    let mut token_stream = Tokenizer::new(&data[..]).validated_values();
+    let rust_tokens: Vec<_> = py.allow_threads(|| {
+        (&mut token_stream).collect::<Result<_, _>>()
+    }).map_err(|e| {
+        TokenizerError::new(py, (e.message, py_pos(py, &e.span.start)))
+    })?;
+    let cheese = convert_tokens_cheese(py, rust_tokens, token_stream.current_pos())?;
+
+    let out = cparse(String::from(spec.to_string(py)?), cheese).map_err(|s| {
+        TokenizerError::new(py, (s, py.None()))
+    })?;
+
+    Ok(PyString::new(py, &*out))
 }
 
 impl Tokens {
