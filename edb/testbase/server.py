@@ -1406,6 +1406,7 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
     ISOLATED_METHODS = False
     STABLE_DUMP = True
     TRANSACTION_ISOLATION = False
+    PARALLELISM_GRANULARITY = 'suite'
 
     async def check_dump_restore_single_db(self, check_method):
         with tempfile.NamedTemporaryFile() as f:

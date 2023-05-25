@@ -103,6 +103,19 @@ class DumpTestCaseMixin:
             [{"name": "whatever_no", "errmessage": "aaaaaa"}],
         )
 
+        await self.assert_query_result(
+            r'''
+            select cfg::Config.allow_user_specified_id;
+            ''',
+            [True],
+        )
+        await self.assert_query_result(
+            r'''
+            select <str>cfg::Config.query_execution_timeout;
+            ''',
+            ['PT1H20M13S'],
+        )
+
 
 class TestDumpV3(tb.StableDumpTestCase, DumpTestCaseMixin):
     DEFAULT_MODULE = 'test'
