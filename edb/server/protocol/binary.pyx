@@ -853,9 +853,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.write(self.make_state_data_description_msg())
             raise
 
-        if self.server.is_readonly():
-            allow_capabilities &= ~enums.Capability.WRITE
-
         return dbview.QueryRequestInfo(
             self._tokenize(query),
             self.protocol_version,
@@ -945,11 +942,12 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         # `cacheable` flag to compile the query again.
         self._last_anon_compiled = None
 
-        if query_unit_group.capabilities & ~query_req.allow_capabilities:
-            raise query_unit_group.capabilities.make_error(
-                query_req.allow_capabilities,
-                errors.DisabledCapabilityError,
-            )
+        _dbview.check_capabilities(
+            query_unit_group.capabilities,
+            query_req.allow_capabilities,
+            errors.DisabledCapabilityError,
+            "disabled by the client",
+        )
 
         if query_unit_group.in_type_id != in_tid:
             self.write(self.make_command_data_description_msg(compiled))

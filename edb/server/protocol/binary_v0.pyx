@@ -867,11 +867,12 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             )
             self._last_anon_compiled = compiled
 
-        if query_unit_group.capabilities & ~query_req.allow_capabilities:
-            raise query_unit_group.capabilities.make_error(
-                query_req.allow_capabilities,
-                errors.DisabledCapabilityError,
-            )
+        self.get_dbview().check_capabilities(
+            query_unit_group.capabilities,
+            query_req.allow_capabilities,
+            errors.DisabledCapabilityError,
+            "disabled by the client",
+        )
 
         if (
             query_unit_group.in_type_id != in_tid or
@@ -943,9 +944,6 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             raise errors.BinaryProtocolError('empty query')
 
         source = self._tokenize(eql)
-
-        if self.server.is_readonly():
-            allow_capabilities &= ~enums.Capability.WRITE
 
         query_req = dbview.QueryRequestInfo(
             source,
@@ -1034,14 +1032,12 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
 
             compiled = self._last_anon_compiled
 
-        if self.server.is_readonly():
-            allow_capabilities &= ~enums.Capability.WRITE
-
-        if compiled.query_unit_group.capabilities & ~allow_capabilities:
-            raise compiled.query_unit_group.capabilities.make_error(
-                allow_capabilities,
-                errors.DisabledCapabilityError,
-            )
+        self.get_dbview().check_capabilities(
+            compiled.query_unit_group.capabilities,
+            allow_capabilities,
+            errors.DisabledCapabilityError,
+            "disabled by the client",
+        )
 
         await self._legacy_execute(compiled, bind_args, False)
 
@@ -1115,9 +1111,6 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                         f'unexpected message header: {k}'
                     )
 
-        if self.server.is_readonly():
-            allow_capabilities &= ~enums.Capability.WRITE
-
         eql = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
         if not eql:
@@ -1174,13 +1167,14 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         if self._cancelled:
             raise ConnectionAbortedError
 
-        if unit_group.capabilities & ~allow_capabilities:
-            raise unit_group.capabilities.make_error(
-                allow_capabilities,
-                errors.DisabledCapabilityError,
-            )
-
         _dbview = self.get_dbview()
+        _dbview.check_capabilities(
+            unit_group.capabilities,
+            allow_capabilities,
+            errors.DisabledCapabilityError,
+            "disabled by the client",
+        )
+
         if not _dbview.in_tx():
             orig_state = state = _dbview.serialize_state()
 

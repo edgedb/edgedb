@@ -803,12 +803,21 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     ignore=(errors.AccessError, AssertionError),
                 ):
                     async with tr:
-                        with self.assertRaises(edgedb.DisabledCapabilityError):
+                        with self.assertRaisesRegex(
+                            edgedb.DisabledCapabilityError,
+                            "the server is currently in read-only mode",
+                        ):
                             await conn.execute("insert A")
 
-                with self.assertRaises(edgedb.DisabledCapabilityError):
+                with self.assertRaisesRegex(
+                    edgedb.DisabledCapabilityError,
+                    "the server is currently in read-only mode",
+                ):
                     await conn.execute("create type B")
-                with self.assertRaises(edgedb.DisabledCapabilityError):
+                with self.assertRaisesRegex(
+                    edgedb.DisabledCapabilityError,
+                    "the server is currently in read-only mode",
+                ):
                     await conn.execute(
                         "configure current database "
                         "set allow_user_specified_id := false"

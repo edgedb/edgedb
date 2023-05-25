@@ -49,13 +49,14 @@ class Capability(enum.IntFlag):
         self,
         allowed: Capability,
         error_constructor: Callable[[str], Error_T],
+        reason: str,
     ) -> Error_T:
         for item in Capability:
             if item & allowed:
                 continue
             if self & item:
                 return error_constructor(
-                    f"cannot execute {CAPABILITY_TITLES[item]}")
+                    f"cannot execute {CAPABILITY_TITLES[item]}: {reason}")
         raise AssertionError(
             f"extra capability not found in"
             f" {self} allowed {allowed}"
