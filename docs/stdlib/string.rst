@@ -669,6 +669,12 @@ Strings
         db> select to_str(<cal::local_date>'2018-05-07', 'CCth "century"');
         {'21st century'}
 
+    .. note::
+    
+        If you want to use literal text in your format string, it's best to
+        enclose it in double quotes as shown above with ``of`` and
+        ``century``.
+
     When converting one of the numeric types, this function is the
     reverse of: :eql:func:`to_bigint`, :eql:func:`to_decimal`,
     :eql:func:`to_int16`, :eql:func:`to_int32`, :eql:func:`to_int64`,
