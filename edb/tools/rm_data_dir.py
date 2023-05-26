@@ -29,6 +29,7 @@ def rm_data_dir():
     data_dir = devmode.get_dev_mode_data_dir()
     if data_dir.exists():
         shutil.rmtree(data_dir)
-        print("Removed the local dev data directory.")
+        print("Removed the following local dev data directory.")
+        print(data_dir)
     else:
         print("The local dev data directory does not exist.")
