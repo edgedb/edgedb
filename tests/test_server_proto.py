@@ -3371,7 +3371,9 @@ class TestServerCapabilities(tb.QueryTestCase):
 
     async def test_server_capabilities_06(self):
         caps = enums.Capability.ALL & ~enums.Capability.TRANSACTION
-        with self.assertRaises(edgedb.DisabledCapabilityError):
+        with self.assertRaisesRegex(
+            edgedb.DisabledCapabilityError, "disabled by the client"
+        ):
             await self.con._fetchall(
                 'START MIGRATION TO {}',
                 __allow_capabilities__=caps,
