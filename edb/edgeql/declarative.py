@@ -783,21 +783,26 @@ def trace_SetField(
     ctx: DepTraceContext,
 ) -> None:
     deps = set()
+    exprs = []
 
     assert node.value, "sdl SetField should always have value"
-    for dep in qltracer.trace_refs(
-        node.value,
-        schema=ctx.schema,
-        module=ctx.module,
-        objects=ctx.objects,
-        local_modules=ctx.local_modules,
-        params={},
-    ):
-        # ignore std module dependencies
-        if dep.get_module_name() not in s_schema.STD_MODULES:
-            deps.add(dep)
+    if node.name == 'default':
+        assert isinstance(node.value, qlast.Expr)
+        exprs.append(ExprDependency(expr=node.value))
+    else:
+        for dep in qltracer.trace_refs(
+            node.value,
+            schema=ctx.schema,
+            module=ctx.module,
+            objects=ctx.objects,
+            local_modules=ctx.local_modules,
+            params={},
+        ):
+            # ignore std module dependencies
+            if dep.get_module_name() not in s_schema.STD_MODULES:
+                deps.add(dep)
 
-    _register_item(node, deps=deps, ctx=ctx)
+    _register_item(node, deps=deps, hard_dep_exprs=exprs, ctx=ctx)
 
 
 @trace_dependencies.register
@@ -1287,6 +1292,10 @@ def _get_pointer_deps(
     # as their prefix. As a rule, the assumption is that depending on
     # a link typically comes as a package of depending on the link's
     # property.
+    # This will *also* grab any constraints on the pointer, which
+    # is is important for properly doing cardinality inference
+    # on expressions involving it.
+    # PERF: We should avoid actually searching all the objects.
     for propname in ctx.objects:
         if str(propname).startswith(str(pointer) + '@'):
             result.add(propname)
