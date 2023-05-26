@@ -363,7 +363,9 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.QueryError,
-                  "could not resolve partial path")
+                  "could not resolve partial path",
+                  hint="Partial paths are not allowed in the default of a"
+                       " link property.")
     def test_schema_partial_path_in_default_of_link_prop_01(self):
         """
             module default {

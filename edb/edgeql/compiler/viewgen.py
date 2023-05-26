@@ -1246,6 +1246,7 @@ def _compile_qlexpr(
     ptr_name: sn.QualName,
     is_linkprop: bool,
     should_set_partial_prefix: bool,
+    partial_prefix_hint: Optional[str],
     s_ctx: ShapeContext,
     ctx: context.ContextLevel,
 ) -> Tuple[irast.Set, context.ViewRPtr]:
@@ -1272,6 +1273,10 @@ def _compile_qlexpr(
 
         if should_set_partial_prefix:
             shape_expr_ctx.partial_path_prefix = source_set
+        else:
+            shape_expr_ctx.partial_path_prefix_absence_hint = (
+                partial_prefix_hint
+            )
 
         if s_ctx.exprtype.is_mutation() and ptrcls is not None:
             shape_expr_ctx.expr_exposed = context.Exposure.EXPOSED
@@ -1442,6 +1447,7 @@ def _normalize_view_ptr_expr(
                 ptr_name=ptr_name,
                 is_linkprop=is_linkprop,
                 should_set_partial_prefix=True,
+                partial_prefix_hint=None,
                 s_ctx=s_ctx,
                 ctx=ctx,
             )
@@ -1517,6 +1523,17 @@ def _normalize_view_ptr_expr(
             qlexpr = qlast.SelectQuery(result=qlexpr, implicit=True)
             qlexpr.limit = qlast.IntegerConstant(value=str(ctx.implicit_limit))
 
+        # do not set partial path prefix if in the insert
+        # shape but not in defaults
+        should_set_partial_prefix = (
+            not s_ctx.exprtype.is_insert() or from_default)
+        partial_prefix_hint = None
+        if not should_set_partial_prefix:
+            partial_prefix_hint = (
+                "Partial paths are not allowed in the shape of an insert"
+                " query."
+            )
+
         irexpr, sub_view_rptr = _compile_qlexpr(
             ir_source,
             qlexpr,
@@ -1525,10 +1542,8 @@ def _normalize_view_ptr_expr(
             ptrsource=ptrsource,
             ptr_name=ptr_name,
             is_linkprop=is_linkprop,
-            # do not set partial path prefix if in the insert
-            # shape but not in defaults
-            should_set_partial_prefix=(
-                not s_ctx.exprtype.is_insert() or from_default),
+            should_set_partial_prefix=should_set_partial_prefix,
+            partial_prefix_hint=partial_prefix_hint,
             s_ctx=s_ctx,
             ctx=ctx,
         )

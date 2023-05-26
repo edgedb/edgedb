@@ -90,6 +90,8 @@ class TestInsert(tb.QueryTestCase):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             r"could not resolve partial path",
+            hint="Partial paths are not allowed in the shape of an insert"
+                 " query.",
         ):
             await self.con.execute('''
                 INSERT Person { name := .name };

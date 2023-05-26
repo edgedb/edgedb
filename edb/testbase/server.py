@@ -63,11 +63,12 @@ from edb.common import debug
 from edb.common import retryloop
 from edb.common import taskgroup
 
+from edb import errors
+
 from edb.protocol import protocol as test_protocol
 from edb.testbase import serutils
 
 from edb.testbase import connection as tconn
-
 
 if TYPE_CHECKING:
     import asyncpg
@@ -231,11 +232,18 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
             raise
 
     @contextlib.contextmanager
-    def assertRaisesRegex(self, exception, regex, msg=None, **kwargs):
+    def assertRaisesRegex(self, exception, regex, msg=None, hint=None,
+                          **kwargs):
         with super().assertRaisesRegex(exception, regex, msg=msg):
             try:
                 yield
             except BaseException as e:
+                if hint is not None:
+                    if isinstance(e, errors.EdgeDBError):
+                        if e.hint != hint:
+                            raise self.failureException(
+                                f'{exception.__name__} hint is {e.hint!r} '
+                                f'(expected {hint!r})') from e
                 if isinstance(e, exception):
                     for attr_name, expected_val in kwargs.items():
                         val = getattr(e, attr_name)

@@ -126,6 +126,8 @@ def init_context(
             options.path_prefix_anchor, path_prefix, ctx=ctx)
         ctx.partial_path_prefix.anchor = options.path_prefix_anchor
         ctx.partial_path_prefix.show_as_anchor = options.path_prefix_anchor
+    elif options.path_prefix_absence_hint is not None:
+        ctx.partial_path_prefix_absence_hint = options.path_prefix_absence_hint
 
     if options.detached:
         ctx.path_id_namespace = frozenset({ctx.aliases.get('ns')})

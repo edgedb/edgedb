@@ -504,6 +504,9 @@ class ContextLevel(compiler.ContextLevel):
     partial_path_prefix: Optional[irast.Set]
     """The set used as a prefix for partial paths."""
 
+    partial_path_prefix_absence_hint: Optional[str]
+    """The hint to user about the absence of the partial path prefix."""
+
     implicit_id_in_shapes: bool
     """Whether to include the id property in object shapes implicitly."""
 
@@ -587,6 +590,7 @@ class ContextLevel(compiler.ContextLevel):
             self.expr_exposed = Exposure.UNEXPOSED
 
             self.partial_path_prefix = None
+            self.partial_path_prefix_absence_hint = None
 
             self.view_rptr = None
             self.toplevel_result_view_name = None
@@ -630,6 +634,8 @@ class ContextLevel(compiler.ContextLevel):
             self.view_scls = prevlevel.view_scls
             self.expr_exposed = prevlevel.expr_exposed
             self.partial_path_prefix = prevlevel.partial_path_prefix
+            self.partial_path_prefix_absence_hint = \
+                prevlevel.partial_path_prefix_absence_hint
             self.toplevel_stmt = prevlevel.toplevel_stmt
             self.implicit_id_in_shapes = prevlevel.implicit_id_in_shapes
             self.implicit_tid_in_shapes = prevlevel.implicit_tid_in_shapes

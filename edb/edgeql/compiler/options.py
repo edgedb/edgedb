@@ -107,6 +107,9 @@ class CompilerOptions(GlobalCompilerOptions):
     #: The symbol to assume as the prefix for abbreviated paths.
     path_prefix_anchor: Optional[str] = None
 
+    #: The hint to use when the path prefix is not set.
+    path_prefix_absence_hint: Optional[str] = None
+
     #: Module to put derived schema objects to.
     derived_target_module: Optional[str] = None
 

@@ -275,6 +275,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         else:
             raise errors.QueryError(
                 'could not resolve partial path ',
+                hint=ctx.partial_path_prefix_absence_hint,
                 context=expr.context)
 
     computables: list[irast.Set] = []
