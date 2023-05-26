@@ -1439,6 +1439,7 @@ class PointerCommandOrFragment(
         no_query_rewrites: bool = False,
         make_globals_empty: bool = False,
         source_context: Optional[parsing.ParserContext] = None,
+        should_set_path_prefix_anchor: bool = True,
     ) -> s_expr.CompiledExpression:
         singletons: List[Union[s_types.Type, Pointer]] = []
 
@@ -1489,7 +1490,10 @@ class PointerCommandOrFragment(
                 modaliases=context.modaliases,
                 schema_object_context=self.get_schema_metaclass(),
                 anchors={qlast.Source().name: source},
-                path_prefix_anchor=qlast.Source().name,
+                path_prefix_anchor=(
+                    qlast.Source().name 
+                    if should_set_path_prefix_anchor 
+                    else None),
                 singletons=singletons,
                 apply_query_rewrites=(
                     not context.stdmode and not no_query_rewrites
@@ -1539,12 +1543,30 @@ class PointerCommandOrFragment(
             else:
                 in_ddl_context_name = None
 
+            # If we are in a link property's default field
+            # do not set path prefix anchor, because link properties
+            # cannot have defaults that reference the object being inserted
+            should_set_path_prefix_anchor = True
+            if field.name == 'default':
+                from .objtypes import ObjectTypeCommandContext
+                from .links import LinkCommandContext
+                from .properties import PropertyCommandContext
+                if (len(context.stack) >= 3 and
+                    isinstance(context.stack[-3],
+                               ObjectTypeCommandContext) and
+                    isinstance(context.stack[-2],
+                               LinkCommandContext) and
+                    isinstance(context.stack[-1],
+                               PropertyCommandContext)):
+                    should_set_path_prefix_anchor = False
+
             return self._compile_expr(
                 schema,
                 context,
                 value,
                 in_ddl_context_name=in_ddl_context_name,
                 track_schema_ref_exprs=track_schema_ref_exprs,
+                should_set_path_prefix_anchor=should_set_path_prefix_anchor,
             )
         else:
             return super().compile_expr_field(
