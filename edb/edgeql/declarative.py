@@ -305,10 +305,9 @@ class LayoutTraceContext(TraceContextBase):
         self.inh_graph = {}
 
 
-DDLGraph = Dict[
-    s_name.QualName,
-    topological.DepGraphEntry[s_name.QualName, qlast.DDLCommand, bool],
-]
+GraphEntry = topological.DepGraphEntry[s_name.QualName, qlast.DDLCommand, bool]
+
+DDLGraph = Dict[s_name.QualName, GraphEntry]
 
 
 class DepTraceContext(TraceContextBase):
@@ -406,7 +405,9 @@ def sdl_to_ddl(
                 elif isinstance(decl_ast, qlast.CreateAnnotation):
                     ctx.objects[fq_name] = qltracer.Annotation(fq_name)
                 elif isinstance(decl_ast, qlast.CreateGlobal):
-                    ctx.objects[fq_name] = qltracer.Global(fq_name)
+                    ctx.objects[fq_name] = qltracer.Global(
+                        fq_name, is_computed=isinstance(
+                            decl_ast.target, qlast.Expr))
                 elif isinstance(decl_ast, qlast.CreateIndex):
                     ctx.objects[fq_name] = qltracer.Index(fq_name)
                 else:
@@ -454,8 +455,16 @@ def sdl_to_ddl(
         ddlentry.deps = OrderedSet(sorted(ddlentry.deps))
         ddlentry.weak_deps = OrderedSet(sorted(ddlentry.weak_deps))
 
+    # HACK: Pre-sort the graph based on a priority category system.
+    sorted_ddlgraph = dict(
+        sorted(
+            ddlgraph.items(),
+            key=lambda i: _prioritize_obj(i[0], i[1], ctx.objects.get(i[0])),
+        )
+    )
+
     try:
-        ordered = topological.sort(ddlgraph, allow_unresolved=False)
+        ordered = topological.sort(sorted_ddlgraph, allow_unresolved=False)
     except topological.CycleError as e:
         assert isinstance(e.item, s_name.QualName)
         node = tracectx.ddlgraph[e.item].item
@@ -475,6 +484,58 @@ def sdl_to_ddl(
         raise errors.InvalidDefinitionError(msg, context=node.context) from e
 
     return tuple(mods) + tuple(ordered)
+
+
+def _prioritize_obj(
+    name: s_name.QualName,
+    entry: GraphEntry,
+    obj: qltracer.NamedObject | s_obj.Object | None
+) -> int:
+    """Determine a priority for actions to nudge the topo-sort.
+
+    We use this to sort the ddlgraph before toposorting it, which has
+    the effect of making sure certain things get *initially* processed
+    before others.
+    This is a hack, and is used to mask problems in cases where we
+    don't track all our dependencies right.
+
+    The categories we sort into, from lowest to highest priority.
+      1. Things that can contain expressions but which nothing depends on
+      2. Things that can contain expressions *and* be depended on
+      3. Pointer constraints, which get subtly depended on and have
+         few dependencies of their own.
+      4. Other stuff, which shouldn't contain expressions.
+    """
+    if isinstance(
+        obj,
+        (
+            qltracer.ConcreteIndex,
+            qltracer.Trigger,
+            qltracer.AccessPolicy,
+            qltracer.Rewrite,
+        )
+    ) or (
+        # object constraints are low priority
+        isinstance(obj, qltracer.ConcreteConstraint)
+        and isinstance(entry.item, qlast.AlterObjectType)
+        and isinstance(
+            entry.item.commands[0], (qlast.AlterProperty, qlast.AlterLink))
+    ):
+        pri = 1
+    elif (
+        (isinstance(obj, qltracer.Pointer) and obj.target_expr)
+        or (isinstance(obj, qltracer.Global) and obj.is_computed)
+        or (obj is None and str(name).endswith('@default'))
+    ):
+        pri = 2
+    # *pointer* constraints are high priority because they impact
+    # inference
+    elif isinstance(obj, qltracer.ConcreteConstraint):
+        pri = 3
+    else:
+        pri = 4
+
+    return -pri
 
 
 def _graph_merge_cb(
