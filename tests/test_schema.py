@@ -1336,6 +1336,27 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """
 
+    @tb.must_fail(errors.QueryError,
+                  "missing value for required property",
+                  line=9, col=42)
+    def test_schema_rewrite_missing_required_01(self):
+        """
+            type Project {
+                required name: str;
+                required owner: User;
+            }
+
+            type User {
+                link default_project: Project {
+                    rewrite insert using (
+                        insert Project {
+                            owner := __subject__,
+                        }
+                    )
+                };
+            }
+        """
+
     def test_schema_property_cardinality_alter_01(self):
         schema = self.load_schema('''
             type Foo {
