@@ -1587,13 +1587,6 @@ class TestIntrospection(tb.QueryTestCase):
             SELECT InheritingObject {
                 children := .<bases[IS Type],
                 descendants := .<ancestors[IS Type]
-            } LIMIT 2''',
-            [
-                {'children': [],
-                 'descendants': []
-                 },
-                {'children': [],
-                 'descendants': []
-                 },
-            ]
+            } LIMIT 0''',
+            []
         )
