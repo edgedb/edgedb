@@ -77,9 +77,7 @@ class Annotation(NamedObject):
 
 
 class Global(NamedObject):
-    def __init__(self, name: sn.QualName, *, is_computed: bool) -> None:
-        super().__init__(name)
-        self.is_computed = is_computed
+    pass
 
 
 class Index(NamedObject):
