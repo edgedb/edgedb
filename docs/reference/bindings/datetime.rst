@@ -36,7 +36,7 @@ Precision
 =========
 
 :eql:type:`datetime`, :eql:type:`duration`, :eql:type:`cal::local_datetime` and
-:eql:type:`cal::relative_duration` all have precision of **1 millisecond**.
+:eql:type:`cal::relative_duration` all have precision of **1 microsecond**.
 
 This means that if language-native type have a bigger precision such as
 nanosecond, client library has to round that timestamp when encoding it for
