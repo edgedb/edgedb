@@ -841,6 +841,70 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 using (assert_exists(bar));
         """
 
+    def test_schema_hard_sorting_01(self):
+        # This is hard to sort properly because we don't understand the types.
+        # From #4683.
+        """
+            global current_user_id -> uuid;
+            global current_user := (
+              select User filter .id = global current_user_id
+            );
+            global current_user_role := (
+              (global current_user).role.slug
+            );
+
+            type Role {
+              property slug -> str;
+            }
+
+            type User {
+              required link role -> Role;
+            }
+        """
+
+    def test_schema_hard_sorting_02(self):
+        # This is hard to sort properly because we don't understand the types.
+        # From #5163
+        """
+            type Branch;
+            type CO2DataPoint{
+                required link datapoint -> DataPoint;
+                link branch := .datapoint.data_entry.branch;
+            }
+            type DataPoint{
+                required link data_entry := assert_exists(
+                    .<data_points[is DataEntry]);
+            }
+
+            type DataEntry{
+                required link branch -> Branch;
+                multi link data_points -> DataPoint;
+            }
+       """
+
+    def test_schema_hard_sorting_03(self):
+        # This is hard to sort properly because we don't understand the types.
+        """
+            type A {
+                property foo := assert_exists(B).bar;
+            };
+            type B {
+                property bar := 1;
+            };
+       """
+
+    def test_schema_hard_sorting_04(self):
+        # This is hard to sort properly because we don't understand the types.
+        """
+            type A {
+                property foo := (
+                    with Z := assert_exists(B) select Z.bar);
+            };
+            type B {
+                property bar := 1;
+            };
+       """
+
     def test_schema_refs_01(self):
         schema = self.load_schema("""
             type Object1;
