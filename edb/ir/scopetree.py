@@ -511,7 +511,10 @@ class ScopeTreeNode:
                 descendant.optional = desc_optional
                 descendant.strip_path_namespace(dns | vns)
                 visible.fuse_subtree(
-                    descendant, self_fenced=False, node_fenced=desc_fenced)
+                    descendant,
+                    self_fenced=False,
+                    node_fenced=desc_fenced,
+                    context=context)
 
             elif descendant.parent_fence is node:
                 # Unfenced path.
@@ -563,7 +566,8 @@ class ScopeTreeNode:
                     existing.fuse_subtree(
                         current,
                         self_fenced=existing_fenced,
-                        node_fenced=node_fenced)
+                        node_fenced=node_fenced,
+                        context=context)
 
                     current = existing
 
@@ -668,6 +672,7 @@ class ScopeTreeNode:
         node: ScopeTreeNode,
         self_fenced: bool=False,
         node_fenced: bool=False,
+        context: Optional[pctx.ParserContext]=None,
     ) -> None:
         node.remove()
 
@@ -684,7 +689,7 @@ class ScopeTreeNode:
         else:
             subtree = node
 
-        self.attach_subtree(subtree, was_fenced=self_fenced)
+        self.attach_subtree(subtree, was_fenced=self_fenced, context=context)
 
     def remove_subtree(self, node: ScopeTreeNode) -> None:
         """Remove the given subtree from this node."""
