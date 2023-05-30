@@ -847,7 +847,8 @@ def _raise_on_missing(
         # QueryError because it is weird to report an ExecutionError
         # (MissingRequiredError) when nothing is really executing.
         errcls = (
-            errors.QueryError if ctx.env.options.schema_object_context
+            errors.SchemaDefinitionError
+            if ctx.env.options.schema_object_context
             else errors.MissingRequiredError
         )
         raise errcls(

@@ -1336,7 +1336,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """
 
-    @tb.must_fail(errors.QueryError,
+    @tb.must_fail(errors.SchemaDefinitionError,
                   "missing value for required property",
                   line=9, col=42)
     def test_schema_rewrite_missing_required_01(self):
