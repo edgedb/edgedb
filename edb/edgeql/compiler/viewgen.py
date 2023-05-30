@@ -29,6 +29,7 @@ from typing import *
 
 from edb import errors
 from edb.common import ast
+from edb.common import parsing
 from edb.common import topological
 from edb.common.typeutils import downcast, not_none
 
@@ -121,6 +122,7 @@ def process_view(
     view_name: Optional[sn.QualName] = None,
     exprtype: s_types.ExprType = s_types.ExprType.Select,
     ctx: context.ContextLevel,
+    srcctx: Optional[parsing.ParserContext],
 ) -> Tuple[s_objtypes.ObjectType, irast.Set]:
 
     cache_key = (stype, exprtype, tuple(elements))
@@ -154,6 +156,7 @@ def process_view(
         elements=elements,
         ctx=ctx,
         s_ctx=s_ctx,
+        srcctx=srcctx,
     )
 
     ctx.env.shape_type_cache[cache_key] = view_scls
@@ -168,6 +171,7 @@ def _process_view(
     elements: Optional[Sequence[qlast.ShapeElement]],
     s_ctx: ShapeContext,
     ctx: context.ContextLevel,
+    srcctx: Optional[parsing.ParserContext],
 ) -> Tuple[s_objtypes.ObjectType, irast.Set]:
     path_id = ir_set.path_id
     view_rptr = s_ctx.view_rptr
@@ -437,7 +441,7 @@ def _process_view(
         rewrites = None
 
     if s_ctx.exprtype.is_insert():
-        _raise_on_missing(pointers, stype, rewrites, ctx)
+        _raise_on_missing(pointers, stype, rewrites, ctx, srcctx=srcctx)
 
     set_shape = []
     shape_ptrs: List[ShapePtr] = []
@@ -801,6 +805,7 @@ def _raise_on_missing(
     stype: s_objtypes.ObjectType,
     rewrites: Optional[irast.Rewrites],
     ctx: context.ContextLevel,
+    srcctx: Optional[parsing.ParserContext],
 ) -> None:
     pointer_names = {
         ptr.get_local_name(ctx.env.schema) for ptr in pointers
@@ -838,8 +843,16 @@ def _raise_on_missing(
                 continue
 
         vn = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
-        raise errors.MissingRequiredError(
-            f"missing value for required {vn}"
+        # If this is happening in the context of DDL, report a
+        # QueryError because it is weird to report an ExecutionError
+        # (MissingRequiredError) when nothing is really executing.
+        errcls = (
+            errors.SchemaDefinitionError
+            if ctx.env.options.schema_object_context
+            else errors.MissingRequiredError
+        )
+        raise errcls(
+            f"missing value for required {vn}", context=srcctx
         )
 
 

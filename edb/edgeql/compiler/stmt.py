@@ -479,7 +479,9 @@ def compile_InsertQuery(
                 view_rptr=ctx.view_rptr,
                 compile_views=True,
                 exprtype=s_types.ExprType.Insert,
-                ctx=bodyctx)
+                ctx=bodyctx,
+                parser_context=expr.context,
+            )
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
         assert isinstance(stmt_subject_stype, s_objtypes.ObjectType)
@@ -510,6 +512,7 @@ def compile_InsertQuery(
                 view_name=ctx.toplevel_result_view_name,
                 compile_views=ictx.stmt is ictx.toplevel_stmt,
                 ctx=resultctx,
+                parser_context=expr.context,
             )
 
         if pol_condition := policies.compile_dml_write_policies(
@@ -537,7 +540,8 @@ def compile_InsertQuery(
                     view_name=ctx.toplevel_result_view_name,
                     compile_views=ictx.stmt is ctx.toplevel_stmt,
                     ctx=resultctx,
-                    parser_context=result.context)
+                    parser_context=result.context,
+                )
 
     return result
 
@@ -619,7 +623,9 @@ def compile_UpdateQuery(
                 view_rptr=ctx.view_rptr,
                 compile_views=True,
                 exprtype=s_types.ExprType.Update,
-                ctx=bodyctx)
+                ctx=bodyctx,
+                parser_context=expr.context,
+            )
 
         result = setgen.class_set(
             mat_stype, path_id=stmt.subject.path_id, ctx=ctx,
@@ -632,6 +638,7 @@ def compile_UpdateQuery(
                 view_name=ctx.toplevel_result_view_name,
                 compile_views=ictx.stmt is ictx.toplevel_stmt,
                 ctx=resultctx,
+                parser_context=expr.context,
             )
 
         for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
@@ -743,6 +750,7 @@ def compile_DeleteQuery(
                 shape=None,
                 exprtype=s_types.ExprType.Delete,
                 ctx=bodyctx,
+                parser_context=expr.context,
             )
 
         result = setgen.class_set(
@@ -756,6 +764,7 @@ def compile_DeleteQuery(
                 view_name=ctx.toplevel_result_view_name,
                 compile_views=ictx.stmt is ictx.toplevel_stmt,
                 ctx=resultctx,
+                parser_context=expr.context,
             )
 
         for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
@@ -1357,7 +1366,7 @@ def compile_query_subject(
         exprtype: s_types.ExprType = s_types.ExprType.Select,
         allow_select_shape_inject: bool=True,
         forward_rptr: bool=False,
-        parser_context: Optional[pctx.ParserContext]=None,
+        parser_context: Optional[pctx.ParserContext],
         ctx: context.ContextLevel) -> irast.Set:
 
     expr_stype = setgen.get_set_type(expr, ctx=ctx)
@@ -1475,6 +1484,7 @@ def compile_query_subject(
             view_name=view_name,
             exprtype=exprtype,
             ctx=ctx,
+            srcctx=parser_context,
         )
 
     if view_scls is not None:
@@ -1510,6 +1520,7 @@ def maybe_add_view(ir: irast.Set, *, ctx: context.ContextLevel) -> irast.Set:
         and ir.path_id.is_objtype_path()
     ):
         return compile_query_subject(
-            ir, allow_select_shape_inject=True, compile_views=False, ctx=ctx)
+            ir, allow_select_shape_inject=True, compile_views=False, ctx=ctx,
+            parser_context=ir.context)
     else:
         return ir
