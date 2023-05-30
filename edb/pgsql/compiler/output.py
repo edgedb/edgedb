@@ -563,6 +563,11 @@ def serialize_expr_to_json(
             # Use the actual generic helper for converting anyrange to jsonb
             name=('edgedb', 'range_to_jsonb'),
             args=[expr], null_safe=True, ser_safe=True)
+        if env.output_format in _JSON_FORMATS:
+            val = pgast.TypeCast(
+                arg=val,
+                type_name=pgast.TypeName(name=('json',))
+            )
 
     elif irtyputils.is_collection(styperef) and not expr.ser_safe:
         val = coll_as_json_object(expr, styperef=styperef, env=env)
@@ -579,6 +584,11 @@ def serialize_expr_to_json(
         val = pgast.FuncCall(
             name=common.get_cast_backend_name(cast_name, aspect='function'),
             args=[expr], null_safe=True, ser_safe=True)
+        if env.output_format in _JSON_FORMATS:
+            val = pgast.TypeCast(
+                arg=val,
+                type_name=pgast.TypeName(name=('json',))
+            )
 
     elif not nested:
         val = pgast.FuncCall(
