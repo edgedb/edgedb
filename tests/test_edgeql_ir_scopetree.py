@@ -96,3 +96,11 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
             )
         """
         # This one is fine now, since it is a property
+
+    @tb.must_fail(errors.InvalidReferenceError,
+                  "cannot reference correlated set 'User' here",
+                  line=2, col=45)
+    def test_edgeql_ir_scope_tree_bad_06(self):
+        """
+        UPDATE User SET { avatar := (UPDATE .avatar SET { text := "foo" }) }
+        """
