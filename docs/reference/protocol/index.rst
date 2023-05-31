@@ -71,7 +71,7 @@ connection. The client then sends any following message to ``/db/{DATABASE}``
 with the following headers:
 
 * ``X-EdgeDB-User``: The username specified in the 
-  :ref:`ref_reference_connection`.
+  :ref:`connection parameters <ref_reference_connection>`.
 
 * ``Authorization``: The authorization token received from the 
   :ref:`authentication <ref_authentication>` phase, prefixed by ``Bearer``.
