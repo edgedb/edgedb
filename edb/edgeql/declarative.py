@@ -70,6 +70,7 @@ class TraceContextBase:
     depstack: List[Tuple[qlast.DDLOperation, s_name.QualName]]
     modaliases: Dict[Optional[str], str]
     objects: Dict[s_name.QualName, Optional[qltracer.ObjectLike]]
+    pointers: Dict[s_name.UnqualName, Set[s_name.QualName]]
     parents: Dict[s_name.QualName, Set[s_name.QualName]]
     ancestors: Dict[s_name.QualName, Set[s_name.QualName]]
     defdeps: Dict[s_name.QualName, Set[s_name.QualName]]
@@ -86,6 +87,7 @@ class TraceContextBase:
         self.depstack = []
         self.modaliases = {}
         self.objects = {}
+        self.pointers = {}
         self.parents = {}
         self.ancestors = {}
         self.defdeps = defaultdict(set)
@@ -318,6 +320,7 @@ class DepTraceContext(TraceContextBase):
         schema: s_schema.Schema,
         ddlgraph: DDLGraph,
         objects: Dict[s_name.QualName, Optional[qltracer.ObjectLike]],
+        pointers: Dict[s_name.UnqualName, Set[s_name.QualName]],
         parents: Dict[s_name.QualName, Set[s_name.QualName]],
         ancestors: Dict[s_name.QualName, Set[s_name.QualName]],
         defdeps: Dict[s_name.QualName, Set[s_name.QualName]],
@@ -327,6 +330,7 @@ class DepTraceContext(TraceContextBase):
         super().__init__(schema, local_modules)
         self.ddlgraph = ddlgraph
         self.objects = objects
+        self.pointers = pointers
         self.parents = parents
         self.ancestors = ancestors
         self.defdeps = defdeps
@@ -430,7 +434,7 @@ def sdl_to_ddl(
     )
 
     tracectx = DepTraceContext(
-        schema, ddlgraph, ctx.objects, ctx.parents, ctx.ancestors,
+        schema, ddlgraph, ctx.objects, ctx.pointers, ctx.parents, ctx.ancestors,
         ctx.defdeps, ctx.constraints, ctx.local_modules,
     )
 
@@ -680,6 +684,7 @@ def _trace_item_layout(
             )
             ctx.objects[ptr_name] = ptr
             ctx.defdeps[fq_name].add(ptr_name)
+            ctx.pointers.setdefault(pn, set()).add(ptr_name)
 
             _trace_item_layout(
                 decl, obj=ptr, fq_name=ptr_name, ctx=ctx)
@@ -783,21 +788,27 @@ def trace_SetField(
     ctx: DepTraceContext,
 ) -> None:
     deps = set()
+    exprs = []
 
     assert node.value, "sdl SetField should always have value"
-    for dep in qltracer.trace_refs(
-        node.value,
-        schema=ctx.schema,
-        module=ctx.module,
-        objects=ctx.objects,
-        local_modules=ctx.local_modules,
-        params={},
-    ):
-        # ignore std module dependencies
-        if dep.get_module_name() not in s_schema.STD_MODULES:
-            deps.add(dep)
+    if node.name == 'default':
+        assert isinstance(node.value, qlast.Expr)
+        exprs.append(ExprDependency(expr=node.value))
+    else:
+        for dep in qltracer.trace_refs(
+            node.value,
+            schema=ctx.schema,
+            module=ctx.module,
+            objects=ctx.objects,
+            pointers=ctx.pointers,
+            local_modules=ctx.local_modules,
+            params={},
+        )[0]:
+            # ignore std module dependencies
+            if dep.get_module_name() not in s_schema.STD_MODULES:
+                deps.add(dep)
 
-    _register_item(node, deps=deps, ctx=ctx)
+    _register_item(node, deps=deps, hard_dep_exprs=exprs, ctx=ctx)
 
 
 @trace_dependencies.register
@@ -1066,6 +1077,8 @@ def _register_item(
     else:
         deps = set()
 
+    weak_deps: Set[s_name.QualName] = set()
+
     op = orig_op = copy.copy(decl)
 
     if ctx.depstack:
@@ -1183,66 +1196,73 @@ def _register_item(
                 else:
                     params = {}
 
-                tdeps = qltracer.trace_refs(
+                strong_tdeps, weak_tdeps = qltracer.trace_refs(
                     qlexpr,
                     schema=ctx.schema,
                     module=ctx.module,
                     path_prefix=source,
                     anchors=anchors,
                     objects=ctx.objects,
+                    pointers=ctx.pointers,
                     local_modules=ctx.local_modules,
                     params=params,
                 )
 
-                pdeps: MutableSet[s_name.QualName] = set()
-                for dep in tdeps:
-                    # ignore std module dependencies
-                    if dep.get_module_name() not in s_schema.STD_MODULES:
-                        # First check if the dep is a pointer that's
-                        # defined explicitly. If it's not explicitly
-                        # defined, check for ancestors and use them
-                        # instead.
-                        #
-                        # FIXME: Ideally we should use the closest
-                        # ancestor, instead of all of them, but
-                        # including all is still correct.
-                        if '@' in dep.name:
-                            pdeps |= _get_pointer_deps(dep, ctx=ctx)
-                        else:
-                            pdeps.add(dep)
+                for tdeps, strong in (
+                    (strong_tdeps, True), (weak_tdeps, False)
+                ):
+                    pdeps: MutableSet[s_name.QualName] = set()
+                    for dep in tdeps:
+                        # ignore std module dependencies
+                        if dep.get_module_name() not in s_schema.STD_MODULES:
+                            # First check if the dep is a pointer that's
+                            # defined explicitly. If it's not explicitly
+                            # defined, check for ancestors and use them
+                            # instead.
+                            #
+                            # FIXME: Ideally we should use the closest
+                            # ancestor, instead of all of them, but
+                            # including all is still correct.
+                            if '@' in dep.name:
+                                pdeps |= _get_pointer_deps(dep, ctx=ctx)
+                            else:
+                                pdeps.add(dep)
 
-                # Handle the pre-processed deps now.
-                for dep in pdeps:
-                    deps.add(dep)
+                    # Handle the pre-processed deps now.
+                    cdeps = deps if strong else weak_deps
+                    for dep in pdeps:
+                        cdeps.add(dep)
 
-                    if isinstance(
-                            decl, (qlast.CreateAlias, qlast.CreateGlobal)):
-                        # If the declaration is a view, we need to be
-                        # dependent on all the types and their props
-                        # used in the view.
-                        vdeps = {dep} | ctx.ancestors.get(dep, set())
-                        for vdep in vdeps:
-                            deps |= ctx.defdeps.get(vdep, set())
+                        if isinstance(
+                                decl, (qlast.CreateAlias, qlast.CreateGlobal)):
+                            # If the declaration is a view, we need to be
+                            # dependent on all the types and their props
+                            # used in the view.
+                            vdeps = {dep} | ctx.ancestors.get(dep, set())
+                            for vdep in vdeps:
+                                cdeps |= ctx.defdeps.get(vdep, set())
 
-                    if (
-                        isinstance(decl, (
-                            qlast.CreateConcretePointer, qlast.CreateGlobal))
-                        and isinstance(decl.target, qlast.Expr)
-                    ) or isinstance(
-                        decl, (qlast.CreateAccessPolicy, qlast.CreateTrigger)
-                    ):
-                        # If the declaration is a computable pointer/global
-                        # or access policy (XXX: trigger?),
-                        # we need to include the
-                        # possible constraints for every dependency
-                        # that it lists. This is so that any other
-                        # links/props that this computable uses has
-                        # all of their constraints defined before the
-                        # computable and the cardinality can be
-                        # inferred correctly.
-                        cdeps = {dep} | ctx.ancestors.get(dep, set())
-                        for cdep in cdeps:
-                            deps |= ctx.constraints.get(cdep, set())
+                        if (
+                            isinstance(decl, (
+                                qlast.CreateConcretePointer,
+                                qlast.CreateGlobal))
+                            and isinstance(decl.target, qlast.Expr)
+                        ) or isinstance(
+                            decl, (
+                                qlast.CreateAccessPolicy, qlast.CreateTrigger)
+                        ):
+                            # If the declaration is a computable pointer/global
+                            # or access policy (XXX: trigger?),
+                            # we need to include the
+                            # possible constraints for every dependency
+                            # that it lists. This is so that any other
+                            # links/props that this computable uses has
+                            # all of their constraints defined before the
+                            # computable and the cardinality can be
+                            # inferred correctly.
+                            con_deps = {dep} | ctx.ancestors.get(dep, set())
+                            for con_dep in con_deps:
+                                cdeps |= ctx.constraints.get(con_dep, set())
             else:
                 raise AssertionError(f'unexpected dependency type: {expr!r}')
 
@@ -1253,6 +1273,7 @@ def _register_item(
         parent_node.loop_control.add(fq_name)
 
     node.deps |= deps
+    node.weak_deps |= weak_deps - {fq_name}
 
 
 def _get_pointer_deps(
@@ -1287,6 +1308,10 @@ def _get_pointer_deps(
     # as their prefix. As a rule, the assumption is that depending on
     # a link typically comes as a package of depending on the link's
     # property.
+    # This will *also* grab any constraints on the pointer, which
+    # is is important for properly doing cardinality inference
+    # on expressions involving it.
+    # PERF: We should avoid actually searching all the objects.
     for propname in ctx.objects:
         if str(propname).startswith(str(pointer) + '@'):
             result.add(propname)
