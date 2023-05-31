@@ -23,15 +23,7 @@ endpoints.
 Watch our video tour of this example project to get a preview of what you'll be
 building in this guide:
 
-.. lint-off
-
-.. raw:: html
-
-    <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
-       <iframe src="https://www.youtube.com/embed/OZ_UURzDkow" frameborder="0" allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe>
-    </div>
-
-.. lint-on
+.. edb:youtube-embed:: OZ_UURzDkow
 
 Prerequisites
 =============
@@ -787,7 +779,7 @@ First, we need a query. Create a file ``app/queries/create_event.edgeql`` and
 drop this query into it:
 
 .. code-block:: edgeql
-   
+
     with name := <str>$name,
         address := <str>$address,
         schedule := <str>$schedule,

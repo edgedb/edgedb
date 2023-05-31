@@ -53,6 +53,19 @@ class EDBSectionIntroPage(d_rst.Directive):
         return [node]
 
 
+class EDBYoutubeEmbed(d_rst.Directive):
+
+    has_content = True
+    optional_arguments = 0
+    required_arguments = 1
+
+    def run(self):
+        node = d_nodes.container()
+        node['youtube-video-id'] = self.arguments[0]
+        self.state.nested_parse(self.content, self.content_offset, node)
+        return [node]
+
+
 class GitHubLinkRole:
 
     DEFAULT_REPO = 'edgedb/edgedb'
@@ -131,6 +144,7 @@ class EdgeDBDomain(s_domains.Domain):
     directives = {
         'react-element': EDBReactElement,
         'section-intro-page': EDBSectionIntroPage,
+        'youtube-embed': EDBYoutubeEmbed
     }
 
     roles = {
