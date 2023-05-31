@@ -61,7 +61,7 @@ following format:
 
   www-authenticate: {AUTH METHOD} {AUTH PAYLOAD}
 
-The auth payloads format is described by the auth method, usually 
+The auth payload's format is described by the auth method, usually
 ``SCRAM-SHA-256``. If the auth method differs from the requested method, 
 the client should abort the authentication attempt.
 
