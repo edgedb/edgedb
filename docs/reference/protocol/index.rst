@@ -65,10 +65,10 @@ The auth payload's format is described by the auth method, usually
 ``SCRAM-SHA-256``. If the auth method differs from the requested method, 
 the client should abort the authentication attempt.
 
-Once the :ref:`ref_authentication` phase is complete, the final responses' 
-body will contain an authorization token used to authenticate the HTTP 
-connection. The client then sends any following message to ``/db/{DATABASE}`` 
-with the following headers:
+Once the :ref:`authentication <ref_authentication>` phase is complete, the
+final response's body will contain an authorization token used to authenticate
+the HTTP connection. The client then sends any following message to
+``/db/{DATABASE}`` with the following headers:
 
 * ``X-EdgeDB-User``: The username specified in the 
   :ref:`connection parameters <ref_reference_connection>`.
