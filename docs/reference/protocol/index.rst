@@ -18,6 +18,72 @@ clients and servers.  The protocol is supported over TCP/IP.
     dataformats
 
 
+.. _ref_protocol_connecting:
+
+Connecting to EdgeDB 
+====================
+
+The EdgeDB binary protocol has two modes of operation over TCP/IP: 
+Sockets, and HTTP tunnelling. When connecting to EdgeDB, the client can 
+specify an accepted `ALPN Protocol`_ to use. If the client does not specify 
+an ALPN protocol, HTTP tunnelling is assumed. 
+
+Sockets
+-------
+
+When using the ``edgedb-binary`` ALPN protocol, the client and server 
+communicate over a raw TCP/IP socket, following the :ref:`ref_message_format`
+and :ref:`ref_message_flow` described below.
+
+HTTP Tunnelling
+---------------
+
+HTTP tunnelling differs in a few ways:
+
+*  Authentication is handled at ``/auth/token``.
+
+*  Query execution is handled at ``/db/{DATABASE}``.
+
+*  Transactions are not supported.
+
+The :ref:`ref_authentication` phase is handled by sending ``GET`` requests 
+to ``/auth/token`` with the ``Authorization`` header containing the 
+authorization payload with the format:
+
+.. code-block::
+
+  Authorization: {AUTH METHOD} data={PAYLOAD}
+ 
+The client then reads the ``www-authenticate`` response header with the 
+following format: 
+
+.. code-block::
+
+  www-authenticate: {AUTH METHOD} {AUTH PAYLOAD}
+
+The auth payloads format is described by the auth method, usually 
+``SCRAM-SHA-256``. If the auth method differs from the requested method, 
+the client should abort the authentication attempt.
+
+Once the :ref:`ref_authentication` phase is complete, the final responses' 
+body will contain an authorization token used to authenticate the HTTP 
+connection. The client then sends any following message to ``/db/{DATABASE}`` 
+with the following headers:
+
+* ``X-EdgeDB-User``: The username specified in the 
+  :ref:`ref_reference_connection`.
+
+* ``Authorization``: The authorization token received from the 
+  :ref:`ref_authentication` phase, prefixed by ``Bearer``.
+
+* ``Content-Type``: Always ``application/x.edgedb.v_1_0.binary``.
+
+The response should be checked to match the content type, and the body should 
+be  parsed as the :ref:`ref_message_format` described below; multiple message 
+can be included in the response body, and should be parsed in order.
+
+.. _ALPN Protocol: https://github.com/edgedb/rfcs/blob/master/text/1008-tls-and-alpn.rst#alpn-and-protocol-changes
+
 .. _ref_protocol_conventions:
 
 Conventions and data Types
@@ -77,6 +143,7 @@ The following data types are used in the descriptions:
         ``byte[16]``
 
 
+.. _ref_message_format:
 
 Message Format
 ==============
@@ -118,6 +185,7 @@ Similarly to ``ErrorResponse`` the server may send a
 :ref:`ref_protocol_msg_log` message.  The client should handle the
 message and continue as before.
 
+.. _ref_message_flow:
 
 Message Flow
 ============
