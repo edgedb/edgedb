@@ -469,7 +469,6 @@ def _fork_context(ctx: TracerContext) -> TracerContext:
         schema=ctx.schema,
         module=ctx.module,
         objects=dict(ctx.objects),
-        # XXX?
         pointers=ctx.pointers,
         anchors=ctx.anchors,
         path_prefix=ctx.path_prefix,
