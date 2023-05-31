@@ -1087,6 +1087,46 @@ Other changes
 * Make coalesce infer a union type
   (:eql:gh:`#5472`)
 
+2.16
+====
+* Fix ISEs involving single link with only computed link properties
+  (:eql:gh:`#5499`)
+
+* Don't ISE on free shape in insert
+  (:eql:gh:`#5438`)
+
+* Always set cardinality of derived ``__tname__`` properties
+  (:eql:gh:`#5508`)
+
+* Work around mysterious postgres crashes on Digital Ocean
+  (:eql:gh:`#5505`)
+
+* Make reestablishing system postgres connections more resilient
+  (:eql:gh:`#5511`)
+
+* Fix graphql queries made against a freshly started server
+  (:eql:gh:`#5456`)
+
+* Support dumping databases with ``std::duration`` config vals
+  (:eql:gh:`#5528`)
+
+* Fix ISE for TypeExprs in function returns
+  (:eql:gh:`#5540`)
+
+* Support comparisons on durations in static eval
+
+* Fix create database conflicts with name in schema
+  (:eql:gh:`#5515`)
+
+* Fix range and bytes output in json-lines/json-pretty mode
+  (:eql:gh:`#5572`)
+
+* Include source locations in more scoping error messages
+  (:eql:gh:`#5573`)
+
+* Fix an optional scoping bug with important access policy implications
+  (:eql:gh:`#5575`)
+
 .. lint-off
 
 .. _group:
