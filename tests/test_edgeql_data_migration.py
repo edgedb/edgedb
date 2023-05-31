@@ -12117,6 +12117,18 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
             {'script': 'CREATE TYPE default::A;\nCREATE TYPE default::B;'},
         ])
 
+    async def test_edgeql_migration_preexisting_01(self):
+        await self.con.execute("create type Foo;")
+        with self.assertRaisesRegex(
+            edgedb.InvalidReferenceError,
+            r"type 'default::Foo' does not exist"
+        ):
+            await self.start_migration("""
+                type Bar {
+                    baz: Foo
+                }
+            """, module='default')
+
 
 class TestEdgeQLMigrationRewriteNonisolated(TestEdgeQLMigrationRewrite):
     TRANSACTION_ISOLATION = False
