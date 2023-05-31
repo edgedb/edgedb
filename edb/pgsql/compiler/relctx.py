@@ -809,6 +809,25 @@ def update_scope(
     for child_path in scope_tree.get_all_paths():
         pathctx.put_path_id_mask(stmt, child_path)
 
+    # If this is an optional scope node, we need to be certain that
+    # we don't leak out any paths that collide with a visible non-optional
+    # path.
+    # See test_edgeql_optional_leakage_01 for one case where this comes up.
+    #
+    # FIXME: I actually think we ought to be able to mask off visible
+    # paths in *most* cases, but when I tried it I ran into trouble
+    # with some DML linkprop cases (probably easy to fix) and a number
+    # of materialization cases (possibly hard to fix), so I'm going
+    # with a more conservative approach.
+    if scope_tree.optional:
+        # Since compilation is done, anything visible to us *will* be
+        # up on the spine. Anything tucked away under a node must have
+        # been pulled up.
+        for anc in scope_tree.ancestors:
+            for direct_child in anc.path_children:
+                if not direct_child.optional:
+                    pathctx.put_path_id_mask(stmt, direct_child.path_id)
+
 
 def maybe_get_scope_stmt(
     path_id: irast.PathId,
