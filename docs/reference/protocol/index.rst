@@ -46,9 +46,9 @@ HTTP tunnelling differs in a few ways:
 
 *  Transactions are not supported.
 
-The :ref:`ref_authentication` phase is handled by sending ``GET`` requests 
-to ``/auth/token`` with the ``Authorization`` header containing the 
-authorization payload with the format:
+The :ref:`authentication <ref_authentication>` phase is handled by sending
+``GET`` requests to ``/auth/token`` with the ``Authorization`` header
+containing the authorization payload with the format:
 
 .. code-block::
 
