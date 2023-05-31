@@ -32,8 +32,9 @@ Sockets
 -------
 
 When using the ``edgedb-binary`` ALPN protocol, the client and server 
-communicate over a raw TCP/IP socket, following the :ref:`ref_message_format`
-and :ref:`ref_message_flow` described below.
+communicate over a raw TCP/IP socket, following the :ref:`message format
+<ref_message_format>` and :ref:`message flow <ref_message_flow>` described
+below.
 
 HTTP Tunnelling
 ---------------
