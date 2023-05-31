@@ -158,14 +158,16 @@ class ObjectType(
                 std_obj = schema.get('std::BaseObject', type=ObjectType)
                 return std_obj.get_displayname(schema)
             else:
-                comps = sorted(union_of.objects(schema), key=lambda o: o.id)
-                return ' | '.join(c.get_displayname(schema) for c in comps)
+                comp_dns = sorted(
+                    (c.get_displayname(schema)
+                     for c in union_of.objects(schema)))
+                return ' | '.join(comp_dns)
         else:
             intersection_of = mtype.get_intersection_of(schema)
             if intersection_of:
-                comps = sorted(intersection_of.objects(schema),
-                               key=lambda o: o.id)
-                comp_dns = (c.get_displayname(schema) for c in comps)
+                comp_dns = sorted(
+                    (c.get_displayname(schema)
+                     for c in intersection_of.objects(schema)))
                 # Elide BaseObject from display, because `& BaseObject`
                 # is a nop.
                 return ' & '.join(
