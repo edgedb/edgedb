@@ -74,7 +74,7 @@ with the following headers:
   :ref:`ref_reference_connection`.
 
 * ``Authorization``: The authorization token received from the 
-  :ref:`ref_authentication` phase, prefixed by ``Bearer``.
+  :ref:`authentication <ref_authentication>` phase, prefixed by ``Bearer``.
 
 * ``Content-Type``: Always ``application/x.edgedb.v_1_0.binary``.
 
