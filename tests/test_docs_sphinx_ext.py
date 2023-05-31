@@ -844,9 +844,9 @@ class TestEqlRoles(unittest.TestCase, BaseDomainTest):
         src = ''
         for (body, _, title, _) in cases:
             if title:
-                src += f':eql:gh:`{title} <{body}>`\n'
+                src += f':edb:gh:`{title} <{body}>`\n'
             else:
-                src += f':eql:gh:`{body}`\n'
+                src += f':edb:gh:`{body}`\n'
 
         out = self.build(src, format='xml')
         x = requests_xml.XML(xml=out)
