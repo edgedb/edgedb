@@ -1744,3 +1744,40 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 {"z": None}, {"z": None}, {"z": None}
             ]),
         )
+
+    async def test_edgeql_optional_leakage_01(self):
+        await self.con.execute(
+            r'''
+                insert Comment {
+                    body := "a",
+                    owner := assert_single(User),
+                    issue := (select Issue limit 1),
+                };
+            '''
+        )
+
+        await self.assert_query_result(
+            '''
+            select (
+              Comment,
+              (select (
+                <str>Comment.parent.id ?= '',
+                Comment.body
+              )),
+            );
+            ''',
+            [({}, (False, 'a'))],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select (
+                  Comment.body,
+                  (select (
+                    <str>Comment.parent.id ?= '' or
+                    Comment.id ?= <uuid>{}
+                  )),
+                ) filter .1;
+            ''',
+            [],
+        )

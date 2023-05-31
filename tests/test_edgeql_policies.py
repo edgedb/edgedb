@@ -1176,3 +1176,74 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             update Avatar set {deleted_at:=datetime_of_statement()};
             '''
         )
+
+    async def test_edgeql_policies_optional_leakage_01(self):
+        await self.con.execute(
+            '''
+            CREATE GLOBAL current_user -> uuid;
+            CREATE TYPE Org {
+                CREATE REQUIRED PROPERTY domain -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+                CREATE PROPERTY name -> str;
+            };
+            CREATE TYPE User2 {
+                CREATE REQUIRED LINK org -> Org;
+                CREATE REQUIRED PROPERTY email -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE GLOBAL current_user_object := (SELECT
+                User2
+            FILTER
+                (.id = GLOBAL current_user)
+            );
+            CREATE TYPE Src {
+                CREATE REQUIRED SINGLE LINK org -> Org;
+                CREATE SINGLE LINK user -> User2;
+
+                CREATE ACCESS POLICY deny_no
+                    DENY ALL USING (
+                      (((GLOBAL current_user_object).org != .org) ?? true));
+                CREATE ACCESS POLICY yes
+                    ALLOW ALL USING (SELECT
+                        ((GLOBAL current_user = .user.id) ?? false)
+                    );
+            };
+            '''
+        )
+
+        await self.con.execute('''
+            configure session set apply_access_policies := false;
+        ''')
+
+        await self.con.execute('''
+            insert User2 {
+                email:= "a@a.com",
+                org:=(insert Org {domain:="a.com"}),
+            };
+        ''')
+        res = await self.con.query_single('''
+            insert User2 {
+                email:= "b@b.com",
+                org:=(insert Org {domain:="b.com"}),
+            };
+        ''')
+        await self.con.execute('''
+            insert Src {
+                org := (select Org filter .domain = "a.com")
+            };
+        ''')
+
+        await self.con.execute('''
+            configure session set apply_access_policies := true;
+        ''')
+
+        await self.con.execute(f'''
+            set global current_user := <uuid>'{res.id}';
+        ''')
+
+        await self.assert_query_result(
+            r'''select Src''',
+            [],
+        )
