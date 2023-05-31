@@ -10959,6 +10959,20 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
         ''')
 
+        await self.migrate(r'''
+            type Foo {
+                required link foo -> C {
+                    default := (SELECT C FILTER .val = 'D00');
+                }
+            }
+
+            type C {
+                required property val -> str {
+                    constraint exclusive;
+                }
+            }
+        ''')
+
         await self.migrate('')
 
     async def test_edgeql_migration_drop_constraint_04(self):
