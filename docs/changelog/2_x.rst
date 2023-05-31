@@ -348,7 +348,7 @@ EdgeQL
 
 
 * Support user-provided values for the ``id`` property when inserting objects
-  (:eql:gh:`#3895`). This can be useful when migrating data from
+  (:edb:gh:`#3895`). This can be useful when migrating data from
   an existing database.
 
   .. code-block::
@@ -358,22 +358,22 @@ EdgeQL
       email := "jayz@example.com"
     }
 
-* Support partial constraints and indexes (:eql:gh:`#3949`,
+* Support partial constraints and indexes (:edb:gh:`#3949`,
   :ref:`docs <ref_datamodel_constraints_partial>`).
 
-* Add the new :eql:func:`json_set` function (:eql:gh:`#4118`).
+* Add the new :eql:func:`json_set` function (:edb:gh:`#4118`).
 
 
 Server
 ------
 
 * Support socket activation to reduce memory footprint on developer
-  machines (:eql:gh:`#3899`).
+  machines (:edb:gh:`#3899`).
 
 * Introduce edgedb+http, a which tunnels the binary protocol over HTTP
-  using JWT for authentication (:eql:gh:`#3979`).
+  using JWT for authentication (:edb:gh:`#3979`).
 
-* Support using JWT to authenticate to local instances (:eql:gh:`#3991`).
+* Support using JWT to authenticate to local instances (:edb:gh:`#3991`).
 
 
 Bug fixes
@@ -382,54 +382,54 @@ Bug fixes
 * Generate unique ``id`` fields for each free shape object,
   and don't use an actual in-database object to represent it,
   and make multiplicity inference understand free shapes better
-  (:eql:gh:`#3631`, :eql:gh:`#3633`, :eql:gh:`#3634`).
+  (:edb:gh:`#3631`, :edb:gh:`#3633`, :edb:gh:`#3634`).
 
 * Fail if local Postgres cluster fails to start.
 
-* Add ``cfg::memory`` to base types descriptor IDs table (:eql:gh:`#3882`).
+* Add ``cfg::memory`` to base types descriptor IDs table (:edb:gh:`#3882`).
 
 * Fix a cross-type exclusive constraint bug that could allow exclusive
   constraints to be violated in some complex type hierarchies
-  (:eql:gh:`#3887`).
+  (:edb:gh:`#3887`).
 
 * Fix issue where server might attempt to acquire one more connection
-  than it is configured to permit (:eql:gh:`#3901`).
+  than it is configured to permit (:edb:gh:`#3901`).
 
 * Fix use of ``assert_exists`` on properties that are being directly output
-  (:eql:gh:`#3911`).
+  (:edb:gh:`#3911`).
 
 * Fix a scope leakage that could cause a link referenced inside a computable
   to improperly correlate with something outside the computable
-  (:eql:gh:`#3912`).
+  (:edb:gh:`#3912`).
 
 * Fix a number of issues with the floordiv (``//``) and modulus (``%``)
   operators where we could return incorrect values or produce spurious
-  errors, especially on very large values (:eql:gh:`#3909`).
+  errors, especially on very large values (:edb:gh:`#3909`).
 
 * Allow adding annotations to ``abstract annotation`` definitions
-  (:eql:gh:`#3929`).
+  (:edb:gh:`#3929`).
 
 * Expose ``body`` and ``language`` fields on ``schema::Function``
-  (:eql:gh:`#3944`).
+  (:edb:gh:`#3944`).
 
-* Make indexes extend from ``schema::InheritingObject`` (:eql:gh:`#3942`).
+* Make indexes extend from ``schema::InheritingObject`` (:edb:gh:`#3942`).
 
 * Fix some mis-compilations of nested shapes inside calls to functions
-  like ``assert_single`` (:eql:gh:`#3927`).
+  like ``assert_single`` (:edb:gh:`#3927`).
 
-* Fix ``SET TYPE`` on properties with default values (:eql:gh:`#3954`).
+* Fix ``SET TYPE`` on properties with default values (:edb:gh:`#3954`).
 
-* Fix ``describe``/``populate``/``describe`` sequence (:eql:gh:`#3959`).
+* Fix ``describe``/``populate``/``describe`` sequence (:edb:gh:`#3959`).
 
 * Upgrade many casts and functions from "Stable" to "Immutable"
-  (:eql:gh:`#3975`).
+  (:edb:gh:`#3975`).
 
-* Fix link properties in type filtered shape links (:eql:gh:`#3987`).
+* Fix link properties in type filtered shape links (:edb:gh:`#3987`).
 
-* Allow DML statements in free shapes (:eql:gh:`#4002`).
+* Allow DML statements in free shapes (:edb:gh:`#4002`).
 
 * Allow customizing assertion messages in ``assert_exists`` and friends
-  (:eql:gh:`#4019`).
+  (:edb:gh:`#4019`).
 
 Protocol overhaul
 -----------------
@@ -444,262 +444,262 @@ Protocol overhaul
 2.1
 ===
 * Fix global defaults with nontrivial computation
-  (:eql:gh:`#4182`)
+  (:edb:gh:`#4182`)
 
 * Fix migration that removes policy using clause
-  (:eql:gh:`#4183`)
+  (:edb:gh:`#4183`)
 
 * Support ELSE-less UNLESS CONFLICT on explicit id INSERT
-  (:eql:gh:`#4185`)
+  (:edb:gh:`#4185`)
 
 * Don't create constraints on derived views when adding a pointer to a type
-  (:eql:gh:`#4187`)
+  (:edb:gh:`#4187`)
 
 * Fix a bunch of missing source contexts in declarative
-  (:eql:gh:`#4188`)
+  (:edb:gh:`#4188`)
 
 * Fix an ISE when a computed link is directly a property reference
-  (:eql:gh:`#4193`)
+  (:edb:gh:`#4193`)
 
 * Fix an ISE when using an empty shape in some contexts
-  (:eql:gh:`#4194`)
+  (:edb:gh:`#4194`)
 
 * Fix a number of error messages involving collection types in schemas
-  (:eql:gh:`#4195`)
+  (:edb:gh:`#4195`)
 
 * Avoid doing semi-joins after a sequence of single links
-  (:eql:gh:`#4196`)
+  (:edb:gh:`#4196`)
 
 * Make range() properly strict in its non-optional arguments
-  (:eql:gh:`#4207`)
+  (:edb:gh:`#4207`)
 
 * Allow multiple FDs per socket in activation
-  (:eql:gh:`#4189`)
+  (:edb:gh:`#4189`)
 
 * Add SCRAM authentication over HTTP
-  (:eql:gh:`#4197`)
+  (:edb:gh:`#4197`)
 
 * Always arm auto-shutdown timer when it's greater than zero
-  (:eql:gh:`#4214`)
+  (:edb:gh:`#4214`)
 
 * Fix json -> array<json> cast of '[]'
-  (:eql:gh:`#4217`)
+  (:edb:gh:`#4217`)
 
 2.2
 ===
 * Support UNLESS CONFLICT ON for pointers with DML in them
-  (:eql:gh:`#4357`)
+  (:edb:gh:`#4357`)
 
 * Fix cardinality in CommandDataDescription
-  (:eql:gh:`#4347`)
+  (:edb:gh:`#4347`)
 
 * Prevent access rule hidden ids from leaking when accessed directly
-  (:eql:gh:`#4339`)
+  (:edb:gh:`#4339`)
 
 * Better messages for required links hidden by policies
-  (:eql:gh:`#4338`)
+  (:edb:gh:`#4338`)
 
 * Fix access policies on DELETE of a UNION type
-  (:eql:gh:`#4337`)
+  (:edb:gh:`#4337`)
 
 * Strip out all views from DML subjects when computing what tables to use
-  (:eql:gh:`#4336`, :eql:gh:`#4333`)
+  (:edb:gh:`#4336`, :edb:gh:`#4333`)
 
 * Fix interaction between access policies and omitted fields in insert
-  (:eql:gh:`#4332`, :eql:gh:`#4219`)
+  (:edb:gh:`#4332`, :edb:gh:`#4219`)
 
 * Fix a tracer issue with reverse links and IS
-  (:eql:gh:`#4331`)
+  (:edb:gh:`#4331`)
 
 * Don't include union types in link triggers
-  (:eql:gh:`#4329`, :eql:gh:`#4320`)
+  (:edb:gh:`#4329`, :edb:gh:`#4320`)
 
   If you encounter this issue, after upgrading to a version with this
   patch, it can be fixed by doing a dump/restore or by adding a new link
   to the affected type.
 
 * Require ON for constraints on objects
-  (:eql:gh:`#4324`, :eql:gh:`#4268`)
+  (:edb:gh:`#4324`, :edb:gh:`#4268`)
 
 * Fix interaction between DETACHED and aliases/globals
-  (:eql:gh:`#4321`, :eql:gh:`#4258`)
+  (:edb:gh:`#4321`, :edb:gh:`#4258`)
 
 * Disable access policy rewrite when compiling constraints
-  (:eql:gh:`#4248`, :eql:gh:`#4245`)
+  (:edb:gh:`#4248`, :edb:gh:`#4245`)
 
 * Expose ``--admin-ui`` as an environment variable and document it
-  (:eql:gh:`#4255`)
+  (:edb:gh:`#4255`)
 
 * Prevent ``HttpProtocol.close`` from crashing on closed client connection
-  (:eql:gh:`#4238`)
+  (:edb:gh:`#4238`)
 
 * Fix permitted JSON null in nested array cast
-  (:eql:gh:`#4221`)
+  (:edb:gh:`#4221`)
 
 * Fix ``range_unpack`` boundary bug.
 
   The ``range_unpack`` function was incorrectly excluding values close to
   boundary, especially when the boundary was not itself inclusive.
-  (:eql:gh:`#4282`)
+  (:edb:gh:`#4282`)
 
 * UI: Allow selection of read-only properties in data editor
-  (:eql:gh:`edgedb/edgedb-ui/#65`)
+  (:edb:gh:`edgedb/edgedb-ui/#65`)
 
 * UI: Hide subtype columns in data editor by default;
   add a toggle to show them.
-  (:eql:gh:`edgedb/edgedb-ui/#43`)
+  (:edb:gh:`edgedb/edgedb-ui/#43`)
 
 * UI: Add "create example database" to the database selection
   screen.
-  (:eql:gh:`edgedb/edgedb-ui/#61`)
+  (:edb:gh:`edgedb/edgedb-ui/#61`)
 
 * UI: Fix navigation from being reset on switching
   the UI panes.
-  (:eql:gh:`edgedb/edgedb-ui/#61`)
+  (:edb:gh:`edgedb/edgedb-ui/#61`)
 
 * UI: Fix rendering of range types.
-  (:eql:gh:`edgedb/edgedb-ui/#61`)
+  (:edb:gh:`edgedb/edgedb-ui/#61`)
 
 * UI: Fix the data editor UI to render types that have
   some properties or links masked by an access policy.
-  (:eql:gh:`edgedb/edgedb-ui/#61`)
+  (:edb:gh:`edgedb/edgedb-ui/#61`)
 
 * UI: Implement login page for remote instances.
-  (:eql:gh:`edgedb/edgedb-ui/#40`)
+  (:edb:gh:`edgedb/edgedb-ui/#40`)
 
 2.3
 ===
 
 * Clarify error message when UI is not enabled
-  (:eql:gh:`#4256`)
+  (:edb:gh:`#4256`)
 
 * Fix an issue with inherited computeds
-  (:eql:gh:`#4371`)
+  (:edb:gh:`#4371`)
 
 * Fix bug in diamond pattern constraint inheritance
-  (:eql:gh:`#4379`)
+  (:edb:gh:`#4379`)
 
 * When finding common parent for arrays, never use expr alias arrays
-  (:eql:gh:`#4080`)
+  (:edb:gh:`#4080`)
 
 * Properly quote numeric names when in codegen
-  (:eql:gh:`#4344`)
+  (:edb:gh:`#4344`)
 
 * Fix computed global scoping behavior
-  (:eql:gh:`#4388`)
+  (:edb:gh:`#4388`)
 
 * Fix DDL performance issues on databases with lots of data
-  (:eql:gh:`#4401`)
+  (:edb:gh:`#4401`)
 
 * Fix potentially missed constraints on DML
-  (:eql:gh:`#4410`)
+  (:edb:gh:`#4410`)
 
 * Fix slicing with an empty set
-  (:eql:gh:`#4404`)
+  (:edb:gh:`#4404`)
 
 * Fix slicing array of tuples
-  (:eql:gh:`#4391`)
+  (:edb:gh:`#4391`)
 
 * Don't apply access policies when compiling indexes
-  (:eql:gh:`#4420`)
+  (:edb:gh:`#4420`)
 
 * Fix slicing of tuple arrays with null inputs
-  (:eql:gh:`#4421`)
+  (:edb:gh:`#4421`)
 
 * Propagate database creation and deletion events to adjacent servers
-  (:eql:gh:`#4415`)
+  (:edb:gh:`#4415`)
 
 2.4
 ===
 
 * Fix database initialization on hosted environments like Heroku.
-  (:eql:gh:`#4432`)
+  (:edb:gh:`#4432`)
 
 * Prevent spurious errors when using backlinks on types that have
   properties with the same name but different types
-  (:eql:gh:`#4443`)
+  (:edb:gh:`#4443`)
 
 * Fix some spurious errors when removing a link from the schema.
-  (:eql:gh:`#4451`)
+  (:edb:gh:`#4451`)
 
 * For query_single, only check that the *last* query in a script is single.
-  (:eql:gh:`#4453`)
+  (:edb:gh:`#4453`)
 
 * Catch when POPULATE MIGRATION generates incorrect DDL. This should prevent
   bugs where the schema can get into wedged states.
-  (:eql:gh:`#4484`)
+  (:edb:gh:`#4484`)
 
 * workflows: Publish multiarch Docker images
-  (:eql:gh:`#4486`)
+  (:edb:gh:`#4486`)
 
 * Make unused param insertion in the sql compiler more reliable
-  (:eql:gh:`#4497`)
+  (:edb:gh:`#4497`)
 
 * Properly propagate creation and deletion of extensions
 
 * Fix potential exclusive constraint violations when doing an UPDATE
   on a union
-  (:eql:gh:`#4507`)
+  (:edb:gh:`#4507`)
 
 * Don't lose type from inheritance views when rebasing
-  (:eql:gh:`#4509`)
+  (:edb:gh:`#4509`)
 
 * Make object type descriptor ids be derived from type name
-  (:eql:gh:`#4503`)
+  (:edb:gh:`#4503`)
 
 * Check for invalid arrays arguments at the protocol level
-  (:eql:gh:`#4511`)
+  (:edb:gh:`#4511`)
 
 * Fix SET REQUIRED on newly created properties with alias subtypes
-  (:eql:gh:`#4513`)
+  (:edb:gh:`#4513`)
 
 * Make newly created link properties get added to the relevant alias types
-  (:eql:gh:`#4512`)
+  (:edb:gh:`#4512`)
 
 * Fix handling of link properties named ``id``
-  (:eql:gh:`#4514`)
+  (:edb:gh:`#4514`)
 
 * Disallow queries using conflict machinery on a link property. This
   prevents certain potential exclusive constraint violations that were
   not handled correctly.
-  (:eql:gh:`#4515`)
+  (:edb:gh:`#4515`)
 
 * Fix performing multiple deletions at once in the UI
-  (:eql:gh:`#4523`)
+  (:edb:gh:`#4523`)
 
 * Fix casting empty sets to built in enum types
-  (:eql:gh:`#4532`)
+  (:edb:gh:`#4532`)
 
 * Produce better error messages when using ``enum`` incorrectly
-  (:eql:gh:`#4527`)
+  (:edb:gh:`#4527`)
 
 * Make ``'\b'`` produce the correct value in string and bytes literals
-  (:eql:gh:`#4535`)
+  (:edb:gh:`#4535`)
 
 2.5
 ===
 
 * Properly infer cardinality of empty array as ONE
-  (:eql:gh:`#4533`)
+  (:edb:gh:`#4533`)
 
 * Fix several issues that manifest when using GROUP BY
-  (:eql:gh:`#4549`, :eql:gh:`#4439`)
+  (:edb:gh:`#4549`, :edb:gh:`#4439`)
 
 * Fix migration scripts when combined with access policies
-  (:eql:gh:`#4553`)
+  (:edb:gh:`#4553`)
 
 * Fix failure when a ``ALTER ... EXTENDING`` doesn't change the
   set of ancestors
-  (:eql:gh:`#4554`)
+  (:edb:gh:`#4554`)
 
 * Fix ``UNLESS CONFLICT ON`` for a not-inserted property
-  (:eql:gh:`#4556`)
+  (:edb:gh:`#4556`)
 
 * Fix access policies that use shapes internally
-  (:eql:gh:`#4555`)
+  (:edb:gh:`#4555`)
 
 * Allow overloading ``__type__`` with a computed in shapes
-  (:eql:gh:`#4557`)
+  (:edb:gh:`#4557`)
 
 2.6
 ===
@@ -708,7 +708,7 @@ Nonrecursive access policies and future behaviors
 -------------------------------------------------
 
 Starting with EdgeDB 3.0, access policy restrictions will **not** be applied
-while evaluating other access policy expressions (:eql:gh:`#4574`).
+while evaluating other access policy expressions (:edb:gh:`#4574`).
 
 It is possible (and recommended) to enable this :ref:`future
 <ref_eql_sdl_future>` behavior in EdgeDB 2.6 by adding the
@@ -718,7 +718,7 @@ For more details, see :ref:`the docs <nonrecursive>`.
 
 To enable opting in to this behavior, 2.6 adds a general mechanism
 to opt into :ref:`future <ref_eql_sdl_future>` behavior changes
-(:eql:gh:`#4574`, :eql:gh:`#4606`).
+(:edb:gh:`#4574`, :edb:gh:`#4606`).
 
 Other changes
 -------------
@@ -726,14 +726,14 @@ Other changes
 * Fix passing zero dimensional array as arguments. This was a regression
   introduced in 2.4, and affected passing empty arrays from the the Rust
   bindings.
-  (:eql:gh:`#4511`)
+  (:edb:gh:`#4511`)
 
 * Require that constraint expressions be immutable
-  (:eql:gh:`#4593`)
+  (:edb:gh:`#4593`)
 
 * Only permit valid UUID-generation functions to be made the default value
   for ``id``
-  (:eql:gh:`#4616`)
+  (:edb:gh:`#4616`)
 
 * UI: New mechanism for copying data in REPL and in Data Editor. Hover over
   a data line and click the context "COPY" button.
@@ -751,122 +751,122 @@ Other changes
 ===
 
 * Improve error messages when compiling pointer default
-  (:eql:gh:`#4624`)
+  (:edb:gh:`#4624`)
 
 * Fix using WITH-bound DML from an UPDATE in an ELSE clause
-  (:eql:gh:`#4641`)
+  (:edb:gh:`#4641`)
 
 * Allow WITH MODULE in ddl in CREATE MIGRATION
-  (:eql:gh:`#4668`)
+  (:edb:gh:`#4668`)
 
 * Fix some broken casts from object types to JSON
-  (:eql:gh:`#4663`)
+  (:edb:gh:`#4663`)
 
 * Fix putting a statement as the body of an access policy
-  (:eql:gh:`#4667`)
+  (:edb:gh:`#4667`)
 
 * Loosen the rules on when we produce a "would change the
   interpretation" error. It is not only produced when a link is being
-  used, not a property. (:eql:gh:`#4643`)
+  used, not a property. (:edb:gh:`#4643`)
 
 * Fix certain errors involving default values in access policies
-  (:eql:gh:`#4679`)
+  (:edb:gh:`#4679`)
 
 * Avoid ISE when pickling DynamicRangeVar
-  (:eql:gh:`#4681`)
+  (:edb:gh:`#4681`)
 
 * Fix ``max_ex_value`` constraint.
-  (:eql:gh:`#4671`)
+  (:edb:gh:`#4671`)
 
 * Fix SET GLOBAL capabilities to no longer break in the CLI.
-  (:eql:gh:`#4688`)
+  (:edb:gh:`#4688`)
 
 * Fix links to ``schema::ObjectType`` breaking DROP TYPE.  If you have
   a link in your schema to ``schema::ObjectType`` or one of its
   ancestors and you encounter internal server errors when trying to
   drop a type, it should be possible to repair your database by
   creating and then deleting a new link to ``schema::ObjectType``.
-  (:eql:gh:`#4670`)
+  (:edb:gh:`#4670`)
 
 * Don't insert unnecessary ``assert_exists`` calls on required links
   inside access policies bodies in some cases.
-  (:eql:gh:`#4695`)
+  (:edb:gh:`#4695`)
 
 2.8
 ===
 
 * Fix DML access policies that use shapes internally
-  (:eql:gh:`#4589`)
+  (:edb:gh:`#4589`)
 
 * Give a proper error message creating a migration with a USING that has DML
-  (:eql:gh:`#4707`)
+  (:edb:gh:`#4707`)
 
 * Don't incorrectly evaluate DML access policies when elements are also DML.
   This fixes some cases in which policies would pass incorrectly.
-  (:eql:gh:`#4745`)
+  (:edb:gh:`#4745`)
 
 * Fix direct use of ``__subject__`` from insert access policies
-  (:eql:gh:`#4752`)
+  (:edb:gh:`#4752`)
 
 * Produce an error message on casts to and literal references of enum types
   from indexes and constraints. Currently we generate an internal server
   error. A real fix unfortunately must wait for 3.0 for technical reasons.
-  (:eql:gh:`#4754`)
+  (:edb:gh:`#4754`)
 
 * Only apply filter cardinality inference to unique sets
-  (:eql:gh:`#4763`)
+  (:edb:gh:`#4763`)
 
 * Fix changing a link to non-computed and single at the same time
-  (:eql:gh:`#4764`)
+  (:edb:gh:`#4764`)
 
 * Fix error message for function calls on derived types
-  (:eql:gh:`#4757`)
+  (:edb:gh:`#4757`)
 
 * Fix deleting certain complex aliases
-  (:eql:gh:`#4777`)
+  (:edb:gh:`#4777`)
 
 * Fix link properties on inherited backlinks
-  (:eql:gh:`#4788`)
+  (:edb:gh:`#4788`)
 
 * Fix using array/string/bytes/json subscripting inside of indexes and
   constraints.
-  (:eql:gh:`#4760`)
+  (:edb:gh:`#4760`)
 
 * Fix apparent startup hangs due to a lock fd leaking into postgres
-  (:eql:gh:`#4797`)
+  (:edb:gh:`#4797`)
 
 * Fix some migrations with tricky constraint/computed interactions
-  (:eql:gh:`#4794`)
+  (:edb:gh:`#4794`)
 
 2.9
 ===
 
 * Fix broken DROPs of pointers in some multiple-inheritance situations
-  (:eql:gh:`#4809`)
+  (:edb:gh:`#4809`)
 
 * Properly execute function calls in UPDATE once per object
-  (:eql:gh:`#4810`)
+  (:edb:gh:`#4810`)
 
 * Fix accessing tuple elements on link properties
-  (:eql:gh:`#4811`)
+  (:edb:gh:`#4811`)
 
 * Fix ``assert_exists()`` not firing on some tuple values
-  (:eql:gh:`#4812`)
+  (:edb:gh:`#4812`)
 
 * Fix GROUP on the result of enumerate
-  (:eql:gh:`#4813`)
+  (:edb:gh:`#4813`)
 
 * Support more env vars in args.py, standardize docs
-  (:eql:gh:`#4387`)
+  (:edb:gh:`#4387`)
 
 * Fix computed properties that just copy id
-  (:eql:gh:`#4807`)
+  (:edb:gh:`#4807`)
 
 * Fix backlinks on derived union types
-  (:eql:gh:`#4818`)
+  (:edb:gh:`#4818`)
 
 * Fix references to the enclosing type in schema-defined computeds
-  (:eql:gh:`#4826`)
+  (:edb:gh:`#4826`)
 
 * UI: Fix regression introduced in 2.8 when editing empty string
   fields in data explorer
@@ -882,86 +882,86 @@ Other changes
 * Fix mismatch in session state after a ``ROLLBACK``
 
 * Fix ISE when doing set default on an abstract pointer
-  (:eql:gh:`#4843`)
+  (:edb:gh:`#4843`)
 
 * Fix accesses to ``__type__`` from insert access policies
-  (:eql:gh:`#4865`)
+  (:edb:gh:`#4865`)
 
 * Properly forbid aggregation in index expressions
-  (:eql:gh:`#4869`)
+  (:edb:gh:`#4869`)
 
 * Fix ``grouping`` field when grouping by one key or nothing
-  (:eql:gh:`#4906`)
+  (:edb:gh:`#4906`)
 
 * Fix two issues with mutation in free objects
-  (:eql:gh:`#4902`)
+  (:edb:gh:`#4902`)
 
 * Only allow type names as the subject of an insert. (Previously dotted paths
   were allowed, with nonsensical behavior.)
-  (:eql:gh:`#4922`)
+  (:edb:gh:`#4922`)
 
 * Fix array arguments in HTTP interface
-  (:eql:gh:`#4956`)
+  (:edb:gh:`#4956`)
 
 * Support multi properties in ``UNLESS CONFLICT ON``
-  (:eql:gh:`#4955`)
+  (:edb:gh:`#4955`)
 
 * Fix polymorphic type tests on result of update
-  (:eql:gh:`#4954`)
+  (:edb:gh:`#4954`)
 
 * Optimize trivial ``WITH`` -bound ``GROUP`` uses
-  (:eql:gh:`#4978`)
+  (:edb:gh:`#4978`)
 
 * Fix a category of confusing scoping related bugs in access policies
-  (:eql:gh:`#4994`)
+  (:edb:gh:`#4994`)
 
 * Get rid of the "unused alias definition" error.
-  (:eql:gh:`#4819`)
+  (:edb:gh:`#4819`)
 
 * Support mutation in ``USING`` expressions when changing a link to
   ``required`` or to ``single`` during a migration
-  (:eql:gh:`#4873`)
+  (:edb:gh:`#4873`)
 
 * Fix custom function calls on the HTTP interface
-  (:eql:gh:`#4998`)
+  (:edb:gh:`#4998`)
 
 * Avoid infinite recursion in some do-nothing intersection cases
-  (:eql:gh:`#5007`)
+  (:edb:gh:`#5007`)
 
 * Don't mangle cast error messages when the cast value contains a type name
-  (:eql:gh:`#5008`)
+  (:edb:gh:`#5008`)
 
 * Allow JWT token auth in binary protocol
-  (:eql:gh:`#4830`)
+  (:edb:gh:`#4830`)
 
 * Use prepared statement cache in EdgeQL script execution
-  (:eql:gh:`#4931`)
+  (:edb:gh:`#4931`)
 
 * Fix non-transactional commands like ``DROP DATABASE`` when using
   Postgres 14.7
-  (:eql:gh:`#5026`)
+  (:edb:gh:`#5026`)
 
 * Update packaged Postgres to 14.7
 
 * Fix ``set single`` on required properties
-  (:eql:gh:`#5031`)
+  (:edb:gh:`#5031`)
 
 * Fix a ISE when using assert_exists and linkprops using query builder
-  (:eql:gh:`#4961`)
+  (:edb:gh:`#4961`)
 
 2.11
 ====
 
 * Fix adding a link property with a default value to an existing link
   (a regression in 2.10)
-  (:eql:gh:`#5061`)
+  (:edb:gh:`#5061`)
 
 2.12
 ====
 
 * Fix GROUP regression with some query-builder queries
   (a regression in 2.10)
-  (:eql:gh:`#5073`)
+  (:edb:gh:`#5073`)
 
 2.13
 ====
@@ -970,42 +970,42 @@ Other changes
   that the new history produces the same result as the old
   history. CLI tooling to take advantage of this feature is coming
   soon.
-  (:eql:gh:`#4585`)
+  (:edb:gh:`#4585`)
 
 * Fix DigitalOcean support: allow its custom error in bootstrap
-  (:eql:gh:`#5139`)
+  (:edb:gh:`#5139`)
 
 * Add a hint to the error message about link targets.
-  (:eql:gh:`#5131`)
+  (:edb:gh:`#5131`)
 
 * Infer cardinality of ``required multi`` pointers as AT_LEAST_ONE
-  (:eql:gh:`#5180`)
+  (:edb:gh:`#5180`)
 
 * Fix dump/restore of migrations with messages on them
-  (:eql:gh:`#5171`)
+  (:edb:gh:`#5171`)
 
 * Fix interaction of link properties and ``assert_exists`` and similar
-  (:eql:gh:`#5182`)
+  (:edb:gh:`#5182`)
 
 * Make ``assert_single`` and similar not lose track of values updated
   in an ``UPDATE`` in their argument.
-  (:eql:gh:`#5088`)
+  (:edb:gh:`#5088`)
 
 * Add a test for assert_exists+assert_single+UPDATE
-  (:eql:gh:`#5242`)
+  (:edb:gh:`#5242`)
 
 * Add support for new JWT layout
-  (:eql:gh:`#5197`)
+  (:edb:gh:`#5197`)
 
 * Fix uses of volatile expressions in update write access policies
-  (:eql:gh:`#5256`)
+  (:edb:gh:`#5256`)
 
 * Allow globals to be used in defaults
-  (:eql:gh:`#5268`)
+  (:edb:gh:`#5268`)
 
 * Fix errmessage interpolation to not produce an internal server error on
   braces in a message. Allow ``{{`` and ``}}`` to be used to escape braces.
-  (:eql:gh:`#5295`)
+  (:edb:gh:`#5295`)
 
 2.14
 ====
@@ -1015,7 +1015,7 @@ Schema repair on upgrades
 
 Previously, certain bug fixes and changes (such as the fix to
 cardinality inferenced of ``required multi`` pointers released in 2.13
-(:eql:gh:`#5180`)), could cause schemas to enter an inconsistent state
+(:edb:gh:`#5180`)), could cause schemas to enter an inconsistent state
 from which many migrations were not possible.
 
 The cause of this problem is that an incorrectly inferred value (such
@@ -1035,57 +1035,57 @@ One particular hazard in this, however, is that the repair is not
 easily reversible if you need to downgrade to an earlier version.
 **We recommend performing a dump before upgrading to 2.14.**
 
-These changes were made in (:eql:gh:`#5337`); more discussion of the issue
-can be found in (:eql:gh:`#5321`).
+These changes were made in (:edb:gh:`#5337`); more discussion of the issue
+can be found in (:edb:gh:`#5321`).
 
 Other changes
 -------------
 
 * Correctly display constraint errors on ``id``
-  (:eql:gh:`#5344`)
+  (:edb:gh:`#5344`)
 
 * Fix adding certain computed links to a type with an alias
-  (:eql:gh:`#5329`)
+  (:edb:gh:`#5329`)
 
 2.15
 ====
 * In multi-server instances, properly reload schema after a restore
-  (:eql:gh:`#5463`)
+  (:edb:gh:`#5463`)
 
 * Fix several bugs synchronizing configuration state
 
 * Fix dropping a pointer's constraint and making it computed at the same time
-  (:eql:gh:`#5411`)
+  (:edb:gh:`#5411`)
 
 * Don't claim that making a pointer computed is data-safe
-  (:eql:gh:`#5412`)
+  (:edb:gh:`#5412`)
 
 * Prohibit NUL character in query source
-  (:eql:gh:`#5414`)
+  (:edb:gh:`#5414`)
 
 * Fix migration that delete an link alias computed in a parent and child
-  (:eql:gh:`#5428`)
+  (:edb:gh:`#5428`)
 
 * Fix GraphQL updates for multi links.
-  (:eql:gh:`#4260`)
+  (:edb:gh:`#4260`)
 
 * Fix altering enum that is used in a tuple
-  (:eql:gh:`#5445`)
+  (:edb:gh:`#5445`)
 
 * Fix changing cardinality of properties on types used in unions
-  (:eql:gh:`#5457`)
+  (:edb:gh:`#5457`)
 
 * Enable GraphQL support for type unions.
 
 * Fix making pointer non-computed and giving it an abstract base at the
   same time
-  (:eql:gh:`#5458`)
+  (:edb:gh:`#5458`)
 
 * Make json casts of object arrays not include extra fields
-  (:eql:gh:`#5484`)
+  (:edb:gh:`#5484`)
 
 * Make coalesce infer a union type
-  (:eql:gh:`#5472`)
+  (:edb:gh:`#5472`)
 
 2.16
 ====

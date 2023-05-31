@@ -378,7 +378,7 @@ We use tables and lists in a few different contexts.
     * - :ref:`Schema > Access policies <ref_datamodel_access_policies>`
     * - :ref:`SDL > Access policies <ref_eql_sdl_access_policies>`
 
-.. note:: 
+.. note::
 
     The ``seealso`` class adds a spacer above the table to push the table
     away from the main page content.
@@ -469,7 +469,7 @@ With the help of a ``with`` block, we can add filters, ordering, and
 pagination clauses.
 
 .. warning::
-    
+
     Marking up inline code with single backticks a la Markdown will throw an
     error in Sphinx when building the documentation.
 
@@ -743,7 +743,7 @@ elements:
         Return the array made from all of the input set elements.
 
         The ordering of the input set will be preserved if specified.
-        
+
 You can link to a function's documentation by using the ``:eql:func:`` role.
 For instance:
 
@@ -836,7 +836,7 @@ synopsis like this:
 These descriptions can each contain as many paragraphs as needed to adequately
 describe the clause. Follow the format used in the PostgreSQL documentation.
 See `the PostgreSQL SELECT statement reference page
-<https://www.postgresql.org/docs/10/static/sql-select.html>`_ for an example. 
+<https://www.postgresql.org/docs/10/static/sql-select.html>`_ for an example.
 
 Use ``:eql:stmt:`select``` to link to the statement's documentation. When
 rendered the link looks like this: :eql:stmt:`select`. Customize the label with
@@ -866,7 +866,7 @@ customized with ``:eql:type:`the bytes type <bytes>``` which renders like this:
 Keywords
 --------
 
-Document a keyword using the ``.. eql:keyword::`` directive. 
+Document a keyword using the ``.. eql:keyword::`` directive.
 
 .. code-block::
 
@@ -906,7 +906,7 @@ Document a CLI command using the ``cli:synopsis`` directive like this:
 
 The synopsis should follow the format used in the PostgreSQL documentation. See
 `the PostgreSQL SELECT statement reference page
-<https://www.postgresql.org/docs/10/static/sql-select.html>`_ for an example. 
+<https://www.postgresql.org/docs/10/static/sql-select.html>`_ for an example.
 
 You can then document arguments and options using the ``:cli:synopsis:`` role.
 
@@ -1134,7 +1134,7 @@ Embed only videos from `the EdgeDB YouTube channel
 Displaying Illustrations
 ------------------------
 
-Using the ``.. eql:section-intro-page::`` directive, you can display one of
+Using the ``.. edb:section-intro-page::`` directive, you can display one of
 several illustrations. Pass the name of the illustration to the directive by
 placing it after the directive on the same line.
 
@@ -1142,11 +1142,11 @@ placing it after the directive on the same line.
 
 .. code-block::
 
-    .. eql:section-intro-page:: edgeql
+    .. edb:section-intro-page:: edgeql
 
 **Rendered**
 
-.. eql:section-intro-page:: edgeql
+.. edb:section-intro-page:: edgeql
 
 .. lint-off
 

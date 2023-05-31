@@ -16,10 +16,10 @@ Migrations
 We continue fixing bugs that affect schema definitions and migrations:
 
 * Always escape newlines when string literals appear in automatically
-  generated code, such as in migrations (:eql:gh:`#2704`).
+  generated code, such as in migrations (:edb:gh:`#2704`).
 * Fix behavior of ``set multi`` to make sure that it does not imply
-  ``set required`` (:eql:gh:`#2778`).
-* Make properties non-distinct by default (:eql:gh:`#2853`).
+  ``set required`` (:edb:gh:`#2778`).
+* Make properties non-distinct by default (:edb:gh:`#2853`).
 
   All values in EdgeQL are considered to be :ref:`multisets
   <ref_eql_everything_is_a_set>`, which are a generalization of the set
@@ -53,10 +53,10 @@ We continue fixing bugs that affect schema definitions and migrations:
   one* in ``multi`` properties.
 
 * Fix the error when an object function is created alongside its
-  object (:eql:gh:`#2834`).
+  object (:edb:gh:`#2834`).
 
 * Fix handling of function overloads on object type parameters
-  (:eql:gh:`#2889`).
+  (:edb:gh:`#2889`).
 
   The current approach places a number of restrictions on overloads
   of object type functions:
@@ -77,22 +77,22 @@ We continue fixing bugs that affect schema definitions and migrations:
 
 * Make computed links and properties defined in the schema behave the
   same way as the equivalent computed links and properties defined
-  ad-hoc directly in the query (:eql:gh:`#2558`).
+  ad-hoc directly in the query (:edb:gh:`#2558`).
 
 
 EdgeQL
 ======
 
-* Drop ``final`` from the syntax (:eql:gh:`#2607`).
+* Drop ``final`` from the syntax (:edb:gh:`#2607`).
 * Restore the precedence of :eql:op:`detached` to no longer match that
-  of :eql:op:`exists` undoing the change :eql:gh:`#2638`.
-* Fix ``unless conflict`` with inheritance hierarchies (:eql:gh:`#2525`).
-* Always use serializable isolation (:eql:gh:`#2877`).
+  of :eql:op:`exists` undoing the change :edb:gh:`#2638`.
+* Fix ``unless conflict`` with inheritance hierarchies (:edb:gh:`#2525`).
+* Always use serializable isolation (:edb:gh:`#2877`).
 * Correctly raise exclusive constraints when performing an ``insert``
-  or an ``update`` on related types (:eql:gh:`#2845`).
-* Enforce link or property cardinality in mutations (:eql:gh:`#2827`).
+  or an ``update`` on related types (:edb:gh:`#2845`).
+* Enforce link or property cardinality in mutations (:edb:gh:`#2827`).
 * Fix cardinality inference in "optionality-preserving" functions
-  (:eql:gh:`#2844`).
+  (:edb:gh:`#2844`).
 
   A certain number of standard aggregate functions are guaranteed to
   preserve the lower cardinality bound of their argument.  These
@@ -106,7 +106,7 @@ EdgeQL
   builders and such.
 
 * Implement :eql:func:`assert_exists` which allows to perform a
-  cardinality check in run-time (:eql:gh:`#2901`):
+  cardinality check in run-time (:edb:gh:`#2901`):
 
   .. code-block:: edgeql-repl
 
@@ -117,23 +117,23 @@ EdgeQL
     ERROR: CardinalityViolationError: assert_exists violation: expression
            returned an empty set.
 
-* Fix deletion issues for multi properties (:eql:gh:`#2883`).
+* Fix deletion issues for multi properties (:edb:gh:`#2883`).
 
-* Disallow some broken DML/volatile interactions (:eql:gh:`#2811`).
+* Disallow some broken DML/volatile interactions (:edb:gh:`#2811`).
 * Fix volatility inference of functions taking object arguments to be
   at most ``Stable`` because it triggers a table scan
-  (:eql:gh:`#2890`).
+  (:edb:gh:`#2890`).
 * Fix a regression when objects from opaque sources are passed to
-  functions (:eql:gh:`#2924`).
+  functions (:edb:gh:`#2924`).
 
-* Fix accessing link properties on union types (:eql:gh:`#2513`).
-* Fix some introspection issues with backlinks (:eql:gh:`#2599`)
-* Fix bare backlink schema-defined computed link (:eql:gh:`#2605`).
+* Fix accessing link properties on union types (:edb:gh:`#2513`).
+* Fix some introspection issues with backlinks (:edb:gh:`#2599`)
+* Fix bare backlink schema-defined computed link (:edb:gh:`#2605`).
 * Make filtered backlinks work even when there exists a computed
-  backlink (:eql:gh:`#2698`).
+  backlink (:edb:gh:`#2698`).
 
 * Fix handling of the ``optional`` specifier in shapes to be similar
-  to SDL (:eql:gh:`#2900`).
+  to SDL (:edb:gh:`#2900`).
 
 
 Command-Line Tools
@@ -143,9 +143,9 @@ Command-Line Tools
   file for customizing the CLI and REPL behavior. The location of the
   file is shown as "Config" by :ref:`ref_cli_edgedb_info`.
 
-* Make SCRAM the default auth method (:eql:gh:`#2848`).
+* Make SCRAM the default auth method (:edb:gh:`#2848`).
 * Add a server option to specify the default authentication method
-  (:eql:gh:`#2936`).
+  (:edb:gh:`#2936`).
 
   This patch adds the new ``--default-auth-method`` argument as well as
   its companion ``EDGEDB_SERVER_DEFAULT_AUTH_METHOD`` environment

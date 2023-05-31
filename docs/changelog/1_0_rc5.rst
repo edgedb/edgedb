@@ -16,9 +16,9 @@ Changes
 
 * Downgrade some keywords from being reserved to unreserved:
   ``abort``, ``declare``, ``empty``, ``order``, ``populate``,
-  ``release``, ``reset``, ``start`` (:eql:gh:`#3387`).
-* Fix an issue with removing types from the schema (:eql:gh:`#3309`).
+  ``release``, ``reset``, ``start`` (:edb:gh:`#3387`).
+* Fix an issue with removing types from the schema (:edb:gh:`#3309`).
 * Improve cardinality inference for ``offset`` and ``limit`` clauses
-  (:eql:gh:`#3375`).
+  (:edb:gh:`#3375`).
 * Enable :eql:type:`enums <enum>` for some configuration values
-  (:eql:gh:`#3320`).
+  (:edb:gh:`#3320`).

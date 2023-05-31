@@ -1,4 +1,4 @@
-.. eql:section-intro-page:: introduction
+.. edb:section-intro-page:: introduction
 
 .. _ref_intro:
 
@@ -126,7 +126,7 @@ EdgeQL.
   deployment guides for all major cloud hosting platforms, as well as
   instructions for self-hosting with Docker.
 
-.. eql:react-element:: DocsNavTable
+.. edb:react-element:: DocsNavTable
 
 EdgeDB features:
 

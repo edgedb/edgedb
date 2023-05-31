@@ -111,35 +111,35 @@ Type conversion between timezone-aware ``std::datetime`` and local date/time
 values (types in the ``cal::`` module) is always
 :ref:`explicit and unambiguous <ref_std_datetime>`.
 
-(See :eql:gh:`#902` for details.)
+(See :edb:gh:`#902` for details.)
 
 Other Fixes and Enhancements
 ----------------------------
 
-* Prohibit ``NaN`` as a ``std::decimal`` value (:eql:gh:`5e16ace1`).
+* Prohibit ``NaN`` as a ``std::decimal`` value (:edb:gh:`5e16ace1`).
 
 * Rename ``std::datetime_trunc`` to ``std::datetime_truncate``
-  (:eql:gh:`#952`).
+  (:edb:gh:`#952`).
 
 * Make :eql:func:`datetime_get` and :eql:func:`datetime_truncate` stricter
-  (:eql:gh:`#958`).
+  (:edb:gh:`#958`).
 
-* Disable days and months units in :eql:type:`duration` (:eql:gh:`#947`).
+* Disable days and months units in :eql:type:`duration` (:edb:gh:`#947`).
 
 * Rename ``sys::transaction_isolation_t`` to ``sys::TransactionIsolation``
-  (:eql:gh:`c45ee4ba`).
+  (:edb:gh:`c45ee4ba`).
 
 * Rename ``schema::cardinality_t`` to ``schema::Cardinality``
-  (:eql:gh:`b2ceaa61`).
+  (:edb:gh:`b2ceaa61`).
 
 * Rename ``schema::target_delete_action_t`` to ``schema::TargetDeleteAction``
-  (:eql:gh:`6a7c6787`).
+  (:edb:gh:`6a7c6787`).
 
 * Rename ``schema::operator_kind_t`` to ``schema::OperatorKind``
-  (:eql:gh:`3a01f616`).
+  (:edb:gh:`3a01f616`).
 
 * Rename ``schema::volatility_t`` to ``schema::Volatility``
-  (:eql:gh:`16e263cc`).
+  (:edb:gh:`16e263cc`).
 
 
 Dump / Restore
@@ -195,38 +195,38 @@ to access target objects' properties and links:
 
     select User.<profile[is Profile].settings;
 
-(See :eql:gh:`#969` for details.)
+(See :edb:gh:`#969` for details.)
 
 Other Fixes and Enhancements
 ----------------------------
 
 * Update the semantics of line continuation (trailing ``\``) in strings
-  (:eql:gh:`#921`).
+  (:edb:gh:`#921`).
 * Remove the ``.>`` alternate syntax for forward link navigation
-  (:eql:gh:`#982`).
+  (:edb:gh:`#982`).
 * Fix interaction of the :eql:stmt:`for` statement and nested shapes
-  (:eql:gh:`#834`).
-* Place restrictions on the use of DML statements (:eql:gh:`#741`).
-* Fix queries with unions with overlapping subtypes (:eql:gh:`#1010`).
+  (:edb:gh:`#834`).
+* Place restrictions on the use of DML statements (:edb:gh:`#741`).
+* Fix queries with unions with overlapping subtypes (:edb:gh:`#1010`).
 * Allow trailing commas in the :ref:`with <ref_eql_with>` clause
-  (:eql:gh:`#868`).
-* Ban use of ``::`` in quoted names (:eql:gh:`#840`).
-* Add syntax for quoting backticks in quoted names (:eql:gh:`#632`).
+  (:edb:gh:`#868`).
+* Ban use of ``::`` in quoted names (:edb:gh:`#840`).
+* Add syntax for quoting backticks in quoted names (:edb:gh:`#632`).
 * Remove ``select``-like clauses from the :eql:stmt:`for` statement
-  (:eql:gh:`#743`).
+  (:edb:gh:`#743`).
 * Fix implicit ``id`` and ``__tid__`` properties injection in
-  DML statements (:eql:gh:`#664`).
+  DML statements (:edb:gh:`#664`).
 * Make type variants made by shapes consistent with schema inheritance
-  rules (:eql:gh:`36e86d56`).
-* Implement rudimentary support for type intersection (:eql:gh:`177aa1f8`).
-* Optimize single link type indirections when possible (:eql:gh:`48cdfa54`).
+  rules (:edb:gh:`36e86d56`).
+* Implement rudimentary support for type intersection (:edb:gh:`177aa1f8`).
+* Optimize single link type indirections when possible (:edb:gh:`48cdfa54`).
 * Stop enforcing common prefix ambiguity restriction on tuple dereference
-  (:eql:gh:`9011c821`).
+  (:edb:gh:`9011c821`).
 * Add an error hint for incorrect string line continuation
-  (:eql:gh:`7b982e09`).
+  (:edb:gh:`7b982e09`).
 * Enable comparison of collections of distinct (but compatible) types
-  (:eql:gh:`c913df11`).
-* Implement std::IN as a derivative of std::= (:eql:gh:`f3682e92`).
+  (:edb:gh:`c913df11`).
+* Implement std::IN as a derivative of std::= (:edb:gh:`f3682e92`).
 
 
 GraphQL
@@ -300,10 +300,10 @@ specify what data to insert or how to update the existing data:
 Other Fixes and Enhancements
 ----------------------------
 
-* Fix backlinks in aliases (:eql:gh:`#990`).
-* Fix covariant types support (:eql:gh:`#709`).
+* Fix backlinks in aliases (:edb:gh:`#990`).
+* Fix covariant types support (:edb:gh:`#709`).
 * Implement explicit handling of 64-bit integers, and arbitrary precision
-  integers and decimals (:eql:gh:`#1138`).
+  integers and decimals (:edb:gh:`#1138`).
 
 
 DDL / SDL / Schema
@@ -313,23 +313,23 @@ DDL and SDL layers are heavily refactored in alpha 2. A lot of issues were
 fixed; this section lists only new features and backwards incompatible
 changes:
 
-* Rename "views" to "expression aliases" (:eql:gh:`#989`).
-* Add a :ref:`"module" <ref_eql_sdl_modules>` block to SDL (:eql:gh:`#907`).
+* Rename "views" to "expression aliases" (:edb:gh:`#989`).
+* Add a :ref:`"module" <ref_eql_sdl_modules>` block to SDL (:edb:gh:`#907`).
 * Rename SDL keyword "inherited" to
-  :ref:`"overloaded" <ref_eql_sdl_links_overloading>`. (:eql:gh:`#806`).
+  :ref:`"overloaded" <ref_eql_sdl_links_overloading>`. (:edb:gh:`#806`).
 * Reimplement :ref:`SDL <ref_eql_sdl>` through :ref:`DDL <ref_eql_ddl>`.
-  (:eql:gh:`824f14a6`).
-* Rename the DDL ``from`` clause to ``using`` (:eql:gh:`4194ab46`).
-* Add support for collection type views :eql:gh:`367820ba`.
-* Prohibit ``multi`` or ``required`` link properties (:eql:gh:`#994`).
-* Forbid redefinition of read-only flag. (:eql:gh:`#1048`).
+  (:edb:gh:`824f14a6`).
+* Rename the DDL ``from`` clause to ``using`` (:edb:gh:`4194ab46`).
+* Add support for collection type views :edb:gh:`367820ba`.
+* Prohibit ``multi`` or ``required`` link properties (:edb:gh:`#994`).
+* Forbid redefinition of read-only flag. (:edb:gh:`#1048`).
 * Change ``set annotation`` to ``create/alter annotation``
-  (:eql:gh:`0e53e2ff`).
-* Implement ``create module if not exists`` (:eql:gh:`27924c10`.)
-* Allow indexes to be annotated (:eql:gh:`50d8809a`).
-* Remove explicit index names (:eql:gh:`e0f462c2`).
+  (:edb:gh:`0e53e2ff`).
+* Implement ``create module if not exists`` (:edb:gh:`27924c10`.)
+* Allow indexes to be annotated (:edb:gh:`50d8809a`).
+* Remove explicit index names (:edb:gh:`e0f462c2`).
 * Enforce correct expression cardinality and type in link/property default
-  (:eql:gh:`2f6039fc` and :eql:gh:`9fa18afb`).
+  (:edb:gh:`2f6039fc` and :edb:gh:`9fa18afb`).
 
 
 Introspection
@@ -377,15 +377,15 @@ few examples:
       };'
     }
 
-(Issue :eql:gh:`#790`.)
+(Issue :edb:gh:`#790`.)
 
 
 Other Enhancements
 ------------------
 
 * ``schema::bases`` and ``schema::ancestors`` are now ordered via the
-  ``@order`` link property (:eql:gh:`#854`).
-* Add ``schema::Module.builtin`` attribute (:eql:gh:`64f88a01`).
+  ``@order`` link property (:edb:gh:`#854`).
+* Add ``schema::Module.builtin`` attribute (:edb:gh:`64f88a01`).
 
 
 REPL
@@ -434,7 +434,7 @@ For example:
       required single property image -> std::str;
     };
 
-(Issue :eql:gh:`#179`.)
+(Issue :edb:gh:`#179`.)
 
 Auto Limit
 ----------
@@ -447,7 +447,7 @@ disabled inside aggregate functions, so analytical queries work as expected.
 The auto-limit can be disabled with a ``\limit 0`` command, or the limit
 can be changed with ``\limit 42`` command.
 
-(Issue :eql:gh:`#846`.)
+(Issue :edb:gh:`#846`.)
 
 
 Server
@@ -461,12 +461,12 @@ EdgeDB is now based on PostgreSQL 12.
 Other Fixes and Enhancements
 ----------------------------
 
-* Add an explicit database instance compatibility check (:eql:gh:`251517c0`).
+* Add an explicit database instance compatibility check (:edb:gh:`251517c0`).
 * Initial support for using a remote Postgres cluster as a backend
-  (:eql:gh:`b0db89b2`).
-* Protocol: prohibit tuples as query arguments (:eql:gh:`#745`).
-* Protocol: differentiate SASL message types (:eql:gh:`d52885c8`).
-* Protocol: Add "Terminate" message for graceful shutdown (:eql:gh:`d699352a`).
+  (:edb:gh:`b0db89b2`).
+* Protocol: prohibit tuples as query arguments (:edb:gh:`#745`).
+* Protocol: differentiate SASL message types (:edb:gh:`d52885c8`).
+* Protocol: Add "Terminate" message for graceful shutdown (:edb:gh:`d699352a`).
 * Protocol: use 32-bit length-prefixed strings everywhere.
 * Drop reliance on a custom PostgreSQL C extension.
 
@@ -475,16 +475,16 @@ Misc
 ====
 
 * Command-line tools now use ``-h`` for help; ``-H`` for hostname.
-  (:eql:gh:`#1039`).
+  (:edb:gh:`#1039`).
 * ``edgedb`` subcommands were renamed to have dashes in their names instead
   of spaces, e.g. ``edgedb create role`` became ``edgedb create-role``
-  (:eql:gh:`#1039`).
+  (:edb:gh:`#1039`).
 * Rename the ``--pidfile`` argument of ``edgedb-server`` to ``--pidfile-dir``.
-  (:eql:gh:`#1093`).
+  (:edb:gh:`#1093`).
 * Add command line arguments to ``edgedb-server`` for automatic temporary
-  cluster bootstrap to simplify CI (:eql:gh:`5161de72`).
+  cluster bootstrap to simplify CI (:edb:gh:`5161de72`).
 * Add developer tools for memory and performance profiling
-  (:eql:gh:`#1032`, :eql:gh:`#835`, and :eql:gh:`#858`).
+  (:edb:gh:`#1032`, :edb:gh:`#835`, and :edb:gh:`#858`).
 * Improve query compilation performance by ~30%.
 * Strictly type-annotate SQL and IR compilers, run ``mypy`` in
   strict mode in CI for critical modules.

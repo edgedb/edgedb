@@ -560,7 +560,7 @@ EdgeQL
 ------
 
 * Support custom user-defined error messages for access policies
-  (:eql:gh:`#4529`)
+  (:edb:gh:`#4529`)
 
   .. code-block:: sdl
 
@@ -574,7 +574,7 @@ EdgeQL
         };
     }
 
-* Support casting a UUID to a type (:eql:gh:`#4469`). This is a handy way to
+* Support casting a UUID to a type (:edb:gh:`#4469`). This is a handy way to
   select an object, assuming the type you cast into has an object with the UUID
   being cast.
 
@@ -584,14 +584,14 @@ EdgeQL
       {default::Hero {id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7}}
 
 * Add the :eql:func:`json_object_pack` function to construct JSON from an array
-  of key/value tuples. (:eql:gh:`#4474`)
+  of key/value tuples. (:edb:gh:`#4474`)
 
   .. code-block:: edgeql-repl
 
       db> select json_object_pack({("hello", <json>"world")});
       {Json("{\"hello\": \"world\"}")}
 
-* Support tuples as query arguments (:eql:gh:`#4489`)
+* Support tuples as query arguments (:edb:gh:`#4489`)
 
   .. code-block:: edgeql
 
@@ -602,7 +602,7 @@ EdgeQL
       select <array<tuple<int64, str>>>$var;
       select <optional array<tuple<int64, str>>>$var;
 
-* Add the syntax for abstract indexes (:eql:gh:`#4691`)
+* Add the syntax for abstract indexes (:edb:gh:`#4691`)
 
   Exposes some Postgres indexes that you can use in your schemas. These are
   exposed through the ``pg`` module.
@@ -634,11 +634,11 @@ EdgeQL
         index pg::spgist on (.name);
       };
 
-* Implement migration rewrites (:eql:gh:`#4585`)
+* Implement migration rewrites (:edb:gh:`#4585`)
 
-* Implement schema reset (:eql:gh:`#4714`)
+* Implement schema reset (:edb:gh:`#4714`)
 
-* Support link properties on computed backlinks (:eql:gh:`#5227`)
+* Support link properties on computed backlinks (:edb:gh:`#5227`)
 
 
 
@@ -671,64 +671,64 @@ CLI
 Bug fixes
 ---------
 
-* Fix crash on cycle between defaults in insert (:eql:gh:`#5355`)
+* Fix crash on cycle between defaults in insert (:edb:gh:`#5355`)
 
-* Improvements to top-level server error reporting (:eql:gh:`#5349`)
+* Improvements to top-level server error reporting (:edb:gh:`#5349`)
 
-* Forbid ranges of user-defined scalars (:eql:gh:`#5345`)
+* Forbid ranges of user-defined scalars (:edb:gh:`#5345`)
 
-* Forbid DML in non-scalar function args (:eql:gh:`#5310`)
+* Forbid DML in non-scalar function args (:edb:gh:`#5310`)
 
-* Don't let "owned" affect how we calculate backlinks (:eql:gh:`#5306`)
+* Don't let "owned" affect how we calculate backlinks (:edb:gh:`#5306`)
 
 * Require inheritance order to be consistent with the specified base order
-  (:eql:gh:`#5276`)
+  (:edb:gh:`#5276`)
 
-* Support using non-strict functions in simple expressions (:eql:gh:`#5271`)
+* Support using non-strict functions in simple expressions (:edb:gh:`#5271`)
 
 * Don't duplicate the computation of single links with link properties
-  (:eql:gh:`#5264`)
+  (:edb:gh:`#5264`)
 
 * Properly rebase computed links when changing their definition
-  (:eql:gh:`#5222`)
+  (:edb:gh:`#5222`)
 
-* Fix 3-way unions of certain types with policies (:eql:gh:`#5205`)
+* Fix 3-way unions of certain types with policies (:edb:gh:`#5205`)
 
-* Fix simultaneous deletion of objects related by multi links (:eql:gh:`#5201`)
+* Fix simultaneous deletion of objects related by multi links (:edb:gh:`#5201`)
 
 * Respect ``enforce_access_policies := false``
-  inside functions (:eql:gh:`#5199`)
+  inside functions (:edb:gh:`#5199`)
 
 * Fix inferred link/property kind when extending abstract link
-  (:eql:gh:`#5196`)
+  (:edb:gh:`#5196`)
 
 * Forbid ``on target delete deferred restrict`` on required links.
-  (:eql:gh:`#5189`)
+  (:edb:gh:`#5189`)
 
-* Make uuidgen properly set versions in uuid4/uuid5 (:eql:gh:`#5188`)
+* Make uuidgen properly set versions in uuid4/uuid5 (:edb:gh:`#5188`)
 
 * Disallow variadic arguments with optional types in user code.
-  (:eql:gh:`#5110`)
+  (:edb:gh:`#5110`)
 
-* Support casting between scalars with a common concrete base (:eql:gh:`#5108`)
+* Support casting between scalars with a common concrete base (:edb:gh:`#5108`)
 
-* Fix GROUP regression with some query-builder queries (:eql:gh:`#5071`)
+* Fix GROUP regression with some query-builder queries (:edb:gh:`#5071`)
 
 * Fix a ISE when using ``assert_exists`` and linkprops using query builder
-  (:eql:gh:`#5036`)
+  (:edb:gh:`#5036`)
 
 * Fix bug that dropping non-existing db leaves with unaccessible state
-  (:eql:gh:`#5032`)
+  (:edb:gh:`#5032`)
 
-* Fix non-transactional errors in Postgres 14.7 (:eql:gh:`#5028`)
+* Fix non-transactional errors in Postgres 14.7 (:edb:gh:`#5028`)
 
 * Properly cast to containers of enums when loading from the schema
-  (:eql:gh:`#4988`)
+  (:edb:gh:`#4988`)
 
-* Implement manual error override configuration (:eql:gh:`#4974`)
+* Implement manual error override configuration (:edb:gh:`#4974`)
 
 * Fix protocol state confusion after rollback
-  (:eql:gh:`#4970`), (:eql:gh:`#4953`)
+  (:edb:gh:`#4970`), (:edb:gh:`#4953`)
 
 
 Deprecations
@@ -778,87 +778,87 @@ receive support for a year and a half after their initial release.
 Changes to new 3.0 features
 ---------------------------
 * Fix indirect references to properties in triggers
-  (:eql:gh:`#5450`)
+  (:edb:gh:`#5450`)
 
 * Fix rewrites of aliases types
-  (:eql:gh:`#5461`)
+  (:edb:gh:`#5461`)
 
 * Do nicer translation of relation names in ``ANALYZE``
-  (:eql:gh:`#5467`)
+  (:edb:gh:`#5467`)
 
 * Fix schema ordering bug when ``INSERT`` appears in triggers
-  (:eql:gh:`#5489`)
+  (:edb:gh:`#5489`)
 
 * Produce correct error source locations in the SQL interface
-  (:eql:gh:`#5462`)
+  (:edb:gh:`#5462`)
 
 * Fix deleting a pointer with rewrites in a migration
-  (:eql:gh:`#5503`)
+  (:edb:gh:`#5503`)
 
 
 Other changes and fixes
 -----------------------
 * Support disabling dynamic configuration of system config
-  (:eql:gh:`#5425`)
+  (:edb:gh:`#5425`)
 
 * In multi-server instances, properly reload schema after a restore
-  (:eql:gh:`#5463`)
+  (:edb:gh:`#5463`)
 
 * Fix several bugs synchronizing configuration state
 
 * Fix dropping a pointer's constraint and making it computed at the same time
-  (:eql:gh:`#5411`)
+  (:edb:gh:`#5411`)
 
 * Don't claim that making a pointer computed is data-safe
-  (:eql:gh:`#5412`)
+  (:edb:gh:`#5412`)
 
 * Prohibit NUL character in query source
-  (:eql:gh:`#5414`)
+  (:edb:gh:`#5414`)
 
 * Fix migration that delete an link alias computed in a parent and child
-  (:eql:gh:`#5428`)
+  (:edb:gh:`#5428`)
 
 * Fix GraphQL updates for multi links.
-  (:eql:gh:`#4260`)
+  (:edb:gh:`#4260`)
 
 * Fix altering enum that is used in a tuple
-  (:eql:gh:`#5445`)
+  (:edb:gh:`#5445`)
 
 * Fix changing cardinality of properties on types used in unions
-  (:eql:gh:`#5457`)
+  (:edb:gh:`#5457`)
 
 * Enable GraphQL support for type unions.
 
 * Fix making pointer non-computed and giving it an abstract base at the
   same time
-  (:eql:gh:`#5458`)
+  (:edb:gh:`#5458`)
 
 * Make json casts of object arrays not include extra fields
-  (:eql:gh:`#5484`)
+  (:edb:gh:`#5484`)
 
 * Make coalesce infer a union type
-  (:eql:gh:`#5472`)
+  (:edb:gh:`#5472`)
 
 * Fix graphql queries made against a freshly started server
-  (:eql:gh:`#5456`)
+  (:edb:gh:`#5456`)
 
 * Fix version for project init
-  (:eql:gh:`#5460`)
+  (:edb:gh:`#5460`)
 
 * Produce a proper error for too many constraint args
-  (:eql:gh:`#5454`)
+  (:edb:gh:`#5454`)
 
 * Prevent using leading dot notation in inserts
-  (:eql:gh:`#5142`)
+  (:edb:gh:`#5142`)
 
 * Fix operations on single link with only computable link properties
-  (:eql:gh:`#5499`)
+  (:edb:gh:`#5499`)
 
 * Don't ISE on free shape in insert
-  (:eql:gh:`#5438`)
+  (:edb:gh:`#5438`)
 
 * Work around postgres server crashes on Digital Ocean during edgedb setup
-  (:eql:gh:`#5505`)
+  (:edb:gh:`#5505`)
 
 * Always set cardinality of derived ``__tname__`` and ``__tid__`` pointers
   (:eql:gh:`#5508`)

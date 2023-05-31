@@ -18,37 +18,37 @@ improving the developer experience. Here's a highlight of recent
 changes and fixes:
 
 * Fix :eql:type:`sequence` default values getting lost after some
-  migrations (:eql:gh:`#2389`).
-* Fix moving indexes around the type hierarchy (:eql:gh:`#2380`).
-* Fix issues with renaming (:eql:gh:`#2353`).
+  migrations (:edb:gh:`#2389`).
+* Fix moving indexes around the type hierarchy (:edb:gh:`#2380`).
+* Fix issues with renaming (:edb:gh:`#2353`).
 * Fix an issue using a symbol defined in a ``with`` block in SDL
-  (:eql:gh:`#2320`).
+  (:edb:gh:`#2320`).
 * Fix multiple issues with migrations to an empty schema
-  (:eql:gh:`#2296`).
+  (:edb:gh:`#2296`).
 * Make it possible to add new values to :eql:type:`enums <enum>` in
-  migrations (:eql:gh:`#2328`).
+  migrations (:edb:gh:`#2328`).
 * Fix tuples in ``multi`` properties and :eql:op:`in` expressions
-  (:eql:gh:`#2255`).
+  (:edb:gh:`#2255`).
 * Fix SDL handling of types with two or more indexes
-  (:eql:gh:`#2301`).
+  (:edb:gh:`#2301`).
 * Fix a regression with array aliasing that made array aliases
-  indistinguishable (:eql:gh:`#2287`).
+  indistinguishable (:edb:gh:`#2287`).
 * Fix a number of issues with constraints and provide
   better context information for constraint definition errors
-  (:eql:gh:`#1370`, :eql:gh:`#2250`, :eql:gh:`#2305`, :eql:gh:`#2307`,
-  :eql:gh:`#2311`, :eql:gh:`#2410`).
+  (:edb:gh:`#1370`, :edb:gh:`#2250`, :edb:gh:`#2305`, :edb:gh:`#2307`,
+  :edb:gh:`#2311`, :edb:gh:`#2410`).
 * Fix ``drop owned`` on links and properties with defaults
-  (:eql:gh:`#2306`).
+  (:edb:gh:`#2306`).
 * Fix ``set type`` on links and properties with constraints
-  (:eql:gh:`#2309`).
+  (:edb:gh:`#2309`).
 
 
 EdgeQL
 ======
 
-* Make sure sequence state gets included in dumps (:eql:gh:`#2441`).
+* Make sure sequence state gets included in dumps (:edb:gh:`#2441`).
 * Implement functions to explicitly advance or reset a sequence value
-  (:eql:gh:`#2508`).
+  (:edb:gh:`#2508`).
 
   :eql:func:`sequence_next` returns the next value for the specified
   sequence type.
@@ -59,14 +59,14 @@ EdgeQL
 
 * Drop the deprecated ``Port``. The more general
   :ref:`extension <ref_datamodel_extensions>` mechanism introduced in
-  EdgeDB 1.0 beta 1 should be used (:eql:gh:`#2262`).
+  EdgeDB 1.0 beta 1 should be used (:edb:gh:`#2262`).
 * Reduce the maximum length for names of databases and roles to 51
-  characters (:eql:gh:`#2465`).
+  characters (:edb:gh:`#2465`).
 * Enable ``br`` (or ``rb``) as a valid bytes literal prefix
-  (:eql:gh:`#2332`).
-* Enable ``describe schema as sdl`` (:eql:gh:`#2481`).
+  (:edb:gh:`#2332`).
+* Enable ``describe schema as sdl`` (:edb:gh:`#2481`).
 * Support ``unless conflict on`` with two or more properties or links
-  (:eql:gh:`#1939`).
+  (:edb:gh:`#1939`).
 
   This clause allows performing an alternative query when a conflict
   due to a constraint occurs during an ``insert``:
@@ -78,32 +78,32 @@ EdgeQL
     else (select Person)      # select that existing Person instead.
 
 * Make :eql:func:`min` and :eql:func:`max` work more consistently
-  across all supported types (:eql:gh:`#1920`).
-* Improve cardinality inference (:eql:gh:`#2097`).
+  across all supported types (:edb:gh:`#1920`).
+* Improve cardinality inference (:edb:gh:`#2097`).
 * Disallow use of ``Volatile`` functions in schema-defined computed
-  expressions (:eql:gh:`#2467`).
+  expressions (:edb:gh:`#2467`).
 * Fix handling of collection types of non-builtin scalars in dumps
-  (:eql:gh:`#2349`).
+  (:edb:gh:`#2349`).
 * Fix inconsistent handling of ``{}`` by the :eql:op:`if <if..else>`
-  operator (:eql:gh:`#2460`).
+  operator (:edb:gh:`#2460`).
 * Fix duplicate values appearing when using :eql:stmt:`+= <update>`
-  (:eql:gh:`#2455`).
+  (:edb:gh:`#2455`).
 * Fix an issue with empty sets (i.e. ``{}``) inside set literals
-  (:eql:gh:`#2154`).
+  (:edb:gh:`#2154`).
 * Fix backlinks when multiple types with the same link name exist
-  (:eql:gh:`#2360`).
-* Fix :eql:op:`distinct` on empty and nested tuples (:eql:gh:`#2333`).
+  (:edb:gh:`#2360`).
+* Fix :eql:op:`distinct` on empty and nested tuples (:edb:gh:`#2333`).
 * Fix some serialization issues of shapes inside arrays and tuples
-  (:eql:gh:`#1818`).
+  (:edb:gh:`#1818`).
 * Make sure :eql:stmt:`delete` also applies to all sub-types of the
-  selected type (:eql:gh:`#2265`).
+  selected type (:edb:gh:`#2265`).
 
 GraphQL
 =======
 
 * Fix usage of :eql:type:`enums <enum>` as input variables in GraphQL
-  (:eql:gh:`#2415`).
-* Fix querying ``BaseObject`` via GraphQL (:eql:gh:`#2214`).
+  (:edb:gh:`#2415`).
+* Fix querying ``BaseObject`` via GraphQL (:edb:gh:`#2214`).
 
 
 Command-Line Tools

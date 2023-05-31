@@ -1,4 +1,4 @@
-.. eql:section-intro-page:: clients
+.. edb:section-intro-page:: clients
 
 .. _ref_clients_index:
 
