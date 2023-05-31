@@ -448,7 +448,7 @@ def apply_sdl(
     for decl in sdl_document.declarations:
         collect(decl, None)
 
-    ddl_stmts = s_decl.sdl_to_ddl(current_schema, documents)
+    ddl_stmts = s_decl.sdl_to_ddl(base_schema, documents)
     context = sd.CommandContext(
         modaliases={},
         schema=base_schema,
