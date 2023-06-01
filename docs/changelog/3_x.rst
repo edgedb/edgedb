@@ -860,8 +860,70 @@ Other changes and fixes
 * Work around postgres server crashes on Digital Ocean during edgedb setup
   (:eql:gh:`#5505`)
 
-* Always set cardinality of derived __tname__ and __tid__ pointers
+* Always set cardinality of derived ``__tname__`` and ``__tid__`` pointers
   (:eql:gh:`#5508`)
 
 * Make failovers more resilient
   (:eql:gh:`#5511`)
+
+3.0 RC 2
+========
+
+Changes to new 3.0 features
+---------------------------
+* Improve the error reporting for missing pointers in inserts in
+  rewrites and triggers
+  (:eql:gh:`#5562`)
+
+Other changes and fixes
+-----------------------
+
+* Fix support for Postgres 15
+  (:eql:gh:`#5534`)
+
+* Fix constraints with zero references to the table
+
+* Add a read-only mode
+  (:eql:gh:`#5543`)
+
+* Improve error messages for GraphQL
+  (:eql:gh:`#3816`)
+
+* Allow creating databases that share names with standard library functions
+  (:eql:gh:`#5515`)
+
+* Fix error messages for invalid constraint parameters
+  (:eql:gh:`#5525`)
+
+* Support comparisons on durations in static eval
+
+* Do not allow link property on properties
+  (:eql:gh:`#5537`)
+
+* Fix ISE for TypeExprs in function returns
+  (:eql:gh:`#5540`)
+
+* Support dumping databases with ``std::duration`` config vals
+  (:eql:gh:`#5528`)
+
+* Type unions should not appear when computing the source of a back link
+  (:eql:gh:`#5533`)
+
+* Fix range and bytes output in json-lines/json-pretty mode
+  (:eql:gh:`#5572`)
+
+* Include source locations in more scoping error messages
+  (:eql:gh:`#5573`)
+
+* Fix an optional scoping bug with important access policy implications
+  (:eql:gh:`#5575`)
+
+* Fix several ordering issues in schema loading
+  (:eql:gh:`#5565`)
+
+* Produce proper error messages when creating a migration that drops
+  an object but not all of its uses
+  (:eql:gh:`#5579`)
+
+* Sort composite type display names consistently
+  (:eql:gh:`#5580`)
