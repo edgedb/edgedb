@@ -94,10 +94,10 @@ your EdgeDB Cloud account. You do this by running the CLI command ``edgedb
 cloud login``. This will make all of your EdgeDB Cloud instances accessible via
 the CLI. You can manage them just as you would other remote EdgeDB instances.
 
-If you want to manage your database, click through on it's name from the top
+If you want to manage your database, click through on its name from the top
 right of the instance dashboard. If you just created your database, the
 database management view will be mostly empty except for a button offering to
-create a sample database. Once you have schema created and some data in a
+create a sample database. Once you have a schema created and some data in a
 database, this view will offer you similar tools to those in our new 3.0 local
 UI.
 
