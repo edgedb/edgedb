@@ -1,8 +1,8 @@
 .. _ref_guide_cloud:
 
-============
-EdgeDB Cloud
-============
+=====
+Cloud
+=====
 
 :edb-alt-title: Using EdgeDB Cloud (Beta)
 
