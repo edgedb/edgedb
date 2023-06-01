@@ -84,5 +84,6 @@ Find bugs? Have Questions?
 ==========================
 
 Thank you for helping us make the best way to host your EdgeDB instances even
-better! Please join us on `our Discord <https://discord.gg/umUueND6ag>`_ to ask
-questions and report any bugs you find.
+better! Please join us on `our Discord <https://discord.gg/umUueND6ag>`_  or
+email us at `support@edgedb.com <mailto:support@edgedb.com>`_ to ask questions
+and report any bugs you find.
