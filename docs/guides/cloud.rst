@@ -12,9 +12,9 @@ Cloud
     access. To request access, `join the waitlist </p/cloud-waitlist>`_ or join
     `our Discord <https://discord.gg/umUueND6ag>`_ and request access there.
 
-EdgeDB Cloud is the easiest way to host your EdgeDB instance. You have two
-options for interfacing with EdgeDB Cloud: via our CLI or through a graphical
-web interface.
+EdgeDB Cloud is the easiest way to host your EdgeDB instance. We offer two ways
+to interact with EdgeDB Cloud: via our CLI or through a graphical web
+interface.
 
 CLI Cloud Interface
 ===================
