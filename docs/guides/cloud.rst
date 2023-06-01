@@ -9,16 +9,8 @@ Cloud
 .. warning::
 
     EdgeDB Cloud is currently in beta. This guide will not work unless you have
-    access. To request access, click the "Join Cloud Waitlist" button below or
-    join `our Discord <https://discord.gg/umUueND6ag>`_ and request access
-    there.
-
-.. raw:: html
-
-    <a class="pageNav_promoLink__OSucb" href="/p/cloud-waitlist"
-      style="width:152px;margin-left:0;text-align:center;">
-      <span>Join Cloud Waitlist</span>
-    </a>
+    access. To request access, `join the waitlist </p/cloud-waitlist>`_ or join
+    `our Discord <https://discord.gg/umUueND6ag>`_ and request access there.
 
 EdgeDB Cloud is the easiest way to host your EdgeDB instance. You have two
 options for interfacing with EdgeDB Cloud: via our CLI or through a graphical
