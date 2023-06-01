@@ -91,10 +91,16 @@ You'll be able to access a REPL, edit complex queries or build them
 graphically, inspect your schema, and browse your data.
 
 
-Find bugs? Have Questions?
+Questions? Problems? Bugs?
 ==========================
 
 Thank you for helping us make the best way to host your EdgeDB instances even
-better! Please join us on `our Discord <https://discord.gg/umUueND6ag>`_  to
-ask questions. Report any bugs you find by `submitting a support ticket
-<https://edgedb.com/p/cloud-support>`_.
+better!
+
+* Please join us on `our Discord <https://discord.gg/umUueND6ag>`_  to ask
+  questions.
+* If you're having problems, check `our status page
+  <https://www.edgedbstatus.com/>`_ for information about any service
+  interruptions.
+* Report any bugs you find by `submitting a support ticket
+  <https://edgedb.com/p/cloud-support>`_.
