@@ -886,7 +886,7 @@ Other changes and fixes
 * Add a read-only mode
   (:eql:gh:`#5543`)
 
-* Improve error messages for GraphQL.
+* Improve error messages for GraphQL
   (:eql:gh:`#3816`)
 
 * Allow creating databases that share names with standard library functions
@@ -922,7 +922,7 @@ Other changes and fixes
   (:eql:gh:`#5565`)
 
 * Produce proper error messages when creating a migration that drops
-  and object but not all of its uses
+  an object but not all of its uses
   (:eql:gh:`#5579`)
 
 * Sort composite type display names consistently
