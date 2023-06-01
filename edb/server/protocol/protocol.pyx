@@ -293,6 +293,7 @@ cdef class HttpProtocol:
             if custom_headers:
                 data.append(b'Access-Control-Expose-Headers: ' + \
                     ', '.join(custom_headers.keys()).encode() + b'\r\n')
+            data.append(b'Access-Control-Max-Age: 86400\r\n')
 
         if close_connection:
             data.append(b'Connection: close\r\n')
@@ -457,7 +458,6 @@ cdef class HttpProtocol:
                     response.status = http.HTTPStatus.NO_CONTENT
                     response.custom_headers['Access-Control-Allow-Methods'] = \
                         'POST, OPTIONS'
-                    response.custom_headers['Access-Control-Max-Age'] = '86400'
                     return
 
                 if request.method == b'POST':
@@ -536,7 +536,6 @@ cdef class HttpProtocol:
                     response.status = http.HTTPStatus.NO_CONTENT
                     response.custom_headers['Access-Control-Allow-Methods'] = \
                         'GET, OPTIONS'
-                    response.custom_headers['Access-Control-Max-Age'] = '86400'
                     return
 
             # Authentication request
