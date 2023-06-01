@@ -38,6 +38,17 @@ To create a Cloud instance, your instance name should be in the format
 ``<github-username>/<instance-name>``. Cloud instance names may contain
 alphanumeric characters and hyphens (i.e., ``-``).
 
+.. note::
+
+    Please be aware of the following restrictions on EdgeDB Cloud instance
+    names:
+
+    * can contain only Latin alpha-numeric characters or ``-``
+    * cannot start with a dash (``-``) or contain double dashes (``--``)
+    * maximum instance name length is 61 characters minus the length of your
+      GitHub username (i.e., length of GitHub username + length of instance
+      name < 62)
+
 
 Options
 =======

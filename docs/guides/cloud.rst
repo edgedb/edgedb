@@ -28,6 +28,17 @@ create a local project linked to your instance.
 In either case, you will pass an instance name matching the EdgeDB Cloud
 instance name format: ``<github-username>/<instance-name>``
 
+.. note::
+
+    Please be aware of the following restrictions on EdgeDB Cloud instance
+    names:
+
+    * can contain only Latin alpha-numeric characters or ``-``
+    * cannot start with a dash (``-``) or contain double dashes (``--``)
+    * maximum instance name length is 61 characters minus the length of your
+      GitHub username (i.e., length of GitHub username + length of instance
+      name < 62)
+
 To use ``edgedb instance create``:
 
 .. code-block:: bash

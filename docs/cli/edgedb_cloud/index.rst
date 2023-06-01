@@ -74,6 +74,18 @@ these commands:
   ``--server-instance`` option and enter an instance name in the
   ``<github-username>/<instance-name>`` format when prompted interactively.
 
+.. note::
+
+    Please be aware of the following restrictions on EdgeDB Cloud instance
+    names:
+
+    * can contain only Latin alpha-numeric characters or ``-``
+    * cannot start with a dash (``-``) or contain double dashes (``--``)
+    * maximum instance name length is 61 characters minus the length of your
+      GitHub username (i.e., length of GitHub username + length of instance
+      name < 62)
+
+
 
 3. Configure your application
 -----------------------------
