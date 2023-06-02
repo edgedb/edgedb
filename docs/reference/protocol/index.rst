@@ -23,10 +23,10 @@ clients and servers.  The protocol is supported over TCP/IP.
 Connecting to EdgeDB 
 ====================
 
-The EdgeDB binary protocol has two modes of operation over TCP/IP: 
-sockets and HTTP tunnelling. When connecting to EdgeDB, the client can 
-specify an accepted `ALPN Protocol`_ to use. If the client does not specify 
-an ALPN protocol, HTTP tunnelling is assumed. 
+The EdgeDB binary protocol has two modes of operation: sockets and HTTP 
+tunnelling. When connecting to EdgeDB, the client can specify an accepted 
+`ALPN Protocol`_ to use. If the client does not specify an ALPN protocol, 
+HTTP tunnelling is assumed. 
 
 Sockets
 -------
