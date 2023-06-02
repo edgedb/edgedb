@@ -307,7 +307,8 @@ async def load_cached_schema(
     patches: int,
     key: str,
 ) -> s_schema.Schema:
-    key += pg_patches.get_version_key(patches)
+    vkey = pg_patches.get_version_key(patches)
+    key += vkey
     data = await backend_conn.sql_fetch_val(
         b"""
         SELECT bin FROM edgedbinstdata.instdata
@@ -316,7 +317,10 @@ async def load_cached_schema(
         args=[key.encode("utf-8")],
     )
     try:
-        return pickle.loads(data)
+        res = pickle.loads(data)
+        if vkey != pg_patches.get_version_key(len(pg_patches.PATCHES)):
+            res = s_schema.upgrade_schema(res)
+        return res
     except Exception as e:
         raise RuntimeError(
             'could not load std schema pickle') from e
