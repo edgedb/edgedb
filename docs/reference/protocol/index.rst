@@ -84,7 +84,9 @@ be parsed as the :ref:`message format <ref_message_format>` described below;
 multiple message can be included in the response body, and should be parsed in
 order.
 
-.. _ALPN Protocol: https://github.com/edgedb/rfcs/blob/master/text/1008-tls-and-alpn.rst#alpn-and-protocol-changes
+.. _ALPN Protocol: 
+    https://github.com/edgedb/rfcs/blob/master/text/
+    1008-tls-and-alpn.rst#alpn-and-protocol-changes
 
 .. _ref_protocol_conventions:
 
