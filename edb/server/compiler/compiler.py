@@ -1334,6 +1334,7 @@ def _get_compile_options(
         ) or is_explain,
         testmode=_get_config_val(ctx, '__internal_testmode'),
         devmode=_is_dev_instance(ctx),
+        schema_reflection_mode=ctx.schema_reflection_mode
     )
 
 
@@ -1763,6 +1764,7 @@ def _compile_ql_config_op(ctx: CompileContext, ql: qlast.Base):
         schema=schema,
         options=qlcompiler.CompilerOptions(
             modaliases=modaliases,
+            in_server_config_op=True
         ),
     )
 
