@@ -541,6 +541,15 @@ class TestUpdate(tb.QueryTestCase):
                 UPDATE foo SET { bar := 2 };
             ''')
 
+    async def test_edgeql_update_bad_02(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r'update standard library type',
+        ):
+            await self.con.execute('''\
+                UPDATE schema::Migration SET { script := 'foo'};
+            ''')
+
     async def test_edgeql_update_filter_01(self):
         await self.assert_query_result(
             r"""

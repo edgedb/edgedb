@@ -71,6 +71,23 @@ class TestDelete(tb.QueryTestCase):
                 DELETE std::FreeObject
             ''')
 
+    async def test_edgeql_delete_bad_03(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r'delete standard library type',
+        ):
+            await self.con.execute('''\
+                DELETE schema::Object;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r'delete standard library type',
+        ):
+            await self.con.execute('''\
+                DELETE {default::LinkingType, schema::Object};
+            ''')
+
     async def test_edgeql_delete_simple_01(self):
         # ensure a clean slate, not part of functionality testing
         await self.con.execute(r"""

@@ -45,6 +45,7 @@ from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
+from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
@@ -462,6 +463,12 @@ def compile_InsertQuery(
                 f'{str(subject_stype.get_shortname(ctx.env.schema))!r}',
                 context=expr.subject.context)
 
+        if _is_forbidden_stdlib_type_for_mod(subject_stype, ctx):
+            raise errors.QueryError(
+                f'cannot insert standard library type '
+                f'{subject_stype.get_displayname(ctx.env.schema)}',
+                context=expr.subject.context)
+
         with ictx.new() as bodyctx:
             # Self-references in INSERT are prohibited.
             pathctx.ban_inserting_path(
@@ -598,6 +605,13 @@ def compile_UpdateQuery(
                 context=expr.subject.context)
 
         mat_stype = schemactx.concretify(subj_type, ctx=ctx)
+
+        if _is_forbidden_stdlib_type_for_mod(mat_stype, ctx):
+            raise errors.QueryError(
+                f'cannot update standard library type '
+                f'{subj_type.get_displayname(ctx.env.schema)}',
+                context=expr.subject.context)
+
         stmt._material_type = typeutils.type_to_typeref(
             ctx.env.schema,
             mat_stype,
@@ -732,6 +746,13 @@ def compile_DeleteQuery(
                 context=expr.subject.context)
 
         mat_stype = schemactx.concretify(subj_type, ctx=ctx)
+
+        if _is_forbidden_stdlib_type_for_mod(mat_stype, ctx):
+            raise errors.QueryError(
+                f'cannot delete standard library type '
+                f'{subj_type.get_displayname(ctx.env.schema)}',
+                context=expr.subject.context)
+
         stmt._material_type = typeutils.type_to_typeref(
             ctx.env.schema,
             mat_stype,
@@ -1524,3 +1545,38 @@ def maybe_add_view(ir: irast.Set, *, ctx: context.ContextLevel) -> irast.Set:
             parser_context=ir.context)
     else:
         return ir
+
+
+def _is_forbidden_stdlib_type_for_mod(
+    t: s_types.Type,
+    ctx: context.ContextLevel
+) -> bool:
+    o = ctx.env.options
+    if o.bootstrap_mode or o.schema_reflection_mode:
+        return False
+
+    schema = ctx.env.schema
+
+    assert isinstance(t, s_objtypes.ObjectType)
+    assert not t.is_view(schema)
+
+    if intersection := t.get_intersection_of(schema):
+        return all((_is_forbidden_stdlib_type_for_mod(it, ctx)
+                    for it in intersection.objects(schema)))
+    elif union := t.get_union_of(schema):
+        return any((_is_forbidden_stdlib_type_for_mod(ut, ctx)
+                    for ut in union.objects(schema)))
+
+    name = t.get_name(schema)
+
+    if (
+        name.get_module_name() == s_name.UnqualName('cfg')
+        and o.in_server_config_op
+    ):
+        # Config ops include various internally generated statements for cfg::
+        return False
+    if name == s_name.QualName('std', 'Object'):
+        # Allow people to mess with the baseclass of user-defined objects to
+        # their hearts' content
+        return False
+    return t.get_name(schema).get_module_name() in s_schema.STD_MODULES

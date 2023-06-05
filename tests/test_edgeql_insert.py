@@ -95,6 +95,15 @@ class TestInsert(tb.QueryTestCase):
                 INSERT Person { name := .name };
             ''')
 
+    async def test_edgeql_insert_fail_7(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r"insert standard library type",
+        ):
+            await self.con.execute('''
+                INSERT schema::Migration { script := 'foo' };
+            ''')
+
     async def test_edgeql_insert_simple_01(self):
         await self.con.execute(r"""
             INSERT InsertTest {
