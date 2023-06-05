@@ -512,9 +512,6 @@ def _get_ptrref_storage_info(
 
     target = ptrref.out_target
 
-    if isinstance(ptrref, irast.TypeIntersectionPointerRef):
-        return None
-
     if isinstance(ptrref, irast.TupleIndirectionPointerRef):
         table = None
         table_type = 'ObjectType'
