@@ -36,7 +36,8 @@ def get_version_key(num_patches: int):
     the key based on the number of schema layout patches that we can
     *see*, we still compute the right key.
     """
-    num_major = sum(p == 'edgeql+schema' for p, _ in PATCHES[:num_patches])
+    num_major = sum(
+        p.startswith('edgeql+schema') for p, _ in PATCHES[:num_patches])
     if num_major == 0:
         return ''
     else:
@@ -55,7 +56,7 @@ def _setup_patches(patches: list[tuple[str, str]]) -> list[tuple[str, str]]:
     npatches = []
     for kind, patch in patches:
         npatches.append((kind, patch))
-        if kind == 'edgeql+schema' and seen_repair:
+        if kind.startswith('edgeql+schema') and seen_repair:
             npatches.append(('repair', ''))
         seen_repair |= kind == 'repair'
     return npatches
@@ -66,6 +67,7 @@ The actual list of patches. The patches are (kind, script) pairs.
 
 There are currently 4 kinds:
  * sql - simply runs a SQL script
+ * metaschema-sql - create a function from metaschema
  * edgeql - runs an edgeql DDL command
  * edgeql+schema - runs an edgeql DDL command and updates the std schemas
  * repair - fix up inconsistencies in *user* schemas
