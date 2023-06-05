@@ -604,7 +604,7 @@ def _get_ptrref_storage_info(
     return PointerStorageInfo(
         table_name=table,
         table_type=table_type,
-        column_name=col_name,
+        column_name=col_name,  # type: ignore
         column_type=column_type,  # type: ignore
     )
 
