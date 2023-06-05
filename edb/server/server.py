@@ -1077,6 +1077,12 @@ class Server(ha_base.ClusterProtocol):
 
         self._roles = immutables.Map(roles)
 
+    def _load_schema(self, result, version_key):
+        res = pickle.loads(result[2:])
+        if version_key != pg_patches.get_version_key(len(pg_patches.PATCHES)):
+            res = s_schema.upgrade_schema(res)
+        return res
+
     async def _load_instance_data(self):
         async with self._use_sys_pgcon() as syscon:
             result = await syscon.sql_fetch_val(b'''\
@@ -1111,7 +1117,7 @@ class Server(ha_base.ClusterProtocol):
                 WHERE key = 'stdschema{version_key}';
             '''.encode('utf-8'))
             try:
-                self._std_schema = pickle.loads(result[2:])
+                self._std_schema = self._load_schema(result, version_key)
             except Exception as e:
                 raise RuntimeError(
                     'could not load std schema pickle') from e
@@ -1121,7 +1127,7 @@ class Server(ha_base.ClusterProtocol):
                 WHERE key = 'reflschema{version_key}';
             '''.encode('utf-8'))
             try:
-                self._refl_schema = pickle.loads(result[2:])
+                self._refl_schema = self._load_schema(result, version_key)
             except Exception as e:
                 raise RuntimeError(
                     'could not load refl schema pickle') from e
