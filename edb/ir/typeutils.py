@@ -326,7 +326,7 @@ def type_to_typeref(
         sql_type = None
         needs_custom_json_cast = False
         if isinstance(t, s_scalars.ScalarType):
-            sql_type = t.get_sql_type(schema)
+            sql_type = t.resolve_sql_type(schema)
             if material_typeref is None:
                 cast_name = s_casts.get_cast_fullname_from_names(
                     orig_name_hint or name_hint,
