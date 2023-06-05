@@ -72,13 +72,7 @@ Set the ``query_work_mem`` parameter for the duration of the session:
 
 .. code-block:: edgeql
 
-    configure session set query_work_mem := <cfg::memory>'4MiB';
-
-Set the same parameter, but for the current database:
-
-.. code-block:: edgeql
-
-    configure current database set query_work_mem := <cfg::memory>'4MiB';
+    configure instance set query_work_mem := <cfg::memory>'4MiB';
 
 Add a Trust authentication method for "my_user":
 
