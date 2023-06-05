@@ -18,9 +18,10 @@
 
 
 from __future__ import annotations
-from typing import Sequence
-
 from typing import *
+
+import collections
+import dataclasses
 
 from edb import errors
 
@@ -111,6 +112,13 @@ class SQLSourceGeneratorTranslationData:
         return self.source_start
 
 
+@dataclasses.dataclass(frozen=True)
+class SQLSource:
+    chunks: list[str]
+    param_index: dict[int, list[int]]
+    translation_data: Optional[SQLSourceGeneratorTranslationData] = None
+
+
 class SQLSourceGenerator(codegen.SourceGenerator):
     def __init__(  # type: ignore
         self,
@@ -120,7 +128,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         **kwargs
     ):
         super().__init__(*args, **kwargs)
-        self.param_index: dict[object, int] = {}
+        self.param_index: collections.defaultdict[int, list[int]] = (
+            collections.defaultdict(list))
         self.with_translation_data: bool = with_translation_data
         self.write_index: int = 0
         self.translation_data: Optional[
@@ -156,25 +165,30 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         return ''.join(generator.result)
 
     @classmethod
-    def to_source_with_translation(
+    def to_source_ex(
         cls,
         node: pgast.Base,
         indent_with: str = ' ' * 4,
         add_line_information: bool = False,
         pretty: bool = True,
         reordered: bool = False,
-    ) -> Tuple[str, SQLSourceGeneratorTranslationData]:
+        with_translation_data: bool = True,
+    ) -> SQLSource:
         try:
             generator = cls(
                 indent_with=indent_with,
                 add_line_information=add_line_information,
                 pretty=pretty,
                 reordered=reordered,
-                with_translation_data=True,
+                with_translation_data=with_translation_data,
             )
             generator.visit(node)
             assert generator.translation_data
-            return ''.join(generator.result), generator.translation_data
+            return SQLSource(
+                chunks=generator.result,
+                param_index=generator.param_index,
+                translation_data=generator.translation_data,
+            )
         except SQLSourceGeneratorError as e:
             ctx = SQLSourceGeneratorContext(node)
             exceptions.add_context(e, ctx)
@@ -775,7 +789,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(common.quote_bytea_literal(node.val))
 
     def visit_ParamRef(self, node: pgast.ParamRef) -> None:
-        self.write('$', str(node.number))
+        self.write(f'${node.number}')
+        self.param_index[node.number].append(len(self.result) - 1)
 
     def visit_RowExpr(self, node: pgast.RowExpr) -> None:
         self.write('ROW(')
@@ -1095,7 +1110,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                     self.write(" DEFERRABLE")
 
     def visit_PrepareStmt(self, node: pgast.PrepareStmt) -> None:
-        self.write(f"PREPARE {node.name}")
+        self.write(f"PREPARE {common.quote_ident(node.name)}")
         if node.argtypes:
             self.write(f"(")
             self.visit_list(node.argtypes, newlines=False)
@@ -1104,11 +1119,14 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.query)
 
     def visit_ExecuteStmt(self, node: pgast.ExecuteStmt) -> None:
-        self.write(f"EXECUTE {node.name}")
+        self.write(f"EXECUTE {common.quote_ident(node.name)}")
         if node.params:
             self.write(f"(")
             self.visit_list(node.params, newlines=False)
             self.write(f")")
+
+    def visit_DeallocateStmt(self, node: pgast.DeallocateStmt) -> None:
+        self.write(f"DEALLOCATE {common.quote_ident(node.name)}")
 
     def visit_SQLValueFunction(self, node: pgast.SQLValueFunction) -> None:
         from edb.pgsql.ast import SQLValueFunctionOP as op
@@ -1261,5 +1279,4 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
 
 generate_source = SQLSourceGenerator.to_source
-generate_source_with_translation_data = (SQLSourceGenerator.
-                                         to_source_with_translation)
+generate_source_ex = SQLSourceGenerator.to_source_ex

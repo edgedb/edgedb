@@ -184,6 +184,7 @@ def _build_stmt(node: Node, c: Context) -> pgast.Query | pgast.Statement:
             "TransactionStmt": _build_transaction_stmt,
             "PrepareStmt": _build_prepare,
             "ExecuteStmt": _build_execute,
+            "DeallocateStmt": _build_deallocate,
             "CreateStmt": _build_create,
             "CreateTableAsStmt": _build_create_table_as,
             "LockStmt": _build_lock,
@@ -429,6 +430,10 @@ def _build_execute(n: Node, c: Context) -> pgast.ExecuteStmt:
     return pgast.ExecuteStmt(
         name=n["name"], params=_maybe_list(n, c, "params", _build_base_expr)
     )
+
+
+def _build_deallocate(n: Node, c: Context) -> pgast.DeallocateStmt:
+    return pgast.DeallocateStmt(name=n["name"])
 
 
 def _build_create_table_as(n: Node, c: Context) -> pgast.CreateTableAsStmt:

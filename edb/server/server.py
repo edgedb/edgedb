@@ -302,6 +302,9 @@ class Server(ha_base.ClusterProtocol):
 
             await asyncio.sleep(30)
 
+    def get_server_id(self):
+        return self._server_id
+
     def get_listen_hosts(self):
         return self._listen_hosts
 
