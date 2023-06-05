@@ -481,9 +481,9 @@ def typeref_to_ast(
 
     result: qlast.TypeExpr
 
-    if t.is_type() and cast(s_types.Type, t).is_any(schema):
+    if isinstance(t, s_types.Type) and t.is_any(schema):
         result = qlast.TypeName(name=_name, maintype=qlast.AnyType())
-    elif t.is_type() and cast(s_types.Type, t).is_anytuple(schema):
+    elif isinstance(t, s_types.Type) and t.is_anytuple(schema):
         result = qlast.TypeName(name=_name, maintype=qlast.AnyTuple())
     elif isinstance(t, s_types.Tuple) and t.is_named(schema):
         result = qlast.TypeName(
@@ -511,9 +511,8 @@ def typeref_to_ast(
                 for st in t.get_subtypes(schema)
             ]
         )
-    elif t.is_type() and cast(s_types.Type, t).is_union_type(schema):
-        object_set: Optional[so.ObjectSet[s_types.Type]] = \
-            cast(s_types.Type, t).get_union_of(schema)
+    elif isinstance(t, s_types.Type) and t.is_union_type(schema):
+        object_set = t.get_union_of(schema)
         assert object_set is not None
 
         component_objects = tuple(object_set.objects(schema))

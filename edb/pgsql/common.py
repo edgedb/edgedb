@@ -374,7 +374,7 @@ def get_index_backend_name(id, module_name, catenate=True, *, aspect=None):
     return convert_name(name, aspect, catenate)
 
 
-def get_tuple_backend_name(id, catenate=True, *, aspect=None):
+def get_tuple_backend_name(id, catenate=True, *, aspect=None) -> Tuple[str, ...]:
 
     name = s_name.QualName(module='edgedb', name=f'{id}_t')
     return convert_name(name, aspect, catenate)

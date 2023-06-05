@@ -123,6 +123,7 @@ module = [
     "edb.ir.*",
     "edb.pgsql.metaschema",
     "edb.pgsql.codegen",
+    "edb.pgsql.types",
     "edb.pgsql.compiler.*",
     "edb.repl.*",
     "edb.schema.*",
