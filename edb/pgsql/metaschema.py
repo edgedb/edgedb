@@ -5704,10 +5704,10 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
              WHERE pg_namespace.nspname = 'pg_catalog'::name
              AND pg_class.relname = 'pg_namespace'::name
              )                                  AS tableoid,
-            0                                   AS xmin,
-            0                                   AS cmin,
-            0                                   AS xmax,
-            0                                   AS cmax,
+            '0'::xid                            AS xmin,
+            '0'::cid                            AS cmin,
+            '0'::xid                            AS xmax,
+            '0'::cid                            AS cmax,
             NULL                                AS ctid
         FROM (
             SELECT DISTINCT schema_name, module_id
