@@ -2102,9 +2102,6 @@ def _inline_type_computable(
                 ctx=scopectx
             )
 
-        ctx.env.schema = ptr.set_field_value(
-            ctx.env.schema, 'cardinality', qltypes.SchemaCardinality.One)
-
     view_shape = ctx.env.view_shapes[stype]
     view_shape_ptrs = {p for p, _ in view_shape}
     if ptr not in view_shape_ptrs:
