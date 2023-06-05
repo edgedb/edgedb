@@ -248,6 +248,7 @@ Determines the log verbosity level in the entrypoint script. Valid levels are
 ``trace``, ``debug``, ``info``, ``warning``, and ``error``.  The default is
 ``info``.
 
+.. _ref_guide_deployment_docker_custom_bootstrap_scripts:
 
 Custom scripts in ``/edgedb-bootstrap.d/`` and ``/edgedb-bootstrap-late.d``
 ...........................................................................

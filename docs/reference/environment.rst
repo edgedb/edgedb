@@ -29,8 +29,23 @@ Supported variables
 EDGEDB_SERVER_BOOTSTRAP_COMMAND
 ...............................
 
-Useful to fine-tune initial user and database creation, and other initial
-setup.
+Useful to fine-tune initial user creation and other initial setup.
+
+.. note::
+
+    A :eql:stmt:`create database` statement cannot be combined in a block with
+    any other statements. Since all statements in
+    ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` run in a single block, it cannot be
+    used to create a database and, for example, create a user for that
+    database.
+
+    For Docker deployments, you can instead write :ref:`custom scripts to run
+    before migrations <ref_guide_deployment_docker_custom_bootstrap_scripts>`.
+    These are placed in ``/edgedb-bootstrap.d/``. By writing your ``create
+    database`` statements in one ``.edgeql`` file each placed in
+    ``/edgedb-bootstrap.d/`` and other statements in their own file, you can
+    create databases and still run other EdgeQL statements to bootstrap your
+    instance.
 
 Maps directly to the ``edgedb-server`` flag ``--default-auth-method``. The
 ``*_FILE`` and ``*_ENV`` variants are also supported.
