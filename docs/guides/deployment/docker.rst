@@ -261,6 +261,12 @@ executed *before* any schema migrations are applied, and parts in
 ``/edgedb-bootstrap-late.d`` are executed *after* the schema migration have
 been applied.
 
+.. note::
+
+    Best practice for naming your script files when you will have multiple
+    script files to run on bootstrap is to prepend the filenames with ``01-``,
+    ``02-``, and so on to indicate your desired order of execution.
+
 Health Checks
 =============
 
