@@ -5675,18 +5675,40 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         dbops.View(
             name=("edgedbsql", "pg_namespace"),
             query="""
-        SELECT oid, nspname, nspowner, nspacl,
-            tableoid, xmin, cmin, xmax, cmax, ctid
+        SELECT
+            oid,
+            nspname,
+            nspowner,
+            nspacl,
+            tableoid,
+            xmin,
+            cmin,
+            xmax,
+            cmax,
+            ctid
         FROM pg_namespace
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
                           'edgedb', 'edgedbstd')
         UNION ALL
         SELECT
-            edgedbsql.uuid_to_oid(t.module_id),
-            t.schema_name,
-            (SELECT oid FROM pg_roles WHERE rolname = CURRENT_USER LIMIT 1),
-            NULL,
-            NULL, NULL, NULL, NULL, NULL, NULL
+            edgedbsql.uuid_to_oid(t.module_id)  AS oid,
+            t.schema_name                       AS nspname,
+            (SELECT oid
+             FROM pg_roles
+             WHERE rolname = CURRENT_USER
+             LIMIT 1)                           AS nspowner,
+            NULL AS nspacl,
+            (SELECT pg_class.oid
+             FROM pg_class
+             JOIN pg_namespace ON pg_class.relnamespace = pg_namespace.oid
+             WHERE pg_namespace.nspname = 'pg_catalog'::name
+             AND pg_class.relname = 'pg_namespace'::name
+             )                                  AS tableoid,
+            '0'::xid                            AS xmin,
+            '0'::cid                            AS cmin,
+            '0'::xid                            AS xmax,
+            '0'::cid                            AS cmax,
+            NULL                                AS ctid
         FROM (
             SELECT DISTINCT schema_name, module_id
             FROM edgedbsql.virtual_tables
