@@ -539,9 +539,6 @@ def _get_ptrref_storage_info(
         table_type = 'ObjectType'
         col_name = ptrref.shortname.name
 
-    elif isinstance(ptrref, irast.TypeIntersectionPointerRef):
-        raise NotImplementedError()
-
     elif ptrref.source_ptr is not None:
         # link property
         assert isinstance(ptrref, irast.PointerRef)
