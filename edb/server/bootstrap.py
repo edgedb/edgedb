@@ -672,6 +672,14 @@ def prepare_patch(
     if kind == 'sql':
         return (patch, update), (), {}, False
 
+    # metaschema-sql: just recreate a function from metaschema
+    if kind == 'metaschema-sql':
+        func = getattr(metaschema, patch)
+        create = dbops.CreateFunction(func(), or_replace=True)
+        block = dbops.PLTopBlock()
+        create.generate(block)
+        return (block.to_string(), update), (), {}, False
+
     if kind == 'repair':
         assert not patch
         return (update,), (), {}, True
@@ -685,7 +693,7 @@ def prepare_patch(
 
     updates: dict[str, Any] = {}
 
-    if kind == 'edgeql' or kind == 'edgeql+schema':
+    if kind == 'edgeql' or kind.startswith('edgeql+schema'):
         for ddl_cmd in edgeql.parse_block(patch):
             assert isinstance(ddl_cmd, qlast.DDLCommand)
             # First apply it to the regular schema, just so we can update
@@ -712,7 +720,7 @@ def prepare_patch(
     else:
         raise AssertionError(f'unknown patch type {kind}')
 
-    if kind == 'edgeql+schema':
+    if kind.startswith('edgeql+schema'):
         # If we are modifying the schema layout, we need to rerun
         # generate_structure to collect schema changes not reflected
         # in the public schema and to discover the new introspection
@@ -750,6 +758,8 @@ def prepare_patch(
             dbops.CreateView(view)
             for view in metaschema._generate_schema_alias_views(
                 reflschema, sn.UnqualName('schema')
+            ) + metaschema._generate_schema_alias_views(
+                reflschema, sn.UnqualName('sys')
             )
         ])
         support_view_commands.add_commands(
@@ -772,6 +782,13 @@ def prepare_patch(
             else:
                 raise AssertionError(f'unsupported support view command {cv}')
             dv.generate(preblock)
+
+        # We want to limit how much unconditional work we do, so only recreate
+        # extension views if requested.
+        if '+exts' in kind:
+            for extview in metaschema._generate_extension_views(reflschema):
+                support_view_commands.add_command(
+                    dbops.CreateView(extview, or_replace=True))
 
         support_view_commands.generate(subblock)
 
