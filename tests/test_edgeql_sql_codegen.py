@@ -259,3 +259,14 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             " IN ", sql,
             "unexpected semi-join",
         )
+
+    def test_codegen_order_by_param_compare(self):
+        sql = self._compile('''
+            select Issue { name }
+            order by .name = <str>$0
+       ''')
+        count = sql.count('SELECT')
+        self.assertEqual(
+            count,
+            1,
+            f"ORDER BY subquery not optimized out")
