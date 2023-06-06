@@ -454,26 +454,13 @@ def get_pointer_storage_info(
     )
 
 
-@dataclasses.dataclass(kw_only=True, repr=False, eq=False, slots=True)
+@dataclasses.dataclass(kw_only=True, eq=False, slots=True)
 class PointerStorageInfo:
 
     table_name: Optional[Tuple[str, str]]
     table_type: str
     column_name: str
     column_type: Tuple[str, str]
-
-    def __repr__(self) -> str:
-        return (
-            '<{} (table_name={}, table_type={}, column_name={}, '
-            'column_type={}) at 0x{:x}>'.format(
-                self.__class__.__name__,
-                '.'.join(self.table_name or ()),
-                self.table_type,
-                self.column_name,
-                self.column_type,
-                id(self),
-            )
-        )
 
 
 @overload
