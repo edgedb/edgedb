@@ -1439,6 +1439,7 @@ class PointerCommandOrFragment(
         no_query_rewrites: bool = False,
         make_globals_empty: bool = False,
         source_context: Optional[parsing.ParserContext] = None,
+        detached: bool = False,
     ) -> s_expr.CompiledExpression:
         singletons: List[Union[s_types.Type, Pointer]] = []
 
@@ -1499,7 +1500,9 @@ class PointerCommandOrFragment(
                 in_ddl_context_name=in_ddl_context_name,
             )
 
-            compiled = expr.compiled(schema=schema, options=options)
+            compiled = expr.compiled(
+                schema=schema, options=options, detached=detached
+            )
 
             if singleton_result_expected and compiled.cardinality.is_multi():
                 if expr_description is None:
@@ -1536,8 +1539,10 @@ class PointerCommandOrFragment(
                 parent_vname = source.get_verbosename(schema)
                 ptr_name = self.get_verbosename(parent=parent_vname)
                 in_ddl_context_name = f'computed {ptr_name}'
+                detached = False
             else:
                 in_ddl_context_name = None
+                detached = True
 
             return self._compile_expr(
                 schema,
@@ -1545,6 +1550,7 @@ class PointerCommandOrFragment(
                 value,
                 in_ddl_context_name=in_ddl_context_name,
                 track_schema_ref_exprs=track_schema_ref_exprs,
+                detached=detached,
             )
         else:
             return super().compile_expr_field(
@@ -1727,7 +1733,7 @@ class PointerCommand(
 
             if not default_expr.irast:
                 default_expr = self._compile_expr(
-                    schema, context, default_expr
+                    schema, context, default_expr, detached=True,
                 )
                 assert default_expr.irast
 
@@ -1838,7 +1844,7 @@ class PointerCommand(
             'std::uuid_generate_v4',
         )
 
-        if (
+        while (
             isinstance(expr, irast.Set)
             and expr.expr
             and irutils.is_trivial_select(expr.expr)
