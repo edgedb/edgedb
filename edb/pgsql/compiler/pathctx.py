@@ -1018,7 +1018,7 @@ def _get_rel_path_output(
             ptrref = actual_ptrref
 
     ptr_info = None
-    if ptrref:
+    if ptrref and not isinstance(ptrref, irast.TypeIntersectionPointerRef):
         ptr_info = pg_types.get_ptrref_storage_info(
             ptrref, resolve_type=False, link_bias=False)
 

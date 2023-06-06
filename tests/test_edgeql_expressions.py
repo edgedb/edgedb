@@ -7313,6 +7313,12 @@ aa \
                 SELECT Object.id[IS uuid];
             ''')
 
+    async def test_edgeql_expr_type_intersection_04(self):
+        await self.con.execute('''\
+            SELECT Named[IS Issue].id
+                ?? <uuid>'00000000-0000-0000-0000-000000000000';
+        ''')
+
     async def test_edgeql_expr_comparison_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
