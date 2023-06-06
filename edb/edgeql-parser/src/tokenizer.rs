@@ -1,10 +1,8 @@
 use std::fmt;
 use std::borrow::Cow;
 
-use combine::easy::{Error, Errors};
-use combine::error::{StreamError};
-use combine::stream::{ResetStream};
-use combine::{StreamOnce, Positioned};
+use combine::easy::Error;
+use combine::error::StreamError;
 use memchr::memmem::find;
 
 use crate::position::Pos;
@@ -92,17 +90,11 @@ pub struct TokenStream<'a> {
     keyword_buf: String,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Checkpoint {
-    position: Pos,
-    off: usize,
-    dot: bool,
-}
-
-impl<'a, 'b> Iterator for &'b mut TokenStream<'a> {
+impl<'a> Iterator for TokenStream<'a> {
     type Item = Result<SpannedToken<'a>, Error<Token<'a>, Token<'a>>>;
+
     fn next(&mut self) -> Option<Self::Item> {
-        let start = Positioned::position(self);
+        let start = self.position;
         match self.read_token() {
             Ok((token, end)) => Some(Ok(SpannedToken {
                 token, start, end,
@@ -110,40 +102,6 @@ impl<'a, 'b> Iterator for &'b mut TokenStream<'a> {
             Err(e) if e == Error::end_of_input() => None,
             Err(e) => Some(Err(e)),
         }
-    }
-}
-
-impl<'a> StreamOnce for TokenStream<'a> {
-    type Token = Token<'a>;
-    type Range = Token<'a>;
-    type Position = Pos;
-    type Error = Errors<Token<'a>, Token<'a>, Pos>;
-
-    fn uncons(&mut self) -> Result<Self::Token, Error<Token<'a>, Token<'a>>> {
-        self.read_token().map(|(t, _)| t)
-    }
-}
-
-impl<'a> Positioned for TokenStream<'a> {
-    fn position(&self) -> Self::Position {
-        self.position
-    }
-}
-
-impl<'a> ResetStream for TokenStream<'a> {
-    type Checkpoint = Checkpoint;
-    fn checkpoint(&self) -> Self::Checkpoint {
-        Checkpoint {
-            position: self.position,
-            off: self.off,
-            dot: self.dot,
-        }
-    }
-    fn reset(&mut self, checkpoint: Checkpoint) -> Result<(), Self::Error> {
-        self.position = checkpoint.position;
-        self.off = checkpoint.off;
-        self.dot = checkpoint.dot;
-        Ok(())
     }
 }
 

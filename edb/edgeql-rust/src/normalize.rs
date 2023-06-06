@@ -341,24 +341,17 @@ fn serialize_tokens(tokens: &[CowToken<'_>]) -> String {
 #[cfg(test)]
 mod test {
     use super::scan_vars;
-    use combine::{StreamOnce, Positioned, easy::Error};
-    use edgeql_parser::tokenizer::{TokenStream};
-    use edgeql_parser::position::Pos;
-    use crate::tokenizer::{CowToken};
+    use edgeql_parser::tokenizer::TokenStream;
+    use crate::tokenizer::CowToken;
 
     fn tokenize<'x>(s: &'x str) -> Vec<CowToken<'x>> {
         let mut r = Vec::new();
         let mut s = TokenStream::new(s);
         loop {
-            match s.uncons() {
-                Ok(x) => r.push(CowToken {
-                    kind: x.kind,
-                    value: x.value.into(),
-                    start: Pos { line: 0, column: 0, offset: 0 },
-                    end: Pos { line: 0, column: 0, offset: 0 },
-                }),
-                Err(ref e) if e == &Error::end_of_input() => break,
-                Err(e) => panic!("Parse error at {}: {}", s.position(), e),
+            match s.next() {
+                Some(Ok(x)) => r.push(x.into()),
+                None => break,
+                Some(Err(e)) => panic!("Parse error at {}: {}", s.current_pos(), e),
             }
         }
         return r;

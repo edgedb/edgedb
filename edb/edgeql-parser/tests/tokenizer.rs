@@ -1,17 +1,14 @@
 use edgeql_parser::tokenizer::{Kind, TokenStream};
 use edgeql_parser::tokenizer::Kind::*;
-use combine::easy::Error;
-
-use combine::{StreamOnce, Positioned};
 
 fn tok_str(s: &str) -> Vec<&str> {
     let mut r = Vec::new();
     let mut s = TokenStream::new(s);
     loop {
-        match s.uncons() {
-            Ok(x) => r.push(x.value),
-            Err(ref e) if e == &Error::end_of_input() => break,
-            Err(e) => panic!("Parse error at {}: {}", s.position(), e),
+        match s.next() {
+            Some(Ok(x)) => r.push(x.token.value),
+            None => break,
+            Some(Err(e)) => panic!("Parse error at {}: {}", s.current_pos(), e),
         }
     }
     return r;
@@ -21,10 +18,10 @@ fn tok_typ(s: &str) -> Vec<Kind> {
     let mut r = Vec::new();
     let mut s = TokenStream::new(s);
     loop {
-        match s.uncons() {
-            Ok(x) => r.push(x.kind),
-            Err(ref e) if e == &Error::end_of_input() => break,
-            Err(e) => panic!("Parse error at {}: {}", s.position(), e),
+        match s.next() {
+            Some(Ok(x)) => r.push(x.token.kind),
+            None => break,
+            Some(Err(e)) => panic!("Parse error at {}: {}", s.current_pos(), e),
         }
     }
     return r;
@@ -33,10 +30,10 @@ fn tok_typ(s: &str) -> Vec<Kind> {
 fn tok_err(s: &str) -> String {
     let mut s = TokenStream::new(s);
     loop {
-        match s.uncons() {
-            Ok(_) => {}
-            Err(ref e) if e == &Error::end_of_input() => break,
-            Err(e) => return format!("{}", e),
+        match s.next() {
+            Some(Ok(_)) => {}
+            None => break,
+            Some(Err(e)) => return format!("{}", e),
         }
     }
     panic!("No error, where error expected");
