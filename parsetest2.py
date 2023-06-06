@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+
 EDB_DIR = Path(__file__).parent.parent.parent.resolve()
 sys.path.insert(0, str(EDB_DIR))
 
@@ -17,26 +18,35 @@ from edb._edgeql_parser import parse_cheese
 
 import json
 
+
 def parse(querystr: str) -> qlast.Expr:
     source = edgeql.Source.from_string(querystr)
     # query = parser.parse_fragment_with_recovery(source)
     query = parser.parse_fragment_raw(source)
     return query
 
+
 QS = [
-'''
+    '''
 select User { name, email } filter .name = 'Sully'
 ''',
 ]
+
 
 def process_spec(spec):
     # print(spec)
     actions = spec.actions()
 
-    nonterms = sorted(set(
-        x.production.lhs for xs in actions for lol in xs.values() for x in lol
-        if 'ShiftAction' not in str(type(x))
-    ), key=str)
+    nonterms = sorted(
+        set(
+            x.production.lhs
+            for xs in actions
+            for lol in xs.values()
+            for x in lol
+            if 'ShiftAction' not in str(type(x))
+        ),
+        key=str,
+    )
     nonterm_numbers = {k: i for i, k in enumerate(nonterms)}
 
     rmap = {v._token: c for (_, c), v in parsing.TokenMeta.token_map.items()}
@@ -92,7 +102,42 @@ def main() -> None:
 
     # parse(QS[0])
 
-    print(parse_cheese(jspec, QS[0]))
+    cst = json.loads(parse_cheese(jspec, QS[0]))
+
+    mod = prs.get_parser_spec_module()
+
+    ast = cst_to_ast(cst, mod)
+    ast.dump_edgeql()
+
+
+def cst_to_ast(cst, mod) -> qlast.Base:
+    token_map = {}
+    for (_, token), cls in mod.TokenMeta.token_map.items():
+        token_map[token] = cls
+
+    return _cst_to_ast(cst, mod, token_map).val
+
+
+def _cst_to_ast(cst, mod, token_map):
+
+    if "nonterm" in cst:
+        args = [_cst_to_ast(a, mod, token_map) for a in cst["args"]]
+
+        cls = mod.__dict__[cst["nonterm"]]
+        obj = cls()
+        method = cls.__dict__[cst["production"]]
+        method(obj, *args)
+        return obj
+
+    elif "token" in cst:
+
+        print(cst)
+        cls = token_map[cst["token"]]
+
+        obj = cls(cst["text"], cst["text"])
+        return obj
+
+    assert False
 
 
 if __name__ == '__main__':

@@ -286,7 +286,7 @@ def has_context(func):
         # enforce context in the obj.val, recursively, in case it was
         # a complex production with nested AST nodes
         #
-        force_context(obj.val, obj.context)
+        # force_context(obj.val, obj.context)
         return result
 
     return wrapper
