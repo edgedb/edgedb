@@ -1230,9 +1230,6 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
 
         return schema.update_obj(self, updates)
 
-    def is_type(self) -> bool:
-        return False
-
     def hash_criteria(
         self: Object_T, schema: s_schema.Schema
     ) -> FrozenSet[HashCriterion]:

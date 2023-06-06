@@ -225,9 +225,6 @@ class Type(
 
         return schema, derived
 
-    def is_type(self) -> bool:
-        return True
-
     def is_object_type(self) -> bool:
         return False
 
