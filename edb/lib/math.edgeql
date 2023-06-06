@@ -173,6 +173,35 @@ math::log(x: std::decimal, NAMED ONLY base: std::decimal) -> std::decimal
 };
 
 
+CREATE FUNCTION
+math::sqrt(x: std::int64) -> std::float64
+{
+    CREATE ANNOTATION std::description :=
+        'Return the square root of the input value.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'sqrt';
+};
+
+
+CREATE FUNCTION
+math::sqrt(x: std::float64) -> std::float64
+{
+    CREATE ANNOTATION std::description :=
+        'Return the square root of the input value.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'sqrt';
+};
+
+
+CREATE FUNCTION
+math::sqrt(x: std::decimal) -> std::decimal
+{
+    CREATE ANNOTATION std::description :=
+        'Return the square root of the input value.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'sqrt';
+};
+
 # math::mean
 # -----------
 # The mean function returns an empty set if the input is empty set. On

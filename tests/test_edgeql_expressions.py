@@ -1974,6 +1974,10 @@ class TestExpressions(tb.QueryTestCase):
                 async with self.con.transaction():
                     await self.con.query_single(query)
 
+    async def test_edgeql_expr_valid_arithmetic_12(self):
+        with self.assertRaises(edgedb.errors.InvalidValueError):
+            await self.con.query('SELECT (-4)^(-0.5);')
+
     async def test_edgeql_expr_valid_setop_01(self):
         # use every scalar with DISTINCT
         for right, desc in get_test_items():
