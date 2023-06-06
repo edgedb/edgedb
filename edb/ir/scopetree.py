@@ -484,10 +484,13 @@ class ScopeTreeNode:
 
             path_id = descendant.path_id.strip_namespace(dns)
             visible, visible_finfo, vns = self.find_visible_ex(path_id)
-            desc_optional = (
-                descendant.is_optional_upto(node.parent) or self.optional)
 
             if visible is not None:
+                desc_optional = (
+                    descendant.is_optional_upto(node.parent)
+                    or self.is_optional_upto(visible.parent)
+                )
+
                 if visible_finfo is not None and visible_finfo.factoring_fence:
                     # This node is already present in the surrounding
                     # scope and cannot be factored out, such as
@@ -530,6 +533,12 @@ class ScopeTreeNode:
                 current = descendant
                 if factorable_nodes:
                     descendant.strip_path_namespace(dns)
+                    desc_optional = (
+                        descendant.is_optional_upto(node.parent)
+                        # Check if there is an optional branch between here
+                        # and the *highest* factoring point.
+                        or self.is_optional_upto(factorable_nodes[-1][1])
+                    )
                     if desc_optional:
                         descendant.mark_as_optional()
 
