@@ -12347,6 +12347,16 @@ type default::Foo {
             [{"indexes": [{"except_expr": ".exclude", "expr": ".name"}]}]
         )
 
+    async def test_edgeql_ddl_index_07(self):
+        # Unfortunately we don't really have a way to test that this
+        # actually works, but I looked at the SQL DDL.
+        await self.con.execute(r"""
+            create type Foo {
+                create property fields -> array<str>;
+                create index pg::gin on (.fields);
+            };
+        """)
+
     async def test_edgeql_ddl_errors_01(self):
         await self.con.execute('''
             CREATE TYPE Err1 {

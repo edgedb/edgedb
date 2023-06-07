@@ -3485,9 +3485,11 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         orig_name = sn.shortname_from_fullname(index.get_name(schema))
         if orig_name == s_indexes.DEFAULT_INDEX:
             root_name = orig_name
+            root_code = None
         else:
             root = index.get_root(schema)
             root_name = root.get_name(schema)
+            root_code = root.get_code(schema)
 
             kwargs = index.get_concrete_kwargs(schema)
             # Get all the concrete kwargs compiled (they are expected to be
@@ -3523,13 +3525,16 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         index_name = common.get_index_backend_name(
             index.id, module_name, catenate=False)
 
+        if root_code is None:
+            root_code = get_index_code(root_name)
+
         pg_index = dbops.Index(
             name=index_name[1], table_name=table_name, exprs=sql_exprs,
             unique=False, inherit=True,
             predicate=except_src,
             metadata={
                 'schemaname': str(index.get_name(schema)),
-                'code': get_index_code(root_name),
+                'code': root_code,
                 'kwargs': sql_kwarg_exprs,
             }
         )
