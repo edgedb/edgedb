@@ -489,7 +489,7 @@ class CreateScalarType(
         context: sd.CommandContext,
     ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(
-            schema, astnode.replace(bases=None), context)
+            schema, astnode.replace(bases=[]), context)
 
         if isinstance(cmd, sd.CommandGroup):
             for subcmd in cmd.get_subcommands():

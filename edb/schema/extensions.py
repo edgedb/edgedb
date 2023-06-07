@@ -385,6 +385,7 @@ class DeleteExtension(
                 sn.UnqualName(module),
             ],
             schema_b_filters=[filt],
+            include_extensions=True,
             linearize_delta=True,
         )
         self.update(delta.get_subcommands())

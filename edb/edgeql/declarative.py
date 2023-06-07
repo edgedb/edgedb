@@ -452,11 +452,22 @@ def sdl_to_ddl(
         for decl_ast in declarations:
             trace_dependencies(decl_ast, ctx=tracectx)
 
-    # Before sorting normalize all ordering, to make sure that errors
-    # are consistent.
     for ddlentry in ddlgraph.values():
-        ddlentry.deps = OrderedSet(sorted(ddlentry.deps))
-        ddlentry.weak_deps = OrderedSet(sorted(ddlentry.weak_deps))
+        # Filter out deps that are in the schema but not in ctx.objects.
+        # Deps that are in neither get left in, so that we catch the bug.
+        deps = {
+            x for x in ddlentry.deps
+            if x in ctx.objects or not schema.get(x, default=None)
+        }
+        weak_deps = {
+            x for x in ddlentry.weak_deps
+            if x in ctx.objects or not schema.get(x, default=None)
+        }
+
+        # Before sorting normalize all ordering, to make sure that errors
+        # are consistent.
+        ddlentry.deps = OrderedSet(sorted(deps))
+        ddlentry.weak_deps = OrderedSet(sorted(weak_deps))
 
     try:
         ordered = topological.sort(ddlgraph, allow_unresolved=False)
