@@ -37,7 +37,7 @@ impl Hasher {
                         e.to_string(), parser.current_pos()));
                 }
             };
-            self.hasher.update(token.token.value.as_bytes());
+            self.hasher.update(token.token.text.as_bytes());
             self.hasher.update(b"\0");
         }
         Ok(self)

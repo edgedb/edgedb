@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-use std::char;
 use std::collections::HashMap;
 use std::iter::Peekable;
 use std::slice::Iter;
@@ -11,27 +9,22 @@ use cpython::{FromPyObject};
 use bigdecimal::BigDecimal;
 use num_bigint::ToBigInt;
 
-use edgeql_parser::tokenizer::{TokenStream, Kind, is_keyword, SpannedToken};
+use edgeql_parser::tokenizer::{TokenStream, Kind, is_keyword};
 use edgeql_parser::tokenizer::{MAX_KEYWORD_LENGTH};
+use edgeql_parser::{CowToken, TokenStream2};
 use edgeql_parser::position::Pos;
 use edgeql_parser::keywords::{PARTIAL_RESERVED_KEYWORDS, UNRESERVED_KEYWORDS};
 use edgeql_parser::keywords::{CURRENT_RESERVED_KEYWORDS};
 use edgeql_parser::keywords::{FUTURE_RESERVED_KEYWORDS};
+
 use edgeql_parser::helpers::unquote_string;
+use edgeql_parser::cparser::cparse;
+
 use crate::errors::TokenizerError;
 use crate::pynormalize::py_pos;
-use crate::float;
 
 static mut TOKENS: Option<Tokens> = None;
 
-
-#[derive(Debug, Clone)]
-pub struct CowToken<'a> {
-    pub kind: Kind,
-    pub value: Cow<'a, str>,
-    pub start: Pos,
-    pub end: Pos,
-}
 
 fn rs_pos(py: Python, value: &PyObject) -> PyResult<Pos> {
     let (line, column, offset) = FromPyObject::extract(py, value)?;
@@ -177,13 +170,6 @@ pub fn init_module(py: Python) {
     }
 }
 
-fn peek_keyword(iter: &mut Peekable<Iter<CowToken>>, kw: &str) -> bool {
-    iter.peek()
-       .map(|t| (t.kind == Kind::Ident || t.kind == Kind::Keyword)
-                && t.value.eq_ignore_ascii_case(kw))
-       .unwrap_or(false)
-}
-
 pub fn _unpickle_token(py: Python,
         kind: &PyString, text: &PyString, value: &PyObject,
         start: &PyObject, end: &PyObject)
@@ -205,7 +191,7 @@ pub fn _unpickle_token(py: Python,
 pub fn tokenize(py: Python, s: &PyString) -> PyResult<PyList> {
     let data = s.to_string(py)?;
 
-    let mut token_stream = TokenStream::new(&data[..]);
+    let mut token_stream = TokenStream2::new(&data[..]);
     let rust_tokens: Vec<_> = py.allow_threads(|| {
         let mut tokens = Vec::new();
         for res in &mut token_stream {
@@ -240,9 +226,8 @@ pub fn convert_tokens(py: Python, rust_tokens: Vec<CowToken<'_>>,
     let mut buf = Vec::with_capacity(rust_tokens.len());
     let mut tok_iter = rust_tokens.iter().peekable();
     while let Some(tok) = tok_iter.next() {
-        let (name, text, value) = convert(py, tokens, &mut cache,
-                                          tok, &mut tok_iter)?;
-        let py_tok = Token::create_instance(py, name, text, value,
+        let (kind, text, value) = convert(py, tokens, &mut cache, tok, &mut tok_iter)?;
+        let py_tok = Token::create_instance(py, kind, text, value,
             tok.start, tok.end)?;
 
         buf.push(py_tok.into_object());
@@ -366,26 +351,13 @@ impl Tokens {
     }
 }
 
-impl Cache {
-    fn decimal(&mut self, py: Python) -> PyResult<&mut PyObject> {
-        if let Some(ref mut d) = self.decimal {
-            return Ok(d);
-        }
-        let module = py.import("decimal")?;
-        let typ = module.get(py, "Decimal")?;
-        self.decimal = Some(typ);
-        Ok(self.decimal.as_mut().unwrap())
-    }
-}
-
-
 fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
     token: &CowToken,
     tok_iter: &mut Peekable<Iter<CowToken>>)
     -> PyResult<(PyString, PyString, PyObject)>
 {
     use Kind::*;
-    let value = &token.value[..];
+    let value = &token.text[..];
     match token.kind {
         Assign => Ok((tokens.assign.clone_ref(py),
                       tokens.assign_op.clone_ref(py),
@@ -519,9 +491,6 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
                     (&value[..value.len()-1].replace("_", ""),), None)?))
         }
         FloatConst => {
-            let float_value = float::convert(value)
-                .map_err(|msg| TokenizerError::new(py,
-                    (&msg, py_pos(py, &token.start))))?;
             Ok((tokens.fconst.clone_ref(py),
                 PyString::new(py, value),
                 float_value.to_py_object(py).into_object()))
@@ -595,36 +564,6 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
                 cache.keyword_buf.push_str(value);
                 cache.keyword_buf.make_ascii_lowercase();
                 match &cache.keyword_buf[..] {
-                    "named" if peek_keyword(tok_iter, "only") => {
-                         tok_iter.next();
-                         Ok((tokens.named_only.clone_ref(py),
-                             tokens.named_only_val.clone_ref(py),
-                             py.None()))
-                    }
-                    "set" if peek_keyword(tok_iter, "annotation") => {
-                         tok_iter.next();
-                         Ok((tokens.set_annotation.clone_ref(py),
-                             tokens.set_annotation_val.clone_ref(py),
-                             py.None()))
-                    }
-                    "set" if peek_keyword(tok_iter, "type") => {
-                         tok_iter.next();
-                         Ok((tokens.set_type.clone_ref(py),
-                             tokens.set_type_val.clone_ref(py),
-                             py.None()))
-                    }
-                    "extension" if peek_keyword(tok_iter, "package") => {
-                         tok_iter.next();
-                         Ok((tokens.extension_package.clone_ref(py),
-                             tokens.extension_package_val.clone_ref(py),
-                             py.None()))
-                    }
-                    "order" if peek_keyword(tok_iter, "by") => {
-                         tok_iter.next();
-                         Ok((tokens.order_by.clone_ref(py),
-                             tokens.order_by_val.clone_ref(py),
-                             py.None()))
-                    }
                     _ => match tokens.keywords.get(&cache.keyword_buf) {
                         Some(tok_info) => {
                             debug_assert_eq!(tok_info.kind, token.kind);
@@ -655,146 +594,4 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
 pub fn get_unpickle_fn(py: Python) -> PyObject {
     let tokens = unsafe { TOKENS.as_ref().expect("module initialized") };
     return tokens.unpickle_token.clone_ref(py);
-}
-
-impl<'a, 'b: 'a> From<&'a SpannedToken<'b>> for CowToken<'b> {
-    fn from(t: &'a SpannedToken<'b>) -> CowToken<'b> {
-        CowToken {
-            kind: t.token.kind,
-            value: t.token.value.into(),
-            start: t.start,
-            end: t.end,
-        }
-    }
-}
-
-impl<'a> From<SpannedToken<'a>> for CowToken<'a> {
-    fn from(t: SpannedToken<'a>) -> CowToken<'a> {
-        CowToken::from(&t)
-    }
-}
-
-fn unquote_bytes(value: &str) -> Result<Vec<u8>, String> {
-    let idx = value.find(|c| c == '\'' || c == '"')
-        .ok_or_else(|| "invalid bytes literal: missing quotes".to_string())?;
-    let prefix = &value[..idx];
-    match prefix {
-        "br" | "rb" => Ok(value[3..value.len() -1].as_bytes().to_vec()),
-        "b" => Ok(_unquote_bytes(&value[2..value.len()-1])?),
-        _ => return Err(format_args!(
-                "prefix {:?} is not allowed for bytes, allowed: `b`, `rb`",
-                prefix).to_string()),
-    }
-}
-
-fn _unquote_bytes(s: &str) -> Result<Vec<u8>, String> {
-    let mut res = Vec::with_capacity(s.len());
-    let mut bytes = s.as_bytes().iter();
-    while let Some(&c) = bytes.next() {
-        match c {
-            b'\\' => {
-                match *bytes.next().expect("slash cant be at the end") {
-                    c@b'"' | c@b'\\' | c@b'/' | c@b'\'' => res.push(c),
-                    b'b' => res.push(b'\x08'),
-                    b'f' => res.push(b'\x0C'),
-                    b'n' => res.push(b'\n'),
-                    b'r' => res.push(b'\r'),
-                    b't' => res.push(b'\t'),
-                    b'x' => {
-                        let tail = &s[s.len() - bytes.as_slice().len()..];
-                        let hex = tail.get(0..2);
-                        let code = hex.and_then(|s| {
-                            u8::from_str_radix(s, 16).ok()
-                        }).ok_or_else(|| {
-                            format!("invalid bytes literal: \
-                                invalid escape sequence '\\x{}'",
-                                hex.unwrap_or(tail).escape_debug())
-                        })?;
-                        res.push(code);
-                        bytes.nth(1);
-                    }
-                    b'\r' | b'\n' => {
-                        let nskip = bytes.as_slice()
-                            .iter()
-                            .take_while(|&&x| x.is_ascii_whitespace())
-                            .count();
-                        if nskip > 0 {
-                            bytes.nth(nskip-1);
-                        }
-                    }
-                    c => {
-                        let ch = if c < 0x7f {
-                            c as char
-                        } else {
-                            // recover the unicode byte
-                            s[s.len()-bytes.as_slice().len()-1..]
-                            .chars().next().unwrap()
-                        };
-                        return Err(format!("invalid bytes literal: \
-                            invalid escape sequence '\\{}'",
-                           ch.escape_debug()));
-                    }
-                }
-            }
-            c => res.push(c),
-        }
-    }
-
-    Ok(res)
-}
-
-#[test]
-fn simple_bytes() {
-    assert_eq!(_unquote_bytes(r#"\x09"#).unwrap(), b"\x09");
-    assert_eq!(_unquote_bytes(r#"\x0A"#).unwrap(), b"\x0A");
-    assert_eq!(_unquote_bytes(r#"\x0D"#).unwrap(), b"\x0D");
-    assert_eq!(_unquote_bytes(r#"\x20"#).unwrap(), b"\x20");
-    assert_eq!(unquote_bytes(r#"b'\x09'"#).unwrap(), b"\x09");
-    assert_eq!(unquote_bytes(r#"b'\x0A'"#).unwrap(), b"\x0A");
-    assert_eq!(unquote_bytes(r#"b'\x0D'"#).unwrap(), b"\x0D");
-    assert_eq!(unquote_bytes(r#"b'\x20'"#).unwrap(), b"\x20");
-    assert_eq!(unquote_bytes(r#"br'\x09'"#).unwrap(), b"\\x09");
-    assert_eq!(unquote_bytes(r#"br'\x0A'"#).unwrap(), b"\\x0A");
-    assert_eq!(unquote_bytes(r#"br'\x0D'"#).unwrap(), b"\\x0D");
-    assert_eq!(unquote_bytes(r#"br'\x20'"#).unwrap(), b"\\x20");
-}
-
-#[test]
-fn newline_escaping_bytes() {
-    assert_eq!(_unquote_bytes(r"hello \
-                                world").unwrap(), b"hello world");
-    assert_eq!(unquote_bytes(r"br'hello \
-                                world'").unwrap(),
-        b"hello \\\n                                world");
-
-    assert_eq!(_unquote_bytes(r"bb\
-aa \
-            bb").unwrap(), b"bbaa bb");
-    assert_eq!(unquote_bytes(r"rb'bb\
-aa \
-            bb'").unwrap(), b"bb\\\naa \\\n            bb");
-    assert_eq!(_unquote_bytes(r"bb\
-
-        aa").unwrap(), b"bbaa");
-    assert_eq!(unquote_bytes(r"br'bb\
-
-        aa'").unwrap(), b"bb\\\n\n        aa");
-    assert_eq!(_unquote_bytes(r"bb\
-        \
-        aa").unwrap(), b"bbaa");
-    assert_eq!(unquote_bytes(r"rb'bb\
-        \
-        aa'").unwrap(), b"bb\\\n        \\\n        aa");
-    assert_eq!(_unquote_bytes("bb\\\r   aa").unwrap(), b"bbaa");
-    assert_eq!(unquote_bytes("br'bb\\\r   aa'").unwrap(), b"bb\\\r   aa");
-    assert_eq!(_unquote_bytes("bb\\\r\n   aa").unwrap(), b"bbaa");
-    assert_eq!(unquote_bytes("rb'bb\\\r\n   aa'").unwrap(), b"bb\\\r\n   aa");
-}
-
-#[test]
-fn complex_bytes() {
-    assert_eq!(_unquote_bytes(r#"\x09 hello \x0A there"#).unwrap(),
-        b"\x09 hello \x0A there");
-    assert_eq!(unquote_bytes(r#"br'\x09 hello \x0A there'"#).unwrap(),
-        b"\\x09 hello \\x0A there");
 }

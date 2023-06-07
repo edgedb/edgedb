@@ -3,6 +3,12 @@ use std::str::{from_utf8, Utf8Error};
 
 use unicode_width::UnicodeWidthStr;
 
+/// Span of an element in source code
+#[derive(Debug, Clone)]
+pub struct Span {
+    pub start: Pos,
+    pub stop: Pos,
+}
 /// Original position of element in source code
 #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Default, Hash)]
 pub struct Pos {

@@ -1,10 +1,10 @@
 use std::fmt;
 use std::borrow::Cow;
+use std::str::CharIndices;
 
-use combine::easy::Error;
-use combine::error::StreamError;
 use memchr::memmem::find;
 
+use crate::Error;
 use crate::position::Pos;
 
 
@@ -70,7 +70,7 @@ pub enum Kind {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Token<'a> {
     pub kind: Kind,
-    pub value: &'a str,
+    pub text: &'a str,
 }
 
 #[derive(Debug, Clone)]
@@ -91,17 +91,14 @@ pub struct TokenStream<'a> {
 }
 
 impl<'a> Iterator for TokenStream<'a> {
-    type Item = Result<SpannedToken<'a>, Error<Token<'a>, Token<'a>>>;
+    type Item = Result<SpannedToken<'a>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let start = self.position;
-        match self.read_token() {
-            Ok((token, end)) => Some(Ok(SpannedToken {
-                token, start, end,
-            })),
-            Err(e) if e == Error::end_of_input() => None,
-            Err(e) => Some(Err(e)),
-        }
+        let start = self.current_pos();
+
+        Some(self.read_token()?.map(|(token, end)| SpannedToken {
+            token, start, end
+        }))
     }
 }
 
@@ -141,8 +138,8 @@ impl<'a> TokenStream<'a> {
         self.position
     }
 
-    fn read_token(&mut self)
-        -> Result<(Token<'a>, Pos), Error<Token<'a>, Token<'a>>>
+    pub(super) fn read_token(&mut self)
+        -> Option<Result<(Token<'a>, Pos), Error>>
     {
         // This quickly resets the stream one token back
         // (the most common reset that used quite often)
@@ -150,12 +147,15 @@ impl<'a> TokenStream<'a> {
             if at == self.off {
                 self.off = off;
                 self.position = next;
-                return Ok((tok, end));
+                return Some(Ok((tok, end)));
             }
         }
 
         let old_pos = self.off;
-        let (kind, len) = self.peek_token()?;
+        let (kind, len) = match self.peek_token()? {
+            Ok(x) => x,
+            Err(e) => return Some(Err(e))
+        };
 
         // note we may want to get rid of "update_position" here as it's
         // faster to update 'as you go', but this is easier to get right first
@@ -165,22 +165,26 @@ impl<'a> TokenStream<'a> {
         let end = self.position;
 
         self.skip_whitespace();
-        let token = Token { kind, value };
+        let token = Token { kind, text: value };
         // This is for quick reset on token back
         self.next_state = Some((old_pos, token, self.off, end, self.position));
-        Ok((token, end))
+        Some(Ok((token, end)))
     }
 
     fn peek_token(&mut self)
-        -> Result<(Kind, usize), Error<Token<'a>, Token<'a>>>
+        -> Option<Result<(Kind, usize), Error>>
     {
-        use self::Kind::*;
         let tail = &self.buf[self.off..];
         let mut iter = tail.char_indices();
-        let cur_char = match iter.next() {
-            Some((_, x)) => x,
-            None => return Err(Error::end_of_input()),
-        };
+
+        let (_, cur_char) = iter.next()?;
+        Some(self.peek_token_inner(cur_char, tail, &mut iter))
+    }
+
+    fn peek_token_inner(
+        &mut self, cur_char: char, tail: &str, iter: &mut CharIndices<'_>
+    ) -> Result<(Kind, usize), Error> {
+        use self::Kind::*;
 
         match cur_char {
             ':' => match iter.next() {
@@ -521,7 +525,7 @@ impl<'a> TokenStream<'a> {
     }
 
     fn parse_string(&mut self, quote_off: usize, raw: bool, binary: bool)
-        -> Result<(Kind, usize), Error<Token<'a>, Token<'a>>>
+        -> Result<(Kind, usize), Error>
     {
         let mut iter = self.buf[self.off+quote_off..].char_indices();
         let open_quote = iter.next().unwrap().1;
@@ -565,7 +569,7 @@ impl<'a> TokenStream<'a> {
     }
 
     fn parse_number(&mut self)
-        -> Result<(Kind, usize), Error<Token<'a>, Token<'a>>>
+        -> Result<(Kind, usize), Error>
     {
         #[derive(PartialEq, PartialOrd)]
         enum Break {
@@ -806,7 +810,7 @@ impl<'a> TokenStream<'a> {
 
 impl<'a> fmt::Display for Token<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}[{:?}]", self.value, self.kind)
+        write!(f, "{}[{:?}]", self.text, self.kind)
     }
 }
 

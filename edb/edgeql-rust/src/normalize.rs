@@ -1,13 +1,11 @@
 use std::collections::BTreeSet;
 
-use edgeql_parser::tokenizer::{TokenStream, Kind};
+use edgeql_parser::tokenizer::{TokenStream, Kind, CowToken};
 use edgeql_parser::position::Pos;
-use edgeql_parser::helpers::unquote_string;
+use edgeql_parser::utils::strings::unquote_string;
 use num_bigint::{BigInt, ToBigInt};
 use bigdecimal::BigDecimal;
 use blake2::{Blake2b512, Digest};
-use crate::tokenizer::{CowToken};
-use crate::float;
 
 
 #[derive(Debug, PartialEq)]
@@ -43,14 +41,14 @@ pub enum Error {
 fn push_var<'x>(res: &mut Vec<CowToken<'x>>, module: &'x str, typ: &'x str,
     var: String, start: Pos, end: Pos)
 {
-    res.push(CowToken {kind: Kind::OpenParen, value: "(".into(), start, end});
-    res.push(CowToken {kind: Kind::Less, value: "<".into(), start, end});
-    res.push(CowToken {kind: Kind::Ident, value: module.into(), start, end});
-    res.push(CowToken {kind: Kind::Namespace, value: "::".into(), start, end});
-    res.push(CowToken {kind: Kind::Ident, value: typ.into(), start, end});
-    res.push(CowToken {kind: Kind::Greater, value: ">".into(), start, end});
-    res.push(CowToken {kind: Kind::Argument, value: var.into(), start, end});
-    res.push(CowToken {kind: Kind::CloseParen, value: ")".into(), start, end});
+    res.push(CowToken {kind: Kind::OpenParen, text: "(".into(), value: None, start, end});
+    res.push(CowToken {kind: Kind::Less, text: "<".into(), value: None, start, end});
+    res.push(CowToken {kind: Kind::Ident, text: module.into(), value: None, start, end});
+    res.push(CowToken {kind: Kind::Namespace, text: "::".into(), value: None, start, end});
+    res.push(CowToken {kind: Kind::Ident, text: typ.into(), value: None, start, end});
+    res.push(CowToken {kind: Kind::Greater, text: ">".into(), value: None, start, end});
+    res.push(CowToken {kind: Kind::Argument, text: var.into(), value: None, start, end});
+    res.push(CowToken {kind: Kind::CloseParen, text: ")".into(), value: None, start, end});
 }
 
 fn scan_vars<'x, 'y: 'x, I>(tokens: I) -> Option<(bool, usize)>
@@ -60,12 +58,12 @@ fn scan_vars<'x, 'y: 'x, I>(tokens: I) -> Option<(bool, usize)>
     let mut names = BTreeSet::new();
     for t in tokens {
         if t.kind == Kind::Argument {
-            if let Ok(v) = t.value[1..].parse() {
+            if let Ok(v) = t.text[1..].parse() {
                 if max_visited.map(|old| v > old).unwrap_or(true) {
                     max_visited = Some(v);
                 }
             } else {
-                names.insert(&t.value[..]);
+                names.insert(&t.text[..]);
             }
         }
     }
@@ -142,17 +140,17 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
             if !matches!(rewritten_tokens.last(),
                 Some(CowToken { kind: Kind::Dot, .. }))
             // Don't replace 'LIMIT 1' as a special case
-            && (tok.value != "1"
+            && (tok.text != "1"
                 || !matches!(rewritten_tokens.last(),
-                    Some(CowToken { kind: Kind::Keyword, ref value, .. })
-                    if value.eq_ignore_ascii_case("LIMIT")))
-            && tok.value != "9223372036854775808"
+                    Some(CowToken { kind: Kind::Keyword, ref text, .. })
+                    if text.eq_ignore_ascii_case("LIMIT")))
+            && tok.text != "9223372036854775808"
             => {
                 push_var(&mut rewritten_tokens, "__std__", "int64",
                     next_var(),
                     tok.start, tok.end);
                 variables.push(Variable {
-                    value: Value::Int(tok.value.replace("_", "").parse()
+                    value: Value::Int(tok.text.replace("_", "").parse()
                         .map_err(|e| Error::Tokenizer(
                             format!("can't parse integer: {}", e),
                             tok.start))?),
@@ -163,7 +161,7 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
                 push_var(&mut rewritten_tokens, "__std__", "float64",
                     next_var(),
                     tok.start, tok.end);
-                let value = float::convert(&tok.value)
+                let value = float::convert(&tok.text)
                     .map_err(|msg| Error::Tokenizer(msg.into(), tok.start))?;
                 variables.push(Variable {
                     value: Value::Float(value),
@@ -174,7 +172,7 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
                 push_var(&mut rewritten_tokens, "__std__", "bigint",
                     next_var(),
                     tok.start, tok.end);
-                let dec: BigDecimal = tok.value[..tok.value.len()-1]
+                let dec: BigDecimal = tok.text[..tok.text.len()-1]
                         .replace("_", "").parse()
                         .map_err(|e| Error::Tokenizer(
                             format!("can't parse bigint: {}", e),
@@ -193,7 +191,7 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
                     tok.start, tok.end);
                 variables.push(Variable {
                     value: Value::Decimal(
-                        tok.value[..tok.value.len()-1]
+                        tok.text[..tok.text.len()-1]
                         .replace("_", "")
                         .parse()
                         .map_err(|e| Error::Tokenizer(
@@ -207,7 +205,7 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
                     next_var(),
                     tok.start, tok.end);
                 variables.push(Variable {
-                    value: Value::Str(unquote_string(&tok.value)
+                    value: Value::Str(unquote_string(&tok.text)
                         .map_err(|e| Error::Tokenizer(
                             format!("can't unquote string: {}", e),
                             tok.start))?.into()),
@@ -215,10 +213,10 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
                 continue;
             }
             Kind::Keyword
-            if (matches!(&(&tok.value[..].to_uppercase())[..],
+            if (matches!(&(&tok.text[..].to_uppercase())[..],
                          "CONFIGURE"|"CREATE"|"ALTER"|"DROP"|"START"|"ANALYZE")
                 || (last_was_set &&
-                    matches!(&(&tok.value[..].to_uppercase())[..],
+                    matches!(&(&tok.text[..].to_uppercase())[..],
                              "GLOBAL"))
             )
             => {
@@ -245,7 +243,7 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
                 rewritten_tokens.push(tok.clone());
             }
             Kind::Keyword
-            if (matches!(&(&tok.value[..].to_uppercase())[..], "SET")) => {
+            if (matches!(&(&tok.text[..].to_uppercase())[..], "SET")) => {
                 is_set = true;
                 rewritten_tokens.push(tok.clone());
             }
@@ -332,7 +330,7 @@ fn serialize_tokens(tokens: &[CowToken<'_>]) -> String {
         if needs_space && !is_operator(token) && token.kind != Argument {
             buf.push(' ');
         }
-        buf.push_str(&token.value);
+        buf.push_str(&token.text);
         needs_space = !is_operator(token);
     }
     return buf;
@@ -341,8 +339,7 @@ fn serialize_tokens(tokens: &[CowToken<'_>]) -> String {
 #[cfg(test)]
 mod test {
     use super::scan_vars;
-    use edgeql_parser::tokenizer::TokenStream;
-    use crate::tokenizer::CowToken;
+    use edgeql_parser::tokenizer::{TokenStream, CowToken};
 
     fn tokenize<'x>(s: &'x str) -> Vec<CowToken<'x>> {
         let mut r = Vec::new();

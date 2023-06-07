@@ -6,7 +6,7 @@ fn tok_str(s: &str) -> Vec<&str> {
     let mut s = TokenStream::new(s);
     loop {
         match s.next() {
-            Some(Ok(x)) => r.push(x.token.value),
+            Some(Ok(x)) => r.push(x.token.text),
             None => break,
             Some(Err(e)) => panic!("Parse error at {}: {}", s.current_pos(), e),
         }

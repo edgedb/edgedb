@@ -214,6 +214,7 @@ name = "edgeql-parser"
 version = "0.1.0"
 dependencies = [
  "base32",
+ "bigdecimal",
  "combine 4.6.6",
  "cpython",
  "edgeql-parser-derive",
