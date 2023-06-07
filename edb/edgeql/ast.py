@@ -317,7 +317,7 @@ class TypeOf(TypeExpr):
 
 class TypeExprLiteral(TypeExpr):
     # Literal type exprs are used in enum declarations.
-    val: StringConstant
+    val: BaseConstant
 
 
 class TypeName(TypeExpr):

@@ -330,6 +330,7 @@ CREATE TYPE schema::ScalarType
 {
     CREATE PROPERTY default -> std::str;
     CREATE PROPERTY enum_values -> array<std::str>;
+    CREATE PROPERTY arg_values -> array<std::str>;
 };
 
 

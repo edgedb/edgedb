@@ -118,10 +118,18 @@ def quote_type(type_: Tuple[str, ...] | str):
     if is_array:
         last = last[:-2]
 
+    param = None
+    if '(' in last:
+        last, param = last.split('(', 1)
+        param = '(' + param
+
     last = quote_ident(last)
 
     if is_rowtype:
         last += '%ROWTYPE'
+
+    if param:
+        last += param
 
     if is_array:
         last += '[]'
