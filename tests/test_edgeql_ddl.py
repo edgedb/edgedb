@@ -15627,7 +15627,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 drop extension package ltree VERSION '1.0'
             ''')
 
-    async def _extension_test_02(self):
+    async def _extension_test_02a(self):
         await self.con.execute('''
             create extension varchar
         ''')
@@ -15718,6 +15718,55 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 select <str><vc>'a';
             ''')
 
+    async def _extension_test_02b(self):
+        await self.con.execute(r"""
+            START MIGRATION TO {
+                using extension varchar version "1.0";
+                module default {
+                    scalar type vc5 extending varchar::varchar<5>;
+                    type X {
+                        foo: vc5;
+                    };
+                }
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        await self.con.execute('''
+            insert X { foo := <vc5>"0123456789" }
+        ''')
+
+        await self.assert_query_result(
+            '''
+                select X.foo
+            ''',
+            ['01234'],
+            json_only=True,
+        )
+
+        # Try dropping everything that uses it but not the extension
+        async with self._run_and_rollback():
+            await self.con.execute(r"""
+                START MIGRATION TO {
+                    using extension varchar version "1.0";
+                    module default {
+                    }
+                };
+                POPULATE MIGRATION;
+                COMMIT MIGRATION;
+            """)
+
+        # Try dropping everything including the extension
+        await self.con.execute(r"""
+            START MIGRATION TO {
+                module default {
+                }
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
     async def test_edgeql_ddl_extensions_02(self):
         # Make an extension that wraps some of varchar
         await self.con.execute('''
@@ -15744,7 +15793,9 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         ''')
         try:
             async with self._run_and_rollback():
-                await self._extension_test_02()
+                await self._extension_test_02a()
+            async with self._run_and_rollback():
+                await self._extension_test_02b()
         finally:
             await self.con.execute('''
                 drop extension package varchar VERSION '1.0'
