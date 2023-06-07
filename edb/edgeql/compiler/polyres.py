@@ -557,18 +557,19 @@ def compile_arg(
     typemod: ft.TypeModifier,
     *,
     in_conditional: bool=False,
+    prefer_subquery_args: bool=False,
     ctx: context.ContextLevel,
 ) -> irast.Set:
     fenced = typemod is ft.TypeModifier.SetOfType
     optional = typemod is ft.TypeModifier.OptionalType
 
-    # Create a a branch for OPTIONAL ones. The OPTIONAL branch is to
+    # Create a branch for OPTIONAL ones. The OPTIONAL branch is to
     # have a place to mark as optional in the scope tree.
     # For fenced arguments we instead wrap it in a SELECT below.
-    branched = optional
-
-    # XXX: Actually, always branch anything that isn't fenced.
-    branched |= not fenced
+    #
+    # We also put a branch when we are trying to compile the argument
+    # into a subquery, so that things it uses get bound locally.
+    branched = optional or (prefer_subquery_args and not fenced)
 
     new = ctx.newscope(fenced=False) if branched else ctx.new()
     with new as argctx:

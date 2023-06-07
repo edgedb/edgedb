@@ -3156,15 +3156,15 @@ def _compile_call_args(
         # "push down" the subqueries from the top level, which is
         # important for things like hitting pgvector indexes in an
         # ORDER BY.
-        # XXX: Don't always do it?
-        can_make_subquery = (
-            typemod != qltypes.TypeModifier.SetOfType
+        make_subquery = (
+            expr.prefer_subquery_args
+            and typemod != qltypes.TypeModifier.SetOfType
             and ir_arg.cardinality.is_single()
             and ir_arg.expr.typeref.is_scalar
             and not _needs_arg_null_check(expr, ir_arg, typemod, ctx=ctx)
         )
 
-        if can_make_subquery:
+        if make_subquery:
             arg_ref = set_as_subquery(ir_arg.expr, as_value=True, ctx=ctx)
             arg_ref.nullable = ir_arg.cardinality.can_be_zero()
             arg_ref = astutils.collapse_query(arg_ref)
