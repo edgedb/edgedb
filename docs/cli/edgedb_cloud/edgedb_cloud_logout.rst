@@ -5,6 +5,10 @@
 edgedb cloud logout
 ===================
 
+.. note::
+
+    This CLI command requires CLI version 3.0 or later.
+
 Forget the stored access token
 
 .. cli:synopsis::

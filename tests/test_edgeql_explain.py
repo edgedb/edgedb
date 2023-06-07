@@ -100,18 +100,18 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "value": "User~2",
                         },
                         {
-                            "important": False,
+                            "important": True,
                             "title": "relation_name",
                             "type": "relation",
                         },
                         {
-                            "important": False,
+                            "important": True,
                             "title": "scan_direction",
                             "type": "text",
                             "value": "Forward",
                         },
                         {
-                            "important": False,
+                            "important": True,
                             "title": "index_name",
                             "type": "index",
                             "value": "index of object type 'default::User' "
@@ -199,13 +199,13 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "value": "InitPlan 1 (returns " "$0)",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "strategy",
                                     "type": "text",
                                     "value": "Plain",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "partial_mode",
                                     "type": "text",
                                     "value": "Simple",
@@ -244,18 +244,18 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "value": "User~3",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "relation_name",
                                     "type": "relation",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "scan_direction",
                                     "type": "text",
                                     "value": "Forward",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "index_name",
                                     "type": "index",
                                     "value": "index of object type "
@@ -302,13 +302,13 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "value": "InitPlan 2 (returns " "$1)",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "strategy",
                                     "type": "text",
                                     "value": "Plain",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "partial_mode",
                                     "type": "text",
                                     "value": "Simple",
@@ -346,7 +346,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "type": "text",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "relation_name",
                                     "type": "relation",
                                 },
@@ -394,18 +394,18 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "value": "User~2",
                         },
                         {
-                            "important": False,
+                            "important": True,
                             "title": "relation_name",
                             "type": "relation",
                         },
                         {
-                            "important": False,
+                            "important": True,
                             "title": "scan_direction",
                             "type": "text",
                             "value": "Forward",
                         },
                         {
-                            "important": False,
+                            "important": True,
                             "title": "index_name",
                             "type": "index",
                             "value": "index of object type 'default::User' "
@@ -447,13 +447,13 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "value": "SubPlan 1",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "strategy",
                                     "type": "text",
                                     "value": "Plain",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "partial_mode",
                                     "type": "text",
                                     "value": "Simple",
@@ -473,7 +473,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "value": "Outer",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "join_type",
                                     "type": "text",
                                     "value": "Inner",
@@ -523,18 +523,18 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                             "value": "Issue~1",
                                         },
                                         {
-                                            "important": False,
+                                            "important": True,
                                             "title": "relation_name",
                                             "type": "relation",
                                         },
                                         {
-                                            "important": False,
+                                            "important": True,
                                             "title": "scan_direction",
                                             "type": "text",
                                             "value": "Forward",
                                         },
                                         {
-                                            "important": False,
+                                            "important": True,
                                             "title": "index_name",
                                             "type": "index",
                                             "value": "constraint "
@@ -598,18 +598,18 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "value": "User~2",
                         },
                         {
-                            "important": False,
+                            "important": True,
                             "title": "relation_name",
                             "type": "relation",
                         },
                         {
-                            "important": False,
+                            "important": True,
                             "title": "scan_direction",
                             "type": "text",
                             "value": "Forward",
                         },
                         {
-                            "important": False,
+                            "important": True,
                             "title": "index_name",
                             "type": "index",
                             "value": "index of object type 'default::User' "
@@ -661,13 +661,13 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "value": "SubPlan 1",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "strategy",
                                     "type": "text",
                                     "value": "Plain",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "partial_mode",
                                     "type": "text",
                                     "value": "Simple",
@@ -723,18 +723,18 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "value": "Issue~1",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "relation_name",
                                     "type": "relation",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "scan_direction",
                                     "type": "text",
                                     "value": "Forward",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "index_name",
                                     "type": "index",
                                     "value": "Issue.owner index",
@@ -821,7 +821,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "type": "text",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "relation_name",
                                     "type": "relation",
                                 },
@@ -855,7 +855,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "type": "text",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "relation_name",
                                     "type": "relation",
                                 },
@@ -889,7 +889,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "type": "text",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "relation_name",
                                     "type": "relation",
                                 },
@@ -978,7 +978,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                             "value": "Issue~1",
                                         },
                                         {
-                                            "important": False,
+                                            "important": True,
                                             "title": "relation_name",
                                             "type": "relation",
                                         },
@@ -1016,7 +1016,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                             "value": "LogEntry~1",
                                         },
                                         {
-                                            "important": False,
+                                            "important": True,
                                             "title": "relation_name",
                                             "type": "relation",
                                         },
@@ -1054,7 +1054,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                             "value": "Comment~1",
                                         },
                                         {
-                                            "important": False,
+                                            "important": True,
                                             "title": "relation_name",
                                             "type": "relation",
                                         },
@@ -1108,18 +1108,18 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "value": "Issue~2",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "relation_name",
                                     "type": "relation",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "scan_direction",
                                     "type": "text",
                                     "value": "Forward",
                                 },
                                 {
-                                    "important": False,
+                                    "important": True,
                                     "title": "index_name",
                                     "type": "index",
                                     "value": "constraint "

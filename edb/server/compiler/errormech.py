@@ -94,6 +94,8 @@ directly_mappable = {
     pgerrors.ERROR_INVALID_ROW_COUNT_IN_RESULT_OFFSET_CLAUSE: (
         errors.InvalidValueError),
     pgerrors.ERROR_INVALID_REGULAR_EXPRESSION: errors.InvalidValueError,
+    pgerrors.ERROR_INVALID_LOGARITHM_ARGUMENT: errors.InvalidValueError,
+    pgerrors.ERROR_INVALID_POWER_ARGUMENT: errors.InvalidValueError,
     pgerrors.ERROR_INSUFFICIENT_PRIVILEGE: errors.AccessPolicyError,
     pgerrors.ERROR_PROGRAM_LIMIT_EXCEEDED: errors.InvalidValueError,
     pgerrors.ERROR_DATA_EXCEPTION: errors.InvalidValueError,

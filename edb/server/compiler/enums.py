@@ -43,18 +43,20 @@ class Capability(enum.IntFlag):
     PERSISTENT_CONFIG = 1 << 4    # noqa
 
     ALL               = 0xFFFF_FFFF_FFFF_FFFF  # noqa
+    WRITE             = (MODIFICATIONS | DDL | PERSISTENT_CONFIG)  # noqa
 
     def make_error(
         self,
         allowed: Capability,
         error_constructor: Callable[[str], Error_T],
+        reason: str,
     ) -> Error_T:
         for item in Capability:
             if item & allowed:
                 continue
             if self & item:
                 return error_constructor(
-                    f"cannot execute {CAPABILITY_TITLES[item]}")
+                    f"cannot execute {CAPABILITY_TITLES[item]}: {reason}")
         raise AssertionError(
             f"extra capability not found in"
             f" {self} allowed {allowed}"

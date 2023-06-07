@@ -942,11 +942,12 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         # `cacheable` flag to compile the query again.
         self._last_anon_compiled = None
 
-        if query_unit_group.capabilities & ~query_req.allow_capabilities:
-            raise query_unit_group.capabilities.make_error(
-                query_req.allow_capabilities,
-                errors.DisabledCapabilityError,
-            )
+        _dbview.check_capabilities(
+            query_unit_group.capabilities,
+            query_req.allow_capabilities,
+            errors.DisabledCapabilityError,
+            "disabled by the client",
+        )
 
         if query_unit_group.in_type_id != in_tid:
             self.write(self.make_command_data_description_msg(compiled))
@@ -1348,8 +1349,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     -- Disable transaction or query execution timeout
                     -- limits. Both clients and the server can be slow
                     -- during the dump/restore process.
-                    SET idle_in_transaction_session_timeout = 0;
-                    SET statement_timeout = 0;
+                    SET LOCAL idle_in_transaction_session_timeout = 0;
+                    SET LOCAL statement_timeout = 0;
                 ''',
             )
 
@@ -1581,8 +1582,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     -- Disable transaction or query execution timeout
                     -- limits. Both clients and the server can be slow
                     -- during the dump/restore process.
-                    SET idle_in_transaction_session_timeout = 0;
-                    SET statement_timeout = 0;
+                    SET LOCAL idle_in_transaction_session_timeout = 0;
+                    SET LOCAL statement_timeout = 0;
                 ''',
             )
 

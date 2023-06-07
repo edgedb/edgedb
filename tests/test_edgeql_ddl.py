@@ -12347,6 +12347,16 @@ type default::Foo {
             [{"indexes": [{"except_expr": ".exclude", "expr": ".name"}]}]
         )
 
+    async def test_edgeql_ddl_index_07(self):
+        # Unfortunately we don't really have a way to test that this
+        # actually works, but I looked at the SQL DDL.
+        await self.con.execute(r"""
+            create type Foo {
+                create property fields -> array<str>;
+                create index pg::gin on (.fields);
+            };
+        """)
+
     async def test_edgeql_ddl_errors_01(self):
         await self.con.execute('''
             CREATE TYPE Err1 {
@@ -15502,6 +15512,7 @@ DDLStatement);
 
 class TestDDLNonIsolated(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
+    PARALLELISM_GRANULARITY = 'suite'
 
     async def test_edgeql_ddl_consecutive_create_migration_01(self):
         # A regression test for https://github.com/edgedb/edgedb/issues/2085.
@@ -15520,7 +15531,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         };
         ''')
 
-    async def _extension_test(self):
+    async def _extension_test_01(self):
         await self.con.execute('''
             create extension ltree
         ''')
@@ -15565,7 +15576,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             drop extension ltree;
         ''')
 
-    async def test_edgeql_ddl_extensions(self):
+    async def test_edgeql_ddl_extensions_01(self):
         # Make an extension that wraps a tiny bit of the ltree package.
         await self.con.execute('''
         create extension package ltree VERSION '1.0' {
@@ -15610,8 +15621,131 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         ''')
         try:
             async with self._run_and_rollback():
-                await self._extension_test()
+                await self._extension_test_01()
         finally:
             await self.con.execute('''
                 drop extension package ltree VERSION '1.0'
+            ''')
+
+    async def _extension_test_02(self):
+        await self.con.execute('''
+            create extension varchar
+        ''')
+
+        await self.con.execute('''
+            create scalar type vc5 extending varchar::varchar<5>;
+            create type X {
+                create property foo: vc5;
+            };
+        ''')
+
+        await self.assert_query_result(
+            '''
+                describe scalar type vc5;
+            ''',
+            ['create scalar type default::vc5 extending varchar::varchar<5>;'],
+        )
+        await self.assert_query_result(
+            '''
+                describe scalar type vc5 as sdl;
+            ''',
+            ['scalar type default::vc5 extending varchar::varchar<5>;'],
+        )
+
+        await self.assert_query_result(
+            '''
+                select schema::ScalarType { arg_values }
+                filter .name = 'default::vc5'
+            ''',
+            [{'arg_values': ['5']}],
+        )
+
+        await self.con.execute('''
+            insert X { foo := <vc5>"0123456789" }
+        ''')
+
+        await self.assert_query_result(
+            '''
+                select X.foo
+            ''',
+            ['01234'],
+            json_only=True,
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            "parameterized scalar types may not have constraints",
+        ):
+            await self.con.execute('''
+                alter scalar type vc5 create constraint expression on (true);
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "invalid scalar type argument",
+        ):
+            await self.con.execute('''
+                create scalar type fail extending varchar::varchar<foo>;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "does not accept parameters",
+        ):
+            await self.con.execute('''
+                create scalar type yyy extending str<1, 2>;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "incorrect number of arguments",
+        ):
+            await self.con.execute('''
+                create scalar type yyy extending varchar::varchar<1, 2>;
+            ''')
+
+        # If no params are specified, it just makes a normal scalar type
+        await self.con.execute('''
+            create scalar type vc extending varchar::varchar {
+                create constraint expression on (false);
+            };
+        ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "invalid",
+        ):
+            await self.con.execute('''
+                select <str><vc>'a';
+            ''')
+
+    async def test_edgeql_ddl_extensions_02(self):
+        # Make an extension that wraps some of varchar
+        await self.con.execute('''
+        create extension package varchar VERSION '1.0' {
+          set ext_module := "varchar";
+          set sql_extensions := [];
+          create module varchar;
+          create scalar type varchar::varchar {
+            set id := <uuid>'26dc1396-0196-11ee-a005-ad0eaed0df03';
+            set sql_type := "varchar";
+            set sql_type_scheme := "varchar({__arg_0__})";
+            set num_params := 1;
+          };
+
+          create cast from varchar::varchar to std::str {
+            SET volatility := 'Immutable';
+            USING SQL CAST;
+          };
+          create cast from std::str to varchar::varchar {
+            SET volatility := 'Immutable';
+            USING SQL CAST;
+          };
+        };
+        ''')
+        try:
+            async with self._run_and_rollback():
+                await self._extension_test_02()
+        finally:
+            await self.con.execute('''
+                drop extension package varchar VERSION '1.0'
             ''')

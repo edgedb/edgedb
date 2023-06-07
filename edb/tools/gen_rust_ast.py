@@ -1,6 +1,5 @@
 import itertools
 import typing
-import typing_inspect
 import dataclasses
 import textwrap
 from itertools import chain
@@ -9,6 +8,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 from edb.common.ast import base as ast
 from edb.common import enum as s_enum
+from edb.common import typing_inspect
 from edb.tools.edb import edbcommands
 
 

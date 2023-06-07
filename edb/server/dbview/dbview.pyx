@@ -39,7 +39,7 @@ from edb.edgeql import qltypes
 from edb.schema import extensions as s_ext
 from edb.schema import schema as s_schema
 from edb.server import compiler, defines, config, metrics
-from edb.server.compiler import dbstate, sertypes
+from edb.server.compiler import dbstate, enums, sertypes
 from edb.pgsql import dbops
 
 cimport cython
@@ -988,13 +988,12 @@ cdef class DatabaseConnectionView:
                 else:
                     raise
 
-            allowed_capabilities = (
-                query_req.allow_capabilities & self._capability_mask)
-            if query_unit_group.capabilities & ~allowed_capabilities:
-                raise query_unit_group.capabilities.make_error(
-                    allowed_capabilities,
-                    errors.DisabledCapabilityError,
-                )
+            self.check_capabilities(
+                query_unit_group.capabilities,
+                query_req.allow_capabilities,
+                errors.DisabledCapabilityError,
+                "disabled by the client",
+            )
 
         if self.in_tx_error():
             # The current transaction is aborted, so we must fail
@@ -1092,6 +1091,34 @@ cdef class DatabaseConnectionView:
             )
         except Exception:
             self.raise_in_tx_error()
+
+    cdef check_capabilities(
+        self,
+        query_capabilities,
+        allowed_capabilities,
+        error_constructor,
+        reason,
+    ):
+        if query_capabilities & ~self._capability_mask:
+            # _capability_mask is currently only used for system database
+            raise query_capabilities.make_error(
+                self._capability_mask,
+                errors.UnsupportedCapabilityError,
+                "system database is read-only",
+            )
+        if query_capabilities & ~allowed_capabilities:
+            raise query_capabilities.make_error(
+                allowed_capabilities,
+                error_constructor,
+                reason,
+            )
+        if self.server.is_readonly():
+            if query_capabilities & enums.Capability.WRITE:
+                raise query_capabilities.make_error(
+                    ~enums.Capability.WRITE,
+                    errors.DisabledCapabilityError,
+                    "the server is currently in read-only mode",
+                )
 
 
 cdef class DatabaseIndex:

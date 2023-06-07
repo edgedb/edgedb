@@ -319,16 +319,21 @@ def trace_refs(
     path_prefix: Optional[sn.QualName] = None,
     module: str,
     objects: Dict[sn.QualName, Optional[ObjectLike]],
+    pointers: Mapping[sn.UnqualName, Set[sn.QualName]],
     params: Mapping[str, sn.QualName],
     local_modules: AbstractSet[str]
-) -> FrozenSet[sn.QualName]:
+) -> Tuple[FrozenSet[sn.QualName], FrozenSet[sn.QualName]]:
 
-    """Return a list of schema item names used in an expression."""
+    """Return a list of schema item names used in an expression.
+
+    First set is strong deps, second is weak.
+    """
 
     ctx = TracerContext(
         schema=schema,
         module=module,
         objects=objects,
+        pointers=pointers,
         anchors=anchors or {},
         path_prefix=path_prefix,
         modaliases={},
@@ -337,7 +342,7 @@ def trace_refs(
         local_modules=local_modules,
     )
     trace(qltree, ctx=ctx)
-    return frozenset(ctx.refs)
+    return frozenset(ctx.refs), frozenset(ctx.weak_refs)
 
 
 def resolve_name(
@@ -398,6 +403,7 @@ class TracerContext:
         schema: s_schema.Schema,
         module: str,
         objects: Dict[sn.QualName, Optional[ObjectLike]],
+        pointers: Mapping[sn.UnqualName, Set[sn.QualName]],
         anchors: Mapping[str, sn.QualName],
         path_prefix: Optional[sn.QualName],
         modaliases: Dict[Optional[str], str],
@@ -407,8 +413,10 @@ class TracerContext:
     ) -> None:
         self.schema = schema
         self.refs: Set[sn.QualName] = set()
+        self.weak_refs: Set[sn.QualName] = set()
         self.module = module
         self.objects = objects
+        self.pointers = pointers
         self.anchors = anchors
         self.path_prefix = path_prefix
         self.modaliases = modaliases
@@ -461,6 +469,7 @@ def _fork_context(ctx: TracerContext) -> TracerContext:
         schema=ctx.schema,
         module=ctx.module,
         objects=dict(ctx.objects),
+        pointers=ctx.pointers,
         anchors=ctx.anchors,
         path_prefix=ctx.path_prefix,
         modaliases=dict(ctx.modaliases),
@@ -469,6 +478,7 @@ def _fork_context(ctx: TracerContext) -> TracerContext:
         local_modules=ctx.local_modules,
     )
     nctx.refs = ctx.refs
+    nctx.weak_refs = ctx.weak_refs
 
     return nctx
 
@@ -522,6 +532,7 @@ def result_alias_context(
             schema=ctx.schema,
             module=ctx.module,
             objects=dict(ctx.objects),
+            pointers=ctx.pointers,
             anchors=ctx.anchors,
             path_prefix=ctx.path_prefix,
             modaliases=ctx.modaliases,
@@ -690,6 +701,13 @@ def trace_Path(
     ptr: Optional[Union[Pointer, s_pointers.Pointer]] = None
     plen = len(node.steps)
 
+    # HACK: This isn't very smart, and can't properly track types
+    # through arbitrary expressions. To try to mitigate the damage
+    # from this, when we have a pointer step but don't know the type,
+    # we track *weak* references to all pointers with that name.
+    # This won't always work (if there is a tangle of cyclic weak deps),
+    # but it works pretty well.
+
     for i, step in enumerate(node.steps):
         if isinstance(step, qlast.ObjectRef):
             # the ObjectRef without a module may be referring to an
@@ -706,6 +724,8 @@ def trace_Path(
                     tip = ctx.schema.get(refname, sourcectx=step.context)
 
         elif isinstance(step, qlast.Ptr):
+            pname = s_utils.ast_ref_to_unqualname(step.ptr)
+
             if i == 0:
                 # Abbreviated path.
                 if ctx.path_prefix in ctx.objects:
@@ -714,18 +734,20 @@ def trace_Path(
                         ptr = tip
                 else:
                     # We can't reason about this path.
-                    return None
+                    # Do a weak dependency on anything with the same name.
+                    ctx.weak_refs.update(ctx.pointers.get(pname, ()))
 
             if step.type == 'property':
                 if ptr is None:
-                    # This is either a computable def, or
-                    # unknown link, bail.
-                    return None
+                    # This is either a computable def or unknown link, bail.
+                    # Do a weak dependency on anything with the same name.
+                    ctx.weak_refs.update(ctx.pointers.get(pname, ()))
+                    tip = None
 
                 elif isinstance(ptr, (s_links.Link, Pointer)):
                     lprop = ptr.maybe_get_ptr(
                         ctx.schema,
-                        s_utils.ast_ref_to_unqualname(step.ptr),
+                        pname,
                     )
                     if lprop is None:
                         # Invalid link property reference, bail.
@@ -755,7 +777,9 @@ def trace_Path(
                         # it can be is "Object", which is trivial.
                         # However, we need to make it dependent on
                         # every link of the same name now.
-                        for fqname, obj in ctx.objects.items():
+                        for fqname in ctx.pointers.get(pname, ()):
+                            obj = ctx.objects.get(fqname)
+
                             # Ignore what appears to not be a link
                             # with the right name.
                             if (isinstance(obj, (s_pointers.Pointer,
@@ -773,7 +797,7 @@ def trace_Path(
                                     # name.
                                     ctx.refs.add(fqname)
 
-                        return None
+                        tip = ptr = None
                 else:
                     if isinstance(tip, (Source, s_sources.Source)):
                         ptr = tip.maybe_get_ptr(
@@ -814,7 +838,9 @@ def trace_Path(
 
                     else:
                         # We can't reason about this path.
-                        return None
+                        # Do a weak dependency on anything with the same name.
+                        ctx.weak_refs.update(ctx.pointers.get(pname, ()))
+                        tip = ptr = None
 
         elif isinstance(step, qlast.TypeIntersection):
             # This tip is determined from the type in the type
@@ -847,6 +873,7 @@ def trace_Path(
 
         else:
             tr = trace(step, ctx=ctx)
+            tip = ptr = None
             if tr is not None:
                 tip = tr
                 if isinstance(tip, Pointer):

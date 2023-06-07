@@ -10959,6 +10959,20 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
         ''')
 
+        await self.migrate(r'''
+            type Foo {
+                required link foo -> C {
+                    default := (SELECT C FILTER .val = 'D00');
+                }
+            }
+
+            type C {
+                required property val -> str {
+                    constraint exclusive;
+                }
+            }
+        ''')
+
         await self.migrate('')
 
     async def test_edgeql_migration_drop_constraint_04(self):
@@ -12116,6 +12130,18 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
         await self.assert_migration_history([
             {'script': 'CREATE TYPE default::A;\nCREATE TYPE default::B;'},
         ])
+
+    async def test_edgeql_migration_preexisting_01(self):
+        await self.con.execute("create type Foo;")
+        with self.assertRaisesRegex(
+            edgedb.InvalidReferenceError,
+            r"type 'default::Foo' does not exist"
+        ):
+            await self.start_migration("""
+                type Bar {
+                    baz: Foo
+                }
+            """, module='default')
 
 
 class TestEdgeQLMigrationRewriteNonisolated(TestEdgeQLMigrationRewrite):

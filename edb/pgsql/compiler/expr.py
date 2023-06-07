@@ -91,14 +91,15 @@ def _compile_set_impl(
 
     is_toplevel = ctx.toplevel_stmt is context.NO_STMT
 
-    if isinstance(ir_set.expr, irast.BaseConstant):
+    if isinstance(ir_set.expr, (irast.BaseConstant, irast.Parameter)):
         # Avoid creating needlessly complicated constructs for
         # constant expressions.  Besides being an optimization,
         # this helps in GROUP BY queries.
         value = dispatch.compile(ir_set.expr, ctx=ctx)
         if is_toplevel:
             ctx.rel = ctx.toplevel_stmt = pgast.SelectStmt()
-        pathctx.put_path_value_var(ctx.rel, ir_set.path_id, value)
+        pathctx.put_path_value_var_if_not_exists(
+            ctx.rel, ir_set.path_id, value)
         if (output.in_serialization_ctx(ctx) and ir_set.shape
                 and not ctx.env.ignore_object_shapes):
             _compile_shape(ir_set, ir_set.shape, ctx=ctx)

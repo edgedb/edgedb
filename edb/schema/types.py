@@ -225,9 +225,6 @@ class Type(
 
         return schema, derived
 
-    def is_type(self) -> bool:
-        return True
-
     def is_object_type(self) -> bool:
         return False
 
@@ -574,6 +571,7 @@ class InheritingType(so.DerivableInheritingObject, QualifiedType):
 class TypeShell(so.ObjectShell[TypeT_co]):
 
     schemaclass: typing.Type[TypeT_co]
+    extra_args: tuple[qlast.Expr | qlast.TypeExpr, ...] | None
 
     def __init__(
         self,
@@ -584,6 +582,7 @@ class TypeShell(so.ObjectShell[TypeT_co]):
         expr: Optional[str] = None,
         schemaclass: typing.Type[TypeT_co],
         sourcectx: Optional[parsing.ParserContext] = None,
+        extra_args: tuple[qlast.Expr] | None = None,
     ) -> None:
         super().__init__(
             name=name,
@@ -594,6 +593,7 @@ class TypeShell(so.ObjectShell[TypeT_co]):
         )
 
         self.expr = expr
+        self.extra_args = extra_args
 
     def resolve(self, schema: s_schema.Schema) -> TypeT_co:
         return schema.get(

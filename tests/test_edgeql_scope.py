@@ -3001,7 +3001,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ["Alice"],
         )
 
-    async def test_edgeql_scope_source_rebind_02(self):
+    async def test_edgeql_scope_source_rebind_02a(self):
         await self.assert_query_result(
             """
                 WITH
@@ -3009,6 +3009,19 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     SELECT User.name FILTER random() > 0) }),
                 A := (SELECT U FILTER .name = 'Alice'),
                 SELECT A.tag;
+            """,
+            ["Alice"],
+        )
+
+    @test.xerror("can't find materialized set")
+    async def test_edgeql_scope_source_rebind_02b(self):
+        await self.assert_query_result(
+            """
+                WITH
+                U := (SELECT User { tag := (
+                    SELECT User.name FILTER random() > 0) }),
+                A := (SELECT U FILTER .name = 'Alice'),
+                SELECT (A,).0.tag;
             """,
             ["Alice"],
         )
@@ -3232,7 +3245,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_scope_ref_outer_05(self):
+    async def test_edgeql_scope_ref_outer_05a(self):
         await self.assert_query_result(
             """
                 WITH
@@ -3246,6 +3259,44 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 A := (SELECT U FILTER .name = 'Alice'),
                 B := (SELECT U FILTER .name = 'Bob'),
                 SELECT { a := A.cards.tag, b := B.cards.tag };
+            """,
+            [
+                {
+                    "a": {
+                        "Alice - Imp",
+                        "Alice - Dragon",
+                        "Alice - Bog monster",
+                        "Alice - Giant turtle",
+                    },
+                    "b": {
+                        "Bob - Bog monster",
+                        "Bob - Giant turtle",
+                        "Bob - Dwarf",
+                        "Bob - Golem",
+                    }
+                }
+            ]
+        )
+
+    @test.xfail("gives every user name in the output")
+    async def test_edgeql_scope_ref_outer_05b(self):
+        # I was trying to do something I wasn't sure of, and I tried
+        # to write this variant of outer_05a to investigate.
+        #
+        # But then it turns out this was already broken.
+        await self.assert_query_result(
+            """
+                WITH
+                U := (
+                    SELECT User {
+                        cards := .deck {
+                            name,
+                            tag := User.name ++ " - " ++ .name,
+                        }
+                    }),
+                A := (SELECT U FILTER .name = 'Alice'),
+                B := (SELECT U FILTER .name = 'Bob'),
+                SELECT { a := (A.cards,).0.tag, b := B.cards.tag };
             """,
             [
                 {
