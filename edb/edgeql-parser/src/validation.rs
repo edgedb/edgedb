@@ -56,7 +56,7 @@ pub fn parse_value(token: &CowToken<'_>) -> Result<Option<TokenValue>, String> {
             // Python has no problem of representing such a positive
             // value, though.
             return u64::from_str(&text.replace("_", ""))
-                .map(TokenValue::Int)
+                .map(|x| TokenValue::Int(x as i64))
                 .map(Some)
                 .map_err(|e| format!("error reading int: {}", e));
         }

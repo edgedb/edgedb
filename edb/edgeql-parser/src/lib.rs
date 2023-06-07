@@ -20,14 +20,17 @@ use tokenizer::{Kind, TokenStream, MAX_KEYWORD_LENGTH};
 pub struct CowToken<'a> {
     pub kind: Kind,
     pub text: Cow<'a, str>,
+
+    /// Parsed during validation.
     pub value: Option<TokenValue>,
+
     pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenValue {
     String(String),
-    Int(u64),
+    Int(i64),
     Float(f64),
     Bytes(Vec<u8>),
     BigInt(BigInt),
@@ -90,7 +93,9 @@ impl<'a> Iterator for TokenStream2<'a> {
         if let Some(text) =
             validation::combine_multi_word_keywords(&token, &self.peeked, &mut self.keyword_buf)
         {
+            token.kind = Kind::Keyword;
             token.text = text.into();
+            self.peeked = None;
         }
 
         Some(Ok(token))

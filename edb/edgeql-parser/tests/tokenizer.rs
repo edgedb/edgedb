@@ -1,9 +1,10 @@
-use edgeql_parser::tokenizer::{Kind, TokenStream};
+use edgeql_parser::TokenStream2;
+use edgeql_parser::tokenizer::Kind;
 use edgeql_parser::tokenizer::Kind::*;
 
 fn tok_str(s: &str) -> Vec<String> {
     let mut r = Vec::new();
-    let mut s = TokenStream::new(s);
+    let mut s = TokenStream2::new(s);
     loop {
         match s.next() {
             Some(Ok(x)) => r.push(x.text.to_string()),
@@ -16,7 +17,7 @@ fn tok_str(s: &str) -> Vec<String> {
 
 fn tok_typ(s: &str) -> Vec<Kind> {
     let mut r = Vec::new();
-    let mut s = TokenStream::new(s);
+    let mut s = TokenStream2::new(s);
     loop {
         match s.next() {
             Some(Ok(x)) => r.push(x.kind),
@@ -28,7 +29,7 @@ fn tok_typ(s: &str) -> Vec<Kind> {
 }
 
 fn tok_err(s: &str) -> String {
-    let mut s = TokenStream::new(s);
+    let mut s = TokenStream2::new(s);
     loop {
         match s.next() {
             Some(Ok(_)) => {}

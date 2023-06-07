@@ -170,18 +170,11 @@ pub fn value_to_py_object(py: Python, val: &TokenValue) -> PyResult<PyObject> {
         TokenValue::Int(v) => v.to_py_object(py).into_object(),
         TokenValue::String(v) => v.to_py_object(py).into_object(),
         TokenValue::Float(v) => v.to_py_object(py).into_object(),
-        TokenValue::BigInt(v) => py.get_type::<PyInt>().call(
-            py,
-            (
-                v.to_str_radix(16),
-            ),
-            None,
-        )?,
-        TokenValue::Decimal(v) => py.get_type::<PyFloat>().call(
-            py,
-            PyTuple::new(py, &[v.to_string().to_py_object(py).into_object()]),
-            None,
-        )?,
-        TokenValue::Bytes(v) => v.to_py_object(py).into_object(),
+        TokenValue::BigInt(v) => {
+            py.get_type::<PyInt>()
+                .call(py, (v.to_str_radix(16), 16.to_py_object(py)), None)?
+        }
+        TokenValue::Decimal(v) => py.get_type::<PyFloat>().call(py, (v.to_string(),), None)?,
+        TokenValue::Bytes(v) => PyBytes::new(py, v).into_object(),
     })
 }

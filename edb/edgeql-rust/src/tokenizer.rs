@@ -201,6 +201,7 @@ pub fn convert_tokens(py: Python, rust_tokens: Vec<CowToken<'_>>,
     let mut buf = Vec::with_capacity(rust_tokens.len());
     for tok in rust_tokens {
         let (kind, text) = get_token_kind_and_name(py, tokens, &mut cache, &tok);
+
         let value = tok.value.as_ref()
             .map(|v| value_to_py_object(py, v)).transpose()?
             .unwrap_or_else(|| py.None());
@@ -520,57 +521,54 @@ fn get_token_kind_and_name(
             tokens.ident.clone_ref(py),
             PyString::new(py, text),
         ),
-        Ident | Keyword => {
-            if text.len() > MAX_KEYWORD_LENGTH {
+        Ident | Keyword => match text {
+            "named only" => (
+                tokens.named_only.clone_ref(py),
+                tokens.named_only_val.clone_ref(py),
+            ),
+            "set annotation" => (
+                tokens.set_annotation.clone_ref(py),
+                tokens.set_annotation_val.clone_ref(py),
+            ),
+            "set type" => (
+                tokens.set_type.clone_ref(py),
+                tokens.set_type_val.clone_ref(py),
+            ),
+            "extension package" => {
                 (
-                    tokens.ident.clone_ref(py),
-                    PyString::new(py, text),
-                )
-            } else {
-                cache.keyword_buf.clear();
-                cache.keyword_buf.push_str(text);
-                cache.keyword_buf.make_ascii_lowercase();
-                match &cache.keyword_buf[..] {
-                    "named only" => (
-                            tokens.named_only.clone_ref(py),
-                            tokens.named_only_val.clone_ref(py),
-                    ),
-                    "set annotation" => (
-                            tokens.set_annotation.clone_ref(py),
-                            tokens.set_annotation_val.clone_ref(py),
-                    ),
-                    "set type" => (
-                            tokens.set_type.clone_ref(py),
-                            tokens.set_type_val.clone_ref(py),
-                    ),
-                    "extension package" => (
-                            tokens.extension_package.clone_ref(py),
-                            tokens.extension_package_val.clone_ref(py),
-                    ),
-                    "order by" => (
-                            tokens.order_by.clone_ref(py),
-                            tokens.order_by_val.clone_ref(py),
-                    ),
+                tokens.extension_package.clone_ref(py),
+                tokens.extension_package_val.clone_ref(py),
+            )},
+            "order by" => (
+                tokens.order_by.clone_ref(py),
+                tokens.order_by_val.clone_ref(py),
+            ),
 
-                    _ => match tokens.keywords.get(&cache.keyword_buf) {
+            _ => {
+                if text.len() > MAX_KEYWORD_LENGTH {
+                    (
+                        tokens.ident.clone_ref(py),
+                        PyString::new(py, text),
+                    )
+                } else {
+                    cache.keyword_buf.clear();
+                    cache.keyword_buf.push_str(text);
+                    cache.keyword_buf.make_ascii_lowercase();
+
+                    let kind = match tokens.keywords.get(&cache.keyword_buf) {
                         Some(keyword) => {
                             debug_assert_eq!(keyword.kind, token.kind);
-                            (
-                                keyword.name.clone_ref(py),
-                                PyString::new(py, text)
-                            )
+
+                            keyword.name.clone_ref(py)
                         }
                         None => {
                             debug_assert_eq!(Kind::Ident, token.kind);
-                            let val = PyString::new(py, text);
-                            (
-                                tokens.ident.clone_ref(py),
-                                val.clone_ref(py),
-                            )
+                            tokens.ident.clone_ref(py)
                         }
-                    },
+                    };
+                    (kind, PyString::new(py, text))
                 }
-            }
+            },
         }
         Substitution => (
             tokens.substitution.clone_ref(py),

@@ -42,14 +42,16 @@ pub enum Error {
 fn push_var<'x>(res: &mut Vec<CowToken<'x>>, module: &'x str, typ: &'x str,
     var: String, span: Span)
 {
-    res.push(CowToken {kind: Kind::OpenParen, text: "(".into(), value: None, span});
-    res.push(CowToken {kind: Kind::Less, text: "<".into(), value: None, span});
-    res.push(CowToken {kind: Kind::Ident, text: module.into(), value: None, span});
-    res.push(CowToken {kind: Kind::Namespace, text: "::".into(), value: None, span});
-    res.push(CowToken {kind: Kind::Ident, text: typ.into(), value: None, span});
-    res.push(CowToken {kind: Kind::Greater, text: ">".into(), value: None, span});
-    res.push(CowToken {kind: Kind::Argument, text: var.into(), value: None, span});
-    res.push(CowToken {kind: Kind::CloseParen, text: ")".into(), value: None, span});
+    res.push(CowToken {kind: Kind::OpenParen, text: "(".into(), span, value: None});
+    res.push(CowToken {kind: Kind::Less, text: "<".into(), span, value: None});
+    res.push(CowToken {kind: Kind::Ident, text: module.into(), span, value: None});
+    res.push(CowToken {kind: Kind::Namespace, text: "::".into(), span, value: None});
+    res.push(CowToken {kind: Kind::Ident, text: typ.into(), span,
+        value: Some(TokenValue::String(typ.to_string())),
+    });
+    res.push(CowToken {kind: Kind::Greater, text: ">".into(), span, value: None});
+    res.push(CowToken {kind: Kind::Argument, text: var.into(), span, value: None});
+    res.push(CowToken {kind: Kind::CloseParen, text: ")".into(), span, value: None});
 }
 
 fn scan_vars<'x, 'y: 'x, I>(tokens: I) -> Option<(bool, usize)>
@@ -312,11 +314,11 @@ fn serialize_tokens(tokens: &[CowToken<'_>]) -> String {
 #[cfg(test)]
 mod test {
     use super::scan_vars;
-    use edgeql_parser::{tokenizer::{TokenStream}, CowToken};
+    use edgeql_parser::{TokenStream2, CowToken};
 
     fn tokenize<'x>(s: &'x str) -> Vec<CowToken<'x>> {
         let mut r = Vec::new();
-        let mut s = TokenStream::new(s);
+        let mut s = TokenStream2::new(s);
         loop {
             match s.next() {
                 Some(Ok(x)) => r.push(x.into()),
