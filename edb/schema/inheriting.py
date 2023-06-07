@@ -816,6 +816,10 @@ class CreateInheritingObject(
                             ],
                         )
                     )
+            else:
+                if isinstance(node, qlast.CreateObject):
+                    if isinstance(node, qlast.BasesMixin):
+                        node.bases = []
         else:
             super()._apply_field_ast(schema, context, node, op)
 
