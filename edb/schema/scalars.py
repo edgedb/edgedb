@@ -70,13 +70,13 @@ class ScalarType(
     sql_type_scheme = so.SchemaField(
         str, default=None, inheritable=False, compcoef=0.9)
 
-    # Param definitions for a parameterized type scheme.
-    # Array values notionally say what the type should be,
-    # but currently we only support integers.
-    params = so.SchemaField(
-        checked.FrozenCheckedList[str], default=None,
+    # The number of parameters that the type takes. Currently all parameters
+    # must be integer literals.
+    # This is an internal API and might change.
+    num_params = so.SchemaField(
+        int, default=None,
         inheritable=False,
-        coerce=True, compcoef=0.8,
+        compcoef=0.8,
     )
 
     # Arguments to fill in a parent type's parameterized type scheme.
@@ -373,17 +373,17 @@ class ScalarTypeCommand(
 
         if args := self.scls.get_arg_values(schema):
             base = self.scls.get_bases(schema).objects(schema)[0]
-            params = base.get_params(schema)
-            if not params:
+            num_params = base.get_num_params(schema)
+            if not num_params:
                 raise errors.SchemaDefinitionError(
                     f'base type {base.get_name(schema)} does not '
                     f'accept parameters',
                     context=self.source_context,
                 )
-            if len(params) != len(args):
+            if num_params != len(args):
                 raise errors.SchemaDefinitionError(
                     f'incorrect number of arguments provided to base type '
-                    f'{base.get_name(schema)}: expected {len(params)} '
+                    f'{base.get_name(schema)}: expected {num_params} '
                     f'but got {len(args)}',
                     context=self.source_context,
                 )

@@ -15719,7 +15719,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             set id := <uuid>'26dc1396-0196-11ee-a005-ad0eaed0df03';
             set sql_type := "varchar";
             set sql_type_scheme := "varchar({__arg_0__})";
-            set params := ["num"];
+            set num_params := 1;
           };
 
           create cast from varchar::varchar to std::str {
