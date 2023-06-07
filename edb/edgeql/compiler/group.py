@@ -62,6 +62,8 @@ class FindAggregatingUses(ast_visitor.NodeVisitor):
         self.infctx = inference.make_ctx(ctx.env)._replace(
             singletons=frozenset({target}),
             ignore_computed_cards=True,
+            # Don't update the IR with the results!
+            make_updates=False,
         )
 
     def visit_Stmt(self, stmt: irast.Stmt) -> Any:

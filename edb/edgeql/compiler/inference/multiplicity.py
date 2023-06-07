@@ -873,6 +873,8 @@ def infer_multiplicity(
     scope_tree: irast.ScopeTreeNode,
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
+    assert ctx.make_updates, (
+        "multiplicity inference hasn't implemented make_updates=False yet")
 
     result = ctx.inferred_multiplicity.get(
         (ir, scope_tree, ctx.distinct_iterator))
