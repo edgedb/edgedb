@@ -136,29 +136,7 @@ def is_cfg_view(
     )
 
 
-def get_index_code(index_name: sn.Name) -> str:
-    # HACK: currently this helper just hardcodes the SQL code necessary for
-    # specific PG indexes, but this should be based on index definition.
-    name = str(index_name)
-    match name:
-        case '__::idx':
-            return ' ((__col__) NULLS FIRST)'
-        case 'pg::hash':
-            return 'hash ((__col__))'
-        case 'pg::btree':
-            return 'btree ((__col__) NULLS FIRST)'
-        case 'pg::gin':
-            return 'gin ((__col__))'
-        case 'fts::textsearch':
-            return "gin (to_tsvector(__kw_language__, __col__))"
-        case 'pg::gist':
-            return 'gist ((__col__))'
-        case 'pg::spgist':
-            return 'spgist ((__col__))'
-        case 'pg::brin':
-            return 'brin ((__col__))'
-        case _:
-            raise NotImplementedError(f'index {name} is not implemented')
+DEFAULT_INDEX_CODE = ' ((__col__) NULLS FIRST)'
 
 
 class CommandMeta(sd.CommandMeta):
@@ -3485,7 +3463,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         orig_name = sn.shortname_from_fullname(index.get_name(schema))
         if orig_name == s_indexes.DEFAULT_INDEX:
             root_name = orig_name
-            root_code = None
+            root_code = DEFAULT_INDEX_CODE
         else:
             root = index.get_root(schema)
             root_name = root.get_name(schema)
@@ -3526,7 +3504,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             index.id, module_name, catenate=False)
 
         if root_code is None:
-            root_code = get_index_code(root_name)
+            raise AssertionError(f'index {root_name} is missing the code')
 
         pg_index = dbops.Index(
             name=index_name[1], table_name=table_name, exprs=sql_exprs,
@@ -4842,7 +4820,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
             index_name,
             new_table_name,
             unique=False,
-            metadata={'code': get_index_code(s_indexes.DEFAULT_INDEX)},
+            metadata={'code': DEFAULT_INDEX_CODE},
         )
         index.add_columns([tgt_col])
         ci = dbops.CreateIndex(index)
@@ -4949,7 +4927,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
                     unique=False, columns=[c.name for c in cols],
                     inherit=True,
                     metadata={
-                        'code': get_index_code(s_indexes.DEFAULT_INDEX),
+                        'code': DEFAULT_INDEX_CODE,
                     },
                 )
 
@@ -5295,7 +5273,7 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
         pg_index = dbops.Index(
             name=index_name, table_name=new_table_name,
             unique=False, columns=[src_col],
-            metadata={'code': get_index_code(s_indexes.DEFAULT_INDEX)},
+            metadata={'code': DEFAULT_INDEX_CODE},
         )
 
         ci = dbops.CreateIndex(pg_index)
