@@ -27,6 +27,8 @@ from edb.common import checked
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
+from edb.common.typeutils import downcast
+
 from . import abc as s_abc
 from . import annos as s_anno
 from . import casts as s_casts
@@ -54,14 +56,40 @@ class ScalarType(
         coerce=True, compcoef=0.909,
     )
 
-    sql_type = so.SchemaField(
-        str, default=None, compcoef=0.9,
-        patch_level=1,
-    )
-
     enum_values = so.SchemaField(
         checked.FrozenCheckedList[str], default=None,
         coerce=True, compcoef=0.8,
+    )
+
+    sql_type = so.SchemaField(
+        str, default=None, inheritable=False, compcoef=0.9,
+        patch_level=1,
+    )
+
+    # A type scheme for supporting type mods in scalar types.
+    # If present, describes what the sql_type of children scalars
+    # should be, such as 'varchar({__arg_0__})'.
+    sql_type_scheme = so.SchemaField(
+        str, default=None, inheritable=False, compcoef=0.9,
+        patch_level=1,
+    )
+
+    # The number of parameters that the type takes. Currently all parameters
+    # must be integer literals.
+    # This is an internal API and might change.
+    num_params = so.SchemaField(
+        int, default=None,
+        inheritable=False,
+        compcoef=0.8,
+        patch_level=1,
+    )
+
+    # Arguments to fill in a parent type's parameterized type scheme.
+    arg_values = so.SchemaField(
+        checked.FrozenCheckedList[str], default=None,
+        inheritable=False,
+        coerce=True, compcoef=0.8,
+        patch_level=1,
     )
 
     @classmethod
@@ -237,6 +265,37 @@ class ScalarType(
         dname = self.get_displayname(schema)
         return f"{clsname} '{dname}'"
 
+    def resolve_sql_type_scheme(
+        self, schema: s_schema.Schema,
+    ) -> tuple[Optional[str], Optional[str]]:
+        if sql := self.get_sql_type(schema):
+            return sql, None
+        if self.get_arg_values(schema) is None:
+            return None, None
+        bases = self.get_bases(schema).objects(schema)
+        if len(bases) != 1:
+            return None, None
+        if scheme := bases[0].get_sql_type_scheme(schema):
+            base_sql_type = bases[0].get_sql_type(schema)
+            assert base_sql_type is not None
+            return base_sql_type, scheme
+        return None, None
+
+    def resolve_sql_type(
+        self, schema: s_schema.Schema,
+    ) -> Optional[str]:
+        type, scheme = self.resolve_sql_type_scheme(schema)
+        if scheme:
+            return constraints.interpolate_errmessage(
+                scheme,
+                {
+                    f'__arg_{i}__': v
+                    for i, v in enumerate(self.get_arg_values(schema) or ())
+                },
+            )
+        else:
+            return type
+
     def as_alter_delta(
         self,
         other: ScalarType,
@@ -306,6 +365,35 @@ class ScalarTypeCommand(
     s_anno.AnnotationSubjectCommand[ScalarType],
     context_class=ScalarTypeCommandContext,
 ):
+    def validate_object(
+        self, schema: s_schema.Schema, context: sd.CommandContext
+    ) -> None:
+        if (
+            self.scls.resolve_sql_type_scheme(schema)[0]
+        ):
+            if len(self.scls.get_constraints(schema)):
+                raise errors.SchemaError(
+                    f'parameterized scalar types may not have constraints',
+                    context=self.source_context,
+                )
+
+        if args := self.scls.get_arg_values(schema):
+            base = self.scls.get_bases(schema).objects(schema)[0]
+            num_params = base.get_num_params(schema)
+            if not num_params:
+                raise errors.SchemaDefinitionError(
+                    f'base type {base.get_name(schema)} does not '
+                    f'accept parameters',
+                    context=self.source_context,
+                )
+            if num_params != len(args):
+                raise errors.SchemaDefinitionError(
+                    f'incorrect number of arguments provided to base type '
+                    f'{base.get_name(schema)}: expected {num_params} '
+                    f'but got {len(args)}',
+                    context=self.source_context,
+                )
+
     def validate_scalar_ancestors(
         self,
         ancestors: Sequence[so.SubclassableObject],
@@ -400,7 +488,8 @@ class CreateScalarType(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
     ) -> sd.Command:
-        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        cmd = super()._cmd_tree_from_ast(
+            schema, astnode.replace(bases=None), context)
 
         if isinstance(cmd, sd.CommandGroup):
             for subcmd in cmd.get_subcommands():
@@ -421,6 +510,7 @@ class CreateScalarType(
                     metaclass=ScalarType,
                     modaliases=context.modaliases,
                     schema=schema,
+                    allow_generalized_bases=True,
                 )
                 for b in (astnode.bases or [])
             ]
@@ -481,6 +571,34 @@ class CreateScalarType(
                         collection_type=so.ObjectList,
                     )
                 )
+            else:
+                if any(b.extra_args for b in bases):
+                    if len(bases) > 1:
+                        raise errors.SchemaDefinitionError(
+                            'scalars with parameterized bases may '
+                            'only have one',
+                            context=astnode.bases[0].context,
+                        )
+                    base = bases[0]
+                    args = []
+                    for x in (base.extra_args or ()):
+                        if (
+                            not isinstance(x, qlast.TypeExprLiteral)
+                            or not isinstance(x.val, qlast.IntegerConstant)
+                        ):
+                            raise errors.SchemaDefinitionError(
+                                'invalid scalar type argument',
+                                context=x.context,
+                            )
+                        args.append(x.val.value)
+                    cmd.set_attribute_value('arg_values', args)
+
+                cmd.set_attribute_value(
+                    'bases',
+                    so.ObjectCollectionShell(
+                        bases, collection_type=so.ObjectList),
+                    # source_context=srcctx,
+                )
 
         return cmd
 
@@ -530,6 +648,16 @@ class CreateScalarType(
                 ]
             else:
                 super()._apply_field_ast(schema, context, node, op)
+                if arg_values := self.get_local_attribute_value('arg_values'):
+                    frags = [
+                        s_expr.Expression(text=x).qlast for x in arg_values]
+                    assert isinstance(node, qlast.BasesMixin)
+                    node.bases[0].subtypes = [
+                        qlast.TypeExprLiteral(
+                            val=downcast(qlast.BaseConstant, frag)
+                        )
+                        for frag in frags
+                    ]
         else:
             super()._apply_field_ast(schema, context, node, op)
 

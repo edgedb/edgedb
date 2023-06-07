@@ -1990,6 +1990,11 @@ class Subtype(Nonterm):
             val=kids[0].val,
         )
 
+    def reduce_BaseNumberConstant(self, *kids):
+        self.val = qlast.TypeExprLiteral(
+            val=kids[0].val,
+        )
+
 
 class SubtypeList(ListNonterm, element=Subtype, separator=tokens.T_COMMA):
     pass
