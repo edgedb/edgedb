@@ -903,6 +903,12 @@ def _is_ptr_or_self_ref(
                     and not rptr.ptrref.is_computable
                     and _is_ptr_or_self_ref(rptr.source, result_expr, env)
                 )
+                or (
+                    ir_set.rptr is None
+                    and irutils.is_implicit_wrapper(ir_set.expr)
+                    and _is_ptr_or_self_ref(
+                        ir_set.expr.result, result_expr, env)
+                )
             )
         )
 
@@ -921,8 +927,7 @@ def extract_filters(
     expr = filter_set.expr
     if isinstance(expr, irast.OperatorCall):
         if str(expr.func_shortname) == 'std::=':
-            left, right = (a.expr for a in expr.args)
-
+            left, right = [a.expr for a in expr.args]
             op_card = _common_cardinality(
                 [left, right], scope_tree=scope_tree, ctx=ctx
             )
@@ -949,6 +954,8 @@ def extract_filters(
                         _ptr = left_stype.getptr(schema, sn.UnqualName('id'))
                         ptrs.append(_ptr)
                     else:
+                        if left.rptr is None:
+                            left = irutils.unwrap_set(left)
                         while left.path_id != result_set.path_id:
                             assert left.rptr is not None
                             _ptr = env.schema.get(left.rptr.ptrref.name,
@@ -960,7 +967,7 @@ def extract_filters(
                     return [(ptrs, right)]
 
         elif str(expr.func_shortname) == 'std::AND':
-            left, right = (a.expr for a in expr.args)
+            left, right = (irutils.unwrap_set(a.expr) for a in expr.args)
 
             left_filters = extract_filters(
                 result_set, left, scope_tree, ctx

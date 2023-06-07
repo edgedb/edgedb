@@ -565,7 +565,12 @@ def compile_arg(
     # Create a a branch for OPTIONAL ones. The OPTIONAL branch is to
     # have a place to mark as optional in the scope tree.
     # For fenced arguments we instead wrap it in a SELECT below.
-    new = ctx.newscope(fenced=False) if optional else ctx.new()
+    branched = optional
+
+    # XXX: Actually, always branch anything that isn't fenced.
+    branched |= not fenced
+
+    new = ctx.newscope(fenced=False) if branched else ctx.new()
     with new as argctx:
         if in_conditional:
             argctx.disallow_dml = "inside conditional expressions"
@@ -587,5 +592,8 @@ def compile_arg(
 
             if arg_ir.path_scope_id is None:
                 pathctx.assign_set_scope(arg_ir, argctx.path_scope, ctx=argctx)
+
+        elif branched:
+            arg_ir = setgen.scoped_set(arg_ir, ctx=argctx)
 
         return arg_ir
