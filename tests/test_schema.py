@@ -9456,9 +9456,9 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE SCHEMA AS DDL',
 
             """
+            CREATE EXTENSION NOTEBOOK VERSION '1.0';
             CREATE MODULE default IF NOT EXISTS;
             CREATE MODULE test IF NOT EXISTS;
-            CREATE EXTENSION NOTEBOOK VERSION '1.0';
             CREATE TYPE default::Foo;
             CREATE TYPE test::Bar {
                 CREATE LINK foo: default::Foo;
