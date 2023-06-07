@@ -140,6 +140,15 @@ class Index(
         inheritable=False,
     )
 
+    # Appears in base abstract index definitions and defines how the index
+    # is represented in postgres.
+    code = so.SchemaField(
+        str,
+        default=None,
+        compcoef=None,
+        inheritable=False,
+    )
+
     # These can appear in abstract indexes extending an existing one in order
     # to override exisitng parameters. Also they can appear in concrete
     # indexes.
