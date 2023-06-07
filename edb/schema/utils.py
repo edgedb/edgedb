@@ -170,6 +170,7 @@ def ast_to_type_shell(
     module: Optional[str] = None,
     modaliases: Mapping[Optional[str], str],
     schema: s_schema.Schema,
+    allow_generalized_bases: bool = False,
 ) -> s_types.TypeShell[s_types.TypeT_co]:
 
     if isinstance(node, qlast.TypeOp):
@@ -215,10 +216,26 @@ def ast_to_type_shell(
         from . import types as s_types
 
         assert isinstance(node.maintype, qlast.ObjectRef)
-        coll = s_types.Collection.get_class(node.maintype.name)
-        subtypes_list: List[s_types.TypeShell[s_types.Type]] = []
+        coll = None
+        try:
+            coll = s_types.Collection.get_class(node.maintype.name)
+        except errors.SchemaError:
+            if not allow_generalized_bases:
+                raise
 
-        if issubclass(coll, s_types.Tuple):
+        subtypes_list: List[s_types.TypeShell[s_types.Type]] = []
+        if coll is None:
+            assert allow_generalized_bases
+            res = ast_objref_to_type_shell(
+                node.maintype,
+                modaliases=modaliases,
+                metaclass=metaclass,
+                schema=schema,
+            )
+            res.extra_args = tuple(node.subtypes)
+            return res
+
+        elif issubclass(coll, s_types.Tuple):
             # Note: if we used abc Tuple here, then we would need anyway
             # to assert it is an instance of s_types.Tuple to make mypy happy
             # (rightly so, because later we use from_subtypes method)

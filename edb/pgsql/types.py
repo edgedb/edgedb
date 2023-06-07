@@ -148,7 +148,7 @@ def get_scalar_base(schema, scalar) -> Tuple[str, ...]:
             # another domain.
             if base := base_type_name_map.get(ancestor.id):
                 pass
-            elif typstr := ancestor.get_sql_type(schema):
+            elif typstr := ancestor.resolve_sql_type(schema):
                 base = tuple(typstr.split('.'))
             else:
                 base = common.get_backend_name(
@@ -170,7 +170,7 @@ def pg_type_from_scalar(
     column_type = base_type_name_map.get(scalar.id)
     if column_type:
         pass
-    elif typstr := scalar.get_sql_type(schema):
+    elif typstr := scalar.resolve_sql_type(schema):
         column_type = tuple(typstr.split('.'))
     else:
         column_type = common.get_backend_name(schema, scalar, catenate=False)

@@ -2436,7 +2436,9 @@ class CreateScalarType(ScalarTypeMetaCommand,
 
         if types.is_builtin_scalar(schema, scalar):
             return schema
-        if scalar.get_sql_type(schema):
+        # If this type exposes a SQL type or is a parameterized
+        # subtype of a SQL type, we don't create a real type here.
+        if scalar.resolve_sql_type_scheme(schema)[0]:
             return schema
 
         default = self.get_resolved_attribute_value(
@@ -3852,13 +3854,7 @@ class PointerMetaCommand(
     @classmethod
     def get_columns(cls, pointer, schema, default=None, sets_required=False):
         ptr_stor_info = types.get_pointer_storage_info(pointer, schema=schema)
-        col_type = list(ptr_stor_info.column_type)
-        if col_type[-1].endswith('[]'):
-            # Array
-            col_type[-1] = col_type[-1][:-2]
-            col_type = common.qname(*col_type) + '[]'
-        else:
-            col_type = common.qname(*col_type)
+        col_type = common.quote_type(tuple(ptr_stor_info.column_type))
 
         return [
             dbops.Column(
