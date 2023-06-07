@@ -1,9 +1,10 @@
 use std::collections::BTreeSet;
 
-use edgeql_parser::tokenizer::{TokenStream, Kind, CowToken};
-use edgeql_parser::position::Pos;
-use edgeql_parser::utils::strings::unquote_string;
-use num_bigint::{BigInt, ToBigInt};
+use edgeql_parser::tokenizer::Kind;
+use edgeql_parser::position::{Pos, Span};
+use edgeql_parser::{CowToken, TokenValue, TokenStream2};
+
+use num_bigint::{BigInt};
 use bigdecimal::BigDecimal;
 use blake2::{Blake2b512, Digest};
 
@@ -19,7 +20,7 @@ pub enum Value {
 
 #[derive(Debug, PartialEq)]
 pub struct Variable {
-    pub value: Value,
+    pub value: TokenValue,
 }
 
 pub struct Entry<'a> {
@@ -39,16 +40,16 @@ pub enum Error {
 }
 
 fn push_var<'x>(res: &mut Vec<CowToken<'x>>, module: &'x str, typ: &'x str,
-    var: String, start: Pos, end: Pos)
+    var: String, span: Span)
 {
-    res.push(CowToken {kind: Kind::OpenParen, text: "(".into(), value: None, start, end});
-    res.push(CowToken {kind: Kind::Less, text: "<".into(), value: None, start, end});
-    res.push(CowToken {kind: Kind::Ident, text: module.into(), value: None, start, end});
-    res.push(CowToken {kind: Kind::Namespace, text: "::".into(), value: None, start, end});
-    res.push(CowToken {kind: Kind::Ident, text: typ.into(), value: None, start, end});
-    res.push(CowToken {kind: Kind::Greater, text: ">".into(), value: None, start, end});
-    res.push(CowToken {kind: Kind::Argument, text: var.into(), value: None, start, end});
-    res.push(CowToken {kind: Kind::CloseParen, text: ")".into(), value: None, start, end});
+    res.push(CowToken {kind: Kind::OpenParen, text: "(".into(), value: None, span});
+    res.push(CowToken {kind: Kind::Less, text: "<".into(), value: None, span});
+    res.push(CowToken {kind: Kind::Ident, text: module.into(), value: None, span});
+    res.push(CowToken {kind: Kind::Namespace, text: "::".into(), value: None, span});
+    res.push(CowToken {kind: Kind::Ident, text: typ.into(), value: None, span});
+    res.push(CowToken {kind: Kind::Greater, text: ">".into(), value: None, span});
+    res.push(CowToken {kind: Kind::Argument, text: var.into(), value: None, span});
+    res.push(CowToken {kind: Kind::CloseParen, text: ")".into(), value: None, span});
 }
 
 fn scan_vars<'x, 'y: 'x, I>(tokens: I) -> Option<(bool, usize)>
@@ -85,19 +86,13 @@ fn hash(text: &str) -> [u8; 64] {
 }
 
 pub fn normalize(text: &str) -> Result<Entry, Error> {
-    use combine::easy::Error::*;
-    let mut token_stream = TokenStream::new(text);
+    let mut token_stream = TokenStream2::new(text);
     let mut tokens = Vec::new();
     for res in &mut token_stream {
         match res {
             Ok(t) => tokens.push(CowToken::from(t)),
-            Err(Unexpected(s)) => {
-                return Err(Error::Tokenizer(
-                    s.to_string(), token_stream.current_pos()));
-            }
             Err(e) => {
-                return Err(Error::Tokenizer(
-                    e.to_string(), token_stream.current_pos()));
+                return Err(Error::Tokenizer(e.message, token_stream.current_pos()));
             }
         }
     }
@@ -148,67 +143,45 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
             => {
                 push_var(&mut rewritten_tokens, "__std__", "int64",
                     next_var(),
-                    tok.start, tok.end);
+                    tok.span);
                 variables.push(Variable {
-                    value: Value::Int(tok.text.replace("_", "").parse()
-                        .map_err(|e| Error::Tokenizer(
-                            format!("can't parse integer: {}", e),
-                            tok.start))?),
+                    value: tok.value.clone().unwrap(),
                 });
                 continue;
             }
             Kind::FloatConst => {
                 push_var(&mut rewritten_tokens, "__std__", "float64",
                     next_var(),
-                    tok.start, tok.end);
-                let value = float::convert(&tok.text)
-                    .map_err(|msg| Error::Tokenizer(msg.into(), tok.start))?;
+                    tok.span);
                 variables.push(Variable {
-                    value: Value::Float(value),
+                    value: tok.value.clone().unwrap(),
                 });
                 continue;
             }
             Kind::BigIntConst => {
                 push_var(&mut rewritten_tokens, "__std__", "bigint",
                     next_var(),
-                    tok.start, tok.end);
-                let dec: BigDecimal = tok.text[..tok.text.len()-1]
-                        .replace("_", "").parse()
-                        .map_err(|e| Error::Tokenizer(
-                            format!("can't parse bigint: {}", e),
-                            tok.start))?;
+                    tok.span);
                 variables.push(Variable {
-                    value: Value::BigInt(dec.to_bigint()
-                        .ok_or_else(|| Error::Assertion(
-                            format!("number is not integer"),
-                            tok.start))?),
+                    value: tok.value.clone().unwrap(),
                 });
                 continue;
             }
             Kind::DecimalConst => {
                 push_var(&mut rewritten_tokens, "__std__", "decimal",
                     next_var(),
-                    tok.start, tok.end);
+                    tok.span);
                 variables.push(Variable {
-                    value: Value::Decimal(
-                        tok.text[..tok.text.len()-1]
-                        .replace("_", "")
-                        .parse()
-                        .map_err(|e| Error::Tokenizer(
-                            format!("can't parse decimal: {}", e),
-                            tok.start))?),
+                    value: tok.value.clone().unwrap(),
                 });
                 continue;
             }
             Kind::Str => {
                 push_var(&mut rewritten_tokens, "__std__", "str",
                     next_var(),
-                    tok.start, tok.end);
+                    tok.span);
                 variables.push(Variable {
-                    value: Value::Str(unquote_string(&tok.text)
-                        .map_err(|e| Error::Tokenizer(
-                            format!("can't unquote string: {}", e),
-                            tok.start))?.into()),
+                    value: tok.value.clone().unwrap(),
                 });
                 continue;
             }
@@ -339,7 +312,7 @@ fn serialize_tokens(tokens: &[CowToken<'_>]) -> String {
 #[cfg(test)]
 mod test {
     use super::scan_vars;
-    use edgeql_parser::tokenizer::{TokenStream, CowToken};
+    use edgeql_parser::{tokenizer::{TokenStream}, CowToken};
 
     fn tokenize<'x>(s: &'x str) -> Vec<CowToken<'x>> {
         let mut r = Vec::new();
@@ -348,7 +321,7 @@ mod test {
             match s.next() {
                 Some(Ok(x)) => r.push(x.into()),
                 None => break,
-                Some(Err(e)) => panic!("Parse error at {}: {}", s.current_pos(), e),
+                Some(Err(e)) => panic!("Parse error at {}: {}", s.current_pos(), e.message),
             }
         }
         return r;

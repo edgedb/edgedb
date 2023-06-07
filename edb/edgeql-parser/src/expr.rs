@@ -72,17 +72,13 @@ pub fn check(text: &str) -> Result<(), Error> {
     let mut parser = &mut TokenStream::new(text);
     let mut empty = true;
     for token in &mut parser {
-        let (token, pos) = match token {
-            Ok(t) => (t.token, t.start),
-            Err(combine::easy::Error::Unexpected(s)) => {
-                return Err(Tokenizer(
-                    s.to_string(), parser.current_pos()));
-            }
-            Err(e) => {
-                return Err(Tokenizer(
-                    e.to_string(), parser.current_pos()));
+        let token = match token {
+            Ok(t) => t,
+            Err(crate::Error { message, .. }) => {
+                return Err(Tokenizer(message, parser.current_pos()));
             }
         };
+        let pos = token.span.start;
         empty = false;
         match token.kind {
             Comma | Semicolon if brackets.is_empty() => {

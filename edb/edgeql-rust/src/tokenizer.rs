@@ -1,15 +1,10 @@
 use std::collections::HashMap;
-use std::iter::Peekable;
-use std::slice::Iter;
-use std::str::FromStr;
 
-use cpython::{PyString, PyBytes, PyResult, Python, PyClone, PythonObject};
-use cpython::{PyTuple, PyList, PyInt, PyObject, ToPyObject, ObjectProtocol};
+use cpython::{PyString, PyResult, Python, PyClone, PythonObject};
+use cpython::{PyTuple, PyList, PyObject, ToPyObject, ObjectProtocol};
 use cpython::{FromPyObject};
-use bigdecimal::BigDecimal;
-use num_bigint::ToBigInt;
 
-use edgeql_parser::tokenizer::{TokenStream, Kind, is_keyword};
+use edgeql_parser::tokenizer::{Kind, is_keyword};
 use edgeql_parser::tokenizer::{MAX_KEYWORD_LENGTH};
 use edgeql_parser::{CowToken, TokenStream2};
 use edgeql_parser::position::Pos;
@@ -17,11 +12,8 @@ use edgeql_parser::keywords::{PARTIAL_RESERVED_KEYWORDS, UNRESERVED_KEYWORDS};
 use edgeql_parser::keywords::{CURRENT_RESERVED_KEYWORDS};
 use edgeql_parser::keywords::{FUTURE_RESERVED_KEYWORDS};
 
-use edgeql_parser::helpers::unquote_string;
-use edgeql_parser::cparser::cparse;
-
 use crate::errors::TokenizerError;
-use crate::pynormalize::py_pos;
+use crate::pynormalize::{py_pos, value_to_py_object};
 
 static mut TOKENS: Option<Tokens> = None;
 
@@ -127,7 +119,6 @@ pub struct Tokens {
 
     iconst: PyString,
     niconst: PyString,
-    i16: PyInt,
     fconst: PyString,
     nfconst: PyString,
     bconst: PyString,
@@ -154,7 +145,6 @@ pub struct Tokens {
 }
 
 struct Cache {
-    decimal: Option<PyObject>,
     keyword_buf: String,
 }
 
@@ -193,23 +183,9 @@ pub fn tokenize(py: Python, s: &PyString) -> PyResult<PyList> {
 
     let mut token_stream = TokenStream2::new(&data[..]);
     let rust_tokens: Vec<_> = py.allow_threads(|| {
-        let mut tokens = Vec::new();
-        for res in &mut token_stream {
-            match res {
-                Ok(t) => tokens.push(CowToken::from(t)),
-                Err(e) => {
-                    return Err((e, token_stream.current_pos()));
-                }
-            }
-        }
-        Ok(tokens)
-    }).map_err(|(e, pos)| {
-        use combine::easy::Error::*;
-        let err = match e {
-            Unexpected(s) => s.to_string(),
-            o => o.to_string(),
-        };
-        TokenizerError::new(py, (err, py_pos(py, &pos)))
+        (&mut token_stream).collect::<Result<_, _>>()
+    }).map_err(|e| {
+        TokenizerError::new(py, (e.message, py_pos(py, &e.span.start)))
     })?;
     return convert_tokens(py, rust_tokens, token_stream.current_pos());
 }
@@ -220,27 +196,32 @@ pub fn convert_tokens(py: Python, rust_tokens: Vec<CowToken<'_>>,
 {
     let tokens = unsafe { TOKENS.as_ref().expect("module initialized") };
     let mut cache = Cache {
-        decimal: None,
         keyword_buf: String::with_capacity(MAX_KEYWORD_LENGTH),
     };
     let mut buf = Vec::with_capacity(rust_tokens.len());
-    let mut tok_iter = rust_tokens.iter().peekable();
-    while let Some(tok) = tok_iter.next() {
-        let (kind, text, value) = convert(py, tokens, &mut cache, tok, &mut tok_iter)?;
-        let py_tok = Token::create_instance(py, kind, text, value,
-            tok.start, tok.end)?;
+    for tok in rust_tokens {
+        let (kind, text) = get_token_kind_and_name(py, tokens, &mut cache, &tok);
+        let value = tok.value.as_ref()
+            .map(|v| value_to_py_object(py, v)).transpose()?
+            .unwrap_or_else(|| py.None());
+
+        let py_tok = Token::create_instance(
+            py, kind, text, value, tok.span.start, tok.span.end
+        )?;
 
         buf.push(py_tok.into_object());
     }
-    buf.push(Token::create_instance(py,
-        tokens.eof.clone_ref(py),
-        tokens.empty.clone_ref(py),
-        py.None(),
-        end_pos, end_pos)?
-        .into_object());
+    buf.push(Token::create_instance(
+            py,
+            tokens.eof.clone_ref(py),
+            tokens.empty.clone_ref(py),
+            py.None(),
+            end_pos,
+            end_pos
+        )?.into_object()
+    );
     Ok(PyList::new(py, &buf[..]))
 }
-
 
 impl Tokens {
     pub fn new(py: Python) -> Tokens {
@@ -292,7 +273,6 @@ impl Tokens {
 
             iconst: PyString::new(py, "ICONST"),
             niconst: PyString::new(py, "NICONST"),
-            i16: 16.to_py_object(py),
             fconst: PyString::new(py, "FCONST"),
             nfconst: PyString::new(py, "NFCONST"),
             bconst: PyString::new(py, "BCONST"),
@@ -351,243 +331,251 @@ impl Tokens {
     }
 }
 
-fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
+fn get_token_kind_and_name(
+    py: Python,
+    tokens: &Tokens,
+    cache: &mut Cache,
     token: &CowToken,
-    tok_iter: &mut Peekable<Iter<CowToken>>)
-    -> PyResult<(PyString, PyString, PyObject)>
-{
+) -> (PyString, PyString) {
     use Kind::*;
-    let value = &token.text[..];
+    let text = &token.text[..];
     match token.kind {
-        Assign => Ok((tokens.assign.clone_ref(py),
-                      tokens.assign_op.clone_ref(py),
-                      py.None())),
-        SubAssign => Ok((tokens.sub_assign.clone_ref(py),
-                         tokens.sub_assign_op.clone_ref(py),
-                         py.None())),
-        AddAssign => Ok((tokens.add_assign.clone_ref(py),
-                         tokens.add_assign_op.clone_ref(py),
-                         py.None())),
-        Arrow  => Ok((tokens.arrow.clone_ref(py),
-                      tokens.arrow_op.clone_ref(py),
-                      py.None())),
-        Coalesce => Ok((tokens.coalesce.clone_ref(py),
-                        tokens.coalesce.clone_ref(py),
-                        py.None())),
-        Namespace => Ok((tokens.namespace.clone_ref(py),
-                         tokens.namespace.clone_ref(py),
-                         py.None())),
-        DoubleSplat => Ok((tokens.double_splat.clone_ref(py),
-                           tokens.double_splat.clone_ref(py),
-                           py.None())),
-        BackwardLink => Ok((tokens.backward_link.clone_ref(py),
-                            tokens.backward_link.clone_ref(py),
-                            py.None())),
-        FloorDiv => Ok((tokens.floor_div.clone_ref(py),
-                        tokens.floor_div.clone_ref(py),
-                        py.None())),
-        Concat => Ok((tokens.concat.clone_ref(py),
-                      tokens.concat.clone_ref(py),
-                      py.None())),
-        GreaterEq => Ok((tokens.op.clone_ref(py),
-                         tokens.greater_eq.clone_ref(py),
-                         py.None())),
-        LessEq => Ok((tokens.op.clone_ref(py),
-                      tokens.less_eq.clone_ref(py),
-                      py.None())),
-        NotEq => Ok((tokens.op.clone_ref(py),
-                     tokens.not_eq.clone_ref(py),
-                     py.None())),
-        NotDistinctFrom => Ok((tokens.op.clone_ref(py),
-                               tokens.not_distinct_from.clone_ref(py),
-                               py.None())),
-        DistinctFrom => Ok((tokens.op.clone_ref(py),
-                            tokens.distinct_from.clone_ref(py),
-                            py.None())),
-        Comma => Ok((tokens.comma.clone_ref(py),
-                     tokens.comma.clone_ref(py),
-                     py.None())),
-        OpenParen => Ok((tokens.open_paren.clone_ref(py),
-                         tokens.open_paren.clone_ref(py),
-                         py.None())),
-        CloseParen => Ok((tokens.close_paren.clone_ref(py),
-                          tokens.close_paren.clone_ref(py),
-                          py.None())),
-        OpenBracket => Ok((tokens.open_bracket.clone_ref(py),
-                           tokens.open_bracket.clone_ref(py),
-                           py.None())),
-        CloseBracket => Ok((tokens.close_bracket.clone_ref(py),
-                            tokens.close_bracket.clone_ref(py),
-                            py.None())),
-        OpenBrace => Ok((tokens.open_brace.clone_ref(py),
-                         tokens.open_brace.clone_ref(py),
-                         py.None())),
-        CloseBrace => Ok((tokens.close_brace.clone_ref(py),
-                          tokens.close_brace.clone_ref(py),
-                          py.None())),
-        Dot => Ok((tokens.dot.clone_ref(py),
-                   tokens.dot.clone_ref(py),
-                   py.None())),
-        Semicolon => Ok((tokens.semicolon.clone_ref(py),
-                         tokens.semicolon.clone_ref(py),
-                         py.None())),
-        Colon => Ok((tokens.colon.clone_ref(py),
-                     tokens.colon.clone_ref(py),
-                     py.None())),
-        Add => Ok((tokens.add.clone_ref(py),
-                   tokens.add.clone_ref(py),
-                   py.None())),
-        Sub => Ok((tokens.sub.clone_ref(py),
-                   tokens.sub.clone_ref(py),
-                   py.None())),
-        Mul => Ok((tokens.mul.clone_ref(py),
-                   tokens.mul.clone_ref(py),
-                   py.None())),
-        Div => Ok((tokens.div.clone_ref(py),
-                   tokens.div.clone_ref(py),
-                   py.None())),
-        Modulo => Ok((tokens.modulo.clone_ref(py),
-                      tokens.modulo.clone_ref(py),
-                      py.None())),
-        Pow => Ok((tokens.pow.clone_ref(py),
-                   tokens.pow.clone_ref(py),
-                   py.None())),
-        Less => Ok((tokens.less.clone_ref(py),
-                    tokens.less.clone_ref(py),
-                    py.None())),
-        Greater => Ok((tokens.greater.clone_ref(py),
-                       tokens.greater.clone_ref(py),
-                       py.None())),
-        Eq => Ok((tokens.eq.clone_ref(py),
-                  tokens.eq.clone_ref(py),
-                  py.None())),
-        Ampersand => Ok((tokens.ampersand.clone_ref(py),
-                         tokens.ampersand.clone_ref(py),
-                         py.None())),
-        Pipe => Ok((tokens.pipe.clone_ref(py),
-                    tokens.pipe.clone_ref(py),
-                    py.None())),
-        At => Ok((tokens.at.clone_ref(py),
-                  tokens.at.clone_ref(py),
-                  py.None())),
-        Argument => {
-            if value[1..].starts_with('`') {
-                Ok((tokens.argument.clone_ref(py),
-                    PyString::new(py, value),
-                    PyString::new(py, &value[2..value.len()-1]
-                                     .replace("``", "`"))
-                   .into_object()))
-            } else {
-                Ok((tokens.argument.clone_ref(py),
-                    PyString::new(py, value),
-                    PyString::new(py, &value[1..])
-                    .into_object()))
-            }
-        }
-        DecimalConst => {
-            Ok((tokens.nfconst.clone_ref(py),
-                PyString::new(py, value),
-                cache.decimal(py)?.call(py,
-                    (&value[..value.len()-1].replace("_", ""),), None)?))
-        }
-        FloatConst => {
-            Ok((tokens.fconst.clone_ref(py),
-                PyString::new(py, value),
-                float_value.to_py_object(py).into_object()))
-        }
-        IntConst => {
-            Ok((tokens.iconst.clone_ref(py),
-                PyString::new(py, value),
-                // We read unsigned here, because unary minus will only
-                // be identified on the parser stage. And there is a number
-                // -9223372036854775808 which can't be represented in
-                // i64 as absolute (positive) value.
-                // Python has no problem of representing such a positive
-                // value, though.
-                u64::from_str(&value.replace("_", ""))
-                .map_err(|e| TokenizerError::new(py,
-                    (format!("error reading int: {}", e),
-                     py_pos(py, &token.start))))?
-               .to_py_object(py)
-               .into_object()))
-        }
-        BigIntConst => {
-            let dec: BigDecimal = value[..value.len()-1]
-                    .replace("_", "").parse()
-                    .map_err(|e| TokenizerError::new(py,
-                        (format!("error reading bigint: {}", e),
-                         py_pos(py, &token.start))))?;
-            // this conversion to decimal and back to string
-            // fixes thing like `1e2n` which we support for bigints
-            let dec_str = dec.to_bigint()
-                .ok_or_else(|| TokenizerError::new(py,  // should never happen
-                    ("number is not integer",
-                     py_pos(py, &token.start))))?
-                .to_str_radix(16);
-            Ok((tokens.niconst.clone_ref(py),
-                PyString::new(py, value),
-                py.get_type::<PyInt>()
-                    .call(py, (dec_str, tokens.i16.clone_ref(py)), None)?
-            ))
-        }
-        BinStr => {
-            Ok((tokens.bconst.clone_ref(py),
-                PyString::new(py, value),
-                PyBytes::new(py,
-                    &unquote_bytes(value)
-                    .map_err(|s| TokenizerError::new(py,
-                        (s, py_pos(py, &token.start))))?)
-                   .into_object()))
-        }
-        Str => {
-            let content = unquote_string(value)
-                .map_err(|s| TokenizerError::new(py,
-                    (s.to_string(), py_pos(py, &token.start))))?;
-            Ok((tokens.sconst.clone_ref(py),
-                PyString::new(py, value),
-                PyString::new(py, &content).into_object()))
-        },
-        BacktickName => {
-            Ok((tokens.ident.clone_ref(py),
-                PyString::new(py, value),
-                PyString::new(py, &value[1..value.len()-1].replace("``", "`"))
-               .into_object()))
-        }
+        Assign => (
+            tokens.assign.clone_ref(py),
+            tokens.assign_op.clone_ref(py),
+        ),
+        SubAssign => (
+            tokens.sub_assign.clone_ref(py),
+            tokens.sub_assign_op.clone_ref(py),
+        ),
+        AddAssign => (
+            tokens.add_assign.clone_ref(py),
+            tokens.add_assign_op.clone_ref(py),
+        ),
+        Arrow => (
+            tokens.arrow.clone_ref(py),
+            tokens.arrow_op.clone_ref(py),
+        ),
+        Coalesce => (
+            tokens.coalesce.clone_ref(py),
+            tokens.coalesce.clone_ref(py),
+        ),
+        Namespace => (
+            tokens.namespace.clone_ref(py),
+            tokens.namespace.clone_ref(py),
+        ),
+        DoubleSplat => (
+            tokens.double_splat.clone_ref(py),
+            tokens.double_splat.clone_ref(py),
+        ),
+        BackwardLink => (
+            tokens.backward_link.clone_ref(py),
+            tokens.backward_link.clone_ref(py),
+        ),
+        FloorDiv => (
+            tokens.floor_div.clone_ref(py),
+            tokens.floor_div.clone_ref(py),
+        ),
+        Concat => (
+            tokens.concat.clone_ref(py),
+            tokens.concat.clone_ref(py),
+        ),
+        GreaterEq => (
+            tokens.op.clone_ref(py),
+            tokens.greater_eq.clone_ref(py),
+        ),
+        LessEq => (
+            tokens.op.clone_ref(py),
+            tokens.less_eq.clone_ref(py),
+        ),
+        NotEq => (
+            tokens.op.clone_ref(py),
+            tokens.not_eq.clone_ref(py),
+        ),
+        NotDistinctFrom => (
+            tokens.op.clone_ref(py),
+            tokens.not_distinct_from.clone_ref(py),
+        ),
+        DistinctFrom => (
+            tokens.op.clone_ref(py),
+            tokens.distinct_from.clone_ref(py),
+        ),
+        Comma => (
+            tokens.comma.clone_ref(py),
+            tokens.comma.clone_ref(py),
+        ),
+        OpenParen => (
+            tokens.open_paren.clone_ref(py),
+            tokens.open_paren.clone_ref(py),
+        ),
+        CloseParen => (
+            tokens.close_paren.clone_ref(py),
+            tokens.close_paren.clone_ref(py),
+        ),
+        OpenBracket => (
+            tokens.open_bracket.clone_ref(py),
+            tokens.open_bracket.clone_ref(py),
+        ),
+        CloseBracket => (
+            tokens.close_bracket.clone_ref(py),
+            tokens.close_bracket.clone_ref(py),
+        ),
+        OpenBrace => (
+            tokens.open_brace.clone_ref(py),
+            tokens.open_brace.clone_ref(py),
+        ),
+        CloseBrace => (
+            tokens.close_brace.clone_ref(py),
+            tokens.close_brace.clone_ref(py),
+        ),
+        Dot => (
+            tokens.dot.clone_ref(py),
+            tokens.dot.clone_ref(py),
+        ),
+        Semicolon => (
+            tokens.semicolon.clone_ref(py),
+            tokens.semicolon.clone_ref(py),
+        ),
+        Colon => (
+            tokens.colon.clone_ref(py),
+            tokens.colon.clone_ref(py),
+        ),
+        Add => (
+            tokens.add.clone_ref(py),
+            tokens.add.clone_ref(py),
+        ),
+        Sub => (
+            tokens.sub.clone_ref(py),
+            tokens.sub.clone_ref(py),
+        ),
+        Mul => (
+            tokens.mul.clone_ref(py),
+            tokens.mul.clone_ref(py),
+        ),
+        Div => (
+            tokens.div.clone_ref(py),
+            tokens.div.clone_ref(py),
+        ),
+        Modulo => (
+            tokens.modulo.clone_ref(py),
+            tokens.modulo.clone_ref(py),
+        ),
+        Pow => (
+            tokens.pow.clone_ref(py),
+            tokens.pow.clone_ref(py),
+        ),
+        Less => (
+            tokens.less.clone_ref(py),
+            tokens.less.clone_ref(py),
+        ),
+        Greater => (
+            tokens.greater.clone_ref(py),
+            tokens.greater.clone_ref(py),
+        ),
+        Eq => (
+            tokens.eq.clone_ref(py),
+            tokens.eq.clone_ref(py),
+        ),
+        Ampersand => (
+            tokens.ampersand.clone_ref(py),
+            tokens.ampersand.clone_ref(py),
+        ),
+        Pipe => (
+            tokens.pipe.clone_ref(py),
+            tokens.pipe.clone_ref(py),
+        ),
+        At => (
+            tokens.at.clone_ref(py),
+            tokens.at.clone_ref(py),
+        ),
+        Argument => (
+            tokens.argument.clone_ref(py),
+            PyString::new(py, text),
+        ),
+        DecimalConst => (
+            tokens.nfconst.clone_ref(py),
+            PyString::new(py, text),
+        ),
+        FloatConst => (
+            tokens.fconst.clone_ref(py),
+            PyString::new(py, text),
+        ),
+        IntConst => (
+            tokens.iconst.clone_ref(py),
+            PyString::new(py, text),
+        ),
+        BigIntConst => (
+            tokens.niconst.clone_ref(py),
+            PyString::new(py, text),
+        ),
+        BinStr => (
+            tokens.bconst.clone_ref(py),
+            PyString::new(py, text),
+        ),
+        Str => (
+            tokens.sconst.clone_ref(py),
+            PyString::new(py, text),
+        ),
+        BacktickName => (
+            tokens.ident.clone_ref(py),
+            PyString::new(py, text),
+        ),
         Ident | Keyword => {
-            if value.len() > MAX_KEYWORD_LENGTH {
-                let val = PyString::new(py, value);
-                Ok((tokens.ident.clone_ref(py),
-                    val.clone_ref(py),
-                    val.into_object()))
+            if text.len() > MAX_KEYWORD_LENGTH {
+                (
+                    tokens.ident.clone_ref(py),
+                    PyString::new(py, text),
+                )
             } else {
                 cache.keyword_buf.clear();
-                cache.keyword_buf.push_str(value);
+                cache.keyword_buf.push_str(text);
                 cache.keyword_buf.make_ascii_lowercase();
                 match &cache.keyword_buf[..] {
+                    "named only" => (
+                            tokens.named_only.clone_ref(py),
+                            tokens.named_only_val.clone_ref(py),
+                    ),
+                    "set annotation" => (
+                            tokens.set_annotation.clone_ref(py),
+                            tokens.set_annotation_val.clone_ref(py),
+                    ),
+                    "set type" => (
+                            tokens.set_type.clone_ref(py),
+                            tokens.set_type_val.clone_ref(py),
+                    ),
+                    "extension package" => (
+                            tokens.extension_package.clone_ref(py),
+                            tokens.extension_package_val.clone_ref(py),
+                    ),
+                    "order by" => (
+                            tokens.order_by.clone_ref(py),
+                            tokens.order_by_val.clone_ref(py),
+                    ),
+
                     _ => match tokens.keywords.get(&cache.keyword_buf) {
-                        Some(tok_info) => {
-                            debug_assert_eq!(tok_info.kind, token.kind);
-                            Ok((tok_info.name.clone_ref(py),
-                                 PyString::new(py, value),
-                                 py.None()))
+                        Some(keyword) => {
+                            debug_assert_eq!(keyword.kind, token.kind);
+                            (
+                                keyword.name.clone_ref(py),
+                                PyString::new(py, text)
+                            )
                         }
                         None => {
-                            debug_assert_eq!(token.kind, Kind::Ident);
-                            let val = PyString::new(py, value);
-                            Ok((tokens.ident.clone_ref(py),
+                            debug_assert_eq!(Kind::Ident, token.kind);
+                            let val = PyString::new(py, text);
+                            (
+                                tokens.ident.clone_ref(py),
                                 val.clone_ref(py),
-                                val.into_object()))
+                            )
                         }
                     },
                 }
             }
         }
-        Substitution => {
-            let content = &value[2..value.len()-1];
-            Ok((tokens.substitution.clone_ref(py),
-                PyString::new(py, value),
-                PyString::new(py, content).into_object()))
-        }
+        Substitution => (
+            tokens.substitution.clone_ref(py),
+            PyString::new(py, text),
+        ),
     }
 }
 

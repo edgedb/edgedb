@@ -10,6 +10,7 @@ pub struct Hasher {
 
 #[derive(Debug)]
 pub enum Error {
+    // TODO: use [crate::Error] instead
     Tokenizer(String, Pos),
 }
 
@@ -28,16 +29,12 @@ impl Hasher {
         for token in &mut parser {
             let token = match token {
                 Ok(t) => t,
-                Err(combine::easy::Error::Unexpected(s)) => {
+                Err(crate::Error { message, .. }) => {
                     return Err(Error::Tokenizer(
-                        s.to_string(), parser.current_pos()));
-                }
-                Err(e) => {
-                    return Err(Error::Tokenizer(
-                        e.to_string(), parser.current_pos()));
+                        message, parser.current_pos()));
                 }
             };
-            self.hasher.update(token.token.text.as_bytes());
+            self.hasher.update(token.text.as_bytes());
             self.hasher.update(b"\0");
         }
         Ok(self)

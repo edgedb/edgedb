@@ -60,7 +60,7 @@ pub fn validate(text: &str) -> Result<(), SchemaFileError> {
     loop {
         let pos = token_stream.current_pos();
         match token_stream.next() {
-            Some(Ok(tok)) =>  match tok.token.kind {
+            Some(Ok(tok)) =>  match tok.kind {
                 OpenParen => brackets.push(('(', ')', pos)),
                 OpenBrace => brackets.push(('{', '}', pos)),
                 OpenBracket => brackets.push(('[', ']', pos)),
@@ -73,7 +73,7 @@ pub fn validate(text: &str) -> Result<(), SchemaFileError> {
             Some(Err(e)) => {
                 return Err(TokenizerError {
                     pos: token_stream.current_pos(),
-                    error: e.to_string(),
+                    error: e.message,
                 });
             }
         }
@@ -136,7 +136,7 @@ mod test {
     fn test_str() {
         assert_eq!(check("create type X { \"} "),
             "1:17: tokenizer error: \
-                Unexpected unterminated string, quoted by `\"`");
+                unterminated string, quoted by `\"`");
     }
 }
 

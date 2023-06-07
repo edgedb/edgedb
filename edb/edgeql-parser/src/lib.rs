@@ -11,25 +11,27 @@ pub mod tokenizer;
 pub mod utils;
 pub mod validation;
 
+use bigdecimal::{num_bigint::BigInt, BigDecimal};
 use position::{Pos, Span};
-use std::{borrow::Cow, iter::Peekable};
-use tokenizer::{Kind, SpannedToken, TokenStream, MAX_KEYWORD_LENGTH};
+use std::borrow::Cow;
+use tokenizer::{Kind, TokenStream, MAX_KEYWORD_LENGTH};
 
 #[derive(Debug, Clone)]
 pub struct CowToken<'a> {
     pub kind: Kind,
     pub text: Cow<'a, str>,
     pub value: Option<TokenValue>,
-    pub start: Pos,
-    pub end: Pos,
+    pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenValue {
     String(String),
     Int(u64),
     Float(f64),
     Bytes(Vec<u8>),
+    BigInt(BigInt),
+    Decimal(BigDecimal),
 }
 
 #[derive(Debug, Clone)]
@@ -39,16 +41,35 @@ pub struct Error {
 }
 
 pub struct TokenStream2<'a> {
-    inner: Peekable<TokenStream<'a>>,
+    inner: TokenStream<'a>,
+    peeked: Option<Option<Result<CowToken<'a>, Error>>>,
+
     keyword_buf: String,
 }
 
-impl <'a> TokenStream2<'a> {
+impl<'a> TokenStream2<'a> {
     pub fn new(source: &'a str) -> Self {
         TokenStream2 {
-            inner: TokenStream::new(source).peekable(),
+            inner: TokenStream::new(source),
+            peeked: None,
             keyword_buf: String::with_capacity(MAX_KEYWORD_LENGTH),
         }
+    }
+
+    fn next_inner(&mut self) -> Option<Result<CowToken<'a>, Error>> {
+        let res = if let Some(peeked) = self.peeked.take() {
+            peeked
+        } else {
+            self.inner.next()
+        };
+
+        self.peeked = Some(self.inner.next());
+
+        res
+    }
+
+    pub fn current_pos(&self) -> Pos {
+        self.inner.current_pos()
     }
 }
 
@@ -56,45 +77,44 @@ impl<'a> Iterator for TokenStream2<'a> {
     type Item = Result<CowToken<'a>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-
-        let token = match self.inner.next()? {
+        let mut token = match self.next_inner()? {
             Ok(t) => t,
             Err(e) => return Some(Err(e)),
         };
 
-        let value = match validation::parse_value(&token) {
-            Ok(None) => None,
-            Ok(Some(x)) => Some(x),
-            Err(e) => return Some(Err(e)),
+        token.value = match validation::parse_value(&token) {
+            Ok(x) => x,
+            Err(e) => return Some(Err(Error::new(e).with_span(token.span))),
         };
 
-        let text = validation::combine_multi_word_keywords(&token, &mut self.inner, &mut self.keyword_buf).unwrap_or(token.token.text);
+        if let Some(text) =
+            validation::combine_multi_word_keywords(&token, &self.peeked, &mut self.keyword_buf)
+        {
+            token.text = text.into();
+        }
 
-        Some(Ok(CowToken {
-            kind: token.token.kind,
-            text: text.into(),
-            value,
-            start: token.start,
-            end: token.end,
-        }))
+        Some(Ok(token))
     }
 }
 
-
-impl<'a, 'b: 'a> From<&'a SpannedToken<'b>> for CowToken<'b> {
-    fn from(t: &'a SpannedToken<'b>) -> CowToken<'b> {
-        CowToken {
-            kind: t.token.kind,
-            text: t.token.text.into(),
-            value: None,
-            start: t.start,
-            end: t.end,
+impl Error {
+    pub fn new<S: ToString>(message: S) -> Self {
+        let empty = Pos {
+            line: 0,
+            column: 0,
+            offset: 0,
+        };
+        Error {
+            message: message.to_string(),
+            span: Span {
+                start: empty.clone(),
+                end: empty,
+            },
         }
     }
-}
 
-impl<'a> From<SpannedToken<'a>> for CowToken<'a> {
-    fn from(t: SpannedToken<'a>) -> CowToken<'a> {
-        CowToken::from(&t)
+    pub fn with_span(mut self, span: Span) -> Self {
+        self.span = span;
+        self
     }
 }

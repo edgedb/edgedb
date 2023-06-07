@@ -1,19 +1,17 @@
-use std::iter::Peekable;
 use std::str::FromStr;
 
 use bigdecimal::num_bigint::ToBigInt;
 use bigdecimal::BigDecimal;
 
-use crate::TokenValue;
-use crate::tokenizer::{Kind, SpannedToken, TokenStream, MAX_KEYWORD_LENGTH};
+use crate::tokenizer::{Kind, MAX_KEYWORD_LENGTH};
 use crate::utils::bytes::unquote_bytes;
 use crate::utils::strings::unquote_string;
+use crate::{CowToken, Error, TokenValue};
 
-
-pub fn parse_value(token: &SpannedToken) -> Result<Option<TokenValue>, String> {
+pub fn parse_value(token: &CowToken<'_>) -> Result<Option<TokenValue>, String> {
     use Kind::*;
-    let text = token.token.text;
-    let string_value = match token.token.kind {
+    let text = &token.text;
+    let string_value = match token.kind {
         Argument => {
             if text[1..].starts_with('`') {
                 text[2..text.len() - 1].replace("``", "`")
@@ -21,7 +19,14 @@ pub fn parse_value(token: &SpannedToken) -> Result<Option<TokenValue>, String> {
                 text[1..].to_string()
             }
         }
-        DecimalConst => text[..text.len() - 1].replace("_", ""),
+        DecimalConst => {
+            return text[..text.len() - 1]
+                .replace("_", "")
+                .parse()
+                .map(TokenValue::Decimal)
+                .map(Some)
+                .map_err(|e| format!("can't parse decimal: {}", e))
+        }
         FloatConst => {
             return text
                 .replace("_", "")
@@ -62,15 +67,18 @@ pub fn parse_value(token: &SpannedToken) -> Result<Option<TokenValue>, String> {
                 .map_err(|e| format!("error reading bigint: {}", e))?;
             // this conversion to decimal and back to string
             // fixes thing like `1e2n` which we support for bigints
-            dec.to_bigint()
-                .ok_or_else(|| "number is not integer".to_string())?
-                .to_str_radix(16)
+            return Ok(Some(TokenValue::BigInt(
+                dec.to_bigint()
+                    .ok_or_else(|| "number is not integer".to_string())?,
+            )));
         }
         BinStr => {
-            return unquote_bytes(text).map(TokenValue::Bytes).map(Some);
+            return unquote_bytes(&text).map(TokenValue::Bytes).map(Some);
         }
 
-        Str => unquote_string(text).map_err(|s| s.to_string())?.to_string(),
+        Str => unquote_string(&text)
+            .map_err(|s| s.to_string())?
+            .to_string(),
         BacktickName => text[1..text.len() - 1].replace("``", "`"),
         Ident | Keyword => text.to_string(),
         Substitution => text[2..text.len() - 1].to_string(),
@@ -80,37 +88,38 @@ pub fn parse_value(token: &SpannedToken) -> Result<Option<TokenValue>, String> {
 }
 
 pub fn combine_multi_word_keywords(
-    token: &SpannedToken,
-    tok_iter: &mut Peekable<TokenStream>,
+    token: &CowToken,
+    next: &Option<Option<Result<CowToken, Error>>>,
     keyword_buf: &mut String,
 ) -> Option<&'static str> {
-    if !matches!(token.token.kind, Kind::Ident | Kind::Keyword) {
+    if !matches!(token.kind, Kind::Ident | Kind::Keyword) {
         return None;
     }
-    let value = token.token.text;
+    let text = &token.text;
 
-    if value.len() > MAX_KEYWORD_LENGTH {
+    if text.len() > MAX_KEYWORD_LENGTH {
         return None;
     }
 
     keyword_buf.clear();
-    keyword_buf.push_str(value);
+    keyword_buf.push_str(&text);
     keyword_buf.make_ascii_lowercase();
     match &keyword_buf[..] {
-        "named" if peek_keyword(tok_iter, "only") => Some("named only"),
-        "set" if peek_keyword(tok_iter, "annotation") => Some("set annotation"),
-        "set" if peek_keyword(tok_iter, "type") => Some("set type"),
-        "extension" if peek_keyword(tok_iter, "package") => Some("extension package"),
-        "order" if peek_keyword(tok_iter, "by") => Some("order by"),
+        "named" if peek_keyword(next, "only") => Some("named only"),
+        "set" if peek_keyword(next, "annotation") => Some("set annotation"),
+        "set" if peek_keyword(next, "type") => Some("set type"),
+        "extension" if peek_keyword(next, "package") => Some("extension package"),
+        "order" if peek_keyword(next, "by") => Some("order by"),
         _ => None,
     }
 }
 
-fn peek_keyword(iter: &mut Peekable<TokenStream>, kw: &str) -> bool {
-    iter.peek()
+fn peek_keyword(next: &Option<Option<Result<CowToken, Error>>>, kw: &str) -> bool {
+    next.as_ref()
+        .and_then(|x| x.as_ref())
         .and_then(|res| res.as_ref().ok())
         .map(|t| {
-            (t.token.kind == Kind::Ident || t.token.kind == Kind::Keyword) && t.token.text.eq_ignore_ascii_case(kw)
+            (t.kind == Kind::Ident || t.kind == Kind::Keyword) && t.text.eq_ignore_ascii_case(kw)
         })
         .unwrap_or(false)
 }
