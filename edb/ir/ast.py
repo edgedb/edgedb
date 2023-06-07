@@ -888,6 +888,11 @@ class Call(ImmutableExpr):
     # filter at the call site.
     impl_is_strict: bool = False
 
+    # Kind of a hack: indicates that when possible we should pass arguments
+    # to this function as a subquery-as-an-expression.
+    # See comment in schema/functions.py for more discussion.
+    prefer_subquery_args: bool = False
+
 
 class FunctionCall(Call):
 

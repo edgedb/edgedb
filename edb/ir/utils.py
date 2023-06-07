@@ -131,7 +131,9 @@ def is_scalar_view_set(ir_expr: irast.Base) -> bool:
     )
 
 
-def is_implicit_wrapper(ir_expr: irast.Base) -> bool:
+def is_implicit_wrapper(
+    ir_expr: Optional[irast.Base]
+) -> TypeGuard[irast.SelectStmt]:
     """Return True if the given *ir_expr* expression is an implicit
        SELECT wrapper.
     """
@@ -162,7 +164,7 @@ def unwrap_set(ir_set: irast.Set) -> irast.Set:
        wrapped set.
     """
     if ir_set.expr is not None and is_implicit_wrapper(ir_set.expr):
-        return ir_set.expr.result  # type: ignore
+        return ir_set.expr.result
     else:
         return ir_set
 

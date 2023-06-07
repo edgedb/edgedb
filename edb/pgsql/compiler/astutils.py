@@ -522,6 +522,14 @@ def collapse_query(query: pgast.Query) -> pgast.BaseExpr:
         return query
 
     if (
+        isinstance(query, pgast.SelectStmt)
+        and len(query.target_list) == 1
+        and len(query.from_clause) == 0
+        and select_is_simple(query)
+    ):
+        return query.target_list[0].val
+
+    if (
         not isinstance(query, pgast.SelectStmt)
         or len(query.target_list) != 1
         or len(query.from_clause) != 1

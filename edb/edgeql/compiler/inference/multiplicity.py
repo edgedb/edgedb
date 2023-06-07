@@ -556,6 +556,8 @@ def _infer_stmt_multiplicity(
             if (
                 irutils.get_path_root(flt_expr).path_id
                 == ctx.distinct_iterator
+                or irutils.get_path_root(irutils.unwrap_set(flt_expr)).path_id
+                == ctx.distinct_iterator
             ) and not infer_multiplicity(
                 flt_expr, scope_tree=scope_tree, ctx=ctx
             ).is_duplicate():
