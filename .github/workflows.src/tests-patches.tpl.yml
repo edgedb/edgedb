@@ -38,22 +38,36 @@ jobs:
         import re
         from urllib import request
 
-        u = 'https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-gnu.json'
+        base = 'https://packages.edgedb.com'
+        u = f'{base}/archive/.jsonindexes/x86_64-unknown-linux-gnu.json'
         data = json.loads(request.urlopen(u).read())
+
+        u = f'{base}/archive/.jsonindexes/x86_64-unknown-linux-gnu.testing.json'
+        data_testing = json.loads(request.urlopen(u).read())
+
 
         branch = os.getenv('GITHUB_BASE_REF') or os.getenv('GITHUB_REF_NAME')
         print("BRANCH", branch)
         version = int(re.findall(r'\d+', branch)[0])
 
         versions = []
-        for obj in data['packages']:
+        for obj in data['packages'] + data_testing['packages']:
             if (
                 obj['version_details']['major'] == version
-                and not obj['version_details']['prerelease']
+                and (
+                    not obj['version_details']['prerelease']
+                    or obj['version_details']['prerelease'][0]['phase'] in ('beta', 'rc')
+                )
             ):
-                versions.append(obj['version'])
+                versions.append((obj['version'], base + obj['installrefs'][0]['ref']))
 
-        matrix = {"edgedb-version": versions, "make-dbs": [True, False]}
+        matrix = {
+            "include": [
+                {"edgedb-version": v, "edgedb-url": url, "make-dbs": mk}
+                for v, url in versions
+                for mk in [True, False]
+            ]
+        }
 
         print("matrix:", matrix)
         with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
@@ -74,8 +88,9 @@ jobs:
     - name: Download an earlier database version and set up a instance
       env:
         EDGEDB_VERSION: ${{ matrix.edgedb-version }}
+        EDGEDB_URL: ${{ matrix.edgedb-url }}
       run: |
-        wget -q "https://packages.edgedb.com/archive/x86_64-unknown-linux-gnu/edgedb-server-$EDGEDB_VERSION.tar.gz"
+        wget -q "$EDGEDB_URL"
         tar xzf edgedb-server-$EDGEDB_VERSION.tar.gz
         edgedb-server-$EDGEDB_VERSION/bin/edgedb-server -D test-dir --bootstrap-only --testmode
 
