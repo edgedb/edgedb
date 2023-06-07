@@ -80,6 +80,9 @@ def compile_FunctionCall(
         funcname = sn.QualName(*expr.func)
 
     funcs = env.schema.get_functions(funcname, module_aliases=ctx.modaliases)
+    prefer_subquery_args = any(
+        func.get_prefer_subquery_args(env.schema) for func in funcs
+    )
 
     if funcs is None:
         raise errors.QueryError(
@@ -100,7 +103,8 @@ def compile_FunctionCall(
         funcs, num_args=len(expr.args), kwargs_names=expr.kwargs.keys(),
         ctx=ctx)
     args, kwargs = compile_func_call_args(
-        expr, funcname, typemods, ctx=ctx)
+        expr, funcname, typemods, prefer_subquery_args=prefer_subquery_args,
+        ctx=ctx)
     with errors.ensure_context(expr.context):
         matched = polyres.find_callable(
             funcs, args=args, kwargs=kwargs, ctx=ctx)
@@ -299,6 +303,7 @@ def compile_FunctionCall(
         func_initial_value=func_initial_value,
         tuple_path_ids=tuple_path_ids,
         impl_is_strict=func.get_impl_is_strict(env.schema),
+        prefer_subquery_args=func.get_prefer_subquery_args(env.schema),
         global_args=global_args,
     )
 
@@ -333,6 +338,10 @@ def compile_operator(
     typemods = polyres.find_callable_typemods(
         opers, num_args=len(qlargs), kwargs_names=set(), ctx=ctx)
 
+    prefer_subquery_args = any(
+        oper.get_prefer_subquery_args(env.schema) for oper in opers
+    )
+
     args = []
 
     for ai, qlarg in enumerate(qlargs):
@@ -340,6 +349,7 @@ def compile_operator(
             qlarg,
             typemods[ai],
             in_conditional=bool(conditional_args and ai in conditional_args),
+            prefer_subquery_args=prefer_subquery_args,
             ctx=ctx,
         )
 
@@ -608,6 +618,7 @@ def compile_operator(
         typemod=oper.get_return_typemod(env.schema),
         tuple_path_ids=[],
         impl_is_strict=oper.get_impl_is_strict(env.schema),
+        prefer_subquery_args=oper.get_prefer_subquery_args(env.schema),
     )
 
     _check_free_shape_op(node, ctx=ctx)
@@ -682,6 +693,7 @@ def compile_func_call_args(
     funcname: sn.Name,
     typemods: Dict[Union[int, str], ft.TypeModifier],
     *,
+    prefer_subquery_args: bool=False,
     ctx: context.ContextLevel
 ) -> Tuple[
     List[Tuple[s_types.Type, irast.Set]],
@@ -691,7 +703,9 @@ def compile_func_call_args(
     kwargs = {}
 
     for ai, arg in enumerate(expr.args):
-        arg_ir = polyres.compile_arg(arg, typemods[ai], ctx=ctx)
+        arg_ir = polyres.compile_arg(
+            arg, typemods[ai], prefer_subquery_args=prefer_subquery_args,
+            ctx=ctx)
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:
             raise errors.QueryError(
@@ -702,7 +716,9 @@ def compile_func_call_args(
         args.append((arg_type, arg_ir))
 
     for aname, arg in expr.kwargs.items():
-        arg_ir = polyres.compile_arg(arg, typemods[aname], ctx=ctx)
+        arg_ir = polyres.compile_arg(
+            arg, typemods[aname], prefer_subquery_args=prefer_subquery_args,
+            ctx=ctx)
 
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:

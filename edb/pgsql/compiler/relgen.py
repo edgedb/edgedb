@@ -3102,21 +3102,31 @@ def _compile_func_epilogue(
     return new_stmt_set_rvar(ir_set, ctx.rel, aspects=aspects, ctx=ctx)
 
 
-def _compile_arg_null_check(
-    call_expr: irast.Call, ir_arg: irast.CallArg, arg_ref: pgast.BaseExpr,
+def _needs_arg_null_check(
+    call_expr: irast.Call, ir_arg: irast.CallArg,
     typemod: qltypes.TypeModifier, *,
     ctx: context.CompilerContextLevel
-) -> None:
-    if (
+) -> bool:
+    return (
         not call_expr.impl_is_strict
         and not ir_arg.is_default
-        and arg_ref.nullable
         and (
             (
                 typemod == qltypes.TypeModifier.SingletonType
                 and ir_arg.cardinality.can_be_zero()
             ) or typemod == qltypes.TypeModifier.SetOfType
         )
+    )
+
+
+def _compile_arg_null_check(
+    call_expr: irast.Call, ir_arg: irast.CallArg, arg_ref: pgast.BaseExpr,
+    typemod: qltypes.TypeModifier, *,
+    ctx: context.CompilerContextLevel
+) -> None:
+    if (
+        _needs_arg_null_check(call_expr, ir_arg, typemod, ctx=ctx)
+        and arg_ref.nullable
     ):
         ctx.rel.where_clause = astutils.extend_binop(
             ctx.rel.where_clause,
@@ -3141,8 +3151,27 @@ def _compile_call_args(
     for ir_arg, typemod in zip(expr.args, expr.params_typemods):
         assert ir_arg.multiplicity != qltypes.Multiplicity.UNKNOWN
 
-        arg_ref = dispatch.compile(ir_arg.expr, ctx=ctx)
-        args.append(output.output_as_value(arg_ref, env=ctx.env))
+        # Support a mode where we try to compile arguments as pure
+        # subqueries. This is occasionally valuable as it lets us
+        # "push down" the subqueries from the top level, which is
+        # important for things like hitting pgvector indexes in an
+        # ORDER BY.
+        make_subquery = (
+            expr.prefer_subquery_args
+            and typemod != qltypes.TypeModifier.SetOfType
+            and ir_arg.cardinality.is_single()
+            and ir_arg.expr.typeref.is_scalar
+            and not _needs_arg_null_check(expr, ir_arg, typemod, ctx=ctx)
+        )
+
+        if make_subquery:
+            arg_ref = set_as_subquery(ir_arg.expr, as_value=True, ctx=ctx)
+            arg_ref.nullable = ir_arg.cardinality.can_be_zero()
+            arg_ref = astutils.collapse_query(arg_ref)
+        else:
+            arg_ref = dispatch.compile(ir_arg.expr, ctx=ctx)
+            arg_ref = output.output_as_value(arg_ref, env=ctx.env)
+        args.append(arg_ref)
         _compile_arg_null_check(expr, ir_arg, arg_ref, typemod, ctx=ctx)
 
         if (
