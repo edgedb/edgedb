@@ -65,11 +65,12 @@ def _setup_patches(patches: list[tuple[str, str]]) -> list[tuple[str, str]]:
 """
 The actual list of patches. The patches are (kind, script) pairs.
 
-There are currently 4 kinds:
+The current kinds are:
  * sql - simply runs a SQL script
  * metaschema-sql - create a function from metaschema
  * edgeql - runs an edgeql DDL command
  * edgeql+schema - runs an edgeql DDL command and updates the std schemas
+ * ext-pkg - installs an extension package given a name
  * repair - fix up inconsistencies in *user* schemas
 """
 PATCHES: list[tuple[str, str]] = _setup_patches([
