@@ -321,7 +321,6 @@ def _compile_pgvector(build_base, build_temp):
         build_base / 'postgres' / 'install' / 'bin' / 'pg_config'
     ).resolve()
 
-
     cflags = os.environ.get("CFLAGS", "")
     cflags = f"{cflags} {' '.join(SAFE_EXT_CFLAGS)} -std=gnu99"
 
@@ -394,9 +393,7 @@ def _get_pg_source_stamp():
         cwd=ROOT_PATH,
     )
     revision, _, _ = output[1:].partition(' ')
-    # I don't know why we needed the first empty char, but we don't want to
-    # force everyone to rebuild postgres either
-    source_stamp = output[0] + revision
+    source_stamp = revision + '+' + PGVECTOR_COMMIT
     return source_stamp
 
 
