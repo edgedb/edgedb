@@ -1549,7 +1549,7 @@ class PointerCommandOrFragment(
             should_set_path_prefix_anchor = True
             if field.name == 'default':
                 # We are checking if the parent context is a pointer
-                # (i.e. a link or a property). 
+                # (i.e. a link or a property).
                 # If so, do not set the path prefix anchor.
                 parent_ctx = self.get_referrer_context_or_die(context)
                 source = parent_ctx.op.get_object(schema, context)
