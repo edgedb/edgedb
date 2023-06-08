@@ -111,6 +111,21 @@ def is_index_valid_for_type(
                     )
                 )
             )
+        case 'vector::ivfflat_euclidean':
+            return expr_type.issubclass(
+                schema,
+                schema.get('vector::vector', type=s_scalars.ScalarType),
+            )
+        case 'vector::ivfflat_ip':
+            return expr_type.issubclass(
+                schema,
+                schema.get('vector::vector', type=s_scalars.ScalarType),
+            )
+        case 'vector::ivfflat_cosine':
+            return expr_type.issubclass(
+                schema,
+                schema.get('vector::vector', type=s_scalars.ScalarType),
+            )
 
     return False
 

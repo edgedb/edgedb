@@ -15821,3 +15821,245 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             await self.con.execute('''
                 drop extension package varchar VERSION '1.0'
             ''')
+
+    async def _extension_test_03(self):
+        await self.con.execute('''
+            create extension test_vector;
+
+            create scalar type v3 extending vector::vector<3>;
+        ''')
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select <str><vector>'[1, 2, 3]';
+            ''',
+            ['[1,2,3]'],
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select <json><vector>'[1, 2, 3]';
+            ''',
+            [[1, 2, 3]],
+            json_only=True,
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select <str><vector><json>[1, 2, 3];
+            ''',
+            ['[1,2,3]'],
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select <vector>'[1, 2, 3]' = <vector>'[0, 1, 1]';
+            ''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select <vector>'[1, 2, 3]' != <vector>'[0, 1, 1]';
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select <vector>'[1, 2, 3]' ?= <vector>{};
+            ''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select <vector>'[1, 2, 3]' ?!= <vector>{};
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select <vector>{} ?= <vector>{};
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select <vector>'[1, 2]' < <vector>'[2, 3]';
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select <vector>'[1, 2]' <= <vector>'[2, 3]';
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select <vector>'[1, 2]' > <vector>'[2, 3]';
+            ''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select <vector>'[1, 2]' >= <vector>'[2, 3]';
+            ''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select len(
+                    <vector>'[1.2, 3.4, 5, 6]',
+                );
+            ''',
+            [4],
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select euclidean_distance(
+                    <vector>'[3, 4]',
+                    <vector>'[0, 0]',
+                );
+            ''',
+            [5],
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select euclidean_norm(<vector>'[3, 4]');
+            ''',
+            [5],
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select inner_product(
+                    <vector>'[1, 2]',
+                    <vector>'[3, 4]',
+                );
+            ''',
+            [11],
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select cosine_distance(
+                    <vector>'[3, 0]',
+                    <vector>'[3, 4]',
+                );
+            ''',
+            [0.4],
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select <str>mean({
+                    <vector>'[3, 0]',
+                    <vector>'[0, 4]',
+                });
+            ''',
+            ['[1.5,2]'],
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select <vector>'[3, 0]' in {
+                    <vector>'[1, 2]',
+                    <vector>'[3, 4]',
+                };
+            ''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            '''
+                with module vector
+                select <vector>'[3, 0]' not in {
+                    <vector>'[1, 2]',
+                    <vector>'[3, 4]',
+                };
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            '''
+                select vector::len(<v3>'[11, 3, 4]');
+            ''',
+            [3],
+        )
+
+        await self.con.execute('''
+            create type L2 {
+                create property val -> v3;
+                create index vector::ivfflat_euclidean(lists := 100) on (.val);
+            }
+        ''')
+
+        await self.con.execute('''
+            create type IP {
+                create property val -> v3;
+                create index vector::ivfflat_ip(lists := 100) on (.val);
+            }
+        ''')
+
+        await self.con.execute('''
+            create type Cosine {
+                create property val -> v3;
+                create index vector::ivfflat_cosine(lists := 100) on (.val);
+            }
+        ''')
+
+        await self.con.execute('''
+            reset schema to initial;
+        ''')
+
+    # To enable a rapid test cycle, load the vector
+    # module from source under a different name
+    # and test against it.
+    async def test_edgeql_ddl_extensions_03(self):
+        try:
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            with open(os.path.join(root, 'edb/lib/ext/vector.edgeql')) as f:
+                contents = f.read()
+
+            contents = contents.replace(
+                'extension package vector',
+                'extension package test_vector',
+            )
+            await self.con.execute(contents)
+
+            async with self._run_and_rollback():
+                await self._extension_test_03()
+        finally:
+            await self.con.execute('''
+                drop extension package test_vector version '1.0'
+            ''')
