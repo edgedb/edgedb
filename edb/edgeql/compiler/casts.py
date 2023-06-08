@@ -144,87 +144,72 @@ def compile_cast(
             cardinality_mod=cardinality_mod, ctx=ctx)
 
     json_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'json'))
+    if new_stype.issubclass(ctx.env.schema, json_t):
 
-    if (
-        new_stype.issubclass(ctx.env.schema, json_t)
-        and ir_set.path_id.is_objtype_path()
-    ):
-        # JSON casts of objects are special: we want the full shape
-        # and not just an identity.
-        viewgen.late_compile_view_shapes(ir_set, ctx=ctx)
-    else:
-
-        # Casts from json to other types that have special handling.
-        # So we turn it into json->str and str->x.
-        if (
-            orig_stype.issubclass(ctx.env.schema, json_t)
-            and (
-                new_stype.is_enum(ctx.env.schema)
-                or (
-                    isinstance(new_stype, s_scalars.ScalarType)
-                    and not new_stype.get_builtin(ctx.env.schema)
+        if ir_set.path_id.is_objtype_path():
+            # JSON casts of objects are special: we want the full shape
+            # and not just an identity.
+            viewgen.late_compile_view_shapes(ir_set, ctx=ctx)
+        else:
+            # Casts from json to may have special handling.
+            # So we turn it into json->str and str->x.
+            if new_stype.is_enum(ctx.env.schema) or (
+                isinstance(new_stype, s_scalars.ScalarType)
+                and not new_stype.get_builtin(ctx.env.schema)
+            ):
+                str_typ = ctx.env.get_schema_type_and_track(
+                    sn.QualName('std', 'str')
                 )
-            )
-        ):
-            str_typ = ctx.env.get_schema_type_and_track(
-                sn.QualName('std', 'str')
-            )
-            str_ir = compile_cast(ir_expr, str_typ, srcctx=srcctx, ctx=ctx)
+                str_ir = compile_cast(ir_expr, str_typ, srcctx=srcctx, ctx=ctx)
 
-            return compile_cast(
-                str_ir,
-                new_stype,
-                cardinality_mod=cardinality_mod,
-                srcctx=srcctx,
-                ctx=ctx,
-            )
+                return compile_cast(
+                    str_ir,
+                    new_stype,
+                    cardinality_mod=cardinality_mod,
+                    srcctx=srcctx,
+                    ctx=ctx,
+                )
 
-        if (
-            orig_stype.issubclass(ctx.env.schema, json_t)
-            and isinstance(new_stype, s_types.Array)
-            and not new_stype.get_subtypes(ctx.env.schema)[0].issubclass(
+            if isinstance(
+                new_stype, s_types.Array
+            ) and not new_stype.get_subtypes(ctx.env.schema)[0].issubclass(
                 ctx.env.schema, json_t
-            )
-        ):
-            # Turn casts from json->array<T> into json->array<json>
-            # and array<json>->array<T>.
-            ctx.env.schema, json_array_typ = s_types.Array.from_subtypes(
-                ctx.env.schema, [json_t]
-            )
-            json_array_ir = compile_cast(
-                ir_expr,
-                json_array_typ,
-                cardinality_mod=cardinality_mod,
-                srcctx=srcctx,
-                ctx=ctx,
-            )
-            return compile_cast(
-                json_array_ir, new_stype, srcctx=srcctx, ctx=ctx
-            )
+            ):
+                # Turn casts from json->array<T> into json->array<json>
+                # and array<json>->array<T>.
+                ctx.env.schema, json_array_typ = s_types.Array.from_subtypes(
+                    ctx.env.schema, [json_t]
+                )
+                json_array_ir = compile_cast(
+                    ir_expr,
+                    json_array_typ,
+                    cardinality_mod=cardinality_mod,
+                    srcctx=srcctx,
+                    ctx=ctx,
+                )
+                return compile_cast(
+                    json_array_ir, new_stype, srcctx=srcctx, ctx=ctx
+                )
 
-        if orig_stype.issubclass(ctx.env.schema, json_t) and isinstance(
-            new_stype, s_types.Tuple
-        ):
-            return _cast_json_to_tuple(
-                ir_set,
-                orig_stype,
-                new_stype,
-                cardinality_mod,
-                srcctx=srcctx,
-                ctx=ctx,
-            )
+            if isinstance(new_stype, s_types.Tuple):
+                return _cast_json_to_tuple(
+                    ir_set,
+                    orig_stype,
+                    new_stype,
+                    cardinality_mod,
+                    srcctx=srcctx,
+                    ctx=ctx,
+                )
 
-        if orig_stype.issubclass(ctx.env.schema, json_t) and isinstance(
-            new_stype, s_types.Range
-        ):
-            return _cast_json_to_range(
-                ir_set,
-                orig_stype,
-                new_stype,
-                cardinality_mod,
-                srcctx=srcctx,
-                ctx=ctx,
-            )
+            if isinstance(new_stype, s_types.Range):
+                return _cast_json_to_range(
+                    ir_set,
+                    orig_stype,
+                    new_stype,
+                    cardinality_mod,
+                    srcctx=srcctx,
+                    ctx=ctx,
+                )
 
     # Constraints and indexes require an immutable expression, but pg cast is
     # only stable. In this specific case, we use cast wrapper function that
