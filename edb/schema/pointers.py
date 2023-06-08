@@ -1548,7 +1548,7 @@ class PointerCommandOrFragment(
             # cannot have defaults that reference the object being inserted
             should_set_path_prefix_anchor = True
             if field.name == 'default':
-                # we are checking if the parent context is a pointer 
+                # we are checking if the parent context is a pointer
                 # (i.e. a link or a property). If so, do not set the
                 # path prefix anchor
                 parent_ctx = self.get_referrer_context_or_die(context)
