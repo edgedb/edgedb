@@ -76,15 +76,9 @@ fn hash(text: &str) -> [u8; 64] {
 
 pub fn normalize(text: &str) -> Result<Entry, Error> {
     let mut token_stream = Tokenizer::new(text).validated_values();
-    let mut tokens = Vec::new();
-    for res in &mut token_stream {
-        match res {
-            Ok(t) => tokens.push(Token::from(t)),
-            Err(e) => {
-                return Err(Error::Tokenizer(e.message, token_stream.current_pos()));
-            }
-        }
-    }
+    let tokens = (&mut token_stream)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| Error::Tokenizer(e.message, e.span.start))?;
     let end_pos = token_stream.current_pos();
     let (named_args, var_idx) = match scan_vars(&tokens) {
         Some(pair) => pair,

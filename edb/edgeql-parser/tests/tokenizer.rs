@@ -8,7 +8,7 @@ fn tok_str(s: &str) -> Vec<String> {
         match s.next() {
             Some(Ok(x)) => r.push(x.text.to_string()),
             None => break,
-            Some(Err(e)) => panic!("Parse error at {}: {}", s.current_pos(), e.message),
+            Some(Err(e)) => panic!("Parse error at {}: {}", e.span.start, e.message),
         }
     }
     return r;
@@ -21,7 +21,7 @@ fn tok_typ(s: &str) -> Vec<Kind> {
         match s.next() {
             Some(Ok(x)) => r.push(x.kind),
             None => break,
-            Some(Err(e)) => panic!("Parse error at {}: {}", s.current_pos(), e.message),
+            Some(Err(e)) => panic!("Parse error at {}: {}", e.span.start, e.message),
         }
     }
     return r;

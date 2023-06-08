@@ -5,7 +5,7 @@ use bigdecimal::BigDecimal;
 
 use crate::helpers::{unquote_bytes, unquote_string};
 use crate::position::Pos;
-use crate::tokenizer::{Error, Kind, Token, Value, Tokenizer, MAX_KEYWORD_LENGTH};
+use crate::tokenizer::{Error, Kind, Token, Tokenizer, Value, MAX_KEYWORD_LENGTH};
 
 /// Applies additional validation to the tokens.
 /// Combines multi-word keywords into single tokens.
@@ -52,15 +52,21 @@ impl<'a> Validator<'a> {
     /// Mimics behavior of [std::iter::Peekable]. We could use that, but it
     /// hides access to underlying iterator.
     fn next_inner(&mut self) -> Option<Result<Token<'a>, Error>> {
-        let res = if let Some(peeked) = self.peeked.take() {
+        if let Some(peeked) = self.peeked.take() {
             peeked
         } else {
             self.inner.next()
-        };
+        }
+    }
 
-        self.peeked = Some(self.inner.next());
+    /// Mimics behavior of [std::iter::Peekable]. We could use that, but it
+    /// hides access to underlying iterator.
+    fn peek(&mut self) -> &Option<Result<Token<'a>, Error>> {
+        if self.peeked.is_none() {
+            self.peeked = Some(self.inner.next());
+        }
 
-        res
+        self.peeked.as_ref().unwrap()
     }
 
     pub fn current_pos(&self) -> Pos {
@@ -81,19 +87,37 @@ impl<'a> Validator<'a> {
         self.keyword_buf.push_str(&text);
         self.keyword_buf.make_ascii_lowercase();
         match &self.keyword_buf[..] {
-            "named" if self.peek_keyword("only") => Some("named only"),
-            "set" if self.peek_keyword("annotation") => Some("set annotation"),
-            "set" if self.peek_keyword("type") => Some("set type"),
-            "extension" if self.peek_keyword("package") => Some("extension package"),
-            "order" if self.peek_keyword("by") => Some("order by"),
-            _ => None,
+            "named" => {
+                if self.peek_keyword("only") {
+                    return Some("named only");
+                }
+            }
+            "set" => {
+                if self.peek_keyword("annotation") {
+                    return Some("set annotation");
+                }
+                if self.peek_keyword("type") {
+                    return Some("set type");
+                }
+            }
+            "extension" => {
+                if self.peek_keyword("package") {
+                    return Some("extension package");
+                }
+            }
+            "order" => {
+                if self.peek_keyword("by") {
+                    return Some("order by");
+                }
+            }
+            _ => {}
         }
+        return None;
     }
 
-    fn peek_keyword(&self, kw: &str) -> bool {
-        self.peeked
+    fn peek_keyword(&mut self, kw: &str) -> bool {
+        self.peek()
             .as_ref()
-            .and_then(|x| x.as_ref())
             .and_then(|res| res.as_ref().ok())
             .map(|t| {
                 (t.kind == Kind::Ident || t.kind == Kind::Keyword)
