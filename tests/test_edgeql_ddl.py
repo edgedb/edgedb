@@ -12357,6 +12357,19 @@ type default::Foo {
             };
         """)
 
+    async def test_edgeql_ddl_abstract_index_01(self):
+        for _ in range(2):
+            await self.con.execute('''
+                create abstract index test(
+                    named only lists: int64
+                ) {
+                    set code := ' ((__col__) NULLS FIRST)';
+                };
+            ''')
+            await self.con.execute('''
+                drop abstract index test;
+            ''')
+
     async def test_edgeql_ddl_errors_01(self):
         await self.con.execute('''
             CREATE TYPE Err1 {
@@ -15775,6 +15788,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
           set sql_extensions := [];
           create module varchar;
           create scalar type varchar::varchar {
+            create annotation std::description := 'why are we doing this';
             set id := <uuid>'26dc1396-0196-11ee-a005-ad0eaed0df03';
             set sql_type := "varchar";
             set sql_type_scheme := "varchar({__arg_0__})";
@@ -15789,6 +15803,13 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             SET volatility := 'Immutable';
             USING SQL CAST;
           };
+
+          create abstract index varchar::with_param(
+              named only lists: int64
+          ) {
+              set code := ' ((__col__) NULLS FIRST)';
+          };
+
         };
         ''')
         try:
