@@ -693,7 +693,16 @@ def prepare_patch(
 
     updates: dict[str, Any] = {}
 
-    if kind == 'edgeql' or kind.startswith('edgeql+schema'):
+    global_schema_update = kind == 'ext-pkg'
+
+    if kind == 'ext-pkg':
+        patch = s_std.get_std_module_text(sn.UnqualName(f'ext/{patch}'))
+
+    if (
+        kind == 'edgeql'
+        or kind == 'ext-pkg'
+        or kind.startswith('edgeql+schema')
+    ):
         for ddl_cmd in edgeql.parse_block(patch):
             assert isinstance(ddl_cmd, qlast.DDLCommand)
             # First apply it to the regular schema, just so we can update
@@ -817,10 +826,11 @@ def prepare_patch(
         debug.header('Patch Script')
         debug.dump_code(patch, lexer='sql')
 
-    updates.update(dict(
-        stdschema=schema,
-        reflschema=reflschema,
-    ))
+    if not global_schema_update:
+        updates.update(dict(
+            stdschema=schema,
+            reflschema=reflschema,
+        ))
 
     bins = ('stdschema', 'reflschema', 'global_schema', 'classlayout')
     # Just for the system database, we need to update the cached pickle
@@ -847,7 +857,17 @@ def prepare_patch(
                 DO UPDATE SET text = {val};
             ''',)
 
-    return (patch, update), sys_updates, updates, False
+    # If we're updating the global schema (for extension packages,
+    # perhaps), only run the script once, on the system connection.
+    # Since the state is global, we only should update it once.
+    regular_updates: tuple[str, ...]
+    if global_schema_update:
+        regular_updates = (patch,)
+        sys_updates = (update,) + sys_updates
+    else:
+        regular_updates = (patch, update)
+
+    return regular_updates, sys_updates, updates, False
 
 
 class StdlibBits(NamedTuple):
