@@ -104,8 +104,6 @@ def compile_cast(
     ):
         return _find_object_by_id(ir_expr, new_stype, ctx=ctx)
 
-    json_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'json'))
-
     if isinstance(ir_set.expr, irast.Array):
         return _cast_array_literal(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
@@ -145,6 +143,8 @@ def compile_cast(
             ir_set, orig_stype, new_stype,
             cardinality_mod=cardinality_mod, ctx=ctx)
 
+    json_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'json'))
+
     if (
         new_stype.issubclass(ctx.env.schema, json_t)
         and ir_set.path_id.is_objtype_path()
@@ -153,16 +153,24 @@ def compile_cast(
         # and not just an identity.
         viewgen.late_compile_view_shapes(ir_set, ctx=ctx)
     else:
-        if orig_stype.issubclass(ctx.env.schema, json_t) and new_stype.is_enum(
-            ctx.env.schema
+
+        # Casts from json to other types that have special handling.
+        # So we turn it into json->str and str->x.
+        if (
+            orig_stype.issubclass(ctx.env.schema, json_t)
+            and (
+                new_stype.is_enum(ctx.env.schema)
+                or (
+                    isinstance(new_stype, s_scalars.ScalarType)
+                    and not new_stype.get_builtin(ctx.env.schema)
+                )
+            )
         ):
-            # Casts from json to enums need some special handling
-            # here, where we have access to the enum type. Just turn
-            # it into json->str and str->enum.
             str_typ = ctx.env.get_schema_type_and_track(
                 sn.QualName('std', 'str')
             )
             str_ir = compile_cast(ir_expr, str_typ, srcctx=srcctx, ctx=ctx)
+
             return compile_cast(
                 str_ir,
                 new_stype,
