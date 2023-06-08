@@ -15646,7 +15646,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         ''')
 
         await self.con.execute('''
-            create scalar type vc5 extending varchar::varchar<5>;
+            create scalar type vc5 extending ext::varchar::varchar<5>;
             create type X {
                 create property foo: vc5;
             };
@@ -15656,13 +15656,13 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             '''
                 describe scalar type vc5;
             ''',
-            ['create scalar type default::vc5 extending varchar::varchar<5>;'],
+            ['create scalar type default::vc5 extending ext::varchar::varchar<5>;'],
         )
         await self.assert_query_result(
             '''
                 describe scalar type vc5 as sdl;
             ''',
-            ['scalar type default::vc5 extending varchar::varchar<5>;'],
+            ['scalar type default::vc5 extending ext::varchar::varchar<5>;'],
         )
 
         await self.assert_query_result(
@@ -15698,7 +15698,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             "invalid scalar type argument",
         ):
             await self.con.execute('''
-                create scalar type fail extending varchar::varchar<foo>;
+                create scalar type fail extending ext::varchar::varchar<foo>;
             ''')
 
         async with self.assertRaisesRegexTx(
@@ -15714,12 +15714,12 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             "incorrect number of arguments",
         ):
             await self.con.execute('''
-                create scalar type yyy extending varchar::varchar<1, 2>;
+                create scalar type yyy extending ext::varchar::varchar<1, 2>;
             ''')
 
         # If no params are specified, it just makes a normal scalar type
         await self.con.execute('''
-            create scalar type vc extending varchar::varchar {
+            create scalar type vc extending ext::varchar::varchar {
                 create constraint expression on (false);
             };
         ''')
@@ -15736,7 +15736,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             START MIGRATION TO {
                 using extension varchar version "1.0";
                 module default {
-                    scalar type vc5 extending varchar::varchar<5>;
+                    scalar type vc5 extending ext::varchar::varchar<5>;
                     type X {
                         foo: vc5;
                     };
@@ -15784,10 +15784,10 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         # Make an extension that wraps some of varchar
         await self.con.execute('''
         create extension package varchar VERSION '1.0' {
-          set ext_module := "varchar";
+          set ext_module := "ext::varchar";
           set sql_extensions := [];
-          create module varchar;
-          create scalar type varchar::varchar {
+          create module ext::varchar;
+          create scalar type ext::varchar::varchar {
             create annotation std::description := 'why are we doing this';
             set id := <uuid>'26dc1396-0196-11ee-a005-ad0eaed0df03';
             set sql_type := "varchar";
@@ -15795,23 +15795,23 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             set num_params := 1;
           };
 
-          create cast from varchar::varchar to std::str {
+          create cast from ext::varchar::varchar to std::str {
             SET volatility := 'Immutable';
             USING SQL CAST;
           };
-          create cast from std::str to varchar::varchar {
+          create cast from std::str to ext::varchar::varchar {
             SET volatility := 'Immutable';
             USING SQL CAST;
           };
           # This is meaningless but I need to test having an array in a cast.
-          create cast from varchar::varchar to array<std::float32> {
+          create cast from ext::varchar::varchar to array<std::float32> {
             SET volatility := 'Immutable';
             USING SQL $$
               select array[0.0]
             $$
           };
 
-          create abstract index varchar::with_param(
+          create abstract index ext::varchar::with_param(
               named only lists: int64
           ) {
               set code := ' ((__col__) NULLS FIRST)';
