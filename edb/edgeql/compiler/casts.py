@@ -154,7 +154,10 @@ def compile_cast(
     elif orig_stype.issubclass(ctx.env.schema, json_t):
         if (
             new_stype.is_enum(ctx.env.schema)
-            or not _is_topmost_concrete_scalar(new_stype, ctx)
+            or (
+                isinstance(new_stype, s_scalars.ScalarType)
+                and not new_stype.get_builtin(ctx.env.schema)
+            )
         ):
             # Casts from json to may have special handling.
             # So we turn it into json->str and str->x.
@@ -251,17 +254,6 @@ def _has_common_concrete_scalar(
         and (orig_base := orig_stype.maybe_get_topmost_concrete_base(schema))
         and (new_base := new_stype.maybe_get_topmost_concrete_base(schema))
         and orig_base == new_base
-    )
-
-
-def _is_topmost_concrete_scalar(
-    stype: s_types.Type,
-    ctx: context.ContextLevel
-) -> bool:
-    return bool(
-        isinstance(stype, s_scalars.ScalarType)
-        and (base := stype.maybe_get_topmost_concrete_base(ctx.env.schema))
-        and base == stype
     )
 
 
