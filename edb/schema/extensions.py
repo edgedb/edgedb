@@ -388,6 +388,13 @@ class DeleteExtension(
             include_extensions=True,
             linearize_delta=True,
         )
-        self.update(delta.get_subcommands())
+        # delta_schemas claims everything is canonical, because all
+        # objects should be present, and its main audience is dumping
+        # it out as an AST. But the results will be filled with
+        # shells, which we need to get rid of in order for certain
+        # reflection things to work (annotations, for one).
+        for sub in delta.get_subcommands(type=sd.ObjectCommand):
+            schema = sub.canonicalize_attributes_recursively(schema, context)
+            self.add(sub)
 
         return schema
