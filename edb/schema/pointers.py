@@ -1439,7 +1439,7 @@ class PointerCommandOrFragment(
         no_query_rewrites: bool = False,
         make_globals_empty: bool = False,
         source_context: Optional[parsing.ParserContext] = None,
-        should_set_path_prefix_anchor: bool = True,
+        should_set_path_prefix_anchor: bool = True
     ) -> s_expr.CompiledExpression:
         singletons: List[Union[s_types.Type, Pointer]] = []
 
@@ -1548,16 +1548,12 @@ class PointerCommandOrFragment(
             # cannot have defaults that reference the object being inserted
             should_set_path_prefix_anchor = True
             if field.name == 'default':
-                from .objtypes import ObjectTypeCommandContext
-                from .links import LinkCommandContext
-                from .properties import PropertyCommandContext
-                if (len(context.stack) >= 3 and
-                    isinstance(context.stack[-3],
-                               ObjectTypeCommandContext) and
-                    isinstance(context.stack[-2],
-                               LinkCommandContext) and
-                    isinstance(context.stack[-1],
-                               PropertyCommandContext)):
+                # we are checking if the parent context is a pointer 
+                # (i.e. a link or a property). If so, do not set the
+                # path prefix anchor
+                parent_ctx = self.get_referrer_context_or_die(context)
+                source = parent_ctx.op.get_object(schema, context)
+                if (isinstance(source, Pointer)):
                     should_set_path_prefix_anchor = False
 
             return self._compile_expr(
