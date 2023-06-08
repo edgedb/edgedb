@@ -1,5 +1,5 @@
 use crate::position::Pos;
-use crate::tokenizer::TokenStream;
+use crate::tokenizer::Tokenizer;
 use crate::tokenizer;
 
 
@@ -56,7 +56,7 @@ pub fn validate(text: &str) -> Result<(), SchemaFileError> {
     use SchemaFileError::*;
     use tokenizer::Kind::*;
 
-    let mut token_stream = TokenStream::new(text);
+    let mut token_stream = Tokenizer::new(text);
     let mut brackets = Vec::new();
     loop {
         let pos = token_stream.current_pos();

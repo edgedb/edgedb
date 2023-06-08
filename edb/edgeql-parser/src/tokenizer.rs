@@ -4,7 +4,8 @@ use std::str::CharIndices;
 
 use memchr::memmem::find;
 
-use crate::{Error, CowToken};
+use crate::validation::Validator;
+use crate::{Error, Token};
 use crate::position::{Pos, Span};
 
 
@@ -68,35 +69,28 @@ pub enum Kind {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct Token<'a> {
+struct TokenStub<'a> {
     pub kind: Kind,
     pub text: &'a str,
 }
 
-#[derive(Debug, Clone)]
-pub struct SpannedToken<'a> {
-    pub token: Token<'a>,
-    pub start: Pos,
-    pub end: Pos,
-}
-
 #[derive(Debug, PartialEq)]
-pub struct TokenStream<'a> {
+pub struct Tokenizer<'a> {
     buf: &'a str,
     position: Pos,
     off: usize,
     dot: bool,
-    next_state: Option<(usize, Token<'a>, usize, Pos, Pos)>,
+    next_state: Option<(usize, TokenStub<'a>, usize, Pos, Pos)>,
     keyword_buf: String,
 }
 
-impl<'a> Iterator for TokenStream<'a> {
-    type Item = Result<CowToken<'a>, Error>;
+impl<'a> Iterator for Tokenizer<'a> {
+    type Item = Result<Token<'a>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let start = self.current_pos();
 
-        Some(self.read_token()?.map(|(token, end)| CowToken {
+        Some(self.read_token()?.map(|(token, end)| Token {
             kind: token.kind,
             text: token.text.into(),
             value: None,
@@ -109,9 +103,9 @@ impl<'a> Iterator for TokenStream<'a> {
     }
 }
 
-impl<'a> TokenStream<'a> {
-    pub fn new(s: &str) -> TokenStream {
-        let mut me = TokenStream {
+impl<'a> Tokenizer<'a> {
+    pub fn new(s: &str) -> Tokenizer {
+        let mut me = Tokenizer {
             buf: s,
             position: Pos { line: 1, column: 1, offset: 0 },
             off: 0,
@@ -128,8 +122,8 @@ impl<'a> TokenStream<'a> {
     /// Start stream a with a modified position
     ///
     /// Note: we assume that the current position is at the start of slice `s`
-    pub fn new_at(s: &str, position: Pos) -> TokenStream {
-        let mut me = TokenStream {
+    pub fn new_at(s: &str, position: Pos) -> Tokenizer {
+        let mut me = Tokenizer {
             buf: s,
             position,
             off: 0,
@@ -141,12 +135,16 @@ impl<'a> TokenStream<'a> {
         me
     }
 
+    pub fn validated_values(self) -> Validator<'a> {
+        Validator::new(self)
+    }
+
     pub fn current_pos(&self) -> Pos {
         self.position
     }
 
-    pub(super) fn read_token(&mut self)
-        -> Option<Result<(Token<'a>, Pos), Error>>
+    fn read_token(&mut self)
+        -> Option<Result<(TokenStub<'a>, Pos), Error>>
     {
         // This quickly resets the stream one token back
         // (the most common reset that used quite often)
@@ -172,7 +170,7 @@ impl<'a> TokenStream<'a> {
         let end = self.position;
 
         self.skip_whitespace();
-        let token = Token { kind, text: value };
+        let token = TokenStub { kind, text: value };
         // This is for quick reset on token back
         self.next_state = Some((old_pos, token, self.off, end, self.position));
         Some(Ok((token, end)))
@@ -815,7 +813,7 @@ impl<'a> TokenStream<'a> {
     }
 }
 
-impl<'a> fmt::Display for Token<'a> {
+impl<'a> fmt::Display for TokenStub<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}[{:?}]", self.text, self.kind)
     }

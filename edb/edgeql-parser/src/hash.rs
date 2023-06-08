@@ -1,6 +1,6 @@
 use sha2::digest::Digest;
 
-use crate::tokenizer::TokenStream;
+use crate::tokenizer::Tokenizer;
 use crate::position::Pos;
 
 #[derive(Debug, Clone)]
@@ -25,7 +25,7 @@ impl Hasher {
         return me;
     }
     pub fn add_source(&mut self, data: &str) -> Result<&mut Self, Error> {
-        let mut parser = &mut TokenStream::new(data);
+        let mut parser = &mut Tokenizer::new(data);
         for token in &mut parser {
             let token = match token {
                 Ok(t) => t,

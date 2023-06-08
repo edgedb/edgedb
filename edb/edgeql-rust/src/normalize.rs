@@ -1,8 +1,8 @@
 use std::collections::BTreeSet;
 
-use edgeql_parser::tokenizer::Kind;
+use edgeql_parser::tokenizer::{Kind, Tokenizer};
 use edgeql_parser::position::{Pos, Span};
-use edgeql_parser::{CowToken, TokenValue, TokenStream2};
+use edgeql_parser::{Token, TokenValue};
 
 use num_bigint::{BigInt};
 use bigdecimal::BigDecimal;
@@ -26,7 +26,7 @@ pub struct Variable {
 pub struct Entry<'a> {
     pub processed_source: String,
     pub hash: [u8; 64],
-    pub tokens: Vec<CowToken<'a>>,
+    pub tokens: Vec<Token<'a>>,
     pub variables: Vec<Vec<Variable>>,
     pub end_pos: Pos,
     pub named_args: bool,
@@ -39,23 +39,23 @@ pub enum Error {
     Assertion(String, Pos),
 }
 
-fn push_var<'x>(res: &mut Vec<CowToken<'x>>, module: &'x str, typ: &'x str,
+fn push_var<'x>(res: &mut Vec<Token<'x>>, module: &'x str, typ: &'x str,
     var: String, span: Span)
 {
-    res.push(CowToken {kind: Kind::OpenParen, text: "(".into(), span, value: None});
-    res.push(CowToken {kind: Kind::Less, text: "<".into(), span, value: None});
-    res.push(CowToken {kind: Kind::Ident, text: module.into(), span, value: None});
-    res.push(CowToken {kind: Kind::Namespace, text: "::".into(), span, value: None});
-    res.push(CowToken {kind: Kind::Ident, text: typ.into(), span,
+    res.push(Token {kind: Kind::OpenParen, text: "(".into(), span, value: None});
+    res.push(Token {kind: Kind::Less, text: "<".into(), span, value: None});
+    res.push(Token {kind: Kind::Ident, text: module.into(), span, value: None});
+    res.push(Token {kind: Kind::Namespace, text: "::".into(), span, value: None});
+    res.push(Token {kind: Kind::Ident, text: typ.into(), span,
         value: Some(TokenValue::String(typ.to_string())),
     });
-    res.push(CowToken {kind: Kind::Greater, text: ">".into(), span, value: None});
-    res.push(CowToken {kind: Kind::Argument, text: var.into(), span, value: None});
-    res.push(CowToken {kind: Kind::CloseParen, text: ")".into(), span, value: None});
+    res.push(Token {kind: Kind::Greater, text: ">".into(), span, value: None});
+    res.push(Token {kind: Kind::Argument, text: var.into(), span, value: None});
+    res.push(Token {kind: Kind::CloseParen, text: ")".into(), span, value: None});
 }
 
 fn scan_vars<'x, 'y: 'x, I>(tokens: I) -> Option<(bool, usize)>
-    where I: IntoIterator<Item=&'x CowToken<'y>>,
+    where I: IntoIterator<Item=&'x Token<'y>>,
 {
     let mut max_visited = None::<usize>;
     let mut names = BTreeSet::new();
@@ -88,11 +88,11 @@ fn hash(text: &str) -> [u8; 64] {
 }
 
 pub fn normalize(text: &str) -> Result<Entry, Error> {
-    let mut token_stream = TokenStream2::new(text);
+    let mut token_stream = Tokenizer::new(text).validated_values();
     let mut tokens = Vec::new();
     for res in &mut token_stream {
         match res {
-            Ok(t) => tokens.push(CowToken::from(t)),
+            Ok(t) => tokens.push(Token::from(t)),
             Err(e) => {
                 return Err(Error::Tokenizer(e.message, token_stream.current_pos()));
             }
@@ -135,11 +135,11 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
             Kind::IntConst
             // Don't replace `.12` because this is a tuple access
             if !matches!(rewritten_tokens.last(),
-                Some(CowToken { kind: Kind::Dot, .. }))
+                Some(Token { kind: Kind::Dot, .. }))
             // Don't replace 'LIMIT 1' as a special case
             && (tok.text != "1"
                 || !matches!(rewritten_tokens.last(),
-                    Some(CowToken { kind: Kind::Keyword, ref text, .. })
+                    Some(Token { kind: Kind::Keyword, ref text, .. })
                     if text.eq_ignore_ascii_case("LIMIT")))
             && tok.text != "9223372036854775808"
             => {
@@ -240,7 +240,7 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
     });
 }
 
-fn is_operator(token: &CowToken) -> bool {
+fn is_operator(token: &Token) -> bool {
     use edgeql_parser::tokenizer::Kind::*;
     match token.kind {
         | Assign
@@ -296,7 +296,7 @@ fn is_operator(token: &CowToken) -> bool {
     }
 }
 
-fn serialize_tokens(tokens: &[CowToken<'_>]) -> String {
+fn serialize_tokens(tokens: &[Token<'_>]) -> String {
     use edgeql_parser::tokenizer::Kind::Argument;
 
     let mut buf = String::new();
@@ -314,11 +314,11 @@ fn serialize_tokens(tokens: &[CowToken<'_>]) -> String {
 #[cfg(test)]
 mod test {
     use super::scan_vars;
-    use edgeql_parser::{TokenStream2, CowToken};
+    use edgeql_parser::{Token, tokenizer::Tokenizer};
 
-    fn tokenize<'x>(s: &'x str) -> Vec<CowToken<'x>> {
+    fn tokenize<'x>(s: &'x str) -> Vec<Token<'x>> {
         let mut r = Vec::new();
-        let mut s = TokenStream2::new(s);
+        let mut s = Tokenizer::new(s);
         loop {
             match s.next() {
                 Some(Ok(x)) => r.push(x.into()),

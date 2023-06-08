@@ -4,9 +4,9 @@ use cpython::{PyString, PyResult, Python, PyClone, PythonObject};
 use cpython::{PyTuple, PyList, PyObject, ToPyObject, ObjectProtocol};
 use cpython::{FromPyObject};
 
-use edgeql_parser::tokenizer::{Kind, is_keyword};
+use edgeql_parser::tokenizer::{Kind, is_keyword, Tokenizer};
 use edgeql_parser::tokenizer::{MAX_KEYWORD_LENGTH};
-use edgeql_parser::{CowToken, TokenStream2};
+use edgeql_parser::{Token as PToken};
 use edgeql_parser::position::Pos;
 use edgeql_parser::keywords::{PARTIAL_RESERVED_KEYWORDS, UNRESERVED_KEYWORDS};
 use edgeql_parser::keywords::{CURRENT_RESERVED_KEYWORDS};
@@ -181,7 +181,7 @@ pub fn _unpickle_token(py: Python,
 pub fn tokenize(py: Python, s: &PyString) -> PyResult<PyList> {
     let data = s.to_string(py)?;
 
-    let mut token_stream = TokenStream2::new(&data[..]);
+    let mut token_stream = Tokenizer::new(&data[..]).validated_values();
     let rust_tokens: Vec<_> = py.allow_threads(|| {
         (&mut token_stream).collect::<Result<_, _>>()
     }).map_err(|e| {
@@ -190,7 +190,7 @@ pub fn tokenize(py: Python, s: &PyString) -> PyResult<PyList> {
     return convert_tokens(py, rust_tokens, token_stream.current_pos());
 }
 
-pub fn convert_tokens(py: Python, rust_tokens: Vec<CowToken<'_>>,
+pub fn convert_tokens(py: Python, rust_tokens: Vec<PToken<'_>>,
     end_pos: Pos)
     -> PyResult<PyList>
 {
@@ -336,7 +336,7 @@ fn get_token_kind_and_name(
     py: Python,
     tokens: &Tokens,
     cache: &mut Cache,
-    token: &CowToken,
+    token: &PToken,
 ) -> (PyString, PyString) {
     use Kind::*;
     let text = &token.text[..];

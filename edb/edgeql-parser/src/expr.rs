@@ -1,5 +1,5 @@
 use crate::position::Pos;
-use crate::tokenizer::{Kind, TokenStream};
+use crate::tokenizer::{Kind, self};
 
 /// Error of expression checking
 ///
@@ -69,7 +69,7 @@ pub fn check(text: &str) -> Result<(), Error> {
     use Error::*;
 
     let mut brackets = Vec::new();
-    let mut parser = &mut TokenStream::new(text);
+    let mut parser = &mut tokenizer::Tokenizer::new(text);
     let mut empty = true;
     for token in &mut parser {
         let token = match token {
