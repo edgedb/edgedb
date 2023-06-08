@@ -15803,6 +15803,13 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             SET volatility := 'Immutable';
             USING SQL CAST;
           };
+          # This is meaningless but I need to test having an array in a cast.
+          create cast from varchar::varchar to array<std::float32> {
+            SET volatility := 'Immutable';
+            USING SQL $$
+              select array[0.0]
+            $$
+          };
 
           create abstract index varchar::with_param(
               named only lists: int64

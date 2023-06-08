@@ -927,6 +927,31 @@ class Collection(Type, s_abc.Collection):
             _collection_impls[schema_name] = cls
             cls._schema_name = schema_name
 
+    def as_create_delta(
+        self: CollectionTypeT,
+        schema: s_schema.Schema,
+        context: so.ComparisonContext,
+    ) -> sd.ObjectCommand[CollectionTypeT]:
+        delta = super().as_create_delta(schema=schema, context=context)
+        assert isinstance(delta, sd.CreateObject)
+        if not isinstance(self, CollectionExprAlias):
+            delta.if_not_exists = True
+        return delta
+
+    def as_delete_delta(
+        self: CollectionTypeT,
+        *,
+        schema: s_schema.Schema,
+        context: so.ComparisonContext,
+    ) -> sd.ObjectCommand[CollectionTypeT]:
+        delta = super().as_delete_delta(schema=schema, context=context)
+        assert isinstance(delta, sd.DeleteObject)
+        if not isinstance(self, CollectionExprAlias):
+            delta.if_exists = True
+            delta.if_unused = True
+            delta.canonical = False
+        return delta
+
     @classmethod
     def get_displayname_static(cls, name: s_name.Name) -> str:
         if isinstance(name, s_name.QualName):
