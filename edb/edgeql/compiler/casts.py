@@ -152,22 +152,14 @@ def compile_cast(
         # and not just an identity.
         viewgen.late_compile_view_shapes(ir_set, ctx=ctx)
     elif orig_stype.issubclass(ctx.env.schema, json_t):
-        if (
-            new_stype.is_enum(ctx.env.schema)
-            or (
-                isinstance(new_stype, s_scalars.ScalarType)
-                and not new_stype.get_builtin(ctx.env.schema)
-            )
-        ):
-            # Casts from json to may have special handling.
-            # So we turn it into json->str and str->x.
-            str_typ = ctx.env.get_schema_type_and_track(
-                sn.QualName('std', 'str')
-            )
-            str_ir = compile_cast(ir_expr, str_typ, srcctx=srcctx, ctx=ctx)
+
+        if base_stype := _get_concrete_scalar_base(new_stype, ctx):
+            # Casts from json to custom scalars may have special handling.
+            # So we turn the type cast json->x into json->base and base->x.
+            base_ir = compile_cast(ir_expr, base_stype, srcctx=srcctx, ctx=ctx)
 
             return compile_cast(
-                str_ir,
+                base_ir,
                 new_stype,
                 cardinality_mod=cardinality_mod,
                 srcctx=srcctx,
@@ -255,6 +247,23 @@ def _has_common_concrete_scalar(
         and (new_base := new_stype.maybe_get_topmost_concrete_base(schema))
         and orig_base == new_base
     )
+
+
+def _get_concrete_scalar_base(
+    stype: s_types.Type,
+    ctx: context.ContextLevel
+) -> Optional[s_types.Type]:
+    """Returns None if stype is not scalar or if it is already topmost"""
+
+    if stype.is_enum(ctx.env.schema):
+        return ctx.env.get_schema_type_and_track(sn.QualName('std', 'str'))
+
+    if not isinstance(stype, s_scalars.ScalarType):
+        return None
+    if topmost := stype.maybe_get_topmost_concrete_base(ctx.env.schema):
+        if topmost != stype:
+            return topmost
+    return None
 
 
 def _compile_cast(
