@@ -74,7 +74,7 @@ pub fn check(text: &str) -> Result<(), Error> {
     for token in &mut parser {
         let token = match token {
             Ok(t) => t,
-            Err(crate::Error { message, .. }) => {
+            Err(crate::tokenizer::Error { message, .. }) => {
                 return Err(Tokenizer(message, parser.current_pos()));
             }
         };

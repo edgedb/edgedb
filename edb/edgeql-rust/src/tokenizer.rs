@@ -4,9 +4,8 @@ use cpython::{PyString, PyResult, Python, PyClone, PythonObject};
 use cpython::{PyTuple, PyList, PyObject, ToPyObject, ObjectProtocol};
 use cpython::{FromPyObject};
 
-use edgeql_parser::tokenizer::{Kind, is_keyword, Tokenizer};
+use edgeql_parser::tokenizer::{Kind, is_keyword, Tokenizer, Token as PToken};
 use edgeql_parser::tokenizer::{MAX_KEYWORD_LENGTH};
-use edgeql_parser::{Token as PToken};
 use edgeql_parser::position::Pos;
 use edgeql_parser::keywords::{PARTIAL_RESERVED_KEYWORDS, UNRESERVED_KEYWORDS};
 use edgeql_parser::keywords::{CURRENT_RESERVED_KEYWORDS};

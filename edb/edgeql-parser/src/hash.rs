@@ -29,7 +29,7 @@ impl Hasher {
         for token in &mut parser {
             let token = match token {
                 Ok(t) => t,
-                Err(crate::Error { message, .. }) => {
+                Err(crate::tokenizer::Error { message, .. }) => {
                     return Err(Error::Tokenizer(
                         message, parser.current_pos()));
                 }

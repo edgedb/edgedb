@@ -9,7 +9,7 @@ use bytes::{BufMut, Bytes, BytesMut};
 use edgedb_protocol::codec;
 use edgedb_protocol::model::{BigInt, Decimal};
 use edgeql_parser::position::Pos;
-use edgeql_parser::TokenValue;
+use edgeql_parser::tokenizer::Value;
 
 use crate::errors::TokenizerError;
 use crate::normalize::{normalize as _normalize, Error, Variable};
@@ -75,36 +75,36 @@ pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
         let pos = buf.len();
         buf.put_u32(0); // replaced after serializing a value
         match var.value {
-            TokenValue::Int(v) => {
+            Value::Int(v) => {
                 codec::Int64
                     .encode(&mut buf, &P::Int64(v as i64))
                     .map_err(|e| format!("int cannot be encoded: {}", e))?;
             }
-            TokenValue::String(ref v) => {
+            Value::String(ref v) => {
                 codec::Str
                     .encode(&mut buf, &P::Str(v.clone()))
                     .map_err(|e| format!("str cannot be encoded: {}", e))?;
             }
-            TokenValue::Float(ref v) => {
+            Value::Float(ref v) => {
                 codec::Float64
                     .encode(&mut buf, &P::Float64(v.clone()))
                     .map_err(|e| format!("float cannot be encoded: {}", e))?;
             }
-            TokenValue::BigInt(ref v) => {
+            Value::BigInt(ref v) => {
                 let val = BigInt::try_from(v.clone())
                     .map_err(|e| format!("bigint cannot be encoded: {}", e))?;
                 codec::BigInt
                     .encode(&mut buf, &P::BigInt(val))
                     .map_err(|e| format!("bigint cannot be encoded: {}", e))?;
             }
-            TokenValue::Decimal(ref v) => {
+            Value::Decimal(ref v) => {
                 let val = Decimal::try_from(v.clone())
                     .map_err(|e| format!("decimal cannot be encoded: {}", e))?;
                 codec::Decimal
                     .encode(&mut buf, &P::Decimal(val))
                     .map_err(|e| format!("decimal cannot be encoded: {}", e))?;
             }
-            TokenValue::Bytes(_) => {
+            Value::Bytes(_) => {
                 // bytes literals should not be extracted during normalization
                 unreachable!()
             }
@@ -165,16 +165,16 @@ pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
     }
 }
 
-pub fn value_to_py_object(py: Python, val: &TokenValue) -> PyResult<PyObject> {
+pub fn value_to_py_object(py: Python, val: &Value) -> PyResult<PyObject> {
     Ok(match val {
-        TokenValue::Int(v) => v.to_py_object(py).into_object(),
-        TokenValue::String(v) => v.to_py_object(py).into_object(),
-        TokenValue::Float(v) => v.to_py_object(py).into_object(),
-        TokenValue::BigInt(v) => {
+        Value::Int(v) => v.to_py_object(py).into_object(),
+        Value::String(v) => v.to_py_object(py).into_object(),
+        Value::Float(v) => v.to_py_object(py).into_object(),
+        Value::BigInt(v) => {
             py.get_type::<PyInt>()
                 .call(py, (v.to_str_radix(16), 16.to_py_object(py)), None)?
         }
-        TokenValue::Decimal(v) => py.get_type::<PyFloat>().call(py, (v.to_string(),), None)?,
-        TokenValue::Bytes(v) => PyBytes::new(py, v).into_object(),
+        Value::Decimal(v) => py.get_type::<PyFloat>().call(py, (v.to_string(),), None)?,
+        Value::Bytes(v) => PyBytes::new(py, v).into_object(),
     })
 }

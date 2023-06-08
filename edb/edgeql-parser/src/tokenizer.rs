@@ -2,16 +2,65 @@ use std::fmt;
 use std::borrow::Cow;
 use std::str::CharIndices;
 
+use bigdecimal::BigDecimal;
+use bigdecimal::num_bigint::BigInt;
 use memchr::memmem::find;
 
 use crate::validation::Validator;
-use crate::{Error, Token};
 use crate::position::{Pos, Span};
 
 
 // Current max keyword length is 10, but we're reserving some space
 pub const MAX_KEYWORD_LENGTH: usize = 16;
 
+#[derive(Debug, Clone)]
+pub struct Token<'a> {
+    pub kind: Kind,
+    pub text: Cow<'a, str>,
+
+    /// Parsed during validation.
+    pub value: Option<Value>,
+
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Value {
+    String(String),
+    Int(i64),
+    Float(f64),
+    Bytes(Vec<u8>),
+    BigInt(BigInt),
+    Decimal(BigDecimal),
+}
+
+#[derive(Debug, Clone)]
+pub struct Error {
+    pub message: String,
+    pub span: Span,
+}
+
+impl Error {
+    pub fn new<S: ToString>(message: S) -> Self {
+        let empty = Pos {
+            line: 0,
+            column: 0,
+            offset: 0,
+        };
+        Error {
+            message: message.to_string(),
+            span: Span {
+                start: empty.clone(),
+                end: empty,
+            },
+        }
+    }
+
+    pub fn with_span(mut self, span: Span) -> Self {
+        self.span = span;
+        self
+    }
+}
 
 #[cfg_attr(feature="wasm-bindgen",
     wasm_bindgen::prelude::wasm_bindgen(js_name=TokenKind))]
@@ -84,6 +133,13 @@ pub struct Tokenizer<'a> {
     keyword_buf: String,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct Checkpoint {
+    position: Pos,
+    off: usize,
+    dot: bool,
+}
+
 impl<'a> Iterator for Tokenizer<'a> {
     type Item = Result<Token<'a>, Error>;
 
@@ -137,6 +193,20 @@ impl<'a> Tokenizer<'a> {
 
     pub fn validated_values(self) -> Validator<'a> {
         Validator::new(self)
+    }
+
+    pub fn checkpoint(&self) -> Checkpoint {
+        Checkpoint {
+            position: self.position,
+            off: self.off,
+            dot: self.dot,
+        }
+    }
+
+    pub fn reset(&mut self, checkpoint: Checkpoint) {
+        self.position = checkpoint.position;
+        self.off = checkpoint.off;
+        self.dot = checkpoint.dot;
     }
 
     pub fn current_pos(&self) -> Pos {
@@ -819,6 +889,12 @@ impl<'a> fmt::Display for TokenStub<'a> {
     }
 }
 
+impl<'a> fmt::Display for Token<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}[{:?}]", self.text, self.kind)
+    }
+}
+
 fn check_prohibited(c: char, escape: bool)
     -> Result<(), Error>
 {
@@ -947,5 +1023,11 @@ pub fn is_keyword(s: &str) -> bool {
           // Keep in sync with keywords::PARTIAL_RESERVED_KEYWORDS
         => true,
         _ => false,
+    }
+}
+
+impl <'a> std::cmp::PartialEq for Token<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind && self.text == other.text && self.value == other.value
     }
 }

@@ -1,5 +1,5 @@
 use edgeql_rust::normalize::{normalize, Variable};
-use edgeql_parser::{TokenValue as Value};
+use edgeql_parser::tokenizer::{Value as Value};
 
 
 #[test]

@@ -1,26 +1,13 @@
 use std::collections::BTreeSet;
 
-use edgeql_parser::tokenizer::{Kind, Tokenizer};
+use edgeql_parser::tokenizer::{Kind, Tokenizer, Token, Value};
 use edgeql_parser::position::{Pos, Span};
-use edgeql_parser::{Token, TokenValue};
 
-use num_bigint::{BigInt};
-use bigdecimal::BigDecimal;
 use blake2::{Blake2b512, Digest};
-
-
-#[derive(Debug, PartialEq)]
-pub enum Value {
-    Str(String),
-    Int(i64),
-    Float(f64),
-    BigInt(BigInt),
-    Decimal(BigDecimal),
-}
 
 #[derive(Debug, PartialEq)]
 pub struct Variable {
-    pub value: TokenValue,
+    pub value: Value,
 }
 
 pub struct Entry<'a> {
@@ -47,7 +34,7 @@ fn push_var<'x>(res: &mut Vec<Token<'x>>, module: &'x str, typ: &'x str,
     res.push(Token {kind: Kind::Ident, text: module.into(), span, value: None});
     res.push(Token {kind: Kind::Namespace, text: "::".into(), span, value: None});
     res.push(Token {kind: Kind::Ident, text: typ.into(), span,
-        value: Some(TokenValue::String(typ.to_string())),
+        value: Some(Value::String(typ.to_string())),
     });
     res.push(Token {kind: Kind::Greater, text: ">".into(), span, value: None});
     res.push(Token {kind: Kind::Argument, text: var.into(), span, value: None});
@@ -314,7 +301,7 @@ fn serialize_tokens(tokens: &[Token<'_>]) -> String {
 #[cfg(test)]
 mod test {
     use super::scan_vars;
-    use edgeql_parser::{Token, tokenizer::Tokenizer};
+    use edgeql_parser::tokenizer::{Token, Tokenizer};
 
     fn tokenize<'x>(s: &'x str) -> Vec<Token<'x>> {
         let mut r = Vec::new();

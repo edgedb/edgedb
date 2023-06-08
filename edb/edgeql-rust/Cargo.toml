@@ -8,7 +8,6 @@ edition = "2021"
 
 [dependencies]
 edgeql-parser = {path = "../edgeql-parser"}
-combine = "4.5.2"
 bytes = "1.0.1"
 num-bigint = "0.4.3"
 bigdecimal = "0.3.0"

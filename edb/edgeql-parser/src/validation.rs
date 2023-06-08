@@ -3,11 +3,9 @@ use std::str::FromStr;
 use bigdecimal::num_bigint::ToBigInt;
 use bigdecimal::BigDecimal;
 
+use crate::helpers::{unquote_bytes, unquote_string};
 use crate::position::Pos;
-use crate::tokenizer::{Kind, Tokenizer, MAX_KEYWORD_LENGTH};
-use crate::utils::bytes::unquote_bytes;
-use crate::utils::strings::unquote_string;
-use crate::{Token, Error, TokenValue};
+use crate::tokenizer::{Error, Kind, Token, Value, Tokenizer, MAX_KEYWORD_LENGTH};
 
 /// Applies additional validation to the tokens.
 /// Combines multi-word keywords into single tokens.
@@ -105,7 +103,7 @@ impl<'a> Validator<'a> {
     }
 }
 
-pub fn parse_value(token: &Token<'_>) -> Result<Option<TokenValue>, String> {
+pub fn parse_value(token: &Token<'_>) -> Result<Option<Value>, String> {
     use Kind::*;
     let text = &token.text;
     let string_value = match token.kind {
@@ -120,7 +118,7 @@ pub fn parse_value(token: &Token<'_>) -> Result<Option<TokenValue>, String> {
             return text[..text.len() - 1]
                 .replace("_", "")
                 .parse()
-                .map(TokenValue::Decimal)
+                .map(Value::Decimal)
                 .map(Some)
                 .map_err(|e| format!("can't parse decimal: {}", e))
         }
@@ -142,7 +140,7 @@ pub fn parse_value(token: &Token<'_>) -> Result<Option<TokenValue>, String> {
                     }
                     Ok(num)
                 })
-                .map(TokenValue::Float)
+                .map(Value::Float)
                 .map(Some);
         }
         IntConst => {
@@ -153,7 +151,7 @@ pub fn parse_value(token: &Token<'_>) -> Result<Option<TokenValue>, String> {
             // Python has no problem of representing such a positive
             // value, though.
             return u64::from_str(&text.replace("_", ""))
-                .map(|x| TokenValue::Int(x as i64))
+                .map(|x| Value::Int(x as i64))
                 .map(Some)
                 .map_err(|e| format!("error reading int: {}", e));
         }
@@ -164,13 +162,13 @@ pub fn parse_value(token: &Token<'_>) -> Result<Option<TokenValue>, String> {
                 .map_err(|e| format!("error reading bigint: {}", e))?;
             // this conversion to decimal and back to string
             // fixes thing like `1e2n` which we support for bigints
-            return Ok(Some(TokenValue::BigInt(
+            return Ok(Some(Value::BigInt(
                 dec.to_bigint()
                     .ok_or_else(|| "number is not integer".to_string())?,
             )));
         }
         BinStr => {
-            return unquote_bytes(&text).map(TokenValue::Bytes).map(Some);
+            return unquote_bytes(&text).map(Value::Bytes).map(Some);
         }
 
         Str => unquote_string(&text)
@@ -181,5 +179,5 @@ pub fn parse_value(token: &Token<'_>) -> Result<Option<TokenValue>, String> {
         Substitution => text[2..text.len() - 1].to_string(),
         _ => return Ok(None),
     };
-    Ok(Some(TokenValue::String(string_value)))
+    Ok(Some(Value::String(string_value)))
 }
