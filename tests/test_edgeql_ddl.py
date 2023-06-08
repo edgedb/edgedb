@@ -15656,7 +15656,10 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             '''
                 describe scalar type vc5;
             ''',
-            ['create scalar type default::vc5 extending ext::varchar::varchar<5>;'],
+            [
+                'create scalar type default::vc5 '
+                'extending ext::varchar::varchar<5>;'
+            ],
         )
         await self.assert_query_result(
             '''

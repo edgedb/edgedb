@@ -28,6 +28,7 @@ from edb.edgeql import qltypes
 
 from . import annos as s_anno
 from . import delta as sd
+from . import name as sn
 from . import objects as so
 from . import schema as s_schema
 
@@ -80,7 +81,11 @@ class ModuleCommand(
             not context.stdmode and not context.testmode
             and (
                 (modname := self.classname) in s_schema.STD_MODULES
-                or (modname := enclosing) in s_schema.STD_MODULES
+                or (
+                    enclosing
+                    and (modname := sn.UnqualName(enclosing))
+                    in s_schema.STD_MODULES
+                )
             )
         ):
             raise errors.SchemaDefinitionError(
