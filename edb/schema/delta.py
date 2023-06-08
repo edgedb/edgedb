@@ -2492,6 +2492,16 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         """
         return schema
 
+    def canonicalize_attributes_recursively(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        schema = self.canonicalize_attributes(schema, context)
+        for sub in self.get_subcommands(type=ObjectCommand):
+            schema = sub.canonicalize_attributes_recursively(schema, context)
+        return schema
+
     def update_field_status(
         self,
         schema: s_schema.Schema,
