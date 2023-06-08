@@ -15,7 +15,7 @@ pub struct UnquoteError(String);
 ///
 /// # Examples
 /// ```
-/// use edgeql_parser::utils::strings::quote_name;
+/// use edgeql_parser::helpers::quote_name;
 /// assert_eq!(quote_name("col1"), "col1");
 /// assert_eq!(quote_name("another name"), "`another name`");
 /// assert_eq!(quote_name("with `quotes`"), "`with ``quotes```");
