@@ -442,7 +442,7 @@ class Cluster(BaseCluster):
             # EdgeDB queries might touch _lots_ of tables, especially in deep
             # inheritance hierarchies.  This is especially important in low
             # `max_connections` scenarios.
-            'max_locks_per_transaction': 256,
+            'max_locks_per_transaction': 1024,
         }
 
         if os.getenv('EDGEDB_DEBUG_PGSERVER'):
