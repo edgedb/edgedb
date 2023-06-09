@@ -15594,10 +15594,10 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         await self.con.execute('''
         create extension package ltree VERSION '1.0' {
           set ext_module := "ltree";
-          set sql_extensions := ["ltree"];
+          set sql_extensions := ["ltree >=1.0,<10.0"];
           create module ltree;
           create scalar type ltree::ltree {
-            set sql_type := "ltree.ltree";
+            set sql_type := "ltree";
           };
           create cast from ltree::ltree to std::str {
             SET volatility := 'Immutable';
@@ -15621,14 +15621,14 @@ class TestDDLNonIsolated(tb.DDLTestCase):
               select string_agg(edgedb.raise_on_null(
                 edgedbstd."std|cast@std|json@std|str_f"(z.z),
                 'invalid_parameter_value', 'invalid null value in cast'),
-              '.')::ltree.ltree
+              '.')::ltree
               from unnest(
                 edgedbstd."std|cast@std|json@array<std||json>_f"("val"))
                 as z(z);
             $$
           };
           create function ltree::nlevel(v: ltree::ltree) -> std::int32 {
-            using sql function 'ltree.nlevel';
+            using sql function 'edgedb.nlevel';
           };
         };
         ''')
@@ -15830,4 +15830,46 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         finally:
             await self.con.execute('''
                 drop extension package varchar VERSION '1.0'
+            ''')
+
+    async def test_edgeql_ddl_extensions_03(self):
+        await self.con.execute('''
+        create extension package ltree_broken VERSION '1.0' {
+          set ext_module := "ltree";
+          set sql_extensions := ["ltree >=1000.0"];
+          create module ltree;
+        };
+        ''')
+        try:
+            async with self.assertRaisesRegexTx(
+                    edgedb.UnsupportedBackendFeatureError,
+                    r"could not find extension satisfying ltree >=1000.0: "
+                    r"only found versions 1\."):
+                await self.con.execute(r"""
+                    CREATE EXTENSION ltree_broken;
+                """)
+        finally:
+            await self.con.execute('''
+                drop extension package ltree_broken VERSION '1.0'
+            ''')
+
+    async def test_edgeql_ddl_extensions_04(self):
+        await self.con.execute('''
+        create extension package ltree_broken VERSION '1.0' {
+          set ext_module := "ltree";
+          set sql_extensions := ["loltree >=1.0"];
+          create module ltree;
+        };
+        ''')
+        try:
+            async with self.assertRaisesRegexTx(
+                    edgedb.UnsupportedBackendFeatureError,
+                    r"could not find extension satisfying loltree >=1.0: "
+                    r"extension not found"):
+                await self.con.execute(r"""
+                    CREATE EXTENSION ltree_broken;
+                """)
+        finally:
+            await self.con.execute('''
+                drop extension package ltree_broken VERSION '1.0'
             ''')
