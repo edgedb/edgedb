@@ -1003,6 +1003,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     TEARDOWN: Optional[str] = None
     SCHEMA: Optional[Union[str, pathlib.Path]] = None
     DEFAULT_MODULE: str = 'default'
+    EXTENSIONS: List[str] = []
 
     BASE_TEST_CLASS = True
 
@@ -1150,12 +1151,15 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         if cls.INTERNAL_TESTMODE:
             script += '\nCONFIGURE SESSION SET __internal_testmode := true;'
 
+        schema = []
+        # Incude the extensions before adding schemas.
+        for ext in cls.EXTENSIONS:
+            schema.append(f'using extension {ext};')
+
         # Look at all SCHEMA entries and potentially create multiple
         # modules, but always create the test module, if not `default`.
         if cls.DEFAULT_MODULE != 'default':
-            schema = [f'\nmodule {cls.DEFAULT_MODULE} {{}}']
-        else:
-            schema = []
+            schema.append(f'\nmodule {cls.DEFAULT_MODULE} {{}}')
         for name in dir(cls):
             m = re.match(r'^SCHEMA(?:_(\w+))?', name)
             if m:

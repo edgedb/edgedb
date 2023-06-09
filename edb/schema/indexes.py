@@ -111,6 +111,15 @@ def is_index_valid_for_type(
                     )
                 )
             )
+        case (
+            'ext::pgvector::ivfflat_euclidean'
+            | 'ext::pgvector::ivfflat_ip'
+            | 'ext::pgvector::ivfflat_cosine'
+        ):
+            return expr_type.issubclass(
+                schema,
+                schema.get('ext::pgvector::vector', type=s_scalars.ScalarType),
+            )
 
     return False
 
