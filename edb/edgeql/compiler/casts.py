@@ -104,7 +104,14 @@ def compile_cast(
     ):
         return _find_object_by_id(ir_expr, new_stype, ctx=ctx)
 
-    if isinstance(ir_set.expr, irast.Array):
+    json_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'json'))
+    if (
+        isinstance(ir_set.expr, irast.Array)
+        and (
+            isinstance(new_stype, s_types.Array)
+            or new_stype.issubclass(ctx.env.schema, json_t)
+        )
+    ):
         return _cast_array_literal(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
@@ -112,9 +119,22 @@ def compile_cast(
         return _cast_tuple(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
-    if orig_stype.is_array() and not s_types.is_type_compatible(
+    if isinstance(orig_stype, s_types.Array) and not s_types.is_type_compatible(
         orig_stype, new_stype, schema=ctx.env.schema
     ):
+        if (
+            not isinstance(new_stype, s_types.Array)
+            and isinstance(
+                (el_type := orig_stype.get_subtypes(ctx.env.schema)[0]),
+                s_scalars.ScalarType,
+            )
+        ):
+            # We're not casting to another array, so for purposes of matching
+            # the right cast we want to reduce orig_stype to an array of the
+            # built-in base type as that's what the cast will actually
+            # expect.
+            ir_set = _cast_to_base_array(ir_set, el_type, orig_stype, ctx=ctx)
+
         return _cast_array(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
@@ -143,7 +163,6 @@ def compile_cast(
             ir_set, orig_stype, new_stype,
             cardinality_mod=cardinality_mod, ctx=ctx)
 
-    json_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'json'))
     if (
         new_stype.issubclass(ctx.env.schema, json_t)
         and ir_set.path_id.is_objtype_path()
@@ -820,6 +839,23 @@ def _cast_json_to_range(
         return dispatch.compile(cast, ctx=subctx)
 
 
+def _cast_to_base_array(
+    ir_set: irast.Set,
+    el_stype: s_scalars.ScalarType,
+    orig_stype: s_types.Array,
+    ctx: context.ContextLevel,
+    cardinality_mod: Optional[qlast.CardinalityModifier]=None
+) -> irast.Set:
+
+    base_stype = el_stype.get_base_for_cast(ctx.env.schema)
+    assert isinstance(base_stype, s_types.Type)
+    _, new_stype = s_types.Array.from_subtypes(ctx.env.schema, [base_stype])
+
+    return _inheritance_cast_to_ir(
+        ir_set, orig_stype, new_stype,
+        cardinality_mod=cardinality_mod, ctx=ctx)
+
+
 def _cast_array(
         ir_set: irast.Set,
         orig_stype: s_types.Type,
@@ -839,8 +875,13 @@ def _cast_array(
                 context=srcctx)
         assert isinstance(new_stype, s_types.Array)
         el_type = new_stype.get_subtypes(ctx.env.schema)[0]
-    else:
+    elif new_stype.is_json(ctx.env.schema):
         el_type = new_stype
+    else:
+        # We're casting an array into something that's not an array (e.g. a
+        # vector), so we don't need to match element types.
+        return _cast_to_ir(
+            ir_set, direct_cast, orig_stype, new_stype, ctx=ctx)
 
     orig_el_type = orig_stype.get_subtypes(ctx.env.schema)[0]
 
