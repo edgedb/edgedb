@@ -1183,7 +1183,12 @@ def _register_item(
         anchors = dict(anchors or {})
         if source:
             anchors['__source__'] = source
-        if subject or fq_name:
+        if subject or (
+            fq_name
+            and not (
+                isinstance(decl, qlast.SetField) and decl.name == 'default'
+            )
+        ):
             anchors['__subject__'] = subject or fq_name
 
         for expr in hard_dep_exprs:
