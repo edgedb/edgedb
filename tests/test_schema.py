@@ -818,17 +818,6 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(
-        errors.SchemaDefinitionError,
-        "module 'ext' is a reserved module name"
-    )
-    def test_schema_module_reserved_02(self):
-        """
-            module foo {
-                module ext {}
-            }
-        """
-
-    @tb.must_fail(
         errors.InvalidFunctionDefinitionError,
         r"cannot create the `test::foo\(VARIADIC bar: "
         r"OPTIONAL array<std::int64>\)` function: "
