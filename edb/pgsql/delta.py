@@ -6941,6 +6941,7 @@ class CreateExtensionPackage(
         version = self.scls.get_version(schema)._asdict()
         version['stage'] = version['stage'].name.lower()
 
+        ext_module = self.scls.get_ext_module(schema)
         metadata = {
             ext_id: {
                 'id': ext_id,
@@ -6950,7 +6951,7 @@ class CreateExtensionPackage(
                 'version': version,
                 'builtin': self.scls.get_builtin(schema),
                 'internal': self.scls.get_internal(schema),
-                'ext_module': str(self.scls.get_ext_module(schema)),
+                'ext_module': ext_module and str(ext_module),
                 'sql_extensions': list(self.scls.get_sql_extensions(schema)),
             }
         }
