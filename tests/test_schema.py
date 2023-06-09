@@ -1107,6 +1107,22 @@ class TestSchema(tb.BaseSchemaLoadTest):
             })
         )
 
+    def test_schema_refs_04(self):
+        with self.assertRaisesRegex(
+            errors.InvalidReferenceError,
+            "__subject__ cannot be used in this expression",
+        ):
+            self.load_schema(
+                """
+                type User3 {
+                    required property nick: str;
+                    required property name: str {
+                        default := (select __subject__.nick);
+                    };
+                }
+                """
+            )
+
     def test_schema_annotation_inheritance_01(self):
         schema = self.load_schema("""
             abstract annotation noninh;
