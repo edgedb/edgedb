@@ -6712,6 +6712,20 @@ aa \
             [edgedb.Range(0, 10)],
         )
 
+    async def test_edgeql_expr_range_39(self):
+        await self.assert_query_result(
+            r'''
+                select [range(1, 10)];
+            ''',
+            [
+                [
+                    {"lower": 1, "upper": 10,
+                     "inc_lower": True, "inc_upper": False},
+                ]
+            ],
+            json_only=True,
+        )
+
     async def test_edgeql_expr_cannot_assign_id_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot assign to id'):
