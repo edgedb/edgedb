@@ -8,7 +8,7 @@ on:
       - stable/*
   push:
     branches:
-      - patch-test*
+      - patch-*
       - stable/*
 
 jobs:
@@ -515,7 +515,7 @@ jobs:
         db = edgedb.create_client(
             host='localhost', port=10000, tls_security='insecure'
         )
-        for name in ['json', 'functions', 'expressions', 'casts', 'policies']:
+        for name in ['json', 'functions', 'expressions', 'casts', 'policies', 'vector']:
             db.execute(f'create database {name};')
 
         proc.terminate()
@@ -524,7 +524,7 @@ jobs:
     - name: Run tests with instance created on an older version
       run: |
         # Should we run *all* the tests?
-        edb test -j2 -v --data-dir test-dir tests/test_edgeql_json.py tests/test_edgeql_casts.py tests/test_edgeql_functions.py tests/test_edgeql_expressions.py tests/test_edgeql_policies.py
+        edb test -j2 -v --data-dir test-dir tests/test_edgeql_json.py tests/test_edgeql_casts.py tests/test_edgeql_functions.py tests/test_edgeql_expressions.py tests/test_edgeql_policies.py tests/test_edgeql_vector.py
 
     - name: Test downgrading a database after an upgrade
       env:
