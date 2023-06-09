@@ -2102,16 +2102,15 @@ def _inline_type_computable(
                 ctx=scopectx
             )
 
+    ctx.env.schema = ptr.set_field_value(
+        ctx.env.schema, 'defined_here', True
+    )
+
     view_shape = ctx.env.view_shapes[stype]
     view_shape_ptrs = {p for p, _ in view_shape}
     if ptr not in view_shape_ptrs:
         if ptr not in ctx.env.pointer_specified_info:
             ctx.env.pointer_specified_info[ptr] = (None, None, None)
-
-        ctx.env.schema = ptr.set_field_value(
-            ctx.env.schema, 'defined_here', True
-        )
-
         view_shape.insert(0, (ptr, qlast.ShapeOp.ASSIGN))
         shape_ptrs.insert(
             0, ShapePtr(ir_set, ptr, qlast.ShapeOp.ASSIGN, ptr_set))
