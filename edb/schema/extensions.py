@@ -337,20 +337,6 @@ class DeleteExtension(
 
     astnode = qlast.DropExtension
 
-    def apply(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        testmode = context.testmode
-        context.testmode = True
-
-        schema = super().apply(schema, context)
-
-        context.testmode = testmode
-
-        return schema
-
     def _canonicalize(
         self,
         schema: s_schema.Schema,

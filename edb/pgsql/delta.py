@@ -7017,86 +7017,34 @@ class ExtensionCommand(MetaCommand):
     pass
 
 
-def _parse_spec(spec: str) -> tuple[str, list[tuple[str, str]]]:
-    if ' ' not in spec:
-        return (spec, [])
-
-    ext, versions = spec.split(' ', 1)
-    clauses = versions.split(',')
-    pclauses = []
-    for clause in clauses:
-        for i in range(len(clause)):
-            if clause[i].isnumeric():
-                break
-        pclauses.append((clause[:i], clause[i:]))
-
-    return ext, pclauses
-
-
 class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
-    def _create_extension(self, ext_spec: str) -> None:
-        ext, vclauses = _parse_spec(ext_spec)
-
-        # Dynamically select the highest version extension that matches
-        # the provided version specification.
-        lclauses = []
-        for op, ver in vclauses:
-            pver = f"string_to_array({ql(ver)}, '.')::int8[]"
-            assert op in {'=', '>', '>=', '<', '<='}
-            lclauses.append(f'v.split {op} {pver}')
-        cond = ' and '.join(lclauses) if lclauses else 'true'
-
-        qry = textwrap.dedent(f'''\
-            with v as (
-               select name, version,
-               string_to_array(version, '.')::int8[] as split
-               from pg_available_extension_versions
-               where name = {ql(ext)}
-            )
-            select edgedb.raise_on_null(
-              (
-                 select v.version from v
-                 where {cond}
-                 order by split desc limit 1
-               ),
-               'feature_not_supported',
-               msg => (
-                 'could not find extension satisfying ' || {ql(ext_spec)}
-                  || ': ' ||
-                  coalesce(
-                    'only found versions ' ||
-                      (select string_agg(v.version, ', ' order by v.split)
-                       from v),
-                    'extension not found'))
-            )
-            into _dummy_text;
-        ''')
-        self.pgops.add(dbops.Query(qry))
-
-        # XXX: hardcode to put stuff into edgedb schema
-        # so that operations can be easily accessed.
-        # N.B: this won't work on heroku; is that fine?
-        target_schema = 'edgedb'
-
-        self.pgops.add(dbops.Query(textwrap.dedent(f"""\
-            EXECUTE
-              'CREATE EXTENSION {ext} WITH SCHEMA {target_schema} VERSION '''
-              || _dummy_text || ''''
-        """)))
-
     def _create_begin(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        # XXX
         schema = super()._create_begin(schema, context)
         # backend_params = self._get_backend_params(context)
         # ext_schema = backend_params.instance_params.ext_schema
 
         package = self.scls.get_package(schema)
 
-        for ext_spec in package.get_sql_extensions(schema):
-            self._create_extension(ext_spec)
+        for ext in package.get_sql_extensions(schema):
+            # XXX: heroku!?
+            self.pgops.add(
+                dbops.CreateSchema(name=ext, conditional=True),
+            )
+            self.pgops.add(
+                dbops.CreateExtension(
+                    dbops.Extension(
+                        name=ext,
+                        schema=ext,
+                        # XXX?
+                        # schema=ext_schema,
+                    ),
+                )
+            )
 
         return schema
 
@@ -7112,9 +7060,7 @@ class DeleteExtension(ExtensionCommand, adapts=s_exts.DeleteExtension):
 
         schema = super().apply(schema, context)
 
-        for ext_spec in package.get_sql_extensions(schema):
-            ext, _ = _parse_spec(ext_spec)
-
+        for ext in package.get_sql_extensions(schema):
             self.pgops.add(
                 dbops.DropExtension(
                     dbops.Extension(
@@ -7122,6 +7068,9 @@ class DeleteExtension(ExtensionCommand, adapts=s_exts.DeleteExtension):
                         schema=ext,
                     ),
                 )
+            )
+            self.pgops.add(
+                dbops.DropSchema(name=ext),
             )
 
         return schema
