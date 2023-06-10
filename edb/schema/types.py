@@ -36,7 +36,6 @@ from edb.edgeql import compiler as qlcompiler
 
 from . import abc as s_abc
 from . import annos as s_anno
-from . import casts as s_casts
 from . import delta as sd
 from . import expr as s_expr
 from . import inheriting
@@ -1292,14 +1291,7 @@ class Array(
         schema: s_schema.Schema,
     ) -> bool:
         if not isinstance(other, Array):
-            from . import scalars as s_scalars
-
-            if not isinstance(other, s_scalars.ScalarType):
-                return False
-            if other.is_polymorphic(schema):
-                return False
-            right = other.get_base_for_cast(schema)
-            return s_casts.is_assignment_castable(schema, self, right)
+            return False
 
         return self.get_element_type(schema).assignment_castable_to(
             other.get_element_type(schema), schema)
@@ -1310,14 +1302,7 @@ class Array(
         schema: s_schema.Schema,
     ) -> bool:
         if not isinstance(other, Array):
-            from . import scalars as s_scalars
-
-            if not isinstance(other, s_scalars.ScalarType):
-                return False
-            if other.is_polymorphic(schema):
-                return False
-            right = other.get_base_for_cast(schema)
-            return s_casts.is_assignment_castable(schema, self, right)
+            return False
 
         return self.get_element_type(schema).castable_to(
             other.get_element_type(schema), schema)

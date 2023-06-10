@@ -3489,15 +3489,14 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                     as_fragment=True,
                 )
                 kw_ir = kw_expr.irast
-                kw_sql_tree, _ = compiler.compile_ir_to_sql_tree(
+                kw_sql_tree = compiler.compile_ir_to_sql_tree(
                     kw_ir.expr, singleton_mode=True)
-                # HACK: the compiled SQL is expected to have some unnecessary
-                # casts, strip them as they mess with the requirement that
-                # index expressions are IMMUTABLE (also indexes expect the
-                # usage of literals and will do their own implicit casts).
-                if isinstance(kw_sql_tree, pg_ast.TypeCast):
-                    kw_sql_tree = kw_sql_tree.arg
                 sql = codegen.SQLSourceGenerator.to_source(kw_sql_tree)
+                # HACK: the compiled SQL is expected to have some unnecessary
+                # casts, strip casts to text as they mess with the requirement
+                # that index expressions are IMMUTABLE.
+                if sql.endswith('::text'):
+                    sql = sql[:-6]
                 sql_kwarg_exprs[name] = sql
 
         module_name = index.get_name(schema).module
