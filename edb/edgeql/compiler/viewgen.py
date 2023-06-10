@@ -2102,6 +2102,8 @@ def _inline_type_computable(
                 ctx=scopectx
             )
 
+    # even if the pointer was not created here, or was already present in
+    # the shape, we set defined_here, so it is not inlined in `extend_path`.
     ctx.env.schema = ptr.set_field_value(
         ctx.env.schema, 'defined_here', True
     )
