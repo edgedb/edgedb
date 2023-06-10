@@ -1,18 +1,66 @@
 use std::fmt;
 use std::borrow::Cow;
+use std::str::CharIndices;
 
-use combine::easy::{Error, Errors};
-use combine::error::{StreamError};
-use combine::stream::{ResetStream};
-use combine::{StreamOnce, Positioned};
+use bigdecimal::BigDecimal;
+use bigdecimal::num_bigint::BigInt;
 use memchr::memmem::find;
 
-use crate::position::Pos;
+use crate::validation::Validator;
+use crate::position::{Pos, Span};
 
 
 // Current max keyword length is 10, but we're reserving some space
 pub const MAX_KEYWORD_LENGTH: usize = 16;
 
+#[derive(Debug, Clone)]
+pub struct Token<'a> {
+    pub kind: Kind,
+    pub text: Cow<'a, str>,
+
+    /// Parsed during validation.
+    pub value: Option<Value>,
+
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Value {
+    String(String),
+    Int(i64),
+    Float(f64),
+    Bytes(Vec<u8>),
+    BigInt(BigInt),
+    Decimal(BigDecimal),
+}
+
+#[derive(Debug, Clone)]
+pub struct Error {
+    pub message: String,
+    pub span: Span,
+}
+
+impl Error {
+    pub fn new<S: ToString>(message: S) -> Self {
+        let empty = Pos {
+            line: 0,
+            column: 0,
+            offset: 0,
+        };
+        Error {
+            message: message.to_string(),
+            span: Span {
+                start: empty.clone(),
+                end: empty,
+            },
+        }
+    }
+
+    pub fn with_span(mut self, span: Span) -> Self {
+        self.span = span;
+        self
+    }
+}
 
 #[cfg_attr(feature="wasm-bindgen",
     wasm_bindgen::prelude::wasm_bindgen(js_name=TokenKind))]
@@ -70,25 +118,18 @@ pub enum Kind {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct Token<'a> {
+struct TokenStub<'a> {
     pub kind: Kind,
-    pub value: &'a str,
-}
-
-#[derive(Debug, Clone)]
-pub struct SpannedToken<'a> {
-    pub token: Token<'a>,
-    pub start: Pos,
-    pub end: Pos,
+    pub text: &'a str,
 }
 
 #[derive(Debug, PartialEq)]
-pub struct TokenStream<'a> {
+pub struct Tokenizer<'a> {
     buf: &'a str,
     position: Pos,
     off: usize,
     dot: bool,
-    next_state: Option<(usize, Token<'a>, usize, Pos, Pos)>,
+    next_state: Option<(usize, TokenStub<'a>, usize, Pos, Pos)>,
     keyword_buf: String,
 }
 
@@ -99,57 +140,28 @@ pub struct Checkpoint {
     dot: bool,
 }
 
-impl<'a, 'b> Iterator for &'b mut TokenStream<'a> {
-    type Item = Result<SpannedToken<'a>, Error<Token<'a>, Token<'a>>>;
+impl<'a> Iterator for Tokenizer<'a> {
+    type Item = Result<Token<'a>, Error>;
+
     fn next(&mut self) -> Option<Self::Item> {
-        let start = Positioned::position(self);
-        match self.read_token() {
-            Ok((token, end)) => Some(Ok(SpannedToken {
-                token, start, end,
-            })),
-            Err(e) if e == Error::end_of_input() => None,
-            Err(e) => Some(Err(e)),
-        }
+        let start = self.current_pos();
+
+        Some(self.read_token()?.map(|(token, end)| Token {
+            kind: token.kind,
+            text: token.text.into(),
+            value: None,
+            span: Span { start, end },
+        })
+        .map_err(|e| {
+            let end = self.position;
+            e.with_span(Span { start, end })
+        }))
     }
 }
 
-impl<'a> StreamOnce for TokenStream<'a> {
-    type Token = Token<'a>;
-    type Range = Token<'a>;
-    type Position = Pos;
-    type Error = Errors<Token<'a>, Token<'a>, Pos>;
-
-    fn uncons(&mut self) -> Result<Self::Token, Error<Token<'a>, Token<'a>>> {
-        self.read_token().map(|(t, _)| t)
-    }
-}
-
-impl<'a> Positioned for TokenStream<'a> {
-    fn position(&self) -> Self::Position {
-        self.position
-    }
-}
-
-impl<'a> ResetStream for TokenStream<'a> {
-    type Checkpoint = Checkpoint;
-    fn checkpoint(&self) -> Self::Checkpoint {
-        Checkpoint {
-            position: self.position,
-            off: self.off,
-            dot: self.dot,
-        }
-    }
-    fn reset(&mut self, checkpoint: Checkpoint) -> Result<(), Self::Error> {
-        self.position = checkpoint.position;
-        self.off = checkpoint.off;
-        self.dot = checkpoint.dot;
-        Ok(())
-    }
-}
-
-impl<'a> TokenStream<'a> {
-    pub fn new(s: &str) -> TokenStream {
-        let mut me = TokenStream {
+impl<'a> Tokenizer<'a> {
+    pub fn new(s: &str) -> Tokenizer {
+        let mut me = Tokenizer {
             buf: s,
             position: Pos { line: 1, column: 1, offset: 0 },
             off: 0,
@@ -166,8 +178,8 @@ impl<'a> TokenStream<'a> {
     /// Start stream a with a modified position
     ///
     /// Note: we assume that the current position is at the start of slice `s`
-    pub fn new_at(s: &str, position: Pos) -> TokenStream {
-        let mut me = TokenStream {
+    pub fn new_at(s: &str, position: Pos) -> Tokenizer {
+        let mut me = Tokenizer {
             buf: s,
             position,
             off: 0,
@@ -179,12 +191,30 @@ impl<'a> TokenStream<'a> {
         me
     }
 
+    pub fn validated_values(self) -> Validator<'a> {
+        Validator::new(self)
+    }
+
+    pub fn checkpoint(&self) -> Checkpoint {
+        Checkpoint {
+            position: self.position,
+            off: self.off,
+            dot: self.dot,
+        }
+    }
+
+    pub fn reset(&mut self, checkpoint: Checkpoint) {
+        self.position = checkpoint.position;
+        self.off = checkpoint.off;
+        self.dot = checkpoint.dot;
+    }
+
     pub fn current_pos(&self) -> Pos {
         self.position
     }
 
     fn read_token(&mut self)
-        -> Result<(Token<'a>, Pos), Error<Token<'a>, Token<'a>>>
+        -> Option<Result<(TokenStub<'a>, Pos), Error>>
     {
         // This quickly resets the stream one token back
         // (the most common reset that used quite often)
@@ -192,12 +222,15 @@ impl<'a> TokenStream<'a> {
             if at == self.off {
                 self.off = off;
                 self.position = next;
-                return Ok((tok, end));
+                return Some(Ok((tok, end)));
             }
         }
 
         let old_pos = self.off;
-        let (kind, len) = self.peek_token()?;
+        let (kind, len) = match self.peek_token()? {
+            Ok(x) => x,
+            Err(e) => return Some(Err(e))
+        };
 
         // note we may want to get rid of "update_position" here as it's
         // faster to update 'as you go', but this is easier to get right first
@@ -207,22 +240,26 @@ impl<'a> TokenStream<'a> {
         let end = self.position;
 
         self.skip_whitespace();
-        let token = Token { kind, value };
+        let token = TokenStub { kind, text: value };
         // This is for quick reset on token back
         self.next_state = Some((old_pos, token, self.off, end, self.position));
-        Ok((token, end))
+        Some(Ok((token, end)))
     }
 
     fn peek_token(&mut self)
-        -> Result<(Kind, usize), Error<Token<'a>, Token<'a>>>
+        -> Option<Result<(Kind, usize), Error>>
     {
-        use self::Kind::*;
         let tail = &self.buf[self.off..];
         let mut iter = tail.char_indices();
-        let cur_char = match iter.next() {
-            Some((_, x)) => x,
-            None => return Err(Error::end_of_input()),
-        };
+
+        let (_, cur_char) = iter.next()?;
+        Some(self.peek_token_inner(cur_char, tail, &mut iter))
+    }
+
+    fn peek_token_inner(
+        &mut self, cur_char: char, tail: &str, iter: &mut CharIndices<'_>
+    ) -> Result<(Kind, usize), Error> {
+        use self::Kind::*;
 
         match cur_char {
             ':' => match iter.next() {
@@ -263,13 +300,13 @@ impl<'a> TokenStream<'a> {
                     if let Some((_, '=')) = iter.next() {
                         return Ok((DistinctFrom, 3));
                     } else {
-                        return Err(Error::unexpected_static_message(
+                        return Err(Error::new(
                             "`?!` is not an operator, \
                                 did you mean `?!=` ?"))
                     }
                 }
                 _ => {
-                    return Err(Error::unexpected_static_message(
+                    return Err(Error::new(
                         "Bare `?` is not an operator, \
                             did you mean `?=` or `??` ?"))
                 }
@@ -277,7 +314,7 @@ impl<'a> TokenStream<'a> {
             '!' => match iter.next() {
                 Some((_, '=')) => return Ok((NotEq, 2)),
                 _ => {
-                    return Err(Error::unexpected_static_message(
+                    return Err(Error::new(
                         "Bare `!` is not an operator, \
                             did you mean `!=`?"));
                 }
@@ -291,34 +328,34 @@ impl<'a> TokenStream<'a> {
                         }
                         let val = &tail[..idx+1];
                         if val.starts_with("`@") {
-                            return Err(Error::unexpected_static_message(
+                            return Err(Error::new(
                                 "backtick-quoted name cannot \
                                     start with char `@`"));
                         }
                         if val.starts_with("`$") {
-                            return Err(Error::unexpected_static_message(
+                            return Err(Error::new(
                                 "backtick-quoted name cannot \
                                     start with char `$`"));
                         }
                         if val.contains("::") {
-                            return Err(Error::unexpected_static_message(
+                            return Err(Error::new(
                                 "backtick-quoted name cannot \
                                     contain `::`"));
                         }
                         if val.starts_with("`__") && val.ends_with("__`") {
-                            return Err(Error::unexpected_static_message(
+                            return Err(Error::new(
                                 "backtick-quoted names surrounded by double \
                                     underscores are forbidden"));
                         }
                         if idx == 1 {
-                            return Err(Error::unexpected_static_message(
+                            return Err(Error::new(
                                 "backtick quotes cannot be empty"));
                         }
                         return Ok((BacktickName, idx+1));
                     }
                     check_prohibited(c, false)?;
                 }
-                return Err(Error::unexpected_static_message(
+                return Err(Error::new(
                     "unterminated backtick name"));
             }
             '=' => return Ok((Eq, 1)),
@@ -349,7 +386,7 @@ impl<'a> TokenStream<'a> {
                                 "b" => (false, true),
                                 "rb" => (true, true),
                                 "br" => (true, true),
-                                _ => return Err(Error::unexpected_format(
+                                _ => return Err(Error::new(
                                     format_args!("prefix {:?} \
                                     is not allowed for strings, \
                                     allowed: `b`, `r`",
@@ -359,7 +396,7 @@ impl<'a> TokenStream<'a> {
                         }
                         Some((idx, '`')) => {
                             let prefix = &tail[..idx];
-                            return Err(Error::unexpected_format(
+                            return Err(Error::new(
                                 format_args!("prefix {:?} is not \
                                 allowed for field names, perhaps missing \
                                 comma or dot?", prefix)));
@@ -374,7 +411,7 @@ impl<'a> TokenStream<'a> {
                 if self.is_keyword(val) {
                     return Ok((Keyword, end_idx));
                 } else if val.starts_with("__") && val.ends_with("__") {
-                    return Err(Error::unexpected_static_message(
+                    return Err(Error::new(
                         "identifiers surrounded by double \
                             underscores are forbidden"));
                 } else {
@@ -387,7 +424,7 @@ impl<'a> TokenStream<'a> {
                         match iter.next() {
                             Some((_, '0'..='9')) => continue,
                             Some((_, c)) if c.is_alphabetic() => {
-                                return Err(Error::unexpected_format(
+                                return Err(Error::new(
                                     format_args!("unexpected char {:?}, \
                                         only integers are allowed after dot \
                                         (for tuple access)", c)
@@ -398,7 +435,7 @@ impl<'a> TokenStream<'a> {
                         }
                     };
                     if cur_char == '0' && len > 1 {
-                        return Err(Error::unexpected_static_message(
+                        return Err(Error::new(
                             "leading zeros are not allowed in numbers"));
                     }
                     Ok((IntConst, len))
@@ -419,9 +456,9 @@ impl<'a> TokenStream<'a> {
                                 }
                                 return Ok((Str, 2+end+2));
                             } else {
-                                return Err(Error::unexpected_static_message(
-                                    "unterminated string started \
-                                        with $$"));
+                                return Err(Error::new(
+                                    "unterminated string started with $$"
+                                ));
                             }
                         }
                         '`' => {
@@ -433,14 +470,14 @@ impl<'a> TokenStream<'a> {
                                     let var = &tail[..idx+1];
                                     if var.starts_with("$`@") {
                                         return Err(
-                                            Error::unexpected_static_message(
+                                            Error::new(
                                                 "backtick-quoted argument \
                                                 cannot start with char `@`",
                                             ));
                                     }
                                     if var.contains("::") {
                                         return Err(
-                                            Error::unexpected_static_message(
+                                            Error::new(
                                                 "backtick-quoted argument \
                                                 cannot contain `::`"));
                                     }
@@ -448,33 +485,33 @@ impl<'a> TokenStream<'a> {
                                         var.ends_with("__`")
                                     {
                                         return Err(
-                                            Error::unexpected_static_message(
+                                            Error::new(
                                                 "backtick-quoted arguments \
                                                 surrounded by double \
                                                 underscores are forbidden"));
                                     }
                                     if idx == 2 {
                                         return Err(
-                                            Error::unexpected_static_message(
-                                                "backtick-quoted argument \
-                                                cannot be empty"));
+                                            Error::new(
+                                                "backtick-quoted argument cannot be empty"
+                                            ));
                                     }
                                     return Ok((Argument, idx+1));
                                 }
                                 check_prohibited(c, false)?;
                             }
-                            return Err(Error::unexpected_static_message(
+                            return Err(Error::new(
                                 "unterminated backtick argument"));
                         }
                         '0'..='9' => { }
                         c if c.is_alphabetic() || c == '_' => {
                             has_letter = true;
                         }
-                        _ => return Err(Error::unexpected_static_message(
+                        _ => return Err(Error::new(
                             "bare $ is not allowed")),
                     }
                 } else {
-                    return Err(Error::unexpected_static_message(
+                    return Err(Error::new(
                         "bare $ is not allowed"));
                 }
                 let end_idx = loop {
@@ -484,12 +521,12 @@ impl<'a> TokenStream<'a> {
                             let marker = &self.buf[self.off..][..msize];
                             if let Some('0'..='9') = marker[1..].chars().next()
                             {
-                                return Err(Error::unexpected_static_message(
+                                return Err(Error::new(
                                     "dollar quote must not start with a digit",
                                 ));
                             }
                             if !marker.is_ascii() {
-                                return Err(Error::unexpected_static_message(
+                                return Err(Error::new(
                                     "dollar quote supports only ascii chars"));
                             }
                             if let Some(end) = find(
@@ -502,9 +539,9 @@ impl<'a> TokenStream<'a> {
                                 }
                                 return Ok((Str, msize+end+msize));
                             } else {
-                                return Err(Error::unexpected_format(
-                                    format_args!("unterminated string started \
-                                        with {:?}", marker)));
+                                return Err(Error::new(format_args!(
+                                    "unterminated string started with {:?}", marker
+                                )));
                             }
                         }
                         Some((_, '0'..='9')) => continue,
@@ -519,7 +556,7 @@ impl<'a> TokenStream<'a> {
                 if has_letter {
                     let name = &tail[1..];
                     if let Some('0'..='9') = name.chars().next() {
-                        return Err(Error::unexpected_format(
+                        return Err(Error::new(
                             format_args!("the {:?} is not a valid \
                             argument, either name starting with letter \
                             or only digits are expected",
@@ -536,12 +573,12 @@ impl<'a> TokenStream<'a> {
                             Some((_, c)) if c.is_alphanumeric() => continue,
                             Some((idx, ')')) => break idx,
                             Some((_, _)) => {
-                                return Err(Error::unexpected_static_message(
+                                return Err(Error::new(
                                     "only alphanumerics are allowed in \
                                      \\(name) token"));
                             }
                             None => {
-                                return Err(Error::unexpected_static_message(
+                                return Err(Error::new(
                                     "unclosed \\(name) token"));
                             }
                         }
@@ -549,13 +586,13 @@ impl<'a> TokenStream<'a> {
                     Ok((Substitution, len+1))
                 }
                 _ => return Err(
-                    Error::unexpected_format(
+                    Error::new(
                         format_args!("unexpected character {:?}", cur_char)
                     )
                 ),
             }
             _ => return Err(
-                Error::unexpected_format(
+                Error::new(
                     format_args!("unexpected character {:?}", cur_char)
                 )
             ),
@@ -563,7 +600,7 @@ impl<'a> TokenStream<'a> {
     }
 
     fn parse_string(&mut self, quote_off: usize, raw: bool, binary: bool)
-        -> Result<(Kind, usize), Error<Token<'a>, Token<'a>>>
+        -> Result<(Kind, usize), Error>
     {
         let mut iter = self.buf[self.off+quote_off..].char_indices();
         let open_quote = iter.next().unwrap().1;
@@ -576,7 +613,7 @@ impl<'a> TokenStream<'a> {
                         None => break,
                     }
                     c if c as u32 > 0x7f => {
-                        return Err(Error::unexpected_format(
+                        return Err(Error::new(
                             format_args!("invalid bytes literal: character \
                                 {:?} is unexpected, only ascii chars are \
                                 allowed in bytes literals", c)));
@@ -602,12 +639,12 @@ impl<'a> TokenStream<'a> {
                 }
             }
         }
-        return Err(Error::unexpected_format(
+        return Err(Error::new(
             format_args!("unterminated string, quoted by `{}`", open_quote)));
     }
 
     fn parse_number(&mut self)
-        -> Result<(Kind, usize), Error<Token<'a>, Token<'a>>>
+        -> Result<(Kind, usize), Error>
     {
         #[derive(PartialEq, PartialOrd)]
         enum Break {
@@ -636,8 +673,8 @@ impl<'a> TokenStream<'a> {
             }
         };
         if self.buf.as_bytes()[self.off] == b'0' && dec_len > 1 {
-            return Err(Error::unexpected_static_message(
-                "leading zeros are not allowed in numbers"));
+            return Err(Error::new(
+                "unexpected leading zeros are not allowed in numbers"));
         }
         if bstate == Break::End {
             return Ok((IntConst, dec_len));
@@ -650,7 +687,7 @@ impl<'a> TokenStream<'a> {
                         '0'..='9' => continue,
                         '_' => {
                             if idx+1 == dec_len+1 {
-                                return Err(Error::expected_static_message(
+                                return Err(Error::new(
                                     "expected digit after dot, \
                                     found underscore"))
                             }
@@ -658,17 +695,17 @@ impl<'a> TokenStream<'a> {
                         }
                         'e' => {
                             if idx+1 == dec_len+1 {
-                                return Err(Error::expected_static_message(
+                                return Err(Error::new(
                                     "expected digit after dot, \
                                     found exponent"))
                             }
                             break Break::Exponent;
                         }
-                        '.' => return Err(Error::unexpected_static_message(
-                            "extra decimal dot in number")),
+                        '.' => return Err(Error::new(
+                            "unexpected extra decimal dot in number")),
                         c if c.is_alphabetic() => {
                             if idx == dec_len {
-                                return Err(Error::expected_static_message(
+                                return Err(Error::new(
                                     "expected digit after dot, found suffix"))
                             }
                             suffix = Some(idx+1);
@@ -676,7 +713,7 @@ impl<'a> TokenStream<'a> {
                         }
                         _ => {
                             if idx+1 == dec_len+1 {
-                                return Err(Error::expected_static_message(
+                                return Err(Error::new(
                                     "expected digit after dot, \
                                     found end of decimal"))
                             }
@@ -685,7 +722,7 @@ impl<'a> TokenStream<'a> {
                     }
                 } else {
                     if self.buf.len() - self.off == dec_len+1 {
-                        return Err(Error::expected_static_message(
+                        return Err(Error::new(
                             "expected digit after dot, found end of decimal"))
                     }
                     return Ok((FloatConst, self.buf.len() - self.off));
@@ -702,15 +739,15 @@ impl<'a> TokenStream<'a> {
                     match iter.next() {
                         Some((_, '0'..='9')) => {},
                         Some((_, '.')) => return Err(
-                            Error::unexpected_static_message(
-                            "extra decimal dot in number")),
-                        _ => return Err(Error::unexpected_static_message(
-                            "optional `+` or `-` followed by digits must \
+                            Error::new(
+                            "unexpected extra decimal dot in number")),
+                        _ => return Err(Error::new(
+                            "unexpected optional `+` or `-` followed by digits must \
                                 follow `e` in float const")),
                     }
                 }
-                _ => return Err(Error::unexpected_static_message(
-                    "optional `+` or `-` followed by digits must \
+                _ => return Err(Error::new(
+                    "unexpected optional `+` or `-` followed by digits must \
                         follow `e` in float const")),
             }
             loop {
@@ -718,8 +755,8 @@ impl<'a> TokenStream<'a> {
                     Some((_, '0'..='9')) => continue,
                     Some((_, '_')) => continue,
                     Some((_, '.')) => return Err(
-                        Error::unexpected_static_message(
-                        "extra decimal dot in number")),
+                        Error::new(
+                        "unexpected extra decimal dot in number")),
                     Some((idx, c)) if c.is_alphabetic() => {
                         suffix = Some(idx+1);
                         break;
@@ -758,17 +795,17 @@ impl<'a> TokenStream<'a> {
                 "123"
             };
             if suffix.starts_with('O') {
-                return Err(Error::unexpected_format(
+                return Err(Error::new(
                     format_args!("suffix {:?} is invalid for \
                         numbers, perhaps mixed up letter `O` \
                         with zero `0`?", suffix)));
             } else if decimal {
-                return Err(Error::unexpected_format(
+                return Err(Error::new(
                     format_args!("suffix {:?} is invalid for \
                         numbers, perhaps you wanted `{}n` (decimal)?",
                         suffix, val)));
             } else {
-                return Err(Error::unexpected_format(
+                return Err(Error::new(
                     format_args!("suffix {:?} is invalid for \
                         numbers, perhaps you wanted `{}n` (bigint)?",
                         suffix, val)));
@@ -846,18 +883,24 @@ impl<'a> TokenStream<'a> {
     }
 }
 
+impl<'a> fmt::Display for TokenStub<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}[{:?}]", self.text, self.kind)
+    }
+}
+
 impl<'a> fmt::Display for Token<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}[{:?}]", self.value, self.kind)
+        write!(f, "{}[{:?}]", self.text, self.kind)
     }
 }
 
 fn check_prohibited(c: char, escape: bool)
-    -> Result<(), Error<Token<'static>, Token<'static>>>
+    -> Result<(), Error>
 {
     match c {
         '\0' if escape => {
-            Err(Error::message_static_message(
+            Err(Error::new(
                 "character U+0000 is not allowed"
             ))
         }
@@ -866,12 +909,12 @@ fn check_prohibited(c: char, escape: bool)
         '\u{202E}' | '\u{2066}' | '\u{2067}' | '\u{2068}' |
         '\u{2069}' => {
             if escape {
-                Err(Error::message_format(format!(
+                Err(Error::new(format!(
                     "character U+{0:04X} is not allowed, \
                      use escaped form \\u{0:04x}",
                     c as u32)))
             } else {
-                Err(Error::message_format(
+                Err(Error::new(
                     format!("character U+{:04X} is not allowed", c as u32)))
             }
         }
@@ -980,5 +1023,11 @@ pub fn is_keyword(s: &str) -> bool {
           // Keep in sync with keywords::PARTIAL_RESERVED_KEYWORDS
         => true,
         _ => false,
+    }
+}
+
+impl <'a> std::cmp::PartialEq for Token<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind && self.text == other.text && self.value == other.value
     }
 }

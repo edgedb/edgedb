@@ -1,37 +1,21 @@
-use std::borrow::Cow;
-use std::char;
 use std::collections::HashMap;
-use std::iter::Peekable;
-use std::slice::Iter;
-use std::str::FromStr;
 
-use cpython::{PyString, PyBytes, PyResult, Python, PyClone, PythonObject};
-use cpython::{PyTuple, PyList, PyInt, PyObject, ToPyObject, ObjectProtocol};
+use cpython::{PyString, PyResult, Python, PyClone, PythonObject};
+use cpython::{PyTuple, PyList, PyObject, ToPyObject, ObjectProtocol};
 use cpython::{FromPyObject};
-use bigdecimal::BigDecimal;
-use num_bigint::ToBigInt;
 
-use edgeql_parser::tokenizer::{TokenStream, Kind, is_keyword, SpannedToken};
+use edgeql_parser::tokenizer::{Kind, is_keyword, Tokenizer, Token as PToken};
 use edgeql_parser::tokenizer::{MAX_KEYWORD_LENGTH};
 use edgeql_parser::position::Pos;
 use edgeql_parser::keywords::{PARTIAL_RESERVED_KEYWORDS, UNRESERVED_KEYWORDS};
 use edgeql_parser::keywords::{CURRENT_RESERVED_KEYWORDS};
 use edgeql_parser::keywords::{FUTURE_RESERVED_KEYWORDS};
-use edgeql_parser::helpers::unquote_string;
+
 use crate::errors::TokenizerError;
-use crate::pynormalize::py_pos;
-use crate::float;
+use crate::pynormalize::{py_pos, value_to_py_object};
 
 static mut TOKENS: Option<Tokens> = None;
 
-
-#[derive(Debug, Clone)]
-pub struct CowToken<'a> {
-    pub kind: Kind,
-    pub value: Cow<'a, str>,
-    pub start: Pos,
-    pub end: Pos,
-}
 
 fn rs_pos(py: Python, value: &PyObject) -> PyResult<Pos> {
     let (line, column, offset) = FromPyObject::extract(py, value)?;
@@ -134,7 +118,6 @@ pub struct Tokens {
 
     iconst: PyString,
     niconst: PyString,
-    i16: PyInt,
     fconst: PyString,
     nfconst: PyString,
     bconst: PyString,
@@ -161,7 +144,6 @@ pub struct Tokens {
 }
 
 struct Cache {
-    decimal: Option<PyObject>,
     keyword_buf: String,
 }
 
@@ -175,13 +157,6 @@ pub fn init_module(py: Python) {
     unsafe {
         TOKENS = Some(Tokens::new(py))
     }
-}
-
-fn peek_keyword(iter: &mut Peekable<Iter<CowToken>>, kw: &str) -> bool {
-    iter.peek()
-       .map(|t| (t.kind == Kind::Ident || t.kind == Kind::Keyword)
-                && t.value.eq_ignore_ascii_case(kw))
-       .unwrap_or(false)
 }
 
 pub fn _unpickle_token(py: Python,
@@ -205,57 +180,48 @@ pub fn _unpickle_token(py: Python,
 pub fn tokenize(py: Python, s: &PyString) -> PyResult<PyList> {
     let data = s.to_string(py)?;
 
-    let mut token_stream = TokenStream::new(&data[..]);
+    let mut token_stream = Tokenizer::new(&data[..]).validated_values();
     let rust_tokens: Vec<_> = py.allow_threads(|| {
-        let mut tokens = Vec::new();
-        for res in &mut token_stream {
-            match res {
-                Ok(t) => tokens.push(CowToken::from(t)),
-                Err(e) => {
-                    return Err((e, token_stream.current_pos()));
-                }
-            }
-        }
-        Ok(tokens)
-    }).map_err(|(e, pos)| {
-        use combine::easy::Error::*;
-        let err = match e {
-            Unexpected(s) => s.to_string(),
-            o => o.to_string(),
-        };
-        TokenizerError::new(py, (err, py_pos(py, &pos)))
+        (&mut token_stream).collect::<Result<_, _>>()
+    }).map_err(|e| {
+        TokenizerError::new(py, (e.message, py_pos(py, &e.span.start)))
     })?;
     return convert_tokens(py, rust_tokens, token_stream.current_pos());
 }
 
-pub fn convert_tokens(py: Python, rust_tokens: Vec<CowToken<'_>>,
+pub fn convert_tokens(py: Python, rust_tokens: Vec<PToken<'_>>,
     end_pos: Pos)
     -> PyResult<PyList>
 {
     let tokens = unsafe { TOKENS.as_ref().expect("module initialized") };
     let mut cache = Cache {
-        decimal: None,
         keyword_buf: String::with_capacity(MAX_KEYWORD_LENGTH),
     };
     let mut buf = Vec::with_capacity(rust_tokens.len());
-    let mut tok_iter = rust_tokens.iter().peekable();
-    while let Some(tok) = tok_iter.next() {
-        let (name, text, value) = convert(py, tokens, &mut cache,
-                                          tok, &mut tok_iter)?;
-        let py_tok = Token::create_instance(py, name, text, value,
-            tok.start, tok.end)?;
+    for tok in rust_tokens {
+        let (kind, text) = get_token_kind_and_name(py, tokens, &mut cache, &tok);
+
+        let value = tok.value.as_ref()
+            .map(|v| value_to_py_object(py, v)).transpose()?
+            .unwrap_or_else(|| py.None());
+
+        let py_tok = Token::create_instance(
+            py, kind, text, value, tok.span.start, tok.span.end
+        )?;
 
         buf.push(py_tok.into_object());
     }
-    buf.push(Token::create_instance(py,
-        tokens.eof.clone_ref(py),
-        tokens.empty.clone_ref(py),
-        py.None(),
-        end_pos, end_pos)?
-        .into_object());
+    buf.push(Token::create_instance(
+            py,
+            tokens.eof.clone_ref(py),
+            tokens.empty.clone_ref(py),
+            py.None(),
+            end_pos,
+            end_pos
+        )?.into_object()
+    );
     Ok(PyList::new(py, &buf[..]))
 }
-
 
 impl Tokens {
     pub fn new(py: Python) -> Tokens {
@@ -307,7 +273,6 @@ impl Tokens {
 
             iconst: PyString::new(py, "ICONST"),
             niconst: PyString::new(py, "NICONST"),
-            i16: 16.to_py_object(py),
             fconst: PyString::new(py, "FCONST"),
             nfconst: PyString::new(py, "NFCONST"),
             bconst: PyString::new(py, "BCONST"),
@@ -366,435 +331,252 @@ impl Tokens {
     }
 }
 
-impl Cache {
-    fn decimal(&mut self, py: Python) -> PyResult<&mut PyObject> {
-        if let Some(ref mut d) = self.decimal {
-            return Ok(d);
-        }
-        let module = py.import("decimal")?;
-        let typ = module.get(py, "Decimal")?;
-        self.decimal = Some(typ);
-        Ok(self.decimal.as_mut().unwrap())
-    }
-}
-
-
-fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
-    token: &CowToken,
-    tok_iter: &mut Peekable<Iter<CowToken>>)
-    -> PyResult<(PyString, PyString, PyObject)>
-{
+fn get_token_kind_and_name(
+    py: Python,
+    tokens: &Tokens,
+    cache: &mut Cache,
+    token: &PToken,
+) -> (PyString, PyString) {
     use Kind::*;
-    let value = &token.value[..];
+    let text = &token.text[..];
     match token.kind {
-        Assign => Ok((tokens.assign.clone_ref(py),
-                      tokens.assign_op.clone_ref(py),
-                      py.None())),
-        SubAssign => Ok((tokens.sub_assign.clone_ref(py),
-                         tokens.sub_assign_op.clone_ref(py),
-                         py.None())),
-        AddAssign => Ok((tokens.add_assign.clone_ref(py),
-                         tokens.add_assign_op.clone_ref(py),
-                         py.None())),
-        Arrow  => Ok((tokens.arrow.clone_ref(py),
-                      tokens.arrow_op.clone_ref(py),
-                      py.None())),
-        Coalesce => Ok((tokens.coalesce.clone_ref(py),
-                        tokens.coalesce.clone_ref(py),
-                        py.None())),
-        Namespace => Ok((tokens.namespace.clone_ref(py),
-                         tokens.namespace.clone_ref(py),
-                         py.None())),
-        DoubleSplat => Ok((tokens.double_splat.clone_ref(py),
-                           tokens.double_splat.clone_ref(py),
-                           py.None())),
-        BackwardLink => Ok((tokens.backward_link.clone_ref(py),
-                            tokens.backward_link.clone_ref(py),
-                            py.None())),
-        FloorDiv => Ok((tokens.floor_div.clone_ref(py),
-                        tokens.floor_div.clone_ref(py),
-                        py.None())),
-        Concat => Ok((tokens.concat.clone_ref(py),
-                      tokens.concat.clone_ref(py),
-                      py.None())),
-        GreaterEq => Ok((tokens.op.clone_ref(py),
-                         tokens.greater_eq.clone_ref(py),
-                         py.None())),
-        LessEq => Ok((tokens.op.clone_ref(py),
-                      tokens.less_eq.clone_ref(py),
-                      py.None())),
-        NotEq => Ok((tokens.op.clone_ref(py),
-                     tokens.not_eq.clone_ref(py),
-                     py.None())),
-        NotDistinctFrom => Ok((tokens.op.clone_ref(py),
-                               tokens.not_distinct_from.clone_ref(py),
-                               py.None())),
-        DistinctFrom => Ok((tokens.op.clone_ref(py),
-                            tokens.distinct_from.clone_ref(py),
-                            py.None())),
-        Comma => Ok((tokens.comma.clone_ref(py),
-                     tokens.comma.clone_ref(py),
-                     py.None())),
-        OpenParen => Ok((tokens.open_paren.clone_ref(py),
-                         tokens.open_paren.clone_ref(py),
-                         py.None())),
-        CloseParen => Ok((tokens.close_paren.clone_ref(py),
-                          tokens.close_paren.clone_ref(py),
-                          py.None())),
-        OpenBracket => Ok((tokens.open_bracket.clone_ref(py),
-                           tokens.open_bracket.clone_ref(py),
-                           py.None())),
-        CloseBracket => Ok((tokens.close_bracket.clone_ref(py),
-                            tokens.close_bracket.clone_ref(py),
-                            py.None())),
-        OpenBrace => Ok((tokens.open_brace.clone_ref(py),
-                         tokens.open_brace.clone_ref(py),
-                         py.None())),
-        CloseBrace => Ok((tokens.close_brace.clone_ref(py),
-                          tokens.close_brace.clone_ref(py),
-                          py.None())),
-        Dot => Ok((tokens.dot.clone_ref(py),
-                   tokens.dot.clone_ref(py),
-                   py.None())),
-        Semicolon => Ok((tokens.semicolon.clone_ref(py),
-                         tokens.semicolon.clone_ref(py),
-                         py.None())),
-        Colon => Ok((tokens.colon.clone_ref(py),
-                     tokens.colon.clone_ref(py),
-                     py.None())),
-        Add => Ok((tokens.add.clone_ref(py),
-                   tokens.add.clone_ref(py),
-                   py.None())),
-        Sub => Ok((tokens.sub.clone_ref(py),
-                   tokens.sub.clone_ref(py),
-                   py.None())),
-        Mul => Ok((tokens.mul.clone_ref(py),
-                   tokens.mul.clone_ref(py),
-                   py.None())),
-        Div => Ok((tokens.div.clone_ref(py),
-                   tokens.div.clone_ref(py),
-                   py.None())),
-        Modulo => Ok((tokens.modulo.clone_ref(py),
-                      tokens.modulo.clone_ref(py),
-                      py.None())),
-        Pow => Ok((tokens.pow.clone_ref(py),
-                   tokens.pow.clone_ref(py),
-                   py.None())),
-        Less => Ok((tokens.less.clone_ref(py),
-                    tokens.less.clone_ref(py),
-                    py.None())),
-        Greater => Ok((tokens.greater.clone_ref(py),
-                       tokens.greater.clone_ref(py),
-                       py.None())),
-        Eq => Ok((tokens.eq.clone_ref(py),
-                  tokens.eq.clone_ref(py),
-                  py.None())),
-        Ampersand => Ok((tokens.ampersand.clone_ref(py),
-                         tokens.ampersand.clone_ref(py),
-                         py.None())),
-        Pipe => Ok((tokens.pipe.clone_ref(py),
-                    tokens.pipe.clone_ref(py),
-                    py.None())),
-        At => Ok((tokens.at.clone_ref(py),
-                  tokens.at.clone_ref(py),
-                  py.None())),
-        Argument => {
-            if value[1..].starts_with('`') {
-                Ok((tokens.argument.clone_ref(py),
-                    PyString::new(py, value),
-                    PyString::new(py, &value[2..value.len()-1]
-                                     .replace("``", "`"))
-                   .into_object()))
-            } else {
-                Ok((tokens.argument.clone_ref(py),
-                    PyString::new(py, value),
-                    PyString::new(py, &value[1..])
-                    .into_object()))
-            }
-        }
-        DecimalConst => {
-            Ok((tokens.nfconst.clone_ref(py),
-                PyString::new(py, value),
-                cache.decimal(py)?.call(py,
-                    (&value[..value.len()-1].replace("_", ""),), None)?))
-        }
-        FloatConst => {
-            let float_value = float::convert(value)
-                .map_err(|msg| TokenizerError::new(py,
-                    (&msg, py_pos(py, &token.start))))?;
-            Ok((tokens.fconst.clone_ref(py),
-                PyString::new(py, value),
-                float_value.to_py_object(py).into_object()))
-        }
-        IntConst => {
-            Ok((tokens.iconst.clone_ref(py),
-                PyString::new(py, value),
-                // We read unsigned here, because unary minus will only
-                // be identified on the parser stage. And there is a number
-                // -9223372036854775808 which can't be represented in
-                // i64 as absolute (positive) value.
-                // Python has no problem of representing such a positive
-                // value, though.
-                u64::from_str(&value.replace("_", ""))
-                .map_err(|e| TokenizerError::new(py,
-                    (format!("error reading int: {}", e),
-                     py_pos(py, &token.start))))?
-               .to_py_object(py)
-               .into_object()))
-        }
-        BigIntConst => {
-            let dec: BigDecimal = value[..value.len()-1]
-                    .replace("_", "").parse()
-                    .map_err(|e| TokenizerError::new(py,
-                        (format!("error reading bigint: {}", e),
-                         py_pos(py, &token.start))))?;
-            // this conversion to decimal and back to string
-            // fixes thing like `1e2n` which we support for bigints
-            let dec_str = dec.to_bigint()
-                .ok_or_else(|| TokenizerError::new(py,  // should never happen
-                    ("number is not integer",
-                     py_pos(py, &token.start))))?
-                .to_str_radix(16);
-            Ok((tokens.niconst.clone_ref(py),
-                PyString::new(py, value),
-                py.get_type::<PyInt>()
-                    .call(py, (dec_str, tokens.i16.clone_ref(py)), None)?
-            ))
-        }
-        BinStr => {
-            Ok((tokens.bconst.clone_ref(py),
-                PyString::new(py, value),
-                PyBytes::new(py,
-                    &unquote_bytes(value)
-                    .map_err(|s| TokenizerError::new(py,
-                        (s, py_pos(py, &token.start))))?)
-                   .into_object()))
-        }
-        Str => {
-            let content = unquote_string(value)
-                .map_err(|s| TokenizerError::new(py,
-                    (s.to_string(), py_pos(py, &token.start))))?;
-            Ok((tokens.sconst.clone_ref(py),
-                PyString::new(py, value),
-                PyString::new(py, &content).into_object()))
-        },
-        BacktickName => {
-            Ok((tokens.ident.clone_ref(py),
-                PyString::new(py, value),
-                PyString::new(py, &value[1..value.len()-1].replace("``", "`"))
-               .into_object()))
-        }
-        Ident | Keyword => {
-            if value.len() > MAX_KEYWORD_LENGTH {
-                let val = PyString::new(py, value);
-                Ok((tokens.ident.clone_ref(py),
-                    val.clone_ref(py),
-                    val.into_object()))
-            } else {
-                cache.keyword_buf.clear();
-                cache.keyword_buf.push_str(value);
-                cache.keyword_buf.make_ascii_lowercase();
-                match &cache.keyword_buf[..] {
-                    "named" if peek_keyword(tok_iter, "only") => {
-                         tok_iter.next();
-                         Ok((tokens.named_only.clone_ref(py),
-                             tokens.named_only_val.clone_ref(py),
-                             py.None()))
-                    }
-                    "set" if peek_keyword(tok_iter, "annotation") => {
-                         tok_iter.next();
-                         Ok((tokens.set_annotation.clone_ref(py),
-                             tokens.set_annotation_val.clone_ref(py),
-                             py.None()))
-                    }
-                    "set" if peek_keyword(tok_iter, "type") => {
-                         tok_iter.next();
-                         Ok((tokens.set_type.clone_ref(py),
-                             tokens.set_type_val.clone_ref(py),
-                             py.None()))
-                    }
-                    "extension" if peek_keyword(tok_iter, "package") => {
-                         tok_iter.next();
-                         Ok((tokens.extension_package.clone_ref(py),
-                             tokens.extension_package_val.clone_ref(py),
-                             py.None()))
-                    }
-                    "order" if peek_keyword(tok_iter, "by") => {
-                         tok_iter.next();
-                         Ok((tokens.order_by.clone_ref(py),
-                             tokens.order_by_val.clone_ref(py),
-                             py.None()))
-                    }
-                    _ => match tokens.keywords.get(&cache.keyword_buf) {
-                        Some(tok_info) => {
-                            debug_assert_eq!(tok_info.kind, token.kind);
-                            Ok((tok_info.name.clone_ref(py),
-                                 PyString::new(py, value),
-                                 py.None()))
+        Assign => (
+            tokens.assign.clone_ref(py),
+            tokens.assign_op.clone_ref(py),
+        ),
+        SubAssign => (
+            tokens.sub_assign.clone_ref(py),
+            tokens.sub_assign_op.clone_ref(py),
+        ),
+        AddAssign => (
+            tokens.add_assign.clone_ref(py),
+            tokens.add_assign_op.clone_ref(py),
+        ),
+        Arrow => (
+            tokens.arrow.clone_ref(py),
+            tokens.arrow_op.clone_ref(py),
+        ),
+        Coalesce => (
+            tokens.coalesce.clone_ref(py),
+            tokens.coalesce.clone_ref(py),
+        ),
+        Namespace => (
+            tokens.namespace.clone_ref(py),
+            tokens.namespace.clone_ref(py),
+        ),
+        DoubleSplat => (
+            tokens.double_splat.clone_ref(py),
+            tokens.double_splat.clone_ref(py),
+        ),
+        BackwardLink => (
+            tokens.backward_link.clone_ref(py),
+            tokens.backward_link.clone_ref(py),
+        ),
+        FloorDiv => (
+            tokens.floor_div.clone_ref(py),
+            tokens.floor_div.clone_ref(py),
+        ),
+        Concat => (
+            tokens.concat.clone_ref(py),
+            tokens.concat.clone_ref(py),
+        ),
+        GreaterEq => (
+            tokens.op.clone_ref(py),
+            tokens.greater_eq.clone_ref(py),
+        ),
+        LessEq => (
+            tokens.op.clone_ref(py),
+            tokens.less_eq.clone_ref(py),
+        ),
+        NotEq => (
+            tokens.op.clone_ref(py),
+            tokens.not_eq.clone_ref(py),
+        ),
+        NotDistinctFrom => (
+            tokens.op.clone_ref(py),
+            tokens.not_distinct_from.clone_ref(py),
+        ),
+        DistinctFrom => (
+            tokens.op.clone_ref(py),
+            tokens.distinct_from.clone_ref(py),
+        ),
+        Comma => (
+            tokens.comma.clone_ref(py),
+            tokens.comma.clone_ref(py),
+        ),
+        OpenParen => (
+            tokens.open_paren.clone_ref(py),
+            tokens.open_paren.clone_ref(py),
+        ),
+        CloseParen => (
+            tokens.close_paren.clone_ref(py),
+            tokens.close_paren.clone_ref(py),
+        ),
+        OpenBracket => (
+            tokens.open_bracket.clone_ref(py),
+            tokens.open_bracket.clone_ref(py),
+        ),
+        CloseBracket => (
+            tokens.close_bracket.clone_ref(py),
+            tokens.close_bracket.clone_ref(py),
+        ),
+        OpenBrace => (
+            tokens.open_brace.clone_ref(py),
+            tokens.open_brace.clone_ref(py),
+        ),
+        CloseBrace => (
+            tokens.close_brace.clone_ref(py),
+            tokens.close_brace.clone_ref(py),
+        ),
+        Dot => (
+            tokens.dot.clone_ref(py),
+            tokens.dot.clone_ref(py),
+        ),
+        Semicolon => (
+            tokens.semicolon.clone_ref(py),
+            tokens.semicolon.clone_ref(py),
+        ),
+        Colon => (
+            tokens.colon.clone_ref(py),
+            tokens.colon.clone_ref(py),
+        ),
+        Add => (
+            tokens.add.clone_ref(py),
+            tokens.add.clone_ref(py),
+        ),
+        Sub => (
+            tokens.sub.clone_ref(py),
+            tokens.sub.clone_ref(py),
+        ),
+        Mul => (
+            tokens.mul.clone_ref(py),
+            tokens.mul.clone_ref(py),
+        ),
+        Div => (
+            tokens.div.clone_ref(py),
+            tokens.div.clone_ref(py),
+        ),
+        Modulo => (
+            tokens.modulo.clone_ref(py),
+            tokens.modulo.clone_ref(py),
+        ),
+        Pow => (
+            tokens.pow.clone_ref(py),
+            tokens.pow.clone_ref(py),
+        ),
+        Less => (
+            tokens.less.clone_ref(py),
+            tokens.less.clone_ref(py),
+        ),
+        Greater => (
+            tokens.greater.clone_ref(py),
+            tokens.greater.clone_ref(py),
+        ),
+        Eq => (
+            tokens.eq.clone_ref(py),
+            tokens.eq.clone_ref(py),
+        ),
+        Ampersand => (
+            tokens.ampersand.clone_ref(py),
+            tokens.ampersand.clone_ref(py),
+        ),
+        Pipe => (
+            tokens.pipe.clone_ref(py),
+            tokens.pipe.clone_ref(py),
+        ),
+        At => (
+            tokens.at.clone_ref(py),
+            tokens.at.clone_ref(py),
+        ),
+        Argument => (
+            tokens.argument.clone_ref(py),
+            PyString::new(py, text),
+        ),
+        DecimalConst => (
+            tokens.nfconst.clone_ref(py),
+            PyString::new(py, text),
+        ),
+        FloatConst => (
+            tokens.fconst.clone_ref(py),
+            PyString::new(py, text),
+        ),
+        IntConst => (
+            tokens.iconst.clone_ref(py),
+            PyString::new(py, text),
+        ),
+        BigIntConst => (
+            tokens.niconst.clone_ref(py),
+            PyString::new(py, text),
+        ),
+        BinStr => (
+            tokens.bconst.clone_ref(py),
+            PyString::new(py, text),
+        ),
+        Str => (
+            tokens.sconst.clone_ref(py),
+            PyString::new(py, text),
+        ),
+        BacktickName => (
+            tokens.ident.clone_ref(py),
+            PyString::new(py, text),
+        ),
+        Ident | Keyword => match text {
+            "named only" => (
+                tokens.named_only.clone_ref(py),
+                tokens.named_only_val.clone_ref(py),
+            ),
+            "set annotation" => (
+                tokens.set_annotation.clone_ref(py),
+                tokens.set_annotation_val.clone_ref(py),
+            ),
+            "set type" => (
+                tokens.set_type.clone_ref(py),
+                tokens.set_type_val.clone_ref(py),
+            ),
+            "extension package" => {
+                (
+                tokens.extension_package.clone_ref(py),
+                tokens.extension_package_val.clone_ref(py),
+            )},
+            "order by" => (
+                tokens.order_by.clone_ref(py),
+                tokens.order_by_val.clone_ref(py),
+            ),
+
+            _ => {
+                if text.len() > MAX_KEYWORD_LENGTH {
+                    (
+                        tokens.ident.clone_ref(py),
+                        PyString::new(py, text),
+                    )
+                } else {
+                    cache.keyword_buf.clear();
+                    cache.keyword_buf.push_str(text);
+                    cache.keyword_buf.make_ascii_lowercase();
+
+                    let kind = match tokens.keywords.get(&cache.keyword_buf) {
+                        Some(keyword) => {
+                            debug_assert_eq!(keyword.kind, token.kind);
+
+                            keyword.name.clone_ref(py)
                         }
                         None => {
-                            debug_assert_eq!(token.kind, Kind::Ident);
-                            let val = PyString::new(py, value);
-                            Ok((tokens.ident.clone_ref(py),
-                                val.clone_ref(py),
-                                val.into_object()))
+                            debug_assert_eq!(Kind::Ident, token.kind);
+                            tokens.ident.clone_ref(py)
                         }
-                    },
+                    };
+                    (kind, PyString::new(py, text))
                 }
-            }
+            },
         }
-        Substitution => {
-            let content = &value[2..value.len()-1];
-            Ok((tokens.substitution.clone_ref(py),
-                PyString::new(py, value),
-                PyString::new(py, content).into_object()))
-        }
+        Substitution => (
+            tokens.substitution.clone_ref(py),
+            PyString::new(py, text),
+        ),
     }
 }
 
 pub fn get_unpickle_fn(py: Python) -> PyObject {
     let tokens = unsafe { TOKENS.as_ref().expect("module initialized") };
     return tokens.unpickle_token.clone_ref(py);
-}
-
-impl<'a, 'b: 'a> From<&'a SpannedToken<'b>> for CowToken<'b> {
-    fn from(t: &'a SpannedToken<'b>) -> CowToken<'b> {
-        CowToken {
-            kind: t.token.kind,
-            value: t.token.value.into(),
-            start: t.start,
-            end: t.end,
-        }
-    }
-}
-
-impl<'a> From<SpannedToken<'a>> for CowToken<'a> {
-    fn from(t: SpannedToken<'a>) -> CowToken<'a> {
-        CowToken::from(&t)
-    }
-}
-
-fn unquote_bytes(value: &str) -> Result<Vec<u8>, String> {
-    let idx = value.find(|c| c == '\'' || c == '"')
-        .ok_or_else(|| "invalid bytes literal: missing quotes".to_string())?;
-    let prefix = &value[..idx];
-    match prefix {
-        "br" | "rb" => Ok(value[3..value.len() -1].as_bytes().to_vec()),
-        "b" => Ok(_unquote_bytes(&value[2..value.len()-1])?),
-        _ => return Err(format_args!(
-                "prefix {:?} is not allowed for bytes, allowed: `b`, `rb`",
-                prefix).to_string()),
-    }
-}
-
-fn _unquote_bytes(s: &str) -> Result<Vec<u8>, String> {
-    let mut res = Vec::with_capacity(s.len());
-    let mut bytes = s.as_bytes().iter();
-    while let Some(&c) = bytes.next() {
-        match c {
-            b'\\' => {
-                match *bytes.next().expect("slash cant be at the end") {
-                    c@b'"' | c@b'\\' | c@b'/' | c@b'\'' => res.push(c),
-                    b'b' => res.push(b'\x08'),
-                    b'f' => res.push(b'\x0C'),
-                    b'n' => res.push(b'\n'),
-                    b'r' => res.push(b'\r'),
-                    b't' => res.push(b'\t'),
-                    b'x' => {
-                        let tail = &s[s.len() - bytes.as_slice().len()..];
-                        let hex = tail.get(0..2);
-                        let code = hex.and_then(|s| {
-                            u8::from_str_radix(s, 16).ok()
-                        }).ok_or_else(|| {
-                            format!("invalid bytes literal: \
-                                invalid escape sequence '\\x{}'",
-                                hex.unwrap_or(tail).escape_debug())
-                        })?;
-                        res.push(code);
-                        bytes.nth(1);
-                    }
-                    b'\r' | b'\n' => {
-                        let nskip = bytes.as_slice()
-                            .iter()
-                            .take_while(|&&x| x.is_ascii_whitespace())
-                            .count();
-                        if nskip > 0 {
-                            bytes.nth(nskip-1);
-                        }
-                    }
-                    c => {
-                        let ch = if c < 0x7f {
-                            c as char
-                        } else {
-                            // recover the unicode byte
-                            s[s.len()-bytes.as_slice().len()-1..]
-                            .chars().next().unwrap()
-                        };
-                        return Err(format!("invalid bytes literal: \
-                            invalid escape sequence '\\{}'",
-                           ch.escape_debug()));
-                    }
-                }
-            }
-            c => res.push(c),
-        }
-    }
-
-    Ok(res)
-}
-
-#[test]
-fn simple_bytes() {
-    assert_eq!(_unquote_bytes(r#"\x09"#).unwrap(), b"\x09");
-    assert_eq!(_unquote_bytes(r#"\x0A"#).unwrap(), b"\x0A");
-    assert_eq!(_unquote_bytes(r#"\x0D"#).unwrap(), b"\x0D");
-    assert_eq!(_unquote_bytes(r#"\x20"#).unwrap(), b"\x20");
-    assert_eq!(unquote_bytes(r#"b'\x09'"#).unwrap(), b"\x09");
-    assert_eq!(unquote_bytes(r#"b'\x0A'"#).unwrap(), b"\x0A");
-    assert_eq!(unquote_bytes(r#"b'\x0D'"#).unwrap(), b"\x0D");
-    assert_eq!(unquote_bytes(r#"b'\x20'"#).unwrap(), b"\x20");
-    assert_eq!(unquote_bytes(r#"br'\x09'"#).unwrap(), b"\\x09");
-    assert_eq!(unquote_bytes(r#"br'\x0A'"#).unwrap(), b"\\x0A");
-    assert_eq!(unquote_bytes(r#"br'\x0D'"#).unwrap(), b"\\x0D");
-    assert_eq!(unquote_bytes(r#"br'\x20'"#).unwrap(), b"\\x20");
-}
-
-#[test]
-fn newline_escaping_bytes() {
-    assert_eq!(_unquote_bytes(r"hello \
-                                world").unwrap(), b"hello world");
-    assert_eq!(unquote_bytes(r"br'hello \
-                                world'").unwrap(),
-        b"hello \\\n                                world");
-
-    assert_eq!(_unquote_bytes(r"bb\
-aa \
-            bb").unwrap(), b"bbaa bb");
-    assert_eq!(unquote_bytes(r"rb'bb\
-aa \
-            bb'").unwrap(), b"bb\\\naa \\\n            bb");
-    assert_eq!(_unquote_bytes(r"bb\
-
-        aa").unwrap(), b"bbaa");
-    assert_eq!(unquote_bytes(r"br'bb\
-
-        aa'").unwrap(), b"bb\\\n\n        aa");
-    assert_eq!(_unquote_bytes(r"bb\
-        \
-        aa").unwrap(), b"bbaa");
-    assert_eq!(unquote_bytes(r"rb'bb\
-        \
-        aa'").unwrap(), b"bb\\\n        \\\n        aa");
-    assert_eq!(_unquote_bytes("bb\\\r   aa").unwrap(), b"bbaa");
-    assert_eq!(unquote_bytes("br'bb\\\r   aa'").unwrap(), b"bb\\\r   aa");
-    assert_eq!(_unquote_bytes("bb\\\r\n   aa").unwrap(), b"bbaa");
-    assert_eq!(unquote_bytes("rb'bb\\\r\n   aa'").unwrap(), b"bb\\\r\n   aa");
-}
-
-#[test]
-fn complex_bytes() {
-    assert_eq!(_unquote_bytes(r#"\x09 hello \x0A there"#).unwrap(),
-        b"\x09 hello \x0A there");
-    assert_eq!(unquote_bytes(r#"br'\x09 hello \x0A there'"#).unwrap(),
-        b"\\x09 hello \\x0A there");
 }

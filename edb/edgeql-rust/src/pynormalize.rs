@@ -1,19 +1,19 @@
-use std::convert::{TryFrom};
+use std::convert::TryFrom;
 
-use cpython::{Python, PyClone, PyDict, PyList, PyString, PyResult};
-use cpython::{PyTuple, PyInt, ToPyObject, PythonObject, PyBytes, PyErr};
-use cpython::{PyFloat};
 use cpython::exc::AssertionError;
+use cpython::{PyBytes, PyErr, PyInt, PyTuple, PythonObject, ToPyObject};
+use cpython::{PyClone, PyDict, PyList, PyResult, PyString, Python};
+use cpython::{PyFloat, PyObject};
 
-use bytes::{BytesMut, Bytes, BufMut};
-use edgeql_parser::position::Pos;
+use bytes::{BufMut, Bytes, BytesMut};
 use edgedb_protocol::codec;
 use edgedb_protocol::model::{BigInt, Decimal};
+use edgeql_parser::position::Pos;
+use edgeql_parser::tokenizer::Value;
 
 use crate::errors::TokenizerError;
-use crate::normalize::{Error, Value, Variable, normalize as _normalize};
+use crate::normalize::{normalize as _normalize, Error, Variable};
 use crate::tokenizer::convert_tokens;
-
 
 py_class!(pub class Entry |py| {
     data _key: PyBytes;
@@ -40,28 +40,9 @@ py_class!(pub class Entry |py| {
             } else {
                 (first + idx).to_string()
             };
-            vars.set_item(py, s.to_py_object(py),
-                match var.value {
-                    Value::Int(ref v) => v.to_py_object(py).into_object(),
-                    Value::Str(ref v) => v.to_py_object(py).into_object(),
-                    Value::Float(ref v) => v.to_py_object(py).into_object(),
-                    Value::BigInt(ref v) => {
-                        py.get_type::<PyInt>()
-                        .call(py,
-                            PyTuple::new(py, &[
-                                v.to_string().to_py_object(py).into_object(),
-                            ]),
-                            None)?
-                    }
-                    Value::Decimal(ref v) => {
-                        py.get_type::<PyFloat>()
-                        .call(py,
-                            PyTuple::new(py, &[
-                                v.to_string().to_py_object(py).into_object(),
-                            ]),
-                            None)?
-                    }
-                })?;
+            vars.set_item(
+                py, s.to_py_object(py), value_to_py_object(py, &var.value)?
+            )?;
         }
         Ok(vars)
     }
@@ -79,57 +60,66 @@ py_class!(pub class Entry |py| {
     }
 });
 
-
 pub fn py_pos(py: Python, pos: &Pos) -> PyTuple {
     (pos.line, pos.column, pos.offset).to_py_object(py)
 }
 
 pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
-    use edgedb_protocol::value::Value as P;
     use edgedb_protocol::codec::Codec;
+    use edgedb_protocol::value::Value as P;
 
     let mut buf = BytesMut::new();
-    buf.reserve(4*variables.len());
+    buf.reserve(4 * variables.len());
     for var in variables {
         buf.reserve(4);
         let pos = buf.len();
-        buf.put_u32(0);  // replaced after serializing a value
+        buf.put_u32(0); // replaced after serializing a value
         match var.value {
             Value::Int(v) => {
-                codec::Int64.encode(&mut buf, &P::Int64(v))
+                codec::Int64
+                    .encode(&mut buf, &P::Int64(v as i64))
                     .map_err(|e| format!("int cannot be encoded: {}", e))?;
             }
-            Value::Str(ref v) => {
-                codec::Str.encode(&mut buf, &P::Str(v.clone()))
+            Value::String(ref v) => {
+                codec::Str
+                    .encode(&mut buf, &P::Str(v.clone()))
                     .map_err(|e| format!("str cannot be encoded: {}", e))?;
             }
             Value::Float(ref v) => {
-                codec::Float64.encode(&mut buf, &P::Float64(v.clone()))
+                codec::Float64
+                    .encode(&mut buf, &P::Float64(v.clone()))
                     .map_err(|e| format!("float cannot be encoded: {}", e))?;
             }
             Value::BigInt(ref v) => {
                 let val = BigInt::try_from(v.clone())
                     .map_err(|e| format!("bigint cannot be encoded: {}", e))?;
-                codec::BigInt.encode(&mut buf, &P::BigInt(val))
+                codec::BigInt
+                    .encode(&mut buf, &P::BigInt(val))
                     .map_err(|e| format!("bigint cannot be encoded: {}", e))?;
             }
             Value::Decimal(ref v) => {
                 let val = Decimal::try_from(v.clone())
                     .map_err(|e| format!("decimal cannot be encoded: {}", e))?;
-                codec::Decimal.encode(&mut buf, &P::Decimal(val))
+                codec::Decimal
+                    .encode(&mut buf, &P::Decimal(val))
                     .map_err(|e| format!("decimal cannot be encoded: {}", e))?;
             }
+            Value::Bytes(_) => {
+                // bytes literals should not be extracted during normalization
+                unreachable!()
+            }
         }
-        let len = buf.len()-pos-4;
-        buf[pos..pos+4].copy_from_slice(&u32::try_from(len)
+        let len = buf.len() - pos - 4;
+        buf[pos..pos + 4].copy_from_slice(
+            &u32::try_from(len)
                 .map_err(|_| "element isn't too long".to_owned())?
-                .to_be_bytes());
+                .to_be_bytes(),
+        );
     }
     Ok(buf.freeze())
 }
 
-pub fn serialize_all(py: Python<'_>, variables: &[Vec<Variable>])
-                       -> Result<PyList, String> {
+pub fn serialize_all(py: Python<'_>, variables: &[Vec<Variable>]) -> Result<PyList, String> {
     let mut buf = Vec::with_capacity(variables.len());
     for vars in variables {
         let bytes = serialize_extra(vars)?;
@@ -139,18 +129,20 @@ pub fn serialize_all(py: Python<'_>, variables: &[Vec<Variable>])
     Ok(PyList::new(py, &buf[..]))
 }
 
-pub fn normalize(py: Python<'_>, text: &PyString)
-    -> PyResult<Entry>
-{
+pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
     let text = text.to_string(py)?;
     match _normalize(&text) {
         Ok(entry) => {
             let blobs = serialize_all(py, &entry.variables)
                 .map_err(|e| PyErr::new::<AssertionError, _>(py, e))?;
-            let counts: Vec<_> = entry.variables.iter().map(
-                |x| x.len().to_py_object(py).into_object()).collect();
+            let counts: Vec<_> = entry
+                .variables
+                .iter()
+                .map(|x| x.len().to_py_object(py).into_object())
+                .collect();
 
-            Ok(Entry::create_instance(py,
+            Ok(Entry::create_instance(
+                py,
                 /* key: */ PyBytes::new(py, &entry.hash[..]),
                 /* processed_source: */ entry.processed_source,
                 /* tokens: */ convert_tokens(py, entry.tokens, entry.end_pos)?,
@@ -165,8 +157,24 @@ pub fn normalize(py: Python<'_>, text: &PyString)
             return Err(TokenizerError::new(py, (msg, py_pos(py, &pos))))
         }
         Err(Error::Assertion(msg, pos)) => {
-            return Err(PyErr::new::<AssertionError, _>(py,
-                format!("{}: {}", pos, msg)));
+            return Err(PyErr::new::<AssertionError, _>(
+                py,
+                format!("{}: {}", pos, msg),
+            ));
         }
     }
+}
+
+pub fn value_to_py_object(py: Python, val: &Value) -> PyResult<PyObject> {
+    Ok(match val {
+        Value::Int(v) => v.to_py_object(py).into_object(),
+        Value::String(v) => v.to_py_object(py).into_object(),
+        Value::Float(v) => v.to_py_object(py).into_object(),
+        Value::BigInt(v) => {
+            py.get_type::<PyInt>()
+                .call(py, (v.to_str_radix(16), 16.to_py_object(py)), None)?
+        }
+        Value::Decimal(v) => py.get_type::<PyFloat>().call(py, (v.to_string(),), None)?,
+        Value::Bytes(v) => PyBytes::new(py, v).into_object(),
+    })
 }

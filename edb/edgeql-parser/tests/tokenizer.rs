@@ -1,17 +1,14 @@
-use edgeql_parser::tokenizer::{Kind, TokenStream};
+use edgeql_parser::tokenizer::{Kind, Tokenizer};
 use edgeql_parser::tokenizer::Kind::*;
-use combine::easy::Error;
 
-use combine::{StreamOnce, Positioned};
-
-fn tok_str(s: &str) -> Vec<&str> {
+fn tok_str(s: &str) -> Vec<String> {
     let mut r = Vec::new();
-    let mut s = TokenStream::new(s);
+    let mut s = Tokenizer::new(s).validated_values();
     loop {
-        match s.uncons() {
-            Ok(x) => r.push(x.value),
-            Err(ref e) if e == &Error::end_of_input() => break,
-            Err(e) => panic!("Parse error at {}: {}", s.position(), e),
+        match s.next() {
+            Some(Ok(x)) => r.push(x.text.to_string()),
+            None => break,
+            Some(Err(e)) => panic!("Parse error at {}: {}", e.span.start, e.message),
         }
     }
     return r;
@@ -19,24 +16,24 @@ fn tok_str(s: &str) -> Vec<&str> {
 
 fn tok_typ(s: &str) -> Vec<Kind> {
     let mut r = Vec::new();
-    let mut s = TokenStream::new(s);
+    let mut s = Tokenizer::new(s).validated_values();
     loop {
-        match s.uncons() {
-            Ok(x) => r.push(x.kind),
-            Err(ref e) if e == &Error::end_of_input() => break,
-            Err(e) => panic!("Parse error at {}: {}", s.position(), e),
+        match s.next() {
+            Some(Ok(x)) => r.push(x.kind),
+            None => break,
+            Some(Err(e)) => panic!("Parse error at {}: {}", e.span.start, e.message),
         }
     }
     return r;
 }
 
 fn tok_err(s: &str) -> String {
-    let mut s = TokenStream::new(s);
+    let mut s = Tokenizer::new(s).validated_values();
     loop {
-        match s.uncons() {
-            Ok(_) => {}
-            Err(ref e) if e == &Error::end_of_input() => break,
-            Err(e) => return format!("{}", e),
+        match s.next() {
+            Some(Ok(_)) => {}
+            None => break,
+            Some(Err(e)) => return format!("{}", e.message),
         }
     }
     panic!("No error, where error expected");
@@ -48,7 +45,7 @@ fn whitespace_and_comments() {
     assert_eq!(tok_str("# x\n  "), &[] as &[&str]);
     assert_eq!(tok_str("  # x"), &[] as &[&str]);
     assert_eq!(tok_err("  # xxx \u{202A} yyy"),
-        "Unexpected unexpected character '\\u{202a}'");
+        "unexpected character '\\u{202a}'");
 }
 
 #[test]
@@ -59,8 +56,7 @@ fn idents() {
                        ["тест", "тест_abc", "abc_тест"]);
     assert_eq!(tok_typ("тест тест_abc abc_тест"), [Ident, Ident, Ident]);
     assert_eq!(tok_err(" + __test__"),
-        "Unexpected identifiers surrounded by double underscores \
-        are forbidden");
+        "identifiers surrounded by double underscores are forbidden");
     assert_eq!(tok_str("_1024"), ["_1024"]);
     assert_eq!(tok_typ("_1024"), [Ident]);
 }
@@ -132,7 +128,7 @@ fn not_equals_tokens() {
     assert_eq!(tok_str("a!=b"), ["a", "!=", "b"]);
     assert_eq!(tok_typ("a!=b"), [Ident, NotEq, Ident]);
     assert_eq!(tok_err("a ! = b"),
-        "Unexpected Bare `!` is not an operator, \
+        "Bare `!` is not an operator, \
          did you mean `!=`?");
 }
 
@@ -144,11 +140,11 @@ fn question_tokens() {
     assert_eq!(tok_str("a ?!= b"), ["a", "?!=", "b"]);
     assert_eq!(tok_typ("a ?!= b"), [Ident, DistinctFrom, Ident]);
     assert_eq!(tok_err("a ? b"),
-        "Unexpected Bare `?` is not an operator, \
+        "Bare `?` is not an operator, \
          did you mean `?=` or `??` ?");
 
     assert_eq!(tok_err("something ?!"),
-        "Unexpected `?!` is not an operator, \
+        "`?!` is not an operator, \
          did you mean `?!=` ?");
 }
 
@@ -332,7 +328,7 @@ fn float() {
     assert_eq!(tok_typ("1_023_.9_099_ "), [FloatConst]);
 
     assert_eq!(tok_err("01.2"),
-        "Unexpected leading zeros are not allowed in numbers");
+        "unexpected leading zeros are not allowed in numbers");
 }
 
 #[test]
@@ -374,7 +370,7 @@ fn decimal() {
     assert_eq!(tok_typ("2345e-7n "), [DecimalConst]);
 
     assert_eq!(tok_err("01.0n"),
-        "Unexpected leading zeros are not allowed in numbers");
+        "unexpected leading zeros are not allowed in numbers");
 }
 
 #[test]
@@ -470,76 +466,76 @@ fn numbers_from_py() {
 #[test]
 fn num_errors() {
     assert_eq!(tok_err("0. "),
-        "Expected expected digit after dot, found end of decimal");
+        "expected digit after dot, found end of decimal");
     assert_eq!(tok_err("1.<"),
-        "Expected expected digit after dot, found end of decimal");
+        "expected digit after dot, found end of decimal");
     assert_eq!(tok_err("0.n"),
-        "Expected expected digit after dot, found suffix");
+        "expected digit after dot, found suffix");
     assert_eq!(tok_err("0.e1"),
-        "Expected expected digit after dot, found exponent");
+        "expected digit after dot, found exponent");
     assert_eq!(tok_err("0.e1n"),
-        "Expected expected digit after dot, found exponent");
+        "expected digit after dot, found exponent");
     assert_eq!(tok_err("0."),
-        "Expected expected digit after dot, found end of decimal");
+        "expected digit after dot, found end of decimal");
     assert_eq!(tok_err("1.0.x"),
-        "Unexpected extra decimal dot in number");
+        "unexpected extra decimal dot in number");
     assert_eq!(tok_err("1.0e1."),
-        "Unexpected extra decimal dot in number");
+        "unexpected extra decimal dot in number");
     assert_eq!(tok_err("1.0e."),
-        "Unexpected optional `+` or `-` \
+        "unexpected optional `+` or `-` \
         followed by digits must follow `e` in float const");
     assert_eq!(tok_err("1.0e"),
-        "Unexpected optional `+` or `-` \
+        "unexpected optional `+` or `-` \
         followed by digits must follow `e` in float const");
     assert_eq!(tok_err("1.0ex"),
-        "Unexpected optional `+` or `-` \
+        "unexpected optional `+` or `-` \
         followed by digits must follow `e` in float const");
     assert_eq!(tok_err("1.0en"),
-        "Unexpected optional `+` or `-` \
+        "unexpected optional `+` or `-` \
         followed by digits must follow `e` in float const");
     assert_eq!(tok_err("1.0e "),
-        "Unexpected optional `+` or `-` \
+        "unexpected optional `+` or `-` \
         followed by digits must follow `e` in float const");
     assert_eq!(tok_err("1.0e_"),
-        "Unexpected optional `+` or `-` \
+        "unexpected optional `+` or `-` \
         followed by digits must follow `e` in float const");
     assert_eq!(tok_err("1.0e_ "),
-        "Unexpected optional `+` or `-` \
+        "unexpected optional `+` or `-` \
         followed by digits must follow `e` in float const");
     assert_eq!(tok_err("1.0e_1"),
-        "Unexpected optional `+` or `-` \
+        "unexpected optional `+` or `-` \
         followed by digits must follow `e` in float const");
     assert_eq!(tok_err("1.0e+"),
-        "Unexpected optional `+` or `-` \
+        "unexpected optional `+` or `-` \
         followed by digits must follow `e` in float const");
     assert_eq!(tok_err("1.0e+ "),
-        "Unexpected optional `+` or `-` \
+        "unexpected optional `+` or `-` \
         followed by digits must follow `e` in float const");
     assert_eq!(tok_err("1.0e+x"),
-        "Unexpected optional `+` or `-` \
+        "unexpected optional `+` or `-` \
         followed by digits must follow `e` in float const");
     assert_eq!(tok_err("1.0e+n"),
-        "Unexpected optional `+` or `-` \
+        "unexpected optional `+` or `-` \
         followed by digits must follow `e` in float const");
     assert_eq!(tok_err("1234numeric"),
-        "Unexpected suffix \"numeric\" \
+        "suffix \"numeric\" \
         is invalid for numbers, perhaps you wanted `1234n` (bigint)?");
     assert_eq!(tok_err("1234some_l0ng_trash"),
-        "Unexpected suffix \"some_l0n...\" \
+        "suffix \"some_l0n...\" \
         is invalid for numbers, perhaps you wanted `1234n` (bigint)?");
     assert_eq!(tok_err("100O00"),
-        "Unexpected suffix \"O00\" is invalid for numbers, \
+        "suffix \"O00\" is invalid for numbers, \
         perhaps mixed up letter `O` with zero `0`?");
     assert_eq!(tok_err("01"),
-        "Unexpected leading zeros are not allowed in numbers");
+        "unexpected leading zeros are not allowed in numbers");
     assert_eq!(tok_err("01n"),
-        "Unexpected leading zeros are not allowed in numbers");
+        "unexpected leading zeros are not allowed in numbers");
     assert_eq!(tok_err("01_n"),
-        "Unexpected leading zeros are not allowed in numbers");
+        "unexpected leading zeros are not allowed in numbers");
     assert_eq!(tok_err("0_1_n"),
-        "Unexpected leading zeros are not allowed in numbers");
+        "unexpected leading zeros are not allowed in numbers");
     assert_eq!(tok_err("0_1n"),
-        "Unexpected leading zeros are not allowed in numbers");
+        "unexpected leading zeros are not allowed in numbers");
 }
 
 #[test]
@@ -550,18 +546,18 @@ fn tuple_paths() {
         [Ident, Dot, IntConst, Dot, IntConst,
                 Dot, IntConst, Dot, IntConst, Dot, IntConst]);
     assert_eq!(tok_err("tup.1.2.>3.4.>5"),
-        "Unexpected extra decimal dot in number");
+        "unexpected extra decimal dot in number");
     assert_eq!(tok_str("$0.1.2.3.4.5"),
         ["$0", ".", "1", ".", "2", ".", "3", ".", "4", ".", "5"]);
     assert_eq!(tok_typ("$0.1.2.3.4.5"),
         [Argument, Dot, IntConst, Dot, IntConst,
                 Dot, IntConst, Dot, IntConst, Dot, IntConst]);
     assert_eq!(tok_err("tup.1n"),
-        "Unexpected unexpected char \'n\', only integers \
+        "unexpected char \'n\', only integers \
         are allowed after dot (for tuple access)");
 
     assert_eq!(tok_err("tup.01"),
-        "Unexpected leading zeros are not allowed in numbers");
+        "leading zeros are not allowed in numbers");
 }
 
 #[test]
@@ -583,7 +579,7 @@ fn strings() {
     assert_eq!(tok_str(r#" br''  "#), [r#"br''"#]);
     assert_eq!(tok_typ(r#" br''  "#), [BinStr]);
     assert_eq!(tok_err(r#" ``  "#),
-        "Unexpected backtick quotes cannot be empty");
+        "backtick quotes cannot be empty");
 
     assert_eq!(tok_str(r#" "hello"  "#), [r#""hello""#]);
     assert_eq!(tok_typ(r#" "hello"  "#), [Str]);
@@ -683,46 +679,46 @@ fn strings() {
     assert_eq!(tok_typ(" `hel\nlo` "), [BacktickName]);
 
     assert_eq!(tok_err(r#""hello"#),
-        "Unexpected unterminated string, quoted by `\"`");
+        "unterminated string, quoted by `\"`");
     assert_eq!(tok_err(r#"'hello"#),
-        "Unexpected unterminated string, quoted by `'`");
+        "unterminated string, quoted by `'`");
     assert_eq!(tok_err(r#"r"hello"#),
-        "Unexpected unterminated string, quoted by `\"`");
+        "unterminated string, quoted by `\"`");
     assert_eq!(tok_err(r#"r'hello"#),
-        "Unexpected unterminated string, quoted by `'`");
+        "unterminated string, quoted by `'`");
     assert_eq!(tok_err(r#"b"hello"#),
-        "Unexpected unterminated string, quoted by `\"`");
+        "unterminated string, quoted by `\"`");
     assert_eq!(tok_err(r#"b'hello"#),
-        "Unexpected unterminated string, quoted by `'`");
+        "unterminated string, quoted by `'`");
     assert_eq!(tok_err(r#"`hello"#),
-        "Unexpected unterminated backtick name");
+        "unterminated backtick name");
 
     assert_eq!(tok_err(r#"name`type`"#),
-        "Unexpected prefix \"name\" is not allowed for field names, \
+        "prefix \"name\" is not allowed for field names, \
         perhaps missing comma or dot?");
     assert_eq!(tok_err(r#"User`type`"#),
-        "Unexpected prefix \"User\" is not allowed for field names, \
+        "prefix \"User\" is not allowed for field names, \
         perhaps missing comma or dot?");
     assert_eq!(tok_err(r#"r`hello"#),
-        "Unexpected prefix \"r\" is not allowed for field names, \
+        "prefix \"r\" is not allowed for field names, \
         perhaps missing comma or dot?");
     assert_eq!(tok_err(r#"b`hello"#),
-        "Unexpected prefix \"b\" is not allowed for field names, \
+        "prefix \"b\" is not allowed for field names, \
         perhaps missing comma or dot?");
     assert_eq!(tok_err(r#"test"hello""#),
-        "Unexpected prefix \"test\" is not allowed for strings, \
+        "prefix \"test\" is not allowed for strings, \
         allowed: `b`, `r`");
     assert_eq!(tok_err(r#"test'hello'"#),
-        "Unexpected prefix \"test\" is not allowed for strings, \
+        "prefix \"test\" is not allowed for strings, \
         allowed: `b`, `r`");
     assert_eq!(tok_err(r#"`@x`"#),
-        "Unexpected backtick-quoted name cannot start with char `@`");
+        "backtick-quoted name cannot start with char `@`");
     assert_eq!(tok_err(r#"`$x`"#),
-        "Unexpected backtick-quoted name cannot start with char `$`");
+        "backtick-quoted name cannot start with char `$`");
     assert_eq!(tok_err(r#"`a::b`"#),
-        "Unexpected backtick-quoted name cannot contain `::`");
+        "backtick-quoted name cannot contain `::`");
     assert_eq!(tok_err(r#"`__x__`"#),
-        "Unexpected backtick-quoted names surrounded by double \
+        "backtick-quoted names surrounded by double \
                     underscores are forbidden");
 
 }
@@ -738,17 +734,17 @@ fn string_prohibited_chars() {
     assert_eq!(tok_err("r'\u{202A}'"),
         "character U+202A is not allowed, use escaped form \\u202a");
     assert_eq!(tok_err("b'\u{202A}'"),
-        "Unexpected invalid bytes literal: character '\\u{202a}' \
+        "invalid bytes literal: character '\\u{202a}' \
          is unexpected, only ascii chars are allowed in bytes literals");
     assert_eq!(tok_err("b\"\u{202A}\""),
-        "Unexpected invalid bytes literal: character '\\u{202a}' \
+        "invalid bytes literal: character '\\u{202a}' \
          is unexpected, only ascii chars are allowed in bytes literals");
     assert_eq!(tok_err("`\u{202A}`"),
         "character U+202A is not allowed");
     assert_eq!(tok_err("$`\u{202A}`"),
         "character U+202A is not allowed");
     assert_eq!(tok_err("$x\u{202A}$ inner $x\u{202A}$"),
-        "Unexpected unexpected character '\\u{202a}'");
+        "unexpected character '\\u{202a}'");
     assert_eq!(tok_err("$$ \u{202A} $$"),
         "character U+202A is not allowed");
     assert_eq!(tok_err("$hello$ \u{202A} $hello$"),
@@ -756,7 +752,7 @@ fn string_prohibited_chars() {
     assert_eq!(tok_err("'xxx \0'"),
         "character U+0000 is not allowed");
     assert_eq!(tok_err("xxx \0"),
-        "Unexpected unexpected character '\\0'");
+        "unexpected character '\\0'");
     assert_eq!(tok_err("xxx $x$\0$x$"),
         "character U+0000 is not allowed");
 }
@@ -776,13 +772,13 @@ fn test_dollar() {
     assert_eq!(tok_typ("select $a$ ; $b$ ; $a$; x"),
                        [Keyword, Str, Semicolon, Ident]);
     assert_eq!(tok_err("select $$ ; $ab$ test;"),
-        "Unexpected unterminated string started with $$");
+        "unterminated string started with $$");
     assert_eq!(tok_err("select $a$ ; $$ test;"),
-        "Unexpected unterminated string started with \"$a$\"");
+        "unterminated string started with \"$a$\"");
     assert_eq!(tok_err("select $0$"),
-        "Unexpected dollar quote must not start with a digit");
+        "dollar quote must not start with a digit");
     assert_eq!(tok_err("select $фыва$"),
-        "Unexpected dollar quote supports only ascii chars");
+        "dollar quote supports only ascii chars");
     assert_eq!(tok_str("select $a$a$ ; $a$ test;"),
         ["select", "$a$a$ ; $a$", "test", ";"]);
     assert_eq!(tok_typ("select $a$a$ ; $a$ test;"),
@@ -806,27 +802,27 @@ fn test_dollar() {
         [Keyword, Argument, Add, Argument, Add, Argument,
          Add, Argument, Dot, IntConst, Add, Argument]);
     assert_eq!(tok_err(r#"$-"#),
-        "Unexpected bare $ is not allowed");
+        "bare $ is not allowed");
     assert_eq!(tok_err(r#"$0abc"#),
-        "Unexpected the \"$0abc\" is not a valid argument, \
+        "the \"$0abc\" is not a valid argument, \
          either name starting with letter or only digits are expected");
     assert_eq!(tok_err(r#"-$"#),
-        "Unexpected bare $ is not allowed");
+        "bare $ is not allowed");
     assert_eq!(tok_err(r#" $``  "#),
-        "Unexpected backtick-quoted argument cannot be empty");
+        "backtick-quoted argument cannot be empty");
     assert_eq!(tok_err(r#"$`@x`"#),
-        "Unexpected backtick-quoted argument cannot \
+        "backtick-quoted argument cannot \
         start with char `@`");
     assert_eq!(tok_err(r#"$`a::b`"#),
-        "Unexpected backtick-quoted argument cannot contain `::`");
+        "backtick-quoted argument cannot contain `::`");
     assert_eq!(tok_err(r#"$`__x__`"#),
-        "Unexpected backtick-quoted arguments surrounded by double \
+        "backtick-quoted arguments surrounded by double \
                     underscores are forbidden");
 }
 
 #[test]
 fn invalid_suffix() {
-    assert_eq!(tok_err("SELECT 1d;"), "Unexpected suffix \"d\" \
+    assert_eq!(tok_err("SELECT 1d;"), "suffix \"d\" \
         is invalid for numbers, perhaps you wanted `1n` (bigint)?");
 }
 
@@ -841,7 +837,7 @@ fn test_substitution() {
     assert_eq!(tok_typ("SELECT \\(other_Name1);"),
                        [Keyword, Substitution, Semicolon]);
     assert_eq!(tok_err("SELECT \\(some-name);"),
-        "Unexpected only alphanumerics are allowed in \\(name) token");
+        "only alphanumerics are allowed in \\(name) token");
     assert_eq!(tok_err("SELECT \\(some_name"),
-        "Unexpected unclosed \\(name) token");
+        "unclosed \\(name) token");
 }
