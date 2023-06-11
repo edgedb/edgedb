@@ -38,6 +38,7 @@ import Cython.Build
 import parsing
 import setuptools_rust
 
+# COMMENT
 
 EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
 # This can be a branch, tag, or commit
