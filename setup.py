@@ -338,7 +338,7 @@ def _get_pg_source_stamp():
         cwd=ROOT_PATH,
     )
     revision, _, _ = output[1:].partition(' ')
-    source_stamp = revision + '+' + PGVECTOR_COMMIT
+    source_stamp = revision # + '+' + PGVECTOR_COMMIT
     return source_stamp
 
 
