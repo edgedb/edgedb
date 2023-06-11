@@ -338,8 +338,10 @@ def _get_pg_source_stamp():
         cwd=ROOT_PATH,
     )
     revision, _, _ = output[1:].partition(' ')
-    source_stamp = revision # + '+' + PGVECTOR_COMMIT
-    return ' ' + source_stamp
+    # I don't know why we needed the first empty char, but we don't want to
+    # force everyone to rebuild postgres either
+    source_stamp = output[0] + revision
+    return source_stamp
 
 
 def _compile_cli(build_base, build_temp):
