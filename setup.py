@@ -339,7 +339,7 @@ def _get_pg_source_stamp():
     )
     revision, _, _ = output[1:].partition(' ')
     source_stamp = revision # + '+' + PGVECTOR_COMMIT
-    return source_stamp
+    return ' ' + source_stamp
 
 
 def _compile_cli(build_base, build_temp):
