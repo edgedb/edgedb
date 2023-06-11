@@ -47,10 +47,6 @@ EDGEDBGUI_REPO = 'https://github.com/edgedb/edgedb-studio.git'
 # This can be a branch, tag, or commit
 EDGEDBGUI_COMMIT = 'main'
 
-PGVECTOR_REPO = 'https://github.com/pgvector/pgvector.git'
-# This can be a branch, tag, or commit
-PGVECTOR_COMMIT = 'v0.4.2'
-
 SAFE_EXT_CFLAGS: list[str] = []
 if flag := os.environ.get('EDGEDB_OPT_CFLAG'):
     SAFE_EXT_CFLAGS += [flag]
