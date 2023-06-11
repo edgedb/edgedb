@@ -71,10 +71,10 @@ docs = [
 [build-system]
 requires = [
     "Cython (>=0.29.32, <0.30.0)",
-    "packaging >= 21.0",
-    "setuptools >= 67",
+    "packaging == 23.0",
+    "setuptools == 67.1.0",
     "setuptools-rust ~= 0.12.1",
-    "wheel",
+    "wheel == 0.37.1",
 
     "parsing ~= 2.0",
     'edgedb == 1.3.0',
