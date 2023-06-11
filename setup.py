@@ -47,6 +47,10 @@ EDGEDBGUI_REPO = 'https://github.com/edgedb/edgedb-studio.git'
 # This can be a branch, tag, or commit
 EDGEDBGUI_COMMIT = 'main'
 
+PGVECTOR_REPO = 'https://github.com/pgvector/pgvector.git'
+# This can be a branch, tag, or commit
+PGVECTOR_COMMIT = 'v0.4.2'
+
 SAFE_EXT_CFLAGS: list[str] = []
 if flag := os.environ.get('EDGEDB_OPT_CFLAG'):
     SAFE_EXT_CFLAGS += [flag]
@@ -334,9 +338,7 @@ def _get_pg_source_stamp():
         cwd=ROOT_PATH,
     )
     revision, _, _ = output[1:].partition(' ')
-    # I don't know why we needed the first empty char, but we don't want to
-    # force everyone to rebuild postgres either
-    source_stamp = output[0] + revision
+    source_stamp = revision + '+' + PGVECTOR_COMMIT
     return source_stamp
 
 
