@@ -608,7 +608,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE TestSelfLink3 {
                 CREATE PROPERTY foo3 -> std::str;
                 CREATE PROPERTY bar3 -> std::str {
-                    SET default := TestSelfLink3.foo3;
+                    SET default := .foo3;
                 };
             };
         """)
@@ -1957,13 +1957,42 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             edgedb.QueryError,
             'is part of a default cycle'
         ):
-            await self.con.execute(r"""
+            await self.con.execute(
+                r"""
                 CREATE TYPE Test3 {
                     CREATE LINK d7 : Test3 {
                         SET default := (INSERT Test3 {})
                     }
                 }
-            """)
+                """
+            )
+
+    async def test_edgeql_ddl_default_13(self):
+        # defaults are detached: when referencing the source object (User),
+        # the cardinality is many.
+        # (you can still use partial path prefix)
+
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            'possibly more than one element returned by an expression',
+        ):
+            await self.con.execute(
+                r"""
+                create type User;
+
+                create type Project {
+                    create required link owner -> User;
+                };
+
+                alter type User {
+                    create link default_project -> Project {
+                        set default := (insert Project {
+                            owner := User
+                        })
+                    };
+                };
+                """
+            )
 
     async def test_edgeql_ddl_default_circular(self):
         await self.con.execute(r"""
