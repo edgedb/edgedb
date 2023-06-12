@@ -194,6 +194,14 @@ def delta_schemas(
     added_modules = my_modules - other_modules
     dropped_modules = other_modules - my_modules
 
+    if included_modules is not None:
+        included_modules = set(included_modules)
+
+        added_modules &= included_modules
+        dropped_modules &= included_modules
+    else:
+        included_modules = set()
+
     if excluded_modules is None:
         excluded_modules = set()
     else:
@@ -215,19 +223,18 @@ def delta_schemas(
     if not include_extensions and isinstance(schema_b, s_schema.ChainedSchema):
         ext_packages = schema_b._global_schema.get_objects(
             type=s_ext.ExtensionPackage)
+        ext_mods = set()
         for pkg in ext_packages:
             if not (modname := pkg.get_ext_module(schema_b)):
                 continue
             if schema_a and schema_a.get_referrers(pkg):
-                excluded_modules.add(sn.UnqualName(modname))
+                ext_mods.add(sn.UnqualName(modname))
             if schema_b.get_referrers(pkg):
-                excluded_modules.add(sn.UnqualName(modname))
+                ext_mods.add(sn.UnqualName(modname))
 
-    if included_modules is not None:
-        included_modules = set(included_modules)
-
-        added_modules &= included_modules
-        dropped_modules &= included_modules
+        for ext_mod in ext_mods:
+            if ext_mod not in included_modules:
+                excluded_modules.add(ext_mod)
 
     if excluded_modules:
         added_modules -= excluded_modules
