@@ -175,19 +175,20 @@ Simplified SDL syntax
 ---------------------
 
 As part of our commitment to delivering the best developer experience in
-databases, we've made our schema definition language (or SDL) easier to use.
-You're no longer required to use the ``property`` or ``link`` keywords for
-non-computed properties and links. Also, we've replaced arrows with colons for
-a cleaner look that's easier to type.
+databases, we've made our schema definition language (or SDL) easier to use
+and gotten it ready for upcoming query features. You're no longer required to
+use the ``property`` or ``link`` keywords for non-computed properties 
+and links. Also, we've replaced arrows with colons for a cleaner look
+that's easier to type.
+
+This change paves the way for a future syntax for declaring ad-hoc types in
+queries and functions. (Read more about it in `the free types RFC
+<https://github.com/edgedb/rfcs/blob/master/text/1022-freetypes.rst>`_.)
 
 .. note::
 
     If you prefer the arrow syntax of pre-3.0, feel free to keep using it. That
     syntax is still fully supported.
-
-This change paves the way for a future syntax for declaring ad-hoc types in
-queries and functions. (Read more about it in `the free types RFC
-<https://github.com/edgedb/rfcs/blob/master/text/1022-freetypes.rst>`_.)
 
 That means that this type definition:
 
