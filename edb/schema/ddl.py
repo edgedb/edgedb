@@ -194,6 +194,14 @@ def delta_schemas(
     added_modules = my_modules - other_modules
     dropped_modules = other_modules - my_modules
 
+    if included_modules is not None:
+        included_modules = set(included_modules)
+
+        added_modules &= included_modules
+        dropped_modules &= included_modules
+    else:
+        included_modules = set()
+
     if excluded_modules is None:
         excluded_modules = set()
     else:
@@ -227,12 +235,6 @@ def delta_schemas(
         for ext_mod in ext_mods:
             if ext_mod not in included_modules:
                 excluded_modules.add(ext_mod)
-
-    if included_modules is not None:
-        included_modules = set(included_modules)
-
-        added_modules &= included_modules
-        dropped_modules &= included_modules
 
     if excluded_modules:
         added_modules -= excluded_modules
