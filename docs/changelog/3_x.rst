@@ -927,3 +927,67 @@ Other changes and fixes
 
 * Sort composite type display names consistently
   (:eql:gh:`#5580`)
+
+3.0 RC 3
+========
+
+Support for ``pgvector``
+------------------------
+As a surprise bonus feature, we have introduced support for using the
+`pgvector <pgvector_>`_ Postgres extension for vector similarity search.
+
+This can be used to store and efficiently retrieve text embeddings,
+such as those produced by OpenAI.
+
+The Postgres that comes packaged with the edgedb server includes
+``pgvector``, as does EdgeDB Cloud. It you are using a separate
+Postgres backend, you will need to arrange for it to be installed.
+
+TODO: We need a lot more here!
+
+
+Changes to new 3.0 features
+---------------------------
+* Make ``describe module`` work on nested modules
+  (:eql:gh:`#5646`)
+
+
+Other changes and fixes
+-----------------------
+
+* Make stdlib objects immutable
+  (:eql:gh:`#5599`)
+
+* Slightly improve generated SQL around parameter uses
+  (:eql:gh:`#5605`)
+
+* Fix coalesce with type intersection
+  (:eql:gh:`#5600`)
+
+* Do not corrupt cardinality inference results when doing group analysis
+  (:eql:gh:`#5611`)
+
+* Fix some obscure optional bugs in the presence of tuple projections
+  (:eql:gh:`#5610`)
+
+* Fix casts from json to custom scalars
+  (:eql:gh:`#5624`)
+
+* Fix ``pg_namespace`` emulation in SQL layer
+  (:eql:gh:`#5594`)
+
+* Fix json output of arrays of ranges
+  (:eql:gh:`#5629`)
+
+* Fix ISE when using ``_subject__`` in default
+  (:eql:gh:`#5633`)
+
+* Compile default expressions in the schema consistently compile
+  as ``detached``
+  (:eql:gh:`#5606`)
+
+* Bump ``max_locks_per_transaction`` to 1024
+  (:eql:gh:`#5636`)
+
+.. _pgvector:
+    https://github.com/pgvector/pgvector
