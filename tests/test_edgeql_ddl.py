@@ -13137,6 +13137,18 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             """DROP ALIAS Alias;""",
         )
 
+    async def test_edgeql_ddl_describe_nested_module_01(self):
+        await self.con.execute(r"""
+            create module foo;
+            create module foo::bar;
+            create type foo::bar::T;
+        """)
+
+        await self.assert_query_result(
+            "describe module foo::bar;",
+            ['create type foo::bar::T;'],
+        )
+
     async def test_edgeql_ddl_drop_multi_prop_01(self):
         await self.con.execute(r"""
 

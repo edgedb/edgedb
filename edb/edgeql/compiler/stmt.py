@@ -901,14 +901,16 @@ def compile_DescribeStmt(
             itemclass = objref.itemclass
 
             if itemclass is qltypes.SchemaObjectClass.MODULE:
+                modname = s_name.UnqualName(
+                    str(s_utils.ast_ref_to_name(objref)))
                 if not ctx.env.schema.get_global(
-                        s_mod.Module, objref.name, None):
+                        s_mod.Module, modname, None):
                     raise errors.InvalidReferenceError(
-                        f"module '{objref.name}' does not exist",
+                        f"module '{modname}' does not exist",
                         context=objref.context,
                     )
 
-                modules.append(s_utils.ast_ref_to_unqualname(objref))
+                modules.append(modname)
             else:
                 itemtype: Optional[Type[s_obj.Object]] = None
 
