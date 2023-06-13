@@ -944,9 +944,9 @@ class FlatSchema(Schema):
         else:
             new_refs = {}
             for field in object_ref_fields:
-                ref = data[field.index]
-                if ref is not None:
-                    ref = field.type.schema_refs_from_data(ref)
+                ref_data = data[field.index]
+                if ref_data is not None:
+                    ref = field.type.schema_refs_from_data(ref_data)
                     new_refs[field.name] = ref
             refs_to = self._update_refs_to(id, sclass, None, new_refs)
 
