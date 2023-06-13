@@ -1553,7 +1553,7 @@ class PointerCommandOrFragment(
                 # If so, do not set the path prefix anchor.
                 parent_ctx = self.get_referrer_context_or_die(context)
                 source = parent_ctx.op.get_object(schema, context)
-                if (isinstance(source, Pointer)):
+                if isinstance(source, Pointer):
                     should_set_path_prefix_anchor = False
 
             return self._compile_expr(
