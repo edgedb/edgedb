@@ -1006,6 +1006,7 @@ You can query the nearest neighbour by ordering based on
   edgedb> select Item {*}
   ....... order by ext::pgvector::euclidean_distance(
   .......   .embedding, <v3>[3, 1, 2])
+  ....... empty last
   ....... limit 1;
   {
     default::Item {
@@ -1070,6 +1071,16 @@ the type, each of them optimizing one of the distance calculating functions:
       index ext::pgvector::ivfflat_cosine(lists := 10) on (.embedding);
     }
 
+In order to take advantage of an index, your query must:
+
+1) Use ``order by`` using the function that corresponds to the index
+2) Specify ``empty last`` as part of the ``order by`` clause
+3) Provide a ``limit`` clause specifying how many results to return
+
+Note that unlike normal indexes, hitting an IVFFlat index changes the
+query behavior: it does a (hopefully fast) approximate search instead
+of (usually slow) exact one.
+
 As per the `pgvector <pgvector_>`_ recommendations, the keys to achieving good
 recall are:
 
@@ -1083,6 +1094,25 @@ recall are:
 
 Use our newly introduced ``analyze`` feature to debug query performance and
 make sure that the indexes are being used.
+
+The ``ext::pgvector::set_probes()`` function configures the number of
+probes to use in approximate index searches. It is scoped to the
+current transaction, so if you call it from within a transaction, it
+persists until the transaction is finished. The recommended way to use
+it, however, is to take advantage of the implicit transactions provided
+by multi-statement queries:
+
+
+.. code-block:: python
+
+  result = client.query("""
+      select set_probes(10);
+      select Item { id, name }
+      order by ext::pgvector::euclidean_distance(
+	.embedding, <v3>$vector)
+      empty last
+      limit 1;
+  """, vector=vector)
 
 
 Changes to new 3.0 features
