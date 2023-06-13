@@ -726,6 +726,10 @@ def resolve_ptr_with_intersections(
         if ptr is not None:
             ref = ptr.get_nearest_non_derived_parent(ctx.env.schema)
             if track_ref is not False:
+                # When ptr is a computed property, it is still referenced!
+                # We need to add this to ensure the correct order in DDL.
+                if ref != ptr:
+                    ctx.env.add_schema_ref(ptr, track_ref)
                 ctx.env.add_schema_ref(ref, track_ref)
                 _add_target_schema_refs(
                     ref.get_target(ctx.env.schema), ctx=ctx)
