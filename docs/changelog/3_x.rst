@@ -1128,5 +1128,8 @@ Other changes and fixes
 * Bump ``max_locks_per_transaction`` to 1024
   (:eql:gh:`#5636`)
 
+* Disallow partial paths in the defaults of link properties
+  (:eql:gh:`#5560`)
+
 .. _pgvector:
     https://github.com/pgvector/pgvector
