@@ -939,7 +939,7 @@ As a surprise bonus feature, we have introduced support for using the
 This can be used to store and efficiently retrieve text embeddings,
 such as those produced by OpenAI.
 
-The Postgres that comes packaged with the edgedb server includes
+The Postgres that comes packaged with the EdgeDB server includes
 ``pgvector``, as does EdgeDB Cloud. It you are using a separate
 Postgres backend, you will need to arrange for it to be installed.
 
