@@ -979,7 +979,7 @@ Other changes and fixes
 * Fix json output of arrays of ranges
   (:eql:gh:`#5629`)
 
-* Fix ISE when using ``_subject__`` in default
+* Fix ISE when using ``__subject__`` in default
   (:eql:gh:`#5633`)
 
 * Compile default expressions in the schema consistently compile
