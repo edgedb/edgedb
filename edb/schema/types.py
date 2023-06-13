@@ -36,6 +36,7 @@ from edb.edgeql import compiler as qlcompiler
 
 from . import abc as s_abc
 from . import annos as s_anno
+from . import casts as s_casts
 from . import delta as sd
 from . import expr as s_expr
 from . import inheriting
@@ -224,9 +225,6 @@ class Type(
         derived = typing.cast(TypeT, schema.get(name))
 
         return schema, derived
-
-    def is_type(self) -> bool:
-        return True
 
     def is_object_type(self) -> bool:
         return False
@@ -574,6 +572,7 @@ class InheritingType(so.DerivableInheritingObject, QualifiedType):
 class TypeShell(so.ObjectShell[TypeT_co]):
 
     schemaclass: typing.Type[TypeT_co]
+    extra_args: tuple[qlast.Expr | qlast.TypeExpr, ...] | None
 
     def __init__(
         self,
@@ -584,6 +583,7 @@ class TypeShell(so.ObjectShell[TypeT_co]):
         expr: Optional[str] = None,
         schemaclass: typing.Type[TypeT_co],
         sourcectx: Optional[parsing.ParserContext] = None,
+        extra_args: tuple[qlast.Expr] | None = None,
     ) -> None:
         super().__init__(
             name=name,
@@ -594,6 +594,7 @@ class TypeShell(so.ObjectShell[TypeT_co]):
         )
 
         self.expr = expr
+        self.extra_args = extra_args
 
     def resolve(self, schema: s_schema.Schema) -> TypeT_co:
         return schema.get(
@@ -926,6 +927,31 @@ class Collection(Type, s_abc.Collection):
                     f"{schema_name} is already implemented by {existing}")
             _collection_impls[schema_name] = cls
             cls._schema_name = schema_name
+
+    def as_create_delta(
+        self: CollectionTypeT,
+        schema: s_schema.Schema,
+        context: so.ComparisonContext,
+    ) -> sd.ObjectCommand[CollectionTypeT]:
+        delta = super().as_create_delta(schema=schema, context=context)
+        assert isinstance(delta, sd.CreateObject)
+        if not isinstance(self, CollectionExprAlias):
+            delta.if_not_exists = True
+        return delta
+
+    def as_delete_delta(
+        self: CollectionTypeT,
+        *,
+        schema: s_schema.Schema,
+        context: so.ComparisonContext,
+    ) -> sd.ObjectCommand[CollectionTypeT]:
+        delta = super().as_delete_delta(schema=schema, context=context)
+        assert isinstance(delta, sd.DeleteObject)
+        if not isinstance(self, CollectionExprAlias):
+            delta.if_exists = True
+            delta.if_unused = True
+            delta.canonical = False
+        return delta
 
     @classmethod
     def get_displayname_static(cls, name: s_name.Name) -> str:
@@ -1266,7 +1292,14 @@ class Array(
         schema: s_schema.Schema,
     ) -> bool:
         if not isinstance(other, Array):
-            return False
+            from . import scalars as s_scalars
+
+            if not isinstance(other, s_scalars.ScalarType):
+                return False
+            if other.is_polymorphic(schema):
+                return False
+            right = other.get_base_for_cast(schema)
+            return s_casts.is_assignment_castable(schema, self, right)
 
         return self.get_element_type(schema).assignment_castable_to(
             other.get_element_type(schema), schema)
@@ -1277,7 +1310,14 @@ class Array(
         schema: s_schema.Schema,
     ) -> bool:
         if not isinstance(other, Array):
-            return False
+            from . import scalars as s_scalars
+
+            if not isinstance(other, s_scalars.ScalarType):
+                return False
+            if other.is_polymorphic(schema):
+                return False
+            right = other.get_base_for_cast(schema)
+            return s_casts.is_assignment_castable(schema, self, right)
 
         return self.get_element_type(schema).castable_to(
             other.get_element_type(schema), schema)

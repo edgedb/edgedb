@@ -29,7 +29,7 @@ relies on that only works on Python 3.9+.
 from __future__ import annotations
 
 import collections
-from types import GenericAlias  # type: ignore
+from types import GenericAlias, UnionType  # type: ignore
 from typing import _GenericAlias  # type: ignore
 from typing import Any, ClassVar, Generic, Optional, Tuple, TypeVar, Union
 
@@ -66,7 +66,11 @@ def is_generic_type(t) -> bool:
 
 
 def is_union_type(t) -> bool:
-    return t is Union or _is_genericalias(t) and t.__origin__ is Union
+    return (
+        t is Union
+        or (_is_genericalias(t) and t.__origin__ is Union)
+        or isinstance(t, UnionType)
+    )
 
 
 def is_tuple_type(t) -> bool:
@@ -83,7 +87,7 @@ def is_tuple_type(t) -> bool:
 def get_args(t, evaluate: bool = True) -> Any:
     if evaluate is not None and not evaluate:
         raise ValueError("evaluate can only be True in Python >= 3.7")
-    if _is_genericalias(t):
+    if _is_genericalias(t) or isinstance(t, UnionType):
         res = t.__args__
         if (
             get_origin(t) is collections.abc.Callable

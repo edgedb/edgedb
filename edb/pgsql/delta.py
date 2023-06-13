@@ -136,29 +136,7 @@ def is_cfg_view(
     )
 
 
-def get_index_code(index_name: sn.Name) -> str:
-    # HACK: currently this helper just hardcodes the SQL code necessary for
-    # specific PG indexes, but this should be based on index definition.
-    name = str(index_name)
-    match name:
-        case '__::idx':
-            return ' ((__col__) NULLS FIRST)'
-        case 'pg::hash':
-            return 'hash ((__col__))'
-        case 'pg::btree':
-            return 'btree ((__col__) NULLS FIRST)'
-        case 'pg::gin':
-            return 'gin ((__col__))'
-        case 'fts::textsearch':
-            return "gin (to_tsvector(__kw_language__, __col__))"
-        case 'pg::gist':
-            return 'gist ((__col__))'
-        case 'pg::spgist':
-            return 'spgist ((__col__))'
-        case 'pg::brin':
-            return 'brin ((__col__))'
-        case _:
-            raise NotImplementedError(f'index {name} is not implemented')
+DEFAULT_INDEX_CODE = ' ((__col__) NULLS FIRST)'
 
 
 class CommandMeta(sd.CommandMeta):
@@ -2436,7 +2414,9 @@ class CreateScalarType(ScalarTypeMetaCommand,
 
         if types.is_builtin_scalar(schema, scalar):
             return schema
-        if scalar.get_sql_type(schema):
+        # If this type exposes a SQL type or is a parameterized
+        # subtype of a SQL type, we don't create a real type here.
+        if scalar.resolve_sql_type_scheme(schema)[0]:
             return schema
 
         default = self.get_resolved_attribute_value(
@@ -3483,9 +3463,11 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         orig_name = sn.shortname_from_fullname(index.get_name(schema))
         if orig_name == s_indexes.DEFAULT_INDEX:
             root_name = orig_name
+            root_code = DEFAULT_INDEX_CODE
         else:
             root = index.get_root(schema)
             root_name = root.get_name(schema)
+            root_code = root.get_code(schema)
 
             kwargs = index.get_concrete_kwargs(schema)
             # Get all the concrete kwargs compiled (they are expected to be
@@ -3507,19 +3489,23 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                     as_fragment=True,
                 )
                 kw_ir = kw_expr.irast
-                kw_sql_tree = compiler.compile_ir_to_sql_tree(
+                kw_sql_tree, _ = compiler.compile_ir_to_sql_tree(
                     kw_ir.expr, singleton_mode=True)
-                sql = codegen.SQLSourceGenerator.to_source(kw_sql_tree)
                 # HACK: the compiled SQL is expected to have some unnecessary
-                # casts, strip casts to text as they mess with the requirement
-                # that index expressions are IMMUTABLE.
-                if sql.endswith('::text'):
-                    sql = sql[:-6]
+                # casts, strip them as they mess with the requirement that
+                # index expressions are IMMUTABLE (also indexes expect the
+                # usage of literals and will do their own implicit casts).
+                if isinstance(kw_sql_tree, pg_ast.TypeCast):
+                    kw_sql_tree = kw_sql_tree.arg
+                sql = codegen.SQLSourceGenerator.to_source(kw_sql_tree)
                 sql_kwarg_exprs[name] = sql
 
         module_name = index.get_name(schema).module
         index_name = common.get_index_backend_name(
             index.id, module_name, catenate=False)
+
+        if root_code is None:
+            raise AssertionError(f'index {root_name} is missing the code')
 
         pg_index = dbops.Index(
             name=index_name[1], table_name=table_name, exprs=sql_exprs,
@@ -3527,7 +3513,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             predicate=except_src,
             metadata={
                 'schemaname': str(index.get_name(schema)),
-                'code': get_index_code(root_name),
+                'code': root_code,
                 'kwargs': sql_kwarg_exprs,
             }
         )
@@ -3852,13 +3838,7 @@ class PointerMetaCommand(
     @classmethod
     def get_columns(cls, pointer, schema, default=None, sets_required=False):
         ptr_stor_info = types.get_pointer_storage_info(pointer, schema=schema)
-        col_type = list(ptr_stor_info.column_type)
-        if col_type[-1].endswith('[]'):
-            # Array
-            col_type[-1] = col_type[-1][:-2]
-            col_type = common.qname(*col_type) + '[]'
-        else:
-            col_type = common.qname(*col_type)
+        col_type = common.quote_type(tuple(ptr_stor_info.column_type))
 
         return [
             dbops.Column(
@@ -4841,7 +4821,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
             index_name,
             new_table_name,
             unique=False,
-            metadata={'code': get_index_code(s_indexes.DEFAULT_INDEX)},
+            metadata={'code': DEFAULT_INDEX_CODE},
         )
         index.add_columns([tgt_col])
         ci = dbops.CreateIndex(index)
@@ -4948,7 +4928,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
                     unique=False, columns=[c.name for c in cols],
                     inherit=True,
                     metadata={
-                        'code': get_index_code(s_indexes.DEFAULT_INDEX),
+                        'code': DEFAULT_INDEX_CODE,
                     },
                 )
 
@@ -5294,7 +5274,7 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
         pg_index = dbops.Index(
             name=index_name, table_name=new_table_name,
             unique=False, columns=[src_col],
-            metadata={'code': get_index_code(s_indexes.DEFAULT_INDEX)},
+            metadata={'code': DEFAULT_INDEX_CODE},
         )
 
         ci = dbops.CreateIndex(pg_index)
@@ -6940,6 +6920,7 @@ class CreateExtensionPackage(
         version = self.scls.get_version(schema)._asdict()
         version['stage'] = version['stage'].name.lower()
 
+        ext_module = self.scls.get_ext_module(schema)
         metadata = {
             ext_id: {
                 'id': ext_id,
@@ -6949,7 +6930,7 @@ class CreateExtensionPackage(
                 'version': version,
                 'builtin': self.scls.get_builtin(schema),
                 'internal': self.scls.get_internal(schema),
-                'ext_module': str(self.scls.get_ext_module(schema)),
+                'ext_module': ext_module and str(ext_module),
                 'sql_extensions': list(self.scls.get_sql_extensions(schema)),
             }
         }
@@ -7036,34 +7017,86 @@ class ExtensionCommand(MetaCommand):
     pass
 
 
+def _parse_spec(spec: str) -> tuple[str, list[tuple[str, str]]]:
+    if ' ' not in spec:
+        return (spec, [])
+
+    ext, versions = spec.split(' ', 1)
+    clauses = versions.split(',')
+    pclauses = []
+    for clause in clauses:
+        for i in range(len(clause)):
+            if clause[i].isnumeric():
+                break
+        pclauses.append((clause[:i], clause[i:]))
+
+    return ext, pclauses
+
+
 class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
+    def _create_extension(self, ext_spec: str) -> None:
+        ext, vclauses = _parse_spec(ext_spec)
+
+        # Dynamically select the highest version extension that matches
+        # the provided version specification.
+        lclauses = []
+        for op, ver in vclauses:
+            pver = f"string_to_array({ql(ver)}, '.')::int8[]"
+            assert op in {'=', '>', '>=', '<', '<='}
+            lclauses.append(f'v.split {op} {pver}')
+        cond = ' and '.join(lclauses) if lclauses else 'true'
+
+        qry = textwrap.dedent(f'''\
+            with v as (
+               select name, version,
+               string_to_array(version, '.')::int8[] as split
+               from pg_available_extension_versions
+               where name = {ql(ext)}
+            )
+            select edgedb.raise_on_null(
+              (
+                 select v.version from v
+                 where {cond}
+                 order by split desc limit 1
+               ),
+               'feature_not_supported',
+               msg => (
+                 'could not find extension satisfying ' || {ql(ext_spec)}
+                  || ': ' ||
+                  coalesce(
+                    'only found versions ' ||
+                      (select string_agg(v.version, ', ' order by v.split)
+                       from v),
+                    'extension not found'))
+            )
+            into _dummy_text;
+        ''')
+        self.pgops.add(dbops.Query(qry))
+
+        # XXX: hardcode to put stuff into edgedb schema
+        # so that operations can be easily accessed.
+        # N.B: this won't work on heroku; is that fine?
+        target_schema = 'edgedb'
+
+        self.pgops.add(dbops.Query(textwrap.dedent(f"""\
+            EXECUTE
+              'CREATE EXTENSION {ext} WITH SCHEMA {target_schema} VERSION '''
+              || _dummy_text || ''''
+        """)))
+
     def _create_begin(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        # XXX
         schema = super()._create_begin(schema, context)
         # backend_params = self._get_backend_params(context)
         # ext_schema = backend_params.instance_params.ext_schema
 
         package = self.scls.get_package(schema)
 
-        for ext in package.get_sql_extensions(schema):
-            # XXX: heroku!?
-            self.pgops.add(
-                dbops.CreateSchema(name=ext, conditional=True),
-            )
-            self.pgops.add(
-                dbops.CreateExtension(
-                    dbops.Extension(
-                        name=ext,
-                        schema=ext,
-                        # XXX?
-                        # schema=ext_schema,
-                    ),
-                )
-            )
+        for ext_spec in package.get_sql_extensions(schema):
+            self._create_extension(ext_spec)
 
         return schema
 
@@ -7079,7 +7112,9 @@ class DeleteExtension(ExtensionCommand, adapts=s_exts.DeleteExtension):
 
         schema = super().apply(schema, context)
 
-        for ext in package.get_sql_extensions(schema):
+        for ext_spec in package.get_sql_extensions(schema):
+            ext, _ = _parse_spec(ext_spec)
+
             self.pgops.add(
                 dbops.DropExtension(
                     dbops.Extension(
@@ -7087,9 +7122,6 @@ class DeleteExtension(ExtensionCommand, adapts=s_exts.DeleteExtension):
                         schema=ext,
                     ),
                 )
-            )
-            self.pgops.add(
-                dbops.DropSchema(name=ext),
             )
 
         return schema

@@ -29,6 +29,8 @@ from edb import errors
 from edb.common import levenshtein
 from edb.edgeql import ast as qlast
 
+from edb.ir import statypes
+
 from . import name as sn
 from . import objects as so
 
@@ -168,6 +170,7 @@ def ast_to_type_shell(
     module: Optional[str] = None,
     modaliases: Mapping[Optional[str], str],
     schema: s_schema.Schema,
+    allow_generalized_bases: bool = False,
 ) -> s_types.TypeShell[s_types.TypeT_co]:
 
     if isinstance(node, qlast.TypeOp):
@@ -213,10 +216,26 @@ def ast_to_type_shell(
         from . import types as s_types
 
         assert isinstance(node.maintype, qlast.ObjectRef)
-        coll = s_types.Collection.get_class(node.maintype.name)
-        subtypes_list: List[s_types.TypeShell[s_types.Type]] = []
+        coll = None
+        try:
+            coll = s_types.Collection.get_class(node.maintype.name)
+        except errors.SchemaError:
+            if not allow_generalized_bases:
+                raise
 
-        if issubclass(coll, s_types.Tuple):
+        subtypes_list: List[s_types.TypeShell[s_types.Type]] = []
+        if coll is None:
+            assert allow_generalized_bases
+            res = ast_objref_to_type_shell(
+                node.maintype,
+                modaliases=modaliases,
+                metaclass=metaclass,
+                schema=schema,
+            )
+            res.extra_args = tuple(node.subtypes)
+            return res
+
+        elif issubclass(coll, s_types.Tuple):
             # Note: if we used abc Tuple here, then we would need anyway
             # to assert it is an instance of s_types.Tuple to make mypy happy
             # (rightly so, because later we use from_subtypes method)
@@ -479,9 +498,9 @@ def typeref_to_ast(
 
     result: qlast.TypeExpr
 
-    if t.is_type() and cast(s_types.Type, t).is_any(schema):
+    if isinstance(t, s_types.Type) and t.is_any(schema):
         result = qlast.TypeName(name=_name, maintype=qlast.AnyType())
-    elif t.is_type() and cast(s_types.Type, t).is_anytuple(schema):
+    elif isinstance(t, s_types.Type) and t.is_anytuple(schema):
         result = qlast.TypeName(name=_name, maintype=qlast.AnyTuple())
     elif isinstance(t, s_types.Tuple) and t.is_named(schema):
         result = qlast.TypeName(
@@ -509,9 +528,8 @@ def typeref_to_ast(
                 for st in t.get_subtypes(schema)
             ]
         )
-    elif t.is_type() and cast(s_types.Type, t).is_union_type(schema):
-        object_set: Optional[so.ObjectSet[s_types.Type]] = \
-            cast(s_types.Type, t).get_union_of(schema)
+    elif isinstance(t, s_types.Type) and t.is_union_type(schema):
+        object_set = t.get_union_of(schema)
         assert object_set is not None
 
         component_objects = tuple(object_set.objects(schema))
@@ -1147,7 +1165,7 @@ MAX_INT64 = 2 ** 63 - 1
 MIN_INT64 = -2 ** 63
 
 
-def const_ast_from_python(val: Any) -> qlast.BaseConstant:
+def const_ast_from_python(val: Any) -> qlast.Expr:
     if isinstance(val, str):
         return qlast.StringConstant.from_python(val)
     elif isinstance(val, bool):
@@ -1163,6 +1181,13 @@ def const_ast_from_python(val: Any) -> qlast.BaseConstant:
         return qlast.FloatConstant(value=str(val))
     elif isinstance(val, bytes):
         return qlast.BytesConstant.from_python(val)
+    elif isinstance(val, statypes.Duration):
+        return qlast.TypeCast(
+            type=qlast.TypeName(
+                maintype=qlast.ObjectRef(module='__std__', name='duration'),
+            ),
+            expr=qlast.StringConstant(value=val.to_iso8601()),
+        )
     else:
         raise ValueError(f'unexpected constant type: {type(val)!r}')
 

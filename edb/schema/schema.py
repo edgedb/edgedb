@@ -29,6 +29,7 @@ import itertools
 import immutables as immu
 
 from edb import errors
+from edb.common import adapter
 from edb.common import english
 
 from . import casts as s_casts
@@ -63,6 +64,7 @@ STD_MODULES = (
     sn.UnqualName('pg'),
     sn.UnqualName('std::_test'),
     sn.UnqualName('fts'),
+    sn.UnqualName('ext'),
 )
 
 # Specifies the order of processing of files and directories in lib/
@@ -529,10 +531,10 @@ class FlatSchema(Schema):
                 Tuple[Type[so.Object], sn.Name],
                 FrozenSet[uuid.UUID]
             ]
-        ],
+        ] = None,
         globalname_to_id: Optional[
             immu.Map[Tuple[Type[so.Object], sn.Name], uuid.UUID]
-        ],
+        ] = None,
         refs_to: Optional[Refs_T] = None,
     ) -> FlatSchema:
         new = FlatSchema.__new__(FlatSchema)
@@ -1481,6 +1483,44 @@ class FlatSchema(Schema):
     def __repr__(self) -> str:
         return (
             f'<{type(self).__name__} gen:{self._generation} at {id(self):#x}>')
+
+
+def upgrade_schema(schema: FlatSchema) -> FlatSchema:
+    """Repair a schema object serialized by an older patch version
+
+    When an edgeql+schema patch adds fields to schema types, old
+    serialized schemas will be broken, since their tuples are missing
+    the fields.
+
+    In this situation, we run through all the data tuples and fill
+    them out. The upgraded version will then be cached.
+    """
+
+    cls_fields = {}
+    for py_cls in so.ObjectMeta.get_schema_metaclasses():
+        if isinstance(py_cls, adapter.Adapter):
+            continue
+
+        fields = py_cls._schema_fields.values()
+        cls_fields[py_cls] = sorted(fields, key=lambda f: f.index)
+
+    id_to_data = schema._id_to_data
+    fixes = {}
+    for id, typ_name in schema._id_to_type.items():
+        data = id_to_data[id]
+        obj = so.Object.schema_restore((typ_name, id))
+        typ = type(obj)
+
+        tfields = cls_fields[typ]
+        exp_len = len(tfields)
+        if len(data) < exp_len:
+            ldata = list(data)
+            for i in range(len(ldata), exp_len):
+                ldata.append(tfields[i].get_default())
+
+            fixes[id] = tuple(ldata)
+
+    return schema._replace(id_to_data=id_to_data.update(fixes))
 
 
 class SchemaIterator(Generic[so.Object_T]):

@@ -475,7 +475,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
         UNIQUE
         """
 
-    def test_edgeql_ir_mult_inference_55(self):
+    def test_edgeql_ir_mult_inference_55a(self):
         """
         FOR x IN {'fire', 'water'}
         UNION (
@@ -486,7 +486,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
         UNIQUE
         """
 
-    def test_edgeql_ir_mult_inference_55a(self):
+    def test_edgeql_ir_mult_inference_55b(self):
         """
         FOR letter IN {'I', 'B'}
         UNION (

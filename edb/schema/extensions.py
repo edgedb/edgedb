@@ -33,6 +33,8 @@ from edb.common import checked
 from . import annos as s_anno
 from . import casts as s_casts
 from . import delta as sd
+from . import functions as s_func
+from . import modules as s_mod
 from . import name as sn
 from . import objects as so
 from . import schema as s_schema
@@ -64,7 +66,7 @@ class ExtensionPackage(
     )
 
     ext_module = so.SchemaField(
-        str, default=None, coerce=True, compcoef=0.9)
+        str, default=None, compcoef=0.9)
 
     @classmethod
     def get_schema_class_displayname(cls) -> str:
@@ -88,6 +90,7 @@ class Extension(
 
     package = so.SchemaField(
         ExtensionPackage,
+        compcoef=0.0,
     )
 
 
@@ -334,20 +337,34 @@ class DeleteExtension(
 
     astnode = qlast.DropExtension
 
-    def _delete_begin(
+    def apply(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        module = self.scls.get_package(schema).get_ext_module(schema)
-        schema = super()._delete_begin(schema, context)
+        testmode = context.testmode
+        context.testmode = True
 
-        if context.canonical or not module:
-            return schema
+        schema = super().apply(schema, context)
+
+        context.testmode = testmode
+
+        return schema
+
+    def _canonicalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        scls: Extension,
+    ) -> List[sd.Command]:
+        commands = super()._canonicalize(schema, context, scls)
+
+        module = scls.get_package(schema).get_ext_module(schema)
+
+        if not module:
+            return commands
 
         # If the extension included a module, delete everything in it.
-        from . import ddl as s_ddl
-
         module_name = sn.UnqualName(module)
 
         def _name_in_mod(name: sn.Name) -> bool:
@@ -366,24 +383,24 @@ class DeleteExtension(
                 or _name_in_mod(obj.get_to_type(schema).get_name(schema))
             ):
                 drop = obj.init_delta_command(
-                    schema,
-                    sd.DeleteObject,
+                    schema, sd.DeleteObject
                 )
-                self.add(drop)
+                commands.append(drop)
 
-        def filt(schema: s_schema.Schema, obj: so.Object) -> bool:
-            return not _name_in_mod(obj.get_name(schema)) or obj == self.scls
+        # Delete everything in the module
+        for obj in schema.get_objects(
+            included_modules=(module_name,),
+        ):
+            if not isinstance(obj, s_func.Parameter):
+                drop, _, _ = obj.init_delta_branch(
+                    schema, context, sd.DeleteObject
+                )
+                commands.append(drop)
 
-        # We handle deleting the module contents in a heavy-handed way:
-        # do a schema diff.
-        delta = s_ddl.delta_schemas(
-            schema, schema,
-            included_modules=[
-                sn.UnqualName(module),
-            ],
-            schema_b_filters=[filt],
-            linearize_delta=True,
-        )
-        self.update(delta.get_subcommands())
+        # We add the module delete directly as add_caused, since the sorting
+        # we do doesn't work.
+        module_obj = schema.get_global(s_mod.Module, module_name)
 
-        return schema
+        self.add_caused(module_obj.init_delta_command(schema, sd.DeleteObject))
+
+        return commands

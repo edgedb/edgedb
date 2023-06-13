@@ -45,6 +45,7 @@ from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
+from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
@@ -462,6 +463,12 @@ def compile_InsertQuery(
                 f'{str(subject_stype.get_shortname(ctx.env.schema))!r}',
                 context=expr.subject.context)
 
+        if _is_forbidden_stdlib_type_for_mod(subject_stype, ctx):
+            raise errors.QueryError(
+                f'cannot insert standard library type '
+                f'{subject_stype.get_displayname(ctx.env.schema)}',
+                context=expr.subject.context)
+
         with ictx.new() as bodyctx:
             # Self-references in INSERT are prohibited.
             pathctx.ban_inserting_path(
@@ -479,7 +486,9 @@ def compile_InsertQuery(
                 view_rptr=ctx.view_rptr,
                 compile_views=True,
                 exprtype=s_types.ExprType.Insert,
-                ctx=bodyctx)
+                ctx=bodyctx,
+                parser_context=expr.context,
+            )
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
         assert isinstance(stmt_subject_stype, s_objtypes.ObjectType)
@@ -510,6 +519,7 @@ def compile_InsertQuery(
                 view_name=ctx.toplevel_result_view_name,
                 compile_views=ictx.stmt is ictx.toplevel_stmt,
                 ctx=resultctx,
+                parser_context=expr.context,
             )
 
         if pol_condition := policies.compile_dml_write_policies(
@@ -537,7 +547,8 @@ def compile_InsertQuery(
                     view_name=ctx.toplevel_result_view_name,
                     compile_views=ictx.stmt is ctx.toplevel_stmt,
                     ctx=resultctx,
-                    parser_context=result.context)
+                    parser_context=result.context,
+                )
 
     return result
 
@@ -594,6 +605,13 @@ def compile_UpdateQuery(
                 context=expr.subject.context)
 
         mat_stype = schemactx.concretify(subj_type, ctx=ctx)
+
+        if _is_forbidden_stdlib_type_for_mod(mat_stype, ctx):
+            raise errors.QueryError(
+                f'cannot update standard library type '
+                f'{subj_type.get_displayname(ctx.env.schema)}',
+                context=expr.subject.context)
+
         stmt._material_type = typeutils.type_to_typeref(
             ctx.env.schema,
             mat_stype,
@@ -619,7 +637,9 @@ def compile_UpdateQuery(
                 view_rptr=ctx.view_rptr,
                 compile_views=True,
                 exprtype=s_types.ExprType.Update,
-                ctx=bodyctx)
+                ctx=bodyctx,
+                parser_context=expr.context,
+            )
 
         result = setgen.class_set(
             mat_stype, path_id=stmt.subject.path_id, ctx=ctx,
@@ -632,6 +652,7 @@ def compile_UpdateQuery(
                 view_name=ctx.toplevel_result_view_name,
                 compile_views=ictx.stmt is ictx.toplevel_stmt,
                 ctx=resultctx,
+                parser_context=expr.context,
             )
 
         for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
@@ -725,6 +746,13 @@ def compile_DeleteQuery(
                 context=expr.subject.context)
 
         mat_stype = schemactx.concretify(subj_type, ctx=ctx)
+
+        if _is_forbidden_stdlib_type_for_mod(mat_stype, ctx):
+            raise errors.QueryError(
+                f'cannot delete standard library type '
+                f'{subj_type.get_displayname(ctx.env.schema)}',
+                context=expr.subject.context)
+
         stmt._material_type = typeutils.type_to_typeref(
             ctx.env.schema,
             mat_stype,
@@ -743,6 +771,7 @@ def compile_DeleteQuery(
                 shape=None,
                 exprtype=s_types.ExprType.Delete,
                 ctx=bodyctx,
+                parser_context=expr.context,
             )
 
         result = setgen.class_set(
@@ -756,6 +785,7 @@ def compile_DeleteQuery(
                 view_name=ctx.toplevel_result_view_name,
                 compile_views=ictx.stmt is ictx.toplevel_stmt,
                 ctx=resultctx,
+                parser_context=expr.context,
             )
 
         for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
@@ -871,14 +901,15 @@ def compile_DescribeStmt(
             itemclass = objref.itemclass
 
             if itemclass is qltypes.SchemaObjectClass.MODULE:
+                mod = s_name.UnqualName(str(s_utils.ast_ref_to_name(objref)))
                 if not ctx.env.schema.get_global(
-                        s_mod.Module, objref.name, None):
+                        s_mod.Module, mod, None):
                     raise errors.InvalidReferenceError(
-                        f"module '{objref.name}' does not exist",
+                        f"module '{mod}' does not exist",
                         context=objref.context,
                     )
 
-                modules.append(s_utils.ast_ref_to_unqualname(objref))
+                modules.append(mod)
             else:
                 itemtype: Optional[Type[s_obj.Object]] = None
 
@@ -1357,7 +1388,7 @@ def compile_query_subject(
         exprtype: s_types.ExprType = s_types.ExprType.Select,
         allow_select_shape_inject: bool=True,
         forward_rptr: bool=False,
-        parser_context: Optional[pctx.ParserContext]=None,
+        parser_context: Optional[pctx.ParserContext],
         ctx: context.ContextLevel) -> irast.Set:
 
     expr_stype = setgen.get_set_type(expr, ctx=ctx)
@@ -1475,6 +1506,7 @@ def compile_query_subject(
             view_name=view_name,
             exprtype=exprtype,
             ctx=ctx,
+            srcctx=parser_context,
         )
 
     if view_scls is not None:
@@ -1510,6 +1542,42 @@ def maybe_add_view(ir: irast.Set, *, ctx: context.ContextLevel) -> irast.Set:
         and ir.path_id.is_objtype_path()
     ):
         return compile_query_subject(
-            ir, allow_select_shape_inject=True, compile_views=False, ctx=ctx)
+            ir, allow_select_shape_inject=True, compile_views=False, ctx=ctx,
+            parser_context=ir.context)
     else:
         return ir
+
+
+def _is_forbidden_stdlib_type_for_mod(
+    t: s_types.Type,
+    ctx: context.ContextLevel
+) -> bool:
+    o = ctx.env.options
+    if o.bootstrap_mode or o.schema_reflection_mode:
+        return False
+
+    schema = ctx.env.schema
+
+    assert isinstance(t, s_objtypes.ObjectType)
+    assert not t.is_view(schema)
+
+    if intersection := t.get_intersection_of(schema):
+        return all((_is_forbidden_stdlib_type_for_mod(it, ctx)
+                    for it in intersection.objects(schema)))
+    elif union := t.get_union_of(schema):
+        return any((_is_forbidden_stdlib_type_for_mod(ut, ctx)
+                    for ut in union.objects(schema)))
+
+    name = t.get_name(schema)
+
+    if (
+        name.get_module_name() == s_name.UnqualName('cfg')
+        and o.in_server_config_op
+    ):
+        # Config ops include various internally generated statements for cfg::
+        return False
+    if name == s_name.QualName('std', 'Object'):
+        # Allow people to mess with the baseclass of user-defined objects to
+        # their hearts' content
+        return False
+    return t.get_name(schema).get_module_name() in s_schema.STD_MODULES

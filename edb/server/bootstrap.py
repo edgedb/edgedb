@@ -672,6 +672,14 @@ def prepare_patch(
     if kind == 'sql':
         return (patch, update), (), {}, False
 
+    # metaschema-sql: just recreate a function from metaschema
+    if kind == 'metaschema-sql':
+        func = getattr(metaschema, patch)
+        create = dbops.CreateFunction(func(), or_replace=True)
+        block = dbops.PLTopBlock()
+        create.generate(block)
+        return (block.to_string(), update), (), {}, False
+
     if kind == 'repair':
         assert not patch
         return (update,), (), {}, True
@@ -685,7 +693,16 @@ def prepare_patch(
 
     updates: dict[str, Any] = {}
 
-    if kind == 'edgeql' or kind == 'edgeql+schema':
+    global_schema_update = kind == 'ext-pkg'
+
+    if kind == 'ext-pkg':
+        patch = s_std.get_std_module_text(sn.UnqualName(f'ext/{patch}'))
+
+    if (
+        kind == 'edgeql'
+        or kind == 'ext-pkg'
+        or kind.startswith('edgeql+schema')
+    ):
         for ddl_cmd in edgeql.parse_block(patch):
             assert isinstance(ddl_cmd, qlast.DDLCommand)
             # First apply it to the regular schema, just so we can update
@@ -712,7 +729,7 @@ def prepare_patch(
     else:
         raise AssertionError(f'unknown patch type {kind}')
 
-    if kind == 'edgeql+schema':
+    if kind.startswith('edgeql+schema'):
         # If we are modifying the schema layout, we need to rerun
         # generate_structure to collect schema changes not reflected
         # in the public schema and to discover the new introspection
@@ -750,6 +767,8 @@ def prepare_patch(
             dbops.CreateView(view)
             for view in metaschema._generate_schema_alias_views(
                 reflschema, sn.UnqualName('schema')
+            ) + metaschema._generate_schema_alias_views(
+                reflschema, sn.UnqualName('sys')
             )
         ])
         support_view_commands.add_commands(
@@ -772,6 +791,13 @@ def prepare_patch(
             else:
                 raise AssertionError(f'unsupported support view command {cv}')
             dv.generate(preblock)
+
+        # We want to limit how much unconditional work we do, so only recreate
+        # extension views if requested.
+        if '+exts' in kind:
+            for extview in metaschema._generate_extension_views(reflschema):
+                support_view_commands.add_command(
+                    dbops.CreateView(extview, or_replace=True))
 
         support_view_commands.generate(subblock)
 
@@ -800,10 +826,11 @@ def prepare_patch(
         debug.header('Patch Script')
         debug.dump_code(patch, lexer='sql')
 
-    updates.update(dict(
-        stdschema=schema,
-        reflschema=reflschema,
-    ))
+    if not global_schema_update:
+        updates.update(dict(
+            stdschema=schema,
+            reflschema=reflschema,
+        ))
 
     bins = ('stdschema', 'reflschema', 'global_schema', 'classlayout')
     # Just for the system database, we need to update the cached pickle
@@ -830,7 +857,17 @@ def prepare_patch(
                 DO UPDATE SET text = {val};
             ''',)
 
-    return (patch, update), sys_updates, updates, False
+    # If we're updating the global schema (for extension packages,
+    # perhaps), only run the script once, on the system connection.
+    # Since the state is global, we only should update it once.
+    regular_updates: tuple[str, ...]
+    if global_schema_update:
+        regular_updates = (patch,)
+        sys_updates = (update,) + sys_updates
+    else:
+        regular_updates = (patch, update)
+
+    return regular_updates, sys_updates, updates, False
 
 
 class StdlibBits(NamedTuple):

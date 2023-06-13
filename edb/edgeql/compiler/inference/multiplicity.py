@@ -556,6 +556,8 @@ def _infer_stmt_multiplicity(
             if (
                 irutils.get_path_root(flt_expr).path_id
                 == ctx.distinct_iterator
+                or irutils.get_path_root(irutils.unwrap_set(flt_expr)).path_id
+                == ctx.distinct_iterator
             ) and not infer_multiplicity(
                 flt_expr, scope_tree=scope_tree, ctx=ctx
             ).is_duplicate():
@@ -873,6 +875,8 @@ def infer_multiplicity(
     scope_tree: irast.ScopeTreeNode,
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
+    assert ctx.make_updates, (
+        "multiplicity inference hasn't implemented make_updates=False yet")
 
     result = ctx.inferred_multiplicity.get(
         (ir, scope_tree, ctx.distinct_iterator))

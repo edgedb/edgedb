@@ -156,8 +156,12 @@ def array_as_json_object(
     el_type = styperef.subtypes[0]
 
     is_tuple = irtyputils.is_tuple(el_type)
-    # Tuples and bytes might need underlying casts to be done
-    if is_tuple or irtyputils.is_bytes(el_type):
+    # Tuples/ranges/scalars with custom casts need underlying casts to be done
+    if (
+        is_tuple
+        or irtyputils.is_range(el_type)
+        or el_type.real_base_type.needs_custom_json_cast
+    ):
         coldeflist = []
 
         out_alias = env.aliases.get('q')
@@ -198,7 +202,6 @@ def array_as_json_object(
 
             needs_unnest = bool(el_type.subtypes)
         else:
-            assert not el_type.subtypes
             val = pgast.ColumnRef(name=[out_alias])
             agg_arg = serialize_expr_to_json(
                 val, styperef=el_type, nested=True, env=env)
@@ -563,6 +566,11 @@ def serialize_expr_to_json(
             # Use the actual generic helper for converting anyrange to jsonb
             name=('edgedb', 'range_to_jsonb'),
             args=[expr], null_safe=True, ser_safe=True)
+        if env.output_format in _JSON_FORMATS:
+            val = pgast.TypeCast(
+                arg=val,
+                type_name=pgast.TypeName(name=('json',))
+            )
 
     elif irtyputils.is_collection(styperef) and not expr.ser_safe:
         val = coll_as_json_object(expr, styperef=styperef, env=env)
@@ -579,6 +587,11 @@ def serialize_expr_to_json(
         val = pgast.FuncCall(
             name=common.get_cast_backend_name(cast_name, aspect='function'),
             args=[expr], null_safe=True, ser_safe=True)
+        if env.output_format in _JSON_FORMATS:
+            val = pgast.TypeCast(
+                arg=val,
+                type_name=pgast.TypeName(name=('json',))
+            )
 
     elif not nested:
         val = pgast.FuncCall(

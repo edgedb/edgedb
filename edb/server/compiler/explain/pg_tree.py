@@ -364,13 +364,13 @@ class Plan(FromJson, CostMixin):
     @classmethod
     def get_props(cls) -> dict[str, PropInfo]:
         result = {}
-        for name, prop in get_type_hints(cls).items():
+        for name, prop in get_type_hints(cls, include_extras=True).items():
             if name in CostMixin.__annotations__:
                 # these are stored in the node itself
                 continue
             if get_origin(prop) is Annotated:
-                prop = get_args(prop)[0]
                 imp = important in get_args(prop)
+                prop = get_args(prop)[0]
             else:
                 imp = False
             try:

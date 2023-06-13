@@ -29,6 +29,7 @@ from typing import *
 
 from edb import errors
 from edb.common import ast
+from edb.common import parsing
 from edb.common import topological
 from edb.common.typeutils import downcast, not_none
 
@@ -121,6 +122,7 @@ def process_view(
     view_name: Optional[sn.QualName] = None,
     exprtype: s_types.ExprType = s_types.ExprType.Select,
     ctx: context.ContextLevel,
+    srcctx: Optional[parsing.ParserContext],
 ) -> Tuple[s_objtypes.ObjectType, irast.Set]:
 
     cache_key = (stype, exprtype, tuple(elements))
@@ -154,6 +156,7 @@ def process_view(
         elements=elements,
         ctx=ctx,
         s_ctx=s_ctx,
+        srcctx=srcctx,
     )
 
     ctx.env.shape_type_cache[cache_key] = view_scls
@@ -168,6 +171,7 @@ def _process_view(
     elements: Optional[Sequence[qlast.ShapeElement]],
     s_ctx: ShapeContext,
     ctx: context.ContextLevel,
+    srcctx: Optional[parsing.ParserContext],
 ) -> Tuple[s_objtypes.ObjectType, irast.Set]:
     path_id = ir_set.path_id
     view_rptr = s_ctx.view_rptr
@@ -241,9 +245,7 @@ def _process_view(
 
     if view_rptr is not None and view_rptr.ptrcls is None:
         target_scls = stype if is_mutation else view_scls
-        derive_ptrcls(
-            view_rptr, target_scls=target_scls,
-            transparent=True, ctx=ctx)
+        derive_ptrcls(view_rptr, target_scls=target_scls, ctx=ctx)
 
     pointers: Dict[s_pointers.Pointer, EarlyShapePtr] = {}
 
@@ -437,7 +439,7 @@ def _process_view(
         rewrites = None
 
     if s_ctx.exprtype.is_insert():
-        _raise_on_missing(pointers, stype, rewrites, ctx)
+        _raise_on_missing(pointers, stype, rewrites, ctx, srcctx=srcctx)
 
     set_shape = []
     shape_ptrs: List[ShapePtr] = []
@@ -801,6 +803,7 @@ def _raise_on_missing(
     stype: s_objtypes.ObjectType,
     rewrites: Optional[irast.Rewrites],
     ctx: context.ContextLevel,
+    srcctx: Optional[parsing.ParserContext],
 ) -> None:
     pointer_names = {
         ptr.get_local_name(ctx.env.schema) for ptr in pointers
@@ -838,8 +841,16 @@ def _raise_on_missing(
                 continue
 
         vn = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
-        raise errors.MissingRequiredError(
-            f"missing value for required {vn}"
+        # If this is happening in the context of DDL, report a
+        # QueryError because it is weird to report an ExecutionError
+        # (MissingRequiredError) when nothing is really executing.
+        errcls = (
+            errors.SchemaDefinitionError
+            if ctx.env.options.schema_object_context
+            else errors.MissingRequiredError
+        )
+        raise errcls(
+            f"missing value for required {vn}", context=srcctx
         )
 
 
@@ -1923,10 +1934,10 @@ def _normalize_view_ptr_expr(
 
 
 def derive_ptrcls(
-        view_rptr: context.ViewRPtr, *,
-        target_scls: s_types.Type,
-        transparent: bool=False,
-        ctx: context.ContextLevel) -> s_pointers.Pointer:
+    view_rptr: context.ViewRPtr, *,
+    target_scls: s_types.Type,
+    ctx: context.ContextLevel
+) -> s_pointers.Pointer:
 
     if view_rptr.ptrcls is None:
         if view_rptr.base_ptrcls is None:
@@ -2106,19 +2117,17 @@ def _inline_type_computable(
                 ctx=scopectx
             )
 
-        ctx.env.schema = ptr.set_field_value(
-            ctx.env.schema, 'cardinality', qltypes.SchemaCardinality.One)
+    # even if the pointer was not created here, or was already present in
+    # the shape, we set defined_here, so it is not inlined in `extend_path`.
+    ctx.env.schema = ptr.set_field_value(
+        ctx.env.schema, 'defined_here', True
+    )
 
     view_shape = ctx.env.view_shapes[stype]
     view_shape_ptrs = {p for p, _ in view_shape}
     if ptr not in view_shape_ptrs:
         if ptr not in ctx.env.pointer_specified_info:
             ctx.env.pointer_specified_info[ptr] = (None, None, None)
-
-        ctx.env.schema = ptr.set_field_value(
-            ctx.env.schema, 'defined_here', True
-        )
-
         view_shape.insert(0, (ptr, qlast.ShapeOp.ASSIGN))
         shape_ptrs.insert(
             0, ShapePtr(ir_set, ptr, qlast.ShapeOp.ASSIGN, ptr_set))

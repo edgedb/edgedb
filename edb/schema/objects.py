@@ -253,7 +253,7 @@ class Field(struct.ProtoField, Generic[T]):
                  'allow_ddl_set', 'ddl_identity', 'special_ddl_syntax',
                  'aux_cmd_data', 'describe_visibility',
                  'weak_ref', 'reflection_method', 'reflection_proxy',
-                 'type_is_generic_self', 'is_reducible')
+                 'type_is_generic_self', 'is_reducible', 'patch_level')
 
     #: Name of the field on the target class; assigned by ObjectMeta
     name: str
@@ -310,6 +310,9 @@ class Field(struct.ProtoField, Generic[T]):
     #: this specifies a (ProxyType, linkname) pair of a proxy object type
     #: and the name of the link within that proxy type.
     reflection_proxy: Optional[Tuple[str, str]]
+    #: Which patch for the current major version this field was introduced in.
+    #: Ensures that the data tuples always get extended strictly at the end.
+    patch_level: int
 
     def __init__(
         self,
@@ -333,6 +336,7 @@ class Field(struct.ProtoField, Generic[T]):
         reflection_proxy: Optional[Tuple[str, str]] = None,
         name: Optional[str] = None,
         reflection_name: Optional[str] = None,
+        patch_level: int = -1,
         **kwargs: Any,
     ) -> None:
         """Schema item core attribute definition.
@@ -357,6 +361,7 @@ class Field(struct.ProtoField, Generic[T]):
         self.reflection_method = reflection_method
         self.reflection_proxy = reflection_proxy
         self.is_reducible = issubclass(type_, s_abc.Reducible)
+        self.patch_level = patch_level
 
         if name is not None:
             self.name = name
@@ -655,7 +660,8 @@ class ObjectMeta(type):
         cls._data_safe = data_safe
         cls._fields = fields
         cls._schema_fields = {
-            fn: f for fn, f in fields.items()
+            fn: f
+            for fn, f in sorted(fields.items(), key=lambda f: f[1].patch_level)
             if isinstance(f, SchemaField)
         }
         cls._hashable_fields = {
@@ -1223,9 +1229,6 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
                 updates[field_name] = new_val
 
         return schema.update_obj(self, updates)
-
-    def is_type(self) -> bool:
-        return False
 
     def hash_criteria(
         self: Object_T, schema: s_schema.Schema

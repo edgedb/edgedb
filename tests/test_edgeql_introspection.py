@@ -1580,3 +1580,13 @@ class TestIntrospection(tb.QueryTestCase):
             ''',
             [True],
         )
+
+    async def test_edgeql_schema_inheritance_computed_backlinks_01(self):
+        await self.assert_query_result(
+            r'''WITH MODULE schema
+            SELECT InheritingObject {
+                children := .<bases[IS Type],
+                descendants := .<ancestors[IS Type]
+            } LIMIT 0''',
+            []
+        )

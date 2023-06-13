@@ -72,11 +72,10 @@ Triggers on ``insert`` can use ``__new__``.
 
 .. note::
 
-    If you access an object in the trigger expression _without_ using
-    ``__old__`` or ``__new__`` (for example, via a ``select`` query for that
-    object), you will get the object state _after_ the triggering query. This
-    is the same data you will get if the object is part of the query and you
-    access it via ``__new__``.
+    Any query in your trigger will return the state of the database *after* the
+    triggering query. If this query's results include the object that flipped
+    the trigger, the results will contain that object in the same state as
+    ``__new__``.
 
 Now, whenever we run a query, we get a log entry as well:
 

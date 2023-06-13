@@ -1,6 +1,5 @@
 import itertools
 import typing
-import typing_inspect
 import dataclasses
 import textwrap
 from itertools import chain
@@ -9,6 +8,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 from edb.common.ast import base as ast
 from edb.common import enum as s_enum
+from edb.common import typing_inspect
 from edb.tools.edb import edbcommands
 
 
@@ -132,7 +132,10 @@ def codegen_struct(cls: ASTClass) -> str:
         else:
             field_type = f'Option<{name}>'
 
-        fields += f'    #[py_child]\n' f'    pub {kind_name}: {field_type},\n'
+        fields += (
+            f'    #[cfg_attr(feature = "python", py_child)]\n'
+            f'    pub {kind_name}: {field_type},\n'
+        )
 
     return (
         f'\n{doc_comment}'
@@ -161,7 +164,7 @@ def codegen_enum(name: str, cls: typing.Type) -> str:
     return (
         '\n#[derive(Debug, Clone)]\n'
         + f'#[cfg_attr(feature = "python", derive(IntoPython))]\n'
-        + f'#[py_enum({cls_path})]\n'
+        + f'#[cfg_attr(feature = "python", py_enum({cls_path}))]\n'
         + f'pub enum {name} {"{"}\n'
         + fields
         + '}\n'
@@ -192,7 +195,7 @@ def codegen_union(union: ASTUnion) -> str:
     return (
         '\n#[derive(Debug, Clone)]\n'
         f'#[cfg_attr(feature = "python", derive(IntoPython))]\n'
-        f'#[{attr}]\n'
+        f'#[cfg_attr(feature = "python", {attr})]\n'
         f'pub enum {union.name} {"{"}\n{fields}{"}"}\n'
     )
 

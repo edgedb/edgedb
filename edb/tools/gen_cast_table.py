@@ -26,9 +26,12 @@ import sys
 from edb.tools.edb import edbcommands
 
 
-# Hardcode the scalar types (and the order of their appearance in
-# the table), because it's hard to group them otherwise.
-SCALARS = [
+# NOTE: The types are HARDCODED here to trim the cast table to relevant
+# built-in types and the order of their appearance in the table, because it's
+# hard to group them otherwise.
+#
+# Please update this if new types need to be included.
+TYPES = [
     'std::json',
     'std::str',
     'std::float32',
@@ -46,8 +49,12 @@ SCALARS = [
     'cal::local_date',
     'cal::local_datetime',
     'cal::local_time',
+    'cal::relative_duration',
+    'cal::date_duration',
+    'std::anyenum',
+    'std::BaseObject',
 ]
-SCALAR_SET = set(SCALARS)
+TYPES_SET = set(TYPES)
 
 
 def die(msg):
@@ -57,7 +64,7 @@ def die(msg):
 
 def get_casts_to_type(target, impl_cast):
     results = []
-    for source in SCALARS:
+    for source in TYPES:
         cast = (source, target)
         if impl_cast.get(cast):
             results.append(cast)
@@ -94,7 +101,7 @@ def get_all_casts(casts):
     for cast in casts:
         source = cast['source']
         target = cast['target']
-        if source in SCALAR_SET and target in SCALAR_SET:
+        if source in TYPES_SET and target in TYPES_SET:
             expl_cast[(source, target)] = True
             if cast['allow_assignment']:
                 assn_cast[(source, target)] = True
@@ -104,11 +111,25 @@ def get_all_casts(casts):
 
     # Implicit cast table needs to be recursively expanded from the
     # starting casts.
-    for source in SCALARS:
-        for target in SCALARS:
+    for source in TYPES:
+        for target in TYPES:
             is_reachable(source, target, impl_cast)
 
+    # HACK: We add the `uuid` -> `BaseObject` cast manually because it's
+    # currently missing from the casting table.
+    expl_cast[('std::uuid', 'std::BaseObject')] = True
+
     return (expl_cast, assn_cast, impl_cast)
+
+
+def render_type(name):
+    match name:
+        case 'std::anyenum':
+            return ':eql:type:`enum`'
+        case 'std::BaseObject':
+            return 'object'
+        case _:
+            return f':eql:type:`{name.split("::")[1]} <{name}>`'
 
 
 def main(casts):
@@ -117,20 +138,27 @@ def main(casts):
     # Top row with all the scalars listed
     code = []
     line = ['from \\\\ to']
-    for target in SCALARS:
-        line.append(f':eql:type:`{target.split("::")[1]} <{target}>`')
+    for target in TYPES:
+        line.append(render_type(target))
     code.append(','.join(line))
 
-    for source in SCALARS:
-        line = [f':eql:type:`{source.split("::")[1]} <{source}>`']
-        for target in SCALARS:
+    for source in TYPES:
+        line = [render_type(source)]
+        for target in TYPES:
             val = ''
             if impl_cast.get((source, target)):
                 val = 'impl'
             elif assn_cast.get((source, target)):
                 val = '``:=``'
             elif expl_cast.get((source, target)):
-                val = '``<>``'
+                if source in {
+                    'std::float32', 'std::float64'
+                } and target in {
+                    'std::int16', 'std::int32', 'std::int64', 'std::bigint'
+                }:
+                    val = '``<>*``'
+                else:
+                    val = '``<>``'
             line.append(val)
 
         code.append(','.join(line))
@@ -162,7 +190,7 @@ def gen_cast_table():
                 allow_assignment,
                 allow_implicit,
             }
-            FILTER .from_type IS ScalarType AND .to_type IS ScalarType
+            FILTER all({.from_type, .to_type} IS ScalarType | ObjectType)
             """,
         ], capture_output=True)
 

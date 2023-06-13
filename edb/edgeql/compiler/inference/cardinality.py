@@ -434,9 +434,10 @@ def _infer_pointer_cardinality(
         required, card = ptr_card.to_schema_value()
         env.schema = ptrcls.set_field_value(env.schema, 'cardinality', card)
         env.schema = ptrcls.set_field_value(env.schema, 'required', required)
-        _update_cardinality_in_derived(ptrcls, env=ctx.env)
+        if ctx.make_updates:
+            _update_cardinality_in_derived(ptrcls, env=ctx.env)
 
-    if ptrref:
+    if ptrref and ctx.make_updates:
         out_card, in_card = typeutils.cardinality_from_ptrcls(
             env.schema, ptrcls)
         assert in_card is not None
@@ -690,11 +691,12 @@ def __infer_func_call(
         arg_cards = []
 
         for arg, typemod in zip(ir.args, ir.params_typemods):
-            arg.cardinality = infer_cardinality(
-                arg.expr, scope_tree=scope_tree, ctx=ctx)
-
+            card = infer_cardinality(arg.expr, scope_tree=scope_tree, ctx=ctx)
             if typemod is not qltypes.TypeModifier.OptionalType:
-                arg_cards.append(arg.cardinality)
+                arg_cards.append(card)
+
+            if ctx.make_updates:
+                arg.cardinality = card
 
         arg_card = zip(*(_card_to_bounds(card) for card in arg_cards))
         arg_lower, arg_upper = arg_card
@@ -725,16 +727,17 @@ def __infer_func_call(
         all_singletons = True
 
         for arg, typemod in zip(ir.args, ir.params_typemods):
-            arg.cardinality = infer_cardinality(
-                arg.expr, scope_tree=scope_tree, ctx=ctx)
+            card = infer_cardinality(arg.expr, scope_tree=scope_tree, ctx=ctx)
             if typemod is not qltypes.TypeModifier.SetOfType:
                 non_aggregate_args.append(arg.expr)
-                non_aggregate_arg_cards.append(arg.cardinality)
+                non_aggregate_arg_cards.append(card)
             if typemod is qltypes.TypeModifier.SingletonType:
                 singleton_args.append(arg.expr)
-                singleton_arg_cards.append(arg.cardinality)
+                singleton_arg_cards.append(card)
             else:
                 all_singletons = False
+            if ctx.make_updates:
+                arg.cardinality = card
 
         if non_aggregate_args:
             _check_op_volatility(
@@ -761,9 +764,10 @@ def __infer_oper_call(
 ) -> qltypes.Cardinality:
     cards = []
     for arg in ir.args:
-        arg.cardinality = infer_cardinality(
-            arg.expr, scope_tree=scope_tree, ctx=ctx)
-        cards.append(arg.cardinality)
+        card = infer_cardinality(arg.expr, scope_tree=scope_tree, ctx=ctx)
+        cards.append(card)
+        if ctx.make_updates:
+            arg.cardinality = card
 
     if str(ir.func_shortname) == 'std::UNION':
         # UNION needs to "add up" cardinalities.
@@ -899,6 +903,12 @@ def _is_ptr_or_self_ref(
                     and not rptr.ptrref.is_computable
                     and _is_ptr_or_self_ref(rptr.source, result_expr, env)
                 )
+                or (
+                    ir_set.rptr is None
+                    and irutils.is_implicit_wrapper(ir_set.expr)
+                    and _is_ptr_or_self_ref(
+                        ir_set.expr.result, result_expr, env)
+                )
             )
         )
 
@@ -917,8 +927,7 @@ def extract_filters(
     expr = filter_set.expr
     if isinstance(expr, irast.OperatorCall):
         if str(expr.func_shortname) == 'std::=':
-            left, right = (a.expr for a in expr.args)
-
+            left, right = [a.expr for a in expr.args]
             op_card = _common_cardinality(
                 [left, right], scope_tree=scope_tree, ctx=ctx
             )
@@ -945,6 +954,8 @@ def extract_filters(
                         _ptr = left_stype.getptr(schema, sn.UnqualName('id'))
                         ptrs.append(_ptr)
                     else:
+                        if left.rptr is None:
+                            left = irutils.unwrap_set(left)
                         while left.path_id != result_set.path_id:
                             assert left.rptr is not None
                             _ptr = env.schema.get(left.rptr.ptrref.name,
@@ -956,7 +967,7 @@ def extract_filters(
                     return [(ptrs, right)]
 
         elif str(expr.func_shortname) == 'std::AND':
-            left, right = (a.expr for a in expr.args)
+            left, right = (irutils.unwrap_set(a.expr) for a in expr.args)
 
             left_filters = extract_filters(
                 result_set, left, scope_tree, ctx
@@ -1100,6 +1111,8 @@ def _infer_matset_cardinality(
 ) -> None:
     if not materialized_sets:
         return
+    if not ctx.make_updates:
+        return
 
     for mat_set in materialized_sets.values():
         if (len(mat_set.uses) <= 1
@@ -1121,6 +1134,8 @@ def _infer_dml_check_cardinality(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> None:
+    if not ctx.make_updates:
+        return
     pctx = ctx._replace(singletons=ctx.singletons | {ir.result.path_id})
     for read_pol in ir.read_policies.values():
         read_pol.cardinality = infer_cardinality(

@@ -774,6 +774,15 @@ class CallableObject(
     impl_is_strict = so.SchemaField(
         bool, default=True, compcoef=0.4)
 
+    # Kind of a hack: indicates that when possible we should pass arguments
+    # to this function as a subquery-as-an-expression. This is important for
+    # functions that see use in ORDER BY clauses that need indexes.
+    # The compilation strategy this asks for /should/ work in general,
+    # but I didn't want to make a major codegen change in an rc3.
+    # We should consider doing this a different way.
+    prefer_subquery_args = so.SchemaField(
+        bool, default=False, compcoef=0.9)
+
     def as_create_delta(
         self: CallableObjectT,
         schema: s_schema.Schema,

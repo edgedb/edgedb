@@ -1439,6 +1439,7 @@ class PointerCommandOrFragment(
         no_query_rewrites: bool = False,
         make_globals_empty: bool = False,
         source_context: Optional[parsing.ParserContext] = None,
+        detached: bool = False,
         should_set_path_prefix_anchor: bool = True,
         path_prefix_absence_hint: Optional[str] = None,
     ) -> s_expr.CompiledExpression:
@@ -1505,7 +1506,9 @@ class PointerCommandOrFragment(
                 in_ddl_context_name=in_ddl_context_name,
             )
 
-            compiled = expr.compiled(schema=schema, options=options)
+            compiled = expr.compiled(
+                schema=schema, options=options, detached=detached
+            )
 
             if singleton_result_expected and compiled.cardinality.is_multi():
                 if expr_description is None:
@@ -1542,8 +1545,23 @@ class PointerCommandOrFragment(
                 parent_vname = source.get_verbosename(schema)
                 ptr_name = self.get_verbosename(parent=parent_vname)
                 in_ddl_context_name = f'computed {ptr_name}'
+                detached = False
             else:
                 in_ddl_context_name = None
+                detached = True
+
+            # If we are in a link property's default field
+            # do not set path prefix anchor, because link properties
+            # cannot have defaults that reference the object being inserted
+            should_set_path_prefix_anchor = True
+            if field.name == 'default':
+                # We are checking if the parent context is a pointer
+                # (i.e. a link or a property).
+                # If so, do not set the path prefix anchor.
+                parent_ctx = self.get_referrer_context_or_die(context)
+                source = parent_ctx.op.get_object(schema, context)
+                if isinstance(source, Pointer):
+                    should_set_path_prefix_anchor = False
 
             # If we are in a link property's default field
             # do not set path prefix anchor, because link properties
@@ -1568,6 +1586,7 @@ class PointerCommandOrFragment(
                 value,
                 in_ddl_context_name=in_ddl_context_name,
                 track_schema_ref_exprs=track_schema_ref_exprs,
+                detached=detached,
                 should_set_path_prefix_anchor=should_set_path_prefix_anchor,
                 path_prefix_absence_hint=(
                     None if should_set_path_prefix_anchor else
@@ -1755,7 +1774,7 @@ class PointerCommand(
 
             if not default_expr.irast:
                 default_expr = self._compile_expr(
-                    schema, context, default_expr
+                    schema, context, default_expr, detached=True,
                 )
                 assert default_expr.irast
 
@@ -1866,7 +1885,7 @@ class PointerCommand(
             'std::uuid_generate_v4',
         )
 
-        if (
+        while (
             isinstance(expr, irast.Set)
             and expr.expr
             and irutils.is_trivial_select(expr.expr)
@@ -1957,45 +1976,25 @@ class PointerCommand(
             so.ObjectShell(name=source_name, schemaclass=s_sources.Source),
         )
 
-        # FIXME: this is an approximate solution
-        targets = qlast.get_targets(astnode.target)
         target_ref: Union[None, s_types.TypeShell[s_types.Type], ComputableRef]
 
-        if len(targets) > 1:
-            assert isinstance(source_name, sn.QualName)
-
-            new_targets = [
-                utils.ast_to_type_shell(
-                    t,  # type: ignore
-                    metaclass=s_types.Type,
-                    modaliases=context.modaliases,
-                    schema=schema,
-                )
-                for t in targets
-            ]
-
-            target_ref = s_types.UnionTypeShell(
-                components=new_targets,
-                module=source_name.module,
-                schemaclass=s_types.Type,
-            )
-        elif targets:
-            target_expr = targets[0]
-            if isinstance(target_expr, qlast.TypeExpr):
+        if astnode.target:
+            if isinstance(astnode.target, qlast.TypeExpr):
                 target_ref = utils.ast_to_type_shell(
-                    target_expr,
+                    astnode.target,
                     metaclass=s_types.Type,
                     modaliases=context.modaliases,
+                    module=source_name.module,
                     schema=schema,
                 )
             else:
                 # computable
                 qlcompiler.normalize(
-                    target_expr,
+                    astnode.target,
                     schema=schema,
                     modaliases=context.modaliases
                 )
-                target_ref = ComputableRef(target_expr)
+                target_ref = ComputableRef(astnode.target)
         else:
             # Target is inherited.
             target_ref = None
