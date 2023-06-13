@@ -1,5 +1,5 @@
 use crate::position::Pos;
-use crate::tokenizer::{Kind, TokenStream};
+use crate::tokenizer::{Kind, self};
 
 /// Error of expression checking
 ///
@@ -69,24 +69,20 @@ pub fn check(text: &str) -> Result<(), Error> {
     use Error::*;
 
     let mut brackets = Vec::new();
-    let mut parser = &mut TokenStream::new(text);
+    let mut parser = &mut tokenizer::Tokenizer::new(text);
     let mut empty = true;
     for token in &mut parser {
-        let (token, pos) = match token {
-            Ok(t) => (t.token, t.start),
-            Err(combine::easy::Error::Unexpected(s)) => {
-                return Err(Tokenizer(
-                    s.to_string(), parser.current_pos()));
-            }
-            Err(e) => {
-                return Err(Tokenizer(
-                    e.to_string(), parser.current_pos()));
+        let token = match token {
+            Ok(t) => t,
+            Err(crate::tokenizer::Error { message, .. }) => {
+                return Err(Tokenizer(message, parser.current_pos()));
             }
         };
+        let pos = token.span.start;
         empty = false;
         match token.kind {
             Comma | Semicolon if brackets.is_empty() => {
-                return Err(UnexpectedToken(token.value.to_string(), pos));
+                return Err(UnexpectedToken(token.text.to_string(), pos));
             }
             OpenParen | OpenBracket | OpenBrace => {
                 brackets.push((token.kind, pos));

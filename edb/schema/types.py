@@ -36,6 +36,7 @@ from edb.edgeql import compiler as qlcompiler
 
 from . import abc as s_abc
 from . import annos as s_anno
+from . import casts as s_casts
 from . import delta as sd
 from . import expr as s_expr
 from . import inheriting
@@ -927,6 +928,31 @@ class Collection(Type, s_abc.Collection):
             _collection_impls[schema_name] = cls
             cls._schema_name = schema_name
 
+    def as_create_delta(
+        self: CollectionTypeT,
+        schema: s_schema.Schema,
+        context: so.ComparisonContext,
+    ) -> sd.ObjectCommand[CollectionTypeT]:
+        delta = super().as_create_delta(schema=schema, context=context)
+        assert isinstance(delta, sd.CreateObject)
+        if not isinstance(self, CollectionExprAlias):
+            delta.if_not_exists = True
+        return delta
+
+    def as_delete_delta(
+        self: CollectionTypeT,
+        *,
+        schema: s_schema.Schema,
+        context: so.ComparisonContext,
+    ) -> sd.ObjectCommand[CollectionTypeT]:
+        delta = super().as_delete_delta(schema=schema, context=context)
+        assert isinstance(delta, sd.DeleteObject)
+        if not isinstance(self, CollectionExprAlias):
+            delta.if_exists = True
+            delta.if_unused = True
+            delta.canonical = False
+        return delta
+
     @classmethod
     def get_displayname_static(cls, name: s_name.Name) -> str:
         if isinstance(name, s_name.QualName):
@@ -1266,7 +1292,14 @@ class Array(
         schema: s_schema.Schema,
     ) -> bool:
         if not isinstance(other, Array):
-            return False
+            from . import scalars as s_scalars
+
+            if not isinstance(other, s_scalars.ScalarType):
+                return False
+            if other.is_polymorphic(schema):
+                return False
+            right = other.get_base_for_cast(schema)
+            return s_casts.is_assignment_castable(schema, self, right)
 
         return self.get_element_type(schema).assignment_castable_to(
             other.get_element_type(schema), schema)
@@ -1277,7 +1310,14 @@ class Array(
         schema: s_schema.Schema,
     ) -> bool:
         if not isinstance(other, Array):
-            return False
+            from . import scalars as s_scalars
+
+            if not isinstance(other, s_scalars.ScalarType):
+                return False
+            if other.is_polymorphic(schema):
+                return False
+            right = other.get_base_for_cast(schema)
+            return s_casts.is_assignment_castable(schema, self, right)
 
         return self.get_element_type(schema).castable_to(
             other.get_element_type(schema), schema)

@@ -611,7 +611,7 @@ The ``delete`` statement can contain ``filter``, ``order by``, ``offset``, and
   .. code-tab:: edgeql
 
     delete Movie
-    filter .ilike "the avengers%"
+    filter .title ilike "the avengers%"
     limit 3;
 
   .. code-tab:: typescript

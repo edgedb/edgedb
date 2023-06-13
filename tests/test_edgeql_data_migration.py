@@ -173,14 +173,26 @@ class EdgeQLDataMigrationTestCase(tb.DDLTestCase):
             self.add_fail_notes(serialization='json')
             raise
 
-    async def start_migration(self, migration, *,
-                              populate: bool = False,
-                              module: str = 'test'):
-        mig = f"""
-            START MIGRATION TO {{
+    async def start_migration(
+        self,
+        migration,
+        *,
+        populate: bool = False,
+        module: str = 'test',
+        explicit_modules: bool = False,
+    ):
+        if explicit_modules:
+            migration_text = migration
+        else:
+            migration_text = f'''
                 module {module} {{
                     {migration}
                 }}
+            '''
+
+        mig = f"""
+            START MIGRATION TO {{
+                {migration_text}
             }};
         """
         await self.con.execute(mig)
@@ -193,11 +205,16 @@ class EdgeQLDataMigrationTestCase(tb.DDLTestCase):
         *,
         populate: bool = False,
         module: str = 'test',
+        explicit_modules: bool = False,
         user_input: Optional[Iterable[str]] = None,
     ):
         async with self.con.transaction():
             await self.start_migration(
-                migration, populate=populate, module=module)
+                migration,
+                populate=populate,
+                module=module,
+                explicit_modules=explicit_modules,
+            )
             await self.fast_forward_describe_migration(user_input=user_input)
 
     async def interact(self, parts, check_complete=True):
@@ -11907,6 +11924,65 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
             select schema::Migration { script, name };
         ''')
         self.assertEqual(len(res), 1)
+
+    async def test_edgeql_migration_extension_01(self):
+        # Test migrations getting from an array in integers to vector and then
+        # revert to an array of floats.
+
+        await self.migrate('''
+            module default {
+                type Foo {
+                    required data: array<int64>
+                }
+            }
+        ''', explicit_modules=True)
+
+        # Populate with some data.
+        await self.con.execute('''
+            insert Foo {data := [3, 1, 4]};
+            insert Foo {data := [5, 6, 0]};
+        ''')
+
+        # Add vector and migrate automatically (because we have an assignment
+        # cast available from array<int64> to vector).
+        await self.migrate('''
+            using extension pgvector version '0.4';
+
+            module default {
+                scalar type v3 extending ext::pgvector::vector<3>;
+                type Foo {
+                    property data: v3;
+                };
+            }
+        ''', explicit_modules=True)
+
+        await self.assert_query_result(
+            r"""
+                select Foo.data
+            """,
+            tb.bag([[3, 1, 4], [5, 6, 0]]),
+            json_only=True,
+        )
+
+        await self.migrate(
+            '''
+            module default {
+                type Foo {
+                    property data: array<float32>;
+                };
+            }
+            ''',
+            explicit_modules=True,
+            # This migration needs the conversion expression
+            user_input=["<array<float32>>.data"]
+        )
+
+        await self.assert_query_result(
+            r"""
+                select Foo.data
+            """,
+            tb.bag([[3, 1, 4], [5, 6, 0]]),
+        )
 
 
 class EdgeQLMigrationRewriteTestCase(EdgeQLDataMigrationTestCase):

@@ -4,7 +4,6 @@ extern crate cpython;
 use cpython::PyString;
 
 mod errors;
-mod float;
 mod hash;
 mod keywords;
 pub mod normalize;

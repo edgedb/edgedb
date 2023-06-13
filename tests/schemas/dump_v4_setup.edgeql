@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2023-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,5 +17,10 @@
 #
 
 
-CREATE MODULE std;
-CREATE MODULE ext;
+set module default;
+
+for x in range_unpack(range(1, 1000))
+union (
+    # Large, varied, but deterministic dataset.
+    insert L2 {vec := [x % 10, math::ln(x), x / 7 % 13]}
+);

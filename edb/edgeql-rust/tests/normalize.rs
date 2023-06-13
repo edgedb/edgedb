@@ -1,4 +1,5 @@
-use edgeql_rust::normalize::{normalize, Value, Variable};
+use edgeql_rust::normalize::{normalize, Variable};
+use edgeql_parser::tokenizer::{Value as Value};
 
 
 #[test]
@@ -45,10 +46,10 @@ fn test_str() {
         "SELECT(<__std__::str>$0)+(<__std__::str>$1)");
     assert_eq!(entry.variables, vec![vec![
         Variable {
-            value: Value::Str("x".into()),
+            value: Value::String("x".into()),
         },
         Variable {
-            value: Value::Str("yy".into()),
+            value: Value::String("yy".into()),
         }
     ]]);
 }

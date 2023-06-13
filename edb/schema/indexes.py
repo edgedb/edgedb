@@ -111,6 +111,15 @@ def is_index_valid_for_type(
                     )
                 )
             )
+        case (
+            'ext::pgvector::ivfflat_euclidean'
+            | 'ext::pgvector::ivfflat_ip'
+            | 'ext::pgvector::ivfflat_cosine'
+        ):
+            return expr_type.issubclass(
+                schema,
+                schema.get('ext::pgvector::vector', type=s_scalars.ScalarType),
+            )
 
     return False
 
@@ -183,6 +192,19 @@ class Index(
             cls.__module__, cls.__name__, self.id, id(self))
 
     __str__ = __repr__
+
+    def as_delete_delta(
+        self,
+        *,
+        schema: s_schema.Schema,
+        context: so.ComparisonContext,
+    ) -> sd.ObjectCommand[Index]:
+        delta = super().as_delete_delta(schema=schema, context=context)
+        old_params = self.get_params(schema).objects(schema)
+        for p in old_params:
+            delta.add(p.as_delete_delta(schema=schema, context=context))
+
+        return delta
 
     def get_verbosename(
         self,
@@ -1065,6 +1087,17 @@ class DeleteIndex(
 ):
     astnode = [qlast.DropConcreteIndex, qlast.DropIndex]
     referenced_astnode = qlast.DropConcreteIndex
+
+    def _delete_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._delete_begin(schema, context)
+        if not context.canonical:
+            for param in self.scls.get_params(schema).objects(schema):
+                self.add(param.init_delta_command(schema, sd.DeleteObject))
+        return schema
 
     @classmethod
     def _cmd_tree_from_ast(
