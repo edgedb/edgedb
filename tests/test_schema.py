@@ -362,6 +362,26 @@ class TestSchema(tb.BaseSchemaLoadTest):
             };
         """
 
+    @tb.must_fail(errors.QueryError,
+                  "could not resolve partial path")
+    def test_schema_partial_path_in_default_of_link_prop_01(self):
+        """
+            module default {
+                type Person {
+                    required name : str {
+                        constraint exclusive;
+                    }
+
+                    multi friends : Person {
+                        note : str {
+                            default := .name
+                        }
+                    }
+
+                }
+            }
+        """
+
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "invalid property type: expected a scalar type, "
                   "or a scalar collection, got object type 'test::Object'",
