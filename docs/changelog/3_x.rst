@@ -982,7 +982,7 @@ Other changes and fixes
 * Fix ISE when using ``__subject__`` in default
   (:eql:gh:`#5633`)
 
-* Compile default expressions in the schema consistently compile
+* Make default expressions in the schema always compiled
   as ``detached``
   (:eql:gh:`#5606`)
 
