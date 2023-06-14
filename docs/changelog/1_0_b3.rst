@@ -16,19 +16,19 @@ Migrations
 We continue working on improving our schema and migration tools:
 
 * Prohibit mixing computed and regular links or properties
-  (:edb:gh:`#2099`).
+  (:eql:gh:`#2099`).
 * Don't ask for conversion expressions when changing type of
-  computed link or property (:edb:gh:`#2658`).
-* Fix some migration issues involving rebasing (:edb:gh:`#2536`).
-* Fix backlink processing in SDL schemas (:edb:gh:`#1824`).
-* Improve migration prompts (:edb:gh:`#2547`, :edb:gh:`#2591`).
+  computed link or property (:eql:gh:`#2658`).
+* Fix some migration issues involving rebasing (:eql:gh:`#2536`).
+* Fix backlink processing in SDL schemas (:eql:gh:`#1824`).
+* Improve migration prompts (:eql:gh:`#2547`, :eql:gh:`#2591`).
 
 
 EdgeQL
 ======
 
 * Add :ref:`free shapes <ref_datamodel_objects_free>`
-  (:edb:gh:`#2533`).
+  (:eql:gh:`#2533`).
 
   This construct provides a way to arbitrarily structure data without
   providing a specific underlying object. It is easier to package data
@@ -46,12 +46,12 @@ EdgeQL
 
 * Add :eql:type:`cal::relative_duration`, which is similar to duration
   but instead uses fuzzy units like years, months and days in addition
-  to the more standard units like seconds (:edb:gh:`#2559`).
+  to the more standard units like seconds (:eql:gh:`#2559`).
 * Enforce :eql:type:`duration` constraints in SQL as opposed to only
-  during casting (:edb:gh:`#2539`).
+  during casting (:eql:gh:`#2539`).
 
 * Implement path-like syntax for accessing enum types' members
-  (:edb:gh:`#2625`):
+  (:eql:gh:`#2625`):
 
   .. code-block:: edgeql
 
@@ -64,10 +64,10 @@ EdgeQL
     select <Color>'Red';
 
 * Allow removal and reordering of :eql:type:`enum` elements
-  (:edb:gh:`#2564`).
+  (:eql:gh:`#2564`).
 
 * Implement :eql:func:`assert_single` which allows to perform a
-  cardinality check in run-time (:edb:gh:`#2695`):
+  cardinality check in run-time (:eql:gh:`#2695`):
 
   .. code-block:: edgeql-repl
 
@@ -79,7 +79,7 @@ EdgeQL
            one element returned by an expression
 
 * Adjust the precedence of :eql:op:`detached` to match that of
-  :eql:op:`exists` (:edb:gh:`#2638`).
+  :eql:op:`exists` (:eql:gh:`#2638`).
 
   This makes it apply to shapes in a more intuitive fashion:
 
@@ -93,24 +93,24 @@ EdgeQL
   shape as the same ``detached`` User as mentioned at the root of the
   shape.
 
-* Prohibit backlink syntax for computed links (:edb:gh:`#2619`).
-* Prohibit "$" as the first character in identifiers (:edb:gh:`#2595`).
+* Prohibit backlink syntax for computed links (:eql:gh:`#2619`).
+* Prohibit "$" as the first character in identifiers (:eql:gh:`#2595`).
 * Fix how :eql:op:`?? <coalesce>` works with :eql:type:`tuples <tuple>`
-  (:edb:gh:`#2602`).
+  (:eql:gh:`#2602`).
 * Fix cardinality inference of computed links and properties
-  (:edb:gh:`#2585`).
+  (:eql:gh:`#2585`).
 * Fix how :eql:op:`distinct` applies to collections of shapes
-  (:edb:gh:`#2540`).
-* Fix some cases of nested ``unless conflict`` bugs (:edb:gh:`#2555`).
+  (:eql:gh:`#2540`).
+* Fix some cases of nested ``unless conflict`` bugs (:eql:gh:`#2555`).
 * Fix how nested volatile computed expressions get executed
-  (:edb:gh:`#2545`).
-* Fix how ``using`` expressions propagate to subtypes (:edb:gh:`#2543`).
+  (:eql:gh:`#2545`).
+* Fix how ``using`` expressions propagate to subtypes (:eql:gh:`#2543`).
 
 
 GraphQL
 =======
 
-* Reflect :eql:type:`json` into a custom GraphQL type (:edb:gh:`#2782`).
+* Reflect :eql:type:`json` into a custom GraphQL type (:eql:gh:`#2782`).
 
   The :eql:type:`json` values will be reflected into a custom JSON
   type that renders as seamless JSON. Assuming ``additional_data`` is
@@ -146,8 +146,8 @@ GraphQL
   work JSON values have to be passed as variables.
 
 * Remove the helper ``stdgraphql`` module as it is no loger needed
-  (:edb:gh:`#2692`).
-* Fix an issue with inline fragments (:edb:gh:`#1800`).
+  (:eql:gh:`#2692`).
+* Fix an issue with inline fragments (:eql:gh:`#1800`).
 
 
 TLS

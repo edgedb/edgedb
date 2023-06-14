@@ -62,47 +62,47 @@ EdgeQL
 ======
 
 * Add ``+=`` and ``-=`` operations for use in :eql:stmt:`update`
-  (:edb:gh:`#165`).
+  (:eql:gh:`#165`).
 * Distinguish ``required`` and ``optional`` query parameters
-  (:edb:gh:`#1352`, :edb:gh:`#1355`)
-* Allow tuple arrays in schema definitions (:edb:gh:`73125882`).
+  (:eql:gh:`#1352`, :eql:gh:`#1355`)
+* Allow tuple arrays in schema definitions (:eql:gh:`73125882`).
 * Get rid of ``schema::CompoundType`` in favor of ``is_compound_type``
-  property (:edb:gh:`c30c1c4f`).
+  property (:eql:gh:`c30c1c4f`).
 * Add :eql:type:`anytype` and :eql:type:`anytuple` as proper abstract
-  types to the schema (:edb:gh:`affb65de`).
+  types to the schema (:eql:gh:`affb65de`).
 * ``schema::Constraint`` no longer has ``args``, use ``params`` instead
-  (:edb:gh:`14cec6f1`).
+  (:eql:gh:`14cec6f1`).
 * Make ``std::Object`` the implicit base type for all user-defined
   object types only.
 * Make ``std::BaseObject`` the root type for all object types both
   user-defined and system object types.
 * Accept ``1e100n`` format as a valid ``bigint`` constant rather than
-  ``decimal`` (:edb:gh:`#1372`)
+  ``decimal`` (:eql:gh:`#1372`)
 * Make self-referencing (recursive) aliases forbidden.
-* Fix dependency tracking affecting index creation (:edb:gh:`#1181`).
+* Fix dependency tracking affecting index creation (:eql:gh:`#1181`).
 * Fix derivation of link targets in certain cases of multiple
-  inheritance (:edb:gh:`52c6b2d4`).
-* Fix handling of ad-hoc tuples (:edb:gh:`#1255`).
+  inheritance (:eql:gh:`52c6b2d4`).
+* Fix handling of ad-hoc tuples (:eql:gh:`#1255`).
 * Fix incorrect implicit limit injection in subqueries in computed
-  expressions (:edb:gh:`#1271`).
+  expressions (:eql:gh:`#1271`).
 * Computables cardinality must now be declared explicitly as
   ``required``, ``single`` or ``multi``. The expression is validated
   to be within the upper and lower limits implied by the declaration
-  (:edb:gh:`#1201`, :edb:gh:`#349`).
-* Prohibit database names longer than 63 characters (:edb:gh:`#1158`).
-* Prohibit duplicate elements in shapes (:edb:gh:`#1368`).
-* Implement :eql:stmt:`alter function` (:edb:gh:`#1433`).
+  (:eql:gh:`#1201`, :eql:gh:`#349`).
+* Prohibit database names longer than 63 characters (:eql:gh:`#1158`).
+* Prohibit duplicate elements in shapes (:eql:gh:`#1368`).
+* Implement :eql:stmt:`alter function` (:eql:gh:`#1433`).
 
 
 GraphQL
 =======
 
 * Reflect "description" annotations into GraphQL descriptions
-  (:edb:gh:`#1228`).
+  (:eql:gh:`#1228`).
 * Change the auto-generated type name template to use "\_Type" suffix
-  (:edb:gh:`#1175`).
-* Fix incorrect reflection of enums (:edb:gh:`#1227`).
-* Fix deeply nested insert issue (:edb:gh:`#1243`).
+  (:eql:gh:`#1175`).
+* Fix incorrect reflection of enums (:eql:gh:`#1227`).
+* Fix deeply nested insert issue (:eql:gh:`#1243`).
 
 
 Standard Library
@@ -118,14 +118,14 @@ Standard Library
 Server
 ======
 
-* Convert EdgeQL lexer (:edb:gh:`#1178`)
+* Convert EdgeQL lexer (:eql:gh:`#1178`)
 * Convert GraphQL parser to Rust and perform constant extraction
-  (:edb:gh:`#1299`).
-* Constant extraction from EdgeQL queries (:edb:gh:`#1356`)
+  (:eql:gh:`#1299`).
+* Constant extraction from EdgeQL queries (:eql:gh:`#1356`)
 * Make it possible to use different EdgeDB servers connected to the
-  same Postgres cluster (:edb:gh:`#1197`).
+  same Postgres cluster (:eql:gh:`#1197`).
 * Protocol: implement ``JSON_ELEMENTS`` IO format for responses
-  (:edb:gh:`#1169`).
+  (:eql:gh:`#1169`).
 
 
 
@@ -135,7 +135,7 @@ Misc
 * Add :ref:`cheatsheet <ref_cheatsheet_repl>` to documentation.
 * Strictly type-annotate the core schema module.
 * Clean-up and improve schema and introspection code to make the
-  internal APIs more consistent (:edb:gh:`#1408`).
+  internal APIs more consistent (:eql:gh:`#1408`).
 * Update the `edgedb-js <https://github.com/edgedb/edgedb-js>`_ driver
   to v0.7.3.
 * Update the `edgedb-python <https://github.com/edgedb/edgedb-python>`_

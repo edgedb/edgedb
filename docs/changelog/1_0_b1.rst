@@ -205,15 +205,15 @@ EdgeQL
 
 * Deprecate ``Port`` and replace it with a more general
   :ref:`extension <ref_datamodel_extensions>` mechanism
-  (:edb:gh:`#2228`).
+  (:eql:gh:`#2228`).
 * Limit :eql:type:`datetime`, :eql:type:`cal::local_datetime` and
   :eql:type:`cal::local_date` to the 1-9999 year range
-  (:edb:gh:`#2252`).
+  (:eql:gh:`#2252`).
 * Make the format of :eql:type:`duration` less ambiguous by
-  restricting the usage of ``-`` sign (:edb:gh:`#2229`).
+  restricting the usage of ``-`` sign (:eql:gh:`#2229`).
 * Record non-DDL commands during migrations instead of executing them
-  immediately as per `RFC 1000 <migrations_>`_ (:edb:gh:`#2138`).
-* Add more details to the DDL command status (:edb:gh:`#2138`).
+  immediately as per `RFC 1000 <migrations_>`_ (:eql:gh:`#2138`).
+* Add more details to the DDL command status (:eql:gh:`#2138`).
 
   .. code-block:: edgeql-repl
 
@@ -224,7 +224,7 @@ EdgeQL
     OK: CREATE FUNCTION
 
 * Stop using ``drop`` to change field value, introduce ``reset`` and
-  ``set`` syntax to do that (:edb:gh:`#2031`).
+  ``set`` syntax to do that (:eql:gh:`#2031`).
 
   .. code-block:: edgeql
 
@@ -236,7 +236,7 @@ EdgeQL
 
 * ``alter ... set type`` now requires an explicit conversion
   expression specified in the ``using`` clause, if the new type is not
-  assignment-castable from the old type (:edb:gh:`#2115`).
+  assignment-castable from the old type (:eql:gh:`#2115`).
 
   .. code-block:: edgeql-repl
 
@@ -254,7 +254,7 @@ EdgeQL
     {default::Foo {bar: '3!'}}
 
 * Add a ``using`` clause for ``set required`` so that en expression to
-  fill in missing values can be specified (:edb:gh:`#2130`).
+  fill in missing values can be specified (:eql:gh:`#2130`).
 
   .. code-block:: edgeql-repl
 
@@ -274,23 +274,23 @@ EdgeQL
     {default::Foo {bar: 'init'}}
 
 * Expose link/property ``readonly`` aspect in introspection schema
-  (:edb:gh:`#2147`).
+  (:eql:gh:`#2147`).
 * Drop ``is_`` prefixes from boolean fields in introspection schema.
   The old field names are kept for backwards compatibility to be
-  deprecated later (:edb:gh:`#1793`).
-* Add support for computed link properties (:edb:gh:`#2067`).
-* Infer and validate volatility for functions (:edb:gh:`#1937`).
-* Allow trailing commas in functions (:edb:gh:`#1462`).
+  deprecated later (:eql:gh:`#1793`).
+* Add support for computed link properties (:eql:gh:`#2067`).
+* Infer and validate volatility for functions (:eql:gh:`#1937`).
+* Allow trailing commas in functions (:eql:gh:`#1462`).
 * Fix handling of implicit path prefix in the ``else`` part of
   ``unless conflict`` so that it properly refers to existing object
-  (:edb:gh:`#2091`).
+  (:eql:gh:`#2091`).
 * Fix issues with :eql:func:`enumerate` when applied to objects
-  (:edb:gh:`#1815`) and results of function calls (:edb:gh:`#1816`).
-* Fix ``drop property`` for ``multi`` properties (:edb:gh:`#2059`).
+  (:eql:gh:`#1815`) and results of function calls (:eql:gh:`#1816`).
+* Fix ``drop property`` for ``multi`` properties (:eql:gh:`#2059`).
 * Make sure computed links and properties don't appear in dump
-  (:edb:gh:`#2057`).
+  (:eql:gh:`#2057`).
 * Fix accessing links on objects that come from functions and other
-  sources that aren't simple paths (:edb:gh:`#1887`).
+  sources that aren't simple paths (:eql:gh:`#1887`).
 
 
 Command-Line Tools

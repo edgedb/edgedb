@@ -1,4 +1,4 @@
-.. edb:section-intro-page:: changelog
+.. eql:section-intro-page:: changelog
 
 =========
 Changelog

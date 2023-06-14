@@ -14,7 +14,7 @@ These can be defined in your schema.
 .. note::
 
     Triggers cannot be used to modify the object that set off the trigger. This
-    functionality will be addressed by the upcoming :edb:gh:`mutation rewrites
+    functionality will be addressed by the upcoming :eql:gh:`mutation rewrites
     <#4937>` feature.
 
 Here's an example that creates a simple audit log type so that we can keep

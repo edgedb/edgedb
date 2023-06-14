@@ -14,14 +14,14 @@ issues rather than introducing new features.
 Migrations
 ==========
 
-* Disallow cardinality mismatch in function return and body (:edb:gh:`#2137`).
+* Disallow cardinality mismatch in function return and body (:eql:gh:`#2137`).
 * Disallow :eql:type:`anytype` and :eql:type:`anytuple` in SDL
-  (:edb:gh:`#2137`).
+  (:eql:gh:`#2137`).
 * Fix issues that prevented migrations to an empty clean module
-  (:edb:gh:`#3273`, :edb:gh:`#3280`).
-* Fix altering parent types in migrations (:edb:gh:`#3276`).
+  (:eql:gh:`#3273`, :eql:gh:`#3280`).
+* Fix altering parent types in migrations (:eql:gh:`#3276`).
 * Fix migration issue when a constraint alters cardinality of an
-  expression (:edb:gh:`#3275`).
+  expression (:eql:gh:`#3275`).
 
 
 EdgeQL
@@ -29,7 +29,7 @@ EdgeQL
 
 * :eql:stmt:`for` loops no longer require wrapping everything
   into ``{ }``. Simple expressions using a single path or a function
-  call can be used directly (:edb:gh:`#3243`):
+  call can be used directly (:eql:gh:`#3243`):
 
   .. code-block:: edgeql-repl
 

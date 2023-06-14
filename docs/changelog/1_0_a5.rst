@@ -14,7 +14,7 @@ EdgeQL
 ======
 
 * Implement casts between JSON and enums, arrays and tuples
-  (:edb:gh:`#251`). For example, now there's a way to unpack JSON
+  (:eql:gh:`#251`). For example, now there's a way to unpack JSON
   input into a tuple, which can then be used to populate a new User
   record:
 
@@ -43,16 +43,16 @@ EdgeQL
         "interests": ["fishing", "skiing"]
       }
 
-* Allow constraints on tuple types (:edb:gh:`#1576`).
-* Allow constraints directly on object types in SDL (:edb:gh:`#1164`)
+* Allow constraints on tuple types (:eql:gh:`#1576`).
+* Allow constraints directly on object types in SDL (:eql:gh:`#1164`)
 * Disallow using :eql:constraint:`exclusive` on scalar types
-  (:edb:gh:`#1575`).
+  (:eql:gh:`#1575`).
 * Proper implementation of ``set/drop owned``.
-* Fix issues with some ``for`` statements (:edb:gh:`#1594`).
+* Fix issues with some ``for`` statements (:eql:gh:`#1594`).
 * Use fully-qualified names to disambiguate the expressions produced
-  by :eql:stmt:`describe` (:edb:gh:`#1254`).
+  by :eql:stmt:`describe` (:eql:gh:`#1254`).
 * Initial implementation of :eql:stmt:`insert ... unless conflict ...
-  else <insert>` (:edb:gh:`#1639`)
+  else <insert>` (:eql:gh:`#1639`)
 * Implementation of more of the features of the new migration syntax
   (`RFC 1000 <migrations_>`_).
 
@@ -61,9 +61,9 @@ GraphQL
 =======
 
 * Allow several mutation operations in a single mutation query
-  (:edb:gh:`#1569`).
-* Reflect nested aliased types (:edb:gh:`#722`).
-* Enable sorting on non-trivial path (:edb:gh:`#1642`). Here's an
+  (:eql:gh:`#1569`).
+* Reflect nested aliased types (:eql:gh:`#722`).
+* Enable sorting on non-trivial path (:eql:gh:`#1642`). Here's an
   example of sorting movies by the director's last name and then by
   the movie's title:
 
@@ -81,7 +81,7 @@ GraphQL
         }
       }
 
-* Add an ``exists`` filter operation (:edb:gh:`#1655`). Here's an
+* Add an ``exists`` filter operation (:eql:gh:`#1655`). Here's an
   example of using it to get records with missing data:
 
   .. code-block:: graphql

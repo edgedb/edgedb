@@ -1,4 +1,4 @@
-.. edb:section-intro-page:: guides
+.. eql:section-intro-page:: guides
 
 .. _ref_guides:
 

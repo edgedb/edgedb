@@ -13,7 +13,7 @@ EdgeDB 1.0 alpha 6 "Wolf".
 EdgeQL
 ======
 
-* Introduce new enum definition syntax (:edb:gh:`#1843`).
+* Introduce new enum definition syntax (:eql:gh:`#1843`).
 
   Instead of using strings, the enums are now defined using identifiers:
 
@@ -22,28 +22,28 @@ EdgeQL
     create scalar type schema::TypeModifier
         extending enum<SetOfType, OptionalType, SingletonType>;
 
-* Rename built-in schema enums to use CamelCase names (:edb:gh:`#1843`).
+* Rename built-in schema enums to use CamelCase names (:eql:gh:`#1843`).
 * Rename string handling functions to use ``start`` and ``end`` in
-  their name (:edb:gh:`#1752`):
+  their name (:eql:gh:`#1752`):
 
   - Deprecate :eql:func:`str_lpad` in favor of :eql:func:`str_pad_start`
   - Deprecate :eql:func:`str_rpad` in favor of :eql:func:`str_pad_end`
   - Deprecate :eql:func:`str_ltrim` in favor of :eql:func:`str_trim_start`
   - Deprecate :eql:func:`str_rtrim` in favor of :eql:func:`str_trim_end`
 
-* Improve :eql:stmt:`update` functionality (:edb:gh:`#1746`).
-* Forbid usage of DML in some special cases (:edb:gh:`#1726`).
-* Add tracking of DML inside function bodies (:edb:gh:`#1741`).
-* Allow functions with non-statement bodies (:edb:gh:`#1723`).
-* Allow the usage of :eql:op:`exists` in constraints (:edb:gh:`#1750`).
-* Allow partial paths in object constraints (:edb:gh:`#1704`)
-* Allow trailing commas in collection types (:edb:gh:`#1749`).
+* Improve :eql:stmt:`update` functionality (:eql:gh:`#1746`).
+* Forbid usage of DML in some special cases (:eql:gh:`#1726`).
+* Add tracking of DML inside function bodies (:eql:gh:`#1741`).
+* Allow functions with non-statement bodies (:eql:gh:`#1723`).
+* Allow the usage of :eql:op:`exists` in constraints (:eql:gh:`#1750`).
+* Allow partial paths in object constraints (:eql:gh:`#1704`)
+* Allow trailing commas in collection types (:eql:gh:`#1749`).
 * Fix :eql:stmt:`insert ... unless conflict ... else <insert>` when
-  combined with shape (:edb:gh:`#1743`).
-* Fix how :eql:stmt:`for` statement correlates values (:edb:gh:`#1776`).
-* Fix handling of collections of newly created types in SDL (:edb:gh:`#1730`).
-* Fix handling of function definitions in SDL (:edb:gh:`#1649`).
-* Fix interactions of ``set of`` and ``optional`` arguments (:edb:gh:`#1640`).
+  combined with shape (:eql:gh:`#1743`).
+* Fix how :eql:stmt:`for` statement correlates values (:eql:gh:`#1776`).
+* Fix handling of collections of newly created types in SDL (:eql:gh:`#1730`).
+* Fix handling of function definitions in SDL (:eql:gh:`#1649`).
+* Fix interactions of ``set of`` and ``optional`` arguments (:eql:gh:`#1640`).
 * Implementation of more of the features of the new migration syntax
   (`RFC 1000 <migrations_>`_).
 
@@ -63,9 +63,9 @@ Command-Line Tools
 Server Command-Line
 ===================
 
-* Stop treating "edgedb" as special (:edb:gh:`#1729`)
-* Improve database initialization (:edb:gh:`#1755`).
-* Import setuptools before distutils in setup.py (:edb:gh:`#1734`).
+* Stop treating "edgedb" as special (:eql:gh:`#1729`)
+* Improve database initialization (:eql:gh:`#1755`).
+* Import setuptools before distutils in setup.py (:eql:gh:`#1734`).
 
 
 Bindings

@@ -17,7 +17,7 @@ The most notable changes involve static cardinality inference, so that
 computed links and properties can be defined to mimic their regular
 counterparts:
 
-* Fix creation of required computed links (:edb:gh:`#2985`).
+* Fix creation of required computed links (:eql:gh:`#2985`).
 
   This allows having ``required`` links in the schema even if they are
   computed:
@@ -33,20 +33,20 @@ counterparts:
     }
 
 * Fix issues when migrating between regular and computed links and
-  properties (:edb:gh:`#2411`).
+  properties (:eql:gh:`#2411`).
 
 * Fix issues when changing cardinality of computed links and
-  properties (:edb:gh:`#3003`).
+  properties (:eql:gh:`#3003`).
 
 * Fix how ``alter`` suggestions are rejected when processing
-  migrations, making sure that they don't repeat (:edb:gh:`#3111`).
+  migrations, making sure that they don't repeat (:eql:gh:`#3111`).
 
 
 EdgeQL
 ======
 
 * Make static analysis correctly handle the cardinality of things
-  wrapped in :eql:func:`enumerate` (:edb:gh:`#3014`).
+  wrapped in :eql:func:`enumerate` (:eql:gh:`#3014`).
 
   This means that if you wrap a single property into
   :eql:func:`enumerate` it still is correctly inferred to produce no
@@ -58,21 +58,21 @@ EdgeQL
     {default::User {comp: (0, 'alice')}}
 
 * Fix some issues with :eql:func:`enumerate` applied to the results of
-  another function (:edb:gh:`#3025`).
+  another function (:eql:gh:`#3025`).
 
-* Fix :eql:func:`assert_distinct` on tuples (:edb:gh:`#2990`).
+* Fix :eql:func:`assert_distinct` on tuples (:eql:gh:`#2990`).
 
 * Fix a case where :eql:stmt:`for` over an empty set erroneously
-  produced a non-empty result (:edb:gh:`#3012`).
+  produced a non-empty result (:eql:gh:`#3012`).
 
 * Fix :eql:constraint:`exclusive` constraint issue when conflicting
-  entries are inserted at the same time (:edb:gh:`#3022`).
+  entries are inserted at the same time (:eql:gh:`#3022`).
 
-* Fix issues with how tuple elements are correlated (:edb:gh:`#3001`).
+* Fix issues with how tuple elements are correlated (:eql:gh:`#3001`).
 
 * Fix how functions or operators with ``optional`` parameters such as
   :eql:op:`?? <coalesce>` interact with shape subqueries
-  (:edb:gh:`#3008`).
+  (:eql:gh:`#3008`).
 
   This makes it possible to have a shape as one element of a tuple to
   be correlated with the expression in the other tuple element:
@@ -116,7 +116,7 @@ EdgeQL
       ),
     }
 
-* Fix issues with arrays of objects of related types (:edb:gh:`#2256`).
+* Fix issues with arrays of objects of related types (:eql:gh:`#2256`).
 
   Trying to build an array where elements are not of the same object
   type, but of related types no longer produces an error:
@@ -136,7 +136,7 @@ EdgeQL
   array constructor directly and supply the individual elements as
   subqueries.
 
-* Fix many bugs with objects inside arrays and tuples (:edb:gh:`#2992`).
+* Fix many bugs with objects inside arrays and tuples (:eql:gh:`#2992`).
 
   Packing and unpacking objects into arrays and tuples now works more
   reliably. You can make use of the different way of selecting the
@@ -156,15 +156,15 @@ EdgeQL
     }
 
 * Fix some issues with ad-hoc computed links or properties inside
-  arrays (:edb:gh:`#2979`).
+  arrays (:eql:gh:`#2979`).
 
 * Fix :eql:op:`and` to consistently apply to properties and produce
-  an ``{}`` even for the case of ``False and {}`` (:edb:gh:`#3121`).
+  an ``{}`` even for the case of ``False and {}`` (:eql:gh:`#3121`).
 
 * Restrict :eql:op:`| <typeor>` operator to object types only
-  (:edb:gh:`#3116`).
+  (:eql:gh:`#3116`).
 
-* Reserve ``never`` as a keyword for future use (:edb:gh:`#3102`).
+* Reserve ``never`` as a keyword for future use (:eql:gh:`#3102`).
 
 
 GraphQL
@@ -182,7 +182,7 @@ GraphQL
   to ``and`` are ``false`` so is the result.
 
 * Hide ``id`` as well as computed links and properties from mutation
-  (:edb:gh:`#3109`).
+  (:eql:gh:`#3109`).
 
 
 Configuration

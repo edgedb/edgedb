@@ -16,22 +16,22 @@ EdgeQL
 
 * Add ``__std__`` alias for ``std`` module so that there's a way to refer
   to the standard module which cannot be masked by a ``with std as
-  module foo`` construct (:edb:gh:`#1457`).
+  module foo`` construct (:eql:gh:`#1457`).
 * Allow explicit ``optional`` qualifier for links and properties in
   DDL and SDL. In particular, use it in :eql:stmt:`describe` command
-  output. (:edb:gh:`#1342`).
+  output. (:eql:gh:`#1342`).
 * Only show link properties on computed links that are aliases.
 * :eql:stmt:`describe` command now shows matches that are
-  potentially masked by the user-defined types or functions (:edb:gh:`#1439`).
+  potentially masked by the user-defined types or functions (:eql:gh:`#1439`).
 * Add ``describe roles`` and ``describe instance config`` to the
   :eql:stmt:`describe` command.
 * Allow underscore in numeric literals and forbids float and decimal
-  constants to end in ``.`` (:edb:gh:`#920`).
+  constants to end in ``.`` (:eql:gh:`#920`).
 * Validate the ``required`` flag on computed links and properties
-  (:edb:gh:`#217`).
+  (:eql:gh:`#217`).
 * Forbid reference to link properties outside of a path expression
-  (:edb:gh:`#1512`).
-* Allow annotations to be renamed (:edb:gh:`#762`).
+  (:eql:gh:`#1512`).
+* Allow annotations to be renamed (:eql:gh:`#762`).
 * Initial implementation of the new migration syntax
   (`RFC 1000 <migrations_>`_).
 
@@ -54,7 +54,7 @@ CLI
 Server
 ======
 
-* Remove reliance on Postgres table inheritance (:edb:gh:`#1468`)
+* Remove reliance on Postgres table inheritance (:eql:gh:`#1468`)
 * The ``edgedb-server`` installed by official installers is now called
   ``edgedb-server-1-alpha4``.
 

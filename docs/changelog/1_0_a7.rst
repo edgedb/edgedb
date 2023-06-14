@@ -15,7 +15,7 @@ EdgeQL
 
 * Add support for per-database configuration by adding a new
   :eql:stmt:`current database <configure>` configuration scope
-  (:edb:gh:`#1867`).
+  (:eql:gh:`#1867`).
 
   This allows to make changes that are more broad
   that :eql:stmt:`session <configure>` scope and less broad that
@@ -26,7 +26,7 @@ EdgeQL
     configure current database set query_work_mem := '4MB';
 
 * Add support for altering :eql:type:`enums <std::enum>` in order to
-  add new labels (:edb:gh:`#1956`).
+  add new labels (:eql:gh:`#1956`).
 
   .. code-block:: edgeql-repl
 
@@ -39,9 +39,9 @@ EdgeQL
 
 * Update :eql:type:`std::decimal` and :eql:type:`std::bigint` criteria
   to be sensitive to the presence of ``.`` so that ``123.0e100n`` is a
-  decimal, but ``123e100n`` is a bigint (:edb:gh:`#1804`).
+  decimal, but ``123e100n`` is a bigint (:eql:gh:`#1804`).
 
-* Functions can now return a set of tuples (:edb:gh:`#2010`).
+* Functions can now return a set of tuples (:eql:gh:`#2010`).
 
   .. code-block:: edgeql-repl
 
@@ -57,9 +57,9 @@ EdgeQL
     {(0, 'h'), (1, 'e'), (2, 'l'), (3, 'l'), (4, 'o')}
 
 * Functions can no longer share a shortname with types in order to
-  avoid name resolution issues (:edb:gh:`#1465`).
+  avoid name resolution issues (:eql:gh:`#1465`).
 * Forbid taking implicit cross products with volatile operations to
-  avoid unintuitive behavior (:edb:gh:`#1784`).
+  avoid unintuitive behavior (:eql:gh:`#1784`).
 
   .. code-block:: edgeql-repl
 
@@ -73,12 +73,12 @@ EdgeQL
     {(1, 0.25724045818607166), (2, 0.7268530965023459)}
 
 * Forbid scalar types from having more than one concrete base
-  (:edb:gh:`#1790`).
+  (:eql:gh:`#1790`).
 * Forbid partial path expressions in :eql:stmt:`limit <select>`/
-  :eql:stmt:`offset <select>` clauses (:edb:gh:`#1919`).
-* Forbid changing cardinality via inheritance (:edb:gh:`#1772`).
-* Remove legacy unused ``.>`` token (:edb:gh:`#1648`).
-* Fix cardinality inference on operators (:edb:gh:`#2001`).
+  :eql:stmt:`offset <select>` clauses (:eql:gh:`#1919`).
+* Forbid changing cardinality via inheritance (:eql:gh:`#1772`).
+* Remove legacy unused ``.>`` token (:eql:gh:`#1648`).
+* Fix cardinality inference on operators (:eql:gh:`#2001`).
 
 
 Migrations
@@ -184,11 +184,11 @@ We've also made improvements to the following migration features:
 * Better overall dependency tracking to make sure that migration to
   the new state can be resolved and produces valid command sequence.
 * Type, index and alias renaming while keeping track of affected
-  expressions to make sure they don't become invalid (:edb:gh:`#1841`)
-* Function renaming (:edb:gh:`#1971`)
-* Moving a type between modules (:edb:gh:`#1890`).
+  expressions to make sure they don't become invalid (:eql:gh:`#1841`)
+* Function renaming (:eql:gh:`#1971`)
+* Moving a type between modules (:eql:gh:`#1890`).
 * Changing base types and changing where constraints are defined
-  (:edb:gh:`#1996`).
+  (:eql:gh:`#1996`).
 
 
 Command-Line Tools
@@ -204,7 +204,7 @@ Command-Line Tools
   <https://github.com/edgedb/edgedb-cli/pull/200>`_).
 * Non-interactive error messages are prefixed by ``edgedb error:
   ...``, to quickly spot which tool has errored in scripts.
-* Improve accuracy of syntax error reporting in REPL (:edb:gh:`#1959`).
+* Improve accuracy of syntax error reporting in REPL (:eql:gh:`#1959`).
 * REPL now supports full range of datetime values (`#192
   <https://github.com/edgedb/edgedb-cli/pull/192>`_).
 * ``\lt`` in REPL doesn't show implicit internal types (unions and
@@ -226,7 +226,7 @@ Server Command-Line
   <https://github.com/edgedb/edgedb-cli/pull/172>`_).
 * Add ``edgedb server info`` command.
 * Deprecate ``--default-database`` and ``--default-database-user``
-  (:edb:gh:`#1879`).
+  (:eql:gh:`#1879`).
 
 
 Bindings

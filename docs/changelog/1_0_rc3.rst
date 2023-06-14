@@ -93,7 +93,7 @@ Alternatively we can restore the old credentials:
 EdgeQL
 ======
 
-* Support path prefix in link constraints (:edb:gh:`#3206`).
+* Support path prefix in link constraints (:eql:gh:`#3206`).
 
   It is now possible to use shorthand path expression referring to
   link properties in constraint expressions:
@@ -107,7 +107,7 @@ EdgeQL
         }
     }
 
-* Support path prefix in link indexes (:edb:gh:`#3202`).
+* Support path prefix in link indexes (:eql:gh:`#3202`).
 
   It is now possible to use shorthand path expression referring to
   link properties in index expressions:
@@ -119,7 +119,7 @@ EdgeQL
         index on (@strength);
     }
 
-* Implement index and slicing of JSON strings (:edb:gh:`#3203`).
+* Implement index and slicing of JSON strings (:eql:gh:`#3203`).
 
   We already implement :eql:op:`++ <jsonplus>` for JSON strings, but
   indexing operations were left out until now. This change fixes this
@@ -133,9 +133,9 @@ EdgeQL
     {"\"el\""}
 
 * Fix some corner cases of functions without ``optional`` or ``set
-  of`` arguments being called on empty input (:edb:gh:`#3195`).
+  of`` arguments being called on empty input (:eql:gh:`#3195`).
 
-* Fix some corner cases of changing link type (:edb:gh:`#3183`).
+* Fix some corner cases of changing link type (:eql:gh:`#3183`).
 
 
 Bindings

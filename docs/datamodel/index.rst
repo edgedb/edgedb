@@ -1,4 +1,4 @@
-.. edb:section-intro-page:: datamodel
+.. eql:section-intro-page:: datamodel
 .. versioned-section::
 
 .. _ref_datamodel_index:

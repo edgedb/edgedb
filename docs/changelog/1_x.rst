@@ -18,82 +18,82 @@ contributing fixes. You are awesome! ❤️
 1.4
 ===
 
-* Avoid unnecessary updates to parent views and triggers (:edb:gh:`#3771`)
+* Avoid unnecessary updates to parent views and triggers (:eql:gh:`#3771`)
 
-* Drop broken special case for nested insert ``FOR`` (:edb:gh:`#3797`)
+* Drop broken special case for nested insert ``FOR`` (:eql:gh:`#3797`)
 
-* Fix ``IN array_unpack`` for bigints (:edb:gh:`#3820`)
+* Fix ``IN array_unpack`` for bigints (:eql:gh:`#3820`)
 
-* Put more parens around index expressions in generated DDL (:edb:gh:`#3822`)
+* Put more parens around index expressions in generated DDL (:eql:gh:`#3822`)
 
-* Fix a weird computable/alias interaction (:edb:gh:`#3828`)
+* Fix a weird computable/alias interaction (:eql:gh:`#3828`)
 
-* Support linkprops on backlinks (:edb:gh:`#3841`)
+* Support linkprops on backlinks (:eql:gh:`#3841`)
 
-* Fix generation of dummy_pathid in nonconflict ctes (:edb:gh:`#3848`)
+* Fix generation of dummy_pathid in nonconflict ctes (:eql:gh:`#3848`)
 
 * Always correctly handle variadic arguments when producing AST from migrations
-  (:edb:gh:`#3855`)
+  (:eql:gh:`#3855`)
 
 
 1.3
 ===
 
-* Fix a multiplicity computation bug for tuples (:edb:gh:`#3632``)
+* Fix a multiplicity computation bug for tuples (:eql:gh:`#3632``)
 
-* Fix a multiplicity issue with doubly nested loops (:edb:gh:`#3636`)
+* Fix a multiplicity issue with doubly nested loops (:eql:gh:`#3636`)
 
-* Fix a bug involving computable shadowing (:edb:gh:`#3652`)
+* Fix a bug involving computable shadowing (:eql:gh:`#3652`)
 
 * Make replace_prefix change PointerRefs to make types line up
-  (:edb:gh:`#3642`)
+  (:eql:gh:`#3642`)
 
-* Search the source_rvar for materialized refs (:edb:gh:`#3657`)
+* Search the source_rvar for materialized refs (:eql:gh:`#3657`)
 
-* Fix min/max when no source aspect is present (:edb:gh:`#3664`)
+* Fix min/max when no source aspect is present (:eql:gh:`#3664`)
 
-* Don't create UnionTypeShell for views of unions (:edb:gh:`#3670`)
+* Don't create UnionTypeShell for views of unions (:eql:gh:`#3670`)
 
-* Fix a collection of json casting bugs (:edb:gh:`#3676`)
+* Fix a collection of json casting bugs (:eql:gh:`#3676`)
 
 * ha/stolon: Don't attempt to parse unsuccessful Consul responses
-  (:edb:gh:`#3698`)
+  (:eql:gh:`#3698`)
 
 * ha/stolon: Add exponential backoff on unsuccessful Consul KV responses
-  (:edb:gh:`#3699`)
+  (:eql:gh:`#3699`)
 
 * Make sure the sets in conflict clauses are have correct scope
-  (:edb:gh:`#3686`)
+  (:eql:gh:`#3686`)
 
 * Produce an error instead of malformed SQL on ``insert foo { name }``
-  (:edb:gh:`#3687`)
+  (:eql:gh:`#3687`)
 
-* Don't treat everything with a binding as STABLE (:edb:gh:`#3689`)
+* Don't treat everything with a binding as STABLE (:eql:gh:`#3689`)
 
-* Check that index expressions are immutable (:edb:gh:`#3690`)
+* Check that index expressions are immutable (:eql:gh:`#3690`)
 
-* Fix fetching computed propery of UNION of same type (:edb:gh:`#3691`)
+* Fix fetching computed propery of UNION of same type (:eql:gh:`#3691`)
 
-* Fix references to ``__subject__`` in object constraints (:edb:gh:`#3695`)
+* Fix references to ``__subject__`` in object constraints (:eql:gh:`#3695`)
 
-* Fix unions of DML overlays on reverse inline pointers (:edb:gh:`#3694`)
+* Fix unions of DML overlays on reverse inline pointers (:eql:gh:`#3694`)
 
-* Fix some inheritance issues with renames and expr refs (:edb:gh:`#3696`)
+* Fix some inheritance issues with renames and expr refs (:eql:gh:`#3696`)
 
-* Fix a card inference bug when dealing with computables (:edb:gh:`#3628`)
+* Fix a card inference bug when dealing with computables (:eql:gh:`#3628`)
 
-* Fix a collection of nested shape path reference issues (:edb:gh:`#3700`)
+* Fix a collection of nested shape path reference issues (:eql:gh:`#3700`)
 
 * Produce a proper error on ``describe`` of nonexisting function, module
-  (:edb:gh:`#3701`)
+  (:eql:gh:`#3701`)
 
 * Pin the version of edgedb-cli that we use
-  (:edb:gh:`#3705`)
+  (:eql:gh:`#3705`)
 
-* Fix ``[NOT] IN array_unpack(foo)`` when foo is empty (:edb:gh:`#3752`)
+* Fix ``[NOT] IN array_unpack(foo)`` when foo is empty (:eql:gh:`#3752`)
 
 * Inject ``SYNC`` between state restore & ``START TRANSACTION`` in
-  [execute] flow. (:edb:gh:`#3749``)
+  [execute] flow. (:eql:gh:`#3749``)
 
 * Fail if local Postgres cluster fails to start
 
@@ -101,7 +101,7 @@ contributing fixes. You are awesome! ❤️
 1.2
 ===
 
-* Add on-demand compiler pool scaling (:edb:gh:`#3550`).
+* Add on-demand compiler pool scaling (:eql:gh:`#3550`).
 
   Use ``--compiler-pool-mode=on_demand`` to switch to the new mode,
   which will a spawn new compiler worker process every 3 seconds if
@@ -112,23 +112,23 @@ contributing fixes. You are awesome! ❤️
   on-demand mode.
 
 * Fix an issue with default module and module aliases inside transactions
-  (:edb:gh:`#3604`).
+  (:eql:gh:`#3604`).
 * Add ``reset on target delete`` to :ref:`DDL <ref_eql_ddl_links>` in
-  order to fix some migration bugs concerning links (:edb:gh:`#3611`).
+  order to fix some migration bugs concerning links (:eql:gh:`#3611`).
 * Enforce newly created :eql:constraint:`exclusive` constraints across
-  existing data (:edb:gh:`#3613`).
-* Fix an issue with a self-referencing :eql:stmt:`update` (:edb:gh:`#3605`).
-* Fix an issue with a constraint bug in :eql:stmt:`update` (:edb:gh:`#3603`).
-* Fix a constraint bug in :eql:stmt:`update` (:edb:gh:`#3603`).
+  existing data (:eql:gh:`#3613`).
+* Fix an issue with a self-referencing :eql:stmt:`update` (:eql:gh:`#3605`).
+* Fix an issue with a constraint bug in :eql:stmt:`update` (:eql:gh:`#3603`).
+* Fix a constraint bug in :eql:stmt:`update` (:eql:gh:`#3603`).
 * Fix an SDL issue with computed links referencing each other
-  (:edb:gh:`#3499`).
-* Fix self-referencing nested mutations in GraphQL (:edb:gh:`#3470`).
-* Fix GraphQL fragments for types (:edb:gh:`#3514`).
-* Add ``in`` operator to GraphQL (:edb:gh:`#3443`).
-* Fix cardinality inference in some special cases (:edb:gh:`#3590`).
-* Fix inheritance from enum types (:edb:gh:`#3578`).
+  (:eql:gh:`#3499`).
+* Fix self-referencing nested mutations in GraphQL (:eql:gh:`#3470`).
+* Fix GraphQL fragments for types (:eql:gh:`#3514`).
+* Add ``in`` operator to GraphQL (:eql:gh:`#3443`).
+* Fix cardinality inference in some special cases (:eql:gh:`#3590`).
+* Fix inheritance from enum types (:eql:gh:`#3578`).
 * Fix cardinality inference bug and extend cardinality restrictions to
-  longer paths (:edb:gh:`#3566`).
+  longer paths (:eql:gh:`#3566`).
 
   Specifically, correctly infer that filtering on a long path where
   each hop is :eql:constraint:`exclusive` produces at most one result.
@@ -137,8 +137,8 @@ contributing fixes. You are awesome! ❤️
   cardinality of at most one if both ``bar`` and ``baz`` have
   ``exclusive`` constraints.
 
-* Fix issues involving scalar set identity (:edb:gh:`#3525`).
-* Fix exclusive constraints on tuple properties (:edb:gh:`#3559`).
+* Fix issues involving scalar set identity (:eql:gh:`#3525`).
+* Fix exclusive constraints on tuple properties (:eql:gh:`#3559`).
 
 
 1.1
@@ -146,33 +146,33 @@ contributing fixes. You are awesome! ❤️
 
 * Fix a migration issue with handling ``default`` on inherited
   :ref:`links <ref_datamodel_links>` or :ref:`properties
-  <ref_datamodel_props>` (:edb:gh:`#3544`).
+  <ref_datamodel_props>` (:eql:gh:`#3544`).
 * Fix a migration issue with an inherited :ref:`property
-  <ref_datamodel_props>` (:edb:gh:`#3542`).
-* Fix a migration issue with dropping a type (:edb:gh:`#3521`).
+  <ref_datamodel_props>` (:eql:gh:`#3542`).
+* Fix a migration issue with dropping a type (:eql:gh:`#3521`).
 * Fix a migration issue with changing a :ref:`link
   <ref_datamodel_links>` from ``single`` to ``multi``
-  (:edb:gh:`#3392`).
+  (:eql:gh:`#3392`).
 * Provide a more detailed message for :ref:`constraints
-  <ref_datamodel_constraints>` errors (:edb:gh:`#3522`).
-* Produce an error on an invalid regex (:edb:gh:`#3412`).
+  <ref_datamodel_constraints>` errors (:eql:gh:`#3522`).
+* Produce an error on an invalid regex (:eql:gh:`#3412`).
 * Produce a proper error when an expression is invalid in a certain
-  special contexts, such as ``default`` (:edb:gh:`#3494`).
+  special contexts, such as ``default`` (:eql:gh:`#3494`).
 * Format the database name correctly in
-  ``DuplicateDatabaseDefinitionError`` (:edb:gh:`#3228`)
+  ``DuplicateDatabaseDefinitionError`` (:eql:gh:`#3228`)
 * Fix an error when working with a composite :eql:constraint:`exclusive`
-  constraint (:edb:gh:`#3502`).
+  constraint (:eql:gh:`#3502`).
 * Correctly infer cardinality of a property on a multi link in the
   context of the :ref:`constraint <ref_datamodel_constraints>` on that
-  link (:edb:gh:`#3536`).
+  link (:eql:gh:`#3536`).
 * Disable changing the concrete base of a :ref:`scalar type
-  <ref_datamodel_scalar_types>` (:edb:gh:`#3529`).
-* Avoid generating pointless self joins (:edb:gh:`#2567`).
-* Fix IPv6 address parsing (:edb:gh:`#3454`).
+  <ref_datamodel_scalar_types>` (:eql:gh:`#3529`).
+* Avoid generating pointless self joins (:eql:gh:`#2567`).
+* Fix IPv6 address parsing (:eql:gh:`#3454`).
 * If a type has object instances, it cannot be made ``abstract``
-  (:edb:gh:`#3399`).
+  (:eql:gh:`#3399`).
 * Fix an issue that sometimes caused :eql:kw:`with` block variables to
-  be unusable (:edb:gh:`#3385`).
+  be unusable (:eql:gh:`#3385`).
 
 
 Pre-releases
