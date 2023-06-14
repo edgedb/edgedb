@@ -77,7 +77,7 @@ pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
         match var.value {
             Value::Int(v) => {
                 codec::Int64
-                    .encode(&mut buf, &P::Int64(v as i64))
+                    .encode(&mut buf, &P::Int64(v))
                     .map_err(|e| format!("int cannot be encoded: {}", e))?;
             }
             Value::String(ref v) => {
