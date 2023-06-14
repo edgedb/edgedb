@@ -25,7 +25,7 @@ from typing import *
 import re
 import textwrap
 
-from edb import _edgeql_rust
+from edb import _edgeql_parser
 
 from edb.common import context as parser_context
 from edb.common import debug
@@ -7394,7 +7394,7 @@ async def execute_sql_script(
             text = e.get_field('q')
 
         elif pl_func_line:
-            point = _edgeql_rust.offset_of_line(sql_text, pl_func_line)
+            point = _edgeql_parser.offset_of_line(sql_text, pl_func_line)
             text = sql_text
 
         if point is not None:

@@ -23,7 +23,7 @@ from typing import *
 from collections import deque
 
 from edb.edgeql import tokenizer
-from edb._edgeql_rust import Token
+from edb._edgeql_parser import Token
 
 
 class EdgeQLLexer(object):

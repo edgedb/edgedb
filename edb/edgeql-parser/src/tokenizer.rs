@@ -1031,3 +1031,9 @@ impl <'a> std::cmp::PartialEq for Token<'a> {
         self.kind == other.kind && self.text == other.text && self.value == other.value
     }
 }
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}

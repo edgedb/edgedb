@@ -31,7 +31,7 @@ import parsing
 
 from edb.common.exceptions import add_context, get_context
 from edb.common import context as pctx
-from edb._edgeql_rust import TokenizerError
+from edb._edgeql_parser import TokenizerError
 from edb.errors import EdgeQLSyntaxError
 
 ParserContext = pctx.ParserContext

@@ -54,7 +54,7 @@ impl cpython::PythonObjectWithTypeObject for TokenizerError {
             if TYPE_OBJECT.is_null() {
                 TYPE_OBJECT = PyErr::new_type(
                     py,
-                    "edb._edgeql_rust.TokenizerError",
+                    "edb._edgeql_parser.TokenizerError",
                     Some(PythonObject::into_object(py.get_type::<Exception>())),
                     None).as_type_ptr();
             }

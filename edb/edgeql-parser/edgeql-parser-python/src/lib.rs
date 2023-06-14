@@ -17,9 +17,9 @@ use pynormalize::normalize;
 use tokenizer::{get_unpickle_fn, tokenize, Token};
 
 py_module_initializer!(
-    _edgeql_rust,
-    init_edgeql_rust,
-    PyInit__edgeql_rust,
+    _edgeql_parser,
+    init_edgeql_parser,
+    PyInit__edgeql_parser,
     |py, m| {
         tokenizer::init_module(py);
         let keywords = keywords::get_keywords(py)?;

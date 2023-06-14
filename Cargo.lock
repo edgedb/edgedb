@@ -227,7 +227,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "edgeql-rust"
+name = "edgeql-parser-python"
 version = "0.1.0"
 dependencies = [
  "bigdecimal",

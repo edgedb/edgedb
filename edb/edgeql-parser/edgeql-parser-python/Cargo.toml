@@ -1,5 +1,5 @@
 [package]
-name = "edgeql-rust"
+name = "edgeql-parser-python"
 license = "MIT/Apache-2.0"
 version = "0.1.0"
 authors = ["MagicStack Inc. <hello@magic.io>"]
@@ -7,7 +7,7 @@ rust-version = "1.59"
 edition = "2021"
 
 [dependencies]
-edgeql-parser = {path = "../edgeql-parser"}
+edgeql-parser = {path = ".."}
 bytes = "1.0.1"
 num-bigint = "0.4.3"
 bigdecimal = "0.3.0"
