@@ -1103,11 +1103,6 @@ class Server(ha_base.ClusterProtocol):
         async with self._use_sys_pgcon() as syscon:
             patch_count = await self.get_patch_count(syscon)
             version_key = pg_patches.get_version_key(patch_count)
-            # Unfortunately sysqueries and report_configs_typedesc
-            # became versioned *after* the first patches shipped for
-            # 3.x, so we skip the version key if it is _v1.
-            # TODO: XXX: Remove in forward-ported 4.x version
-            version_key2 = '' if version_key == '_v1' else version_key
 
             result = await syscon.sql_fetch_val(b'''\
                 SELECT json::json FROM edgedbinstdata.instdata
@@ -1117,7 +1112,7 @@ class Server(ha_base.ClusterProtocol):
 
             result = await syscon.sql_fetch_val(f'''\
                 SELECT json::json FROM edgedbinstdata.instdata
-                WHERE key = 'sysqueries{version_key2}';
+                WHERE key = 'sysqueries{version_key}';
             '''.encode('utf-8'))
             queries = json.loads(result)
             self._sys_queries = immutables.Map(
@@ -1165,7 +1160,7 @@ class Server(ha_base.ClusterProtocol):
 
             self._report_config_typedesc = await syscon.sql_fetch_val(f'''\
                 SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'report_configs_typedesc{version_key2}';
+                WHERE key = 'report_configs_typedesc{version_key}';
             '''.encode('utf-8'))
 
     def get_roles(self):
