@@ -1176,9 +1176,9 @@ class PointerCommandOrFragment(
             )
 
             # if not isinstance(target_ref, ComputableRef):
-            #     self.set_attribute_value(
-            #         'is_derived', True
-            #     )
+            self.set_attribute_value(
+                'is_derived', True
+            )
 
             if context.declarative:
                 self.set_attribute_value(
