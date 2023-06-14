@@ -376,8 +376,9 @@ def from_json(spec: spec.Spec, js: str) -> SettingsMap:
         for key, value in dct.items():
             setting = spec.get(key)
             if setting is None:
-                raise errors.ConfigurationError(
-                    f'invalid JSON: unknown setting name {key!r}')
+                # If the setting isn't in the spec, that's probably because
+                # we've downgraded minor versions. Don't worry about it.
+                continue
 
             mm[key] = SettingValue(
                 name=key,
