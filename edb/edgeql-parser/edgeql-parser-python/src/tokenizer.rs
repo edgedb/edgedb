@@ -17,6 +17,8 @@ use crate::pynormalize::{py_pos, value_to_py_object};
 
 static mut TOKENS: Option<Tokens> = None;
 
+static mut TOKENS_CHEESE: Option<TokensCheese> = None;
+
 
 fn rs_pos(py: Python, value: &PyObject) -> PyResult<Pos> {
     let (line, column, offset) = FromPyObject::extract(py, value)?;
@@ -151,7 +153,8 @@ pub struct TokenInfo {
 
 pub fn init_module(py: Python) {
     unsafe {
-        TOKENS = Some(Tokens::new(py))
+        TOKENS = Some(Tokens::new(py));
+        TOKENS_CHEESE = Some(TokensCheese::new());
     }
 }
 
@@ -220,27 +223,21 @@ pub fn convert_tokens(py: Python, rust_tokens: Vec<PToken<'_>>,
 }
 
 // XXX positions
-pub fn convert_tokens_cheese(py: Python, rust_tokens: Vec<PToken<'_>>,
+pub fn convert_tokens_cheese(rust_tokens: Vec<PToken<'_>>,
     _end_pos: Pos)
     -> PyResult<Vec<(String, String)>>
 {
-    let tokens = unsafe { TOKENS.as_ref().expect("module initialized") };
+    let tokens = unsafe { TOKENS_CHEESE.as_ref().expect("module initialized") };
     let mut cache = Cache {
         keyword_buf: String::with_capacity(MAX_KEYWORD_LENGTH),
     };
     let mut buf = Vec::with_capacity(rust_tokens.len());
     for tok in rust_tokens {
-        let (name, text) = get_token_kind_and_name(py, tokens, &mut cache, &tok);
+        let (name, text) = get_token_kind_and_name_cheese(tokens, &mut cache, tok);
 
-        buf.push((
-            String::from(name.to_string(py)?),
-            String::from(text.to_string(py)?),
-        ))
+        buf.push((name,text));
     }
-    buf.push((
-        String::from(tokens.eof.to_string(py)?),
-        String::from(tokens.empty.to_string(py)?),
-    ));
+    buf.push((tokens.eof.to_string(), tokens.empty.to_string()));
     Ok(buf)
 }
 
@@ -254,7 +251,7 @@ pub fn parse_cheese(
     }).map_err(|e| {
         TokenizerError::new(py, (e.message, py_pos(py, &e.span.start)))
     })?;
-    let cheese = convert_tokens_cheese(py, rust_tokens, token_stream.current_pos())?;
+    let cheese = convert_tokens_cheese(rust_tokens, token_stream.current_pos())?;
 
     let out = cparse(String::from(spec.to_string(py)?), &cheese)
         .and_then(|out| {
@@ -611,6 +608,434 @@ fn get_token_kind_and_name(
         Substitution => (
             tokens.substitution.clone_ref(py),
             PyString::new(py, text),
+        ),
+    }
+}
+
+
+pub struct TokensCheese {
+    ident: &'static str,
+    argument: &'static str,
+    eof: &'static str,
+    empty: &'static str,
+    substitution: &'static str,
+
+    named_only: &'static str,
+    named_only_val: &'static str,
+    set_annotation: &'static str,
+    set_annotation_val: &'static str,
+    set_type: &'static str,
+    set_type_val: &'static str,
+    extension_package: &'static str,
+    extension_package_val: &'static str,
+    order_by: &'static str,
+    order_by_val: &'static str,
+
+    dot: &'static str,
+    backward_link: &'static str,
+    open_bracket: &'static str,
+    close_bracket: &'static str,
+    open_paren: &'static str,
+    close_paren: &'static str,
+    open_brace: &'static str,
+    close_brace: &'static str,
+    namespace: &'static str,
+    double_splat: &'static str,
+    coalesce: &'static str,
+    colon: &'static str,
+    semicolon: &'static str,
+    comma: &'static str,
+    add: &'static str,
+    concat: &'static str,
+    sub: &'static str,
+    mul: &'static str,
+    div: &'static str,
+    floor_div: &'static str,
+    modulo: &'static str,
+    pow: &'static str,
+    less: &'static str,
+    greater: &'static str,
+    eq: &'static str,
+    ampersand: &'static str,
+    pipe: &'static str,
+    at: &'static str,
+
+    iconst: &'static str,
+    niconst: &'static str,
+    fconst: &'static str,
+    nfconst: &'static str,
+    bconst: &'static str,
+    sconst: &'static str,
+    op: &'static str,
+
+    greater_eq: &'static str,
+    less_eq: &'static str,
+    not_eq: &'static str,
+    distinct_from: &'static str,
+    not_distinct_from: &'static str,
+
+    assign: &'static str,
+    assign_op: &'static str,
+    add_assign: &'static str,
+    add_assign_op: &'static str,
+    sub_assign: &'static str,
+    sub_assign_op: &'static str,
+    arrow: &'static str,
+    arrow_op: &'static str,
+
+    keywords: HashMap<String, TokenInfoCheese>,
+}
+
+pub struct TokenInfoCheese {
+    pub kind: Kind,
+    pub name: String,
+    pub value: Option<String>,
+}
+
+impl TokensCheese {
+    pub fn new() -> TokensCheese {
+        let mut res = TokensCheese {
+            ident: "IDENT",
+            argument: "ARGUMENT",
+            eof: "EOF",
+            empty: "",
+            substitution: "SUBSTITUTION",
+            named_only: "NAMEDONLY",
+            named_only_val: "NAMED ONLY",
+            set_annotation: "SETANNOTATION",
+            set_annotation_val: "SET ANNOTATION",
+            set_type: "SETTYPE",
+            set_type_val: "SET TYPE",
+            extension_package: "EXTENSIONPACKAGE",
+            extension_package_val: "EXTENSION PACKAGE",
+            order_by: "ORDERBY",
+            order_by_val: "ORDER BY",
+
+            dot: ".",
+            backward_link: ".<",
+            open_bracket: "[",
+            close_bracket: "]",
+            open_paren: "(",
+            close_paren: ")",
+            open_brace: "{",
+            close_brace: "}",
+            namespace: "::",
+            double_splat: "**",
+            coalesce: "??",
+            colon: ":",
+            semicolon: ";",
+            comma: ",",
+            add: "+",
+            concat: "++",
+            sub: "-",
+            mul: "*",
+            div: "/",
+            floor_div: "//",
+            modulo: "%",
+            pow: "^",
+            less: "<",
+            greater: ">",
+            eq: "=",
+            ampersand: "&",
+            pipe: "|",
+            at: "@",
+
+            iconst: "ICONST",
+            niconst: "NICONST",
+            fconst: "FCONST",
+            nfconst: "NFCONST",
+            bconst: "BCONST",
+            sconst: "SCONST",
+            op: "OP",
+
+            // as OP
+            greater_eq: ">=",
+            less_eq: "<=",
+            not_eq: "!=",
+            distinct_from: "?!=",
+            not_distinct_from: "?=",
+
+            assign: "ASSIGN",
+            assign_op: ":=",
+            add_assign: "ADDASSIGN",
+            add_assign_op: "+=",
+            sub_assign: "REMASSIGN",
+            sub_assign_op: "-=",
+            arrow: "ARROW",
+            arrow_op: "->",
+
+            keywords: HashMap::new(),
+        };
+        // 'EOF'
+        for kw in UNRESERVED_KEYWORDS.iter() {
+            res.add_kw(kw);
+        }
+        for kw in PARTIAL_RESERVED_KEYWORDS.iter() {
+            res.add_kw(kw);
+        }
+        for kw in CURRENT_RESERVED_KEYWORDS.iter() {
+            res.add_kw(kw);
+        }
+        for kw in FUTURE_RESERVED_KEYWORDS.iter() {
+            res.add_kw(kw);
+        }
+        return res;
+    }
+    fn add_kw(&mut self, name: &str) {
+        let py_name = name.to_ascii_uppercase();
+        let tok_name = if name.starts_with("__") && name.ends_with("__") {
+            format!("DUNDER{}", name[2..name.len()-2].to_ascii_uppercase())
+        } else {
+            py_name
+        };
+        self.keywords.insert(name.into(), TokenInfoCheese {
+            kind: if is_keyword(name) { Kind::Keyword } else { Kind::Ident },
+            name: tok_name,
+            value: None,
+        });
+    }
+}
+
+fn get_token_kind_and_name_cheese(
+    tokens: &TokensCheese,
+    cache: &mut Cache,
+    token: PToken,
+) -> (String, String) {
+    use Kind::*;
+    let text = token.text;
+    match token.kind {
+        Assign => (
+            tokens.assign.to_string(),
+            tokens.assign_op.to_string(),
+        ),
+        SubAssign => (
+            tokens.sub_assign.to_string(),
+            tokens.sub_assign_op.to_string(),
+        ),
+        AddAssign => (
+            tokens.add_assign.to_string(),
+            tokens.add_assign_op.to_string(),
+        ),
+        Arrow => (
+            tokens.arrow.to_string(),
+            tokens.arrow_op.to_string(),
+        ),
+        Coalesce => (
+            tokens.coalesce.to_string(),
+            tokens.coalesce.to_string(),
+        ),
+        Namespace => (
+            tokens.namespace.to_string(),
+            tokens.namespace.to_string(),
+        ),
+        DoubleSplat => (
+            tokens.double_splat.to_string(),
+            tokens.double_splat.to_string(),
+        ),
+        BackwardLink => (
+            tokens.backward_link.to_string(),
+            tokens.backward_link.to_string(),
+        ),
+        FloorDiv => (
+            tokens.floor_div.to_string(),
+            tokens.floor_div.to_string(),
+        ),
+        Concat => (
+            tokens.concat.to_string(),
+            tokens.concat.to_string(),
+        ),
+        GreaterEq => (
+            tokens.op.to_string(),
+            tokens.greater_eq.to_string(),
+        ),
+        LessEq => (
+            tokens.op.to_string(),
+            tokens.less_eq.to_string(),
+        ),
+        NotEq => (
+            tokens.op.to_string(),
+            tokens.not_eq.to_string(),
+        ),
+        NotDistinctFrom => (
+            tokens.op.to_string(),
+            tokens.not_distinct_from.to_string(),
+        ),
+        DistinctFrom => (
+            tokens.op.to_string(),
+            tokens.distinct_from.to_string(),
+        ),
+        Comma => (
+            tokens.comma.to_string(),
+            tokens.comma.to_string(),
+        ),
+        OpenParen => (
+            tokens.open_paren.to_string(),
+            tokens.open_paren.to_string(),
+        ),
+        CloseParen => (
+            tokens.close_paren.to_string(),
+            tokens.close_paren.to_string(),
+        ),
+        OpenBracket => (
+            tokens.open_bracket.to_string(),
+            tokens.open_bracket.to_string(),
+        ),
+        CloseBracket => (
+            tokens.close_bracket.to_string(),
+            tokens.close_bracket.to_string(),
+        ),
+        OpenBrace => (
+            tokens.open_brace.to_string(),
+            tokens.open_brace.to_string(),
+        ),
+        CloseBrace => (
+            tokens.close_brace.to_string(),
+            tokens.close_brace.to_string(),
+        ),
+        Dot => (
+            tokens.dot.to_string(),
+            tokens.dot.to_string(),
+        ),
+        Semicolon => (
+            tokens.semicolon.to_string(),
+            tokens.semicolon.to_string(),
+        ),
+        Colon => (
+            tokens.colon.to_string(),
+            tokens.colon.to_string(),
+        ),
+        Add => (
+            tokens.add.to_string(),
+            tokens.add.to_string(),
+        ),
+        Sub => (
+            tokens.sub.to_string(),
+            tokens.sub.to_string(),
+        ),
+        Mul => (
+            tokens.mul.to_string(),
+            tokens.mul.to_string(),
+        ),
+        Div => (
+            tokens.div.to_string(),
+            tokens.div.to_string(),
+        ),
+        Modulo => (
+            tokens.modulo.to_string(),
+            tokens.modulo.to_string(),
+        ),
+        Pow => (
+            tokens.pow.to_string(),
+            tokens.pow.to_string(),
+        ),
+        Less => (
+            tokens.less.to_string(),
+            tokens.less.to_string(),
+        ),
+        Greater => (
+            tokens.greater.to_string(),
+            tokens.greater.to_string(),
+        ),
+        Eq => (
+            tokens.eq.to_string(),
+            tokens.eq.to_string(),
+        ),
+        Ampersand => (
+            tokens.ampersand.to_string(),
+            tokens.ampersand.to_string(),
+        ),
+        Pipe => (
+            tokens.pipe.to_string(),
+            tokens.pipe.to_string(),
+        ),
+        At => (
+            tokens.at.to_string(),
+            tokens.at.to_string(),
+        ),
+        Argument => (
+            tokens.argument.to_string(),
+            text.to_string(),
+        ),
+        DecimalConst => (
+            tokens.nfconst.to_string(),
+            text.to_string(),
+        ),
+        FloatConst => (
+            tokens.fconst.to_string(),
+            text.to_string(),
+        ),
+        IntConst => (
+            tokens.iconst.to_string(),
+            text.to_string(),
+        ),
+        BigIntConst => (
+            tokens.niconst.to_string(),
+            text.to_string(),
+        ),
+        BinStr => (
+            tokens.bconst.to_string(),
+            text.to_string(),
+        ),
+        Str => (
+            tokens.sconst.to_string(),
+            text.to_string(),
+        ),
+        BacktickName => (
+            tokens.ident.to_string(),
+            text.to_string(),
+        ),
+        Ident | Keyword => match text.as_ref() {
+            "named only" => (
+                tokens.named_only.to_string(),
+                tokens.named_only_val.to_string(),
+            ),
+            "set annotation" => (
+                tokens.set_annotation.to_string(),
+                tokens.set_annotation_val.to_string(),
+            ),
+            "set type" => (
+                tokens.set_type.to_string(),
+                tokens.set_type_val.to_string(),
+            ),
+            "extension package" => {
+                (
+                tokens.extension_package.to_string(),
+                tokens.extension_package_val.to_string(),
+            )},
+            "order by" => (
+                tokens.order_by.to_string(),
+                tokens.order_by_val.to_string(),
+            ),
+
+            _ => {
+                if text.len() > MAX_KEYWORD_LENGTH {
+                    (
+                        tokens.ident.to_string(),
+                        text.to_string(),
+                    )
+                } else {
+                    cache.keyword_buf.clear();
+                    cache.keyword_buf.push_str(&text);
+                    cache.keyword_buf.make_ascii_lowercase();
+
+                    let kind = match tokens.keywords.get(&cache.keyword_buf) {
+                        Some(keyword) => {
+                            debug_assert_eq!(keyword.kind, token.kind);
+
+                            keyword.name.to_string()
+                        }
+                        None => {
+                            debug_assert_eq!(Kind::Ident, token.kind);
+                            tokens.ident.to_string()
+                        }
+                    };
+                    (kind, text.to_string())
+                }
+            },
+        }
+        Substitution => (
+            tokens.substitution.to_string(),
+            text.to_string(),
         ),
     }
 }
