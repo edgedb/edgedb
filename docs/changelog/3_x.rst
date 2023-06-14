@@ -20,7 +20,7 @@ To play with the new features, install the CLI using `our installation guide
 
 .. code-block:: bash
 
-  $ edgedb project init --server-version=3.0-rc.1
+  $ edgedb project init --server-version=3.0-rc.4
 
 .. note::
 
@@ -119,18 +119,18 @@ dump-and-restore process.
 
    .. code-block:: bash
 
-       $ sudo apt-get update && sudo apt-get install edgedb-3-rc1
+       $ sudo apt-get update && sudo apt-get install edgedb-3-rc4
 
    Under CentOS/RHEL, use this installation command:
 
    .. code-block:: bash
 
-       $ sudo yum install edgedb-3-rc1
+       $ sudo yum install edgedb-3-rc4
 
    In any required ``systemctl`` commands, replace ``edgedb-server-2`` with
    ``edgedb-server-3``.
 
-   Under any Docker setups, supply the ``3.0-rc.1`` tag.
+   Under any Docker setups, supply the ``3.0-rc.4`` tag.
 
 2. Take your application offline, then dump your v2.x database with the CLI
 
