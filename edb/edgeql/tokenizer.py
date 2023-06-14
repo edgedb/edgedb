@@ -22,8 +22,8 @@ from typing import *
 import re
 import hashlib
 
-from edb._edgeql_rust import tokenize as _tokenize, TokenizerError, Token
-from edb._edgeql_rust import normalize as _normalize, Entry
+from edb._edgeql_parser import tokenize as _tokenize, TokenizerError, Token
+from edb._edgeql_parser import normalize as _normalize, Entry
 
 from edb import errors
 

@@ -84,7 +84,7 @@ impl<'a> Validator<'a> {
         }
 
         self.keyword_buf.clear();
-        self.keyword_buf.push_str(&text);
+        self.keyword_buf.push_str(text);
         self.keyword_buf.make_ascii_lowercase();
         match &self.keyword_buf[..] {
             "named" => {
@@ -192,10 +192,10 @@ pub fn parse_value(token: &Token<'_>) -> Result<Option<Value>, String> {
             )));
         }
         BinStr => {
-            return unquote_bytes(&text).map(Value::Bytes).map(Some);
+            return unquote_bytes(text).map(Value::Bytes).map(Some);
         }
 
-        Str => unquote_string(&text)
+        Str => unquote_string(text)
             .map_err(|s| s.to_string())?
             .to_string(),
         BacktickName => text[1..text.len() - 1].replace("``", "`"),

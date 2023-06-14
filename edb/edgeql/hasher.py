@@ -19,4 +19,4 @@
 from __future__ import annotations
 from typing import *
 
-from edb._edgeql_rust import Hasher  # noqa
+from edb._edgeql_parser import Hasher  # noqa

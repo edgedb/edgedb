@@ -36,7 +36,7 @@ from __future__ import annotations
 import re
 import bisect
 
-from edb import _edgeql_rust
+from edb import _edgeql_parser
 
 from edb.common import ast
 from edb.common import markup
@@ -68,7 +68,7 @@ class ParserContext(markup.MarkupExceptionContext):
         return dic
 
     def _calc_points(self):
-        self._points = _edgeql_rust.SourcePoint.from_offsets(
+        self._points = _edgeql_parser.SourcePoint.from_offsets(
             self.buffer.encode('utf-8'),
             [self.start, self.end]
         )
