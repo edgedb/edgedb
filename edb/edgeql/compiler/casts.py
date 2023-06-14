@@ -105,8 +105,13 @@ def compile_cast(
         return _find_object_by_id(ir_expr, new_stype, ctx=ctx)
 
     json_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'json'))
-
-    if isinstance(ir_set.expr, irast.Array):
+    if (
+        isinstance(ir_set.expr, irast.Array)
+        and (
+            isinstance(new_stype, s_types.Array)
+            or new_stype.issubclass(ctx.env.schema, json_t)
+        )
+    ):
         return _cast_array_literal(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
@@ -114,9 +119,22 @@ def compile_cast(
         return _cast_tuple(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
-    if orig_stype.is_array() and not s_types.is_type_compatible(
+    if isinstance(orig_stype, s_types.Array) and not s_types.is_type_compatible(
         orig_stype, new_stype, schema=ctx.env.schema
     ):
+        if (
+            not isinstance(new_stype, s_types.Array)
+            and isinstance(
+                (el_type := orig_stype.get_subtypes(ctx.env.schema)[0]),
+                s_scalars.ScalarType,
+            )
+        ):
+            # We're not casting to another array, so for purposes of matching
+            # the right cast we want to reduce orig_stype to an array of the
+            # built-in base type as that's what the cast will actually
+            # expect.
+            ir_set = _cast_to_base_array(ir_set, el_type, orig_stype, ctx=ctx)
+
         return _cast_array(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
@@ -152,31 +170,25 @@ def compile_cast(
         # JSON casts of objects are special: we want the full shape
         # and not just an identity.
         viewgen.late_compile_view_shapes(ir_set, ctx=ctx)
-    else:
-        if orig_stype.issubclass(ctx.env.schema, json_t) and new_stype.is_enum(
-            ctx.env.schema
-        ):
-            # Casts from json to enums need some special handling
-            # here, where we have access to the enum type. Just turn
-            # it into json->str and str->enum.
-            str_typ = ctx.env.get_schema_type_and_track(
-                sn.QualName('std', 'str')
-            )
-            str_ir = compile_cast(ir_expr, str_typ, srcctx=srcctx, ctx=ctx)
+    elif orig_stype.issubclass(ctx.env.schema, json_t):
+
+        if base_stype := _get_concrete_scalar_base(new_stype, ctx):
+            # Casts from json to custom scalars may have special handling.
+            # So we turn the type cast json->x into json->base and base->x.
+            base_ir = compile_cast(ir_expr, base_stype, srcctx=srcctx, ctx=ctx)
+
             return compile_cast(
-                str_ir,
+                base_ir,
                 new_stype,
                 cardinality_mod=cardinality_mod,
                 srcctx=srcctx,
                 ctx=ctx,
             )
 
-        if (
-            orig_stype.issubclass(ctx.env.schema, json_t)
-            and isinstance(new_stype, s_types.Array)
-            and not new_stype.get_subtypes(ctx.env.schema)[0].issubclass(
-                ctx.env.schema, json_t
-            )
+        elif isinstance(
+            new_stype, s_types.Array
+        ) and not new_stype.get_subtypes(ctx.env.schema)[0].issubclass(
+            ctx.env.schema, json_t
         ):
             # Turn casts from json->array<T> into json->array<json>
             # and array<json>->array<T>.
@@ -194,9 +206,7 @@ def compile_cast(
                 json_array_ir, new_stype, srcctx=srcctx, ctx=ctx
             )
 
-        if orig_stype.issubclass(ctx.env.schema, json_t) and isinstance(
-            new_stype, s_types.Tuple
-        ):
+        elif isinstance(new_stype, s_types.Tuple):
             return _cast_json_to_tuple(
                 ir_set,
                 orig_stype,
@@ -206,9 +216,7 @@ def compile_cast(
                 ctx=ctx,
             )
 
-        if orig_stype.issubclass(ctx.env.schema, json_t) and isinstance(
-            new_stype, s_types.Range
-        ):
+        elif isinstance(new_stype, s_types.Range):
             return _cast_json_to_range(
                 ir_set,
                 orig_stype,
@@ -258,6 +266,23 @@ def _has_common_concrete_scalar(
         and (new_base := new_stype.maybe_get_topmost_concrete_base(schema))
         and orig_base == new_base
     )
+
+
+def _get_concrete_scalar_base(
+    stype: s_types.Type,
+    ctx: context.ContextLevel
+) -> Optional[s_types.Type]:
+    """Returns None if stype is not scalar or if it is already topmost"""
+
+    if stype.is_enum(ctx.env.schema):
+        return ctx.env.get_schema_type_and_track(sn.QualName('std', 'str'))
+
+    if not isinstance(stype, s_scalars.ScalarType):
+        return None
+    if topmost := stype.maybe_get_topmost_concrete_base(ctx.env.schema):
+        if topmost != stype:
+            return topmost
+    return None
 
 
 def _compile_cast(
@@ -814,6 +839,23 @@ def _cast_json_to_range(
         return dispatch.compile(cast, ctx=subctx)
 
 
+def _cast_to_base_array(
+    ir_set: irast.Set,
+    el_stype: s_scalars.ScalarType,
+    orig_stype: s_types.Array,
+    ctx: context.ContextLevel,
+    cardinality_mod: Optional[qlast.CardinalityModifier]=None
+) -> irast.Set:
+
+    base_stype = el_stype.get_base_for_cast(ctx.env.schema)
+    assert isinstance(base_stype, s_types.Type)
+    _, new_stype = s_types.Array.from_subtypes(ctx.env.schema, [base_stype])
+
+    return _inheritance_cast_to_ir(
+        ir_set, orig_stype, new_stype,
+        cardinality_mod=cardinality_mod, ctx=ctx)
+
+
 def _cast_array(
         ir_set: irast.Set,
         orig_stype: s_types.Type,
@@ -833,8 +875,13 @@ def _cast_array(
                 context=srcctx)
         assert isinstance(new_stype, s_types.Array)
         el_type = new_stype.get_subtypes(ctx.env.schema)[0]
-    else:
+    elif new_stype.is_json(ctx.env.schema):
         el_type = new_stype
+    else:
+        # We're casting an array into something that's not an array (e.g. a
+        # vector), so we don't need to match element types.
+        return _cast_to_ir(
+            ir_set, direct_cast, orig_stype, new_stype, ctx=ctx)
 
     orig_el_type = orig_stype.get_subtypes(ctx.env.schema)[0]
 

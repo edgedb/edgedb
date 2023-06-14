@@ -14,13 +14,13 @@ use edgeql_parser_derive::IntoPython;
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct OptionValue {
     pub name: String,
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: Option<OptionValueKind>,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum OptionValueKind {
     OptionFlag(OptionFlag),
 }
@@ -40,13 +40,13 @@ pub struct Options {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct Expr {
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: ExprKind,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum ExprKind {
     Placeholder(Placeholder),
     Anchor(Anchor),
@@ -104,13 +104,13 @@ pub struct ModuleAliasDecl {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct BaseObjectRef {
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: BaseObjectRefKind,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum BaseObjectRefKind {
     ObjectRef(ObjectRef),
     PseudoObjectRef(PseudoObjectRef),
@@ -127,13 +127,13 @@ pub struct ObjectRef {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct PseudoObjectRef {
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: PseudoObjectRefKind,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum PseudoObjectRefKind {
     AnyType(AnyType),
     AnyTuple(AnyTuple),
@@ -151,13 +151,13 @@ pub struct AnyTuple {}
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct Anchor {
     pub name: String,
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: AnchorKind,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum AnchorKind {
     SpecialAnchor(SpecialAnchor),
 }
@@ -165,13 +165,13 @@ pub enum AnchorKind {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct SpecialAnchor {
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: Option<SpecialAnchorKind>,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum SpecialAnchorKind {
     Source(Source),
     Subject(Subject),
@@ -224,7 +224,7 @@ pub struct Indirection {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_union]
+#[cfg_attr(feature = "python", py_union)]
 pub enum IndirectionIndirection {
     Index(Index),
     Slice(Slice),
@@ -237,13 +237,13 @@ pub struct BinOp {
     pub op: String,
     pub right: Box<Expr>,
     pub rebalanced: bool,
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: Option<BinOpKind>,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum BinOpKind {
     SetConstructorOp(SetConstructorOp),
 }
@@ -272,7 +272,7 @@ pub struct FunctionCall {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_union]
+#[cfg_attr(feature = "python", py_union)]
 pub enum FunctionCallFunc {
     Tuple((String, String)),
     str(String),
@@ -282,13 +282,13 @@ pub enum FunctionCallFunc {
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct BaseConstant {
     pub value: String,
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: BaseConstantKind,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum BaseConstantKind {
     StringConstant(StringConstant),
     BaseRealConstant(BaseRealConstant),
@@ -304,13 +304,13 @@ pub struct StringConstant {}
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct BaseRealConstant {
     pub is_negative: bool,
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: BaseRealConstantKind,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum BaseRealConstantKind {
     IntegerConstant(IntegerConstant),
     FloatConstant(FloatConstant),
@@ -361,13 +361,13 @@ pub struct UnaryOp {
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct TypeExpr {
     pub name: Option<String>,
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: Option<TypeExprKind>,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum TypeExprKind {
     TypeOf(TypeOf),
     TypeExprLiteral(TypeExprLiteral),
@@ -452,7 +452,7 @@ pub struct Path {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_union]
+#[cfg_attr(feature = "python", py_union)]
 pub enum PathSteps {
     Expr(Box<Expr>),
     Ptr(Ptr),
@@ -518,13 +518,13 @@ pub struct Set {
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct Command {
     pub aliases: Option<Vec<CommandAliases>>,
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: CommandKind,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_union]
+#[cfg_attr(feature = "python", py_union)]
 pub enum CommandAliases {
     AliasedExpr(AliasedExpr),
     ModuleAliasDecl(ModuleAliasDecl),
@@ -532,7 +532,7 @@ pub enum CommandAliases {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum CommandKind {
     SessionSetAliasDecl(SessionSetAliasDecl),
     SessionResetAliasDecl(SessionResetAliasDecl),
@@ -597,13 +597,13 @@ pub struct Shape {
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct Query {
     pub aliases: Option<Vec<QueryAliases>>,
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: QueryKind,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_union]
+#[cfg_attr(feature = "python", py_union)]
 pub enum QueryAliases {
     AliasedExpr(AliasedExpr),
     ModuleAliasDecl(ModuleAliasDecl),
@@ -611,7 +611,7 @@ pub enum QueryAliases {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum QueryKind {
     PipelinedQuery(PipelinedQuery),
     GroupQuery(GroupQuery),
@@ -629,13 +629,13 @@ pub struct PipelinedQuery {
     pub offset: Option<Box<Expr>>,
     pub limit: Option<Box<Expr>>,
     pub rptr_passthrough: bool,
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: PipelinedQueryKind,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum PipelinedQueryKind {
     SelectQuery(SelectQuery),
     DeleteQuery(DeleteQuery),
@@ -656,7 +656,7 @@ pub struct GroupingIdentList {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_union]
+#[cfg_attr(feature = "python", py_union)]
 pub enum GroupingIdentListElements {
     ObjectRef(ObjectRef),
     Path(Path),
@@ -666,13 +666,13 @@ pub enum GroupingIdentListElements {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct GroupingElement {
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: GroupingElementKind,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum GroupingElementKind {
     GroupingSimple(GroupingSimple),
     GroupingSets(GroupingSets),
@@ -687,7 +687,7 @@ pub struct GroupingSimple {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_union]
+#[cfg_attr(feature = "python", py_union)]
 pub enum GroupingSimpleElement {
     ObjectRef(ObjectRef),
     Path(Path),
@@ -709,7 +709,7 @@ pub struct GroupingOperation {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_union]
+#[cfg_attr(feature = "python", py_union)]
 pub enum GroupingOperationElements {
     ObjectRef(ObjectRef),
     Path(Path),
@@ -723,13 +723,13 @@ pub struct GroupQuery {
     pub using: Option<Vec<AliasedExpr>>,
     pub by: Vec<GroupingElement>,
     pub subject: Box<Expr>,
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: Option<GroupQueryKind>,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum GroupQueryKind {
     InternalGroupQuery(InternalGroupQuery),
 }
@@ -780,13 +780,13 @@ pub struct ForQuery {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct Transaction {
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: TransactionKind,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum TransactionKind {
     StartTransaction(StartTransaction),
     CommitTransaction(CommitTransaction),
@@ -841,13 +841,13 @@ pub struct Position {
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct DDLOperation {
     pub commands: Vec<DDLOperation>,
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: DDLOperationKind,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum DDLOperationKind {
     DDLCommand(DDLCommand),
     AlterAddInherit(AlterAddInherit),
@@ -861,13 +861,13 @@ pub enum DDLOperationKind {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct DDLCommand {
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: DDLCommandKind,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum DDLCommandKind {
     NamedDDL(NamedDDL),
 }
@@ -903,13 +903,13 @@ pub struct SetField {
     pub name: String,
     pub value: SetFieldValue,
     pub special_syntax: bool,
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: Option<SetFieldKind>,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_union]
+#[cfg_attr(feature = "python", py_union)]
 pub enum SetFieldValue {
     Expr(Box<Expr>),
     TypeExpr(TypeExpr),
@@ -918,7 +918,7 @@ pub enum SetFieldValue {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum SetFieldKind {
     SetPointerType(SetPointerType),
     SetPointerCardinality(SetPointerCardinality),
@@ -955,13 +955,13 @@ pub struct SetPointerOptionality {
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct NamedDDL {
     pub name: ObjectRef,
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: NamedDDLKind,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum NamedDDLKind {
     ObjectDDL(ObjectDDL),
     Rename(Rename),
@@ -970,13 +970,13 @@ pub enum NamedDDLKind {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct ObjectDDL {
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: ObjectDDLKind,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum ObjectDDLKind {
     CreateObject(CreateObject),
     AlterObject(AlterObject),
@@ -989,13 +989,13 @@ pub struct CreateObject {
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
     pub create_if_not_exists: bool,
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: Option<CreateObjectKind>,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum CreateObjectKind {
     CreateExtendingObject(CreateExtendingObject),
     CreateMigration(CreateMigration),
@@ -1023,13 +1023,13 @@ pub enum CreateObjectKind {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct AlterObject {
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: Option<AlterObjectKind>,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum AlterObjectKind {
     AlterMigration(AlterMigration),
     AlterDatabase(AlterDatabase),
@@ -1060,13 +1060,13 @@ pub enum AlterObjectKind {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct DropObject {
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: Option<DropObjectKind>,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum DropObjectKind {
     DropMigration(DropMigration),
     DropDatabase(DropDatabase),
@@ -1102,13 +1102,13 @@ pub enum DropObjectKind {
 pub struct CreateExtendingObject {
     pub r#final: bool,
     pub bases: Vec<TypeExpr>,
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: Option<CreateExtendingObjectKind>,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum CreateExtendingObjectKind {
     CreateAnnotation(CreateAnnotation),
     CreateScalarType(CreateScalarType),
@@ -1153,7 +1153,7 @@ pub struct StartMigration {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_union]
+#[cfg_attr(feature = "python", py_union)]
 pub enum StartMigrationTarget {
     Schema(Schema),
     CommittedSchema(CommittedSchema),
@@ -1325,13 +1325,13 @@ pub struct CreateConcretePointer {
     pub target: CreateConcretePointerTarget,
     pub cardinality: SchemaCardinality,
     pub bases: Vec<TypeExpr>,
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: Option<CreateConcretePointerKind>,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_union]
+#[cfg_attr(feature = "python", py_union)]
 pub enum CreateConcretePointerTarget {
     Expr(Box<Expr>),
     TypeExpr(TypeExpr),
@@ -1340,7 +1340,7 @@ pub enum CreateConcretePointerTarget {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum CreateConcretePointerKind {
     CreateConcreteUnknownPointer(CreateConcreteUnknownPointer),
     CreateConcreteProperty(CreateConcreteProperty),
@@ -1397,7 +1397,7 @@ pub struct CreateGlobal {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_union]
+#[cfg_attr(feature = "python", py_union)]
 pub enum CreateGlobalTarget {
     Expr(Box<Expr>),
     TypeExpr(TypeExpr),
@@ -1678,13 +1678,13 @@ pub struct DropCast {}
 pub struct ConfigOp {
     pub name: ObjectRef,
     pub scope: ConfigScope,
-    #[py_child]
+    #[cfg_attr(feature = "python", py_child)]
     pub kind: ConfigOpKind,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
+#[cfg_attr(feature = "python", py_child)]
 pub enum ConfigOpKind {
     ConfigSet(ConfigSet),
     ConfigInsert(ConfigInsert),
@@ -1719,7 +1719,7 @@ pub struct DescribeStmt {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_union]
+#[cfg_attr(feature = "python", py_union)]
 pub enum DescribeStmtObject {
     ObjectRef(ObjectRef),
     DescribeGlobal(DescribeGlobal),
@@ -1747,7 +1747,7 @@ pub struct ModuleDeclaration {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_union]
+#[cfg_attr(feature = "python", py_union)]
 pub enum ModuleDeclarationDeclarations {
     NamedDDL(DDLOperation),
     ModuleDeclaration(ModuleDeclaration),
@@ -1761,7 +1761,7 @@ pub struct Schema {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_union]
+#[cfg_attr(feature = "python", py_union)]
 pub enum SchemaDeclarations {
     NamedDDL(DDLOperation),
     ModuleDeclaration(ModuleDeclaration),
@@ -1769,7 +1769,7 @@ pub enum SchemaDeclarations {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qlast.SortOrder)]
+#[cfg_attr(feature = "python", py_enum(qlast.SortOrder))]
 pub enum SortOrder {
     Asc,
     Desc,
@@ -1777,7 +1777,7 @@ pub enum SortOrder {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qlast.NonesOrder)]
+#[cfg_attr(feature = "python", py_enum(qlast.NonesOrder))]
 pub enum NonesOrder {
     First,
     Last,
@@ -1785,7 +1785,7 @@ pub enum NonesOrder {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qlast.CardinalityModifier)]
+#[cfg_attr(feature = "python", py_enum(qlast.CardinalityModifier))]
 pub enum CardinalityModifier {
     Optional,
     Required,
@@ -1793,7 +1793,7 @@ pub enum CardinalityModifier {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qlast.DescribeGlobal)]
+#[cfg_attr(feature = "python", py_enum(qlast.DescribeGlobal))]
 pub enum DescribeGlobal {
     Schema,
     DatabaseConfig,
@@ -1803,7 +1803,7 @@ pub enum DescribeGlobal {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qlast.ShapeOp)]
+#[cfg_attr(feature = "python", py_enum(qlast.ShapeOp))]
 pub enum ShapeOp {
     APPEND,
     SUBTRACT,
@@ -1813,7 +1813,7 @@ pub enum ShapeOp {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qlast.ShapeOrigin)]
+#[cfg_attr(feature = "python", py_enum(qlast.ShapeOrigin))]
 pub enum ShapeOrigin {
     EXPLICIT,
     DEFAULT,
@@ -1823,7 +1823,7 @@ pub enum ShapeOrigin {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qlast.Language)]
+#[cfg_attr(feature = "python", py_enum(qlast.Language))]
 pub enum Language {
     SQL,
     EdgeQL,
@@ -1831,7 +1831,7 @@ pub enum Language {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.ParameterKind)]
+#[cfg_attr(feature = "python", py_enum(qltypes.ParameterKind))]
 pub enum ParameterKind {
     VariadicParam,
     NamedOnlyParam,
@@ -1840,7 +1840,7 @@ pub enum ParameterKind {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.TypeModifier)]
+#[cfg_attr(feature = "python", py_enum(qltypes.TypeModifier))]
 pub enum TypeModifier {
     SetOfType,
     OptionalType,
@@ -1849,7 +1849,7 @@ pub enum TypeModifier {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.OperatorKind)]
+#[cfg_attr(feature = "python", py_enum(qltypes.OperatorKind))]
 pub enum OperatorKind {
     Infix,
     Postfix,
@@ -1859,7 +1859,7 @@ pub enum OperatorKind {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.TransactionIsolationLevel)]
+#[cfg_attr(feature = "python", py_enum(qltypes.TransactionIsolationLevel))]
 pub enum TransactionIsolationLevel {
     REPEATABLE_READ,
     SERIALIZABLE,
@@ -1867,7 +1867,7 @@ pub enum TransactionIsolationLevel {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.TransactionAccessMode)]
+#[cfg_attr(feature = "python", py_enum(qltypes.TransactionAccessMode))]
 pub enum TransactionAccessMode {
     READ_WRITE,
     READ_ONLY,
@@ -1875,7 +1875,7 @@ pub enum TransactionAccessMode {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.TransactionDeferMode)]
+#[cfg_attr(feature = "python", py_enum(qltypes.TransactionDeferMode))]
 pub enum TransactionDeferMode {
     DEFERRABLE,
     NOT_DEFERRABLE,
@@ -1883,7 +1883,7 @@ pub enum TransactionDeferMode {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.SchemaCardinality)]
+#[cfg_attr(feature = "python", py_enum(qltypes.SchemaCardinality))]
 pub enum SchemaCardinality {
     One,
     Many,
@@ -1892,7 +1892,7 @@ pub enum SchemaCardinality {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.Cardinality)]
+#[cfg_attr(feature = "python", py_enum(qltypes.Cardinality))]
 pub enum Cardinality {
     AT_MOST_ONE,
     ONE,
@@ -1903,7 +1903,7 @@ pub enum Cardinality {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.Volatility)]
+#[cfg_attr(feature = "python", py_enum(qltypes.Volatility))]
 pub enum Volatility {
     Immutable,
     Stable,
@@ -1912,7 +1912,7 @@ pub enum Volatility {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.Multiplicity)]
+#[cfg_attr(feature = "python", py_enum(qltypes.Multiplicity))]
 pub enum Multiplicity {
     EMPTY,
     UNIQUE,
@@ -1922,7 +1922,7 @@ pub enum Multiplicity {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.AccessPolicyAction)]
+#[cfg_attr(feature = "python", py_enum(qltypes.AccessPolicyAction))]
 pub enum AccessPolicyAction {
     Allow,
     Deny,
@@ -1930,7 +1930,7 @@ pub enum AccessPolicyAction {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.AccessKind)]
+#[cfg_attr(feature = "python", py_enum(qltypes.AccessKind))]
 pub enum AccessKind {
     Select,
     UpdateRead,
@@ -1941,7 +1941,7 @@ pub enum AccessKind {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.TriggerTiming)]
+#[cfg_attr(feature = "python", py_enum(qltypes.TriggerTiming))]
 pub enum TriggerTiming {
     After,
     AfterCommitOf,
@@ -1949,7 +1949,7 @@ pub enum TriggerTiming {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.TriggerKind)]
+#[cfg_attr(feature = "python", py_enum(qltypes.TriggerKind))]
 pub enum TriggerKind {
     Update,
     Delete,
@@ -1958,7 +1958,7 @@ pub enum TriggerKind {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.TriggerScope)]
+#[cfg_attr(feature = "python", py_enum(qltypes.TriggerScope))]
 pub enum TriggerScope {
     Each,
     All,
@@ -1966,7 +1966,7 @@ pub enum TriggerScope {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.RewriteKind)]
+#[cfg_attr(feature = "python", py_enum(qltypes.RewriteKind))]
 pub enum RewriteKind {
     Update,
     Insert,
@@ -1974,7 +1974,7 @@ pub enum RewriteKind {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.DescribeLanguage)]
+#[cfg_attr(feature = "python", py_enum(qltypes.DescribeLanguage))]
 pub enum DescribeLanguage {
     DDL,
     SDL,
@@ -1984,7 +1984,7 @@ pub enum DescribeLanguage {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.SchemaObjectClass)]
+#[cfg_attr(feature = "python", py_enum(qltypes.SchemaObjectClass))]
 pub enum SchemaObjectClass {
     ACCESS_POLICY,
     ALIAS,
@@ -2017,7 +2017,7 @@ pub enum SchemaObjectClass {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.LinkTargetDeleteAction)]
+#[cfg_attr(feature = "python", py_enum(qltypes.LinkTargetDeleteAction))]
 pub enum LinkTargetDeleteAction {
     Restrict,
     DeleteSource,
@@ -2027,7 +2027,7 @@ pub enum LinkTargetDeleteAction {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.LinkSourceDeleteAction)]
+#[cfg_attr(feature = "python", py_enum(qltypes.LinkSourceDeleteAction))]
 pub enum LinkSourceDeleteAction {
     DeleteTarget,
     Allow,
@@ -2036,7 +2036,7 @@ pub enum LinkSourceDeleteAction {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_enum(qltypes.ConfigScope)]
+#[cfg_attr(feature = "python", py_enum(qltypes.ConfigScope))]
 pub enum ConfigScope {
     INSTANCE,
     DATABASE,

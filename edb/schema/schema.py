@@ -64,6 +64,7 @@ STD_MODULES = (
     sn.UnqualName('pg'),
     sn.UnqualName('std::_test'),
     sn.UnqualName('fts'),
+    sn.UnqualName('ext'),
 )
 
 # Specifies the order of processing of files and directories in lib/

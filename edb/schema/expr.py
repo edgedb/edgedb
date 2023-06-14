@@ -176,9 +176,11 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         *,
         options: Optional[qlcompiler.CompilerOptions] = None,
         as_fragment: bool = False,
+        detached: bool = False,
     ) -> CompiledExpression:
 
         from edb.ir import ast as irast_
+        from edb.edgeql import ast as qlast
 
         if as_fragment:
             ir: irast_.Command = qlcompiler.compile_ast_fragment_to_ir(
@@ -187,8 +189,15 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
                 options=options,
             )
         else:
+            ql_expr = self.qlast
+            if detached:
+                ql_expr = qlast.DetachedExpr(
+                    expr=ql_expr,
+                    preserve_path_prefix=True,
+                )
+
             ir = qlcompiler.compile_ast_to_ir(
-                self.qlast,
+                ql_expr,
                 schema=schema,
                 options=options,
             )

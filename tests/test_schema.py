@@ -362,6 +362,26 @@ class TestSchema(tb.BaseSchemaLoadTest):
             };
         """
 
+    @tb.must_fail(errors.QueryError,
+                  "could not resolve partial path")
+    def test_schema_partial_path_in_default_of_link_prop_01(self):
+        """
+            module default {
+                type Person {
+                    required name : str {
+                        constraint exclusive;
+                    }
+
+                    multi friends : Person {
+                        note : str {
+                            default := .name
+                        }
+                    }
+
+                }
+            }
+        """
+
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "invalid property type: expected a scalar type, "
                   "or a scalar collection, got object type 'test::Object'",
@@ -818,17 +838,6 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(
-        errors.SchemaDefinitionError,
-        "module 'ext' is a reserved module name"
-    )
-    def test_schema_module_reserved_02(self):
-        """
-            module foo {
-                module ext {}
-            }
-        """
-
-    @tb.must_fail(
         errors.InvalidFunctionDefinitionError,
         r"cannot create the `test::foo\(VARIADIC bar: "
         r"OPTIONAL array<std::int64>\)` function: "
@@ -1106,6 +1115,22 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 obj2_num,
             })
         )
+
+    def test_schema_refs_04(self):
+        with self.assertRaisesRegex(
+            errors.InvalidReferenceError,
+            "__subject__ cannot be used in this expression",
+        ):
+            self.load_schema(
+                """
+                type User3 {
+                    required property nick: str;
+                    required property name: str {
+                        default := (select __subject__.nick);
+                    };
+                }
+                """
+            )
 
     def test_schema_annotation_inheritance_01(self):
         schema = self.load_schema("""
@@ -2257,9 +2282,9 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def _assert_migration_consistency(
         self,
         schema_text: str,
-        multi_module: bool = False,
+        explicit_modules: bool = False,
     ) -> s_schema.Schema:
-        if multi_module:
+        if explicit_modules:
             migration_text = f'''
                 START MIGRATION TO {{
                     {schema_text}
@@ -3378,7 +3403,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_02(self):
         schema = r'''
@@ -3393,7 +3418,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_03(self):
         # Test abstract and concrete constraints order of declaration,
@@ -3412,7 +3437,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_04(self):
         # View and type from different modules
@@ -3424,7 +3449,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_05(self):
         # View and type from different modules
@@ -3436,7 +3461,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_06(self):
         # Type and annotation from different modules.
@@ -3449,7 +3474,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         abstract annotation other::my_anno;
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_07(self):
         # Type and annotation from different modules.
@@ -3463,7 +3488,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         abstract annotation other::my_anno;
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_08(self):
         schema = r'''
@@ -3477,7 +3502,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_09(self):
         schema = r'''
@@ -3493,7 +3518,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_10(self):
         # Test prop default and function order of definition.
@@ -3509,7 +3534,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_11(self):
         # Test prop default and function order of definition.
@@ -3526,7 +3551,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_12(self):
         # Test prop default and function order of definition.
@@ -3546,7 +3571,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_nested_module_01(self):
         schema = r'''
@@ -3560,7 +3585,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_nested_module_02(self):
         schema = r'''
@@ -3578,7 +3603,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_nested_module_03(self):
         schema = r'''
@@ -3587,7 +3612,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         };
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_nested_module_04(self):
         schema = r'''
@@ -3600,7 +3625,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             errors.InvalidReferenceError,
             "function '_test::abs' does not exist"
         ):
-            self._assert_migration_consistency(schema, multi_module=True)
+            self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_nested_module_05(self):
         schema = r'''
@@ -3614,7 +3639,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_default_ptrs_01(self):
         schema = r'''
@@ -9464,6 +9489,49 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             module test {
                 type Bar {
                     link foo: default::Foo;
+                };
+            };
+            """,
+            explicit_modules=True,
+        )
+
+    @test.xfail('''
+        describe command includes module pgvector
+
+        ... this *doesn't* happen when actually testing via the CLI, though?
+    ''')
+    def test_schema_describe_schema_03(self):
+        self._assert_describe(
+            """
+            using extension pgvector version '0.4';
+            module default {
+                scalar type v3 extending ext::pgvector::vector<3>;
+
+                type Foo {
+                    data: v3;
+                }
+            };
+            """,
+
+            'describe schema as ddl',
+
+            """
+            create extension vector version '0.4';
+            create module default if not exists;
+            create scalar type default::v3 extending ext::pgvector::vector<3>;
+            create type default::Foo {
+                create property data: default::v3;
+            };
+            """,
+
+            'describe schema as sdl',
+
+            r"""
+            using extension pgvector version '0.4';
+            module default {
+                scalar type v3 extending ext::pgvector::vector<3>;
+                type Foo {
+                    property data: default::v3;
                 };
             };
             """,

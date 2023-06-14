@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2023-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,5 +17,16 @@
 #
 
 
-CREATE MODULE std;
-CREATE MODULE ext;
+for x in {0, 3, 4.25, 6.75}
+union (
+    insert Raw {val := x}
+);
+
+
+for x in {[0, 1, 2.3], [1, 1, 10.11], [4.5, 6.7, 8.9]}
+union (
+    (insert Basic {p_str := to_str(<json>x)}),
+    (insert L2 {vec := <v3>x}),
+    (insert IP {vec := <v3>x}),
+    (insert Cosine {vec := <v3>x}),
+);

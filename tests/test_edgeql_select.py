@@ -8104,3 +8104,32 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_params_03(self):
         with self.assertRaisesRegex(edgedb.QueryError, "missing a type cast"):
             await self.con.query("select ($0, <std::int64>$0)")
+
+    async def test_edgeql_type_pointer_inlining_01(self):
+        await self.con._fetchall(
+            r'''
+            with
+            data := {0, 1, 2},
+            items := (
+                for item in data union (
+                    with
+                    user := (select schema::Object limit 1)
+                    select user
+                )
+            )
+            select items;
+            ''',
+            __typenames__=True
+        )
+
+    async def test_edgeql_type_pointer_inlining_02(self):
+        await self.con._fetchall(
+            r'''
+            with
+              object_type := (select schema::ObjectType limit 1),
+              pointers := object_type.pointers,
+              pointers_2 := (select pointers limit 1),
+            select pointers_2;
+            ''',
+            __typenames__=True
+        )

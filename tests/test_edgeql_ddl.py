@@ -608,7 +608,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE TestSelfLink3 {
                 CREATE PROPERTY foo3 -> std::str;
                 CREATE PROPERTY bar3 -> std::str {
-                    SET default := TestSelfLink3.foo3;
+                    SET default := .foo3;
                 };
             };
         """)
@@ -1957,13 +1957,42 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             edgedb.QueryError,
             'is part of a default cycle'
         ):
-            await self.con.execute(r"""
+            await self.con.execute(
+                r"""
                 CREATE TYPE Test3 {
                     CREATE LINK d7 : Test3 {
                         SET default := (INSERT Test3 {})
                     }
                 }
-            """)
+                """
+            )
+
+    async def test_edgeql_ddl_default_13(self):
+        # defaults are detached: when referencing the source object (User),
+        # the cardinality is many.
+        # (you can still use partial path prefix)
+
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            'possibly more than one element returned by an expression',
+        ):
+            await self.con.execute(
+                r"""
+                create type User;
+
+                create type Project {
+                    create required link owner -> User;
+                };
+
+                alter type User {
+                    create link default_project -> Project {
+                        set default := (insert Project {
+                            owner := User
+                        })
+                    };
+                };
+                """
+            )
 
     async def test_edgeql_ddl_default_circular(self):
         await self.con.execute(r"""
@@ -13137,6 +13166,18 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             """DROP ALIAS Alias;""",
         )
 
+    async def test_edgeql_ddl_describe_nested_module_01(self):
+        await self.con.execute(r"""
+            create module foo;
+            create module foo::bar;
+            create type foo::bar::T;
+        """)
+
+        await self.assert_query_result(
+            "describe module foo::bar;",
+            ['create type foo::bar::T;'],
+        )
+
     async def test_edgeql_ddl_drop_multi_prop_01(self):
         await self.con.execute(r"""
 
@@ -15594,10 +15635,10 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         await self.con.execute('''
         create extension package ltree VERSION '1.0' {
           set ext_module := "ltree";
-          set sql_extensions := ["ltree"];
+          set sql_extensions := ["ltree >=1.0,<10.0"];
           create module ltree;
           create scalar type ltree::ltree {
-            set sql_type := "ltree.ltree";
+            set sql_type := "ltree";
           };
           create cast from ltree::ltree to std::str {
             SET volatility := 'Immutable';
@@ -15621,14 +15662,14 @@ class TestDDLNonIsolated(tb.DDLTestCase):
               select string_agg(edgedb.raise_on_null(
                 edgedbstd."std|cast@std|json@std|str_f"(z.z),
                 'invalid_parameter_value', 'invalid null value in cast'),
-              '.')::ltree.ltree
+              '.')::ltree
               from unnest(
                 edgedbstd."std|cast@std|json@array<std||json>_f"("val"))
                 as z(z);
             $$
           };
           create function ltree::nlevel(v: ltree::ltree) -> std::int32 {
-            using sql function 'ltree.nlevel';
+            using sql function 'edgedb.nlevel';
           };
         };
         ''')
@@ -15646,7 +15687,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         ''')
 
         await self.con.execute('''
-            create scalar type vc5 extending varchar::varchar<5>;
+            create scalar type vc5 extending ext::varchar::varchar<5>;
             create type X {
                 create property foo: vc5;
             };
@@ -15656,13 +15697,16 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             '''
                 describe scalar type vc5;
             ''',
-            ['create scalar type default::vc5 extending varchar::varchar<5>;'],
+            [
+                'create scalar type default::vc5 '
+                'extending ext::varchar::varchar<5>;'
+            ],
         )
         await self.assert_query_result(
             '''
                 describe scalar type vc5 as sdl;
             ''',
-            ['scalar type default::vc5 extending varchar::varchar<5>;'],
+            ['scalar type default::vc5 extending ext::varchar::varchar<5>;'],
         )
 
         await self.assert_query_result(
@@ -15698,7 +15742,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             "invalid scalar type argument",
         ):
             await self.con.execute('''
-                create scalar type fail extending varchar::varchar<foo>;
+                create scalar type fail extending ext::varchar::varchar<foo>;
             ''')
 
         async with self.assertRaisesRegexTx(
@@ -15714,12 +15758,12 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             "incorrect number of arguments",
         ):
             await self.con.execute('''
-                create scalar type yyy extending varchar::varchar<1, 2>;
+                create scalar type yyy extending ext::varchar::varchar<1, 2>;
             ''')
 
         # If no params are specified, it just makes a normal scalar type
         await self.con.execute('''
-            create scalar type vc extending varchar::varchar {
+            create scalar type vc extending ext::varchar::varchar {
                 create constraint expression on (false);
             };
         ''')
@@ -15736,7 +15780,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             START MIGRATION TO {
                 using extension varchar version "1.0";
                 module default {
-                    scalar type vc5 extending varchar::varchar<5>;
+                    scalar type vc5 extending ext::varchar::varchar<5>;
                     type X {
                         foo: vc5;
                     };
@@ -15784,10 +15828,10 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         # Make an extension that wraps some of varchar
         await self.con.execute('''
         create extension package varchar VERSION '1.0' {
-          set ext_module := "varchar";
+          set ext_module := "ext::varchar";
           set sql_extensions := [];
-          create module varchar;
-          create scalar type varchar::varchar {
+          create module ext::varchar;
+          create scalar type ext::varchar::varchar {
             create annotation std::description := 'why are we doing this';
             set id := <uuid>'26dc1396-0196-11ee-a005-ad0eaed0df03';
             set sql_type := "varchar";
@@ -15795,16 +15839,23 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             set num_params := 1;
           };
 
-          create cast from varchar::varchar to std::str {
+          create cast from ext::varchar::varchar to std::str {
             SET volatility := 'Immutable';
             USING SQL CAST;
           };
-          create cast from std::str to varchar::varchar {
+          create cast from std::str to ext::varchar::varchar {
             SET volatility := 'Immutable';
             USING SQL CAST;
+          };
+          # This is meaningless but I need to test having an array in a cast.
+          create cast from ext::varchar::varchar to array<std::float32> {
+            SET volatility := 'Immutable';
+            USING SQL $$
+              select array[0.0]
+            $$
           };
 
-          create abstract index varchar::with_param(
+          create abstract index ext::varchar::with_param(
               named only lists: int64
           ) {
               set code := ' ((__col__) NULLS FIRST)';
@@ -15820,4 +15871,46 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         finally:
             await self.con.execute('''
                 drop extension package varchar VERSION '1.0'
+            ''')
+
+    async def test_edgeql_ddl_extensions_03(self):
+        await self.con.execute('''
+        create extension package ltree_broken VERSION '1.0' {
+          set ext_module := "ltree";
+          set sql_extensions := ["ltree >=1000.0"];
+          create module ltree;
+        };
+        ''')
+        try:
+            async with self.assertRaisesRegexTx(
+                    edgedb.UnsupportedBackendFeatureError,
+                    r"could not find extension satisfying ltree >=1000.0: "
+                    r"only found versions 1\."):
+                await self.con.execute(r"""
+                    CREATE EXTENSION ltree_broken;
+                """)
+        finally:
+            await self.con.execute('''
+                drop extension package ltree_broken VERSION '1.0'
+            ''')
+
+    async def test_edgeql_ddl_extensions_04(self):
+        await self.con.execute('''
+        create extension package ltree_broken VERSION '1.0' {
+          set ext_module := "ltree";
+          set sql_extensions := ["loltree >=1.0"];
+          create module ltree;
+        };
+        ''')
+        try:
+            async with self.assertRaisesRegexTx(
+                    edgedb.UnsupportedBackendFeatureError,
+                    r"could not find extension satisfying loltree >=1.0: "
+                    r"extension not found"):
+                await self.con.execute(r"""
+                    CREATE EXTENSION ltree_broken;
+                """)
+        finally:
+            await self.con.execute('''
+                drop extension package ltree_broken VERSION '1.0'
             ''')
