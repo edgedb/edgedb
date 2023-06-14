@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *
 
 import multiprocessing
+import json
 
 from edb import errors
 from edb.common import parsing
@@ -28,6 +29,8 @@ from edb.common import parsing
 from . import parser as qlparser
 from .. import ast as qlast
 from .. import tokenizer as qltokenizer
+
+from edb import _edgeql_parser as eql_parser
 
 EdgeQLParserBase = qlparser.EdgeQLParserBase
 
@@ -50,10 +53,12 @@ def parse_fragment(
     source: Union[qltokenizer.Source, str],
     filename: Optional[str]=None,
 ) -> qlast.Expr:
-    if isinstance(source, str):
-        source = qltokenizer.Source.from_string(source)
-    parser = qlparser.EdgeQLExpressionParser()
-    res = parser.parse(source, filename=filename)
+
+    if not isinstance(source, str):
+        source = source.text()
+
+    res = _parse_cheese(qlparser.EdgeQLExpressionParser(), source)
+
     assert isinstance(res, qlast.Expr)
     return res
 
@@ -187,3 +192,82 @@ def preload(
                 pool.map(_load_parser, parsers_to_rebuild)
 
             preload(parsers=parsers, allow_rebuild=False)
+
+
+def _parse_cheese(prs: parsing.Parser, query: str) -> qlast.Base:
+    spec = prs.get_parser_spec()
+    jspec = _process_spec(spec)
+
+    cst = json.loads(eql_parser.parse_cheese(jspec, query))
+
+    mod = prs.get_parser_spec_module()
+    return _cst_to_ast(cst, mod)
+
+
+def _process_spec(spec):
+    import json
+
+    # print(spec)
+    actions = spec.actions()
+
+    rmap = {v._token: c for (_, c), v in parsing.TokenMeta.token_map.items()}
+
+    # XXX: TOKENS
+    table = []
+    for st_actions in actions:
+        out_st_actions = []
+        for tok, act in st_actions.items():
+            act = act[0]  # XXX: LR! NOT GLR??
+
+            stok = rmap.get(str(tok), str(tok))
+            if 'ShiftAction' in str(type(act)):
+                oact = int(act.nextState)
+            else:
+                production = act.production
+                oact = dict(
+                    nonterm=str(production.lhs),
+                    production=production.qualified.split('.')[-1],
+                    cnt=len(production.rhs),
+                )
+            out_st_actions.append((stok, oact))
+
+        table.append(out_st_actions)
+
+    # goto
+    goto = []
+    for st_goto in spec.goto():
+        out_goto = []
+        for nterm, act in st_goto.items():
+            out_goto.append((str(nterm), act))
+
+        goto.append(out_goto)
+
+    obj = dict(actions=table, goto=goto, start=str(spec.start_sym()))
+
+    return json.dumps(obj)
+
+def _cst_to_ast(cst, mod) -> qlast.Base:
+    token_map = {}
+    for (_, token), cls in mod.TokenMeta.token_map.items():
+        token_map[token] = cls
+
+    return _cst_to_ast_re(cst, mod, token_map).val
+
+
+def _cst_to_ast_re(cst, mod, token_map):
+    if "nonterm" in cst:
+        args = [_cst_to_ast_re(a, mod, token_map) for a in cst["args"]]
+
+        cls = mod.__dict__[cst["nonterm"]]
+        obj = cls()
+        method = cls.__dict__[cst["production"]]
+        method(obj, *args)
+        return obj
+
+    elif "token" in cst:
+        cls = token_map[cst["token"]]
+
+        obj = cls(cst["text"], cst["text"])
+        return obj
+
+    assert False
