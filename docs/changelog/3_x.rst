@@ -1152,3 +1152,11 @@ Other changes and fixes
 
 .. _pgvector:
     https://github.com/pgvector/pgvector
+
+
+3.0 RC 4
+========
+
+RC 4 is a re-release of RC 3 fixing a packaging problem that resulted in
+non-portable binaries which would crash on systems with older CPUs.
+This version also includes a fix for ``pgvector`` data support in the Web UI.
