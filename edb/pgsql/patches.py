@@ -178,4 +178,15 @@ std::`<` (l: anyscalar, r: anyscalar) -> std::bool {
 };
 '''),
     ('ext-pkg', 'pgvector'),
+    ('edgeql+schema+config', '''
+ALTER TYPE cfg::AbstractConfig {
+    CREATE PROPERTY maintenance_work_mem -> cfg::memory {
+        CREATE ANNOTATION cfg::system := 'true';
+        CREATE ANNOTATION cfg::backend_setting := '"maintenance_work_mem"';
+        CREATE ANNOTATION std::description :=
+            'The amount of memory used by operations such as \
+            CREATE INDEX.';
+    };
+}
+'''),
 ])
