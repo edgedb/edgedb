@@ -728,8 +728,8 @@ def resolve_ptr_with_intersections(
             if track_ref is not False:
                 # When ptr is a computed property, it is still referenced!
                 # We need to add this to ensure the correct order in DDL.
-                # If the computable is created from an alias, it is not 
-                # and actual pointer.
+                # If the computable is created from an alias, it is not
+                # an actual pointer.
                 # XXX: This condition is a hack that approximates what
                 # really exists in the schema and what does not exist.
                 if (ref != ptr and
