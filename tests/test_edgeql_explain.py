@@ -16,14 +16,16 @@
 # limitations under the License.
 #
 
+import edgedb
 
+import unittest
 import json
 import os.path
-import unittest
 
 from edb.testbase import server as tb
-from edb.server import pgconnparams
 from edb.common import assert_data_shape
+from edb.schema import name as sn
+from edb.server.compiler.explain import pg_tree
 
 
 class TestEdgeQLExplain(tb.QueryTestCase):
@@ -55,78 +57,89 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             update User set {
               todo += (select .owned_issues filter <int64>.number % 3 = 0)
             };
+
+            administer statistics_update();
         '''
     ]
-
-    @classmethod
-    async def _get_raw_sql_connection(cls):
-        """Get a raw connection to the underlying SQL server, if possible
-
-        We have to do this miserable hack in order to get access to ANALYZE
-        """
-        try:
-            import asyncpg
-        except ImportError:
-            raise unittest.SkipTest(
-                'explain tests skipped: asyncpg not installed')
-
-        settings = cls.con.get_settings()
-        pgaddr = settings.get('pgaddr')
-        if pgaddr is None:
-            raise unittest.SkipTest('explain tests skipped: not in devmode')
-        pgaddr = json.loads(pgaddr)
-
-        # Try to grab a password from the specified DSN, if one is
-        # present, since the pgaddr won't have a real one. (The non
-        # specified DSN test suite setup doesn't have one, so it is
-        # fine.)
-        password = None
-        spec_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
-        if spec_dsn:
-            _, params = pgconnparams.parse_dsn(spec_dsn)
-            password = params.password
-
-        pgdsn = (
-            f'postgres:///{pgaddr["database"]}?user={pgaddr["user"]}'
-            f'&port={pgaddr["port"]}&host={pgaddr["host"]}'
-        )
-        if password is not None:
-            pgdsn += f'&password={password}'
-
-        return await asyncpg.connect(pgdsn)
-
-    @classmethod
-    async def _analyze_db(cls):
-        # HACK: Run ANALYZE so that test results are more deterministic
-        scon = await cls._get_raw_sql_connection()
-        try:
-            await scon.execute('ANALYZE')
-        finally:
-            await scon.close()
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.loop.run_until_complete(cls._analyze_db())
 
     def assert_plan(self, data, shape, message=None):
         assert_data_shape.assert_data_shape(
             data, shape, fail=self.fail, message=message)
 
-    async def explain(self, query, *, analyze=False):
-        return json.loads(await self.con.query_single(
-            f'explain {"analyze " if analyze else ""}{query}'
-        ))[0]
+    async def explain(self, query, *, execute=True, con=None):
+        no_ex = '(execute := False) ' if not execute else ''
+        return json.loads(await (con or self.con).query_single(
+            f'analyze {no_ex}{query}'
+        ))
 
     async def test_edgeql_explain_simple_01(self):
         res = await self.explain('''
             select User { id, name } filter .name = 'Elvis'
         ''')
-        self.assert_plan(res['Plan'], {
-            'Node Type': 'Index Scan',
-            'Relation Name': 'default::User',
-            'Contexts': [{'start': 28, 'end': 32, 'buffer_idx': 0}],
+        self.assert_plan(res['fine_grained'], {
+            "contexts": [
+                {"buffer_idx": 0, "end": 32, "start": 28, "text": "User"}
+            ],
+            "pipeline": [
+                {
+                    "actual_loops": 1,
+                    "actual_rows": 1,
+                    "plan_rows": 1,
+                    "plan_type": "IndexScan",
+                    "properties": tb.bag([
+                        {
+                            "important": False,
+                            "title": "schema",
+                            "type": "text",
+                            "value": "edgedbpub",
+                        },
+                        {
+                            "important": False,
+                            "title": "alias",
+                            "type": "text",
+                            "value": "User~2",
+                        },
+                        {
+                            "important": True,
+                            "title": "relation_name",
+                            "type": "relation",
+                        },
+                        {
+                            "important": True,
+                            "title": "scan_direction",
+                            "type": "text",
+                            "value": "Forward",
+                        },
+                        {
+                            "important": True,
+                            "title": "index_name",
+                            "type": "index",
+                            "value": "index of object type 'default::User' "
+                            "on (__subject__.name)",
+                        },
+                        {
+                            "important": False,
+                            "title": "index_cond",
+                            "type": "expr",
+                        },
+                    ]),
+                    "startup_cost": float,
+                }
+            ],
+            "subplans": [],
         })
+        self.assert_plan(res['config_vals'], {
+            "allow_user_specified_id": False,
+            "apply_access_policies": True
+        })
+
+    async def test_edgeql_explain_introspection_01(self):
+        res = await self.explain('select sys::Database')
+        self.assertIn(
+            ('relation_name', 'pg_database'),
+            ((p['title'], p['value'])
+             for p in res['fine_grained']['pipeline'][0]['properties']),
+        )
 
     async def test_edgeql_explain_with_bound_01(self):
         res = await self.explain('''
@@ -138,85 +151,215 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         ''')
 
         shape = {
-            "Node Type": "Subquery Scan",
-            "Plans": tb.bag([
-                1,
-                2,
+            "contexts": [
+                {"buffer_idx": 0, "end": 35, "start": 31, "text": "User"}],
+            "pipeline": [
                 {
-                    "Node Type": "Result",
-                    "Output": [
-                        "edgedbext.uuid_generate_v4()"
-                    ]
+                    "actual_loops": 1,
+                    "actual_rows": 1,
+                    "plan_rows": 1,
+                    "plan_type": "SubqueryScan",
+                    "properties": tb.bag([
+                        {
+                            "important": False,
+                            "title": "filter",
+                            "type": "expr",
+                        },
+                    ]),
+                    "startup_cost": float,
+                    "total_cost": float,
                 }
-            ]),
-            "CollapsedPlans": tb.bag([
+            ],
+            "subplans": [
                 {
-                    "Node Type": "Aggregate",
-                    "Plans": [0],
-                    # XXX: If we don't run ANALYZE in the test setup,
-                    # we sometimes get this plan using bitmap scans
-                    # instead of just the index scan?
-                    # "Node Type": "Bitmap Heap Scan",
-                    # "Plans": [
-                    #     {
-                    #         "Node Type": "Bitmap Index Scan",
-                    #         "Parent Relationship": "Outer",
-                    #         "Index Name": str,
-                    #     }
-                    # ],
-                    "NearestContextPlan": {
-                        "Node Type": "Index Scan",
-                        "Parent Relationship": "Outer",
-                        "Relation Name": "default::User",
-                        "Contexts": [
-                            {
-                                "start": 31,
-                                "end": 35,
-                                "buffer_idx": 0
-                            },
-                            {
-                                "start": 91,
-                                "end": 92,
-                                "buffer_idx": 0
-                            },
-                            {
-                                "start": 74,
-                                "end": 116,
-                                "buffer_idx": 0
-                            }
-                        ],
-                        "SuggestedDisplayCtxIdx": 2,
-                    }
+                    "contexts": [
+                        {
+                            "buffer_idx": 0,
+                            "end": 116,
+                            "start": 74,
+                        }
+                    ],
+                    "pipeline": [
+                        {
+                            "actual_loops": 1,
+                            "actual_rows": 1,
+                            "plan_rows": 1,
+                            "plan_type": "Aggregate",
+                            "properties": tb.bag([
+                                {
+                                    "important": False,
+                                    "title": "parent_relationship",
+                                    "type": "text",
+                                    "value": "InitPlan",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "subplan_name",
+                                    "type": "text",
+                                    "value": "InitPlan 1 (returns " "$0)",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "strategy",
+                                    "type": "text",
+                                    "value": "Plain",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "partial_mode",
+                                    "type": "text",
+                                    "value": "Simple",
+                                },
+                            ]),
+                            "startup_cost": float,
+                            "total_cost": float,
+                        },
+                        {
+                            "actual_loops": 1,
+                            "actual_rows": 1,
+                            "plan_rows": 1,
+                            "plan_type": "IndexScan",
+                            "properties": tb.bag([
+                                {
+                                    "important": False,
+                                    "title": "filter",
+                                    "type": "expr",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "parent_relationship",
+                                    "type": "text",
+                                    "value": "Outer",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "schema",
+                                    "type": "text",
+                                    "value": "edgedbpub",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "alias",
+                                    "type": "text",
+                                    "value": "User~3",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "relation_name",
+                                    "type": "relation",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "scan_direction",
+                                    "type": "text",
+                                    "value": "Forward",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "index_name",
+                                    "type": "index",
+                                    "value": "index of object type "
+                                    "'default::User' on "
+                                    "(__subject__.name)",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "index_cond",
+                                    "type": "expr",
+                                },
+                            ]),
+                            "startup_cost": float,
+                            "total_cost": float,
+                        },
+                    ],
+                    "subplans": [],
                 },
                 {
-                    "Node Type": "Aggregate",
-                    "Plans": [0],
-                    "NearestContextPlan": {
-                        "Node Type": "Seq Scan",
-                        "Relation Name": "default::User",
-                        "Contexts": [
-                            {
-                                "start": 31,
-                                "end": 35,
-                                "buffer_idx": 0
-                            },
-                            {
-                                "start": 150,
-                                "end": 151,
-                                "buffer_idx": 0
-                            },
-                            {
-                                "start": 134,
-                                "end": 174,
-                                "buffer_idx": 0
-                            }
-                        ],
-                        "SuggestedDisplayCtxIdx": 2
-                    }
+                    "contexts": [
+                        {
+                            "buffer_idx": 0,
+                            "end": 174,
+                            "start": 134,
+                        },
+                    ],
+                    "pipeline": [
+                        {
+                            "actual_loops": 1,
+                            "actual_rows": 1,
+                            "plan_rows": 1,
+                            "plan_type": "Aggregate",
+                            "properties": tb.bag([
+                                {
+                                    "important": False,
+                                    "title": "parent_relationship",
+                                    "type": "text",
+                                    "value": "InitPlan",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "subplan_name",
+                                    "type": "text",
+                                    "value": "InitPlan 2 (returns " "$1)",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "strategy",
+                                    "type": "text",
+                                    "value": "Plain",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "partial_mode",
+                                    "type": "text",
+                                    "value": "Simple",
+                                },
+                            ]),
+                            "startup_cost": float,
+                            "total_cost": float,
+                        },
+                        {
+                            "actual_loops": 1,
+                            "actual_rows": 1,
+                            "plan_rows": 5,
+                            "plan_type": "SeqScan",
+                            "properties": tb.bag([
+                                {
+                                    "important": False,
+                                    "title": "filter",
+                                    "type": "expr",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "parent_relationship",
+                                    "type": "text",
+                                    "value": "Outer",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "schema",
+                                    "type": "text",
+                                    "value": "edgedbpub",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "alias",
+                                    "type": "text",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "relation_name",
+                                    "type": "relation",
+                                },
+                            ]),
+                            "startup_cost": float,
+                            "total_cost": float,
+                        },
+                    ],
+                    "subplans": [],
                 },
-            ])
+            ],
         }
-        self.assert_plan(res['Plan'], shape)
+        self.assert_plan(res['fine_grained'], shape)
 
     async def test_edgeql_explain_multi_link_01(self):
         res = await self.explain('''
@@ -225,71 +368,202 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         ''')
 
         shape = {
-            "Node Type": "Index Scan",
-            "Index Name": (
-                "index of object type 'default::User' on (__subject__.name)"),
-            "Relation Name": "default::User",
-            "Plans": [1],
-            "CollapsedPlans": [
+            "contexts": [{
+                "buffer_idx": 0,
+                "end": 32,
+                "start": 28,
+                "text": "User",
+            }],
+            "pipeline": [
                 {
-                    "Node Type": "Aggregate",
-                    "Strategy": "Plain",
-                    "Parent Relationship": "SubPlan",
-                    "Subplan Name": "SubPlan 1",
-                    "Plans": [
+                    "actual_loops": 1,
+                    "actual_rows": 1,
+                    "plan_rows": 1,
+                    "plan_type": "IndexScan",
+                    "properties": tb.bag([
                         {
-                            "Node Type": "Nested Loop",
-                            "Parent Relationship": "Outer",
-                            "Join Type": "Inner",
-                            "Inner Unique": True,
-                            "Plans": [0, 1]
-                        }
-                    ],
-                    "CollapsedPlans": [
+                            "important": False,
+                            "title": "schema",
+                            "type": "text",
+                            "value": "edgedbpub",
+                        },
                         {
-                            "Node Type": "Index Scan",
-                            "Parent Relationship": "Inner",
-                            "Index Name": (
-                                "constraint 'std::exclusive' of "
-                                "property 'id' of object type '"
-                                "default::Issue'"
-                            ),
-                            "Relation Name": "default::Issue",
-                            "Contexts": [
-                                {
-                                    "start": 41,
-                                    "end": 45,
-                                    "buffer_idx": 0
-                                }
-                            ]
-                        }
-                    ],
-                    "NearestContextPlan": {
-                        "Node Type": "Index Only Scan",
-                        "Parent Relationship": "Outer",
-                        "Index Name": (
-                            "default::User.todo forward link index"
-                        ),
-                        "Relation Name": "default::User.todo",
-                        "Contexts": [
-                            {
-                                "start": 41,
-                                "end": 45,
-                                "buffer_idx": 0
-                            }
-                        ]
-                    },
+                            "important": False,
+                            "title": "alias",
+                            "type": "text",
+                            "value": "User~2",
+                        },
+                        {
+                            "important": True,
+                            "title": "relation_name",
+                            "type": "relation",
+                        },
+                        {
+                            "important": True,
+                            "title": "scan_direction",
+                            "type": "text",
+                            "value": "Forward",
+                        },
+                        {
+                            "important": True,
+                            "title": "index_name",
+                            "type": "index",
+                            "value": "index of object type 'default::User' "
+                            "on (__subject__.name)",
+                        },
+                        {
+                            "important": False,
+                            "title": "index_cond",
+                            "type": "expr",
+                        },
+                    ]),
                 }
             ],
-            "Contexts": [
+            "subplans": [
                 {
-                    "start": 28,
-                    "end": 32,
-                    "buffer_idx": 0
+                    "contexts": [{
+                        "buffer_idx": 0,
+                        "end": 45,
+                        "start": 41,
+                        "text": "todo"
+                    }],
+                    "pipeline": [
+                        {
+                            "actual_loops": 1,
+                            "actual_rows": 1,
+                            "plan_rows": 1,
+                            "plan_type": "Aggregate",
+                            "properties": tb.bag([
+                                {
+                                    "important": False,
+                                    "title": "parent_relationship",
+                                    "type": "text",
+                                    "value": "SubPlan",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "subplan_name",
+                                    "type": "text",
+                                    "value": "SubPlan 1",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "strategy",
+                                    "type": "text",
+                                    "value": "Plain",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "partial_mode",
+                                    "type": "text",
+                                    "value": "Simple",
+                                },
+                            ]),
+                        },
+                        {
+                            "actual_loops": 1,
+                            "actual_rows": 2,
+                            "plan_rows": 2,
+                            "plan_type": "NestedLoop",
+                            "properties": tb.bag([
+                                {
+                                    "important": False,
+                                    "title": "parent_relationship",
+                                    "type": "text",
+                                    "value": "Outer",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "join_type",
+                                    "type": "text",
+                                    "value": "Inner",
+                                },
+                            ]),
+                        },
+                    ],
+                    "subplans": [
+                        {
+                            "pipeline": [
+                                {
+                                    "actual_loops": 1,
+                                    "actual_rows": 2,
+                                    "plan_rows": 2,
+                                    "plan_type": "IndexOnlyScan",
+                                    # This has property `heap_fetches`
+                                    # that vary on github an locally.
+                                    # So skip checking "properties"
+                                }
+                            ],
+                            "subplans": [],
+                        },
+                        {
+                            "pipeline": [
+                                {
+                                    "actual_loops": 2,
+                                    "actual_rows": 1,
+                                    "plan_rows": 1,
+                                    "plan_type": "IndexScan",
+                                    "properties": tb.bag([
+                                        {
+                                            "important": False,
+                                            "title": "parent_relationship",
+                                            "type": "text",
+                                            "value": "Inner",
+                                        },
+                                        {
+                                            "important": False,
+                                            "title": "schema",
+                                            "type": "text",
+                                            "value": "edgedbpub",
+                                        },
+                                        {
+                                            "important": False,
+                                            "title": "alias",
+                                            "type": "text",
+                                            "value": "Issue~1",
+                                        },
+                                        {
+                                            "important": True,
+                                            "title": "relation_name",
+                                            "type": "relation",
+                                        },
+                                        {
+                                            "important": True,
+                                            "title": "scan_direction",
+                                            "type": "text",
+                                            "value": "Forward",
+                                        },
+                                        {
+                                            "important": True,
+                                            "title": "index_name",
+                                            "type": "index",
+                                            "value": "constraint "
+                                            "'std::exclusive' "
+                                            "of "
+                                            "property "
+                                            "'id' of "
+                                            "object "
+                                            "type "
+                                            "'default::Issue'",
+                                        },
+                                        {
+                                            "important": False,
+                                            "title": "index_cond",
+                                            "type": "expr",
+                                            "value": '("Issue~1".id '
+                                            "= "
+                                            '"todo~1".target)',
+                                        },
+                                    ]),
+                                }
+                            ],
+                            "subplans": [],
+                        },
+                    ],
                 }
-            ]
+            ],
         }
-        self.assert_plan(res['Plan'], shape)
+        self.assert_plan(res['fine_grained'], shape)
 
     async def test_edgeql_explain_computed_backlink_01(self):
         res = await self.explain('''
@@ -298,68 +572,191 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         ''')
 
         shape = {
-            "Node Type": "Index Scan",
-            "Index Name": (
-                "index of object type 'default::User' on (__subject__.name)"),
-            "Relation Name": "default::User",
-            "Plans": [1],
-            "CollapsedPlans": [
+            "contexts": [{
+                "buffer_idx": 0,
+                "end": 32,
+                "start": 28,
+                "text": "User",
+            }],
+            "pipeline": [
                 {
-                    "Node Type": "Aggregate",
-                    "Parent Relationship": "SubPlan",
-                    "Plans": [
+                    "actual_loops": 1,
+                    "actual_rows": 1,
+                    "plan_rows": 1,
+                    "plan_type": "IndexScan",
+                    "properties": tb.bag([
                         {
-                            "Node Type": "Result",
-                            "Parent Relationship": "Outer",
-                            "Plans": [0]
-                        }
-                    ],
-                    "NearestContextPlan": {
-                        "Node Type": "Bitmap Heap Scan",
-                        "Parent Relationship": "Outer",
-                        "Relation Name": "default::Issue",
-                        "Plans": [
-                            {
-                                "Node Type": "Bitmap Index Scan",
-                                "Parent Relationship": "Outer",
-                                "Index Name": (
-                                    "default::Issue.owner index"),
-                            }
-                        ],
-                        # We get a stack of contexts back
-                        "Contexts": [
-                            {
-                                "start": 0,
-                                "end": 7,
-                                "buffer_idx": 1
-                            },
-                            {
-                                "start": 0,
-                                "end": 26,
-                                "buffer_idx": 1
-                            },
-                            {
-                                "start": 41,
-                                "end": 53,
-                                "buffer_idx": 0
-                            }
-                        ],
-                        "SuggestedDisplayCtxIdx": 2
-                    }
+                            "important": False,
+                            "title": "schema",
+                            "type": "text",
+                            "value": "edgedbpub",
+                        },
+                        {
+                            "important": False,
+                            "title": "alias",
+                            "type": "text",
+                            "value": "User~2",
+                        },
+                        {
+                            "important": True,
+                            "title": "relation_name",
+                            "type": "relation",
+                        },
+                        {
+                            "important": True,
+                            "title": "scan_direction",
+                            "type": "text",
+                            "value": "Forward",
+                        },
+                        {
+                            "important": True,
+                            "title": "index_name",
+                            "type": "index",
+                            "value": "index of object type 'default::User' "
+                            "on (__subject__.name)",
+                        },
+                        {
+                            "important": False,
+                            "title": "index_cond",
+                            "type": "expr",
+                        },
+                    ]),
+                    "startup_cost": float,
+                    "total_cost": float,
                 }
             ],
-            "Contexts": [
+            "subplans": [
                 {
-                    "start": 28,
-                    "end": 32,
-                    "buffer_idx": 0
+                    "contexts": [
+                        {
+                            "buffer_idx": 1,
+                            "end": 26,
+                            "start": 0,
+                            "text": ".<owner[is default::Issue]",
+                        },
+                        {
+                            "buffer_idx": 0,
+                            "end": 53,
+                            "start": 41,
+                            "text": "owned_issues",
+                        },
+                    ],
+                    "pipeline": [
+                        {
+                            "actual_loops": 1,
+                            "actual_rows": 1,
+                            "plan_rows": 1,
+                            "plan_type": "Aggregate",
+                            "properties": tb.bag([
+                                {
+                                    "important": False,
+                                    "title": "parent_relationship",
+                                    "type": "text",
+                                    "value": "SubPlan",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "subplan_name",
+                                    "type": "text",
+                                    "value": "SubPlan 1",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "strategy",
+                                    "type": "text",
+                                    "value": "Plain",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "partial_mode",
+                                    "type": "text",
+                                    "value": "Simple",
+                                },
+                            ]),
+                            "startup_cost": float,
+                            "total_cost": float,
+                        },
+                        {
+                            "actual_loops": 1,
+                            "actual_rows": 2,
+                            "plan_rows": 5,
+                            "plan_type": "Result",
+                            "properties": tb.bag([
+                                {
+                                    "important": False,
+                                    "title": "parent_relationship",
+                                    "type": "text",
+                                    "value": "Outer",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "one_time_filter",
+                                    "type": "expr",
+                                    "value": '("User~2".id = "User~2".id)',
+                                },
+                            ]),
+                            "startup_cost": float,
+                            "total_cost": float,
+                        },
+                        {
+                            "actual_loops": 1,
+                            "actual_rows": 2,
+                            "plan_rows": 5,
+                            "plan_type": "IndexScan",
+                            "properties": tb.bag([
+                                {
+                                    "important": False,
+                                    "title": "parent_relationship",
+                                    "type": "text",
+                                    "value": "Outer",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "schema",
+                                    "type": "text",
+                                    "value": "edgedbpub",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "alias",
+                                    "type": "text",
+                                    "value": "Issue~1",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "relation_name",
+                                    "type": "relation",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "scan_direction",
+                                    "type": "text",
+                                    "value": "Forward",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "index_name",
+                                    "type": "index",
+                                    "value": "Issue.owner index",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "index_cond",
+                                    "type": "expr",
+                                },
+                            ]),
+                            "startup_cost": float,
+                            "total_cost": float,
+                        },
+                    ],
+                    "subplans": [],
                 }
-            ]
+            ],
         }
-        self.assert_plan(res['Plan'], shape)
+        self.assert_plan(res['fine_grained'], shape)
 
-        self.assertEqual(len(res['Buffers']), 2)
-        self.assertEqual(res['Buffers'][1][0], ".<owner[is default::Issue]")
+        self.assertEqual(len(res['buffers']), 2)
+        self.assertEqual(res['buffers'][1], ".<owner[is default::Issue]")
 
     async def test_edgeql_explain_inheritance_01(self):
         res = await self.explain('''
@@ -367,79 +764,145 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         ''')
 
         shape = {
-            "Node Type": "Result",
-            "Plans": [
-                {
-                    "Node Type": "Append",
-                    "Parent Relationship": "Outer",
-                    "Plans": tb.bag([1, 2, 3])
-                }
+            "contexts": [
+                {"buffer_idx": 0, "end": 35, "start": 31, "text": "Text"},
+                {"buffer_idx": 0, "end": 45, "start": 44, "text": "X"},
             ],
-            "CollapsedPlans": tb.bag([
+            "pipeline": [
                 {
-                    "Node Type": "Seq Scan",
-                    "Parent Relationship": "Member",
-                    "Relation Name": "default::Issue",
-                    "Original Relation Name": "default::Text",
-                    "Contexts": [
-                        {
-                            "start": 31,
-                            "end": 35,
-                            "buffer_idx": 0,
-                            "text": "Text"
-                        },
-                        {
-                            "start": 44,
-                            "end": 45,
-                            "buffer_idx": 0,
-                            "text": "X"
-                        }
-                    ]
+                    "actual_loops": 1,
+                    "plan_rows": 5001,
+                    "plan_type": "Result",
+                    "properties": [],
+                    "startup_cost": float,
                 },
                 {
-                    "Node Type": "Seq Scan",
-                    "Parent Relationship": "Member",
-                    "Relation Name": "default::Comment",
-                    "Original Relation Name": "default::Text",
-                    "Contexts": [
+                    "actual_loops": 1,
+                    "actual_rows": 5001,
+                    "plan_rows": 5001,
+                    "plan_type": "Append",
+                    "properties": tb.bag([
                         {
-                            "start": 31,
-                            "end": 35,
-                            "buffer_idx": 0,
-                            "text": "Text"
-                        },
-                        {
-                            "start": 44,
-                            "end": 45,
-                            "buffer_idx": 0,
-                            "text": "X"
+                            "important": False,
+                            "title": "parent_relationship",
+                            "type": "text",
+                            "value": "Outer",
                         }
-                    ]
+                    ]),
+                    "startup_cost": float,
+                },
+            ],
+            # Order here can be arbitrary, unfortunately.
+            # And because of arbitrary order, the plan is a bit different.
+            # So se remove many important fields from the check and only check
+            # the overall structure
+            "subplans": [
+                {
+                    "pipeline": [
+                        {
+                            "actual_loops": 1,
+                            "plan_type": "SeqScan",
+                            "properties": tb.bag([
+                                {
+                                    "important": False,
+                                    "title": "parent_relationship",
+                                    "type": "text",
+                                    "value": "Member",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "schema",
+                                    "type": "text",
+                                    "value": "edgedbpub",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "alias",
+                                    "type": "text",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "relation_name",
+                                    "type": "relation",
+                                },
+                            ]),
+                            "startup_cost": float,
+                        }
+                    ],
+                    "subplans": [],
                 },
                 {
-                    "Node Type": "Seq Scan",
-                    "Parent Relationship": "Member",
-                    "Relation Name": "default::LogEntry",
-                    "Original Relation Name": "default::Text",
-                    "Contexts": [
+                    "pipeline": [
                         {
-                            "start": 31,
-                            "end": 35,
-                            "buffer_idx": 0,
-                            "text": "Text"
-                        },
-                        {
-                            "start": 44,
-                            "end": 45,
-                            "buffer_idx": 0,
-                            "text": "X"
+                            "actual_loops": 1,
+                            "plan_type": "SeqScan",
+                            "properties": tb.bag([
+                                {
+                                    "important": False,
+                                    "title": "parent_relationship",
+                                    "type": "text",
+                                    "value": "Member",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "schema",
+                                    "type": "text",
+                                    "value": "edgedbpub",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "alias",
+                                    "type": "text",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "relation_name",
+                                    "type": "relation",
+                                },
+                            ]),
+                            "startup_cost": float,
                         }
-                    ]
-                }
-            ])
+                    ],
+                    "subplans": [],
+                },
+                {
+                    "pipeline": [
+                        {
+                            "actual_loops": 1,
+                            "plan_type": "SeqScan",
+                            "properties": tb.bag([
+                                {
+                                    "important": False,
+                                    "title": "parent_relationship",
+                                    "type": "text",
+                                    "value": "Member",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "schema",
+                                    "type": "text",
+                                    "value": "edgedbpub",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "alias",
+                                    "type": "text",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "relation_name",
+                                    "type": "relation",
+                                },
+                            ]),
+                            "startup_cost": float,
+                        }
+                    ],
+                    "subplans": [],
+                },
+            ],
         }
 
-        self.assert_plan(res['Plan'], shape)
+        self.assert_plan(res['fine_grained'], shape)
 
     async def test_edgeql_explain_type_intersect_01(self):
         res = await self.explain('''
@@ -450,41 +913,391 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         ''')
 
         shape = {
-            "Node Type": "Result",
-            "Plans": tb.bag([
+            "pipeline": [
                 {
-                    "Node Type": "Append",
-                    "Plans": tb.bag([2, 3, 4])
-                },
-                1
-            ]),
-            "CollapsedPlans": tb.bag([
-                {
-                    "Node Type": "Index Scan",
-                    "Relation Name": "default::Issue",
-                    "Contexts": [
-                        {"text": "[is Issue]"},
-                        {"text": "[is Issue].name"},
-                        {"text": "z := [is Issue].name"},
-                    ],
-                    "SuggestedDisplayCtxIdx": 2
-                },
-                {
-                    "Relation Name": "default::LogEntry",
-                    "Original Relation Name": "default::Text",
-                    "Contexts": [{"text": "Text"}]
-                },
-                {
-                    "Relation Name": "default::Issue",
-                    "Original Relation Name": "default::Text",
-                    "Contexts": [{"text": "Text"}]
-                },
-                {
-                    "Relation Name": "default::Comment",
-                    "Original Relation Name": "default::Text",
-                    "Contexts": [{"text": "Text"}]
+                    "actual_loops": 1,
+                    "actual_rows": 5001,
+                    "plan_rows": 5001,
+                    "plan_type": "Result",
+                    "properties": [],
+                    "startup_cost": float,
+                    "total_cost": float,
                 }
-            ])
+            ],
+            "subplans": [
+                {
+                    "contexts": [{
+                        "buffer_idx": 0,
+                        "end": 32,
+                        "start": 28,
+                        "text": "Text",
+                    }],
+                    "pipeline": [
+                        {
+                            "actual_loops": 1,
+                            "actual_rows": 5001,
+                            "plan_rows": 5001,
+                            "plan_type": "Append",
+                            "properties": tb.bag([
+                                {
+                                    "important": False,
+                                    "title": "parent_relationship",
+                                    "type": "text",
+                                    "value": "Outer",
+                                }
+                            ]),
+                            "startup_cost": float,
+                            "total_cost": float,
+                        }
+                    ],
+                    "subplans": tb.bag([
+                        {
+                            "pipeline": [
+                                {
+                                    "actual_loops": 1,
+                                    "actual_rows": 4999,
+                                    "plan_rows": 4999,
+                                    "plan_type": "SeqScan",
+                                    "properties": tb.bag([
+                                        {
+                                            "important": False,
+                                            "title": "parent_relationship",
+                                            "type": "text",
+                                            "value": "Member",
+                                        },
+                                        {
+                                            "important": False,
+                                            "title": "schema",
+                                            "type": "text",
+                                            "value": "edgedbpub",
+                                        },
+                                        {
+                                            "important": False,
+                                            "title": "alias",
+                                            "type": "text",
+                                            "value": "Issue~1",
+                                        },
+                                        {
+                                            "important": True,
+                                            "title": "relation_name",
+                                            "type": "relation",
+                                        },
+                                    ]),
+                                    "startup_cost": float,
+                                    "total_cost": float,
+                                }
+                            ],
+                            "subplans": [],
+                        },
+                        {
+                            "pipeline": [
+                                {
+                                    "actual_loops": 1,
+                                    "actual_rows": 1,
+                                    "plan_rows": 1,
+                                    "plan_type": "SeqScan",
+                                    "properties": tb.bag([
+                                        {
+                                            "important": False,
+                                            "title": "parent_relationship",
+                                            "type": "text",
+                                            "value": "Member",
+                                        },
+                                        {
+                                            "important": False,
+                                            "title": "schema",
+                                            "type": "text",
+                                            "value": "edgedbpub",
+                                        },
+                                        {
+                                            "important": False,
+                                            "title": "alias",
+                                            "type": "text",
+                                            "value": "LogEntry~1",
+                                        },
+                                        {
+                                            "important": True,
+                                            "title": "relation_name",
+                                            "type": "relation",
+                                        },
+                                    ]),
+                                    "startup_cost": float,
+                                    "total_cost": float,
+                                }
+                            ],
+                            "subplans": [],
+                        },
+                        {
+                            "pipeline": [
+                                {
+                                    "actual_loops": 1,
+                                    "actual_rows": 1,
+                                    "plan_rows": 1,
+                                    "plan_type": "SeqScan",
+                                    "properties": tb.bag([
+                                        {
+                                            "important": False,
+                                            "title": "parent_relationship",
+                                            "type": "text",
+                                            "value": "Member",
+                                        },
+                                        {
+                                            "important": False,
+                                            "title": "schema",
+                                            "type": "text",
+                                            "value": "edgedbpub",
+                                        },
+                                        {
+                                            "important": False,
+                                            "title": "alias",
+                                            "type": "text",
+                                            "value": "Comment~1",
+                                        },
+                                        {
+                                            "important": True,
+                                            "title": "relation_name",
+                                            "type": "relation",
+                                        },
+                                    ]),
+                                    "startup_cost": float,
+                                    "total_cost": float,
+                                }
+                            ],
+                            "subplans": [],
+                        },
+                    ]),
+                },
+                {
+                    "contexts": [
+                        {
+                            "buffer_idx": 0,
+                            "end": 93,
+                            "start": 73,
+                            "text": "z := [is Issue].name",
+                        }
+                    ],
+                    "pipeline": [
+                        {
+                            "actual_loops": 5001,
+                            "actual_rows": 1,
+                            "plan_rows": 1,
+                            "plan_type": "IndexScan",
+                            "properties": tb.bag([
+                                {
+                                    "important": False,
+                                    "title": "parent_relationship",
+                                    "type": "text",
+                                    "value": "SubPlan",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "subplan_name",
+                                    "type": "text",
+                                    "value": "SubPlan 1",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "schema",
+                                    "type": "text",
+                                    "value": "edgedbpub",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "alias",
+                                    "type": "text",
+                                    "value": "Issue~2",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "relation_name",
+                                    "type": "relation",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "scan_direction",
+                                    "type": "text",
+                                    "value": "Forward",
+                                },
+                                {
+                                    "important": True,
+                                    "title": "index_name",
+                                    "type": "index",
+                                    "value": "constraint "
+                                    "'std::exclusive' of "
+                                    "property 'id' of object "
+                                    "type 'default::Issue'",
+                                },
+                                {
+                                    "important": False,
+                                    "title": "index_cond",
+                                    "type": "expr",
+                                },
+                            ]),
+                            "startup_cost": float,
+                            "total_cost": float,
+                        }
+                    ],
+                    "subplans": [],
+                },
+            ],
         }
 
-        self.assert_plan(res['Plan'], shape)
+        self.assert_plan(res['fine_grained'], shape)
+
+    async def test_edgeql_explain_insert_01(self):
+        # Use an ad-hoc connection to avoid TRANSACTION_ISOLATION
+        con = await self.connect(database=self.con.dbname)
+        try:
+            res = await self.explain('''
+                insert User { name := 'Fantix' }
+            ''', execute=True, con=con)
+            self.assert_plan(res['fine_grained'], {
+                'pipeline': [{'plan_type': 'NestedLoop'}],
+            })
+            self.assertFalse(await con.query('''
+                select User { id, name } filter .name = 'Fantix'
+            '''))
+        finally:
+            await con.aclose()
+
+    async def test_edgeql_explain_insert_02(self):
+        async with self.con.transaction():
+            await self.con.execute('''
+                insert User { name := 'Sully' }
+            ''')
+            res = await self.explain('''
+                insert User { name := 'Fantix' }
+            ''', execute=True)
+            self.assert_plan(res['fine_grained'], {
+                'pipeline': [{'plan_type': 'NestedLoop'}],
+            })
+            self.assertTrue(await self.con.query('''
+                select User { id, name } filter .name = 'Sully'
+            '''))
+            self.assertFalse(await self.con.query('''
+                select User { id, name } filter .name = 'Fantix'
+            '''))
+
+        self.assertTrue(await self.con.query('''
+            select User { id, name } filter .name = 'Sully'
+        '''))
+        self.assertFalse(await self.con.query('''
+            select User { id, name } filter .name = 'Fantix'
+        '''))
+
+    async def test_edgeql_explain_options_01(self):
+        res = await self.explain('''
+            select User
+        ''', execute=False)
+        self.assertNotIn(
+            'actual_startup_time',
+            res['fine_grained']['pipeline'][0],
+        )
+        self.assertEqual(
+            {'buffers': False, 'execute': False},
+            res['arguments'],
+        )
+
+        res = json.loads(await self.con.query_single('''
+            analyze (buffers := True) select User
+        '''))
+        self.assertIn('shared_read_blocks', res['fine_grained']['pipeline'][0])
+        self.assertEqual({'buffers': True, 'execute': True}, res['arguments'])
+
+        res = json.loads(await self.con.query_single('''
+            analyze (buffers := false) select User
+        '''))
+        self.assertNotIn(
+            'shared_read_blocks',
+            res['fine_grained']['pipeline'][0],
+        )
+        self.assertEqual({'buffers': False, 'execute': True}, res['arguments'])
+
+    async def test_edgeql_explain_options_02(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r"unknown ANALYZE argument"
+        ):
+            await self.con.query_single('''
+                analyze (bogus_argument := True) select User
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r"incorrect type"
+        ):
+            await self.con.query_single('''
+                analyze (execute := "hell yeah") select User
+            ''')
+
+
+class NameTranslation(unittest.TestCase):
+
+    def test_name_default(self):
+        raliases = {'default': None}
+        self.assertEqual(
+            pg_tree._translate_name(sn.QualName('default', 'Type1'), raliases),
+            "Type1",
+        )
+        self.assertEqual(
+            pg_tree._translate_name(sn.QualName('mod1', 'Type2'), raliases),
+            "mod1::Type2",
+        )
+        self.assertEqual(
+            pg_tree._translate_name(sn.QualName('m1::m2', 'Type3'), raliases),
+            "m1::m2::Type3",
+        )
+
+    def test_name_aliases_01(self):
+        raliases = {'mod1': None, 'mod2': 'main'}
+        self.assertEqual(
+            pg_tree._translate_name(sn.QualName('default', 'Type1'), raliases),
+            "default::Type1",
+        )
+        self.assertEqual(
+            pg_tree._translate_name(sn.QualName('mod1', 'Type2'), raliases),
+            "Type2",
+        )
+        self.assertEqual(
+            pg_tree._translate_name(sn.QualName('mod2', 'Type3'), raliases),
+            "main::Type3",
+        )
+
+    def test_name_aliases_nested_01(self):
+        raliases = {'mod1': None, 'mod2': 'main', 'mod3::mod4': 'aux'}
+        self.assertEqual(
+            pg_tree._translate_name(sn.QualName('default', 'Type1'), raliases),
+            "default::Type1",
+        )
+        self.assertEqual(
+            pg_tree._translate_name(sn.QualName('mod1::mod2', 'Type2'),
+                                    raliases),
+            # default module is not replaced if there is nesting
+            "mod1::mod2::Type2",
+        )
+        self.assertEqual(
+            pg_tree._translate_name(sn.QualName('mod3::mod4::mod5', 'Type3'),
+                                    raliases),
+            "aux::mod5::Type3",
+        )
+        self.assertEqual(
+            pg_tree._translate_name(
+                sn.QualName('mod3::mod4::mod5::mod6', 'Type4'),
+                raliases,
+            ),
+            "aux::mod5::mod6::Type4",
+        )
+        self.assertEqual(
+            pg_tree._translate_name(
+                sn.QualName('mod3::mod7', 'Type5'),
+                raliases,
+            ),
+            "mod3::mod7::Type5",
+        )
+        self.assertEqual(
+            pg_tree._translate_name(
+                sn.QualName('mod2::mod3::mod4', 'Type6'),
+                raliases,
+            ),
+            "main::mod3::mod4::Type6",
+        )

@@ -1,13 +1,10 @@
+.. versionadded:: 2.0
+
 .. _ref_eql_sdl_access_policies:
 
 ===============
 Access Policies
 ===============
-
-.. note::
-
-  ⚠️ Only available in EdgeDB 2.0 or later.
-
 
 This section describes the SDL declarations pertaining to access policies.
 
@@ -17,6 +14,7 @@ Examples
 Declare a schema where users can only see their own profiles:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     # Declare some global variables to store "current user"
     # information.
@@ -36,6 +34,30 @@ Declare a schema where users can only see their own profiles:
         # ensure that a user cannot set the "owner" link
         # to anything but themselves.
         access policy owner_only
+            allow all using (.owner = global current_user)
+            { errmessage := 'Profile may only be accessed by the owner'; }
+    }
+
+.. code-block:: sdl
+
+    # Declare some global variables to store "current user"
+    # information.
+    global current_user_id: uuid;
+    global current_user := (
+        select User filter .id = global current_user_id
+    );
+
+    type User {
+        required name: str;
+    }
+
+    type Profile {
+        owner: User;
+
+        # Only allow reading to the owner, but also
+        # ensure that a user cannot set the "owner" link
+        # to anything but themselves.
+        access policy owner_only
             allow all using (.owner = global current_user);
     }
 
@@ -48,6 +70,7 @@ Define a new access policy corresponding to the :ref:`more explicit DDL
 commands <ref_eql_ddl_access_policies>`.
 
 .. sdl:synopsis::
+    :version-lt: 3.0
 
     # Access policy used inside a type declaration:
     access policy <name>
@@ -55,6 +78,25 @@ commands <ref_eql_ddl_access_policies>`.
       { allow | deny } <action> [, <action> ... ]
       [ using (<expr>) ]
       [ <annotation-declarations> ] ;
+
+    # where <action> is one of
+    all
+    select
+    insert
+    delete
+    update [{ read | write }]
+
+.. sdl:synopsis::
+
+    # Access policy used inside a type declaration:
+    access policy <name>
+      [ when (<condition>) ]
+      { allow | deny } <action> [, <action> ... ]
+      [ using (<expr>) ]
+      [ <annotation-declarations> ]
+      [ "{"
+         [ errmessage := value ; ]
+        "}" ] ;
 
     # where <action> is one of
     all
@@ -147,6 +189,12 @@ The access policy declaration options are as follows:
 
     When omitted, it is assumed that this policy applies to all eligible
     objects of a given type.
+
+.. versionadded:: 3.0
+
+    :eql:synopsis:`set errmessage := <value>`
+        Set a custom error message of :eql:synopsis:`<value>` that is displayed
+        when this access policy prevents a write action.
 
 :sdl:synopsis:`<annotation-declarations>`
     Set access policy :ref:`annotation <ref_eql_sdl_annotations>`

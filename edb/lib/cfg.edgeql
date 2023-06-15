@@ -20,10 +20,20 @@
 CREATE MODULE cfg;
 
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::backend_setting;
+
+# If report is set to 'true', that *system* config will be included
+# in the `system_config` ParameterStatus on each connection.
+# Non-system config cannot be reported.
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::report;
+
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::internal;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::requires_restart;
+
+# System config means that config value can only be modified using
+# CONFIGURE INSTANCE command. System config is therefore *not* included
+# in the binary protocol state.
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::system;
+
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::affects_compilation;
 
 CREATE SCALAR TYPE cfg::memory EXTENDING std::anyscalar;
@@ -164,6 +174,14 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
             sorting.';
     };
 
+    CREATE PROPERTY maintenance_work_mem -> cfg::memory {
+        CREATE ANNOTATION cfg::system := 'true';
+        CREATE ANNOTATION cfg::backend_setting := '"maintenance_work_mem"';
+        CREATE ANNOTATION std::description :=
+            'The amount of memory used by operations such as \
+            CREATE INDEX.';
+    };
+
     CREATE PROPERTY effective_cache_size -> cfg::memory {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"effective_cache_size"';
@@ -194,6 +212,14 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
             'A hook to force all queries to produce an error.';
     };
 
+    CREATE REQUIRED PROPERTY _pg_prepared_statement_cache_size -> std::int16 {
+        CREATE ANNOTATION cfg::system := 'true';
+        CREATE ANNOTATION std::description :=
+            'The maximum number of prepared statements each backend \
+            connection could hold at the same time.';
+        CREATE CONSTRAINT std::min_value(1);
+        SET default := 100;
+    };
 };
 
 

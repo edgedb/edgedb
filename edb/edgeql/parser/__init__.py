@@ -58,14 +58,46 @@ def parse_fragment(
     return res
 
 
-def parse(
+def parse_single(
+    source: Union[qltokenizer.Source, str],
+    filename: Optional[str]=None,
+) -> qlast.Statement:
+    if isinstance(source, str):
+        source = qltokenizer.Source.from_string(source)
+    parser = qlparser.EdgeQLSingleParser()
+    res = parser.parse(source, filename=filename)
+    assert isinstance(res, (qlast.Query | qlast.Command))
+    return res
+
+
+def parse_query(
     source: Union[qltokenizer.Source, str],
     module_aliases: Optional[Mapping[Optional[str], str]] = None,
-) -> qlast.Expr:
-    tree = parse_fragment(source)
+) -> qlast.Query:
+    """Parse some EdgeQL potentially adding some module aliases.
 
-    if not isinstance(tree, qlast.Command):
+    This will parse EdgeQL queries and expressions. If the source is an
+    expression, the result will be wrapped into a SelectQuery.
+    """
+
+    tree = parse_fragment(source)
+    if not isinstance(tree, qlast.Query):
         tree = qlast.SelectQuery(result=tree)
+
+    if module_aliases:
+        append_module_aliases(tree, module_aliases)
+
+    return tree
+
+
+def parse_command(
+    source: Union[qltokenizer.Source, str],
+    module_aliases: Optional[Mapping[Optional[str], str]] = None,
+) -> qlast.Command:
+    """Parse some EdgeQL command potentially adding some module aliases."""
+
+    tree = parse_single(source)
+    assert isinstance(tree, qlast.Command)
 
     if module_aliases:
         append_module_aliases(tree, module_aliases)
@@ -78,6 +110,36 @@ def parse_block(source: Union[qltokenizer.Source, str]) -> List[qlast.Base]:
         source = qltokenizer.Source.from_string(source)
     parser = qlparser.EdgeQLBlockParser()
     return parser.parse(source)
+
+
+def parse_migration_body_block(
+    source: str,
+) -> tuple[qlast.NestedQLBlock, list[qlast.SetField]]:
+    # For parser-internal technical reasons, we don't have a
+    # production that means "just the *inside* of a migration block
+    # (without braces)", so we just hack around this by adding braces.
+    # This is only really workable because we only use this in a place
+    # where the source contexts don't matter anyway.
+    source = '{' + source + '}'
+
+    tsource = qltokenizer.Source.from_string(source)
+    parser = qlparser.EdgeQLMigrationBodyParser()
+    return parser.parse(tsource)
+
+
+def parse_extension_package_body_block(
+    source: str,
+) -> tuple[qlast.NestedQLBlock, list[qlast.SetField]]:
+    # For parser-internal technical reasons, we don't have a
+    # production that means "just the *inside* of a migration block
+    # (without braces)", so we just hack around this by adding braces.
+    # This is only really workable because we only use this in a place
+    # where the source contexts don't matter anyway.
+    source = '{' + source + '}'
+
+    tsource = qltokenizer.Source.from_string(source)
+    parser = qlparser.EdgeQLExtensionPackageBodyParser()
+    return parser.parse(tsource)
 
 
 def parse_sdl(expr: str):
@@ -97,6 +159,7 @@ def preload(
     if parsers is None:
         parsers = [
             qlparser.EdgeQLBlockParser(),
+            qlparser.EdgeQLSingleParser(),
             qlparser.EdgeQLExpressionParser(),
             qlparser.EdgeSDLParser(),
         ]

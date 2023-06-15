@@ -5,13 +5,13 @@ Cheatsheet
 
 .. note::
 
-    The types used in these queries are defined :ref:`here
-    <ref_cheatsheet_object_types>`.
+    The types used as examples in these queries are defined :ref:`in our
+    "Object types" cheatsheet <ref_cheatsheet_object_types>`.
 
 
 ----------
 
-In order to set up GraphQL access to the database add the following to
+In order to set up GraphQL access to the database, add the following to
 the schema:
 
 .. code-block:: sdl

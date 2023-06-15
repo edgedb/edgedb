@@ -59,7 +59,7 @@ class UnsupportedExpressionError(errors.QueryError):
     pass
 
 
-EvaluationResult = Union[irast.TypeCast, irast.ConstExpr]
+EvaluationResult = Union[irast.TypeCast, irast.ConstExpr, irast.Array]
 
 
 def evaluate_to_python_val(
@@ -136,9 +136,25 @@ def evaluate_BaseConstant(
     return ir_const
 
 
+@evaluate.register(irast.Array)
+def evaluate_Array(
+        ir: irast.Array,
+        schema: s_schema.Schema) -> EvaluationResult:
+    return irast.Array(
+        elements=tuple(
+            x.replace(expr=evaluate(x, schema)) for x in ir.elements
+        ),
+        typeref=ir.typeref,
+    )
+
+
 op_table = {
     # Concatenation
     ('Infix', 'std::++'): lambda a, b: a + b,
+    ('Infix', 'std::>='): lambda a, b: a >= b,
+    ('Infix', 'std::>'): lambda a, b: a > b,
+    ('Infix', 'std::<='): lambda a, b: a <= b,
+    ('Infix', 'std::<'): lambda a, b: a < b,
 }
 
 
@@ -173,9 +189,15 @@ def evaluate_OperatorCall(
         args.append(arg_val)
 
     value = eval_func(*args)
-    # Since we only perform string concatenations here, the constant
-    # in question is always a StringConstant.
-    qlconst = qlast.StringConstant.from_python(value)
+    qlconst: qlast.BaseConstant
+    if isinstance(value, str):
+        qlconst = qlast.StringConstant.from_python(value)
+    elif isinstance(value, bool):
+        qlconst = qlast.BooleanConstant.from_python(value)
+    else:
+        raise UnsupportedExpressionError(
+            f"unsupported result type: {type(value)}", context=opcall.context
+        )
 
     result = qlcompiler.compile_constant_tree_to_ir(
         qlconst, styperef=opcall.typeref, schema=schema)
@@ -216,7 +238,7 @@ def _evaluate_union(
 
 @functools.singledispatch
 def const_to_python(
-        ir: irast.ConstExpr | irast.TypeCast,
+        ir: irast.Expr | None,
         schema: s_schema.Schema) -> Any:
     raise UnsupportedExpressionError(
         f'cannot convert {ir!r} to Python value')
@@ -235,6 +257,13 @@ def const_set_to_python(
         ir: irast.ConstantSet,
         schema: s_schema.Schema) -> Tuple[Any, ...]:
     return tuple(const_to_python(v, schema) for v in ir.elements)
+
+
+@const_to_python.register(irast.Array)
+def array_const_to_python(
+        ir: irast.Array,
+        schema: s_schema.Schema) -> Any:
+    return [const_to_python(x.expr, schema) for x in ir.elements]
 
 
 @const_to_python.register(irast.IntegerConstant)

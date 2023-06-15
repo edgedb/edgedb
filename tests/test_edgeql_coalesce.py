@@ -811,6 +811,83 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ],
         )
 
+        await self.assert_query_result(
+            r'''
+                WITH
+                    I := (
+                        SELECT Issue
+                        FILTER Issue.status.name = 'Open'
+                    )
+                # `I.time_estimate` is now a LCP
+                SELECT I.time_estimate ?= (I.time_estimate,).0;
+            ''',
+            [
+                True,
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH
+                    I := (
+                        SELECT Issue
+                        FILTER Issue.status.name = 'Open'
+                    )
+                # `I.time_estimate` is now a LCP
+                SELECT (I.time_estimate,).0 ?= (I.time_estimate,).0;
+            ''',
+            [
+                True,
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH
+                    I := (
+                        SELECT Issue
+                        FILTER Issue.status.name = 'Open'
+                    )
+                # `I.time_estimate` is now a LCP
+                SELECT ((I.time_estimate,).0,).0 ?= (I.time_estimate,).0;
+            ''',
+            [
+                True,
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH
+                    I := (
+                        SELECT Issue
+                        FILTER Issue.status.name = 'Open'
+                    )
+                # `I.time_estimate` is now a LCP
+                SELECT
+                  ({I.time_estimate} = 0) ?=
+                  (({I.time_estimate} = 0) = (I.time_estimate = 0));
+            ''',
+            [
+                True,
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH
+                    I := (
+                        SELECT Issue
+                        FILTER Issue.status.name = 'Open'
+                    )
+                # `I.time_estimate` is now a LCP
+                SELECT {I.time_estimate} ?= (I.time_estimate,).0;
+            ''',
+            [
+                True,
+            ],
+        )
+
     async def test_edgeql_coalesce_dependent_21(self):
         await self.assert_query_result(
             r'''
@@ -1743,4 +1820,41 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 {"z": 1}, {"z": 1}, {"z": 1},
                 {"z": None}, {"z": None}, {"z": None}
             ]),
+        )
+
+    async def test_edgeql_optional_leakage_01(self):
+        await self.con.execute(
+            r'''
+                insert Comment {
+                    body := "a",
+                    owner := assert_single(User),
+                    issue := (select Issue limit 1),
+                };
+            '''
+        )
+
+        await self.assert_query_result(
+            '''
+            select (
+              Comment,
+              (select (
+                <str>Comment.parent.id ?= '',
+                Comment.body
+              )),
+            );
+            ''',
+            [({}, (False, 'a'))],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select (
+                  Comment.body,
+                  (select (
+                    <str>Comment.parent.id ?= '' or
+                    Comment.id ?= <uuid>{}
+                  )),
+                ) filter .1;
+            ''',
+            [],
         )

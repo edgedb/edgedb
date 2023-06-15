@@ -60,6 +60,7 @@ def server(version=False, **kwargs):
 # Import at the end of the file so that "edb.tools.edb.edbcommands"
 # is defined for all of the below modules when they try to import it.
 from . import cli  # noqa
+from . import rm_data_dir  # noqa
 from . import dflags  # noqa
 from . import gen_errors  # noqa
 from . import gen_types  # noqa
@@ -70,4 +71,5 @@ from . import test  # noqa
 from . import wipe  # noqa
 from . import gen_test_dumps  # noqa
 from . import gen_sql_introspection  # noqa
+from . import gen_rust_ast  # noqa
 from .profiling import cli as prof_cli  # noqa

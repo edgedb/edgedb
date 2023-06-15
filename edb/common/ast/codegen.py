@@ -60,7 +60,7 @@ class SourceGenerator(NodeVisitor):
         if indent:
             self.new_lines = 1
             self.char_indentation += 1
-        res = super().visit(node)
+        res = self.visit(node)
         if indent:
             self.char_indentation -= 1
         if nest:

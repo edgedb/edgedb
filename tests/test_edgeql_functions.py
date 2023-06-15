@@ -2804,7 +2804,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             WITH DT := <datetime>'2018-05-07 15:01:22.306916-05'
-            SELECT to_str(DT, 'FMDDth of FMMonth, YYYY');
+            SELECT to_str(DT, 'FMDDth "of" FMMonth, YYYY');
             ''',
             {'7th of May, 2018'},
         )
@@ -2887,7 +2887,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             WITH DT := <cal::local_date>'2018-05-07'
-            SELECT to_str(DT, 'FMDDth of FMMonth, YYYY');
+            SELECT to_str(DT, 'FMDDth "of" FMMonth, YYYY');
             ''',
             {'7th of May, 2018'},
         )
@@ -5013,6 +5013,47 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''SELECT math::log(<decimal>{1, 10, 32}, base := <decimal>2);''',
             {0, 3.321928094887362, 5},
         )
+
+    async def test_edgeql_functions_math_log_02(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.errors.InvalidValueError,
+            ''
+        ):
+            await self.con.query('SELECT math::ln(-1)')
+        async with self.assertRaisesRegexTx(
+            edgedb.errors.InvalidValueError,
+            ''
+        ):
+            await self.con.query('SELECT math::lg(-1)')
+        async with self.assertRaisesRegexTx(
+            edgedb.errors.InvalidValueError,
+            ''
+        ):
+            await self.con.query('SELECT math::log(-1, base := 10)')
+
+    async def test_edgeql_function_math_sqrt_01(self):
+        await self.assert_query_result(
+            r'''SELECT math::sqrt({1, 2, 25});''',
+            {1, 1.4142135623730951, 5},
+        )
+        with self.assertRaises(edgedb.errors.InvalidValueError):
+            await self.con.query('SELECT math::sqrt(-1)')
+
+    async def test_edgeql_function_math_sqrt_02(self):
+        await self.assert_query_result(
+            '''SELECT math::sqrt({1.0, 2.0, 25.0});''',
+            {1.0, 1.4142135623730951, 5.0},
+        )
+        with self.assertRaises(edgedb.errors.InvalidValueError):
+            await self.con.query('SELECT math::sqrt(-1.0)')
+
+    async def test_edgeql_function_math_sqrt_03(self):
+        await self.assert_query_result(
+            '''SELECT math::sqrt({1n, 2n, 25n});''',
+            {1, 1.4142135623730951, 5},
+        )
+        with self.assertRaises(edgedb.errors.InvalidValueError):
+            await self.con.query('SELECT math::sqrt(-1n)')
 
     async def test_edgeql_functions_math_mean_01(self):
         await self.assert_query_result(

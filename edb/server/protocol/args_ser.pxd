@@ -36,3 +36,9 @@ cdef recode_bind_args_for_script(
     ssize_t start,
     ssize_t end,
 )
+
+cdef bytes recode_global(
+    dbview.DatabaseConnectionView dbv,
+    bytes glob,
+    object glob_descriptor,
+)

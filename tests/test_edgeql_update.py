@@ -541,6 +541,15 @@ class TestUpdate(tb.QueryTestCase):
                 UPDATE foo SET { bar := 2 };
             ''')
 
+    async def test_edgeql_update_bad_02(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r'update standard library type',
+        ):
+            await self.con.execute('''\
+                UPDATE schema::Migration SET { script := 'foo'};
+            ''')
+
     async def test_edgeql_update_filter_01(self):
         await self.assert_query_result(
             r"""
@@ -3372,6 +3381,17 @@ class TestUpdate(tb.QueryTestCase):
                     {'name': 'wow', '@weight': 10},
                 ],
             }]
+        )
+
+    async def test_edgeql_update_assert_calls_01(self):
+        await self.assert_query_result(
+            r"""
+            select assert_exists(assert_single((
+              select (update UpdateTest filter .name = 'update-test1'
+                      set {comment := "test"}) { comment }
+            )));
+            """,
+            [{"comment": "test"}]
         )
 
     async def test_edgeql_update_covariant_01(self):

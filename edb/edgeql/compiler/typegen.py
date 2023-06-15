@@ -214,7 +214,7 @@ def ptrcls_from_ptrref(  # NoQA: F811
 def ptr_to_ptrref(
     ptrcls: s_pointers.Pointer, *,
     ctx: context.ContextLevel,
-) -> irast.BasePointerRef:
+) -> irast.PointerRef:
     return irtyputils.ptrref_from_ptrcls(
         schema=ctx.env.schema,
         ptrcls=ptrcls,

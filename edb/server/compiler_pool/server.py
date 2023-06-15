@@ -32,11 +32,14 @@ import traceback
 import typing
 
 import click
+import httptools
 import immutables
 
 from edb.common import debug
 from edb.common import markup
+from edb.common import taskgroup
 
+from .. import metrics
 from .. import args as srvargs
 from .. import defines
 from . import amsg
@@ -523,12 +526,62 @@ class CompilerServerProtocol(asyncio.Protocol):
         )
 
 
+class MetricsProtocol(asyncio.Protocol):
+    def __init__(self):
+        self.transport = None
+        self.parser = httptools.HttpRequestParser(self)
+        self.url = None
+
+    def connection_made(self, transport):
+        self.transport = transport
+
+    def data_received(self, data):
+        try:
+            self.parser.feed_data(data)
+        except Exception as ex:
+            logger.exception(ex)
+
+    def on_url(self, url):
+        self.url = url
+
+    def on_message_complete(self):
+        match self.parser.get_method().upper(), self.url:
+            case b"GET", b"/ready":
+                self.respond("200 OK", "OK")
+
+            case b"GET", b"/metrics":
+                self.respond(
+                    "200 OK",
+                    metrics.registry.generate(),
+                    "Content-Type: text/plain; version=0.0.4; charset=utf-8",
+                )
+
+            case _:
+                self.respond("404 Not Found", "Not Found")
+
+    def respond(self, status, content, *extra_headers, encoding="utf-8"):
+        content = content.encode(encoding)
+        response = [
+            f"HTTP/{self.parser.get_http_version()} {status}",
+            f"Content-Length: {len(content)}",
+            *extra_headers,
+            "",
+            "",
+        ]
+
+        self.transport.write("\r\n".join(response).encode("ascii"))
+        self.transport.write(content)
+        if not self.parser.should_keep_alive():
+            self.transport.close()
+
+
 async def server_main(
     listen_addresses,
     listen_port,
     pool_size,
     client_schema_cache_size,
     runstate_dir,
+    metrics_port,
 ):
     if listen_port is None:
         listen_port = defines.EDGEDB_REMOTE_COMPILER_PORT
@@ -558,32 +611,61 @@ async def server_main(
         )
         await pool.start()
         try:
-            server = await loop.create_server(
-                lambda: CompilerServerProtocol(pool, loop),
-                listen_addresses,
-                listen_port,
-                start_serving=False,
-            )
-            if len(listen_addresses) == 1:
-                logger.info(
-                    "Listening on %s:%s", listen_addresses[0], listen_port
+            async with taskgroup.TaskGroup() as tg:
+                tg.create_task(
+                    _run_server(
+                        loop,
+                        listen_addresses,
+                        listen_port,
+                        lambda: CompilerServerProtocol(pool, loop),
+                        "compile",
+                    )
                 )
-            else:
-                logger.info(
-                    "Listening on [%s]:%s",
-                    ",".join(listen_addresses),
-                    listen_port,
-                )
-            try:
-                await server.serve_forever()
-            finally:
-                server.close()
-                await server.wait_closed()
+                if metrics_port:
+                    tg.create_task(
+                        _run_server(
+                            loop,
+                            listen_addresses,
+                            metrics_port,
+                            MetricsProtocol,
+                            "metrics",
+                        )
+                    )
         finally:
             await pool.stop()
     finally:
         if temp_runstate_dir is not None:
             temp_runstate_dir.cleanup()
+
+
+async def _run_server(
+    loop, listen_addresses, listen_port, protocol, purpose
+):
+    server = await loop.create_server(
+        protocol,
+        listen_addresses,
+        listen_port,
+        start_serving=False,
+    )
+    if len(listen_addresses) == 1:
+        logger.info(
+            "Listening for %s on %s:%s",
+            purpose,
+            listen_addresses[0],
+            listen_port,
+        )
+    else:
+        logger.info(
+            "Listening for %s on [%s]:%s",
+            purpose,
+            ",".join(listen_addresses),
+            listen_port,
+        )
+    try:
+        await server.serve_forever()
+    finally:
+        server.close()
+        await server.wait_closed()
 
 
 @click.command()

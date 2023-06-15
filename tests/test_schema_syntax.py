@@ -189,8 +189,11 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 
                 link priority: Priority;
 
-                multi link watchers extending orderable: User {
-                    property foo extending bar: str;
+                multi link watchers: User {
+                    extending orderable;
+                    property foo: str {
+                        extending bar;
+                    };
                 };
 
                 multi link time_spent_log: LogEntry;
@@ -675,7 +678,9 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module default {
             type Foo {
-                property union extending except: str;
+                property union: str {
+                    extending except;
+                };
             };
         };
         """
@@ -684,7 +689,8 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module default {
             type Foo {
-                link union extending except: Object {
+                link union: Object {
+                    extending except;
                     property intersect: str;
                 };
             };
@@ -1162,14 +1168,17 @@ abstract property test::foo {
     def test_eschema_syntax_property_02(self):
         """
         module test {
-            abstract property bar extending foo;
+            abstract property bar {
+                extending foo;
+            };
         };
         """
 
     def test_eschema_syntax_property_03(self):
         """
         module test {
-            abstract property bar extending foo {
+            abstract property bar {
+                extending foo;
                 title := 'Another property';
             };
         };
@@ -1182,7 +1191,8 @@ abstract property test::foo {
                 title := 'Sample property';
             };
 
-            abstract property bar extending foo {
+            abstract property bar {
+                extending foo;
                 title := 'Another property';
             };
         };
@@ -1200,8 +1210,79 @@ abstract property test::foo {
     def test_eschema_syntax_property_06(self):
         """
         module test {
-            abstract property union extending except;
+            abstract property union {
+                extending except;
+            };
         };
+        """
+
+    def test_eschema_syntax_property_07(self):
+        """
+        module test {
+            abstract property foo {
+                extending bar;
+            };
+        };
+        """
+
+    def test_eschema_syntax_property_08(self):
+        """
+        module test {
+            type foo {
+                required property bar: str {
+                    extending baz;
+                };
+            };
+        };
+
+        """
+
+    def test_eschema_syntax_property_09(self):
+        """
+        module test {
+            type foo {
+                optional property bar: str {
+                    extending baz;
+                };
+            };
+        };
+
+        """
+
+    def test_eschema_syntax_property_10(self):
+        """
+        module test {
+            type foo {
+                property bar: str {
+                    extending baz;
+                };
+            };
+        };
+
+        """
+
+    def test_eschema_syntax_property_11(self):
+        """
+        module test {
+            type foo {
+                bar: str {
+                    extending baz;
+                };
+            };
+        };
+        """
+
+    @tb.must_fail(
+        errors.EdgeQLSyntaxError,
+        r'specifying EXTENDING twice is not allowed'
+    )
+    def test_eschema_syntax_property_12(self):
+        """
+        module test {
+            abstract property foo extending bar {
+                extending bar;
+            }
+        }
         """
 
     def test_eschema_syntax_link_01(self):
@@ -1214,7 +1295,9 @@ abstract property test::foo {
     def test_eschema_syntax_link_02(self):
         """
         module test {
-            abstract link coollink extending boringlink;
+            abstract link coollink {
+                extending boringlink;
+            };
         };
         """
 
@@ -1245,7 +1328,8 @@ abstract property test::foo {
                 title := 'Sample property';
             };
 
-            abstract property bar extending foo {
+            abstract property bar {
+                extending foo;
                 title := 'Another property';
             };
 
@@ -1346,20 +1430,68 @@ abstract property test::foo {
         };
         """
 
-    def test_eschema_syntax_property_13(self):
+    def test_eschema_syntax_link_13(self):
         """
         module test {
-            abstract link union extending except;
+            abstract link union {
+                extending except;
+            };
         };
         """
 
-    def test_eschema_syntax_property_14(self):
+    def test_eschema_syntax_link_14(self):
         """
         module test {
-            abstract link union extending intersect {
+            abstract link union {
+                extending intersect;
                 property except: str;
             };
         };
+        """
+
+    def test_eschema_syntax_link_15(self):
+        """
+        module test {
+            abstract link foo {
+                extending bar;
+            };
+        };
+        """
+
+    def test_eschema_syntax_link_16(self):
+        """
+        module test {
+            type foo {
+                required link bar: test::foo {
+                    extending baz;
+                };
+            };
+        };
+
+        """
+
+    def test_eschema_syntax_link_17(self):
+        """
+        module test {
+            type foo {
+                optional link bar: test::foo {
+                    extending baz;
+                };
+            };
+        };
+
+        """
+
+    def test_eschema_syntax_link_18(self):
+        """
+        module test {
+            type foo {
+                link bar: test::foo {
+                    extending baz;
+                };
+            };
+        };
+
         """
 
     def test_eschema_syntax_function_01(self):

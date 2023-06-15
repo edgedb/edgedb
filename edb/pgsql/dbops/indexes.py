@@ -100,6 +100,8 @@ class Index(tables.InheritableTableObject):
 
         kwargs = self.metadata.get('kwargs')
         if kwargs is not None:
+            # Escape the expression first
+            expr = expr.replace('{', '{{').replace('}', '}}')
             expr = re.sub(r'(__kw_(\w+?)__)', r'{\2}', expr)
             expr = expr.format(**kwargs)
 

@@ -23,6 +23,7 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
 
 from edb import errors
 from edb.server.compiler import sertypes
+from edb.server.compiler import enums
 from edb.server.dbview cimport dbview
 
 from edb.server.pgproto cimport hton
@@ -35,6 +36,10 @@ from edb.server.pgproto.pgproto cimport (
     frb_get_len,
     frb_slice_from,
 )
+
+cdef uint32_t SCALAR_TAG = int(enums.TypeTag.SCALAR)
+cdef uint32_t TUPLE_TAG = int(enums.TypeTag.TUPLE)
+cdef uint32_t ARRAY_TAG = int(enums.TypeTag.ARRAY)
 
 
 cdef recode_bind_args_for_script(
@@ -184,7 +189,7 @@ cdef WriteBuffer recode_bind_args(
                 if param.array_type_id is not None:
                     array_tid = dbv.resolve_backend_type_id(
                         param.array_type_id)
-                    recode_array(dbv, &in_buf, out_buf, in_len, array_tid)
+                    recode_array(dbv, &in_buf, out_buf, in_len, array_tid, None)
                 else:
                     data = frb_read(&in_buf, in_len)
                     out_buf.write_cstr(data, in_len)
@@ -208,17 +213,112 @@ cdef WriteBuffer recode_bind_args(
     return out_buf
 
 
-cdef WriteBuffer recode_array(
+cdef bytes recode_global(
+    dbv: dbview.DatabaseConnectionView,
+    glob: bytes,
+    glob_descriptor: object,
+):
+    cdef:
+        WriteBuffer out_buf
+        FRBuffer in_buf
+
+    if glob_descriptor is None:
+        return glob
+
+    out_buf = WriteBuffer.new()
+
+    assert cpython.PyBytes_CheckExact(glob)
+    frb_init(
+        &in_buf,
+        cpython.PyBytes_AS_STRING(glob),
+        cpython.Py_SIZE(glob))
+
+    _recode_global(dbv, &in_buf, out_buf, in_buf.len, glob_descriptor)
+
+    if frb_get_len(&in_buf):
+        raise errors.InputDataError('unexpected trailing data in buffer')
+
+    return bytes(memoryview(out_buf))
+
+
+cdef _recode_global(
+    dbv: dbview.DatabaseConnectionView,
+    FRBuffer* in_buf,
+    out_buf: WriteBuffer,
+    in_len: ssize_t,
+    glob_descriptor: object,
+):
+    if glob_descriptor is None:
+        data = frb_read(in_buf, in_len)
+        out_buf.write_cstr(data, in_len)
+    elif glob_descriptor[0] == TUPLE_TAG:
+        _, el_tids, el_infos = glob_descriptor
+        recode_global_tuple(dbv, in_buf, out_buf, in_len, el_tids, el_infos)
+    elif glob_descriptor[0] == ARRAY_TAG:
+        _, el_tid, tuple_info = glob_descriptor
+        btid = dbv.resolve_backend_type_id(el_tid)
+        recode_array(dbv, in_buf, out_buf, in_len, btid, tuple_info)
+
+
+cdef recode_global_tuple(
+    dbv: dbview.DatabaseConnectionView,
+    FRBuffer* in_buf,
+    out_buf: WriteBuffer,
+    in_len: ssize_t,
+    el_tids: tuple,
+    el_infos: tuple,
+):
+    """
+    Tuples in globals need to have NULLs checked and oids injected,
+    like arrays do.
+
+    Annoyingly this is a *totally separate* code path than tuple query
+    parameters go through. This is because global tuples actually can
+    get passed as postgres composite types, since they are declared in
+    the schema.
+    """
+    cdef:
+        WriteBuffer buf
+        ssize_t cnt
+        ssize_t idx
+        ssize_t num
+        ssize_t tag
+        FRBuffer sub_buf
+
+    frb_slice_from(&sub_buf, in_buf, in_len)
+
+    cnt = <uint32_t>hton.unpack_int32(frb_read(&sub_buf, 4))
+    out_buf.write_int32(cnt)
+    num = len(el_tids)
+    if cnt != num:
+        raise errors.InputDataError(
+            f"tuple length mismatch: {cnt} vs {num}")
+    for idx in range(num):
+        frb_read(&sub_buf, 4)
+        el_btid = dbv.resolve_backend_type_id(el_tids[idx])
+        out_buf.write_int32(<int32_t>el_btid)
+
+        in_len = hton.unpack_int32(frb_read(&sub_buf, 4))
+        if in_len < 0:
+            raise errors.InputDataError("invalid NULL inside type")
+        out_buf.write_int32(in_len)
+        _recode_global(dbv, &sub_buf, out_buf, in_len, el_infos[idx])
+
+    if frb_get_len(&sub_buf):
+        raise errors.InputDataError('unexpected trailing data in buffer')
+
+
+cdef recode_array(
     dbv: dbview.DatabaseConnectionView,
     FRBuffer* in_buf,
     out_buf: WriteBuffer,
     in_len: ssize_t,
     array_tid: int32_t,
+    tuple_info: object,
 ):
     # For a standalone array, we still need to inject oids and reject
     # NULL elements.
     cdef:
-        WriteBuffer buf
         ssize_t cnt
         ssize_t idx
         ssize_t num
@@ -252,13 +352,16 @@ cdef WriteBuffer recode_array(
             if in_len < 0:
                 raise errors.InputDataError("invalid NULL inside type")
             out_buf.write_int32(in_len)
-            data = frb_read(&sub_buf, in_len)
-            out_buf.write_cstr(data, in_len)
+            if tuple_info is None:
+                data = frb_read(&sub_buf, in_len)
+                out_buf.write_cstr(data, in_len)
+            else:
+                _recode_global(dbv, &sub_buf, out_buf, in_len, tuple_info)
         if frb_get_len(&sub_buf):
             raise errors.InputDataError('unexpected trailing data in buffer')
 
 
-cdef WriteBuffer _decode_tuple_args_core(
+cdef _decode_tuple_args_core(
     FRBuffer* in_buf,
     out_bufs: tuple[WriteBuffer],
     counts: list[int],
@@ -291,14 +394,14 @@ cdef WriteBuffer _decode_tuple_args_core(
 
     frb_slice_from(&sub_buf, in_buf, in_len)
 
-    if tag == 0:  # scalar
+    if tag == SCALAR_TAG:
         buf.write_int32(in_len)
         data = frb_read(&sub_buf, in_len)
         buf.write_cstr(data, in_len)
         if in_array:
             counts[idx] += 1
 
-    elif tag == 1:  # tuple
+    elif tag == TUPLE_TAG:
         cnt = <uint32_t>hton.unpack_int32(frb_read(&sub_buf, 4))
         num = len(trans_typ) - 2
         if cnt != num:
@@ -310,7 +413,7 @@ cdef WriteBuffer _decode_tuple_args_core(
             _decode_tuple_args_core(
                 &sub_buf, out_bufs, counts, acounts, typ, in_array)
 
-    elif tag == 2:  # array
+    elif tag == ARRAY_TAG:
         val = hton.unpack_int32(frb_read(&sub_buf, 4)) # ndims
         if val != 1 and val != 0:
             raise errors.InputDataError("unsupported array dimensions")

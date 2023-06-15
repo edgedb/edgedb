@@ -433,7 +433,7 @@ class TestExpressions(tb.QueryTestCase):
                                     'interval field value out of range'):
             async with self.con.transaction():
                 await self.con.query_single(
-                    r'''SELECT <duration>'3074457345618258602us' ''',
+                    r'''SELECT <duration>'13074457345618258602us' ''',
                 )
 
     async def test_edgeql_expr_op_02(self):
@@ -1973,6 +1973,10 @@ class TestExpressions(tb.QueryTestCase):
             ):
                 async with self.con.transaction():
                     await self.con.query_single(query)
+
+    async def test_edgeql_expr_valid_arithmetic_12(self):
+        with self.assertRaises(edgedb.errors.InvalidValueError):
+            await self.con.query('SELECT (-4)^(-0.5);')
 
     async def test_edgeql_expr_valid_setop_01(self):
         # use every scalar with DISTINCT
@@ -6712,6 +6716,20 @@ aa \
             [edgedb.Range(0, 10)],
         )
 
+    async def test_edgeql_expr_range_39(self):
+        await self.assert_query_result(
+            r'''
+                select [range(1, 10)];
+            ''',
+            [
+                [
+                    {"lower": 1, "upper": 10,
+                     "inc_lower": True, "inc_upper": False},
+                ]
+            ],
+            json_only=True,
+        )
+
     async def test_edgeql_expr_cannot_assign_id_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot assign to id'):
@@ -7158,32 +7176,32 @@ aa \
     async def test_edgeql_expr_setop_14(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidTypeError,
-                r"^set constructor has arguments of incompatible "
-                r"types 'std::float64' and 'std::decimal'$"):
+                r"set constructor has arguments of incompatible "
+                r"types 'std::float64' and 'std::decimal'"):
             await self.con.execute(r'''
                 SELECT {1.0, <decimal>2.0};
             ''')
 
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidTypeError,
-                r"^set constructor has arguments of incompatible "
-                r"types 'std::float64' and 'std::decimal'$"):
+                r"set constructor has arguments of incompatible "
+                r"types 'std::float64' and 'std::decimal'"):
             await self.con.execute(r'''
                 SELECT {{1.0, 2.0}, {1.0, <decimal>2.0}};
             ''')
 
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidTypeError,
-                r"^set constructor has arguments of incompatible "
-                r"types 'std::float64' and 'std::decimal'$"):
+                r"set constructor has arguments of incompatible "
+                r"types 'std::float64' and 'std::decimal'"):
             await self.con.execute(r'''
                 SELECT {{1.0, <decimal>2.0}, {1.0, 2.0}};
             ''')
 
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidTypeError,
-                r"^set constructor has arguments of incompatible "
-                r"types 'std::decimal' and 'std::float64'$"):
+                r"set constructor has arguments of incompatible "
+                r"types 'std::decimal' and 'std::float64'"):
             await self.con.execute(r'''
                 SELECT {1.0, 2.0, 5.0, <decimal>2.0, 3.0, 4.0};
             ''')
@@ -7191,7 +7209,7 @@ aa \
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidTypeError,
                 r"operator 'UNION' cannot be applied to operands of type "
-                r"'std::int64' and 'std::str'$"):
+                r"'std::int64' and 'std::str'"):
             await self.con.execute(r'''
                 SELECT {1, 2, 3, 4 UNION 'a', 5, 6, 7};
             ''')
@@ -7199,7 +7217,7 @@ aa \
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidTypeError,
                 r"operator 'UNION' cannot be applied to operands of type "
-                r"'std::int64' and 'std::str'$"):
+                r"'std::int64' and 'std::str'"):
             await self.con.execute(r'''
                 SELECT {1, 2, 3, {{1, 4} UNION 'a'}, 5, 6, 7};
             ''')
@@ -7312,6 +7330,12 @@ aa \
             await self.con.execute('''\
                 SELECT Object.id[IS uuid];
             ''')
+
+    async def test_edgeql_expr_type_intersection_04(self):
+        await self.con.execute('''\
+            SELECT Named[IS Issue].id
+                ?? <uuid>'00000000-0000-0000-0000-000000000000';
+        ''')
 
     async def test_edgeql_expr_comparison_01(self):
         with self.assertRaisesRegex(

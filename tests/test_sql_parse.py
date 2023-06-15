@@ -622,52 +622,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         WHERE ((x = y) OR x = ANY ((SELECT * FROM table_two)))
         """
 
-    def test_sql_parse_query_00(self):
-        """
-        SELECT * FROM
-        (VALUES (1, 'one'), (2, 'two')) AS t(num, letter)
-        """
-
-    @test.xerror("unsupported")
-    def test_sql_parse_query_01(self):
-        """
-        SELECT * FROM my_table ORDER BY field ASC NULLS LAST USING @>
-        """
-
-    @test.xfail("unsupported")
-    def test_sql_parse_query_02(self):
-        """
-        SELECT m.* FROM mytable AS m FOR UPDATE
-        """
-
-    @test.xfail("unsupported")
-    def test_sql_parse_query_03(self):
-        """
-        SELECT m.* FROM mytable m FOR SHARE of m nowait
-        """
-
-    def test_sql_parse_query_04(self):
-        """
-        SELECT * FROM unnest(ARRAY['a', 'b', 'c', 'd', 'e', 'f'])
-        """
-
-    @test.xerror("unsupported")
-    def test_sql_parse_query_06(self):
-        """
-        SELECT ?
-        """
-
-    @test.xerror("unsupported")
-    def test_sql_parse_query_07(self):
-        """
-        SELECT * FROM x WHERE y = ?
-        """
-
-    def test_sql_parse_query_08(self):
-        """
-        SELECT * FROM x WHERE y = ANY ($1)
-        """
-
     def test_sql_parse_transaction_00(self):
         """
         BEGIN
@@ -827,6 +781,52 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL SERIALIZABLE
         """
 
+    def test_sql_parse_query_00(self):
+        """
+        SELECT * FROM
+        (VALUES (1, 'one'), (2, 'two')) AS t(num, letter)
+        """
+
+    @test.xerror("unsupported")
+    def test_sql_parse_query_01(self):
+        """
+        SELECT * FROM my_table ORDER BY field ASC NULLS LAST USING @>
+        """
+
+    @test.xfail("unsupported")
+    def test_sql_parse_query_02(self):
+        """
+        SELECT m.* FROM mytable AS m FOR UPDATE
+        """
+
+    @test.xfail("unsupported")
+    def test_sql_parse_query_03(self):
+        """
+        SELECT m.* FROM mytable m FOR SHARE of m nowait
+        """
+
+    def test_sql_parse_query_04(self):
+        """
+        SELECT * FROM unnest(ARRAY['a', 'b', 'c', 'd', 'e', 'f'])
+        """
+
+    @test.xerror("unsupported")
+    def test_sql_parse_query_06(self):
+        """
+        SELECT ?
+        """
+
+    @test.xerror("unsupported")
+    def test_sql_parse_query_07(self):
+        """
+        SELECT * FROM x WHERE y = ?
+        """
+
+    def test_sql_parse_query_08(self):
+        """
+        SELECT * FROM x WHERE y = ANY ($1)
+        """
+
     def test_sql_parse_query_09(self):
         """
         PREPARE fooplan (int, text, bool, numeric) AS (SELECT $1, $2, $3, $4)
@@ -863,6 +863,11 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_query_14(self):
         """
         VACUUM FULL my_table
+        """
+
+    def test_sql_parse_query_15(self):
+        """
+        SELECT (pg_column_size(ROW()))::text
         """
 
     @test.xerror("unsupported")
@@ -1182,4 +1187,46 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         SET transaction_read_only TO DEFAULT
 % OK %
         SET LOCAL transaction_read_only TO DEFAULT
+        """
+
+    def test_sql_parse_copy_01(self):
+        """
+        COPY "Movie" TO STDOUT (
+            FORMAT CSV,
+            FREEZE,
+            DELIMITER '|',
+            NULL 'this is a null',
+            HEADER FALSE,
+            QUOTE '''',
+            ESCAPE 'e',
+            FORCE_QUOTE (title, year_release),
+            FORCE_NOT_NULL (title),
+            FORCE_NULL (year_release),
+            ENCODING 'UTF-8'
+        )
+        """
+
+    def test_sql_parse_copy_02(self):
+        """
+        COPY ((SELECT * FROM "Movie")) TO STDOUT
+        """
+
+    def test_sql_parse_copy_03(self):
+        """
+        COPY "Movie" (title, release_year) FROM STDIN WHERE (id > 100)
+        """
+
+    def test_sql_parse_copy_04(self):
+        """
+        COPY country TO STDOUT (DELIMITER '|')
+        """
+
+    def test_sql_parse_copy_05(self):
+        """
+        COPY country FROM '/usr1/proj/bray/sql/country_data'
+        """
+
+    def test_sql_parse_copy_06(self):
+        """
+        COPY country TO PROGRAM 'gzip > /usr1/proj/bray/sql/country_data.gz'
         """

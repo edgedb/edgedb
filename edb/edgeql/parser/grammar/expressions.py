@@ -285,6 +285,11 @@ class SimpleInsert(Nonterm):
         unless_conflict = kids[2].val
 
         if isinstance(subj, qlast.Shape):
+            if not subj.expr:
+                raise errors.EdgeQLSyntaxError(
+                    "insert shape expressions must have a type name",
+                    context=subj.context
+                )
             subj_path = subj.expr
             shape = subj.elements
         else:
@@ -2002,6 +2007,11 @@ class Subtype(Nonterm):
 
     def reduce_BaseStringConstant(self, *kids):
         # TODO: Raise a DeprecationWarning once we have facility for that.
+        self.val = qlast.TypeExprLiteral(
+            val=kids[0].val,
+        )
+
+    def reduce_BaseNumberConstant(self, *kids):
         self.val = qlast.TypeExprLiteral(
             val=kids[0].val,
         )

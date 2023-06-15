@@ -35,7 +35,7 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
                           'cards_ir_inference.esdl')
 
     def run_test(self, *, source, spec, expected):
-        qltree = qlparser.parse(source)
+        qltree = qlparser.parse_query(source)
         ir = compiler.compile_ast_to_ir(
             qltree,
             self.schema,
@@ -1062,4 +1062,46 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         update X filter .name = 'Alice' set { }
 % OK %
         MANY
+        """
+
+    def test_edgeql_ir_card_inference_123(self):
+        """
+        select Card { req_awards }
+% OK %
+        req_awards: AT_LEAST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_124(self):
+        """
+        select Card { x := .req_awards }
+% OK %
+        x: AT_LEAST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_125(self):
+        """
+        select Card { required x := .req_awards }
+% OK %
+        x: AT_LEAST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_126(self):
+        """
+        select Card { req_tags }
+% OK %
+        req_tags: AT_LEAST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_127(self):
+        """
+        select Card { x := .req_tags }
+% OK %
+        x: AT_LEAST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_128(self):
+        """
+        select Card { required x := .req_tags }
+% OK %
+        x: AT_LEAST_ONE
         """

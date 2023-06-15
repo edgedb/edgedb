@@ -18,3 +18,4 @@
 
 
 CREATE MODULE std;
+CREATE MODULE ext;

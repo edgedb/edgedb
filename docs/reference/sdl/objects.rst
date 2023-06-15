@@ -14,6 +14,7 @@ Example
 Consider a ``User`` type with a few properties:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type User {
         # define some properties and a link
@@ -26,6 +27,19 @@ Consider a ``User`` type with a few properties:
         index on (__subject__.name);
     }
 
+.. code-block:: sdl
+
+    type User {
+        # define some properties and a link
+        required name: str;
+        address: str;
+
+        multi friends: User;
+
+        # define an index for User based on name
+        index on (__subject__.name);
+    }
+
 .. _ref_eql_sdl_object_types_inheritance:
 
 An alternative way to define the same ``User`` type could be by using
@@ -33,6 +47,7 @@ abstract types. These abstract types can then be re-used in other type
 definitions as well:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     abstract type Named {
         required property name -> str;
@@ -45,6 +60,24 @@ definitions as well:
     type User extending Named, HasAddress {
         # define some user-specific properties and a link
         multi link friends -> User;
+
+        # define an index for User based on name
+        index on (__subject__.name);
+    }
+
+.. code-block:: sdl
+
+    abstract type Named {
+        required name: str;
+    }
+
+    abstract type HasAddress {
+        address: str;
+    }
+
+    type User extending Named, HasAddress {
+        # define some user-specific properties and a link
+        multi friends: User;
 
         # define an index for User based on name
         index on (__subject__.name);
@@ -127,5 +160,6 @@ These sub-declarations are allowed in the ``Type`` block:
   * - **See also**
   * - :ref:`Schema > Object types <ref_datamodel_object_types>`
   * - :ref:`DDL > Object types <ref_eql_ddl_object_types>`
-  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`
+  * - :ref:`Introspection > Object types
+      <ref_datamodel_introspection_object_types>`
   * - :ref:`Cheatsheets > Object types <ref_cheatsheet_object_types>`

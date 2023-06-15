@@ -57,6 +57,7 @@ from edb.pgsql import common as pgcommon
 from edb.pgsql.common import quote_ident as pg_qi
 from edb.pgsql.common import quote_literal as pg_ql
 from edb.pgsql import params as pg_params
+from edb.pgsql.codegen import SQLSourceGeneratorTranslationData
 
 from edb.server.pgproto cimport hton
 from edb.server.pgproto cimport pgproto
@@ -103,17 +104,27 @@ cdef dict POSTGRES_SHUTDOWN_ERR_CODES = {
 }
 
 cdef bytes INIT_CON_SCRIPT = None
+cdef str INIT_CON_SCRIPT_DATA = ''
 cdef object EMPTY_SQL_STATE = b"{}"
 
 cdef object logger = logging.getLogger('edb.server')
 
-
+# The '_edgecon_state table' is used to store information about
+# the current session. The `type` column is one character, with one
+# of the following values:
+#
+# * 'C': a session-level config setting
+#
+# * 'B': a session-level config setting that's implemented by setting
+#   a corresponding Postgres config setting.
+# * 'A': an instance-level config setting from command-line arguments
+# * 'E': an instance-level config setting from environment variable
 SETUP_TEMP_TABLE_SCRIPT = '''
         CREATE TEMPORARY TABLE _edgecon_state (
             name text NOT NULL,
             value jsonb NOT NULL,
             type text NOT NULL CHECK(
-                type = 'C' OR type = 'B'),
+                type = 'C' OR type = 'B' OR type = 'A' OR type = 'E'),
             UNIQUE(name, type)
         );
 '''
@@ -132,21 +143,15 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
     else:
         pg_is_in_recovery = ''
 
-    # The '_edgecon_state table' is used to store information about
-    # the current session. The `type` column is one character, with one
-    # of the following values:
-    #
-    # * 'C': a session-level config setting
-    #
-    # * 'B': a session-level config setting that's implemented by setting
-    #   a corresponding Postgres config setting.
     return textwrap.dedent(f'''
         {pg_is_in_recovery}
 
         {SETUP_TEMP_TABLE_SCRIPT}
 
+        {INIT_CON_SCRIPT_DATA}
+
         PREPARE _clear_state AS
-            DELETE FROM _edgecon_state;
+            DELETE FROM _edgecon_state WHERE type = 'C' OR type = 'B';
 
         PREPARE _apply_state(jsonb) AS
             INSERT INTO
@@ -355,22 +360,29 @@ async def connect(
                 M="cannot use a hot standby",
                 C=pgerror.ERROR_READ_ONLY_SQL_TRANSACTION,
             ))
-        if INIT_CON_SCRIPT is None:
-            INIT_CON_SCRIPT = _build_init_con_script(
-                check_pg_is_in_recovery=False
-            )
-    else:
-        # On lower versions of Postgres we use pg_is_in_recovery() to check if
-        # it is a hot standby, and error out if it is.
-        if INIT_CON_SCRIPT is None:
-            INIT_CON_SCRIPT = _build_init_con_script(
-                check_pg_is_in_recovery=True
-            )
 
     if apply_init_script:
+        if INIT_CON_SCRIPT is None:
+            INIT_CON_SCRIPT = _build_init_con_script(
+                # On lower versions of Postgres we use pg_is_in_recovery() to
+                # check if it is a hot standby, and error out if it is.
+                check_pg_is_in_recovery=(
+                    'in_hot_standby' not in pgcon.parameter_status
+                ),
+            )
         await pgcon.sql_execute(INIT_CON_SCRIPT)
 
     return pgcon
+
+
+def set_init_con_script_data(cfg):
+    global INIT_CON_SCRIPT, INIT_CON_SCRIPT_DATA
+    INIT_CON_SCRIPT = None
+    INIT_CON_SCRIPT_DATA = (f'''
+        INSERT INTO _edgecon_state
+        SELECT * FROM jsonb_to_recordset({pg_ql(json.dumps(cfg))}::jsonb)
+        AS cfg(name text, value jsonb, type text);
+    ''').strip()
 
 
 class TLSUpgradeProto(asyncio.Protocol):
@@ -532,6 +544,9 @@ cdef class PGConnection:
         self.aborted_with_error = None
 
         self.last_state = dbview.DEFAULT_STATE
+
+    cpdef set_stmt_cache_size(self, int maxsize):
+        self.prep_stmts.resize(maxsize)
 
     @property
     def is_ssl(self):
@@ -915,6 +930,7 @@ cdef class PGConnection:
                 await self._parse_apply_state_resp(2 if state is None else 3)
             finally:
                 await self.wait_for_sync()
+            self.last_state = state
         else:
             await self._parse_apply_state_resp(2 if state is None else 3)
 
@@ -1039,7 +1055,11 @@ cdef class PGConnection:
 
         if state is not None:
             self._build_apply_state_req(state, out)
-            if query.tx_id or not query.is_transactional:
+            if (
+                query.tx_id or
+                not query.is_transactional or
+                query.append_rollback
+            ):
                 # This query has START TRANSACTION or non-transactional command
                 # like CREATE DATABASE in it.
                 # Restoring state must be performed in a separate
@@ -1048,6 +1068,36 @@ cdef class PGConnection:
                 # Hence - inject a SYNC after a state restore step.
                 state_sync = 1
                 self.write_sync(out)
+
+        if query.append_rollback:
+            if self.in_tx():
+                sp_name = f'_edb_{time.monotonic_ns()}'
+                sql = f'SAVEPOINT {sp_name}'.encode('utf-8')
+            else:
+                sp_name = None
+                sql = b'START TRANSACTION'
+
+            buf = WriteBuffer.new_message(b'P')
+            buf.write_bytestring(b'')
+            buf.write_bytestring(sql)
+            buf.write_int16(0)
+            out.write_buffer(buf.end_message())
+
+            buf = WriteBuffer.new_message(b'B')
+            buf.write_bytestring(b'')  # portal name
+            buf.write_bytestring(b'')  # statement name
+            buf.write_int16(0)  # number of format codes
+            buf.write_int16(0)  # number of parameters
+            buf.write_int16(0)  # number of result columns
+            out.write_buffer(buf.end_message())
+
+            buf = WriteBuffer.new_message(b'E')
+            buf.write_bytestring(b'')  # portal name
+            buf.write_int32(0)  # limit: 0 - return all rows
+            out.write_buffer(buf.end_message())
+
+            # Insert a SYNC as a boundary of the parsing logic later
+            self.write_sync(out)
 
         if use_prep_stmt:
             stmt_name = query.sql_hash
@@ -1111,6 +1161,31 @@ cdef class PGConnection:
             buf.write_int32(0)  # limit: 0 - return all rows
             out.write_buffer(buf.end_message())
 
+        if query.append_rollback:
+            if sp_name:
+                sql = f'ROLLBACK TO SAVEPOINT {sp_name}'.encode('utf-8')
+            else:
+                sql = b'ROLLBACK'
+
+            buf = WriteBuffer.new_message(b'P')
+            buf.write_bytestring(b'')
+            buf.write_bytestring(sql)
+            buf.write_int16(0)
+            out.write_buffer(buf.end_message())
+
+            buf = WriteBuffer.new_message(b'B')
+            buf.write_bytestring(b'')  # portal name
+            buf.write_bytestring(b'')  # statement name
+            buf.write_int16(0)  # number of format codes
+            buf.write_int16(0)  # number of parameters
+            buf.write_int16(0)  # number of result columns
+            out.write_buffer(buf.end_message())
+
+            buf = WriteBuffer.new_message(b'E')
+            buf.write_bytestring(b'')  # portal name
+            buf.write_int32(0)  # limit: 0 - return all rows
+            out.write_buffer(buf.end_message())
+
         self.write_sync(out)
         self.write(out)
 
@@ -1119,6 +1194,9 @@ cdef class PGConnection:
         try:
             if state is not None:
                 await self.wait_for_state_resp(state, state_sync)
+
+            if query.append_rollback:
+                await self.wait_for_sync()
 
             buf = None
             while True:
@@ -1348,6 +1426,7 @@ cdef class PGConnection:
         out = WriteBuffer.new()
 
         if state is not None:
+            # Only used in legacy protocol binary_v0
             self._build_apply_state_req(state, out)
             # We must use SYNC and not FLUSH here, as otherwise
             # scripts that contain `SET TRANSACTION ISOLATION LEVEL` would
@@ -1368,6 +1447,8 @@ cdef class PGConnection:
         if state is not None:
             await self._parse_apply_state_resp(3)
             await self.wait_for_sync()
+            if not self.in_tx():
+                self.last_state = state
 
         while True:
             if not self.buffer.take_message():
@@ -1590,14 +1671,17 @@ cdef class PGConnection:
                         while True:
                             field_type = self.buffer.read_byte()
                             if field_type == b'P':  # Position
-                                msg_buf.write_byte(b'q')  # Internal query
-                                msg_buf.write_bytestring(query)
-                                msg_buf.write_byte(b'p')  # Internal position
+                                self._write_error_position(
+                                    msg_buf,
+                                    query,
+                                    self.buffer.read_null_str(),
+                                    unit.translation_data
+                                )
                             else:
                                 msg_buf.write_byte(field_type)
                                 if field_type == b'\0':
                                     break
-                            msg_buf.write_bytestring(self.buffer.read_null_str())
+                                msg_buf.write_bytestring(self.buffer.read_null_str())
                         self.buffer.finish_message()
                         buf.write_buffer(msg_buf.end_message())
                         dbv.on_error()
@@ -1978,6 +2062,26 @@ cdef class PGConnection:
             fe_conn.write(buf)
         return rv
 
+    def _write_error_position(
+        self,
+        msg_buf: WriteBuffer,
+        query: bytes,
+        pos_bytes: bytes,
+        translation_data: Optional[SQLSourceGeneratorTranslationData]
+    ):
+        if translation_data:
+            pos = int(pos_bytes.decode('utf8'))
+            pos = translation_data.translate(pos)
+            # pg uses 1-based indexes
+            pos += 1
+            pos_bytes = str(pos).encode('utf8')
+            msg_buf.write_byte(b'P') # Position
+        else:
+            msg_buf.write_byte(b'q')  # Internal query
+            msg_buf.write_bytestring(query)
+            msg_buf.write_byte(b'p')  # Internal position
+        msg_buf.write_bytestring(pos_bytes)
+
     cdef _rewrite_sql_error_response(self, PGMessage action, WriteBuffer buf):
         cdef WriteBuffer msg_buf
 
@@ -1986,12 +2090,15 @@ cdef class PGConnection:
             while True:
                 field_type = self.buffer.read_byte()
                 if field_type == b'P':  # Position
-                    # Internal query
-                    msg_buf.write_byte(b'q')
-                    # Compiled SQL
-                    msg_buf.write_bytestring(action.args[0])
-                    # Internal position
-                    msg_buf.write_byte(b'p')
+                    qu = (action.query_unit.translation_data
+                          if action.query_unit else None)
+                    self._write_error_position(
+                        msg_buf,
+                        action.args[0],
+                        self.buffer.read_null_str(),
+                        qu
+                    )
+                    continue
                 else:
                     msg_buf.write_byte(field_type)
                     if field_type == b'\0':
@@ -2024,6 +2131,15 @@ cdef class PGConnection:
                     msg_buf.write_byte(field_type)
                     msg_buf.write_bytestring(
                         message.encode('utf-8')
+                    )
+                elif field_type == b'P':
+                    qu = (action.query_unit.translation_data
+                          if action.query_unit else None)
+                    self._write_error_position(
+                        msg_buf,
+                        action.args[0],
+                        self.buffer.read_null_str(),
+                        qu
                     )
                 else:
                     msg_buf.write_byte(field_type)

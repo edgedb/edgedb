@@ -418,9 +418,12 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             raise errors.AuthenticationError(
                 'authentication failed: no authorization data provided')
 
-        for prefix in ["nbwt_", "edbt_"]:
+        token_version = 0
+        for prefix in ["nbwt1_", "nbwt_", "edbt1_", "edbt_"]:
             encoded_token = prefixed_token.removeprefix(prefix)
             if encoded_token != prefixed_token:
+                if prefix == "nbwt1_" or prefix == "edbt1_":
+                    token_version = 1
                 break
         else:
             raise errors.AuthenticationError(
@@ -449,8 +452,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 f'authentication failed: cannot decode JWT'
             ) from None
 
-        namespace = "edgedb.server"
-
         try:
             claims = json.loads(token.claims)
         except Exception as e:
@@ -458,17 +459,62 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 f'authentication failed: malformed claims section in JWT'
             ) from None
 
-        if not claims.get(f"{namespace}.any_role"):
-            token_roles = claims.get(f"{namespace}.roles")
-            if not isinstance(token_roles, list):
-                raise errors.AuthenticationError(
-                    f'authentication failed: malformed claims section in JWT'
-                    f' expected mapping in "role_names"'
-                )
+        self._check_jwt_authz(claims, token_version, user)
 
-            if user not in token_roles:
+    def _check_jwt_authz(self, claims, token_version, user):
+        # Check general key validity (e.g. whether it's a revoked key)
+        self.server.check_jwt(claims)
+
+        token_instances = None
+        token_roles = None
+        token_databases = None
+
+        if token_version == 1:
+            token_roles = self._get_jwt_edb_scope(claims, "edb.r")
+            token_instances = self._get_jwt_edb_scope(claims, "edb.i")
+            token_databases = self._get_jwt_edb_scope(claims, "edb.d")
+        else:
+            namespace = "edgedb.server"
+            if not claims.get(f"{namespace}.any_role"):
+                token_roles = claims.get(f"{namespace}.roles")
+                if not isinstance(token_roles, list):
+                    raise errors.AuthenticationError(
+                        f'authentication failed: malformed claims section in'
+                        f' JWT: expected a list in "{namespace}.roles"'
+                    )
+
+        if (
+            token_instances is not None
+            and self.server.get_instance_name() not in token_instances
+        ):
+            raise errors.AuthenticationError(
+                'authentication failed: secret key does not authorize '
+                f'access to this instance')
+
+        if (
+            token_databases is not None
+            and self.dbname not in token_databases
+        ):
+            raise errors.AuthenticationError(
+                'authentication failed: secret key does not authorize '
+                f'access to database "{self.dbname}"')
+
+        if token_roles is not None and user not in token_roles:
+            raise errors.AuthenticationError(
+                'authentication failed: secret key does not authorize '
+                f'access in role "{user}"')
+
+    def _get_jwt_edb_scope(self, claims, claim):
+        if not claims.get(f"{claim}.all"):
+            scope = claims.get(claim, [])
+            if not isinstance(scope, list):
                 raise errors.AuthenticationError(
-                    'authentication failed: role not authorized by this JWT')
+                    f'authentication failed: malformed claims section in'
+                    f' JWT: expected a list in "{claim}"'
+                )
+            return frozenset(scope)
+        else:
+            return None
 
     cdef WriteBuffer _make_authentication_sasl_initial(self, list methods):
         cdef WriteBuffer msg_buf
@@ -721,8 +767,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             else:
                 assert query_unit.tx_rollback
                 _dbview.abort_tx()
-            if not _dbview.in_tx():
-                conn.last_state = _dbview.serialize_state()
         finally:
             self.maybe_release_pgcon(conn)
 
@@ -751,7 +795,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.maybe_release_pgcon(conn)
 
         query_unit = compiled.query_unit_group[0]
-        if query_unit.system_config:
+        if query_unit.config_requires_restart:
             self.write_log(
                 EdgeSeverity.EDGE_SEVERITY_NOTICE,
                 errors.LogMessage.get_code(),
@@ -898,11 +942,12 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         # `cacheable` flag to compile the query again.
         self._last_anon_compiled = None
 
-        if query_unit_group.capabilities & ~query_req.allow_capabilities:
-            raise query_unit_group.capabilities.make_error(
-                query_req.allow_capabilities,
-                errors.DisabledCapabilityError,
-            )
+        _dbview.check_capabilities(
+            query_unit_group.capabilities,
+            query_req.allow_capabilities,
+            errors.DisabledCapabilityError,
+            "disabled by the client",
+        )
 
         if query_unit_group.in_type_id != in_tid:
             self.write(self.make_command_data_description_msg(compiled))
@@ -1304,8 +1349,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     -- Disable transaction or query execution timeout
                     -- limits. Both clients and the server can be slow
                     -- during the dump/restore process.
-                    SET idle_in_transaction_session_timeout = 0;
-                    SET statement_timeout = 0;
+                    SET LOCAL idle_in_transaction_session_timeout = 0;
+                    SET LOCAL statement_timeout = 0;
                 ''',
             )
 
@@ -1537,8 +1582,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     -- Disable transaction or query execution timeout
                     -- limits. Both clients and the server can be slow
                     -- during the dump/restore process.
-                    SET idle_in_transaction_session_timeout = 0;
-                    SET statement_timeout = 0;
+                    SET LOCAL idle_in_transaction_session_timeout = 0;
+                    SET LOCAL statement_timeout = 0;
                 ''',
             )
 
@@ -1666,6 +1711,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self._in_dump_restore = False
             server.release_pgcon(dbname, pgcon)
 
+        execute.signal_side_effects(_dbview, dbview.SideEffects.SchemaChanges)
         await server.introspect_db(dbname)
 
         if _dbview.is_state_desc_changed():

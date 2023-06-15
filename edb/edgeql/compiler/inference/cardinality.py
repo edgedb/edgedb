@@ -434,9 +434,10 @@ def _infer_pointer_cardinality(
         required, card = ptr_card.to_schema_value()
         env.schema = ptrcls.set_field_value(env.schema, 'cardinality', card)
         env.schema = ptrcls.set_field_value(env.schema, 'required', required)
-        _update_cardinality_in_derived(ptrcls, env=ctx.env)
+        if ctx.make_updates:
+            _update_cardinality_in_derived(ptrcls, env=ctx.env)
 
-    if ptrref:
+    if ptrref and ctx.make_updates:
         out_card, in_card = typeutils.cardinality_from_ptrcls(
             env.schema, ptrcls)
         assert in_card is not None
@@ -554,7 +555,7 @@ def _infer_set_inner(
     if ir.expr:
         expr_card = infer_cardinality(ir.expr, scope_tree=new_scope, ctx=ctx)
 
-    if rptr is not None:
+    if rptr is not None and not rptr.is_phony:
         rptrref = rptr.ptrref
 
         assert ir is not rptr.source, "self-referential pointer"
@@ -565,7 +566,6 @@ def _infer_set_inner(
         ctx.env.schema, ptrcls = typeutils.ptrcls_from_ptrref(
             rptrref, schema=ctx.env.schema)
         if ir.expr:
-            assert isinstance(ir.expr, irast.Stmt)
             assert isinstance(ptrcls, s_pointers.Pointer)
             _infer_pointer_cardinality(
                 ptrcls=ptrcls,
@@ -577,7 +577,7 @@ def _infer_set_inner(
 
     # We have now inferred all of the subtrees we need to, so it is
     # safe to return.
-    if rptr is not None:
+    if rptr is not None and not rptr.is_phony:
         if isinstance(rptrref, irast.TypeIntersectionPointerRef):
             ind_prefix, ind_ptrs = irutils.collapse_type_intersection(ir)
             if ind_prefix.rptr is None:
@@ -640,10 +640,7 @@ def _infer_set_inner(
             else:
                 rptrref_card = rptrref.dir_cardinality(rptr.direction)
 
-            if rptrref_card.is_single():
-                card = cartesian_cardinality((source_card, rptrref_card))
-            else:
-                card = MANY
+            card = cartesian_cardinality((source_card, rptrref_card))
 
     elif isinstance(ir, irast.EmptySet):
         card = AT_MOST_ONE
@@ -694,11 +691,12 @@ def __infer_func_call(
         arg_cards = []
 
         for arg, typemod in zip(ir.args, ir.params_typemods):
-            arg.cardinality = infer_cardinality(
-                arg.expr, scope_tree=scope_tree, ctx=ctx)
-
+            card = infer_cardinality(arg.expr, scope_tree=scope_tree, ctx=ctx)
             if typemod is not qltypes.TypeModifier.OptionalType:
-                arg_cards.append(arg.cardinality)
+                arg_cards.append(card)
+
+            if ctx.make_updates:
+                arg.cardinality = card
 
         arg_card = zip(*(_card_to_bounds(card) for card in arg_cards))
         arg_lower, arg_upper = arg_card
@@ -729,16 +727,17 @@ def __infer_func_call(
         all_singletons = True
 
         for arg, typemod in zip(ir.args, ir.params_typemods):
-            arg.cardinality = infer_cardinality(
-                arg.expr, scope_tree=scope_tree, ctx=ctx)
+            card = infer_cardinality(arg.expr, scope_tree=scope_tree, ctx=ctx)
             if typemod is not qltypes.TypeModifier.SetOfType:
                 non_aggregate_args.append(arg.expr)
-                non_aggregate_arg_cards.append(arg.cardinality)
+                non_aggregate_arg_cards.append(card)
             if typemod is qltypes.TypeModifier.SingletonType:
                 singleton_args.append(arg.expr)
-                singleton_arg_cards.append(arg.cardinality)
+                singleton_arg_cards.append(card)
             else:
                 all_singletons = False
+            if ctx.make_updates:
+                arg.cardinality = card
 
         if non_aggregate_args:
             _check_op_volatility(
@@ -765,9 +764,10 @@ def __infer_oper_call(
 ) -> qltypes.Cardinality:
     cards = []
     for arg in ir.args:
-        arg.cardinality = infer_cardinality(
-            arg.expr, scope_tree=scope_tree, ctx=ctx)
-        cards.append(arg.cardinality)
+        card = infer_cardinality(arg.expr, scope_tree=scope_tree, ctx=ctx)
+        cards.append(card)
+        if ctx.make_updates:
+            arg.cardinality = card
 
     if str(ir.func_shortname) == 'std::UNION':
         # UNION needs to "add up" cardinalities.
@@ -903,6 +903,12 @@ def _is_ptr_or_self_ref(
                     and not rptr.ptrref.is_computable
                     and _is_ptr_or_self_ref(rptr.source, result_expr, env)
                 )
+                or (
+                    ir_set.rptr is None
+                    and irutils.is_implicit_wrapper(ir_set.expr)
+                    and _is_ptr_or_self_ref(
+                        ir_set.expr.result, result_expr, env)
+                )
             )
         )
 
@@ -921,8 +927,7 @@ def extract_filters(
     expr = filter_set.expr
     if isinstance(expr, irast.OperatorCall):
         if str(expr.func_shortname) == 'std::=':
-            left, right = (a.expr for a in expr.args)
-
+            left, right = [a.expr for a in expr.args]
             op_card = _common_cardinality(
                 [left, right], scope_tree=scope_tree, ctx=ctx
             )
@@ -949,6 +954,8 @@ def extract_filters(
                         _ptr = left_stype.getptr(schema, sn.UnqualName('id'))
                         ptrs.append(_ptr)
                     else:
+                        if left.rptr is None:
+                            left = irutils.unwrap_set(left)
                         while left.path_id != result_set.path_id:
                             assert left.rptr is not None
                             _ptr = env.schema.get(left.rptr.ptrref.name,
@@ -960,7 +967,7 @@ def extract_filters(
                     return [(ptrs, right)]
 
         elif str(expr.func_shortname) == 'std::AND':
-            left, right = (a.expr for a in expr.args)
+            left, right = (irutils.unwrap_set(a.expr) for a in expr.args)
 
             left_filters = extract_filters(
                 result_set, left, scope_tree, ctx
@@ -1104,6 +1111,8 @@ def _infer_matset_cardinality(
 ) -> None:
     if not materialized_sets:
         return
+    if not ctx.make_updates:
+        return
 
     for mat_set in materialized_sets.values():
         if (len(mat_set.uses) <= 1
@@ -1125,6 +1134,8 @@ def _infer_dml_check_cardinality(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> None:
+    if not ctx.make_updates:
+        return
     pctx = ctx._replace(singletons=ctx.singletons | {ir.result.path_id})
     for read_pol in ir.read_policies.values():
         read_pol.cardinality = infer_cardinality(
@@ -1143,6 +1154,16 @@ def _infer_dml_check_cardinality(
                 on_conflict, type_has_rewrites=False,
                 scope_tree=scope_tree, ctx=ctx,
             )
+
+    if ir.rewrites:
+        for rewrites in ir.rewrites.by_type.values():
+            for rewrite, _ in rewrites.values():
+                infer_cardinality(
+                    rewrite,
+                    is_mutation=True,
+                    scope_tree=scope_tree,
+                    ctx=ctx,
+                )
 
 
 def _infer_stmt_cardinality(

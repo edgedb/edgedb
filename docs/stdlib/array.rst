@@ -129,10 +129,18 @@ Reference
     Array types may also appear in schema declarations:
 
     .. code-block:: sdl
+        :version-lt: 3.0
 
         type Person {
             property str_array -> array<str>;
             property json_array -> array<json>;
+        }
+
+    .. code-block:: sdl
+
+        type Person {
+            str_array: array<str>;
+            json_array: array<json>;
         }
 
     See also the list of standard :ref:`array functions <ref_std_array>`, as
@@ -289,11 +297,16 @@ Reference
     .. note::
 
         The ordering of the returned set is not guaranteed.
+        However, if it is wrapped in a call to :eql:func:`enumerate`,
+        the assigned indexes are guaranteed to match the array.
 
     .. code-block:: edgeql-repl
 
         db> select array_unpack([2, 3, 5]);
         {3, 2, 5}
+
+        db> select enumerate(array_unpack([2, 3, 5]));
+        {(1, 3), (0, 2), (2, 5)}
 
 
 ----------
@@ -322,7 +335,7 @@ Reference
 
     Returns an array of the specified size, filled with the provided value.
 
-    Create anarray of size *n* where every element has the value *val*.
+    Create an array of size *n* where every element has the value *val*.
 
     .. code-block:: edgeql-repl
 

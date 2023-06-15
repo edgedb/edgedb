@@ -25,6 +25,7 @@ from typing import *
 import asyncio
 import atexit
 import contextlib
+import dataclasses
 import functools
 import heapq
 import http
@@ -51,8 +52,10 @@ import edgedb
 from edb.edgeql import quote as qlquote
 from edb.server import args as edgedb_args
 from edb.server import cluster as edgedb_cluster
+from edb.server import pgcluster
 from edb.server import defines as edgedb_defines
 from edb.server import main as edgedb_main
+from edb.server import pgconnparams
 
 from edb.common import assert_data_shape
 from edb.common import devmode
@@ -67,6 +70,7 @@ from edb.testbase import connection as tconn
 
 
 if TYPE_CHECKING:
+    import asyncpg
     DatabaseName = str
     SetupScript = str
 
@@ -659,17 +663,24 @@ class ClusterTestCase(BaseHTTPTestCase):
         return _fetch_metrics(host, port)
 
     @classmethod
-    def get_connect_args(cls, *,
-                         cluster=None,
-                         database=edgedb_defines.EDGEDB_SUPERUSER_DB,
-                         user=edgedb_defines.EDGEDB_SUPERUSER,
-                         password='test'):
+    def get_connect_args(
+        cls,
+        *,
+        cluster=None,
+        database=edgedb_defines.EDGEDB_SUPERUSER_DB,
+        user=edgedb_defines.EDGEDB_SUPERUSER,
+        password=None,
+        secret_key=None,
+    ):
+        if password is None and secret_key is None:
+            password = "test"
         if cluster is None:
             cluster = cls.cluster
         conargs = cluster.get_connect_args().copy()
         conargs.update(dict(user=user,
                             password=password,
-                            database=database))
+                            database=database,
+                            secret_key=secret_key))
         return conargs
 
     @classmethod
@@ -803,13 +814,22 @@ class RollbackChanges:
 class ConnectedTestCaseMixin:
 
     @classmethod
-    async def connect(cls, *,
-                      cluster=None,
-                      database=edgedb_defines.EDGEDB_SUPERUSER_DB,
-                      user=edgedb_defines.EDGEDB_SUPERUSER,
-                      password='test'):
+    async def connect(
+        cls,
+        *,
+        cluster=None,
+        database=edgedb_defines.EDGEDB_SUPERUSER_DB,
+        user=edgedb_defines.EDGEDB_SUPERUSER,
+        password=None,
+        secret_key=None,
+    ):
         conargs = cls.get_connect_args(
-            cluster=cluster, database=database, user=user, password=password)
+            cluster=cluster,
+            database=database,
+            user=user,
+            password=password,
+            secret_key=secret_key,
+        )
         return await tconn.async_connect_test_client(**conargs)
 
     def repl(self):
@@ -833,6 +853,8 @@ class ConnectedTestCaseMixin:
         env['EDGEDB_PORT'] = str(conargs['port'])
         if password := conargs.get('password'):
             env['EDGEDB_PASSWORD'] = password
+        if secret_key := conargs.get('secret_key'):
+            env['EDGEDB_SECRET_KEY'] = secret_key
 
         proc = subprocess.Popen(
             cmd, stdin=sys.stdin, stdout=sys.stdout, env=env)
@@ -981,6 +1003,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     TEARDOWN: Optional[str] = None
     SCHEMA: Optional[Union[str, pathlib.Path]] = None
     DEFAULT_MODULE: str = 'default'
+    EXTENSIONS: List[str] = []
 
     BASE_TEST_CLASS = True
 
@@ -1059,11 +1082,15 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             if script:
                 cls.loop.run_until_complete(cls.con.execute(script))
 
+    @staticmethod
+    def get_set_up():
+        return os.environ.get('EDGEDB_TEST_CASES_SET_UP', 'run')
+
     @classmethod
     def tearDownClass(cls):
         script = ''
 
-        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP', 'run')
+        class_set_up = cls.get_set_up()
 
         if cls.TEARDOWN and class_set_up != 'skip':
             script = cls.TEARDOWN.strip()
@@ -1124,12 +1151,15 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         if cls.INTERNAL_TESTMODE:
             script += '\nCONFIGURE SESSION SET __internal_testmode := true;'
 
+        schema = []
+        # Incude the extensions before adding schemas.
+        for ext in cls.EXTENSIONS:
+            schema.append(f'using extension {ext};')
+
         # Look at all SCHEMA entries and potentially create multiple
         # modules, but always create the test module, if not `default`.
         if cls.DEFAULT_MODULE != 'default':
-            schema = [f'\nmodule {cls.DEFAULT_MODULE} {{}}']
-        else:
-            schema = []
+            schema.append(f'\nmodule {cls.DEFAULT_MODULE} {{}}')
         for name in dir(cls):
             m = re.match(r'^SCHEMA(?:_(\w+))?', name)
             if m:
@@ -1226,6 +1256,7 @@ class QueryTestCase(BaseQueryTestCase):
 
 
 class SQLQueryTestCase(BaseQueryTestCase):
+
     BASE_TEST_CLASS = True
 
     @classmethod
@@ -1379,13 +1410,21 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
     ISOLATED_METHODS = False
     STABLE_DUMP = True
     TRANSACTION_ISOLATION = False
+    PARALLELISM_GRANULARITY = 'suite'
 
     async def check_dump_restore_single_db(self, check_method):
         with tempfile.NamedTemporaryFile() as f:
             dbname = edgedb_defines.EDGEDB_SUPERUSER_DB
-            self.run_cli('-d', dbname, 'dump', f.name)
+            await asyncio.to_thread(self.run_cli, '-d', dbname, 'dump', f.name)
             await self.tearDownSingleDB()
-            self.run_cli('-d', dbname, 'restore', f.name)
+            await asyncio.to_thread(
+                self.run_cli, '-d', dbname, 'restore', f.name
+            )
+
+        # Cycle the connection to avoid state mismatches
+        await self.con.aclose()
+        self.con = await self.connect(database=dbname)
+
         await check_method(self)
 
     async def check_dump_restore(self, check_method):
@@ -1396,11 +1435,15 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
         tgt_dbname = f'{src_dbname}_restored'
         q_tgt_dbname = qlquote.quote_ident(tgt_dbname)
         with tempfile.NamedTemporaryFile() as f:
-            self.run_cli('-d', src_dbname, 'dump', f.name)
+            await asyncio.to_thread(
+                self.run_cli, '-d', src_dbname, 'dump', f.name
+            )
 
             await self.con.execute(f'CREATE DATABASE {q_tgt_dbname}')
             try:
-                self.run_cli('-d', tgt_dbname, 'restore', f.name)
+                await asyncio.to_thread(
+                    self.run_cli, '-d', tgt_dbname, 'restore', f.name
+                )
                 con2 = await self.connect(database=tgt_dbname)
             except Exception:
                 await drop_db(self.con, q_tgt_dbname)
@@ -1414,6 +1457,238 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
             self.__class__.con = oldcon
             await con2.aclose()
             await drop_db(self.con, q_tgt_dbname)
+
+
+class StablePGDumpTestCase(BaseQueryTestCase):
+
+    BASE_TEST_CLASS = True
+    ISOLATED_METHODS = False
+    STABLE_DUMP = True
+    TRANSACTION_ISOLATION = False
+
+    def run_pg_dump(self, *args, input: Optional[str] = None) -> None:
+        conargs = self.get_connect_args()
+        self.run_pg_dump_on_connection(conargs, *args, input=input)
+
+    @classmethod
+    def run_pg_dump_on_connection(
+        cls, conargs: Dict[str, Any], *args, input: Optional[str] = None
+    ) -> None:
+        dsn = (
+            f"postgres://{conargs['user']}:{conargs['password']}@"
+            f"{conargs['host']}:{conargs['port']}/{cls.con.dbname}?"
+            f"sslrootcert={conargs['tls_ca_file']}"
+        )
+        cmd = [cls._pg_bin_dir / 'pg_dump', '--dbname', dsn]
+        cmd += args
+        try:
+            subprocess.run(
+                cmd,
+                input=input.encode() if input else None,
+                check=True,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as e:
+            output = '\n'.join(getattr(out, 'decode', out.__str__)()
+                               for out in [e.output, e.stderr] if out)
+            raise AssertionError(
+                f'command {cmd} returned non-zero exit status {e.returncode}'
+                f'\n{output}'
+            ) from e
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            import asyncpg
+        except ImportError:
+            raise unittest.SkipTest('SQL tests skipped: asyncpg not installed')
+
+        if cls.get_set_up() == 'inplace':
+            raise unittest.SkipTest('SQL dump tests skipped in single db mode')
+
+        super().setUpClass()
+        conargs = cls.get_connect_args()
+        src_dbname = cls.con.dbname
+        tgt_dbname = f'restored_{src_dbname}'
+
+        cls._pg_bin_dir = cls.loop.run_until_complete(
+            pgcluster.get_pg_bin_dir())
+
+        # Get the connection to the Postgres backend
+        settings = cls.con.get_settings()
+        pgaddr = settings.get('pgaddr')
+        if pgaddr is None:
+            raise unittest.SkipTest('SQL tests skipped: not in devmode')
+        pgaddr = json.loads(pgaddr)
+
+        # Try to grab a password from the specified DSN, if one is
+        # present, since the pgaddr won't have a real one. (The non
+        # specified DSN test suite setup doesn't have one, so it is
+        # fine.)
+        password = None
+        spec_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
+        if spec_dsn:
+            _, params = pgconnparams.parse_dsn(spec_dsn)
+            password = params.password
+
+        pgparams = (
+            f'?user={pgaddr["user"]}'
+            f'&port={pgaddr["port"]}&host={pgaddr["host"]}'
+        )
+        if password is not None:
+            pgparams += f'&password={password}'
+
+        cls.backend = cls.loop.run_until_complete(
+            asyncpg.connect(f'postgres:///{pgaddr["database"]}' + pgparams))
+
+        # Run pg_dump to create the dump data for an existing EdgeDB database.
+        with tempfile.NamedTemporaryFile() as f:
+            cls.run_pg_dump_on_connection(conargs, '-f', f.name)
+            # Create a new Postgres database to be used for dump tests.
+            db_exists = cls.loop.run_until_complete(
+                cls.backend.fetch(f'''
+                    SELECT oid
+                    FROM pg_database
+                    WHERE datname = {tgt_dbname!r}
+                ''')
+            )
+            if list(db_exists):
+                cls.loop.run_until_complete(
+                    cls.backend.execute(f'drop database {tgt_dbname}')
+                )
+            cls.loop.run_until_complete(
+                cls.backend.execute(f'create database {tgt_dbname}')
+            )
+
+            newdsn = f'postgres:///{tgt_dbname}' + pgparams
+            # Populate the new database using the dump
+            cmd = [
+                cls._pg_bin_dir / 'psql',
+                '-a',
+                '--dbname', newdsn,
+                '-f', f.name,
+                '-v', 'ON_ERROR_STOP=on',
+            ]
+            try:
+                subprocess.run(
+                    cmd,
+                    input=None,
+                    check=True,
+                    capture_output=True,
+                )
+            except subprocess.CalledProcessError as e:
+                output = '\n'.join(getattr(out, 'decode', out.__str__)()
+                                   for out in [e.output, e.stderr] if out)
+                raise AssertionError(
+                    f'command {cmd} returned non-zero exit status '
+                    f'{e.returncode}\n{output}'
+                ) from e
+
+        # Connect to the newly created database.
+        cls.scon = cls.loop.run_until_complete(
+            asyncpg.connect(f'postgres:///{tgt_dbname}' + pgparams))
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            cls.loop.run_until_complete(cls.scon.close())
+            # Give event loop another iteration so that connection
+            # transport has a chance to properly close.
+            cls.loop.run_until_complete(asyncio.sleep(0))
+            cls.scon = None
+
+            tgt_dbname = f'restored_{cls.con.dbname}'
+            cls.loop.run_until_complete(
+                cls.backend.execute(f'drop database {tgt_dbname}')
+            )
+            cls.loop.run_until_complete(cls.backend.close())
+            cls.loop.run_until_complete(asyncio.sleep(0))
+        finally:
+            super().tearDownClass()
+
+    def assert_shape(
+        self,
+        sqlres: Iterable[Any],
+        eqlres: Iterable[asyncpg.Record],
+    ) -> None:
+        """
+        Compare the shape of results produced by a SQL query and an EdgeQL
+        query.
+        """
+
+        assert_data_shape.assert_data_shape(
+            list(sqlres),
+            [dataclasses.asdict(r) for r in eqlres],
+            self.fail,
+            from_sql=True,
+        )
+
+    def multi_prop_subquery(self, source: str, prop: str) -> str:
+        "Propduce a subquery fetching a multi prop as an array."
+
+        return (
+            f'(SELECT array_agg(target) FROM "{source}.{prop}"'
+            f' WHERE source = "{source}".id) AS {prop}'
+        )
+
+    def single_link_subquery(
+        self,
+        source: str,
+        link: str,
+        target: str,
+        link_props: Optional[Iterable[str]] = None
+    ) -> str:
+        """Propduce a subquery fetching a single link as a record.
+
+        If no link properties are specified then the array of records will be
+        made up of target types.
+
+        If the link properties are specified then the array of records will be
+        made up of link records.
+        """
+
+        if link_props:
+            return (
+                f'(SELECT x FROM "{target}"'
+                f' JOIN "{source}.{link}" x ON x.target = "{target}".id'
+                f' WHERE x.source = "{source}".id) AS _{link}'
+            )
+
+        else:
+            return (
+                f'(SELECT "{target}" FROM "{target}"'
+                f' WHERE "{target}".id = "{source}".{link}_id) AS {link}'
+            )
+
+    def multi_link_subquery(
+        self,
+        source: str,
+        link: str,
+        target: str,
+        link_props: Optional[Iterable[str]] = None
+    ) -> str:
+        """Propduce a subquery fetching a multi link as an array or records.
+
+        If no link properties are specified then the array of records will be
+        made up of target types.
+
+        If the link properties are specified then the array of records will be
+        made up of link records.
+        """
+
+        if link_props:
+            return (
+                f'(SELECT array_agg(x) FROM "{target}"'
+                f' JOIN "{source}.{link}" x ON x.target = "{target}".id'
+                f' WHERE x.source = "{source}".id) AS _{link}'
+            )
+
+        else:
+            return (
+                f'(SELECT array_agg("{target}") FROM "{target}"'
+                f' JOIN "{source}.{link}" x ON x.target = "{target}".id'
+                f' WHERE x.source = "{source}".id) AS {link}'
+            )
 
 
 def get_test_cases_setup(
@@ -1623,7 +1898,11 @@ class _EdgeDBServer:
         tls_key_file: Optional[os.PathLike] = None,
         tls_cert_mode: edgedb_args.ServerTlsCertMode = (
             edgedb_args.ServerTlsCertMode.SelfSigned),
+        jws_key_file: Optional[os.PathLike] = None,
+        jwt_sub_allowlist_file: Optional[os.PathLike] = None,
+        jwt_revocation_list_file: Optional[os.PathLike] = None,
         env: Optional[Dict[str, str]] = None,
+        extra_args: Optional[List[str]] = None,
     ) -> None:
         self.bind_addrs = bind_addrs
         self.auto_shutdown_after = auto_shutdown_after
@@ -1650,7 +1929,11 @@ class _EdgeDBServer:
         self.tls_cert_file = tls_cert_file
         self.tls_key_file = tls_key_file
         self.tls_cert_mode = tls_cert_mode
+        self.jws_key_file = jws_key_file
+        self.jwt_sub_allowlist_file = jwt_sub_allowlist_file
+        self.jwt_revocation_list_file = jwt_revocation_list_file
         self.env = env
+        self.extra_args = extra_args
 
     async def wait_for_server_readiness(self, stream: asyncio.StreamReader):
         while True:
@@ -1797,8 +2080,21 @@ class _EdgeDBServer:
         if self.tls_key_file:
             cmd += ['--tls-key-file', self.tls_key_file]
 
-        if self.readiness_state_file is not None:
+        if self.readiness_state_file:
             cmd += ['--readiness-state-file', self.readiness_state_file]
+
+        if self.jws_key_file:
+            cmd += ['--jws-key-file', self.jws_key_file]
+
+        if self.jwt_sub_allowlist_file:
+            cmd += ['--jwt-sub-allowlist-file', self.jwt_sub_allowlist_file]
+
+        if self.jwt_revocation_list_file:
+            cmd += ['--jwt-revocation-list-file',
+                    self.jwt_revocation_list_file]
+
+        if self.extra_args:
+            cmd.extend(self.extra_args)
 
         if self.debug:
             print(
@@ -1920,7 +2216,11 @@ def start_edgedb_server(
     tls_key_file: Optional[os.PathLike] = None,
     tls_cert_mode: edgedb_args.ServerTlsCertMode = (
         edgedb_args.ServerTlsCertMode.SelfSigned),
+    jws_key_file: Optional[os.PathLike] = None,
+    jwt_sub_allowlist_file: Optional[os.PathLike] = None,
+    jwt_revocation_list_file: Optional[os.PathLike] = None,
     env: Optional[Dict[str, str]] = None,
+    extra_args: Optional[List[str]] = None,
 ):
     if not devmode.is_in_dev_mode() and not runstate_dir:
         if backend_dsn or adjacent_to:
@@ -1966,7 +2266,11 @@ def start_edgedb_server(
         tls_cert_file=tls_cert_file,
         tls_key_file=tls_key_file,
         tls_cert_mode=tls_cert_mode,
+        jws_key_file=jws_key_file,
+        jwt_sub_allowlist_file=jwt_sub_allowlist_file,
+        jwt_revocation_list_file=jwt_revocation_list_file,
         env=env,
+        extra_args=extra_args,
     )
 
 
@@ -2109,7 +2413,20 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
     return cases
 
 
-def find_available_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("localhost", 0))
-        return sock.getsockname()[1]
+def find_available_port(max_value=None) -> int:
+    if max_value is None:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("localhost", 0))
+            return sock.getsockname()[1]
+    elif max_value > 1024:
+        port = max_value
+        while port > 1024:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.bind(("localhost", port))
+                    return port
+            except IOError:
+                port -= 1
+        raise RuntimeError("cannot find an available port")
+    else:
+        raise ValueError("max_value must be greater than 1024")

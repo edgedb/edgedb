@@ -30,11 +30,13 @@ from edb.ir import ast as irast
 from edb.ir import utils as irutils
 from edb.ir import typeutils as irtyputils
 
+from edb.schema import constraints as s_constr
 from edb.schema import modules as s_mod
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
+from edb.schema import rewrites as s_rewrites
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
@@ -86,11 +88,24 @@ def init_context(
         # references as singletons for the purposes of the overall
         # expression cardinality inference, so we set up the scope
         # tree in the necessary fashion.
-        for singleton in options.singletons:
+        had_optional = False
+        for singleton_ent in options.singletons:
+            singleton, optional = (
+                singleton_ent if isinstance(singleton_ent, tuple)
+                else (singleton_ent, False)
+            )
+            had_optional |= optional
             path_id = compile_anchor('__', singleton, ctx=ctx).path_id
-            ctx.env.path_scope.attach_path(path_id, context=None)
-            ctx.env.singletons.append(path_id)
+            ctx.env.path_scope.attach_path(
+                path_id, optional=optional, context=None)
+            if not optional:
+                ctx.env.singletons.append(path_id)
             ctx.iterator_path_ids |= {path_id}
+
+        # If we installed any optional singletons, run the rest of the
+        # compilation under a fence to protect them.
+        if had_optional:
+            ctx.path_scope = ctx.path_scope.attach_fence()
 
     for orig, remapped in options.type_remaps.items():
         rset = compile_anchor('__', remapped, ctx=ctx)
@@ -115,6 +130,12 @@ def init_context(
     if options.detached:
         ctx.path_id_namespace = frozenset({ctx.aliases.get('ns')})
 
+    if options.schema_object_context is s_rewrites.Rewrite:
+        assert ctx.partial_path_prefix
+        typ = setgen.get_set_type(ctx.partial_path_prefix, ctx=ctx)
+        assert isinstance(typ, s_objtypes.ObjectType)
+        ctx.active_rewrites |= {typ, *typ.descendants(ctx.env.schema)}
+
     ctx.derived_target_module = options.derived_target_module
     ctx.toplevel_result_view_name = options.result_view_name
     ctx.implicit_id_in_shapes = options.implicit_id_in_shapes
@@ -132,6 +153,8 @@ def fini_expression(
     ctx: context.ContextLevel,
 ) -> irast.Command:
 
+    ctx.path_scope = ctx.env.path_scope
+
     ir = eta_expand.eta_expand_ir(ir, toplevel=True, ctx=ctx)
 
     if (
@@ -141,7 +164,7 @@ def fini_expression(
         ir = setgen.scoped_set(ir, ctx=ctx)
 
     # Compile any triggers that were triggered by the query
-    ir_triggers = triggers.compile_triggers(ctx.env.dml_stmts, ctx=ctx)
+    ir_triggers = triggers.compile_triggers(ctx=ctx)
 
     # Collect all of the expressions stored in various side sets
     # that can make it into the output, so that we can make sure
@@ -157,7 +180,7 @@ def fini_expression(
         p.sub_params.decoder_ir for p in ctx.env.query_parameters.values()
         if p.sub_params and p.sub_params.decoder_ir
     ]
-    extra_exprs += [trigger.expr for trigger in ir_triggers]
+    extra_exprs += [trigger.expr for stage in ir_triggers for trigger in stage]
 
     all_exprs = [ir] + extra_exprs
 
@@ -481,6 +504,21 @@ def _fixup_schema_view(
                 )
 
 
+def _get_nearest_non_source_derived_parent(
+    obj: s_obj.DerivableInheritingObjectT,
+    ctx: context.ContextLevel
+) -> s_obj.DerivableInheritingObjectT:
+    """Find the nearest ancestor of obj whose "root source" is not derived"""
+    schema = ctx.env.schema
+    while (
+        (src := s_pointers.get_root_source(obj, schema))
+        and isinstance(src, s_obj.DerivableInheritingObject)
+        and src.get_is_derived(schema)
+    ):
+        obj = obj.get_bases(schema).first(schema)
+    return obj
+
+
 def _elide_derived_ancestors(
     obj: Union[s_types.InheritingType, s_pointers.Pointer], *,
     ctx: context.ContextLevel
@@ -493,12 +531,12 @@ def _elide_derived_ancestors(
     """
 
     pbase = obj.get_bases(ctx.env.schema).first(ctx.env.schema)
-    if pbase.get_is_derived(ctx.env.schema):
-        pbase = pbase.get_nearest_non_derived_parent(ctx.env.schema)
+    new_pbase = _get_nearest_non_source_derived_parent(pbase, ctx)
+    if pbase != new_pbase:
         ctx.env.schema = obj.set_field_value(
             ctx.env.schema,
             'bases',
-            s_obj.ObjectList.create(ctx.env.schema, [pbase]),
+            s_obj.ObjectList.create(ctx.env.schema, [new_pbase]),
         )
 
         ctx.env.schema = obj.set_field_value(
@@ -578,18 +616,6 @@ def compile_anchor(
             anchor,
             s_pointers.PointerDirection.Outbound,
             ctx=ctx)
-
-    elif isinstance(anchor, qlast.SubExpr):
-        with ctx.new() as subctx:
-            if anchor.anchors:
-                subctx.anchors = {}
-                populate_anchors(anchor.anchors, ctx=subctx)
-
-            step = compile_anchor(name, anchor.expr, ctx=subctx)
-            if name in anchor.anchors:
-                show_as_anchor = False
-                step.anchor = None
-                step.show_as_anchor = None
 
     elif isinstance(anchor, qlast.Base):
         step = dispatch.compile(anchor, ctx=ctx)
@@ -678,7 +704,7 @@ def declare_view(
 
         subctx.toplevel_result_view_name = view_name
 
-        view_set = dispatch.compile(astutils.ensure_qlstmt(expr), ctx=subctx)
+        view_set = dispatch.compile(astutils.ensure_ql_query(expr), ctx=subctx)
         assert isinstance(view_set, irast.Set)
 
         ctx.env.path_scope_map[view_set] = context.ScopeInfo(
@@ -766,6 +792,24 @@ def check_params(params: Dict[str, irast.Param]) -> None:
                 f'{"s" if len(missing_args) > 1 else ""}')
 
 
+def throw_on_loose_param(
+    param: qlast.Parameter,
+    ctx: context.ContextLevel
+) -> None:
+    if ctx.env.options.func_params is not None:
+        if ctx.env.options.schema_object_context is s_constr.Constraint:
+            raise errors.InvalidConstraintDefinitionError(
+                f'dollar-prefixed "$parameters" cannot be used here',
+                context=param.context)
+        else:
+            raise errors.InvalidFunctionDefinitionError(
+                f'dollar-prefixed "$parameters" cannot be used here',
+                context=param.context)
+    raise errors.QueryError(
+        f'missing a type cast before the parameter',
+        context=param.context)
+
+
 def preprocess_script(
     stmts: List[qlast.Base],
     *,
@@ -776,10 +820,19 @@ def preprocess_script(
     Doing this in advance makes it easy to check that they have
     consistent types.
     """
-    casts = [
-        cast
+    param_lists = [
+        astutils.find_parameters(stmt, ctx.modaliases)
         for stmt in stmts
-        for cast in astutils.find_parameters(stmt, ctx.modaliases)
+    ]
+
+    if loose_params := [
+        loose for _, loose_list in param_lists
+        for loose in loose_list
+    ]:
+        throw_on_loose_param(loose_params[0], ctx)
+
+    casts = [
+        cast for cast_lists, _ in param_lists for cast in cast_lists
     ]
     params = {}
     for cast, modaliases in casts:

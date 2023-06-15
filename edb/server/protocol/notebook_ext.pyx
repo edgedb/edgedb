@@ -188,11 +188,12 @@ async def execute(db, server, queries: list):
                 query_unit_group = dbstate.QueryUnitGroup()
                 query_unit_group.append(query_unit)
 
-                if query_unit.capabilities & ~ALLOWED_CAPABILITIES:
-                    raise query_unit.capabilities.make_error(
-                        ALLOWED_CAPABILITIES,
-                        errors.UnsupportedCapabilityError,
-                    )
+                dbv.check_capabilities(
+                    query_unit.capabilities,
+                    ALLOWED_CAPABILITIES,
+                    errors.UnsupportedCapabilityError,
+                    "disallowed in notebook",
+                )
                 try:
                     if query_unit.in_type_args:
                         raise errors.QueryError(

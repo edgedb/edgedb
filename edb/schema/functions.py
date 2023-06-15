@@ -353,6 +353,7 @@ def make_func_param(
 
 class Parameter(
     so.ObjectFragment,
+    so.Object,  # Help reflection figure out the right db MRO
     ParameterLike,
     qlkind=ft.SchemaObjectClass.PARAMETER,
     data_safe=True,
@@ -773,6 +774,15 @@ class CallableObject(
     impl_is_strict = so.SchemaField(
         bool, default=True, compcoef=0.4)
 
+    # Kind of a hack: indicates that when possible we should pass arguments
+    # to this function as a subquery-as-an-expression. This is important for
+    # functions that see use in ORDER BY clauses that need indexes.
+    # The compilation strategy this asks for /should/ work in general,
+    # but I didn't want to make a major codegen change in an rc3.
+    # We should consider doing this a different way.
+    prefer_subquery_args = so.SchemaField(
+        bool, default=False, compcoef=0.9)
+
     def as_create_delta(
         self: CallableObjectT,
         schema: s_schema.Schema,
@@ -943,7 +953,7 @@ class ParametrizedCommand(sd.ObjectCommand[so.Object_T]):
             # Some Callables, like the concrete constraints,
             # have no params in their AST.
             return []
-        assert isinstance(astnode, qlast.CallableObjectCommand)
+        assert isinstance(astnode, qlast.CallableObjectCommandTuple)
         return cls._get_param_desc_from_params_ast(
             schema, modaliases, astnode.params, param_offset=param_offset)
 
@@ -1078,13 +1088,13 @@ class CreateCallableObject(
         if hasattr(astnode, 'returning'):
             assert isinstance(astnode, (qlast.CreateOperator,
                                         qlast.CreateFunction))
-            assert isinstance(astnode.returning, qlast.TypeName)
             modaliases = context.modaliases
 
             return_type = utils.ast_to_type_shell(
                 astnode.returning,
                 metaclass=s_types.Type,
                 modaliases=modaliases,
+                module=cmd.classname.module,
                 schema=schema,
             )
 
@@ -1145,7 +1155,7 @@ class CreateCallableObject(
     ) -> None:
         super()._apply_fields_ast(schema, context, node)
         params = self._get_params_ast(schema, context, node)
-        if isinstance(node, qlast.CallableObjectCommand):
+        if isinstance(node, qlast.CallableObjectCommandTuple):
             node.params = [p[1] for p in params]
 
 
@@ -1198,6 +1208,7 @@ class Function(
     code = so.SchemaField(
         str, default=None, compcoef=0.4)
 
+    # Function body, when language is EdgeQL
     nativecode = so.SchemaField(
         s_expr.Expression, default=None, compcoef=0.9,
         reflection_name='body')
@@ -1665,7 +1676,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
             if (
                 self.has_attribute_value("code")
                 or self.has_attribute_value("nativecode")
-            ):
+            ) and not self.has_attribute_value('impl_is_strict'):
                 self.set_attribute_value(
                     'impl_is_strict',
                     _params_are_all_required_singletons(cp, schema),
@@ -1922,7 +1933,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     nativecode_expr = astnode.nativecode
                 else:
                     assert astnode.code.code is not None
-                    nativecode_expr = qlparser.parse(astnode.code.code)
+                    nativecode_expr = qlparser.parse_query(astnode.code.code)
 
                 nativecode = s_expr.Expression.from_ast(
                     nativecode_expr,
@@ -2137,7 +2148,7 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
                 astnode.code.language is qlast.Language.EdgeQL
                 and astnode.code.code is not None
             ):
-                nativecode_expr = qlparser.parse(astnode.code.code)
+                nativecode_expr = qlparser.parse_query(astnode.code.code)
             else:
                 cmd.set_attribute_value(
                     'code',
@@ -2235,7 +2246,7 @@ class DeleteFunction(DeleteCallableObject[Function], FunctionCommand):
 
         params.sort(key=lambda e: e[0])
 
-        assert isinstance(node, qlast.CallableObjectCommand)
+        assert isinstance(node, qlast.CallableObjectCommandTuple)
         node.params = [p[1] for p in params]
 
 

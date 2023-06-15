@@ -27,7 +27,7 @@ import functools
 T = TypeVar('T')
 
 
-def downcast(x: Any, typ: Type[T]) -> T:
+def downcast(typ: Type[T], x: Any) -> T:
     assert isinstance(x, typ)
     return x
 

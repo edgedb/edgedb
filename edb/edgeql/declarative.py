@@ -70,6 +70,7 @@ class TraceContextBase:
     depstack: List[Tuple[qlast.DDLOperation, s_name.QualName]]
     modaliases: Dict[Optional[str], str]
     objects: Dict[s_name.QualName, Optional[qltracer.ObjectLike]]
+    pointers: Dict[s_name.UnqualName, Set[s_name.QualName]]
     parents: Dict[s_name.QualName, Set[s_name.QualName]]
     ancestors: Dict[s_name.QualName, Set[s_name.QualName]]
     defdeps: Dict[s_name.QualName, Set[s_name.QualName]]
@@ -86,6 +87,7 @@ class TraceContextBase:
         self.depstack = []
         self.modaliases = {}
         self.objects = {}
+        self.pointers = {}
         self.parents = {}
         self.ancestors = {}
         self.defdeps = defaultdict(set)
@@ -199,6 +201,33 @@ class TraceContextBase:
         return name, fq_name
 
 
+def ensure_pointer_kind(
+    node: qlast.CreateConcretePointer,
+    ctx: DepTraceContext | LayoutTraceContext,
+) -> qlast.CreateConcretePointer:
+
+    # If the link/property specifier was left off the SDL, fill it
+    # in here.
+    if isinstance(node, qlast.CreateConcreteUnknownPointer):
+        # I /think/ the parser shouldn't let through anything that
+        # violates this but...
+        if not isinstance(node.target, qlast.TypeExpr):
+            raise errors.SchemaError(
+                "declarations without link/property specify must have "
+                "an explicitly specified target type",
+                context=node.context,
+            )
+
+        typ = _resolve_type_expr(node.target, ctx=ctx)
+        cls = (
+            qlast.CreateConcreteLink
+            if typ.is_object_type() else qlast.CreateConcreteProperty
+        )
+        node = node.replace(__class__=cls)
+
+    return node
+
+
 def get_verbosename_from_fqname(
     fq_name: s_name.QualName,
     ctx: DepTraceContext,
@@ -291,6 +320,7 @@ class DepTraceContext(TraceContextBase):
         schema: s_schema.Schema,
         ddlgraph: DDLGraph,
         objects: Dict[s_name.QualName, Optional[qltracer.ObjectLike]],
+        pointers: Dict[s_name.UnqualName, Set[s_name.QualName]],
         parents: Dict[s_name.QualName, Set[s_name.QualName]],
         ancestors: Dict[s_name.QualName, Set[s_name.QualName]],
         defdeps: Dict[s_name.QualName, Set[s_name.QualName]],
@@ -300,6 +330,7 @@ class DepTraceContext(TraceContextBase):
         super().__init__(schema, local_modules)
         self.ddlgraph = ddlgraph
         self.objects = objects
+        self.pointers = pointers
         self.parents = parents
         self.ancestors = ancestors
         self.defdeps = defdeps
@@ -403,7 +434,7 @@ def sdl_to_ddl(
     )
 
     tracectx = DepTraceContext(
-        schema, ddlgraph, ctx.objects, ctx.parents, ctx.ancestors,
+        schema, ddlgraph, ctx.objects, ctx.pointers, ctx.parents, ctx.ancestors,
         ctx.defdeps, ctx.constraints, ctx.local_modules,
     )
 
@@ -421,11 +452,22 @@ def sdl_to_ddl(
         for decl_ast in declarations:
             trace_dependencies(decl_ast, ctx=tracectx)
 
-    # Before sorting normalize all ordering, to make sure that errors
-    # are consistent.
     for ddlentry in ddlgraph.values():
-        ddlentry.deps = OrderedSet(sorted(ddlentry.deps))
-        ddlentry.weak_deps = OrderedSet(sorted(ddlentry.weak_deps))
+        # Filter out deps that are in the schema but not in ctx.objects.
+        # Deps that are in neither get left in, so that we catch the bug.
+        deps = {
+            x for x in ddlentry.deps
+            if x in ctx.objects or not schema.get(x, default=None)
+        }
+        weak_deps = {
+            x for x in ddlentry.weak_deps
+            if x in ctx.objects or not schema.get(x, default=None)
+        }
+
+        # Before sorting normalize all ordering, to make sure that errors
+        # are consistent.
+        ddlentry.deps = OrderedSet(sorted(deps))
+        ddlentry.weak_deps = OrderedSet(sorted(weak_deps))
 
     try:
         ordered = topological.sort(ddlgraph, allow_unresolved=False)
@@ -567,7 +609,7 @@ def _trace_item_layout(
 
     assert fq_name is not None
 
-    if isinstance(node, qlast.BasesMixin):
+    if isinstance(node, qlast.BasedOnTuple):
         bases = []
         # construct the parents set, used later in ancestors graph
         parents = set()
@@ -612,6 +654,16 @@ def _trace_item_layout(
     for decl in node.commands:
         if isinstance(decl, qlast.CreateConcretePointer):
             assert isinstance(obj, qltracer.Source)
+
+            # do not allow link property on properties
+            if isinstance(node, qlast.CreateConcreteProperty):
+                raise errors.InvalidDefinitionError(
+                    f'cannot create a link property on a property',
+                    context=decl.context,
+                    hint='Link properties can only be created on links, whose '
+                         'target types are object types.',
+                )
+
             target: Optional[qltracer.TypeLike]
             target_expr: Optional[qlast.Expr]
             if isinstance(decl.target, qlast.TypeExpr):
@@ -620,6 +672,8 @@ def _trace_item_layout(
             else:
                 target = None
                 target_expr = decl.target
+
+            decl = ensure_pointer_kind(decl, ctx=ctx)
 
             pn = s_utils.ast_ref_to_unqualname(decl.name)
 
@@ -641,6 +695,7 @@ def _trace_item_layout(
             )
             ctx.objects[ptr_name] = ptr
             ctx.defdeps[fq_name].add(ptr_name)
+            ctx.pointers.setdefault(pn, set()).add(ptr_name)
 
             _trace_item_layout(
                 decl, obj=ptr, fq_name=ptr_name, ctx=ctx)
@@ -744,21 +799,27 @@ def trace_SetField(
     ctx: DepTraceContext,
 ) -> None:
     deps = set()
+    exprs = []
 
     assert node.value, "sdl SetField should always have value"
-    for dep in qltracer.trace_refs(
-        node.value,
-        schema=ctx.schema,
-        module=ctx.module,
-        objects=ctx.objects,
-        local_modules=ctx.local_modules,
-        params={},
-    ):
-        # ignore std module dependencies
-        if dep.get_module_name() not in s_schema.STD_MODULES:
-            deps.add(dep)
+    if node.name == 'default':
+        assert isinstance(node.value, qlast.Expr)
+        exprs.append(ExprDependency(expr=node.value))
+    else:
+        for dep in qltracer.trace_refs(
+            node.value,
+            schema=ctx.schema,
+            module=ctx.module,
+            objects=ctx.objects,
+            pointers=ctx.pointers,
+            local_modules=ctx.local_modules,
+            params={},
+        )[0]:
+            # ignore std module dependencies
+            if dep.get_module_name() not in s_schema.STD_MODULES:
+                deps.add(dep)
 
-    _register_item(node, deps=deps, ctx=ctx)
+    _register_item(node, deps=deps, hard_dep_exprs=exprs, ctx=ctx)
 
 
 @trace_dependencies.register
@@ -894,17 +955,6 @@ def trace_ConcretePointer(
     deps: List[Dependency] = []
     if isinstance(node.target, qlast.TypeExpr):
         deps.append(TypeDependency(texpr=node.target))
-
-        # If the link/property specifier was left off the SDL, fill it
-        # in here.
-        if isinstance(node, qlast.CreateConcreteUnknownPointer):
-            typ = _resolve_type_expr(node.target, ctx=ctx)
-            cls = (
-                qlast.CreateConcreteLink
-                if typ.is_object_type() else qlast.CreateConcreteProperty
-            )
-            node = node.replace(__class__=cls)
-
     elif isinstance(node.target, qlast.Expr):
         deps.append(ExprDependency(expr=node.target))
     elif node.target is None:
@@ -913,6 +963,7 @@ def trace_ConcretePointer(
         raise AssertionError(
             f'unexpected CreateConcretePointer.target: {node.target!r}')
 
+    node = ensure_pointer_kind(node, ctx=ctx)
     _register_item(
         node,
         hard_dep_exprs=deps,
@@ -984,7 +1035,7 @@ def trace_Function(
         and node.code.code
     ):
         # Need to parse the actual code string and use that as the dependency.
-        fcode = qlparser.parse(node.code.code)
+        fcode = qlparser.parse_query(node.code.code)
         assert isinstance(fcode, qlast.Expr)
         deps.append(FunctionDependency(expr=fcode, params=params))
 
@@ -1037,6 +1088,8 @@ def _register_item(
     else:
         deps = set()
 
+    weak_deps: Set[s_name.QualName] = set()
+
     op = orig_op = copy.copy(decl)
 
     if ctx.depstack:
@@ -1053,7 +1106,7 @@ def _register_item(
         parent.commands.append(op)
         op = top_parent
     else:
-        assert isinstance(op, qlast.Command)
+        assert isinstance(op, (qlast.Query, qlast.Command))
         op.aliases = [qlast.ModuleAliasDecl(alias=None, module=ctx.module)]
 
     assert isinstance(op, qlast.DDLCommand)
@@ -1141,7 +1194,12 @@ def _register_item(
         anchors = dict(anchors or {})
         if source:
             anchors['__source__'] = source
-        if subject or fq_name:
+        if subject or (
+            fq_name
+            and not (
+                isinstance(decl, qlast.SetField) and decl.name == 'default'
+            )
+        ):
             anchors['__subject__'] = subject or fq_name
 
         for expr in hard_dep_exprs:
@@ -1154,66 +1212,73 @@ def _register_item(
                 else:
                     params = {}
 
-                tdeps = qltracer.trace_refs(
+                strong_tdeps, weak_tdeps = qltracer.trace_refs(
                     qlexpr,
                     schema=ctx.schema,
                     module=ctx.module,
                     path_prefix=source,
                     anchors=anchors,
                     objects=ctx.objects,
+                    pointers=ctx.pointers,
                     local_modules=ctx.local_modules,
                     params=params,
                 )
 
-                pdeps: MutableSet[s_name.QualName] = set()
-                for dep in tdeps:
-                    # ignore std module dependencies
-                    if dep.get_module_name() not in s_schema.STD_MODULES:
-                        # First check if the dep is a pointer that's
-                        # defined explicitly. If it's not explicitly
-                        # defined, check for ancestors and use them
-                        # instead.
-                        #
-                        # FIXME: Ideally we should use the closest
-                        # ancestor, instead of all of them, but
-                        # including all is still correct.
-                        if '@' in dep.name:
-                            pdeps |= _get_pointer_deps(dep, ctx=ctx)
-                        else:
-                            pdeps.add(dep)
+                for tdeps, strong in (
+                    (strong_tdeps, True), (weak_tdeps, False)
+                ):
+                    pdeps: MutableSet[s_name.QualName] = set()
+                    for dep in tdeps:
+                        # ignore std module dependencies
+                        if dep.get_module_name() not in s_schema.STD_MODULES:
+                            # First check if the dep is a pointer that's
+                            # defined explicitly. If it's not explicitly
+                            # defined, check for ancestors and use them
+                            # instead.
+                            #
+                            # FIXME: Ideally we should use the closest
+                            # ancestor, instead of all of them, but
+                            # including all is still correct.
+                            if '@' in dep.name:
+                                pdeps |= _get_pointer_deps(dep, ctx=ctx)
+                            else:
+                                pdeps.add(dep)
 
-                # Handle the pre-processed deps now.
-                for dep in pdeps:
-                    deps.add(dep)
+                    # Handle the pre-processed deps now.
+                    cdeps = deps if strong else weak_deps
+                    for dep in pdeps:
+                        cdeps.add(dep)
 
-                    if isinstance(
-                            decl, (qlast.CreateAlias, qlast.CreateGlobal)):
-                        # If the declaration is a view, we need to be
-                        # dependent on all the types and their props
-                        # used in the view.
-                        vdeps = {dep} | ctx.ancestors.get(dep, set())
-                        for vdep in vdeps:
-                            deps |= ctx.defdeps.get(vdep, set())
+                        if isinstance(
+                                decl, (qlast.CreateAlias, qlast.CreateGlobal)):
+                            # If the declaration is a view, we need to be
+                            # dependent on all the types and their props
+                            # used in the view.
+                            vdeps = {dep} | ctx.ancestors.get(dep, set())
+                            for vdep in vdeps:
+                                cdeps |= ctx.defdeps.get(vdep, set())
 
-                    if (
-                        isinstance(decl, (
-                            qlast.CreateConcretePointer, qlast.CreateGlobal))
-                        and isinstance(decl.target, qlast.Expr)
-                    ) or isinstance(
-                        decl, (qlast.CreateAccessPolicy, qlast.CreateTrigger)
-                    ):
-                        # If the declaration is a computable pointer/global
-                        # or access policy (XXX: trigger?),
-                        # we need to include the
-                        # possible constraints for every dependency
-                        # that it lists. This is so that any other
-                        # links/props that this computable uses has
-                        # all of their constraints defined before the
-                        # computable and the cardinality can be
-                        # inferred correctly.
-                        cdeps = {dep} | ctx.ancestors.get(dep, set())
-                        for cdep in cdeps:
-                            deps |= ctx.constraints.get(cdep, set())
+                        if (
+                            isinstance(decl, (
+                                qlast.CreateConcretePointer,
+                                qlast.CreateGlobal))
+                            and isinstance(decl.target, qlast.Expr)
+                        ) or isinstance(
+                            decl, (
+                                qlast.CreateAccessPolicy, qlast.CreateTrigger)
+                        ):
+                            # If the declaration is a computable pointer/global
+                            # or access policy (XXX: trigger?),
+                            # we need to include the
+                            # possible constraints for every dependency
+                            # that it lists. This is so that any other
+                            # links/props that this computable uses has
+                            # all of their constraints defined before the
+                            # computable and the cardinality can be
+                            # inferred correctly.
+                            con_deps = {dep} | ctx.ancestors.get(dep, set())
+                            for con_dep in con_deps:
+                                cdeps |= ctx.constraints.get(con_dep, set())
             else:
                 raise AssertionError(f'unexpected dependency type: {expr!r}')
 
@@ -1224,6 +1289,7 @@ def _register_item(
         parent_node.loop_control.add(fq_name)
 
     node.deps |= deps
+    node.weak_deps |= weak_deps - {fq_name}
 
 
 def _get_pointer_deps(
@@ -1258,6 +1324,10 @@ def _get_pointer_deps(
     # as their prefix. As a rule, the assumption is that depending on
     # a link typically comes as a package of depending on the link's
     # property.
+    # This will *also* grab any constraints on the pointer, which
+    # is is important for properly doing cardinality inference
+    # on expressions involving it.
+    # PERF: We should avoid actually searching all the objects.
     for propname in ctx.objects:
         if str(propname).startswith(str(pointer) + '@'):
             result.add(propname)
@@ -1307,7 +1377,7 @@ def _get_bases(
     ctx: LayoutTraceContext
 ) -> List[s_name.QualName]:
     """Resolve object bases from the "extends" declaration."""
-    if not isinstance(decl, qlast.BasesMixin):
+    if not isinstance(decl, qlast.BasedOnTuple):
         return []
 
     bases = []

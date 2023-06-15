@@ -33,10 +33,21 @@ Declare a *concrete* constraint on an integer type:
 Declare a *concrete* constraint on an object type:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type Vector {
         required property x -> float64;
         required property y -> float64;
+        constraint expression on (
+            __subject__.x^2 + __subject__.y^2 < 25
+        );
+    }
+
+.. code-block:: sdl
+
+    type Vector {
+        required x: float64;
+        required y: float64;
         constraint expression on (
             __subject__.x^2 + __subject__.y^2 < 25
         );
@@ -139,6 +150,10 @@ The valid SDL sub-declarations are listed below:
       scalar type, property or link on which the constraint is
       defined.
 
+    If the content of curly braces does not match any variables,
+    the curly braces are emitted as-is. They can also be escaped by 
+    using double curly braces.
+
 :sdl:synopsis:`<annotation-declarations>`
     Set constraint :ref:`annotation <ref_eql_sdl_annotations>`
     to a given *value*.
@@ -150,7 +165,8 @@ The valid SDL sub-declarations are listed below:
   * - **See also**
   * - :ref:`Schema > Constraints <ref_datamodel_constraints>`
   * - :ref:`DDL > Constraints <ref_eql_ddl_constraints>`
-  * - :ref:`Introspection > Constraints <ref_eql_introspection_constraints>`
+  * - :ref:`Introspection > Constraints
+      <ref_datamodel_introspection_constraints>`
   * - :ref:`Standard Library > Constraints <ref_std_constraints>`
   * - `Tutorial > Advanced EdgeQL > Constraints
       </tutorial/advanced-edgeql/constraints>`_

@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import *
 
+import dataclasses
 import enum
 import json
 import logging
@@ -39,6 +40,7 @@ from edb.edgeql import ast as qlast
 
 from edb.common import debug
 from edb.common import devmode
+from edb.common import retryloop
 from edb.common import uuidgen
 
 from edb.schema import ddl as s_ddl
@@ -83,10 +85,116 @@ class ClusterMode(enum.IntEnum):
     single_database = 3
 
 
-class BootstrapContext(NamedTuple):
+_T = TypeVar("_T")
+
+
+# A simple connection proxy that reconnects and retries queries
+# on connection errors.  Helps defeat flaky connections and/or
+# flaky Postgres servers (Digital Ocean managed instances are
+# one example that has a weird setup that crashes a helper
+# process when we bootstrap, breaking other connections).
+class PGConnectionProxy:
+    def __init__(
+        self,
+        cluster: pgcluster.BaseCluster,
+        dbname: Optional[str] = None,
+        log_listener: Optional[Callable[[str, str], None]] = None,
+    ):
+        self._conn: Optional[pgcon.PGConnection] = None
+        self._cluster = cluster
+        self._dbname = dbname
+        self._log_listener = log_listener or _pg_log_listener
+
+    async def connect(self) -> None:
+        if self._conn is not None:
+            self._conn.terminate()
+
+        if self._dbname:
+            self._conn = await self._cluster.connect(database=self._dbname)
+        else:
+            self._conn = await self._cluster.connect()
+
+        if self._log_listener is not None:
+            self._conn.add_log_listener(self._log_listener)
+
+    def _on_retry(self, exc: Optional[BaseException]) -> None:
+        logger.warning(
+            f'Retrying bootstrap SQL query due to connection error: '
+            f'{type(exc)}({exc})',
+        )
+        self.terminate()
+
+    async def _retry_conn_errors(
+        self,
+        task: Callable[[], Awaitable[_T]],
+    ) -> _T:
+        rloop = retryloop.RetryLoop(
+            backoff=retryloop.exp_backoff(),
+            timeout=5.0,
+            ignore=(
+                ConnectionError,
+                pgcon.BackendConnectionError,
+            ),
+            retry_cb=self._on_retry,
+        )
+        async for iteration in rloop:
+            async with iteration:
+                if self._conn is None:
+                    await self.connect()
+                result = await task()
+
+        return result
+
+    async def sql_execute(self, sql: bytes | tuple[bytes, ...]) -> None:
+        async def _task() -> None:
+            assert self._conn is not None
+            await self._conn.sql_execute(sql)
+        return await self._retry_conn_errors(_task)
+
+    async def sql_fetch(
+        self,
+        sql: bytes | tuple[bytes, ...],
+        *,
+        args: tuple[bytes, ...] | list[bytes] = (),
+    ) -> list[tuple[bytes, ...]]:
+        async def _task() -> list[tuple[bytes, ...]]:
+            assert self._conn is not None
+            return await self._conn.sql_fetch(sql, args=args)
+        return await self._retry_conn_errors(_task)
+
+    async def sql_fetch_val(
+        self,
+        sql: bytes,
+        *,
+        args: tuple[bytes, ...] | list[bytes] = (),
+    ) -> bytes:
+        async def _task() -> bytes:
+            assert self._conn is not None
+            return await self._conn.sql_fetch_val(sql, args=args)
+        return await self._retry_conn_errors(_task)
+
+    async def sql_fetch_col(
+        self,
+        sql: bytes,
+        *,
+        args: tuple[bytes, ...] | list[bytes] = (),
+    ) -> list[bytes]:
+        async def _task() -> list[bytes]:
+            assert self._conn is not None
+            return await self._conn.sql_fetch_col(sql, args=args)
+        return await self._retry_conn_errors(_task)
+
+    def terminate(self) -> None:
+        if self._conn is not None:
+            self._conn.terminate()
+            self._conn = None
+
+
+@dataclasses.dataclass
+class BootstrapContext:
 
     cluster: pgcluster.BaseCluster
-    conn: pgcon.PGConnection
+    conn: PGConnectionProxy
     args: edbargs.ServerConfig
     mode: Optional[ClusterMode] = None
 
@@ -357,7 +465,7 @@ async def _create_edgedb_template_database(
 
 
 async def _store_static_bin_cache_conn(
-    conn: pgcon.PGConnection,
+    conn: metaschema.PGConnection,
     key: str,
     data: bytes,
 ) -> None:
@@ -513,6 +621,34 @@ def _get_schema_object_ids(delta: sd.Command) -> Mapping[
     return schema_object_ids
 
 
+def prepare_repair_patch(
+    stdschema: s_schema.Schema,
+    reflschema: s_schema.Schema,
+    userschema: s_schema.Schema,
+    globalschema: s_schema.Schema,
+    schema_class_layout: s_refl.SchemaClassLayout,
+    backend_params: params.BackendRuntimeParams,
+    config: Any,
+) -> tuple[bytes, ...]:
+    compiler = edbcompiler.new_compiler(
+        std_schema=stdschema,
+        reflection_schema=reflschema,
+        schema_class_layout=schema_class_layout
+    )
+
+    compilerctx = edbcompiler.new_compiler_context(
+        compiler_state=compiler.state,
+        global_schema=globalschema,
+        user_schema=userschema,
+    )
+    res = edbcompiler.repair_schema(compilerctx)
+    if not res:
+        return ()
+    sql, _, _ = res
+
+    return sql
+
+
 def prepare_patch(
     num: int,
     kind: str,
@@ -520,8 +656,8 @@ def prepare_patch(
     schema: s_schema.Schema,
     reflschema: s_schema.Schema,
     schema_class_layout: s_refl.SchemaClassLayout,
-    backend_params: params.BackendRuntimeParams
-) -> tuple[tuple[str, ...], tuple[str, ...], dict[str, Any]]:
+    backend_params: params.BackendRuntimeParams,
+) -> tuple[tuple[str, ...], tuple[str, ...], dict[str, Any], bool]:
     val = f'{pg_common.quote_literal(json.dumps(num + 1))}::jsonb'
     # TODO: This is an INSERT because 2.0 shipped without num_patches.
     # We can just make this an UPDATE for 3.0
@@ -534,7 +670,19 @@ def prepare_patch(
 
     # Pure SQL patches are simple
     if kind == 'sql':
-        return (patch, update), (), {}
+        return (patch, update), (), {}, False
+
+    # metaschema-sql: just recreate a function from metaschema
+    if kind == 'metaschema-sql':
+        func = getattr(metaschema, patch)
+        create = dbops.CreateFunction(func(), or_replace=True)
+        block = dbops.PLTopBlock()
+        create.generate(block)
+        return (block.to_string(), update), (), {}, False
+
+    if kind == 'repair':
+        assert not patch
+        return (update,), (), {}, True
 
     # EdgeQL and reflection schema patches need to be compiled.
     current_block = dbops.PLTopBlock()
@@ -545,7 +693,16 @@ def prepare_patch(
 
     updates: dict[str, Any] = {}
 
-    if kind == 'edgeql' or kind == 'edgeql+schema':
+    global_schema_update = kind == 'ext-pkg'
+
+    if kind == 'ext-pkg':
+        patch = s_std.get_std_module_text(sn.UnqualName(f'ext/{patch}'))
+
+    if (
+        kind == 'edgeql'
+        or kind == 'ext-pkg'
+        or kind.startswith('edgeql+schema')
+    ):
         for ddl_cmd in edgeql.parse_block(patch):
             assert isinstance(ddl_cmd, qlast.DDLCommand)
             # First apply it to the regular schema, just so we can update
@@ -572,7 +729,7 @@ def prepare_patch(
     else:
         raise AssertionError(f'unknown patch type {kind}')
 
-    if kind == 'edgeql+schema':
+    if kind.startswith('edgeql+schema'):
         # If we are modifying the schema layout, we need to rerun
         # generate_structure to collect schema changes not reflected
         # in the public schema and to discover the new introspection
@@ -605,14 +762,42 @@ def prepare_patch(
 
         # This part is wildly hinky
         # We need to delete all the support views and recreate them at the end
-        support_view_commands = metaschema.get_support_views(
-            reflschema, backend_params)
-        for cv in reversed(list(support_view_commands)):
-            dv = dbops.DropView(
-                cv.view.name,
-                conditions=[dbops.ViewExists(cv.view.name)],
+        support_view_commands = dbops.CommandGroup()
+        support_view_commands.add_commands([
+            dbops.CreateView(view)
+            for view in metaschema._generate_schema_alias_views(
+                reflschema, sn.UnqualName('schema')
+            ) + metaschema._generate_schema_alias_views(
+                reflschema, sn.UnqualName('sys')
             )
+        ])
+        support_view_commands.add_commands(
+            metaschema._generate_sql_information_schema())
+
+        for cv in reversed(list(support_view_commands)):
+            dv: Any
+            if isinstance(cv, dbops.CreateView):
+                dv = dbops.DropView(
+                    cv.view.name,
+                    conditions=[dbops.ViewExists(cv.view.name)],
+                )
+            elif isinstance(cv, dbops.CreateFunction):
+                dv = dbops.DropFunction(
+                    cv.function.name,
+                    args=cv.function.args or (),
+                    has_variadic=bool(cv.function.has_variadic),
+                    if_exists=True,
+                )
+            else:
+                raise AssertionError(f'unsupported support view command {cv}')
             dv.generate(preblock)
+
+        # We want to limit how much unconditional work we do, so only recreate
+        # extension views if requested.
+        if '+exts' in kind:
+            for extview in metaschema._generate_extension_views(reflschema):
+                support_view_commands.add_command(
+                    dbops.CreateView(extview, or_replace=True))
 
         support_view_commands.generate(subblock)
 
@@ -641,10 +826,11 @@ def prepare_patch(
         debug.header('Patch Script')
         debug.dump_code(patch, lexer='sql')
 
-    updates.update(dict(
-        stdschema=schema,
-        reflschema=reflschema,
-    ))
+    if not global_schema_update:
+        updates.update(dict(
+            stdschema=schema,
+            reflschema=reflschema,
+        ))
 
     bins = ('stdschema', 'reflschema', 'global_schema', 'classlayout')
     # Just for the system database, we need to update the cached pickle
@@ -671,7 +857,17 @@ def prepare_patch(
                 DO UPDATE SET text = {val};
             ''',)
 
-    return (patch, update), sys_updates, updates
+    # If we're updating the global schema (for extension packages,
+    # perhaps), only run the script once, on the system connection.
+    # Since the state is global, we only should update it once.
+    regular_updates: tuple[str, ...]
+    if global_schema_update:
+        regular_updates = (patch,)
+        sys_updates = (update,) + sys_updates
+    else:
+        regular_updates = (patch, update)
+
+    return regular_updates, sys_updates, updates, False
 
 
 class StdlibBits(NamedTuple):
@@ -716,7 +912,8 @@ async def _make_stdlib(
         std_texts.append(s_std.get_std_module_text(modname))
 
     if testmode:
-        std_texts.append(s_std.get_std_module_text(sn.UnqualName('_testmode')))
+        for modname in s_schema.TESTMODE_SOURCES:
+            std_texts.append(s_std.get_std_module_text(modname))
 
     ddl_text = '\n'.join(std_texts)
     types: Set[uuid.UUID] = set()
@@ -777,11 +974,13 @@ async def _make_stdlib(
         schema_class_layout=reflection.class_layout,  # type: ignore
     )
 
+    backend_runtime_params = ctx.cluster.get_runtime_params()
     compilerctx = edbcompiler.new_compiler_context(
         compiler_state=compiler.state,
         user_schema=reflschema.get_top_schema(),
         global_schema=schema.get_global_schema(),
         bootstrap_mode=True,
+        backend_runtime_params=backend_runtime_params,
     )
 
     for std_plan in std_plans:
@@ -797,6 +996,7 @@ async def _make_stdlib(
         global_schema=schema.get_global_schema(),
         bootstrap_mode=True,
         internal_schema_mode=True,
+        backend_runtime_params=backend_runtime_params,
     )
     edbcompiler.compile_schema_storage_in_delta(
         ctx=compilerctx,
@@ -957,7 +1157,8 @@ async def _init_stdlib(
         stdlib = await _make_stdlib(ctx, in_dev_mode or testmode, global_ids)
 
     logger.info('Creating the necessary PostgreSQL extensions...')
-    await metaschema.create_pg_extensions(conn)
+    backend_params = cluster.get_runtime_params()
+    await metaschema.create_pg_extensions(conn, backend_params)
 
     config_spec = config.load_spec_from_schema(stdlib.stdschema)
     config.set_settings(config_spec)
@@ -975,7 +1176,11 @@ async def _init_stdlib(
                 f"edgedb.get_database_backend_name({ql(tpl_db_name)})")
             tpldbdump = await cluster.dump_database(
                 tpl_pg_db_name,
-                exclude_schemas=['edgedbinstdata', 'edgedbext'],
+                exclude_schemas=[
+                    'edgedbinstdata',
+                    'edgedbext',
+                    backend_params.instance_params.ext_schema,
+                ],
                 dump_object_owners=False,
             )
 
@@ -1057,12 +1262,13 @@ async def _init_stdlib(
 
     if not in_dev_mode and testmode:
         # Running tests on a production build.
-        stdlib, testmode_sql = await _amend_stdlib(
-            ctx,
-            s_std.get_std_module_text(sn.UnqualName('_testmode')),
-            stdlib,
-        )
-        await conn.sql_execute(testmode_sql.encode("utf-8"))
+        for modname in s_schema.TESTMODE_SOURCES:
+            stdlib, testmode_sql = await _amend_stdlib(
+                ctx,
+                s_std.get_std_module_text(modname),
+                stdlib,
+            )
+            await conn.sql_execute(testmode_sql.encode("utf-8"))
         # _testmode includes extra config settings, so make sure
         # those are picked up.
         config_spec = config.load_spec_from_schema(stdlib.stdschema)
@@ -1093,6 +1299,12 @@ async def _init_stdlib(
         t = schema.get_by_id(uuidgen.UUID(entry['id']))
         schema = t.set_field_value(
             schema, 'backend_id', entry['backend_id'])
+
+    if backend_params.instance_params.ext_schema != "edgedbext":
+        # Patch functions referring to extensions, because
+        # some backends require extensions to be hosted in
+        # hardcoded schemas (e.g. Heroku)
+        await metaschema.patch_pg_extensions(conn, backend_params)
 
     stdlib = stdlib._replace(stdschema=schema)
     version_key = patches.get_version_key(len(patches.PATCHES))
@@ -1176,7 +1388,8 @@ async def _init_stdlib(
                 backend_id := sys::_get_pg_type_for_edgedb_type(
                     .id,
                     .__type__.name,
-                    <uuid>{}
+                    <uuid>{},
+                    <str>{},
                 )
             }
             ''',
@@ -1197,6 +1410,7 @@ async def _init_stdlib(
                     .id,
                     .__type__.name,
                     .element_type.id,
+                    <str>{},
                 )
             }
             ''',
@@ -1307,6 +1521,15 @@ async def _compile_sys_queries(
     )
 
     queries['sysconfig'] = sql
+
+    _, sql = compile_bootstrap_script(
+        compiler,
+        schema,
+        "SELECT cfg::get_config_json(max_source := 'postgres client')",
+        expected_cardinality_one=True,
+    )
+
+    queries['sysconfig_default'] = sql
 
     _, sql = compile_bootstrap_script(
         compiler,
@@ -1509,7 +1732,18 @@ async def _create_edgedb_database(
     )
     tpl_db = ctx.cluster.get_db_name(edbdef.EDGEDB_TEMPLATE_DB)
     dbops.CreateDatabase(db, template=tpl_db).generate(block)
-    await _execute_block(ctx.conn, block)
+
+    # Background tasks on some hosted provides like DO seem to sometimes make
+    # their own connections to the template DB, so do a retry loop on it.
+    rloop = retryloop.RetryLoop(
+        backoff=retryloop.exp_backoff(),
+        timeout=10.0,
+        ignore=pgcon.errors.BackendError,
+    )
+    async for iteration in rloop:
+        async with iteration:
+            await _execute_block(ctx.conn, block)
+
     return objid
 
 
@@ -1544,7 +1778,7 @@ def _pg_log_listener(severity, message):
     logger.log(level, message)
 
 
-async def _get_instance_data(conn: pgcon.PGConnection) -> Dict[str, Any]:
+async def _get_instance_data(conn: metaschema.PGConnection) -> Dict[str, Any]:
     data = await conn.sql_fetch_val(
         b"""
         SELECT json::json
@@ -1557,7 +1791,7 @@ async def _get_instance_data(conn: pgcon.PGConnection) -> Dict[str, Any]:
 
 async def _check_catalog_compatibility(
     ctx: BootstrapContext,
-) -> pgcon.PGConnection:
+) -> PGConnectionProxy:
     tenant_id = ctx.cluster.get_runtime_params().tenant_id
     if ctx.mode == ClusterMode.single_database:
         sys_db = await ctx.conn.sql_fetch_val(
@@ -1611,7 +1845,7 @@ async def _check_catalog_compatibility(
             )
         )
 
-    conn = await ctx.cluster.connect(database=sys_db.decode("utf-8"))
+    conn = PGConnectionProxy(ctx.cluster, sys_db.decode("utf-8"))
 
     try:
         instancedata = await _get_instance_data(conn)
@@ -1684,6 +1918,27 @@ def _check_capabilities(ctx: BootstrapContext) -> None:
             )
 
 
+async def _pg_ensure_database_not_connected(
+    conn: metaschema.PGConnection,
+    dbname: str,
+) -> None:
+    conns = await conn.sql_fetch_col(
+        b"""
+        SELECT
+            pid
+        FROM
+            pg_stat_activity
+        WHERE
+            datname = $1
+        """,
+        args=[dbname.encode("utf-8")],
+    )
+
+    if conns:
+        raise errors.ExecutionError(
+            f'database {dbname!r} is being accessed by other users')
+
+
 async def _start(ctx: BootstrapContext) -> None:
     conn = await _check_catalog_compatibility(ctx)
 
@@ -1752,27 +2007,26 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
     else:
         superuser_uid = uuidgen.uuid1mc()
 
+    if backend_params.has_create_database:
+        new_template_db_id = await _create_edgedb_template_database(ctx)
+        tpl_db = cluster.get_db_name(edbdef.EDGEDB_TEMPLATE_DB)
+        conn = PGConnectionProxy(cluster, tpl_db)
+    else:
+        new_template_db_id = uuidgen.uuid1mc()
+
+    if backend_params.has_create_database:
+        tpl_ctx = dataclasses.replace(ctx, conn=conn)
+    else:
+        tpl_ctx = ctx
+
     in_dev_mode = devmode.is_in_dev_mode()
     # Protect against multiple EdgeDB tenants from trying to bootstrap
     # on the same cluster in devmode, as that is both a waste of resources
     # and might result in broken stdlib cache.
     if in_dev_mode:
-        await ctx.conn.sql_execute(b"SELECT pg_advisory_lock(3987734529)")
-
-    if backend_params.has_create_database:
-        new_template_db_id = await _create_edgedb_template_database(ctx)
-        tpl_db = cluster.get_db_name(edbdef.EDGEDB_TEMPLATE_DB)
-        conn = await cluster.connect(database=tpl_db)
-    else:
-        new_template_db_id = uuidgen.uuid1mc()
+        await tpl_ctx.conn.sql_execute(b"SELECT pg_advisory_lock(3987734529)")
 
     try:
-        if backend_params.has_create_database:
-            tpl_ctx = ctx._replace(conn=conn)
-            conn.add_log_listener(_pg_log_listener)
-        else:
-            tpl_ctx = ctx
-
         # Some of the views need access to the _edgecon_state table,
         # so set it up.
         tmp_table_query = pgcon.SETUP_TEMP_TABLE_SCRIPT
@@ -1804,12 +2058,25 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
 
     finally:
         if in_dev_mode:
-            await ctx.conn.sql_execute(
+            await tpl_ctx.conn.sql_execute(
                 b"SELECT pg_advisory_unlock(3987734529)",
             )
 
         if backend_params.has_create_database:
+            # Close the connection to the template database
+            # and wait until it goes away on the server side
+            # so that we can safely use the template for new
+            # databases.
             conn.terminate()
+            rloop = retryloop.RetryLoop(
+                backoff=retryloop.exp_backoff(),
+                timeout=10.0,
+                ignore=errors.ExecutionError,
+            )
+
+            async for iteration in rloop:
+                async with iteration:
+                    await _pg_ensure_database_not_connected(ctx.conn, tpl_db)
 
     if backend_params.has_create_database:
         await _create_edgedb_database(
@@ -1819,19 +2086,20 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
             builtin=True,
         )
 
-        conn = await cluster.connect(
-            database=cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB))
+        sys_conn = PGConnectionProxy(
+            cluster,
+            cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB),
+        )
 
         try:
-            conn.add_log_listener(_pg_log_listener)
             await _configure(
-                ctx._replace(conn=conn),
+                dataclasses.replace(ctx, conn=sys_conn),
                 config_spec=config_spec,
                 schema=schema,
                 compiler=compiler,
             )
         finally:
-            conn.terminate()
+            sys_conn.terminate()
     else:
         await _configure(
             ctx,
@@ -1887,14 +2155,12 @@ async def ensure_bootstrapped(
     Returns True if bootstrap happened and False if the instance was already
     bootstrapped.
     """
-    pgconn = await cluster.connect()
-    pgconn.add_log_listener(_pg_log_listener)
-
+    pgconn = PGConnectionProxy(cluster)
     ctx = BootstrapContext(cluster=cluster, conn=pgconn, args=args)
 
     try:
         mode = await _get_cluster_mode(ctx)
-        ctx = ctx._replace(mode=mode)
+        ctx = dataclasses.replace(ctx, mode=mode)
         if mode == ClusterMode.pristine:
             await _bootstrap(ctx)
             return True

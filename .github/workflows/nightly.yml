@@ -26,52 +26,6 @@ jobs:
 
 
 
-  build-debian-stretch-x86_64:
-    runs-on: ['self-hosted', 'linux', 'x64']
-    needs: prep
-
-    steps:
-    - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/debian-stretch@master
-      env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_REVISION: "<current-date>"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "stretch"
-        EXTRA_OPTIMIZATIONS: "true"
-
-
-
-    - uses: actions/upload-artifact@v3
-      with:
-        name: builds-debian-stretch-x86_64
-        path: artifacts/debian-stretch
-
-
-  build-debian-stretch-aarch64:
-    runs-on: ['self-hosted', 'linux', 'arm64']
-    needs: prep
-
-    steps:
-    - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/debian-stretch@master
-      env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_REVISION: "<current-date>"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "stretch"
-        EXTRA_OPTIMIZATIONS: "true"
-
-
-
-    - uses: actions/upload-artifact@v3
-      with:
-        name: builds-debian-stretch-aarch64
-        path: artifacts/debian-stretch
-
-
   build-debian-buster-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
@@ -88,6 +42,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -111,6 +66,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -134,6 +90,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -157,6 +114,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -164,50 +122,52 @@ jobs:
         path: artifacts/debian-bullseye
 
 
-  build-ubuntu-xenial-x86_64:
+  build-debian-bookworm-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-xenial@master
+      uses: edgedb/edgedb-pkg/integration/linux/build/debian-bookworm@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "xenial"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bookworm"
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
-        name: builds-ubuntu-xenial-x86_64
-        path: artifacts/ubuntu-xenial
+        name: builds-debian-bookworm-x86_64
+        path: artifacts/debian-bookworm
 
 
-  build-ubuntu-xenial-aarch64:
+  build-debian-bookworm-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-xenial@master
+      uses: edgedb/edgedb-pkg/integration/linux/build/debian-bookworm@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "xenial"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bookworm"
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
-        name: builds-ubuntu-xenial-aarch64
-        path: artifacts/ubuntu-xenial
+        name: builds-debian-bookworm-aarch64
+        path: artifacts/debian-bookworm
 
 
   build-ubuntu-bionic-x86_64:
@@ -226,6 +186,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -249,6 +210,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -272,6 +234,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -295,6 +258,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -318,6 +282,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -341,6 +306,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -364,6 +330,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -387,6 +354,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -410,11 +378,60 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8
+
+
+  build-rockylinux-9-x86_64:
+    runs-on: ['self-hosted', 'linux', 'x64']
+    needs: prep
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/rockylinux-9@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "rockylinux"
+        PKG_PLATFORM_VERSION: "9"
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+        METAPKG_GIT_CACHE: disabled
+
+    - uses: actions/upload-artifact@v3
+      with:
+        name: builds-rockylinux-9-x86_64
+        path: artifacts/rockylinux-9
+
+
+  build-rockylinux-9-aarch64:
+    runs-on: ['self-hosted', 'linux', 'arm64']
+    needs: prep
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/rockylinux-9@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "rockylinux"
+        PKG_PLATFORM_VERSION: "9"
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+        METAPKG_GIT_CACHE: disabled
+
+    - uses: actions/upload-artifact@v3
+      with:
+        name: builds-rockylinux-9-aarch64
+        path: artifacts/rockylinux-9
 
 
   build-linux-x86_64:
@@ -435,6 +452,7 @@ jobs:
         BUILD_GENERIC: true
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -460,6 +478,7 @@ jobs:
         BUILD_GENERIC: true
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -487,6 +506,7 @@ jobs:
 
         PKG_PLATFORM_LIBC: "musl"
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -514,6 +534,7 @@ jobs:
 
         PKG_PLATFORM_LIBC: "musl"
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -615,52 +636,6 @@ jobs:
 
 
 
-  test-debian-stretch-x86_64:
-    needs: [build-debian-stretch-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v3
-      with:
-        name: builds-debian-stretch-x86_64
-        path: artifacts/debian-stretch
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/debian-stretch@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "stretch"
-        PKG_PLATFORM_LIBC: ""
-        # edb test with -j higher than 1 seems to result in workflow
-        # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 0
-
-
-
-  test-debian-stretch-aarch64:
-    needs: [build-debian-stretch-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
-
-    steps:
-    - uses: actions/download-artifact@v3
-      with:
-        name: builds-debian-stretch-aarch64
-        path: artifacts/debian-stretch
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/debian-stretch@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "stretch"
-        PKG_PLATFORM_LIBC: ""
-        # edb test with -j higher than 1 seems to result in workflow
-        # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 0
-
-
-
   test-debian-buster-x86_64:
     needs: [build-debian-buster-x86_64]
     runs-on: ['self-hosted', 'linux', 'x64']
@@ -753,22 +728,22 @@ jobs:
 
 
 
-  test-ubuntu-xenial-x86_64:
-    needs: [build-ubuntu-xenial-x86_64]
+  test-debian-bookworm-x86_64:
+    needs: [build-debian-bookworm-x86_64]
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v3
       with:
-        name: builds-ubuntu-xenial-x86_64
-        path: artifacts/ubuntu-xenial
+        name: builds-debian-bookworm-x86_64
+        path: artifacts/debian-bookworm
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-xenial@master
+      uses: edgedb/edgedb-pkg/integration/linux/test/debian-bookworm@master
       env:
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "xenial"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bookworm"
         PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
@@ -776,22 +751,22 @@ jobs:
 
 
 
-  test-ubuntu-xenial-aarch64:
-    needs: [build-ubuntu-xenial-aarch64]
+  test-debian-bookworm-aarch64:
+    needs: [build-debian-bookworm-aarch64]
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v3
       with:
-        name: builds-ubuntu-xenial-aarch64
-        path: artifacts/ubuntu-xenial
+        name: builds-debian-bookworm-aarch64
+        path: artifacts/debian-bookworm
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-xenial@master
+      uses: edgedb/edgedb-pkg/integration/linux/test/debian-bookworm@master
       env:
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "xenial"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bookworm"
         PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
@@ -1006,6 +981,52 @@ jobs:
 
 
 
+  test-rockylinux-9-x86_64:
+    needs: [build-rockylinux-9-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-rockylinux-9-x86_64
+        path: artifacts/rockylinux-9
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/rockylinux-9@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "rockylinux"
+        PKG_PLATFORM_VERSION: "9"
+        PKG_PLATFORM_LIBC: ""
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 0
+
+
+
+  test-rockylinux-9-aarch64:
+    needs: [build-rockylinux-9-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-rockylinux-9-aarch64
+        path: artifacts/rockylinux-9
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/rockylinux-9@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "rockylinux"
+        PKG_PLATFORM_VERSION: "9"
+        PKG_PLATFORM_LIBC: ""
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 0
+
+
+
   test-linux-x86_64:
     needs: [build-linux-x86_64]
     runs-on: ['self-hosted', 'linux', 'x64']
@@ -1149,108 +1170,6 @@ jobs:
         edgedb-pkg/integration/macos/test.sh
 
 
-
-
-  publish-debian-stretch-x86_64:
-    needs: [test-debian-stretch-x86_64]
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/download-artifact@v3
-      with:
-        name: builds-debian-stretch-x86_64
-        path: artifacts/debian-stretch
-
-    - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "stretch"
-        PKG_PLATFORM_LIBC: ""
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-  check-published-debian-stretch-x86_64:
-    needs: [publish-debian-stretch-x86_64]
-    runs-on: ['self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v3
-      with:
-        name: builds-debian-stretch-x86_64
-        path: artifacts/debian-stretch
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: debian-stretch
-
-    - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-stretch@master
-      env:
-        PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "stretch"
-        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
-
-    outputs:
-      version-slot: ${{ steps.describe.outputs.version-slot }}
-      version-core: ${{ steps.describe.outputs.version-core }}
-      catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-  publish-debian-stretch-aarch64:
-    needs: [test-debian-stretch-aarch64]
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/download-artifact@v3
-      with:
-        name: builds-debian-stretch-aarch64
-        path: artifacts/debian-stretch
-
-    - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "stretch"
-        PKG_PLATFORM_LIBC: ""
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-  check-published-debian-stretch-aarch64:
-    needs: [publish-debian-stretch-aarch64]
-    runs-on: ['self-hosted', 'linux', 'arm64']
-
-    steps:
-    - uses: actions/download-artifact@v3
-      with:
-        name: builds-debian-stretch-aarch64
-        path: artifacts/debian-stretch
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: debian-stretch
-
-    - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-stretch@master
-      env:
-        PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "debian"
-        PKG_PLATFORM_VERSION: "stretch"
-        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
-
-    outputs:
-      version-slot: ${{ steps.describe.outputs.version-slot }}
-      version-core: ${{ steps.describe.outputs.version-core }}
-      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-debian-buster-x86_64:
@@ -1457,48 +1376,48 @@ jobs:
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
-  publish-ubuntu-xenial-x86_64:
-    needs: [test-ubuntu-xenial-x86_64]
+  publish-debian-bookworm-x86_64:
+    needs: [test-debian-bookworm-x86_64]
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v3
       with:
-        name: builds-ubuntu-xenial-x86_64
-        path: artifacts/ubuntu-xenial
+        name: builds-debian-bookworm-x86_64
+        path: artifacts/debian-bookworm
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "xenial"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bookworm"
         PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-  check-published-ubuntu-xenial-x86_64:
-    needs: [publish-ubuntu-xenial-x86_64]
+  check-published-debian-bookworm-x86_64:
+    needs: [publish-debian-bookworm-x86_64]
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v3
       with:
-        name: builds-ubuntu-xenial-x86_64
-        path: artifacts/ubuntu-xenial
+        name: builds-debian-bookworm-x86_64
+        path: artifacts/debian-bookworm
 
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: ubuntu-xenial
+        target: debian-bookworm
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-xenial@master
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bookworm@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "xenial"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bookworm"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
@@ -1508,48 +1427,48 @@ jobs:
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
-  publish-ubuntu-xenial-aarch64:
-    needs: [test-ubuntu-xenial-aarch64]
+  publish-debian-bookworm-aarch64:
+    needs: [test-debian-bookworm-aarch64]
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v3
       with:
-        name: builds-ubuntu-xenial-aarch64
-        path: artifacts/ubuntu-xenial
+        name: builds-debian-bookworm-aarch64
+        path: artifacts/debian-bookworm
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "xenial"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bookworm"
         PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-  check-published-ubuntu-xenial-aarch64:
-    needs: [publish-ubuntu-xenial-aarch64]
+  check-published-debian-bookworm-aarch64:
+    needs: [publish-debian-bookworm-aarch64]
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v3
       with:
-        name: builds-ubuntu-xenial-aarch64
-        path: artifacts/ubuntu-xenial
+        name: builds-debian-bookworm-aarch64
+        path: artifacts/debian-bookworm
 
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: ubuntu-xenial
+        target: debian-bookworm
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-xenial@master
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bookworm@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "xenial"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bookworm"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
@@ -2018,6 +1937,108 @@ jobs:
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
+  publish-rockylinux-9-x86_64:
+    needs: [test-rockylinux-9-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-rockylinux-9-x86_64
+        path: artifacts/rockylinux-9
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "rockylinux"
+        PKG_PLATFORM_VERSION: "9"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-rockylinux-9-x86_64:
+    needs: [publish-rockylinux-9-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-rockylinux-9-x86_64
+        path: artifacts/rockylinux-9
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: rockylinux-9
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/rockylinux-9@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "rockylinux"
+        PKG_PLATFORM_VERSION: "9"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
+  publish-rockylinux-9-aarch64:
+    needs: [test-rockylinux-9-aarch64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-rockylinux-9-aarch64
+        path: artifacts/rockylinux-9
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "rockylinux"
+        PKG_PLATFORM_VERSION: "9"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-rockylinux-9-aarch64:
+    needs: [publish-rockylinux-9-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-rockylinux-9-aarch64
+        path: artifacts/rockylinux-9
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: rockylinux-9
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/rockylinux-9@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "rockylinux"
+        PKG_PLATFORM_VERSION: "9"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
   publish-linux-x86_64:
     needs: [test-linux-x86_64]
     runs-on: ubuntu-latest
@@ -2350,7 +2371,7 @@ jobs:
       uses: docker/setup-buildx-action@v2
 
     - name: Publish Docker Image
-      uses: elgohr/Publish-Docker-Github-Action@v4
+      uses: elgohr/Publish-Docker-Github-Action@43dc228e327224b2eda11c8883232afd5b34943b  # v5
       with:
         name: edgedb/edgedb
         username: ${{ secrets.DOCKER_USERNAME }}

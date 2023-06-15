@@ -176,3 +176,5 @@ cdef class PGConnection:
 
     cdef _write_sql_extended_query(self, actions, int dbver, dbv)
     cdef _rewrite_sql_error_response(self, PGMessage action, WriteBuffer buf)
+
+    cpdef set_stmt_cache_size(self, int maxsize)

@@ -75,9 +75,13 @@ class ObjectTypeRefMixin(so.Object):
 
 
 class ObjectType(
-    s_types.InheritingType,
     sources.Source,
     constraints.ConsistencySubject,
+    s_types.InheritingType,
+
+    so.InheritingObject,  # Help reflection figure out the right db MRO
+    s_types.Type,  # Help reflection figure out the right db MRO
+    s_anno.AnnotationSubject,  # Help reflection figure out the right db MRO
     ObjectTypeRefMixin,
     s_abc.ObjectType,
     qlkind=qltypes.SchemaObjectClass.TYPE,
@@ -154,14 +158,16 @@ class ObjectType(
                 std_obj = schema.get('std::BaseObject', type=ObjectType)
                 return std_obj.get_displayname(schema)
             else:
-                comps = sorted(union_of.objects(schema), key=lambda o: o.id)
-                return ' | '.join(c.get_displayname(schema) for c in comps)
+                comp_dns = sorted(
+                    (c.get_displayname(schema)
+                     for c in union_of.objects(schema)))
+                return ' | '.join(comp_dns)
         else:
             intersection_of = mtype.get_intersection_of(schema)
             if intersection_of:
-                comps = sorted(intersection_of.objects(schema),
-                               key=lambda o: o.id)
-                comp_dns = (c.get_displayname(schema) for c in comps)
+                comp_dns = sorted(
+                    (c.get_displayname(schema)
+                     for c in intersection_of.objects(schema)))
                 # Elide BaseObject from display, because `& BaseObject`
                 # is a nop.
                 return ' & '.join(
@@ -182,25 +188,24 @@ class ObjectType(
         if sn.is_qualified(name):
             raise ValueError(
                 'references to concrete pointers must not be qualified')
-        ptrs = {
-            lnk for lnk in schema.get_referrers(self, scls_type=links.Link,
-                                                field_name='target')
-            if (
-                lnk.get_shortname(schema).name == name
-                and not lnk.get_source_type(schema).is_view(schema)
-                and lnk.get_owned(schema)
-                and (not sources or lnk.get_source_type(schema) in sources)
-            )
-        }
 
-        for obj in self.get_ancestors(schema).objects(schema):
+        ptrs: Set[links.Link] = set()
+
+        ancestor_objects = self.get_ancestors(schema).objects(schema)
+
+        for obj in (self,) + ancestor_objects:
             ptrs.update(
                 lnk for lnk in schema.get_referrers(obj, scls_type=links.Link,
                                                     field_name='target')
                 if (
                     lnk.get_shortname(schema).name == name
                     and not lnk.get_source_type(schema).is_view(schema)
-                    and lnk.get_owned(schema)
+                    and not lnk.get_source_type(schema).is_union_type(schema)
+                    # Only grab the "base" pointers
+                    and all(
+                        b.generic(schema)
+                        for b in lnk.get_bases(schema).objects(schema)
+                    )
                     and (not sources or lnk.get_source_type(schema) in sources)
                 )
             )

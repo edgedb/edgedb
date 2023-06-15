@@ -131,7 +131,9 @@ def is_scalar_view_set(ir_expr: irast.Base) -> bool:
     )
 
 
-def is_implicit_wrapper(ir_expr: irast.Base) -> bool:
+def is_implicit_wrapper(
+    ir_expr: Optional[irast.Base]
+) -> TypeGuard[irast.SelectStmt]:
     """Return True if the given *ir_expr* expression is an implicit
        SELECT wrapper.
     """
@@ -162,7 +164,7 @@ def unwrap_set(ir_set: irast.Set) -> irast.Set:
        wrapped set.
     """
     if ir_set.expr is not None and is_implicit_wrapper(ir_set.expr):
-        return ir_set.expr.result  # type: ignore
+        return ir_set.expr.result
     else:
         return ir_set
 
@@ -250,9 +252,10 @@ def get_nearest_dml_stmt(
             return cur_set.expr
         elif isinstance(cur_set.expr, irast.SelectStmt):
             cur_set = cur_set.expr.result
-        # FIXME: This is a very narrow hack around issue #3030
-        # designed to make simple cases work. The critical one is
-        # assert_exists inserted by access policies.
+        # FIXME: This is a narrow hack around issue #3030 designed to
+        # make simple cases work. This probably covers most cases but
+        # does not cover everything in general.
+        # The critical one is assert_exists inserted by access policies.
         elif (
             isinstance(cur_set.expr, irast.Call)
             and str(cur_set.expr.func_shortname) in {

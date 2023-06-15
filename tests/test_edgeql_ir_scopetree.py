@@ -34,7 +34,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                           'cards.esdl')
 
     def run_test(self, *, source, spec, expected):
-        qltree = qlparser.parse(source)
+        qltree = qlparser.parse_query(source)
         ir = compiler.compile_ast_to_ir(
             qltree,
             self.schema,
@@ -96,3 +96,11 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
             )
         """
         # This one is fine now, since it is a property
+
+    @tb.must_fail(errors.InvalidReferenceError,
+                  "cannot reference correlated set 'User' here",
+                  line=2, col=45)
+    def test_edgeql_ir_scope_tree_bad_06(self):
+        """
+        UPDATE User SET { avatar := (UPDATE .avatar SET { text := "foo" }) }
+        """

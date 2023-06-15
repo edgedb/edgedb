@@ -86,6 +86,24 @@ class TestInsert(tb.QueryTestCase):
                 INSERT Person.notes { name := "note1" };
             ''')
 
+    async def test_edgeql_insert_fail_6(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r"could not resolve partial path",
+        ):
+            await self.con.execute('''
+                INSERT Person { name := .name };
+            ''')
+
+    async def test_edgeql_insert_fail_7(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r"insert standard library type",
+        ):
+            await self.con.execute('''
+                INSERT schema::Migration { script := 'foo' };
+            ''')
+
     async def test_edgeql_insert_simple_01(self):
         await self.con.execute(r"""
             INSERT InsertTest {
@@ -5655,6 +5673,22 @@ class TestInsert(tb.QueryTestCase):
             []
         )
 
+    async def test_edgeql_insert_explicit_id_06(self):
+        await self.con.execute('''
+            configure session set allow_user_specified_id := true
+        ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            "missing value for required property"
+        ):
+            await self.con.execute(r'''
+                INSERT Person {
+                    id := <optional uuid>{},
+                    name := "test",
+                }
+            ''')
+
     async def test_edgeql_insert_except_constraint_01(self):
         # Test basic behavior of a constraint using except
         await self.con.execute('''
@@ -5939,4 +5973,40 @@ class TestInsert(tb.QueryTestCase):
 
         await self.con._fetchall(
             query, __typenames__=True,
+        )
+
+    async def test_edgeql_insert_single_linkprop(self):
+        await self.con.execute('''
+            insert Subordinate { name := "1" };
+            insert Subordinate { name := "2" };
+        ''')
+
+        for _ in range(10):
+            await self.con.execute('''
+                insert InsertTest {
+                    l2 := -1,
+                    sub := (select Subordinate { @note := "!" }
+                             order by random() limit 1)
+                };
+            ''')
+
+        await self.assert_query_result(
+            '''
+            select InsertTest { sub: {name, @note} };
+            ''',
+            [{"sub": {"name": str, "@note": "!"}}] * 10,
+        )
+
+        await self.con.execute('''
+            update InsertTest set {
+                sub := (select Subordinate { @note := "!" }
+                         order by random() limit 1)
+            };
+        ''')
+
+        await self.assert_query_result(
+            '''
+            select InsertTest { sub: {name, @note} };
+            ''',
+            [{"sub": {"name": str, "@note": "!"}}] * 10,
         )

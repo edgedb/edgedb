@@ -23,6 +23,7 @@ import copy
 import itertools
 from typing import *
 
+from edb import errors
 from edb.common import ast
 from edb.schema import schema as s_schema
 from edb.schema import functions as s_func
@@ -80,10 +81,21 @@ def index_parameters(
     variadic = parameters.find_variadic(schema)
     variadic_num = variadic.get_num(schema) if variadic else -1  # type: ignore
 
+    params = parameters.objects(schema)
+
+    if not variadic and len(ql_args) > len(params):
+        # In error message we discount the implicit __subject__ param.
+        raise errors.SchemaDefinitionError(
+            f'Expected {len(params) - 1} arguments, but found '
+            f'{len(ql_args) - 1}',
+            context=ql_args[-1].context,
+            details='Did you mean to use ON (...) for specifying the subject?',
+        )
+
     e: qlast.Expr
     p: s_func.ParameterLike
     for iter in itertools.zip_longest(
-        enumerate(ql_args), parameters.objects(schema), fillvalue=None
+        enumerate(ql_args), params, fillvalue=None
     ):
         (i, e), p = iter  # type: ignore
         if isinstance(e, qlast.SelectQuery):

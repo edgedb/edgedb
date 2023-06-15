@@ -28,3 +28,4 @@ cdef class StatementsCache:
     cpdef get(self, key, default)
     cpdef needs_cleanup(self)
     cpdef cleanup_one(self)
+    cpdef resize(self, int maxsize)

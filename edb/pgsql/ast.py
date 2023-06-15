@@ -247,10 +247,10 @@ class BaseRelation(EdgeQLPathInfo, BaseExpr):
 class Relation(BaseRelation):
     """A reference to a table or a view."""
 
-    # The type this represents. For a link relation, the source type.
+    # The type or pointer this represents.
     # Should be non-None for any relation arising from a type or
     # pointer during compilation.
-    typeref: typing.Optional[irast.TypeRef] = None
+    type_or_ptr_ref: typing.Optional[irast.TypeRef | irast.PointerRef] = None
 
     catalogname: typing.Optional[str] = None
     schemaname: typing.Optional[str] = None
@@ -316,10 +316,13 @@ class IntersectionRangeVar(PathRangeVar):
 
 
 class DynamicRangeVarFunc(typing.Protocol):
-    """A 'dynamic' range var that provides a callback hook.
+    """A 'dynamic' range var that provides a callback hook
+    for finding path_ids in range var.
 
     Used to sneak more complex search logic in.
     I am 100% going to regret this.
+
+    Update: Sully says that he hasn't regretted it yet.
     """
 
     # Lookup function for a DynamicRangeVar. If it returns a
@@ -504,7 +507,7 @@ class ReturningQuery(BaseRelation):
 class NullRelation(ReturningQuery):
     """Special relation that produces nulls for all its attributes."""
 
-    typeref: typing.Optional[irast.TypeRef] = None
+    type_or_ptr_ref: typing.Optional[irast.TypeRef | irast.PointerRef] = None
 
     where_clause: typing.Optional[BaseExpr] = None
 
@@ -664,10 +667,7 @@ class Expr(ImmutableBaseExpr):
 
 
 class BaseConstant(ImmutableBaseExpr):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        if not isinstance(self, NullConstant) and self.val is None:
-            raise ValueError('cannot create a pgast.Constant without a value')
+    pass
 
 
 class StringConstant(BaseConstant):
@@ -1156,7 +1156,7 @@ class SQLValueFunctionOP(enum.IntEnum):
 
 class SQLValueFunction(BaseExpr):
     op: SQLValueFunctionOP
-    arg: typing.Optional[BaseExpr]
+    arg: typing.Optional[BaseExpr] = None
 
 
 class CreateStmt(Statement):
@@ -1186,3 +1186,38 @@ class LockStmt(Statement):
     relations: typing.List[BaseRangeVar]
     mode: str
     no_wait: bool = False
+
+
+class CopyFormat(enum.IntEnum):
+    TEXT = enum.auto()
+    CSV = enum.auto()
+    BINARY = enum.auto()
+
+
+class CopyOptions(Base):
+    # Options for the copy command
+    format: typing.Optional[CopyFormat] = None
+    freeze: typing.Optional[bool] = None
+    delimiter: typing.Optional[str] = None
+    null: typing.Optional[str] = None
+    header: typing.Optional[bool] = None
+    quote: typing.Optional[str] = None
+    escape: typing.Optional[str] = None
+    force_quote: typing.List[str] = []
+    force_not_null: typing.List[str] = []
+    force_null: typing.List[str] = []
+    encoding: typing.Optional[str] = None
+
+
+class CopyStmt(Statement):
+    relation: typing.Optional[Relation]
+    colnames: typing.Optional[typing.List[str]]
+    query: typing.Optional[Query]
+
+    is_from: bool = False
+    is_program: bool = False
+    filename: typing.Optional[str]
+
+    options: CopyOptions
+
+    where_clause: typing.Optional[BaseExpr] = None

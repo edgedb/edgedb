@@ -283,6 +283,7 @@ def generate_structure(
                 typeid: std::uuid,
                 kind: std::str,
                 elemid: OPTIONAL std::uuid,
+                sql_type: OPTIONAL std::str,
             ) -> std::int64 {
                 USING SQL FUNCTION 'edgedb.get_pg_type_for_edgedb_type';
                 SET volatility := 'STABLE';

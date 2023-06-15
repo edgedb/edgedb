@@ -31,6 +31,7 @@ from edb.server import defines
 
 from . import delta as sd
 from . import expr as s_expr
+from . import extensions as s_ext
 from . import functions as s_func
 from . import migrations as s_migr
 from . import modules as s_mod
@@ -68,6 +69,7 @@ def delta_schemas(
     include_std_diff: bool=False,
     include_derived_types: bool=True,
     include_migrations: bool=False,
+    include_extensions: bool=False,
     linearize_delta: bool=True,
     descriptive_mode: bool=False,
     generate_prompts: bool=False,
@@ -142,7 +144,7 @@ def delta_schemas(
         the delta between *schema_a* and *schema_b*.
     """
 
-    result = sd.DeltaRoot(canonical=True)
+    result = sd.DeltaRoot()
 
     schema_a_filters = list(schema_a_filters)
     schema_b_filters = list(schema_b_filters)
@@ -192,6 +194,14 @@ def delta_schemas(
     added_modules = my_modules - other_modules
     dropped_modules = other_modules - my_modules
 
+    if included_modules is not None:
+        included_modules = set(included_modules)
+
+        added_modules &= included_modules
+        dropped_modules &= included_modules
+    else:
+        included_modules = set()
+
     if excluded_modules is None:
         excluded_modules = set()
     else:
@@ -209,11 +219,22 @@ def delta_schemas(
     # __derived__ is ephemeral and should never be included
     excluded_modules.add(sn.UnqualName('__derived__'))
 
-    if included_modules is not None:
-        included_modules = set(included_modules)
+    # Don't analyze the objects from extensions.
+    if not include_extensions and isinstance(schema_b, s_schema.ChainedSchema):
+        ext_packages = schema_b._global_schema.get_objects(
+            type=s_ext.ExtensionPackage)
+        ext_mods = set()
+        for pkg in ext_packages:
+            if not (modname := pkg.get_ext_module(schema_b)):
+                continue
+            if schema_a and schema_a.get_referrers(pkg):
+                ext_mods.add(sn.UnqualName(modname))
+            if schema_b.get_referrers(pkg):
+                ext_mods.add(sn.UnqualName(modname))
 
-        added_modules &= included_modules
-        dropped_modules &= included_modules
+        for ext_mod in ext_mods:
+            if ext_mod not in included_modules:
+                excluded_modules.add(ext_mod)
 
     if excluded_modules:
         added_modules -= excluded_modules
@@ -279,7 +300,7 @@ def delta_schemas(
     while old_count != (len(context.renames), len(context.deletions)):
         old_count = len(context.renames), len(context.deletions)
 
-        objects = sd.DeltaRoot(canonical=True)
+        objects = sd.DeltaRoot()
 
         for sclass in schemaclasses:
             filters: List[Callable[[s_schema.Schema, so.Object], bool]] = []
@@ -333,6 +354,22 @@ def delta_schemas(
                 )
             )
 
+    # We don't propertly understand the dependencies on extensions, so
+    # instead of having s_ordering sort them, we just put all
+    # CreateExtension commands first and all DeleteExtension commands
+    # last.
+    create_exts = sd.CommandGroup()
+    delete_exts = sd.CommandGroup()
+    for cmd in list(objects.get_subcommands()):
+        if isinstance(cmd, s_ext.CreateExtension):
+            cmd.canonical = False
+            objects.discard(cmd)
+            create_exts.add(cmd)
+        elif isinstance(cmd, s_ext.DeleteExtension):
+            cmd.canonical = False
+            objects.discard(cmd)
+            delete_exts.add(cmd)
+
     if linearize_delta:
         objects = s_ordering.linearize_delta(
             objects, old_schema=schema_a, new_schema=schema_b)
@@ -374,6 +411,9 @@ def delta_schemas(
                 dropped.set_annotation('confidence', 1.0)
 
                 result.add(dropped)
+
+    result.prepend(create_exts)
+    result.add(delete_exts)
 
     return result
 
@@ -445,10 +485,6 @@ def apply_sdl(
 
             documents[name].append(decl)
 
-    for decl in sdl_document.declarations:
-        collect(decl, None)
-
-    ddl_stmts = s_decl.sdl_to_ddl(current_schema, documents)
     context = sd.CommandContext(
         modaliases={},
         schema=base_schema,
@@ -458,10 +494,13 @@ def apply_sdl(
         allow_dml_in_functions=allow_dml_in_functions,
     )
 
+    for decl in sdl_document.declarations:
+        collect(decl, None)
+
     target_schema = base_schema
-    chained = itertools.chain(
-        extensions.values(), futures.values(), ddl_stmts)
-    for ddl_stmt in chained:
+
+    def process(ddl_stmt: qlast.DDLCommand) -> None:
+        nonlocal target_schema
         delta = sd.DeltaRoot()
         with context(sd.DeltaRootContext(schema=target_schema, op=delta)):
             cmd = cmd_from_ddl(
@@ -472,20 +511,19 @@ def apply_sdl(
             target_schema = delta.apply(target_schema, context)
             context.schema = target_schema
 
+    # Process all the extensions first, since sdl_to_ddl needs to be able
+    # to see their contents.
+    ddl_stmt: qlast.DDLCommand
+    for ddl_stmt in extensions.values():
+        process(ddl_stmt)
+
+    ddl_stmts = s_decl.sdl_to_ddl(target_schema, documents)
+
+    chained = itertools.chain(futures.values(), ddl_stmts)
+    for ddl_stmt in chained:
+        process(ddl_stmt)
+
     return target_schema
-
-
-def apply_ddl(
-    ddl_stmt: qlast.DDLCommand,
-    *,
-    schema: s_schema.Schema,
-    modaliases: Mapping[Optional[str], str],
-    stdmode: bool=False,
-    testmode: bool=False,
-) -> s_schema.Schema:
-    schema, _ = _delta_from_ddl(ddl_stmt, schema=schema, modaliases=modaliases,
-                                stdmode=stdmode, testmode=testmode)
-    return schema
 
 
 def apply_ddl_script(
@@ -516,6 +554,11 @@ def apply_ddl_script_ex(
     stdmode: bool = False,
     internal_schema_mode: bool = False,
     testmode: bool = False,
+    allow_dml_in_functions: bool=False,
+    schema_object_ids: Optional[
+        Mapping[Tuple[sn.Name, Optional[str]], uuid.UUID]
+    ]=None,
+    compat_ver: Optional[verutils.Version] = None,
 ) -> Tuple[s_schema.Schema, sd.DeltaRoot]:
 
     delta = sd.DeltaRoot()
@@ -533,6 +576,9 @@ def apply_ddl_script_ex(
             stdmode=stdmode,
             internal_schema_mode=internal_schema_mode,
             testmode=testmode,
+            allow_dml_in_functions=allow_dml_in_functions,
+            schema_object_ids=schema_object_ids,
+            compat_ver=compat_ver,
         )
 
         delta.add(cmd)

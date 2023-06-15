@@ -2955,6 +2955,29 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_select_setops_29(self):
+        # These queries all produced compiler ISEs in the past
+        # The results aren't super important, so just run them
+        await self.con.query('''
+            select std::BaseObject
+                UNION schema::Object UNION schema::TupleElement;
+        ''')
+
+        await self.con.query('''
+            select std::BaseObject
+                EXCEPT schema::Object EXCEPT schema::TupleElement;
+        ''')
+
+        await self.con.query('''
+            select std::BaseObject
+                EXCEPT schema::Object INTERSECT schema::TupleElement;
+        ''')
+
+        await self.con.query('''
+            select std::BaseObject
+                INTERSECT schema::Object INTERSECT schema::TupleElement;
+        ''')
+
     async def test_edgeql_select_order_01(self):
         await self.assert_query_result(
             r'''
@@ -6508,6 +6531,16 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True],
         )
 
+    async def test_edgeql_select_json_02(self):
+        # See issue #4705
+        [json_res] = await self.con._fetchall(
+            r'''
+            SELECT <json>array_agg(Issue)
+            ''',
+            __typenames__=True,
+        )
+        self.assertNotIn('__tname__', json_res)
+
     async def test_edgeql_select_bad_reference_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -8059,3 +8092,44 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 select { foo := 1 } order by
                         (DELETE User filter .name = 't1')
             ''')
+
+    async def test_edgeql_select_params_01(self):
+        with self.assertRaisesRegex(edgedb.QueryError, "missing a type cast"):
+            await self.con.query("select ($0, $1)")
+
+    async def test_edgeql_select_params_02(self):
+        with self.assertRaisesRegex(edgedb.QueryError, "missing a type cast"):
+            await self.con.query("select ($0, 5)")
+
+    async def test_edgeql_select_params_03(self):
+        with self.assertRaisesRegex(edgedb.QueryError, "missing a type cast"):
+            await self.con.query("select ($0, <std::int64>$0)")
+
+    async def test_edgeql_type_pointer_inlining_01(self):
+        await self.con._fetchall(
+            r'''
+            with
+            data := {0, 1, 2},
+            items := (
+                for item in data union (
+                    with
+                    user := (select schema::Object limit 1)
+                    select user
+                )
+            )
+            select items;
+            ''',
+            __typenames__=True
+        )
+
+    async def test_edgeql_type_pointer_inlining_02(self):
+        await self.con._fetchall(
+            r'''
+            with
+              object_type := (select schema::ObjectType limit 1),
+              pointers := object_type.pointers,
+              pointers_2 := (select pointers limit 1),
+            select pointers_2;
+            ''',
+            __typenames__=True
+        )

@@ -1533,6 +1533,12 @@ class TestIntrospection(tb.QueryTestCase):
         count1 = res[0].z
         self.assertFalse(all(row.z == count1 for row in res))
 
+    @test.xfail("""
+        We pulled sys and cfg back out of std::BaseObject because it
+        had catastrophic performance impacts.
+
+        See #5168.
+    """)
     async def test_edgeql_introspection_cfg_objects_01(self):
         await self.assert_query_result(
             r'''
@@ -1556,4 +1562,31 @@ class TestIntrospection(tb.QueryTestCase):
                   = count(BaseObject[is cfg::ConfigObject])
             ''',
             [True],
+        )
+
+    async def test_edgeql_introspection_cfg_objects_02(self):
+        await self.assert_query_result(
+            r'''
+                SELECT count(sys::Database)
+                  = count(sys::SystemObject[is sys::Database])
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT count(cfg::AbstractConfig)
+                  = count(cfg::ConfigObject[is cfg::AbstractConfig])
+            ''',
+            [True],
+        )
+
+    async def test_edgeql_schema_inheritance_computed_backlinks_01(self):
+        await self.assert_query_result(
+            r'''WITH MODULE schema
+            SELECT InheritingObject {
+                children := .<bases[IS Type],
+                descendants := .<ancestors[IS Type]
+            } LIMIT 0''',
+            []
         )

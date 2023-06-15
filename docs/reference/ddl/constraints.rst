@@ -469,7 +469,8 @@ Remove constraint "min_value" from the property "score" of the
   * - **See also**
   * - :ref:`Schema > Constraints <ref_datamodel_constraints>`
   * - :ref:`SDL > Constraints <ref_eql_sdl_constraints>`
-  * - :ref:`Introspection > Constraints <ref_eql_introspection_constraints>`
+  * - :ref:`Introspection > Constraints
+      <ref_datamodel_introspection_constraints>`
   * - :ref:`Standard Library > Constraints <ref_std_constraints>`
   * - `Tutorial > Advanced EdgeQL > Constraints
       </tutorial/advanced-edgeql/constraints>`_

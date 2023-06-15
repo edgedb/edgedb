@@ -206,7 +206,7 @@ class Environment:
     functions) that appear in a function body.
     """
 
-    dml_stmts: Set[irast.MutatingStmt]
+    dml_stmts: list[irast.MutatingStmt]
     """A list of DML statements in the query"""
 
     #: A list of bindings that should be assumed to be singletons.
@@ -259,6 +259,9 @@ class Environment:
     path_scope_map: Dict[irast.Set, ScopeInfo]
     """A dictionary of scope info that are appropriate for a given view."""
 
+    dml_rewrites: Dict[irast.Set, irast.Rewrites]
+    """Compiled rewrites that should be attached to InsertStmt or UpdateStmt"""
+
     def __init__(
         self,
         *,
@@ -293,7 +296,7 @@ class Environment:
         self.ptr_ref_cache = PointerRefCache()
         self.type_ref_cache = {}
         self.dml_exprs = []
-        self.dml_stmts = set()
+        self.dml_stmts = []
         self.pointer_derivation_map = collections.defaultdict(list)
         self.pointer_specified_info = {}
         self.singletons = []
@@ -307,6 +310,7 @@ class Environment:
         self.shape_type_cache = {}
         self.expr_view_cache = {}
         self.path_scope_map = {}
+        self.dml_rewrites = {}
 
     def add_schema_ref(
             self, sobj: s_obj.Object, expr: Optional[qlast.Base]) -> None:
@@ -315,7 +319,7 @@ class Environment:
             self.schema_ref_exprs.setdefault(sobj, set()).add(expr)
 
     @overload
-    def get_track_schema_object(  # NoQA: F811
+    def get_schema_object_and_track(  # NoQA: F811
         self,
         name: s_name.Name,
         expr: Optional[qlast.Base],
@@ -329,7 +333,7 @@ class Environment:
         ...
 
     @overload
-    def get_track_schema_object(  # NoQA: F811
+    def get_schema_object_and_track(  # NoQA: F811
         self,
         name: s_name.Name,
         expr: Optional[qlast.Base],
@@ -342,7 +346,7 @@ class Environment:
     ) -> Optional[s_obj.Object]:
         ...
 
-    def get_track_schema_object(  # NoQA: F811
+    def get_schema_object_and_track(  # NoQA: F811
         self,
         name: s_name.Name,
         expr: Optional[qlast.Base],
@@ -377,7 +381,7 @@ class Environment:
 
         return sobj
 
-    def get_track_schema_type(
+    def get_schema_type_and_track(
         self,
         name: s_name.Name,
         expr: Optional[qlast.Base]=None,
@@ -388,7 +392,7 @@ class Environment:
         condition: Optional[Callable[[s_obj.Object], bool]]=None,
     ) -> s_types.Type:
 
-        stype = self.get_track_schema_object(
+        stype = self.get_schema_object_and_track(
             name, expr, modaliases=modaliases, default=default, label=label,
             condition=condition, type=s_types.Type,
         )
@@ -538,6 +542,12 @@ class ContextLevel(compiler.ContextLevel):
     """Whether we are currently in a place where no dml is allowed,
         if not None, then it is of the form `in a FILTER clause`  """
 
+    active_rewrites: FrozenSet[s_objtypes.ObjectType]
+    """For detecting cycles in rewrite rules"""
+
+    active_defaults: FrozenSet[s_objtypes.ObjectType]
+    """For detecting cycles in defaults"""
+
     def __init__(
         self,
         prevlevel: Optional[ContextLevel],
@@ -591,6 +601,8 @@ class ContextLevel(compiler.ContextLevel):
             self.compiling_update_shape = False
             self.active_computeds = ordered.OrderedSet()
             self.recompiling_schema_alias = False
+            self.active_rewrites = frozenset()
+            self.active_defaults = frozenset()
 
             self.disallow_dml = None
 
@@ -631,6 +643,8 @@ class ContextLevel(compiler.ContextLevel):
             self.compiling_update_shape = prevlevel.compiling_update_shape
             self.active_computeds = prevlevel.active_computeds
             self.recompiling_schema_alias = prevlevel.recompiling_schema_alias
+            self.active_rewrites = prevlevel.active_rewrites
+            self.active_defaults = prevlevel.active_defaults
 
             self.disallow_dml = prevlevel.disallow_dml
 
@@ -667,8 +681,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.pending_stmt_own_path_id_namespace = frozenset()
                 self.pending_stmt_full_path_id_namespace = frozenset()
                 self.inserting_paths = {}
-
-                self.iterator_path_ids = frozenset()
 
                 self.view_rptr = None
                 self.view_scls = None

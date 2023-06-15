@@ -23,7 +23,9 @@ abstract type Named {
     }
 }
 
-type Target1 extending Named;
+type Target1 extending Named {
+     multi link extra_tgt -> Target1;
+};
 type Target1Child extending Target1;
 
 type Source1 extending Named {
@@ -82,6 +84,7 @@ type Source2 extending Named {
     link src1_del_source -> Source1 {
         on target delete delete source;
     }
+    multi link tgt_m2m -> Target1;
 }
 
 type Source3 extending Source1;
