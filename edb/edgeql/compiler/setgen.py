@@ -728,9 +728,13 @@ def resolve_ptr_with_intersections(
             if track_ref is not False:
                 # When ptr is a computed property, it is still referenced!
                 # We need to add this to ensure the correct order in DDL.
-                if (ref != ptr and ptr.is_property(ctx.env.schema)
-                    and ptr.id in list(ctx.env.schema._get_object_ids())
-                    and ptr.get_computable(ctx.env.schema)):
+                # XXX: This condition is a hack that approximates what
+                # really exists in the schema and what does not exist.
+                if (ref != ptr and
+                        ptr.is_property(ctx.env.schema) and
+                        ptr.id in list(ctx.env.schema._get_object_ids()) and
+                        ptr.get_computable(ctx.env.schema) and
+                        not ptr.get_from_alias(ctx.env.schema)):
                     ctx.env.add_schema_ref(ptr, track_ref)
                 ctx.env.add_schema_ref(ref, track_ref)
                 _add_target_schema_refs(
