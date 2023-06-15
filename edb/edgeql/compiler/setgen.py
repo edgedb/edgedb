@@ -731,7 +731,7 @@ def resolve_ptr_with_intersections(
                 # XXX: This condition is a hack that approximates what
                 # really exists in the schema and what does not exist.
                 if (ref != ptr and
-                        ptr.is_property(ctx.env.schema) and
+                        ptr.id in list(ctx.env.schema._get_object_ids()) and
                         ptr.get_computable(ctx.env.schema) and
                         not ptr.get_from_alias(ctx.env.schema)):
                     ctx.env.add_schema_ref(ptr, track_ref)
