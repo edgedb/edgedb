@@ -596,17 +596,14 @@ class DeleteQuery(PipelinedQuery):
 
 class ForBinding(Base):
     optional: bool = False
-
-class ForQuery(Query):
     iterator: Expr
     iterator_alias: str
 
+class ForQuery(Query):
+    iterator_bindings: typing.List[ForBinding]
+
     result_alias: typing.Optional[str] = None
     result: Expr
-
-
-class ForQuery(Query, ReturningMixin, OrderByMixin):
-    iterator_bindings: typing.List[ForBinding]
 
 
 # Transactions
