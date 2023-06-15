@@ -45,6 +45,7 @@ from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
+from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
@@ -143,7 +144,7 @@ def compile_SelectQuery(
         stmt.limit = clauses.compile_limit_offset_clause(
             expr.limit, ctx=sctx)
 
-        result = fini_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=sctx, parent_ctx=ctx)
 
     return result
 
@@ -254,7 +255,7 @@ def compile_ForQuery(
                 compile_result_clause(
                     # Make sure it is a stmt, so that shapes inside the body
                     # get resolved there.
-                    astutils.ensure_qlstmt(qlstmt.result),
+                    astutils.ensure_ql_query(qlstmt.result),
                     view_scls=ctx.view_scls,
                     view_rptr=ctx.view_rptr,
                     view_name=ctx.toplevel_result_view_name,
@@ -279,7 +280,7 @@ def compile_ForQuery(
                 ctx=sctx,
             )
 
-        result = fini_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=sctx, parent_ctx=ctx)
 
     return result
 
@@ -424,7 +425,7 @@ def compile_InternalGroupQuery(
                 )
 
             stmt.result = compile_result_clause(
-                astutils.ensure_qlstmt(expr.result),
+                astutils.ensure_ql_query(expr.result),
                 result_alias=expr.result_alias,
                 ctx=bctx)
 
@@ -433,7 +434,7 @@ def compile_InternalGroupQuery(
             stmt.orderby = clauses.compile_orderby_clause(
                 expr.orderby, ctx=bctx)
 
-        result = fini_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=sctx, parent_ctx=ctx)
 
     return result
 
@@ -501,6 +502,12 @@ def compile_InsertQuery(
                 f'{str(subject_stype.get_shortname(ctx.env.schema))!r}',
                 context=expr.subject.context)
 
+        if _is_forbidden_stdlib_type_for_mod(subject_stype, ctx):
+            raise errors.QueryError(
+                f'cannot insert standard library type '
+                f'{subject_stype.get_displayname(ctx.env.schema)}',
+                context=expr.subject.context)
+
         with ictx.new() as bodyctx:
             # Self-references in INSERT are prohibited.
             pathctx.ban_inserting_path(
@@ -518,7 +525,9 @@ def compile_InsertQuery(
                 view_rptr=ctx.view_rptr,
                 compile_views=True,
                 exprtype=s_types.ExprType.Insert,
-                ctx=bodyctx)
+                ctx=bodyctx,
+                parser_context=expr.context,
+            )
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
         assert isinstance(stmt_subject_stype, s_objtypes.ObjectType)
@@ -549,6 +558,7 @@ def compile_InsertQuery(
                 view_name=ctx.toplevel_result_view_name,
                 compile_views=ictx.stmt is ictx.toplevel_stmt,
                 ctx=resultctx,
+                parser_context=expr.context,
             )
 
         if pol_condition := policies.compile_dml_write_policies(
@@ -556,7 +566,7 @@ def compile_InsertQuery(
         ):
             stmt.write_policies[mat_stype.id] = pol_condition
 
-        result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=ictx, parent_ctx=ctx)
 
         # If we have an ELSE clause, and this is a toplevel statement,
         # we need to compile_query_subject *again* on the outer query,
@@ -576,7 +586,8 @@ def compile_InsertQuery(
                     view_name=ctx.toplevel_result_view_name,
                     compile_views=ictx.stmt is ctx.toplevel_stmt,
                     ctx=resultctx,
-                    parser_context=result.context)
+                    parser_context=result.context,
+                )
 
     return result
 
@@ -633,6 +644,13 @@ def compile_UpdateQuery(
                 context=expr.subject.context)
 
         mat_stype = schemactx.concretify(subj_type, ctx=ctx)
+
+        if _is_forbidden_stdlib_type_for_mod(mat_stype, ctx):
+            raise errors.QueryError(
+                f'cannot update standard library type '
+                f'{subj_type.get_displayname(ctx.env.schema)}',
+                context=expr.subject.context)
+
         stmt._material_type = typeutils.type_to_typeref(
             ctx.env.schema,
             mat_stype,
@@ -658,7 +676,9 @@ def compile_UpdateQuery(
                 view_rptr=ctx.view_rptr,
                 compile_views=True,
                 exprtype=s_types.ExprType.Update,
-                ctx=bodyctx)
+                ctx=bodyctx,
+                parser_context=expr.context,
+            )
 
         result = setgen.class_set(
             mat_stype, path_id=stmt.subject.path_id, ctx=ctx,
@@ -671,6 +691,7 @@ def compile_UpdateQuery(
                 view_name=ctx.toplevel_result_view_name,
                 compile_views=ictx.stmt is ictx.toplevel_stmt,
                 ctx=resultctx,
+                parser_context=expr.context,
             )
 
         for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
@@ -686,7 +707,7 @@ def compile_UpdateQuery(
         stmt.conflict_checks = conflicts.compile_inheritance_conflict_checks(
             stmt, mat_stype, ctx=ictx)
 
-        result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=ictx, parent_ctx=ctx)
 
     return result
 
@@ -764,6 +785,13 @@ def compile_DeleteQuery(
                 context=expr.subject.context)
 
         mat_stype = schemactx.concretify(subj_type, ctx=ctx)
+
+        if _is_forbidden_stdlib_type_for_mod(mat_stype, ctx):
+            raise errors.QueryError(
+                f'cannot delete standard library type '
+                f'{subj_type.get_displayname(ctx.env.schema)}',
+                context=expr.subject.context)
+
         stmt._material_type = typeutils.type_to_typeref(
             ctx.env.schema,
             mat_stype,
@@ -782,6 +810,7 @@ def compile_DeleteQuery(
                 shape=None,
                 exprtype=s_types.ExprType.Delete,
                 ctx=bodyctx,
+                parser_context=expr.context,
             )
 
         result = setgen.class_set(
@@ -795,15 +824,36 @@ def compile_DeleteQuery(
                 view_name=ctx.toplevel_result_view_name,
                 compile_views=ictx.stmt is ictx.toplevel_stmt,
                 ctx=resultctx,
+                parser_context=expr.context,
             )
 
         for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
+            # Compile policies for every concrete type
             if pol_cond := policies.compile_dml_read_policies(
                 dtype, result, mode=qltypes.AccessKind.Delete, ctx=ictx
             ):
                 stmt.read_policies[dtype.id] = pol_cond
 
-        result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
+            schema = ctx.env.schema
+            # And find any pointers to delete
+            ptrs = []
+            for ptr in dtype.get_pointers(schema).objects(schema):
+                # If there is a pointer that has a real table and doesn't
+                # have a special ON SOURCE DELETE policy, arrange to
+                # delete it in the query itself.
+                if not ptr.is_pure_computable(schema) and (
+                    not ptr.singular(schema)
+                    or ptr.has_user_defined_properties(schema)
+                ) and (
+                    not isinstance(ptr, s_links.Link)
+                    or ptr.get_on_source_delete(schema) ==
+                    s_links.LinkSourceDeleteAction.Allow
+                ):
+                    ptrs.append(typegen.ptr_to_ptrref(ptr, ctx=ctx))
+
+            stmt.links_to_delete[dtype.id] = tuple(ptrs)
+
+        result = fini_stmt(stmt, ctx=ictx, parent_ctx=ctx)
 
     return result
 
@@ -831,7 +881,7 @@ def compile_DescribeStmt(
                     f'cannot describe full schema as {ql.language}')
 
             ct = typegen.type_to_typeref(
-                ctx.env.get_track_schema_type(
+                ctx.env.get_schema_type_and_track(
                     s_name.QualName('std', 'str')),
                 env=ctx.env,
             )
@@ -890,14 +940,15 @@ def compile_DescribeStmt(
             itemclass = objref.itemclass
 
             if itemclass is qltypes.SchemaObjectClass.MODULE:
+                mod = s_name.UnqualName(str(s_utils.ast_ref_to_name(objref)))
                 if not ctx.env.schema.get_global(
-                        s_mod.Module, objref.name, None):
+                        s_mod.Module, mod, None):
                     raise errors.InvalidReferenceError(
-                        f"module '{objref.name}' does not exist",
+                        f"module '{mod}' does not exist",
                         context=objref.context,
                     )
 
-                modules.append(s_utils.ast_ref_to_unqualname(objref))
+                modules.append(mod)
             else:
                 itemtype: Optional[Type[s_obj.Object]] = None
 
@@ -1054,7 +1105,7 @@ def compile_DescribeStmt(
                 text += masked
 
             ct = typegen.type_to_typeref(
-                ctx.env.get_track_schema_type(
+                ctx.env.get_schema_type_and_track(
                     s_name.QualName('std', 'str')),
                 env=ctx.env,
             )
@@ -1064,7 +1115,7 @@ def compile_DescribeStmt(
                 ctx=ictx,
             )
 
-        result = fini_stmt(stmt, ql, ctx=ictx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=ictx, parent_ctx=ctx)
 
     return result
 
@@ -1074,7 +1125,7 @@ def compile_Shape(
         shape: qlast.Shape, *, ctx: context.ContextLevel) -> irast.Set:
     shape_expr = shape.expr or qlutils.FREE_SHAPE_EXPR
     with ctx.new() as subctx:
-        subctx.qlstmt = astutils.ensure_qlstmt(shape)
+        subctx.qlstmt = astutils.ensure_ql_query(shape)
         subctx.stmt = stmt = irast.SelectStmt()
         ctx.env.compiled_stmts[subctx.qlstmt] = stmt
         subctx.class_view_overrides = subctx.class_view_overrides.copy()
@@ -1173,10 +1224,11 @@ def init_stmt(
 
 
 def fini_stmt(
-        irstmt: Union[irast.Stmt, irast.Set],
-        qlstmt: qlast.Statement, *,
-        ctx: context.ContextLevel,
-        parent_ctx: context.ContextLevel) -> irast.Set:
+    irstmt: Union[irast.Stmt, irast.Set],
+    *,
+    ctx: context.ContextLevel,
+    parent_ctx: context.ContextLevel,
+) -> irast.Set:
 
     view_name = parent_ctx.toplevel_result_view_name
     t = inference.infer_type(irstmt, ctx.env)
@@ -1185,7 +1237,8 @@ def fini_stmt(
     path_id: Optional[irast.PathId]
 
     if isinstance(irstmt, irast.MutatingStmt):
-        ctx.env.dml_stmts.add(irstmt)
+        ctx.env.dml_stmts.append(irstmt)
+        irstmt.rewrites = ctx.env.dml_rewrites.pop(irstmt.subject, None)
 
     if (isinstance(t, s_pseudo.PseudoType)
             and t.is_any(ctx.env.schema)):
@@ -1374,7 +1427,7 @@ def compile_query_subject(
         exprtype: s_types.ExprType = s_types.ExprType.Select,
         allow_select_shape_inject: bool=True,
         forward_rptr: bool=False,
-        parser_context: Optional[pctx.ParserContext]=None,
+        parser_context: Optional[pctx.ParserContext],
         ctx: context.ContextLevel) -> irast.Set:
 
     expr_stype = setgen.get_set_type(expr, ctx=ctx)
@@ -1492,6 +1545,7 @@ def compile_query_subject(
             view_name=view_name,
             exprtype=exprtype,
             ctx=ctx,
+            srcctx=parser_context,
         )
 
     if view_scls is not None:
@@ -1527,6 +1581,42 @@ def maybe_add_view(ir: irast.Set, *, ctx: context.ContextLevel) -> irast.Set:
         and ir.path_id.is_objtype_path()
     ):
         return compile_query_subject(
-            ir, allow_select_shape_inject=True, compile_views=False, ctx=ctx)
+            ir, allow_select_shape_inject=True, compile_views=False, ctx=ctx,
+            parser_context=ir.context)
     else:
         return ir
+
+
+def _is_forbidden_stdlib_type_for_mod(
+    t: s_types.Type,
+    ctx: context.ContextLevel
+) -> bool:
+    o = ctx.env.options
+    if o.bootstrap_mode or o.schema_reflection_mode:
+        return False
+
+    schema = ctx.env.schema
+
+    assert isinstance(t, s_objtypes.ObjectType)
+    assert not t.is_view(schema)
+
+    if intersection := t.get_intersection_of(schema):
+        return all((_is_forbidden_stdlib_type_for_mod(it, ctx)
+                    for it in intersection.objects(schema)))
+    elif union := t.get_union_of(schema):
+        return any((_is_forbidden_stdlib_type_for_mod(ut, ctx)
+                    for ut in union.objects(schema)))
+
+    name = t.get_name(schema)
+
+    if (
+        name.get_module_name() == s_name.UnqualName('cfg')
+        and o.in_server_config_op
+    ):
+        # Config ops include various internally generated statements for cfg::
+        return False
+    if name == s_name.QualName('std', 'Object'):
+        # Allow people to mess with the baseclass of user-defined objects to
+        # their hearts' content
+        return False
+    return t.get_name(schema).get_module_name() in s_schema.STD_MODULES

@@ -44,14 +44,10 @@ cdef class StatementsCache:
     # beginning of it.
 
     def __init__(self, *, maxsize):
-        if maxsize <= 0:
-            raise ValueError(
-                f'maxsize is expected to be greater than 0, got {maxsize}')
-
+        self.resize(maxsize)
         self._dict = collections.OrderedDict()
         self._dict_move_to_end = self._dict.move_to_end
         self._dict_get = self._dict.get
-        self._maxsize = maxsize
 
     cpdef get(self, key, default):
         o = self._dict_get(key, _LRU_MARKER)
@@ -66,6 +62,12 @@ cdef class StatementsCache:
     cpdef cleanup_one(self):
         k, _ = self._dict.popitem(last=False)
         return k
+
+    cpdef resize(self, int maxsize):
+        if maxsize <= 0:
+            raise ValueError(
+                f'maxsize is expected to be greater than 0, got {maxsize}')
+        self._maxsize = maxsize
 
     def __getitem__(self, key):
         o = self._dict[key]

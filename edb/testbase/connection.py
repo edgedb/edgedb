@@ -348,6 +348,9 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
     def remove_log_listener(self, callback):
         self._log_listeners.discard(callback)
 
+    def _get_state(self):
+        return self._options.state
+
     def _on_log_message(self, msg):
         if self._log_listeners:
             loop = asyncio.get_running_loop()
@@ -380,6 +383,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             qc=script.cache.query_cache,
             output_format=protocol.OutputFormat.NONE,
             allow_capabilities=edgedb_enums.Capability.ALL,  # type: ignore
+            state=script.state and script.state.as_dict(),
         )
 
     async def ensure_connected(self):
@@ -398,6 +402,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             expect_one=query_context.query_options.expect_one,
             required_one=query_context.query_options.required_one,
             allow_capabilities=edgedb_enums.Capability.ALL,  # type: ignore
+            state=query_context.state and query_context.state.as_dict(),
         )
 
     async def _fetchall(
@@ -627,6 +632,7 @@ async def async_connect_test_client(
     credentials_file: typing.Optional[str] = None,
     user: typing.Optional[str] = None,
     password: typing.Optional[str] = None,
+    secret_key: typing.Optional[str] = None,
     database: typing.Optional[str] = None,
     tls_ca: typing.Optional[str] = None,
     tls_ca_file: typing.Optional[str] = None,
@@ -644,6 +650,7 @@ async def async_connect_test_client(
             "credentials_file": credentials_file,
             "user": user,
             "password": password,
+            "secret_key": secret_key,
             "database": database,
             "timeout": timeout,
             "tls_ca": tls_ca,

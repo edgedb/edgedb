@@ -1,4 +1,5 @@
 .. eql:section-intro-page:: reference
+.. versioned-section::
 
 .. _ref_reference_index:
 
@@ -22,7 +23,9 @@ Reference
     backend_ha
     configuration
     http
+    sql_support
     protocol/index
+    bindings/index
     admin/index
     edgeqlspec/index
     edgeqlspec/index2

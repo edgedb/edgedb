@@ -1,6 +1,6 @@
 use sha2::digest::Digest;
 
-use crate::tokenizer::TokenStream;
+use crate::tokenizer::Tokenizer;
 use crate::position::Pos;
 
 #[derive(Debug, Clone)]
@@ -10,6 +10,7 @@ pub struct Hasher {
 
 #[derive(Debug)]
 pub enum Error {
+    // TODO: use [crate::Error] instead
     Tokenizer(String, Pos),
 }
 
@@ -24,20 +25,16 @@ impl Hasher {
         return me;
     }
     pub fn add_source(&mut self, data: &str) -> Result<&mut Self, Error> {
-        let mut parser = &mut TokenStream::new(data);
+        let mut parser = &mut Tokenizer::new(data);
         for token in &mut parser {
             let token = match token {
                 Ok(t) => t,
-                Err(combine::easy::Error::Unexpected(s)) => {
+                Err(crate::tokenizer::Error { message, .. }) => {
                     return Err(Error::Tokenizer(
-                        s.to_string(), parser.current_pos()));
-                }
-                Err(e) => {
-                    return Err(Error::Tokenizer(
-                        e.to_string(), parser.current_pos()));
+                        message, parser.current_pos()));
                 }
             };
-            self.hasher.update(token.token.value.as_bytes());
+            self.hasher.update(token.text.as_bytes());
             self.hasher.update(b"\0");
         }
         Ok(self)

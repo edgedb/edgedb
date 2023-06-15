@@ -39,6 +39,8 @@ from edb.schema import schema as s_schema
 
 from edb.server import config
 
+from edb.pgsql.codegen import SQLSourceGeneratorTranslationData
+
 from . import enums
 from . import sertypes
 
@@ -119,6 +121,7 @@ class SessionStateQuery(BaseQuery):
     config_scope: Optional[qltypes.ConfigScope] = None
     is_backend_setting: bool = False
     requires_restart: bool = False
+    is_system_config: bool = False
     config_op: Optional[config.Operation] = None
     is_transactional: bool = True
     single_unit: bool = False
@@ -176,6 +179,12 @@ class MigrationControlQuery(BaseQuery):
     user_schema: Optional[s_schema.FlatSchema] = None
     cached_reflection: Any = None
     ddl_stmt_id: Optional[str] = None
+
+
+@dataclasses.dataclass(frozen=True)
+class MaintenanceQuery(BaseQuery):
+
+    is_transactional: bool = True
 
 
 @dataclasses.dataclass(frozen=True)
@@ -293,6 +302,9 @@ class QueryUnit:
     # Set only when this unit contains a CONFIGURE command which
     # alters a backend configuration setting.
     backend_config: bool = False
+    # Set only when this unit contains a CONFIGURE command which
+    # alters a system configuration setting.
+    is_system_config: bool = False
     config_ops: List[config.Operation] = (
         dataclasses.field(default_factory=list))
     modaliases: Optional[immutables.Map] = None
@@ -388,6 +400,7 @@ class QueryUnitGroup:
 @dataclasses.dataclass
 class SQLQueryUnit:
     query: str
+    translation_data: Optional[SQLSourceGeneratorTranslationData] = None
 
     tx_action: Optional[TxAction] = None
     tx_chain: bool = False
@@ -716,9 +729,13 @@ class Transaction:
 
     def update_schema(self, new_schema: s_schema.Schema):
         assert isinstance(new_schema, s_schema.ChainedSchema)
+        user_schema = new_schema.get_top_schema()
+        assert isinstance(user_schema, s_schema.FlatSchema)
+        global_schema = new_schema.get_global_schema()
+        assert isinstance(global_schema, s_schema.FlatSchema)
         self._current = self._current._replace(
-            user_schema=new_schema.get_top_schema(),
-            global_schema=new_schema.get_global_schema(),
+            user_schema=user_schema,
+            global_schema=global_schema,
         )
 
     def update_modaliases(self, new_modaliases: immutables.Map):

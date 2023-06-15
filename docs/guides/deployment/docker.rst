@@ -248,6 +248,7 @@ Determines the log verbosity level in the entrypoint script. Valid levels are
 ``trace``, ``debug``, ``info``, ``warning``, and ``error``.  The default is
 ``info``.
 
+.. _ref_guide_deployment_docker_custom_bootstrap_scripts:
 
 Custom scripts in ``/edgedb-bootstrap.d/`` and ``/edgedb-bootstrap-late.d``
 ...........................................................................
@@ -259,6 +260,12 @@ To perform additional initialization, a derived image may include one or more
 executed *before* any schema migrations are applied, and parts in
 ``/edgedb-bootstrap-late.d`` are executed *after* the schema migration have
 been applied.
+
+.. note::
+
+    Best practice for naming your script files when you will have multiple
+    script files to run on bootstrap is to prepend the filenames with ``01-``,
+    ``02-``, and so on to indicate your desired order of execution.
 
 Health Checks
 =============

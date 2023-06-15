@@ -41,7 +41,7 @@ class Setting:
     name: str
     type: type
     default: Any
-    s_type: Any = None
+    schema_type_name: Optional[sn.QualName] = None
     set_of: bool = False
     system: bool = False
     internal: bool = False
@@ -49,6 +49,7 @@ class Setting:
     backend_setting: Optional[str] = None
     report: bool = False
     affects_compilation: bool = False
+    enum_values: Optional[List[str]] = None
 
     def __post_init__(self):
         if (self.type not in SETTING_TYPES and
@@ -169,7 +170,7 @@ def load_spec_from_schema(schema):
         setting = Setting(
             pn,
             type=pytype,
-            s_type=ptype,
+            schema_type_name=ptype.get_name(schema),
             set_of=set_of,
             internal=attributes.get(sn.QualName('cfg', 'internal'), False),
             system=attributes.get(sn.QualName('cfg', 'system'), False),
@@ -181,6 +182,9 @@ def load_spec_from_schema(schema):
             affects_compilation=attributes.get(
                 sn.QualName('cfg', 'affects_compilation'), False),
             default=deflt,
+            enum_values=(
+                ptype.get_enum_values(schema) if ptype.is_enum(schema)
+                else None),
         )
 
         settings.append(setting)

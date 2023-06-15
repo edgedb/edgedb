@@ -223,12 +223,12 @@ fn rewrite(py: Python<'_>, operation: Option<&PyString>, text: &PyString)
                 entry.end_pos,
             )
         }
-        Err(Error::Lexing(e)) => Err(LexingError::new(py, e.to_string())),
+        Err(Error::Lexing(e)) => Err(LexingError::new(py, e)),
         Err(Error::Syntax(e)) => Err(SyntaxError::new(py, e.to_string())),
-        Err(Error::NotFound(e)) => Err(NotFoundError::new(py, e.to_string())),
-        Err(Error::Query(e)) => Err(QueryError::new(py, e.to_string())),
+        Err(Error::NotFound(e)) => Err(NotFoundError::new(py, e)),
+        Err(Error::Query(e)) => Err(QueryError::new(py, e)),
         Err(Error::Assertion(e))
-        => Err(AssertionError::new(py, e.to_string())),
+        => Err(AssertionError::new(py, e)),
     }
 }
 

@@ -17,9 +17,9 @@ guide!
 .. toctree::
     :maxdepth: 1
 
+    cloud
     tutorials/index
     deployment/index
     migrations/index
-    introspection/index
     cheatsheet/index
     contributing/index

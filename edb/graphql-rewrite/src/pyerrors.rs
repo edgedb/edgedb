@@ -17,15 +17,15 @@ pyobject_newtype!(AssertionError);
 pyobject_newtype!(QueryError);
 
 impl LexingError {
-    pub fn new<'p, T: ToPyObject>(py: Python<'p>, args: T) -> PyErr {
+    pub fn new<T: ToPyObject>(py: Python, args: T) -> PyErr {
         PyErr::new::<LexingError, T>(py, args)
     }
 }
 
 impl cpython::PythonObjectWithCheckedDowncast for LexingError {
     #[inline]
-    fn downcast_from<'p>(py: Python<'p>, obj: PyObject)
-        -> Result<LexingError, cpython::PythonObjectDowncastError<'p>>
+    fn downcast_from(py: Python, obj: PyObject)
+        -> Result<LexingError, cpython::PythonObjectDowncastError>
     {
         if LexingError::type_object(py).is_instance(py, &obj) {
             Ok(unsafe { PythonObject::unchecked_downcast_from(obj) })
@@ -73,15 +73,15 @@ impl cpython::PythonObjectWithTypeObject for LexingError {
 }
 
 impl SyntaxError {
-    pub fn new<'p, T: ToPyObject>(py: Python<'p>, args: T) -> PyErr {
+    pub fn new<T: ToPyObject>(py: Python, args: T) -> PyErr {
         PyErr::new::<SyntaxError, T>(py, args)
     }
 }
 
 impl cpython::PythonObjectWithCheckedDowncast for SyntaxError {
     #[inline]
-    fn downcast_from<'p>(py: Python<'p>, obj: PyObject)
-        -> Result<SyntaxError, cpython::PythonObjectDowncastError<'p>>
+    fn downcast_from(py: Python, obj: PyObject)
+        -> Result<SyntaxError, cpython::PythonObjectDowncastError>
     {
         if SyntaxError::type_object(py).is_instance(py, &obj) {
             Ok(unsafe { PythonObject::unchecked_downcast_from(obj) })
@@ -129,15 +129,15 @@ impl cpython::PythonObjectWithTypeObject for SyntaxError {
 }
 
 impl NotFoundError {
-    pub fn new<'p, T: ToPyObject>(py: Python<'p>, args: T) -> PyErr {
+    pub fn new<T: ToPyObject>(py: Python, args: T) -> PyErr {
         PyErr::new::<NotFoundError, T>(py, args)
     }
 }
 
 impl cpython::PythonObjectWithCheckedDowncast for NotFoundError {
     #[inline]
-    fn downcast_from<'p>(py: Python<'p>, obj: PyObject)
-        -> Result<NotFoundError, cpython::PythonObjectDowncastError<'p>>
+    fn downcast_from(py: Python, obj: PyObject)
+        -> Result<NotFoundError, cpython::PythonObjectDowncastError>
     {
         if NotFoundError::type_object(py).is_instance(py, &obj) {
             Ok(unsafe { PythonObject::unchecked_downcast_from(obj) })
@@ -185,15 +185,15 @@ impl cpython::PythonObjectWithTypeObject for NotFoundError {
 }
 
 impl AssertionError {
-    pub fn new<'p, T: ToPyObject>(py: Python<'p>, args: T) -> PyErr {
+    pub fn new<T: ToPyObject>(py: Python, args: T) -> PyErr {
         PyErr::new::<AssertionError, T>(py, args)
     }
 }
 
 impl cpython::PythonObjectWithCheckedDowncast for AssertionError {
     #[inline]
-    fn downcast_from<'p>(py: Python<'p>, obj: PyObject)
-        -> Result<AssertionError, cpython::PythonObjectDowncastError<'p>>
+    fn downcast_from(py: Python, obj: PyObject)
+        -> Result<AssertionError, cpython::PythonObjectDowncastError>
     {
         if AssertionError::type_object(py).is_instance(py, &obj) {
             Ok(unsafe { PythonObject::unchecked_downcast_from(obj) })
@@ -241,15 +241,15 @@ impl cpython::PythonObjectWithTypeObject for AssertionError {
 }
 
 impl QueryError {
-    pub fn new<'p, T: ToPyObject>(py: Python<'p>, args: T) -> PyErr {
+    pub fn new<T: ToPyObject>(py: Python, args: T) -> PyErr {
         PyErr::new::<QueryError, T>(py, args)
     }
 }
 
 impl cpython::PythonObjectWithCheckedDowncast for QueryError {
     #[inline]
-    fn downcast_from<'p>(py: Python<'p>, obj: PyObject)
-        -> Result<QueryError, cpython::PythonObjectDowncastError<'p>>
+    fn downcast_from(py: Python, obj: PyObject)
+        -> Result<QueryError, cpython::PythonObjectDowncastError>
     {
         if QueryError::type_object(py).is_instance(py, &obj) {
             Ok(unsafe { PythonObject::unchecked_downcast_from(obj) })

@@ -56,6 +56,7 @@ from edb.schema import operators as s_opers
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import roles as s_roles
+from edb.schema import rewrites as s_rewrites
 from edb.schema import sources as s_sources
 from edb.schema import triggers as s_triggers
 from edb.schema import types as s_types
@@ -135,29 +136,7 @@ def is_cfg_view(
     )
 
 
-def get_index_code(index_name: sn.Name) -> str:
-    # HACK: currently this helper just hardcodes the SQL code necessary for
-    # specific PG indexes, but this should be based on index definition.
-    name = str(index_name)
-    match name:
-        case '__::idx':
-            return ' ((__col__) NULLS FIRST)'
-        case 'pg::hash':
-            return 'hash ((__col__))'
-        case 'pg::btree':
-            return 'btree ((__col__) NULLS FIRST)'
-        case 'pg::gin':
-            return 'gin ((__col__))'
-        case 'fts::textsearch':
-            return "gin (to_tsvector(__kw_language__, __col__))"
-        case 'pg::gist':
-            return 'gist ((__col__))'
-        case 'pg::spgist':
-            return 'spgist ((__col__))'
-        case 'pg::brin':
-            return 'brin ((__col__))'
-        case _:
-            raise NotImplementedError(f'index {name} is not implemented')
+DEFAULT_INDEX_CODE = ' ((__col__) NULLS FIRST)'
 
 
 class CommandMeta(sd.CommandMeta):
@@ -619,20 +598,16 @@ class TupleCommand(MetaCommand):
 
 class CreateTuple(TupleCommand, adapts=s_types.CreateTuple):
 
-    def apply(
-        self,
+    @classmethod
+    def create_tuple(
+        cls,
+        tup: s_types.Tuple,
         schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = super().apply(schema, context)
-
-        if self.scls.is_polymorphic(schema):
-            return schema
-
-        elements = self.scls.get_element_types(schema).items(schema)
+    ) -> dbops.Command:
+        elements = tup.get_element_types(schema).items(schema)
 
         ctype = dbops.CompositeType(
-            name=common.get_backend_name(schema, self.scls, catenate=False),
+            name=common.get_backend_name(schema, tup, catenate=False),
             columns=[
                 dbops.Column(
                     name=n,
@@ -643,7 +618,19 @@ class CreateTuple(TupleCommand, adapts=s_types.CreateTuple):
             ]
         )
 
-        self.pgops.add(dbops.CreateCompositeType(type=ctype))
+        return dbops.CreateCompositeType(type=ctype)
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().apply(schema, context)
+
+        if self.scls.is_polymorphic(schema):
+            return schema
+
+        self.pgops.add(self.create_tuple(self.scls, schema))
 
         return schema
 
@@ -840,6 +827,45 @@ class AlterTrigger(
 class DeleteTrigger(
     TriggerCommand,
     adapts=s_triggers.DeleteTrigger,
+):
+    pass
+
+
+class RewriteCommand(MetaCommand):
+    pass
+
+
+class CreateRewrite(
+    RewriteCommand,
+    adapts=s_rewrites.CreateRewrite,
+):
+    pass
+
+
+class RebaseRewrite(
+    RewriteCommand,
+    adapts=s_rewrites.RebaseRewrite,
+):
+    pass
+
+
+class RenameRewrite(
+    RewriteCommand,
+    adapts=s_rewrites.RenameRewrite,
+):
+    pass
+
+
+class AlterRewrite(
+    RewriteCommand,
+    adapts=s_rewrites.AlterRewrite,
+):
+    pass
+
+
+class DeleteRewrite(
+    RewriteCommand,
+    adapts=s_rewrites.DeleteRewrite,
 ):
     pass
 
@@ -1139,10 +1165,12 @@ class FunctionCommand(MetaCommand):
                                           schema=nativecode.schema)
         ):
             # Add a cast and recompile it
-            qlexpr = qlcompiler.astutils.ensure_qlstmt(ql_ast.TypeCast(
-                type=s_utils.typeref_to_ast(schema, return_type),
-                expr=nativecode.qlast,
-            ))
+            qlexpr = qlcompiler.astutils.ensure_ql_query(
+                ql_ast.TypeCast(
+                    type=s_utils.typeref_to_ast(schema, return_type),
+                    expr=nativecode.qlast,
+                )
+            )
             nativecode = self._compile_edgeql_function(
                 schema,
                 context,
@@ -1300,7 +1328,9 @@ class FunctionCommand(MetaCommand):
                 explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
                     schema, func.get_return_type(schema)),
                 output_format=compiler.OutputFormat.NATIVE,
-                use_named_params=True)
+                use_named_params=True,
+                backend_runtime_params=context.backend_runtime_params,
+            )
 
         return self.make_function(func, body, schema), replace
 
@@ -1906,6 +1936,7 @@ class DeleteCast(CastCommand, adapts=s_casts.DeleteCast):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        orig_schema = schema
         cast = schema.get(self.classname, type=s_casts.Cast)
         cast_language = cast.get_language(schema)
         cast_code = cast.get_code(schema)
@@ -1913,7 +1944,7 @@ class DeleteCast(CastCommand, adapts=s_casts.DeleteCast):
         schema = super().apply(schema, context)
 
         if cast_language is ql_ast.Language.SQL and cast_code:
-            cast_func = self.make_cast_function(cast, schema)
+            cast_func = self.make_cast_function(cast, orig_schema)
             self.pgops.add(dbops.DropFunction(
                 cast_func.name, cast_func.args))
 
@@ -2039,11 +2070,9 @@ class ConstraintCommand(MetaCommand):
                 and not context.is_deleting(base)
             ):
                 subject = base.get_subject(schema)
-                schemac_to_backendc = \
-                    schemamech.ConstraintMech.\
-                    schema_constraint_to_backend_constraint
-                bconstr = schemac_to_backendc(
-                    subject, base, schema, context, source_context)
+                bconstr = schemamech.compile_constraint(
+                    subject, base, schema, source_context
+                )
                 op.add_command(bconstr.alter_ops(
                     bconstr, only_modify_enabled=True))
 
@@ -2057,12 +2086,9 @@ class ConstraintCommand(MetaCommand):
             subject = constraint.get_subject(schema)
 
             if subject is not None:
-                schemac_to_backendc = \
-                    schemamech.ConstraintMech.\
-                    schema_constraint_to_backend_constraint
-                bconstr = schemac_to_backendc(
-                    subject, constraint, schema, context,
-                    source_context)
+                bconstr = schemamech.compile_constraint(
+                    subject, constraint, schema, source_context
+                )
 
                 op.add_command(bconstr.create_ops())
 
@@ -2076,12 +2102,9 @@ class ConstraintCommand(MetaCommand):
             subject = constraint.get_subject(schema)
 
             if subject is not None:
-                schemac_to_backendc = \
-                    schemamech.ConstraintMech.\
-                    schema_constraint_to_backend_constraint
-                bconstr = schemac_to_backendc(
-                    subject, constraint, schema, context,
-                    source_context)
+                bconstr = schemamech.compile_constraint(
+                    subject, constraint, schema, source_context
+                )
 
                 op.add_command(bconstr.delete_ops())
 
@@ -2095,12 +2118,9 @@ class ConstraintCommand(MetaCommand):
             subject = constraint.get_subject(schema)
 
             if subject is not None:
-                schemac_to_backendc = \
-                    schemamech.ConstraintMech.\
-                    schema_constraint_to_backend_constraint
-                bconstr = schemac_to_backendc(
-                    subject, constraint, schema, context,
-                    source_context)
+                bconstr = schemamech.compile_constraint(
+                    subject, constraint, schema, source_context
+                )
 
                 return bconstr.enforce_ops()
         else:
@@ -2180,18 +2200,14 @@ class AlterConstraint(
             return schema
 
         if subject is not None:
-            schemac_to_backendc = \
-                schemamech.ConstraintMech.\
-                schema_constraint_to_backend_constraint
+            bconstr = schemamech.compile_constraint(
+                subject, constraint, schema, self.source_context
+            )
 
-            bconstr = schemac_to_backendc(
-                subject, constraint, schema, context, self.source_context)
-
-            orig_bconstr = schemac_to_backendc(
+            orig_bconstr = schemamech.compile_constraint(
                 constraint.get_subject(orig_schema),
                 constraint,
                 orig_schema,
-                context,
                 self.source_context,
             )
 
@@ -2201,18 +2217,16 @@ class AlterConstraint(
 
                 # XXX: I don't think any of this logic is needed??
                 for child in constraint.children(schema):
-                    orig_cbconstr = schemac_to_backendc(
+                    orig_cbconstr = schemamech.compile_constraint(
                         child.get_subject(orig_schema),
                         child,
                         orig_schema,
-                        context,
                         self.source_context,
                     )
-                    cbconstr = schemac_to_backendc(
+                    cbconstr = schemamech.compile_constraint(
                         child.get_subject(schema),
                         child,
                         schema,
-                        context,
                         self.source_context,
                     )
                     op.add_command(cbconstr.alter_ops(orig_cbconstr))
@@ -2220,18 +2234,16 @@ class AlterConstraint(
                 op.add_command(bconstr.alter_ops(orig_bconstr))
 
                 for child in constraint.children(schema):
-                    orig_cbconstr = schemac_to_backendc(
+                    orig_cbconstr = schemamech.compile_constraint(
                         child.get_subject(orig_schema),
                         child,
                         orig_schema,
-                        context,
                         self.source_context,
                     )
-                    cbconstr = schemac_to_backendc(
+                    cbconstr = schemamech.compile_constraint(
                         child.get_subject(schema),
                         child,
                         schema,
-                        context,
                         self.source_context,
                     )
                     op.add_command(cbconstr.alter_ops(orig_cbconstr))
@@ -2364,7 +2376,7 @@ class CreateScalarType(ScalarTypeMetaCommand,
         # needed for casting within indexes/constraints.
         # (Postgres casts are only stable)
         cast_func_name = common.get_backend_name(
-            schema, scalar, catenate=False, aspect="enum-cast"
+            schema, scalar, catenate=False, aspect="enum-cast-from-str"
         )
         cast_func = dbops.Function(
             name=cast_func_name,
@@ -2374,6 +2386,19 @@ class CreateScalarType(ScalarTypeMetaCommand,
             text=f"SELECT value::{qt(new_enum_name)}",
         )
         ops.add_command(dbops.CreateFunction(cast_func))
+
+        # Simialry, uncast from enum to str
+        uncast_func_name = common.get_backend_name(
+            schema, scalar, catenate=False, aspect="enum-cast-into-str"
+        )
+        uncast_func = dbops.Function(
+            name=uncast_func_name,
+            args=[("value", ("anyelement",))],
+            volatility="immutable",
+            returns="text",
+            text=f"SELECT value::text",
+        )
+        ops.add_command(dbops.CreateFunction(uncast_func))
         return ops
 
     def _create_begin(
@@ -2388,6 +2413,10 @@ class CreateScalarType(ScalarTypeMetaCommand,
             return schema
 
         if types.is_builtin_scalar(schema, scalar):
+            return schema
+        # If this type exposes a SQL type or is a parameterized
+        # subtype of a SQL type, we don't create a real type here.
+        if scalar.resolve_sql_type_scheme(schema)[0]:
             return schema
 
         default = self.get_resolved_attribute_value(
@@ -2493,8 +2522,10 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                 typs.append(obj)
             elif isinstance(obj, s_types.Collection):
                 wl.extend(schema.get_referrers(obj))
+                seen_other.add(obj)
             elif isinstance(obj, s_funcs.Parameter) and not composite_only:
                 wl.extend(schema.get_referrers(obj))
+                seen_other.add(obj)
             elif isinstance(obj, s_funcs.Function) and not composite_only:
                 wl.extend(schema.get_referrers(obj))
                 seen_other.add(obj)
@@ -2587,6 +2618,10 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                     ConstraintCommand.delete_constraint(obj, schema, context))
             elif isinstance(obj, s_indexes.Index):
                 self.pgops.add(DeleteIndex.delete_index(obj, schema, context))
+            elif isinstance(obj, s_types.Tuple):
+                self.pgops.add(dbops.DropCompositeType(
+                    name=common.get_backend_name(schema, obj, catenate=False),
+                ))
             elif isinstance(obj, s_scalars.ScalarType):
                 self.pgops.add(DeleteScalarType.delete_scalar(obj, schema))
             elif isinstance(obj, s_props.Property):
@@ -2631,6 +2666,8 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
             elif isinstance(obj, s_indexes.Index):
                 self.pgops.add(
                     CreateIndex.create_index(obj, orig_schema, context))
+            elif isinstance(obj, s_types.Tuple):
+                self.pgops.add(CreateTuple.create_tuple(obj, orig_schema))
             elif isinstance(obj, s_scalars.ScalarType):
                 self.pgops.add(
                     CreateScalarType.create_scalar(
@@ -2809,7 +2846,7 @@ class DeleteScalarType(ScalarTypeMetaCommand,
             cond = dbops.EnumExists(old_enum_name)
 
             cast_func_name = common.get_backend_name(
-                orig_schema, scalar, catenate=False, aspect="enum-cast"
+                orig_schema, scalar, False, aspect="enum-cast-from-str"
             )
             cast_func = dbops.DropFunction(
                 name=cast_func_name,
@@ -2817,6 +2854,16 @@ class DeleteScalarType(ScalarTypeMetaCommand,
                 conditions=[cond],
             )
             ops.add_command(cast_func)
+
+            uncast_func_name = common.get_backend_name(
+                orig_schema, scalar, False, aspect="enum-cast-into-str"
+            )
+            uncast_func = dbops.DropFunction(
+                name=uncast_func_name,
+                args=[("value", ("anyelement",))],
+                conditions=[cond],
+            )
+            ops.add_command(uncast_func)
 
             enum = dbops.DropEnum(name=old_enum_name, conditions=[cond])
             ops.add_command(enum)
@@ -3090,7 +3137,7 @@ class CompositeMetaCommand(MetaCommand):
         if pg_schema is not None:
             inhview_name = (pg_schema, inhview_name[1])
 
-        ptrs = {}
+        ptrs: Dict[sn.UnqualName, Tuple[str, Tuple[str, ...]]] = {}
 
         if isinstance(obj, s_sources.Source):
             pointers = list(obj.get_pointers(schema).items(schema))
@@ -3118,7 +3165,7 @@ class CompositeMetaCommand(MetaCommand):
 
         else:
             # MULTI PROPERTY
-            ptrs[sn.UnqualName('source')] = ('source', 'uuid')
+            ptrs[sn.UnqualName('source')] = ('source', ('uuid',))
             lp_info = types.get_pointer_storage_info(
                 obj,
                 link_bias=True,
@@ -3416,9 +3463,11 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         orig_name = sn.shortname_from_fullname(index.get_name(schema))
         if orig_name == s_indexes.DEFAULT_INDEX:
             root_name = orig_name
+            root_code = DEFAULT_INDEX_CODE
         else:
             root = index.get_root(schema)
             root_name = root.get_name(schema)
+            root_code = root.get_code(schema)
 
             kwargs = index.get_concrete_kwargs(schema)
             # Get all the concrete kwargs compiled (they are expected to be
@@ -3440,19 +3489,23 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                     as_fragment=True,
                 )
                 kw_ir = kw_expr.irast
-                kw_sql_tree = compiler.compile_ir_to_sql_tree(
+                kw_sql_tree, _ = compiler.compile_ir_to_sql_tree(
                     kw_ir.expr, singleton_mode=True)
-                sql = codegen.SQLSourceGenerator.to_source(kw_sql_tree)
                 # HACK: the compiled SQL is expected to have some unnecessary
-                # casts, strip casts to text as they mess with the requirement
-                # that index expressions are IMMUTABLE.
-                if sql.endswith('::text'):
-                    sql = sql[:-6]
+                # casts, strip them as they mess with the requirement that
+                # index expressions are IMMUTABLE (also indexes expect the
+                # usage of literals and will do their own implicit casts).
+                if isinstance(kw_sql_tree, pg_ast.TypeCast):
+                    kw_sql_tree = kw_sql_tree.arg
+                sql = codegen.SQLSourceGenerator.to_source(kw_sql_tree)
                 sql_kwarg_exprs[name] = sql
 
         module_name = index.get_name(schema).module
         index_name = common.get_index_backend_name(
             index.id, module_name, catenate=False)
+
+        if root_code is None:
+            raise AssertionError(f'index {root_name} is missing the code')
 
         pg_index = dbops.Index(
             name=index_name[1], table_name=table_name, exprs=sql_exprs,
@@ -3460,7 +3513,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             predicate=except_src,
             metadata={
                 'schemaname': str(index.get_name(schema)),
-                'code': get_index_code(root_name),
+                'code': root_code,
                 'kwargs': sql_kwarg_exprs,
             }
         )
@@ -3785,13 +3838,7 @@ class PointerMetaCommand(
     @classmethod
     def get_columns(cls, pointer, schema, default=None, sets_required=False):
         ptr_stor_info = types.get_pointer_storage_info(pointer, schema=schema)
-        col_type = list(ptr_stor_info.column_type)
-        if col_type[-1].endswith('[]'):
-            # Array
-            col_type[-1] = col_type[-1][:-2]
-            col_type = common.qname(*col_type) + '[]'
-        else:
-            col_type = common.qname(*col_type)
+        col_type = common.quote_type(tuple(ptr_stor_info.column_type))
 
         return [
             dbops.Column(
@@ -3858,6 +3905,7 @@ class PointerMetaCommand(
         if isinstance(source_op, sd.CreateObject):
             return
 
+        assert ptr_stor_info.table_name
         tab = q(*ptr_stor_info.table_name)
         target_col = ptr_stor_info.column_name
         source = ptr.get_source(orig_schema)
@@ -4000,6 +4048,7 @@ class PointerMetaCommand(
         context: sd.CommandContext,
         *,
         fill_expr: Optional[s_expr.Expression],
+        is_default: bool=False,
     ) -> None:
         new_required = self.scls.get_required(schema)
 
@@ -4056,6 +4105,7 @@ class PointerMetaCommand(
 
         if fill_expr is not None:
 
+            assert ptr_stor_info.table_name
             tab = q(*ptr_stor_info.table_name)
             target_col = ptr_stor_info.column_name
             source = ptr.get_source(orig_schema)
@@ -4092,7 +4142,8 @@ class PointerMetaCommand(
                 schema=schema,
                 orig_schema=orig_schema,
                 context=context,
-                check_non_null=is_required and not is_multi
+                check_non_null=is_required and not is_multi,
+                allow_globals=is_default,
             )
 
             if not is_multi:
@@ -4400,6 +4451,7 @@ class PointerMetaCommand(
         target_as_singleton: bool = True,
         check_non_null: bool = False,
         produce_ctes: bool = True,
+        allow_globals: bool=False,
     ) -> Tuple[
         str,  # SQL
         bool,  # is_nullable
@@ -4435,6 +4487,7 @@ class PointerMetaCommand(
                 context,
                 conv_expr,
                 target_as_singleton=target_as_singleton,
+                make_globals_empty=allow_globals,
                 no_query_rewrites=True,
             )
         ir = conv_expr.irast
@@ -4457,6 +4510,7 @@ class PointerMetaCommand(
                     schema=orig_schema,
                 ),
                 target_as_singleton=target_as_singleton,
+                make_globals_empty=allow_globals,
                 no_query_rewrites=True,
             )
 
@@ -4767,7 +4821,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
             index_name,
             new_table_name,
             unique=False,
-            metadata={'code': get_index_code(s_indexes.DEFAULT_INDEX)},
+            metadata={'code': DEFAULT_INDEX_CODE},
         )
         index.add_columns([tgt_col])
         ci = dbops.CreateIndex(index)
@@ -4874,7 +4928,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
                     unique=False, columns=[c.name for c in cols],
                     inherit=True,
                     metadata={
-                        'code': get_index_code(s_indexes.DEFAULT_INDEX),
+                        'code': DEFAULT_INDEX_CODE,
                     },
                 )
 
@@ -4901,7 +4955,8 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
                 and not fills_required
             ):
                 self._alter_pointer_optionality(
-                    schema, schema, context, fill_expr=default)
+                    schema, schema, context,
+                    fill_expr=default, is_default=True)
             # If we're creating a required multi pointer without a SET
             # REQUIRED USING inside, run the alter_pointer_optionality
             # path to produce an error if there is existing data.
@@ -5020,9 +5075,8 @@ class RebaseLink(LinkMetaCommand, adapts=s_links.RebaseLink):
 
         schema = super()._alter_innards(schema, context)
 
-        if not self.scls.is_pure_computable(schema):
-            self.schedule_endpoint_delete_action_update(
-                self.scls, orig_schema, schema, context)
+        self.schedule_endpoint_delete_action_update(
+            self.scls, orig_schema, schema, context)
 
         return schema
 
@@ -5036,11 +5090,10 @@ class SetLinkType(LinkMetaCommand, adapts=s_links.SetLinkType):
     ) -> s_schema.Schema:
         orig_schema = schema
         schema = super()._alter_begin(schema, context)
-        pop = self.get_parent_op(context)
         orig_type = self.scls.get_target(orig_schema)
         new_type = self.scls.get_target(schema)
         if (
-            not pop.maybe_get_object_aux_data('from_alias')
+            has_table(self.scls.get_source(schema), schema)
             and not self.scls.is_pure_computable(schema)
             and (orig_type != new_type or self.cast_expr is not None)
         ):
@@ -5060,7 +5113,6 @@ class AlterLinkUpperCardinality(
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         orig_schema = context.current().original_schema
-        pop = self.get_parent_op(context)
 
         # We need to run the parent change *before* the children,
         # or else the view update in the child might fail if a
@@ -5068,7 +5120,7 @@ class AlterLinkUpperCardinality(
         if (
             not self.scls.generic(schema)
             and not self.scls.is_pure_computable(schema)
-            and not pop.maybe_get_object_aux_data('from_alias')
+            and has_table(self.scls.get_source(schema), schema)
         ):
             orig_card = self.scls.get_cardinality(orig_schema)
             new_card = self.scls.get_cardinality(schema)
@@ -5087,7 +5139,6 @@ class AlterLinkLowerCardinality(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        pop = self.get_parent_op(context)
         orig_schema = schema
         schema = super().apply(schema, context)
 
@@ -5095,7 +5146,7 @@ class AlterLinkLowerCardinality(
             orig_required = self.scls.get_required(orig_schema)
             new_required = self.scls.get_required(schema)
             if (
-                not pop.maybe_get_object_aux_data('from_alias')
+                has_table(self.scls.get_source(schema), schema)
                 and not self.scls.is_endpoint_pointer(schema)
                 and not self.scls.is_pure_computable(schema)
                 and orig_required != new_required
@@ -5135,10 +5186,11 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
 
         if not is_abs and (was_comp and not is_comp):
             self._create_link(link, schema, orig_schema, context)
-        elif not is_abs and (not was_comp and is_comp):
-            self._delete_link(link, schema, orig_schema, context)
 
         schema = super()._alter_innards(schema, context)
+
+        if not is_abs and (not was_comp and is_comp):
+            self._delete_link(link, schema, orig_schema, context)
 
         # We check whether otd has changed, rather than whether
         # it is an attribute on this alter, because it might
@@ -5222,7 +5274,7 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
         pg_index = dbops.Index(
             name=index_name, table_name=new_table_name,
             unique=False, columns=[src_col],
-            metadata={'code': get_index_code(s_indexes.DEFAULT_INDEX)},
+            metadata={'code': DEFAULT_INDEX_CODE},
         )
 
         ci = dbops.CreateIndex(pg_index)
@@ -5371,7 +5423,8 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
                 and not prop.is_link_property(schema)
             ):
                 self._alter_pointer_optionality(
-                    schema, schema, context, fill_expr=default)
+                    schema, schema, context,
+                    fill_expr=default, is_default=True)
             # If we're creating a required multi pointer without a SET
             # REQUIRED USING inside, run the alter_pointer_optionality
             # path to produce an error if there is existing data.
@@ -5505,13 +5558,12 @@ class SetPropertyType(PropertyMetaCommand, adapts=s_props.SetPropertyType):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        pop = self.get_parent_op(context)
         orig_schema = schema
         schema = super()._alter_begin(schema, context)
         orig_type = self.scls.get_target(orig_schema)
         new_type = self.scls.get_target(schema)
         if (
-            not pop.maybe_get_object_aux_data('from_alias')
+            has_table(self.scls.get_source(schema), schema)
             and not self.scls.is_pure_computable(schema)
             and not self.scls.is_endpoint_pointer(schema)
             and (orig_type != new_type or self.cast_expr is not None)
@@ -5529,7 +5581,6 @@ class AlterPropertyUpperCardinality(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        pop = self.get_parent_op(context)
         orig_schema = context.current().original_schema
 
         # We need to run the parent change *before* the children,
@@ -5539,7 +5590,7 @@ class AlterPropertyUpperCardinality(
             not self.scls.generic(schema)
             and not self.scls.is_pure_computable(schema)
             and not self.scls.is_endpoint_pointer(schema)
-            and not pop.maybe_get_object_aux_data('from_alias')
+            and has_table(self.scls.get_source(schema), schema)
         ):
             orig_card = self.scls.get_cardinality(orig_schema)
             new_card = self.scls.get_cardinality(schema)
@@ -5558,7 +5609,6 @@ class AlterPropertyLowerCardinality(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        pop = self.get_parent_op(context)
         orig_schema = schema
         schema = super().apply(schema, context)
 
@@ -5566,7 +5616,7 @@ class AlterPropertyLowerCardinality(
             orig_required = self.scls.get_required(orig_schema)
             new_required = self.scls.get_required(schema)
             if (
-                not pop.maybe_get_object_aux_data('from_alias')
+                has_table(self.scls.get_source(schema), schema)
                 and not self.scls.is_endpoint_pointer(schema)
                 and not self.scls.is_pure_computable(schema)
                 and orig_required != new_required
@@ -5599,11 +5649,12 @@ class AlterProperty(PropertyMetaCommand, adapts=s_props.AlterProperty):
 
         if src and (was_comp and not is_comp):
             self._create_property(prop, src, schema, orig_schema, context)
-        elif src and (not was_comp and is_comp):
-            self._delete_property(
-                prop, src.scls, src.op, schema, orig_schema, context)
 
         schema = super()._alter_innards(schema, context)
+
+        if src and (not was_comp and is_comp):
+            self._delete_property(
+                prop, src.scls, src.op, schema, orig_schema, context)
 
         if self.metadata_only:
             return schema
@@ -5773,8 +5824,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
         aspect += '-t'
 
         # Postgres applies triggers in alphabetical order, and
-        # get_backend_name produces essentially cryptographically
-        # random trigger names.
+        # the names are uuids, which are not useful here.
         #
         # All we want for now is for source triggers to apply first,
         # though, so that a loop of objects with
@@ -5784,8 +5834,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
         # Fortunately S comes before T.
         order_prefix = disposition[0]
 
-        return order_prefix + common.get_backend_name(
-            schema, target, catenate=False, aspect=aspect)[1]
+        name = common.get_backend_name(schema, target, catenate=False)
+        return f'{order_prefix}_{name[1]}_{aspect}'
 
     def get_trigger_proc_name(self, schema, target,
                               disposition, deferred=False, inline=False):
@@ -5806,8 +5856,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
         aspect += '-f'
 
-        return common.get_backend_name(
-            schema, target, catenate=False, aspect=aspect)
+        name = common.get_backend_name(schema, target, catenate=False)
+        return (name[0], f'{name[1]}_{aspect}')
 
     def get_trigger_proc_text(self, target, links, *,
                               disposition, inline, schema):
@@ -6232,6 +6282,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
             return schema
 
         DA = s_links.LinkTargetDeleteAction
+        DS = s_links.LinkSourceDeleteAction
 
         affected_sources: set[s_sources.Source] = set()
         affected_targets = {t for _, t in self.changed_targets}
@@ -6321,46 +6372,6 @@ class UpdateEndpointDeleteActions(MetaCommand):
                         if current_orig_target is not None:
                             affected_targets.add(current_orig_target)
 
-        for source in affected_sources:
-            links = []
-            inline_links = []
-
-            for link in source.get_pointers(schema).objects(schema):
-                if link.is_pure_computable(schema):
-                    continue
-                ptr_stor_info = types.get_pointer_storage_info(
-                    link, schema=schema)
-
-                if ptr_stor_info.table_type == 'link':
-                    links.append(link)
-                elif (
-                    isinstance(link, s_links.Link)
-                    and link.get_on_source_delete(schema) !=
-                    s_links.LinkSourceDeleteAction.Allow
-                ):
-                    inline_links.append(link)
-
-            links.sort(
-                key=lambda l: (
-                    (l.get_on_target_delete(schema),)
-                    if isinstance(l, s_links.Link) else (),
-                    l.get_name(schema)))
-
-            inline_links.sort(
-                key=lambda l: (
-                    (l.get_on_target_delete(schema),)
-                    if isinstance(l, s_links.Link) else (),
-                    l.get_name(schema)))
-
-            if links or modifications:
-                self._update_action_triggers(
-                    schema, source, links, disposition='source')
-
-            if inline_links or modifications:
-                self._update_action_triggers(
-                    schema, source, inline_links,
-                    inline=True, disposition='source')
-
         # All descendants of affected targets also need to have their
         # triggers updated, so track them down.
         all_affected_targets = set()
@@ -6376,6 +6387,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 for descendant in objtype.descendants(schema):
                     if has_table(descendant, schema):
                         all_affected_targets.add(descendant)
+
+        delete_target_targets = set()
 
         for target in all_affected_targets:
             if is_cfg_view(target, schema):
@@ -6397,8 +6410,22 @@ class UpdateEndpointDeleteActions(MetaCommand):
             for link in inbound_links:
                 if link.is_pure_computable(schema):
                     continue
-                action = link.get_on_target_delete(schema)
 
+                source = link.get_source(schema)
+                if (
+                    not source.is_material_object_type(schema)
+                    or is_cfg_view(source, schema)
+                ):
+                    continue
+
+                # We need to track what objects are targets that can be
+                # deleted on a source delete; it feeds into a decision we
+                # need to make when handling source triggers below
+                if link.get_on_source_delete(schema) != DS.Allow:
+                    delete_target_targets.add(target)
+                    affected_sources.add(target)
+
+                action = link.get_on_target_delete(schema)
                 # Enforcing link deletion policies on targets are
                 # handled by looking at the inheritance views, when
                 # restrict is the policy.
@@ -6415,12 +6442,6 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 ):
                     continue
 
-                source = link.get_source(schema)
-                if (
-                    not source.is_material_object_type(schema)
-                    or is_cfg_view(source, schema)
-                ):
-                    continue
                 ptr_stor_info = types.get_pointer_storage_info(
                     link, schema=schema)
                 if ptr_stor_info.table_type != 'link':
@@ -6476,6 +6497,71 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     disposition='target', deferred=True,
                     inline=True)
 
+        # Now process source targets
+        for source in affected_sources:
+            links = []
+            inline_links = []
+
+            can_be_deleted_by_trigger = any(
+                link.get_on_target_delete(schema) == DA.DeleteSource
+                for link in source.get_pointers(schema).objects(schema)
+                if isinstance(link, s_links.Link)
+            ) or source in delete_target_targets
+
+            for link in source.get_pointers(schema).objects(schema):
+                if link.is_pure_computable(schema):
+                    continue
+                ptr_stor_info = types.get_pointer_storage_info(
+                    link, schema=schema)
+
+                delete_target = (
+                    isinstance(link, s_links.Link)
+                    and link.get_on_source_delete(schema) != DS.Allow
+                )
+
+                if ptr_stor_info.table_type == 'link' and (
+                    # When a query does a delete, link tables get
+                    # cleared out explicitly in our SQL, and so we
+                    # don't need to run a source trigger unless there
+                    # is an interesting source delete policy.
+                    #
+                    # However, if the object might be deleted by a
+                    # link policy, then we still use a trigger to
+                    # clean up the link table, since handling it
+                    # in the original policy triggers would require
+                    # lots of pretty nonlocal changes (adding a link
+                    # to type Bar might require changing the triggers for
+                    # type Foo that links to Bar).
+                    can_be_deleted_by_trigger
+                    or delete_target
+                ):
+                    links.append(link)
+                # Inline links only need source actions if they might
+                # delete the target
+                elif delete_target:
+                    inline_links.append(link)
+
+            links.sort(
+                key=lambda l: (
+                    (l.get_on_target_delete(schema),)
+                    if isinstance(l, s_links.Link) else (),
+                    l.get_name(schema)))
+
+            inline_links.sort(
+                key=lambda l: (
+                    (l.get_on_target_delete(schema),)
+                    if isinstance(l, s_links.Link) else (),
+                    l.get_name(schema)))
+
+            if links or modifications:
+                self._update_action_triggers(
+                    schema, source, links, disposition='source')
+
+            if inline_links or modifications:
+                self._update_action_triggers(
+                    schema, source, inline_links,
+                    inline=True, disposition='source')
+
         return schema
 
     def _update_action_triggers(
@@ -6512,7 +6598,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 name=proc_name, text=proc_text, volatility='volatile',
                 returns='trigger', language='plpgsql')
 
-            self.pgops.add(dbops.CreateOrReplaceFunction(trig_func))
+            self.pgops.add(dbops.CreateFunction(trig_func, or_replace=True))
 
             self.pgops.add(dbops.CreateTrigger(
                 trigger, neg_conditions=[dbops.TriggerExists(
@@ -6834,6 +6920,7 @@ class CreateExtensionPackage(
         version = self.scls.get_version(schema)._asdict()
         version['stage'] = version['stage'].name.lower()
 
+        ext_module = self.scls.get_ext_module(schema)
         metadata = {
             ext_id: {
                 'id': ext_id,
@@ -6843,6 +6930,8 @@ class CreateExtensionPackage(
                 'version': version,
                 'builtin': self.scls.get_builtin(schema),
                 'internal': self.scls.get_internal(schema),
+                'ext_module': ext_module and str(ext_module),
+                'sql_extensions': list(self.scls.get_sql_extensions(schema)),
             }
         }
 
@@ -6928,12 +7017,114 @@ class ExtensionCommand(MetaCommand):
     pass
 
 
+def _parse_spec(spec: str) -> tuple[str, list[tuple[str, str]]]:
+    if ' ' not in spec:
+        return (spec, [])
+
+    ext, versions = spec.split(' ', 1)
+    clauses = versions.split(',')
+    pclauses = []
+    for clause in clauses:
+        for i in range(len(clause)):
+            if clause[i].isnumeric():
+                break
+        pclauses.append((clause[:i], clause[i:]))
+
+    return ext, pclauses
+
+
 class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
-    pass
+    def _create_extension(self, ext_spec: str) -> None:
+        ext, vclauses = _parse_spec(ext_spec)
+
+        # Dynamically select the highest version extension that matches
+        # the provided version specification.
+        lclauses = []
+        for op, ver in vclauses:
+            pver = f"string_to_array({ql(ver)}, '.')::int8[]"
+            assert op in {'=', '>', '>=', '<', '<='}
+            lclauses.append(f'v.split {op} {pver}')
+        cond = ' and '.join(lclauses) if lclauses else 'true'
+
+        qry = textwrap.dedent(f'''\
+            with v as (
+               select name, version,
+               string_to_array(version, '.')::int8[] as split
+               from pg_available_extension_versions
+               where name = {ql(ext)}
+            )
+            select edgedb.raise_on_null(
+              (
+                 select v.version from v
+                 where {cond}
+                 order by split desc limit 1
+               ),
+               'feature_not_supported',
+               msg => (
+                 'could not find extension satisfying ' || {ql(ext_spec)}
+                  || ': ' ||
+                  coalesce(
+                    'only found versions ' ||
+                      (select string_agg(v.version, ', ' order by v.split)
+                       from v),
+                    'extension not found'))
+            )
+            into _dummy_text;
+        ''')
+        self.pgops.add(dbops.Query(qry))
+
+        # XXX: hardcode to put stuff into edgedb schema
+        # so that operations can be easily accessed.
+        # N.B: this won't work on heroku; is that fine?
+        target_schema = 'edgedb'
+
+        self.pgops.add(dbops.Query(textwrap.dedent(f"""\
+            EXECUTE
+              'CREATE EXTENSION {ext} WITH SCHEMA {target_schema} VERSION '''
+              || _dummy_text || ''''
+        """)))
+
+    def _create_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._create_begin(schema, context)
+        # backend_params = self._get_backend_params(context)
+        # ext_schema = backend_params.instance_params.ext_schema
+
+        package = self.scls.get_package(schema)
+
+        for ext_spec in package.get_sql_extensions(schema):
+            self._create_extension(ext_spec)
+
+        return schema
 
 
 class DeleteExtension(ExtensionCommand, adapts=s_exts.DeleteExtension):
-    pass
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        extension = schema.get_global(s_exts.Extension, self.classname)
+        package = extension.get_package(schema)
+
+        schema = super().apply(schema, context)
+
+        for ext_spec in package.get_sql_extensions(schema):
+            ext, _ = _parse_spec(ext_spec)
+
+            self.pgops.add(
+                dbops.DropExtension(
+                    dbops.Extension(
+                        name=ext,
+                        schema=ext,
+                    ),
+                )
+            )
+
+        return schema
 
 
 class FutureBehaviorCommand(MetaCommand, s_futures.FutureBehaviorCommand):

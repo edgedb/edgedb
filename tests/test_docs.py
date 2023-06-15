@@ -23,6 +23,13 @@ try:
     import docutils.parsers
     import docutils.utils
     import docutils.frontend
+    import docutils.parsers.rst.directives.body
+    from edb.tools.docs.shared import make_CodeBlock
+
+    docutils.parsers.rst.directives.register_directive(
+        'code-block',
+        make_CodeBlock(docutils.parsers.rst.directives.body.CodeBlock)
+    )
 except ImportError:
     docutils = None  # type: ignore
 
@@ -194,7 +201,8 @@ class TestDocSnippets(unittest.TestCase):
                                 'code' in node.attributes['classes'])
                         )
                         for subdir in subdirs:
-                            subdir.line += node_parent_line
+                            if subdir.line is not None:
+                                subdir.line += node_parent_line
                             directives.append(subdir)
 
         for directive in directives:
@@ -356,7 +364,8 @@ class TestDocSnippets(unittest.TestCase):
                     'rust',
                     'tsx',
                     'elixir',
-                    'toml'
+                    'toml',
+                    'sql'
                 }:
                     pass
                 elif lang[-5:] == '-diff':

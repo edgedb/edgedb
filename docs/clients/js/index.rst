@@ -1,5 +1,4 @@
 .. _edgedb-js-intro:
-.. _edgedb-js-qb:
 
 ==========
 JavaScript

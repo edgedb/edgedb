@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import *
 
+import functools
 import re
 import struct
 
@@ -41,6 +42,7 @@ class ScalarType:
         raise NotImplementedError
 
 
+@functools.total_ordering
 class Duration(ScalarType):
 
     _pg_simple_parser = re.compile(r'''
@@ -278,6 +280,9 @@ class Duration(ScalarType):
     def to_microseconds(self) -> int:
         return self._value
 
+    def __lt__(self, other: Duration) -> bool:
+        return self._value < other._value
+
     def to_iso8601(self) -> str:
         neg = '-' if self._value < 0 else ''
         seconds, usecs = divmod(abs(self._value), 1_000_000)
@@ -313,6 +318,7 @@ class Duration(ScalarType):
         return cls(microseconds=cls._codec.unpack(data)[0])
 
 
+@functools.total_ordering
 class ConfigMemory(ScalarType):
 
     PiB = 1024 * 1024 * 1024 * 1024 * 1024
@@ -368,6 +374,9 @@ class ConfigMemory(ScalarType):
         else:
             raise ValueError(
                 f"invalid ConfigMemory value: {type(val)}, expected int | str")
+
+    def __lt__(self, other: ConfigMemory) -> bool:
+        return self._value < other._value
 
     def to_nbytes(self) -> int:
         return self._value

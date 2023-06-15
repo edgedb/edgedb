@@ -25,6 +25,7 @@ from edb.ir import ast as irast
 from edb.edgeql import qltypes
 
 from edb.schema import casts as s_casts
+from edb.schema import name as sn
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import common
@@ -412,17 +413,20 @@ def _rewrite_config_insert(
 
     overwrite_query = pgast.SelectStmt()
     id_expr = pgast.FuncCall(
-        name=('edgedbext', 'uuid_generate_v1mc',),
+        name=('edgedb', 'uuid_generate_v1mc'),
         args=[],
     )
     pathctx.put_path_identity_var(
-        overwrite_query, ir_set.path_id, id_expr, force=True, env=ctx.env)
+        overwrite_query, ir_set.path_id, id_expr, force=True
+    )
     pathctx.put_path_value_var(
-        overwrite_query, ir_set.path_id, id_expr, force=True, env=ctx.env)
+        overwrite_query, ir_set.path_id, id_expr, force=True
+    )
     pathctx.put_path_source_rvar(
-        overwrite_query, ir_set.path_id,
+        overwrite_query,
+        ir_set.path_id,
         relctx.rvar_for_rel(pgast.NullRelation(), ctx=ctx),
-        env=ctx.env)
+    )
 
     relctx.add_type_rel_overlay(
         ir_set.typeref,
@@ -531,7 +535,7 @@ def _compile_config_value(
             ],
         )
         cast_name = s_casts.get_cast_fullname_from_names(
-            'std', 'std::bytes', 'std::json')
+            sn.QualName('std', 'bytes'), sn.QualName('std', 'json'))
         val = pgast.FuncCall(
             name=common.get_cast_backend_name(cast_name, aspect='function'),
             args=[val],

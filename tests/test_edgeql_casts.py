@@ -2624,6 +2624,25 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             [[42]],
         )
 
+    async def test_edgeql_casts_custom_scalar_06(self):
+        await self.con.execute(
+            '''
+            create scalar type x extending str {
+                create constraint expression on (false)
+            };
+        '''
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError, 'invalid x'
+        ):
+            await self.con.query("""SELECT <x>42""")
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError, 'invalid x'
+        ):
+            await self.con.query("""SELECT <x>to_json('"a"')""")
+
     async def test_edgeql_casts_tuple_params_01(self):
         # insert tuples into a nested array
         def nest(data):

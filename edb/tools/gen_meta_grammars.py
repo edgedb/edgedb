@@ -75,14 +75,16 @@ def main(names, data):
                 'EdgeQL',
                 collections.OrderedDict(
                     reserved_keywords=sorted(
-                        eql_keywords.reserved_keywords - BOOL_LITERALS),
+                        eql_keywords.reserved_keywords.union(
+                            eql_keywords.partial_reserved_keywords
+                        ) - BOOL_LITERALS),
                     unreserved_keywords=sorted(
                         eql_keywords.unreserved_keywords - BOOL_LITERALS),
                     bool_literals=sorted(BOOL_LITERALS),
                     type_builtins=types,
                     module_builtins=(sorted(
                         str(m) for m in s_schema.STD_MODULES
-                        if not str(m).startswith('__')
+                        if not (str(m).startswith('__') or 'test' in str(m))
                     )),
                     constraint_builtins=constraints,
                     fn_builtins=fn_builtins,

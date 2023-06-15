@@ -136,6 +136,9 @@ class EdgeQLParserBase(parsing.Parser):
                     msg = f'Unexpected {token.val!r}'
                 elif token_kind == 'NL':
                     msg = 'Unexpected end of line'
+                elif token.text() == "explain":
+                    msg = f'Unexpected keyword {token.text()!r}'
+                    hint = f'Use `analyze` to show query performance details'
                 elif is_reserved and not isinstance(ltok, gr_exprs.Expr):
                     # Another token followed by a reserved keyword:
                     # likely an attempt to use keyword as identifier
@@ -275,10 +278,16 @@ class EdgeQLParserBase(parsing.Parser):
         return rust_lexer.EdgeQLLexer()
 
 
-class EdgeQLExpressionParser(EdgeQLParserBase):
+class EdgeQLSingleParser(EdgeQLParserBase):
     def get_parser_spec_module(self):
         from .grammar import single
         return single
+
+
+class EdgeQLExpressionParser(EdgeQLParserBase):
+    def get_parser_spec_module(self):
+        from .grammar import fragment
+        return fragment
 
 
 class EdgeQLBlockParser(EdgeQLParserBase):
@@ -291,6 +300,12 @@ class EdgeQLMigrationBodyParser(EdgeQLParserBase):
     def get_parser_spec_module(self):
         from .grammar import migration_body
         return migration_body
+
+
+class EdgeQLExtensionPackageBodyParser(EdgeQLParserBase):
+    def get_parser_spec_module(self):
+        from .grammar import extension_package_body
+        return extension_package_body
 
 
 class EdgeSDLParser(EdgeQLParserBase):

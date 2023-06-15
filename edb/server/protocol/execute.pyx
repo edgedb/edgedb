@@ -165,13 +165,15 @@ async def execute(
         side_effects = dbv.on_success(query_unit, new_types)
         if side_effects:
             signal_side_effects(dbv, side_effects)
-        if not dbv.in_tx():
+        if not dbv.in_tx() and not query_unit.tx_rollback:
             state = dbv.serialize_state()
             if state is not orig_state:
                 # In 3 cases the state is changed:
                 #   1. The non-tx query changed the state
                 #   2. The state is synced with dbview (orig_state is None)
                 #   3. We came out from a transaction (orig_state is None)
+                # Excluding one special case when the state is NOT changed:
+                #   1. An orphan ROLLBACK command without a paring start tx
                 be_conn.last_state = state
     finally:
         if query_unit.drop_db:
@@ -351,6 +353,8 @@ async def execute_system_config(
     dbv: dbview.DatabaseConnectionView,
     query_unit: compiler.QueryUnit,
 ):
+    if query_unit.is_system_config:
+        dbv.server.before_alter_system_config()
     if query_unit.sql:
         if len(query_unit.sql) > 1:
             raise errors.InternalServerError(

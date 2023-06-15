@@ -157,7 +157,8 @@ def _compile_grouping_binding(
     pathctx.put_path_var(
         ctx.rel, stmt.grouping_binding.path_id,
         _compile_grouping_value(stmt, used_args=used_args, ctx=ctx),
-        aspect='value', env=ctx.env)
+        aspect='value',
+    )
 
 
 def _compile_group(
@@ -187,8 +188,7 @@ def _compile_group(
 
         subj_rvar = relctx.rvar_for_rel(
             subjctx.rel, ctx=groupctx, lateral=True)
-        aspects = pathctx.list_path_aspects(
-            subjctx.rel, stmt.subject.path_id, env=ctx.env)
+        aspects = pathctx.list_path_aspects(subjctx.rel, stmt.subject.path_id)
 
         pathctx.put_path_id_map(
             subjctx.rel,
@@ -239,7 +239,7 @@ def _compile_group(
                 pathctx.get_path_value_output(
                     rel=hoistctx.rel, path_id=group_use.path_id, env=ctx.env)
                 pathctx.put_path_value_var(
-                    grouprel, group_use.path_id, hoistctx.rel, env=ctx.env
+                    grouprel, group_use.path_id, hoistctx.rel
                 )
 
         packed = False
@@ -273,7 +273,7 @@ def _compile_group(
                 pathctx.put_path_var(
                     grouprel, stmt.group_binding.path_id, mat_qry,
                     aspect='value',
-                    flavor='packed', env=ctx.env
+                    flavor='packed',
                 )
 
         used_args = desugar_group.collect_grouping_atoms(stmt.by)
@@ -298,13 +298,18 @@ def _compile_group(
             if isinstance(uvar, pgast.TupleVarBase):
                 uvar = output.output_as_value(uvar, env=ctx.env)
                 pathctx.put_path_var(
-                    grouprel, using_val.path_id, uvar,
-                    aspect='value', force=True, env=ctx.env)
+                    grouprel,
+                    using_val.path_id,
+                    uvar,
+                    aspect='value',
+                    force=True,
+                )
 
             uout = pathctx.get_path_output(
                 grouprel, using_val.path_id, aspect='value', env=ctx.env)
             pathctx._put_path_output_var(
-                grouprel, using_val.path_id, 'serialized', uout, env=ctx.env)
+                grouprel, using_val.path_id, 'serialized', uout
+            )
 
         grouprel.group_clause = [
             compile_grouping_el(el, stmt, ctx=groupctx) for el in stmt.by
@@ -330,8 +335,8 @@ def _compile_group(
     ]:
         if group_use:
             pathctx.put_path_rvar(
-                query, group_use.path_id,
-                group_rvar, aspect='value', env=ctx.env)
+                query, group_use.path_id, group_rvar, aspect='value'
+            )
 
     vol_ref = None
 

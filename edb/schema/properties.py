@@ -34,6 +34,7 @@ from . import name as sn
 from . import objects as so
 from . import pointers
 from . import referencing
+from . import rewrites as s_rewrites
 from . import sources
 from . import types as s_types
 from . import utils
@@ -203,8 +204,11 @@ class PropertySourceCommand(
     pass
 
 
-class PropertyCommandContext(pointers.PointerCommandContext[Property],
-                             constraints.ConsistencySubjectCommandContext):
+class PropertyCommandContext(
+    pointers.PointerCommandContext[Property],
+    constraints.ConsistencySubjectCommandContext,
+    s_rewrites.RewriteCommandContext,
+):
     pass
 
 

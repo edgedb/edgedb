@@ -94,6 +94,7 @@ class ReadinessState(enum.StrEnum):
 
     Default = "default"
     NotReady = "not_ready"
+    ReadOnly = "read_only"
 
 
 class ServerAuthMethod(enum.StrEnum):
@@ -190,6 +191,7 @@ class ServerConfig(NamedTuple):
     temp_dir: bool
     auto_shutdown_after: float
     readiness_state_file: Optional[str]
+    disable_dynamic_system_config: bool
 
     startup_script: Optional[StartupScript]
     status_sinks: List[Callable[[str], None]]
@@ -200,6 +202,8 @@ class ServerConfig(NamedTuple):
 
     jws_key_file: pathlib.Path
     jose_key_mode: JOSEKeyMode
+    jwt_sub_allowlist_file: Optional[pathlib.Path]
+    jwt_revocation_list_file: Optional[pathlib.Path]
 
     default_auth_method: ServerAuthMethods
     security: ServerSecurityMode
@@ -811,6 +815,26 @@ _server_options = [
              '--security option is set to "strict", and "generate" when the '
              '--security option is set to "insecure_dev_mode"'),
     click.option(
+        '--jwt-sub-allowlist-file',
+        type=PathPath(),
+        envvar="EDGEDB_SERVER_JWT_SUB_ALLOWLIST_FILE",
+        hidden=True,
+        help='A file where the server can obtain a list of all JWT subjects '
+             'that are allowed to access this instance. '
+             'The file must contain one JWT "sub" claim value per line. '
+             'Applies only to the JWT authentication method.'
+    ),
+    click.option(
+        '--jwt-revocation-list-file',
+        type=PathPath(),
+        envvar="EDGEDB_SERVER_JWT_REVOCATION_LIST_FILE",
+        hidden=True,
+        help='A file where the server can obtain a list of all JWT ids '
+             'that are allowed to access this instance. '
+             'The file must contain one JWT "jti" claim value per line. '
+             'Applies only to the JWT authentication method.'
+    ),
+    click.option(
         "--default-auth-method",
         envvar="EDGEDB_SERVER_DEFAULT_AUTH_METHOD", cls=EnvvarResolver,
         callback=_validate_default_auth_method,
@@ -864,6 +888,12 @@ _server_options = [
         ),
         default='default',
         help='Enable admin UI.'),
+    click.option(
+        '--disable-dynamic-system-config', is_flag=True,
+        envvar="EDGEDB_SERVER_DISABLE_DYNAMIC_SYSTEM_CONFIG",
+        cls=EnvvarResolver,
+        help="Disable dynamic configuration of system config values",
+    )
 ]
 
 
@@ -905,6 +935,10 @@ _compiler_options = [
         '--runstate-dir', type=PathPath(), default=None,
         help="Directory to store UNIX domain socket file for IPC, a temporary "
              "directory will be used if not specified.",
+    ),
+    click.option(
+        '--metrics-port', type=PortType(),
+        help=f'Port to listen on for metrics HTTP API.',
     ),
 ]
 
@@ -1295,6 +1329,17 @@ def parse_args(**kwargs: Any):
             kwargs['instance_name'] = '_localdev'
         else:
             kwargs['instance_name'] = '_unknown'
+
+    if 'EDGEDB_SERVER_CONFIG_cfg::listen_addresses' in os.environ:
+        abort(
+            "EDGEDB_SERVER_CONFIG_cfg::listen_addresses is disallowed; "
+            "use EDGEDB_SERVER_BIND_ADDRESS instead"
+        )
+    if 'EDGEDB_SERVER_CONFIG_cfg::listen_port' in os.environ:
+        abort(
+            "EDGEDB_SERVER_CONFIG_cfg::listen_port is disallowed; "
+            "use EDGEDB_SERVER_PORT instead"
+        )
 
     return ServerConfig(
         startup_script=startup_script,

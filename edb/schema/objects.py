@@ -253,7 +253,7 @@ class Field(struct.ProtoField, Generic[T]):
                  'allow_ddl_set', 'ddl_identity', 'special_ddl_syntax',
                  'aux_cmd_data', 'describe_visibility',
                  'weak_ref', 'reflection_method', 'reflection_proxy',
-                 'type_is_generic_self', 'is_reducible')
+                 'type_is_generic_self', 'is_reducible', 'patch_level')
 
     #: Name of the field on the target class; assigned by ObjectMeta
     name: str
@@ -310,6 +310,9 @@ class Field(struct.ProtoField, Generic[T]):
     #: this specifies a (ProxyType, linkname) pair of a proxy object type
     #: and the name of the link within that proxy type.
     reflection_proxy: Optional[Tuple[str, str]]
+    #: Which patch for the current major version this field was introduced in.
+    #: Ensures that the data tuples always get extended strictly at the end.
+    patch_level: int
 
     def __init__(
         self,
@@ -333,6 +336,7 @@ class Field(struct.ProtoField, Generic[T]):
         reflection_proxy: Optional[Tuple[str, str]] = None,
         name: Optional[str] = None,
         reflection_name: Optional[str] = None,
+        patch_level: int = -1,
         **kwargs: Any,
     ) -> None:
         """Schema item core attribute definition.
@@ -357,6 +361,7 @@ class Field(struct.ProtoField, Generic[T]):
         self.reflection_method = reflection_method
         self.reflection_proxy = reflection_proxy
         self.is_reducible = issubclass(type_, s_abc.Reducible)
+        self.patch_level = patch_level
 
         if name is not None:
             self.name = name
@@ -655,7 +660,8 @@ class ObjectMeta(type):
         cls._data_safe = data_safe
         cls._fields = fields
         cls._schema_fields = {
-            fn: f for fn, f in fields.items()
+            fn: f
+            for fn, f in sorted(fields.items(), key=lambda f: f[1].patch_level)
             if isinstance(f, SchemaField)
         }
         cls._hashable_fields = {
@@ -1223,9 +1229,6 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
                 updates[field_name] = new_val
 
         return schema.update_obj(self, updates)
-
-    def is_type(self) -> bool:
-        return False
 
     def hash_criteria(
         self: Object_T, schema: s_schema.Schema
@@ -2081,6 +2084,11 @@ class DerivableObject(QualifiedObject):
 
 
 class Shell:
+    """
+    Shells mimic objects, but are not part of the schema.
+    They are construced from AST and are used to hold object data
+    before it is commited to the schema.
+    """
 
     def resolve(self, schema: s_schema.Schema) -> Any:
         raise NotImplementedError
@@ -3326,7 +3334,7 @@ def _merge_lineage(
                 break
         else:
             raise errors.SchemaError(
-                f"Could not find consistent ancestor order for {subject_name}"
+                f"could not find consistent ancestor order for {subject_name}"
             )
 
         result.append(candidate)
@@ -3346,6 +3354,7 @@ def _compute_lineage(
 
     for base in bases:
         lineage.append(_compute_lineage(schema, base, subject_name))
+    lineage.append(list(bases))
 
     return _merge_lineage(lineage, subject_name)
 
@@ -3358,8 +3367,15 @@ def compute_lineage(
     lineage = []
     for base in bases:
         lineage.append(_compute_lineage(schema, base, subject_name))
+    lineage.append(list(bases))
 
-    return _merge_lineage(lineage, subject_name)
+    try:
+        return _merge_lineage(lineage, subject_name)
+    except errors.SchemaError as e:
+        sbases = ', '.join(str(base.get_name(schema)) for base in bases)
+        details = f'type has specified bases: {sbases}'
+        e.set_hint_and_details(hint=e.hint, details=details)
+        raise
 
 
 def compute_ancestors(

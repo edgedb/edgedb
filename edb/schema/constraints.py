@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 from typing import *
+import re
 
 from edb import errors
 from edb.common import verutils
@@ -235,7 +236,7 @@ class Constraint(
         schema: s_schema.Schema,
         subjtitle: str,
     ) -> str:
-        errmsg = self.get_errmessage(schema)
+        errmsg: Optional[str] = self.get_errmessage(schema)
         args = self.get_args(schema)
         if args:
             args_ql: List[qlast.Base] = [
@@ -254,7 +255,7 @@ class Constraint(
             )
 
             expr = constr_base.get_field_value(schema, 'expr')
-            expr_ql = qlparser.parse(expr.text)
+            expr_ql = qlparser.parse_query(expr.text)
 
             qlutils.inline_parameters(expr_ql, index_parameters)
 
@@ -264,9 +265,7 @@ class Constraint(
             args_map = {'__subject__': subjtitle}
 
         assert errmsg is not None
-        formatted = errmsg.format(**args_map)
-
-        return formatted
+        return interpolate_errmessage(errmsg, args_map)
 
     def as_alter_delta(
         self,
@@ -751,7 +750,7 @@ class ConstraintCommand(
 
         # Re-parse instead of using expr.qlast, because we mutate
         # the AST below.
-        expr_ql = qlparser.parse(expr.text)
+        expr_ql = qlparser.parse_query(expr.text)
 
         if not args:
             args = constr_base.get_field_value(schema, 'args')
@@ -959,7 +958,7 @@ class CreateConstraint(
         *,
         param_offset: int=0
     ) -> List[s_func.ParameterDesc]:
-        if not isinstance(astnode, qlast.CallableObjectCommand):
+        if not isinstance(astnode, qlast.CallableObjectCommandTuple):
             # Concrete constraint.
             return []
 
@@ -1568,3 +1567,32 @@ class RebaseConstraint(
         bases: Tuple[so.ObjectShell[Constraint], ...],
     ) -> Tuple[so.ObjectShell[Constraint], ...]:
         return ()
+
+
+def interpolate_errmessage(message: str, args: Dict[str, str]) -> str:
+    """
+    Converts message template "hello {world}! {nope}{{world}}" and
+    arguments {"world": "Alice", "hell": "Eve"}
+    into "hello Alice! {world}".
+    """
+
+    regex = r"\{\{.*\}\}|\{([A-Za-z_0-9]+)\}"
+
+    formatted = ""
+    last_start = 0
+    for match in re.finditer(regex, message, flags=0):
+        formatted += message[last_start : match.start()]
+        last_start = match.end()
+
+        if match[1] is None:
+            # escape double curly braces
+            formatted += match[0][1:-1]
+        elif match[1] in args:
+            # lookup an arg
+            formatted += args[match[1]]
+        else:
+            # arg not found
+            formatted += match[0]
+
+    formatted += message[last_start:]
+    return formatted

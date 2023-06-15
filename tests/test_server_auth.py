@@ -16,9 +16,20 @@
 # limitations under the License.
 #
 
+import asyncio
+import os
+import pathlib
+import signal
+import tempfile
+import unittest
+
+import jwcrypto.jwk
+
 import edgedb
 
+from edb.common import secretkey
 from edb.schema import defines as s_def
+from edb.server import cluster as edb_cluster
 from edb.testbase import server as tb
 
 
@@ -221,3 +232,153 @@ class TestServerAuth(tb.ConnectedTestCase):
                 r'characters are not supported'):
             await self.con.execute(
                 f'CREATE SUPERUSER ROLE myrole_{"x" * s_def.MAX_NAME_LENGTH};')
+
+    async def test_server_auth_jwt_1(self):
+        if not self.has_create_role:
+            self.skipTest("create role is not supported by the backend")
+
+        if not isinstance(self.cluster, edb_cluster.Cluster):
+            raise unittest.SkipTest("test not supported on remote cluster")
+
+        jwk = self.cluster.get_jws_key()
+
+        try:
+            # enable JWT
+            await self.con.query("""
+                CONFIGURE INSTANCE INSERT Auth {
+                    comment := 'test',
+                    priority := 0,
+                    method := (INSERT JWT {
+                        transports := cfg::ConnectionTransport.TCP
+                    }),
+                }
+            """)
+
+            # bad secret keys
+            with self.assertRaisesRegex(
+                edgedb.AuthenticationError,
+                'authentication failed: malformed JWT',
+            ):
+                await self.connect(secret_key='wrong')
+
+            sk = secretkey.generate_secret_key(jwk)
+            corrupt_sk = sk[:50] + "0" + sk[51:]
+
+            with self.assertRaisesRegex(
+                edgedb.AuthenticationError,
+                'authentication failed: Verification failed',
+            ):
+                await self.connect(secret_key=corrupt_sk)
+
+            good_keys = [
+                [],
+                [("roles", ["edgedb"])],
+                [("databases", ["edgedb"])],
+                [("instances", ["_localdev"])],
+            ]
+
+            for params in good_keys:
+                params_dict = dict(params)
+                with self.subTest(**params_dict):
+                    sk = secretkey.generate_secret_key(jwk, **params_dict)
+                    conn = await self.connect(secret_key=sk)
+                    await conn.aclose()
+
+            bad_keys = {
+                (("roles", ("bad-role",)),):
+                    'secret key does not authorize access '
+                    + 'in role "edgedb"',
+                (("databases", ("bad-database",)),):
+                    'secret key does not authorize access '
+                    + 'to database "edgedb"',
+                (("instances", ("bad-instance",)),):
+                    'secret key does not authorize access '
+                    + 'to this instance',
+            }
+
+            for params, msg in bad_keys.items():
+                params_dict = dict(params)
+                with self.subTest(**params_dict):
+                    sk = secretkey.generate_secret_key(jwk, **params_dict)
+                    with self.assertRaisesRegex(
+                        edgedb.AuthenticationError,
+                        "authentication failed: " + msg,
+                    ):
+                        await self.connect(secret_key=sk)
+
+        finally:
+            await self.con.query("""
+                CONFIGURE INSTANCE RESET Auth FILTER .comment = 'test'
+            """)
+
+    async def test_server_auth_jwt_2(self):
+        jwk_fd, jwk_file = tempfile.mkstemp()
+
+        key = jwcrypto.jwk.JWK(generate='EC')
+        with open(jwk_fd, "wb") as f:
+            f.write(key.export_to_pem(private_key=True, password=None))
+
+        allowlist_fd, allowlist_file = tempfile.mkstemp()
+        os.close(allowlist_fd)
+
+        revokelist_fd, revokelist_file = tempfile.mkstemp()
+        os.close(revokelist_fd)
+
+        subject = "test"
+        key_id = "foobar"
+
+        async with tb.start_edgedb_server(
+            jws_key_file=jwk_file,
+            jwt_sub_allowlist_file=allowlist_file,
+            jwt_revocation_list_file=revokelist_file,
+        ) as sd:
+
+            jwk = secretkey.load_secret_key(pathlib.Path(jwk_file))
+
+            # enable JWT
+            conn = await sd.connect()
+            await conn.query("""
+                CONFIGURE INSTANCE INSERT Auth {
+                    comment := 'test',
+                    priority := 0,
+                    method := (INSERT JWT {
+                        transports := cfg::ConnectionTransport.TCP
+                    }),
+                }
+            """)
+            await conn.aclose()
+
+            # Try connecting with "test" not being in the allowlist.
+            sk = secretkey.generate_secret_key(
+                jwk,
+                subject=subject,
+                key_id=key_id,
+            )
+            with self.assertRaisesRegex(
+                edgedb.AuthenticationError,
+                'authentication failed: unauthorized subject',
+            ):
+                await sd.connect(secret_key=sk)
+
+            # Now add it to the allowlist.
+            with open(allowlist_file, "w") as f:
+                f.write(subject)
+            os.kill(sd.pid, signal.SIGHUP)
+
+            await asyncio.sleep(1)
+
+            conn = await sd.connect(secret_key=sk)
+            await conn.aclose()
+
+            # Now revoke the key
+            with open(revokelist_file, "w") as f:
+                f.write(key_id)
+            os.kill(sd.pid, signal.SIGHUP)
+
+            await asyncio.sleep(1)
+
+            with self.assertRaisesRegex(
+                edgedb.AuthenticationError,
+                'authentication failed: revoked key',
+            ):
+                await sd.connect(secret_key=sk)

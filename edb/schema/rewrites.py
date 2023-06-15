@@ -30,16 +30,16 @@ from . import annos as s_anno
 from . import delta as sd
 from . import expr as s_expr
 from . import name as sn
+from . import inheriting as s_inheriting
 from . import objects as so
-from . import pointers as s_pointers
 from . import referencing
 from . import schema as s_schema
-from . import sources as s_sources
 from . import types as s_types
 
 
 class Rewrite(
-    referencing.ReferencedInheritingObject,
+    referencing.NamedReferencedInheritingObject,
+    so.InheritingObject,  # Help reflection figure out the right db MRO
     s_anno.AnnotationSubject,
     qlkind=qltypes.SchemaObjectClass.REWRITE,
     data_safe=True,
@@ -52,16 +52,23 @@ class Rewrite(
         special_ddl_syntax=True,
     )
 
+    # 0.0 because we don't support ALTER yet
     expr = so.SchemaField(
         s_expr.Expression,
-        default=None,
-        compcoef=0.909,
+        compcoef=0.0,
         special_ddl_syntax=True,
     )
 
     subject = so.SchemaField(
-        s_pointers.Pointer, compcoef=None, inheritable=False
+        so.InheritingObject, compcoef=None, inheritable=False
     )
+
+    def should_propagate(self, schema: s_schema.Schema) -> bool:
+        # Rewrites should override rewrites on properties of an extended object
+        # type. But overriding *objects* would be hard, so we just disable
+        # inheritance for rewrites, and do lookups into parent object types
+        # when retrieving them.
+        return False
 
 
 class RewriteCommandContext(
@@ -71,8 +78,12 @@ class RewriteCommandContext(
     pass
 
 
-class RewriteSourceCommandContext(
-    s_sources.SourceCommandContext[s_sources.Source_T]
+class RewriteSubjectCommandContext:
+    pass
+
+
+class RewriteSubjectCommand(
+    s_inheriting.InheritingObjectCommand[so.InheritingObjectT],
 ):
     pass
 
@@ -81,7 +92,7 @@ class RewriteCommand(
     referencing.NamedReferencedInheritingObjectCommand[Rewrite],
     s_anno.AnnotationSubjectCommand[Rewrite],
     context_class=RewriteCommandContext,
-    referrer_context_class=RewriteSourceCommandContext,
+    referrer_context_class=RewriteSubjectCommandContext,
 ):
     def canonicalize_attributes(
         self,
@@ -119,9 +130,12 @@ class RewriteCommand(
     ) -> s_expr.CompiledExpression:
         if field.name == 'expr':
             from edb.ir import pathid
+            from . import pointers
 
             parent_ctx = self.get_referrer_context_or_die(context)
-            source = parent_ctx.op.get_object(schema, context)
+            pointer = parent_ctx.op.get_object(schema, context)
+            assert isinstance(pointer, pointers.Pointer)
+            source = pointer.get_source(schema)
             assert isinstance(source, s_types.Type)
             # XXX: in_ddl_context_name is disabled for now because
             # it causes the compiler to reject DML; we might actually
@@ -134,20 +148,32 @@ class RewriteCommand(
             kind = self._get_kind(schema)
 
             anchors = {}
+
+            # __subject__
+            anchors["__subject__"] = pathid.PathId.from_type(
+                schema,
+                source,
+                typename=sn.QualName(module="__derived__", name="__subject__"),
+            )
+            # __specified__
+            bool_type = schema.get("std::bool", type=s_types.Type)
+            schema, specified_type = s_types.Tuple.create(
+                schema,
+                named=True,
+                element_types={
+                    pn.name: bool_type
+                    for pn in source.get_pointers(schema).keys(schema)
+                },
+            )
+            anchors['__specified__'] = specified_type
+
+            # __old__
             if qltypes.RewriteKind.Update == kind:
                 anchors['__old__'] = pathid.PathId.from_type(
                     schema,
                     source,
                     typename=sn.QualName(module='__derived__', name='__old__'),
                 )
-
-            anchors['__specified__'] = pathid.PathId.from_type(
-                schema,
-                source,
-                typename=sn.QualName(
-                    module='__derived__', name='__specified__'
-                ),
-            )
 
             singletons = frozenset(anchors.values())
 
@@ -159,6 +185,7 @@ class RewriteCommand(
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,
                     schema_object_context=self.get_schema_metaclass(),
+                    path_prefix_anchor="__subject__",
                     anchors=anchors,
                     singletons=singletons,
                     apply_query_rewrites=not context.stdmode,
@@ -212,7 +239,13 @@ class RewriteCommand(
         assert isinstance(astnode, qlast.RewriteCommand)
 
         for kind in astnode.kinds:
-            cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+            # use kind for the name
+            newnode = astnode.replace(
+                name=qlast.ObjectRef(module='__', name=str(kind)),
+                kinds=kind,
+            )
+
+            cmd = super()._cmd_tree_from_ast(schema, newnode, context)
             assert isinstance(cmd, RewriteCommand)
 
             cmd.set_attribute_value('kind', kind)
@@ -264,10 +297,30 @@ class CreateRewrite(
             )
         return group
 
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
+        if op.property == 'kind':
+            assert isinstance(node, qlast.CreateRewrite)
+            node.kinds = [self.get_attribute_value('kind')]
+        else:
+            super()._apply_field_ast(schema, context, node, op)
+
 
 class RebaseRewrite(
     RewriteCommand,
     referencing.RebaseReferencedInheritingObject[Rewrite],
+):
+    pass
+
+
+class RenameRewrite(
+    RewriteCommand,
+    referencing.RenameReferencedInheritingObject[Rewrite],
 ):
     pass
 
@@ -304,3 +357,16 @@ class DeleteRewrite(
     referencing.DeleteReferencedInheritingObject[Rewrite],
 ):
     referenced_astnode = astnode = qlast.DropRewrite
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        node = super()._get_ast(schema, context, parent_node=parent_node)
+        assert isinstance(node, qlast.DropRewrite)
+        skind = sn.shortname_from_fullname(self.classname).name
+        node.kinds = [qltypes.RewriteKind(skind)]
+        return node

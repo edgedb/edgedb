@@ -59,12 +59,61 @@ class DumpTestCaseMixin:
             r'''
             select schema::Migration { script, message, generated_by }
             order by exists .parents then exists .parents.parents
+            limit 3
             ''',
             [
                 {"message": None, "generated_by": None},
                 {"message": "test", "generated_by": None},
                 {"message": None, "generated_by": "DDLStatement"},
             ],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select schema::Trigger {
+                name, scope, kinds, sname := .subject.name
+            };
+            ''',
+            [
+                {
+                    "name": "log",
+                    "scope": "Each",
+                    "kinds": ["Insert"],
+                    "sname": "default::Foo"
+                }
+            ]
+        )
+        await self.assert_query_result(
+            r'''
+            select schema::Rewrite {
+                sname := .subject.source.name ++ "." ++ .subject.name,
+                name,
+            };
+            ''',
+            tb.bag([
+                {"sname": "default::Log.timestamp", "name": "Insert"},
+                {"sname": "default::Log.timestamp", "name": "Update"},
+            ]),
+        )
+        await self.assert_query_result(
+            r'''
+            select schema::AccessPolicy { name, errmessage }
+            filter .name = 'whatever_no';
+            ''',
+            [{"name": "whatever_no", "errmessage": "aaaaaa"}],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select cfg::Config.allow_user_specified_id;
+            ''',
+            [True],
+        )
+        await self.assert_query_result(
+            r'''
+            select <str>cfg::Config.query_execution_timeout;
+            ''',
+            ['PT1H20M13S'],
         )
 
 

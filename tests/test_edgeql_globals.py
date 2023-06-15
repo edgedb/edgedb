@@ -17,7 +17,9 @@
 #
 
 
+import dataclasses
 import os.path
+import unittest
 
 import edgedb
 
@@ -62,8 +64,23 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
                 select get_current_user().deck
                 filter .name not in array_unpack(global banned_cards)
             );
+
+            create global tupleStr -> tuple<str, int64>;
+            create global tupleNums -> tuple<int64, int64>;
+            create global arrayTuple -> array<tuple<int64, int64>>;
+            create global arrayTuple2 -> array<tuple<str, array<int64>>>;
+            create global arrayTuple3 ->
+              array<tuple<tuple<str, bool>, array<int64>>>;
         '''
     ]
+
+    @classmethod
+    def setUpClass(cls):
+        if cls.get_set_up() == 'inplace':
+            raise unittest.SkipTest(
+                'globals schema broken with in place setup'
+            )
+        super().setUpClass()
 
     async def test_edgeql_globals_errors_01(self):
         async with self.assertRaisesRegexTx(
@@ -403,3 +420,32 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
         with self.assertRaises(edgedb.CardinalityViolationError):
             await self.con.execute("select global cur_user")
         self.con._protocol.last_state = None
+
+    async def test_edgeql_globals_composite(self):
+        # Test various composite global variables.
+
+        # HACK: Using with_globals on testbase.Connection doesn't
+        # work, and I timed out on understanding why; I got the state
+        # plumbed into the real client library code, where the state
+        # codec was not encoding it.
+        # It isn't actually important for that to work, so for now
+        # we create a connection with the real honest client library.
+        con = edgedb.create_async_client(
+            **self.get_connect_args(database=self.con.dbname)
+        )
+        try:
+            globs = dict(
+                tupleStr=('foo', 42),
+                tupleNums=(1, 2),
+                arrayTuple=[(10, 20), (30, 40)],
+                arrayTuple2=[('a', [1]), ('b', [3, 4])],
+                arrayTuple3=[(('a', True), [1]), (('b', False), [3, 4])],
+            )
+            scon = con.with_globals(**globs)
+            chunks = [f'{name} := global {name}' for name in globs]
+            res = await scon.query_single(f'select {{ {", ".join(chunks)} }}')
+            dres = dataclasses.asdict(res)
+            del dres['id']
+            self.assertEqual(dres, globs)
+        finally:
+            await con.aclose()

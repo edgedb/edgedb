@@ -20,6 +20,12 @@ Sets
     * - :eql:op:`set union set <union>`
       - :eql:op-desc:`union`
 
+    * - :eql:op:`set intersect set <intersect>`
+      - :eql:op-desc:`intersect`
+
+    * - :eql:op:`set except set <except>`
+      - :eql:op-desc:`except`
+
     * - :eql:op:`exists set <exists>`
       - :eql:op-desc:`exists`
 
@@ -152,6 +158,42 @@ Sets
 
     If you need a distinct union, wrap it with the :eql:op:`distinct`
     operator.
+
+
+----------
+
+
+.. eql:operator:: intersect: set of anytype intersect set of anytype \
+                                -> set of anytype
+
+    .. versionadded:: 3.0
+
+    Produces a set containing the common items between the given sets.
+
+    .. note::
+
+        The ordering of the returned set may not match that of the operands.
+
+    If you need a distinct intersection, wrap it with the :eql:op:`distinct`
+    operator.
+
+
+----------
+
+
+.. eql:operator:: except: set of anytype except set of anytype \
+                                -> set of anytype
+
+    .. versionadded:: 3.0
+
+    Produces a set of all items in the first set which are not in the second.
+
+    .. note::
+
+        The ordering of the returned set may not match that of the operands.
+
+    If you need a distinct set of exceptions, wrap it with the
+    :eql:op:`distinct` operator.
 
 
 ----------
@@ -304,6 +346,7 @@ Sets
     Consider the following types:
 
     .. code-block:: sdl
+        :version-lt: 3.0
 
         type User {
             required property name -> str;
@@ -319,6 +362,24 @@ Sets
 
         type Comment extending Owned {
             required property body -> str;
+        }
+
+    .. code-block:: sdl
+
+        type User {
+            required name: str;
+        }
+
+        abstract type Owned {
+            required owner: User;
+        }
+
+        type Issue extending Owned {
+            required title: str;
+        }
+
+        type Comment extending Owned {
+            required body: str;
         }
 
     The following expression will get all :eql:type:`Objects <Object>`

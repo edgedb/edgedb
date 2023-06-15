@@ -22,6 +22,10 @@ To get started with EdgeDB, the first step is install the ``edgedb`` CLI.
 
 **Windows Powershell**
 
+.. note::
+
+    EdgeDB on Windows requires WSL 2 because the EdgeDB server runs on Linux.
+
 .. code-block:: powershell
 
     PS> iwr https://ps1.edgedb.com -useb | iex

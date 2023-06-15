@@ -614,6 +614,9 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 INSERT Target1 {
                     name := 'Target1.1'
                 };
+                INSERT Target1 {
+                    name := 'Target1.2'
+                };
 
                 INSERT Source1 {
                     name := 'Source1.1',
@@ -628,6 +631,10 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     src1_del_source := (
                         SELECT Source1
                         FILTER .name = 'Source1.1'
+                    ),
+                    tgt_m2m := (
+                        SELECT Target1
+                        FILTER .name = 'Target1.2'
                     )
                 };
             """)
@@ -676,6 +683,10 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 ''',
                 [],
             )
+
+            await self.con.execute("""
+                DELETE (SELECT Target1 FILTER .name = 'Target1.2');
+            """)
 
     async def test_link_on_target_delete_delete_source_02(self):
         async with self._run_and_rollback():
@@ -1030,7 +1041,9 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                     name := 'Source1.1',
                     tgt1_del_target := (
                         INSERT Target1 {
-                            name := 'Target1.1'
+                            name := 'Target1.1',
+                            extra_tgt := (detached (
+                                INSERT Target1 { name := "t2" })),
                         }
                     )
                 };
@@ -1047,6 +1060,12 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 ''',
                 []
             )
+
+            # Make sure that the link tables get cleared when a policy
+            # deletes an object
+            await self.con.execute("""
+                DELETE Target1 filter .name = 't2'
+            """)
 
     async def test_link_on_source_delete_02(self):
         async with self._run_and_rollback():

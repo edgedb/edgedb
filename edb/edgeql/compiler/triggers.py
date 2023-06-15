@@ -24,11 +24,14 @@ from __future__ import annotations
 
 from typing import *
 
+from edb import errors
+
 from edb.ir import ast as irast
 
 from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
 from edb.schema import triggers as s_triggers
+from edb.schema import types as s_types
 
 from edb.edgeql import qltypes
 
@@ -49,6 +52,7 @@ TRIGGER_KINDS = {
 def compile_trigger(
     trigger: s_triggers.Trigger,
     affected: set[tuple[s_objtypes.ObjectType, irast.MutatingStmt]],
+    all_typs: set[s_objtypes.ObjectType],
     *,
     ctx: context.ContextLevel,
 ) -> irast.Trigger:
@@ -96,6 +100,9 @@ def compile_trigger(
     taffected = {
         (typegen.type_to_typeref(t, env=ctx.env), ir) for t, ir in affected
     }
+    tall = {
+        typegen.type_to_typeref(t, env=ctx.env) for t in all_typs
+    }
 
     return irast.Trigger(
         expr=trigger_set,
@@ -103,13 +110,15 @@ def compile_trigger(
         scope=scope,
         source_type=typeref,
         affected=taffected,
+        all_affected_types=tall,
         new_set=new_set,
         old_set=old_set,
     )
 
 
-def compile_triggers(
+def compile_triggers_phase(
     dml_stmts: Collection[irast.MutatingStmt],
+    defining_trigger_on: Optional[s_types.Type],
     *,
     ctx: context.ContextLevel,
 ) -> tuple[irast.Trigger, ...]:
@@ -117,7 +126,10 @@ def compile_triggers(
 
     trigger_map: dict[
         s_triggers.Trigger,
-        set[tuple[s_objtypes.ObjectType, irast.MutatingStmt]],
+        tuple[
+            set[tuple[s_objtypes.ObjectType, irast.MutatingStmt]],
+            set[s_objtypes.ObjectType],
+        ],
     ] = {}
     for stmt in dml_stmts:
         kind = TRIGGER_KINDS[type(stmt)]
@@ -134,10 +146,17 @@ def compile_triggers(
 
         # Process all the types, starting with the base type
         for subtype in sorted(stypes, key=lambda t: t != stype):
+            if defining_trigger_on and subtype.issubclass(
+                    ctx.env.schema, defining_trigger_on):
+                name = str(defining_trigger_on.get_name(ctx.env.schema))
+                raise errors.SchemaDefinitionError(
+                    f"trigger on {name} is recursive"
+                )
+
             for trigger in subtype.get_relevant_triggers(kind, schema):
                 mro = (trigger, *trigger.get_ancestors(schema).objects(schema))
                 base = mro[-1]
-                tmap = trigger_map.setdefault(base, set())
+                tmap, all_typs = trigger_map.setdefault(base, (set(), set()))
                 # N.B: If the *base type* of the DML appears, that
                 # suffices, because it covers everything, and we don't
                 # need to duplicate.  This is a specific interaction
@@ -147,10 +166,47 @@ def compile_triggers(
                 # a grandchild.
                 if (stype, stmt) not in tmap:
                     tmap.add((subtype, stmt))
+                all_typs.add(subtype)
 
     # sort these by name just to avoid weird nondeterminism
     return tuple(
-        compile_trigger(trigger, affected, ctx=ctx)
-        for trigger, affected
+        compile_trigger(trigger, affected, all_typs, ctx=ctx)
+        for trigger, (affected, all_typs)
         in sorted(trigger_map.items(), key=lambda t: t[0].get_name(schema))
     )
+
+
+def compile_triggers(
+    *, ctx: context.ContextLevel,
+) -> tuple[tuple[irast.Trigger, ...], ...]:
+    defining_trigger = (
+        ctx.env.options.schema_object_context == s_triggers.Trigger)
+    defining_trigger_on = None
+    if defining_trigger:
+        defining_trigger_on = setgen.get_set_type(
+            ctx.anchors['__trigger_type__'], ctx=ctx)
+
+    ir_triggers: list[tuple[irast.Trigger, ...]] = []
+    start = 0
+    all_trigger_types: set[irast.TypeRef] = set()
+    while start < len(ctx.env.dml_stmts):
+        end = len(ctx.env.dml_stmts)
+        new = compile_triggers_phase(
+            ctx.env.dml_stmts[start:], defining_trigger_on, ctx=ctx)
+        new_types = {x for t in new for x in t.all_affected_types}
+
+        # Any given type is allowed allowed to have its triggers fire
+        # in *one* phase of trigger execution, since the semantics get
+        # a little unclear otherwise. We might relax this later.
+        overlap = new_types & all_trigger_types
+        if overlap:
+            names = sorted(str(t.name_hint) for t in overlap)
+            raise errors.QueryError(
+                f"trigger would need to be executed in multiple stages on "
+                f"{', '.join(names)}"
+            )
+        all_trigger_types |= new_types
+        ir_triggers.append(new)
+        start = end
+
+    return tuple(ir_triggers)

@@ -59,6 +59,7 @@ class BackendInstanceParams(NamedTuple):
     base_superuser: Optional[str] = None
     max_connections: int = 500
     reserved_connections: int = 0
+    ext_schema: str = "edgedbext"
 
 
 class BackendRuntimeParams(NamedTuple):

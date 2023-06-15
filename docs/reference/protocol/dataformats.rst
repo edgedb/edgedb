@@ -419,6 +419,9 @@ encoded as:
 
     0x00 0x02 0x2b 0x35 0x9b 0xc4 0x10 0x00
 
+See :ref:`client libraries <ref_bindings_datetime>` section for more info
+about how to handle different precision when encoding data.
+
 
 .. _ref_protocol_fmt_local_datetime:
 
@@ -435,6 +438,9 @@ encoded as:
 .. code-block:: c
 
     0x00 0x02 0x2b 0x35 0x9b 0xc4 0x10 0x00
+
+See :ref:`client libraries <ref_bindings_datetime>` section for more info
+about how to handle different precision when encoding data.
 
 
 .. _ref_protocol_fmt_local_date:
@@ -469,6 +475,9 @@ encoded as:
 .. code-block:: c
 
     0x00 0x00 0x00 0x0a 0x32 0xae 0xf6 0x00
+
+See :ref:`client libraries <ref_bindings_datetime>` section for more info
+about how to handle different precision when encoding data.
 
 
 .. _ref_protocol_fmt_duration:
@@ -505,6 +514,9 @@ encoded as:
     // months
     0x00 0x00 0x00 0x00
 
+See :ref:`client libraries <ref_bindings_datetime>` section for more info
+about how to handle different precision when encoding data.
+
 
 .. _ref_protocol_fmt_relative_duration:
 
@@ -535,6 +547,9 @@ For example, the ``cal::relative_duration`` value
 
     // months
     0x00 0x00 0x00 0x1f
+
+See :ref:`client libraries <ref_bindings_datetime>` section for more info
+about how to handle different precision when encoding data.
 
 
 .. _ref_protocol_fmt_date_duration:

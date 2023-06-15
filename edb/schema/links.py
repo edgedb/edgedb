@@ -35,6 +35,7 @@ from . import name as sn
 from . import objects as so
 from . import pointers
 from . import referencing
+from . import rewrites as s_rewrites
 from . import sources
 from . import types as s_types
 from . import utils
@@ -138,7 +139,8 @@ class Link(
 
     def has_user_defined_properties(self, schema: s_schema.Schema) -> bool:
         return bool([p for p in self.get_pointers(schema).objects(schema)
-                     if not p.is_special_pointer(schema)])
+                     if not p.is_special_pointer(schema)
+                     and not p.is_pure_computable(schema)])
 
     def get_source(
         self,
@@ -203,10 +205,13 @@ class LinkSourceCommand(inheriting.InheritingObjectCommand[sources.Source_T]):
     pass
 
 
-class LinkCommandContext(pointers.PointerCommandContext[Link],
-                         constraints.ConsistencySubjectCommandContext,
-                         properties.PropertySourceContext[Link],
-                         sources.SourceCommandContext[Link]):
+class LinkCommandContext(
+    pointers.PointerCommandContext[Link],
+    constraints.ConsistencySubjectCommandContext,
+    properties.PropertySourceContext[Link],
+    sources.SourceCommandContext[Link],
+    s_rewrites.RewriteSubjectCommandContext,
+):
     pass
 
 
@@ -708,23 +713,6 @@ class DeleteLink(
 ):
     astnode = [qlast.DropConcreteLink, qlast.DropLink]
     referenced_astnode = qlast.DropConcreteLink
-
-    def _delete_begin(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = super()._delete_begin(schema, context)
-        if not context.canonical:
-            # We need to do a propagate here, too, since there could
-            # be backrefs to this link that technically reference
-            # us but will be fine if it is deleted.
-            schema = self._propagate_if_expr_refs(
-                schema,
-                context,
-                action=self.get_friendly_description(schema=schema),
-            )
-        return schema
 
     def _get_ast(
         self,

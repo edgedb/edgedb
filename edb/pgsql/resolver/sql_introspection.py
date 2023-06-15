@@ -1327,7 +1327,6 @@ PG_CATALOG: Dict[str, List[Tuple[ColumnName, ColumnType]]] = {
     "pg_range": [
         ("rngtypid", "oid"),
         ("rngsubtype", "oid"),
-        ("rngmultitypid", "oid"),
         ("rngcollation", "oid"),
         ("rngsubopc", "oid"),
         ("rngcanonical", "regproc"),

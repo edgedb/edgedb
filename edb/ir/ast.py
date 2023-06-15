@@ -175,6 +175,10 @@ class TypeRef(ImmutableBase):
     in_schema: bool = False
     # True, if this describes an opaque union type
     is_opaque_union: bool = False
+    # Does this need to call a custom json cast function
+    needs_custom_json_cast: bool = False
+    # If this has a schema-configured backend type, what is it
+    sql_type: typing.Optional[str] = None
 
     def __repr__(self) -> str:
         return f'<ir.TypeRef \'{self.name_hint}\' at 0x{id(self):x}>'
@@ -603,7 +607,7 @@ class ParamTransType:
 @dataclasses.dataclass(eq=False)
 class ParamScalar(ParamTransType):
     def flatten(self) -> tuple[typing.Any, ...]:
-        return (0, self.idx)
+        return (int(qltypes.TypeTag.SCALAR), self.idx)
 
 
 @dataclasses.dataclass(eq=False)
@@ -611,7 +615,10 @@ class ParamTuple(ParamTransType):
     typs: tuple[ParamTransType, ...]
 
     def flatten(self) -> tuple[typing.Any, ...]:
-        return (1, self.idx) + tuple(x.flatten() for x in self.typs)
+        return (
+            (int(qltypes.TypeTag.TUPLE), self.idx)
+            + tuple(x.flatten() for x in self.typs)
+        )
 
 
 @dataclasses.dataclass(eq=False)
@@ -619,7 +626,7 @@ class ParamArray(ParamTransType):
     typ: ParamTransType
 
     def flatten(self) -> tuple[typing.Any, ...]:
-        return (2, self.idx, self.typ.flatten())
+        return (int(qltypes.TypeTag.ARRAY), self.idx, self.typ.flatten())
 
 
 @dataclasses.dataclass(frozen=True)
@@ -683,7 +690,7 @@ class ComputableInfo(typing.NamedTuple):
 
 class Statement(Command):
 
-    expr: typing.Union[Set, Expr]
+    expr: Set
     views: typing.Dict[sn.Name, s_types.Type]
     params: typing.List[Param]
     globals: typing.List[Global]
@@ -702,7 +709,7 @@ class Statement(Command):
     dml_exprs: typing.List[qlast.Base]
     type_rewrites: typing.Dict[typing.Tuple[uuid.UUID, bool], Set]
     singletons: typing.List[PathId]
-    triggers: tuple[Trigger, ...]
+    triggers: tuple[tuple[Trigger, ...], ...]
 
 
 class TypeIntrospection(ImmutableExpr):
@@ -880,6 +887,11 @@ class Call(ImmutableExpr):
     # arguments (NULL inputs lead to NULL results). If not, we need to
     # filter at the call site.
     impl_is_strict: bool = False
+
+    # Kind of a hack: indicates that when possible we should pass arguments
+    # to this function as a subquery-as-an-expression.
+    # See comment in schema/functions.py for more discussion.
+    prefer_subquery_args: bool = False
 
 
 class FunctionCall(Call):
@@ -1082,6 +1094,9 @@ class MutatingStmt(Stmt, MutatingLikeStmt):
         factory=dict
     )
 
+    # Rewrites of the subject shape
+    rewrites: typing.Optional[Rewrites] = None
+
     @property
     def material_type(self) -> TypeRef:
         """The proper material type being operated on.
@@ -1113,13 +1128,14 @@ class Trigger(Base):
     expr: Set
     # All the relevant dml
     affected: set[tuple[TypeRef, MutatingStmt]]
+    all_affected_types: set[TypeRef]
     source_type: TypeRef
     kinds: set[qltypes.TriggerKind]
     scope: qltypes.TriggerScope
 
     # N.B: Semantically and in the external language, delete triggers
     # don't have a __new__ set, but we give it one in the
-    # implementation (identical) to the old set, to help make the
+    # implementation (identical to the old set), to help make the
     # implementation more uniform.
     new_set: Set
     old_set: typing.Optional[Set]
@@ -1142,6 +1158,19 @@ class InsertStmt(MutatingStmt):
         return self.subject.typeref.real_material_type
 
 
+# N.B: The PointerRef corresponds to the *definition* point of the rewrite.
+RewritesOfType = typing.Dict[str, typing.Tuple[Set, BasePointerRef]]
+
+
+@dataclasses.dataclass(kw_only=True, frozen=True)
+class Rewrites:
+    subject_path_id: PathId
+
+    old_path_id: typing.Optional[PathId]
+
+    by_type: typing.Dict[TypeRef, RewritesOfType]
+
+
 class UpdateStmt(MutatingStmt, FilteredStmt):
     # The pgsql DML compilation needs to be able to access __type__
     # fields on link fields for doing covariant assignment checking.
@@ -1159,6 +1188,11 @@ class UpdateStmt(MutatingStmt, FilteredStmt):
 
 class DeleteStmt(MutatingStmt, FilteredStmt):
     _material_type: TypeRef | None = None
+
+    links_to_delete: typing.Dict[
+        uuid.UUID,
+        typing.Tuple[PointerRef, ...]
+    ] = ast.field(factory=dict)
 
     @property
     def material_type(self) -> TypeRef:
@@ -1179,6 +1213,7 @@ class ConfigCommand(Command, Expr):
     cardinality: qltypes.SchemaCardinality
     requires_restart: bool
     backend_setting: typing.Optional[str]
+    is_system_config: bool
     globals: typing.Optional[typing.List[Global]] = None
     scope_tree: typing.Optional[ScopeTreeNode] = None
 

@@ -46,7 +46,11 @@ class SourceCommand(indexes.IndexSourceCommand[Source_T]):
     pass
 
 
-class Source(so.QualifiedObject, indexes.IndexableSubject):
+class Source(
+    so.QualifiedObject,
+    indexes.IndexableSubject,
+    so.Object,  # Help reflection figure out the right db MRO
+):
     pointers_refs = so.RefDict(
         attr='pointers',
         requires_explicit_overloaded=True,

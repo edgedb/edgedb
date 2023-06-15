@@ -22,6 +22,37 @@ project. Typically this tool will prompt for specific details about
 how the project should be setup.
 
 
+EdgeDB Cloud
+------------
+
+.. TODO: Cloud release
+.. Update this after Cloud has released
+
+.. note::
+
+    Creating a Cloud instance requires CLI version 3.0 or later.
+
+Users with access to the EdgeDB Cloud beta may use this command to create a
+Cloud instance after logging in using :ref:`ref_cli_edgedb_cloud_login`.
+
+To create a Cloud instance, your instance name should be in the format
+``<github-username>/<instance-name>``. Cloud instance names may contain
+alphanumeric characters and hyphens (i.e., ``-``). You can provide this Cloud
+instance name through the interactive project initiation by running ``edgedb
+project init`` or by providing it via the ``--server-instance`` option.
+
+.. note::
+
+    Please be aware of the following restrictions on EdgeDB Cloud instance
+    names:
+
+    * can contain only Latin alpha-numeric characters or ``-``
+    * cannot start with a dash (``-``) or contain double dashes (``--``)
+    * maximum instance name length is 61 characters minus the length of your
+      GitHub username (i.e., length of GitHub username + length of instance
+      name must be fewer than 62 characters)
+
+
 Options
 =======
 

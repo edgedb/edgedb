@@ -35,7 +35,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
                           'cards_ir_inference.esdl')
 
     def run_test(self, *, source, spec, expected):
-        qltree = qlparser.parse(source)
+        qltree = qlparser.parse_query(source)
         ir = compiler.compile_ast_to_ir(
             qltree,
             self.schema,
@@ -475,7 +475,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
         UNIQUE
         """
 
-    def test_edgeql_ir_mult_inference_55(self):
+    def test_edgeql_ir_mult_inference_55a(self):
         """
         FOR x IN {'fire', 'water'}
         UNION (
@@ -486,7 +486,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
         UNIQUE
         """
 
-    def test_edgeql_ir_mult_inference_55a(self):
+    def test_edgeql_ir_mult_inference_55b(self):
         """
         FOR letter IN {'I', 'B'}
         UNION (

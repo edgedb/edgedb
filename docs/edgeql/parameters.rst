@@ -17,6 +17,17 @@ parameters are supplied externally.
 Note that we provided an explicit type cast before the parameter. This is
 required, as it enables EdgeDB to enforce the provided types at runtime.
 
+.. versionadded:: 3.0
+
+    Parameters can be named or unnamed tuples.
+
+    .. code-block:: edgeql
+
+        select <tuple<str, bool>>$var;
+        select <optional tuple<str, bool>>$var;
+        select <tuple<name: str, flag: bool>>$var;
+        select <optional tuple<name: str, flag: bool>>$var;
+
 Usage with clients
 ------------------
 
@@ -83,8 +94,9 @@ language-native types.
 Parameter types and JSON
 ------------------------
 
-Parameters can only be :ref:`scalars <ref_datamodel_scalar_types>` or
-arrays of scalars. This may seem limiting at first, but in actuality this
+Prior to EdgeDB 3.0, parameters can be only :ref:`scalars
+<ref_datamodel_scalar_types>` or arrays of scalars. In EdgeDB 3.0, parameters
+can also be tuples. This may seem limiting at first, but in actuality this
 doesn't impose any practical limitation on what can be parameterized. To pass
 complex structures as parameters, use EdgeDB's built-in :ref:`JSON
 <ref_std_json>` functionality.

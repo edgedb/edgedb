@@ -11,12 +11,21 @@ Properties are used to associate primitive data with an :ref:`object type
 
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Player {
-    property email -> str;
-    property points -> int64;
-    property is_online -> bool;
-  }
+    type Player {
+      property email -> str;
+      property points -> int64;
+      property is_online -> bool;
+    }
+
+.. code-block:: sdl
+
+    type Player {
+      email: str;
+      points: int64;
+      is_online: bool;
+    }
 
 Properties are associated with a *key* (e.g. ``first_name``) and a primitive
 type (e.g. ``str``). The term *primitive type* is an umbrella term that
@@ -31,10 +40,19 @@ Required properties
 Properties can be either ``optional`` (the default) or ``required``.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type User {
-    required property email -> str;
-  }
+    type User {
+      required property email -> str;
+    }
+
+.. code-block:: sdl
+
+    type User {
+      required email: str;
+    }
+
+.. _ref_datamodel_props_cardinality:
 
 Property cardinality
 --------------------
@@ -44,19 +62,35 @@ Properties have a **cardinality**, either ``single`` (the default) or
 strings.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type User {
+    type User {
 
-    # single isn't necessary here
-    # properties are single by default
-    single property name -> str;
+      # single isn't necessary here
+      # properties are single by default
+      single property name -> str;
 
-    # an unordered set of strings
-    multi property nicknames -> str;
+      # an unordered set of strings
+      multi property nicknames -> str;
 
-    # an unordered set of string arrays
-    multi property set_of_arrays -> array<str>;
-  }
+      # an unordered set of string arrays
+      multi property set_of_arrays -> array<str>;
+    }
+
+.. code-block:: sdl
+
+    type User {
+
+      # single isn't necessary here
+      # properties are single by default
+      single name: str;
+
+      # an unordered set of strings
+      multi nicknames: str;
+
+      # an unordered set of string arrays
+      multi set_of_arrays: array<str>;
+    }
 
 **Comparison to arrays**
 
@@ -66,6 +100,8 @@ particular order. If order is important, use an :ref:`array
 more involved discussion, see :ref:`EdgeQL > Sets
 <ref_eql_set_array_conversion>`.
 
+.. _ref_datamodel_props_default_values:
+
 Default values
 --------------
 
@@ -73,16 +109,29 @@ Properties can have a default value. This default can be a static value or an
 arbitrary EdgeQL expression, which will be evaluated upon insertion.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Player {
-    required property points -> int64 {
-      default := 0;
+    type Player {
+      required property points -> int64 {
+        default := 0;
+      }
+
+      required property latitude -> float64 {
+        default := (360 * random() - 180);
+      }
     }
 
-    required property latitude -> float64 {
-      default := (360 * random() - 180);
+.. code-block:: sdl
+
+    type Player {
+      required points: int64 {
+        default := 0;
+      }
+
+      required latitude: float64 {
+        default := (360 * random() - 180);
+      }
     }
-  }
 
 Readonly properties
 -------------------
@@ -92,13 +141,21 @@ Properties can be marked as ``readonly``. In the example below, the
 modified thereafter.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type User {
-    required property external_id -> uuid {
-      readonly := true;
+    type User {
+      required property external_id -> uuid {
+        readonly := true;
+      }
     }
-  }
 
+.. code-block:: sdl
+
+    type User {
+      required external_id: uuid {
+        readonly := true;
+      }
+    }
 
 Constraints
 -----------
@@ -107,38 +164,70 @@ Properties can be augmented wth constraints. The example below showcases a
 subset of EdgeDB's built-in constraints.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type BlogPost {
-    property title -> str {
-      constraint exclusive; # all post titles must be unique
-      constraint min_len_value(8);
-      constraint max_len_value(30);
-      constraint regexp(r'^[A-Za-z0-9 ]+$');
+    type BlogPost {
+      property title -> str {
+        constraint exclusive; # all post titles must be unique
+        constraint min_len_value(8);
+        constraint max_len_value(30);
+        constraint regexp(r'^[A-Za-z0-9 ]+$');
+      }
+
+      property status -> str {
+        constraint one_of('Draft', 'InReview', 'Published');
+      }
+
+      property upvotes -> int64 {
+        constraint min_value(0);
+        constraint max_value(9999);
+      }
     }
 
-    property status -> str {
-      constraint one_of('Draft', 'InReview', 'Published');
-    }
+.. code-block:: sdl
 
-    property upvotes -> int64 {
-      constraint min_value(0);
-      constraint max_value(9999);
+    type BlogPost {
+      title: str {
+        constraint exclusive; # all post titles must be unique
+        constraint min_len_value(8);
+        constraint max_len_value(30);
+        constraint regexp(r'^[A-Za-z0-9 ]+$');
+      }
+
+      status: str {
+        constraint one_of('Draft', 'InReview', 'Published');
+      }
+
+      upvotes: int64 {
+        constraint min_value(0);
+        constraint max_value(9999);
+      }
     }
-  }
 
 You can constrain properties with arbitrary :ref:`EdgeQL <ref_edgeql>`
 expressions returning ``bool``. To reference the value of the property, use the
 special scope keyword ``__subject__``.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type BlogPost {
-    property title -> str {
-      constraint expression on (
-        __subject__ = str_trim(__subject__)
-      );
+    type BlogPost {
+      property title -> str {
+        constraint expression on (
+          __subject__ = str_trim(__subject__)
+        );
+      }
     }
-  }
+
+.. code-block:: sdl
+
+    type BlogPost {
+      title: str {
+        constraint expression on (
+          __subject__ = str_trim(__subject__)
+        );
+      }
+    }
 
 The constraint above guarantees that ``BlogPost.title`` doesn't contain any
 leading or trailing whitespace by checking that the raw string is equal to the
@@ -156,14 +245,25 @@ annotations are ``title``, ``description``, and ``deprecated``. You may also
 declare :ref:`custom annotation types <ref_datamodel_inheritance_annotations>`.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type User {
-    property email -> str {
-      annotation title := 'Email address';
-      annotation description := "The user's email address.";
-      annotation deprecated := 'Use NewUser instead.';
+    type User {
+      property email -> str {
+        annotation title := 'Email address';
+        annotation description := "The user's email address.";
+        annotation deprecated := 'Use NewUser instead.';
+      }
     }
-  }
+
+.. code-block:: sdl
+
+    type User {
+      email: str {
+        annotation title := 'Email address';
+        annotation description := "The user's email address.";
+        annotation deprecated := 'Use NewUser instead.';
+      }
+    }
 
 
 Abstract properties
@@ -174,16 +274,31 @@ are declared independent of a source or target, can contain :ref:`annotations
 <ref_datamodel_annotations>`, and can be marked as ``readonly``.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  abstract property email_prop {
-    annotation title := 'An email address';
-    readonly := true;
-  }
+    abstract property email_prop {
+      annotation title := 'An email address';
+      readonly := true;
+    }
 
-  type Student {
-    # inherits annotations and "readonly := true"
-    property email extending email_prop -> str;
-  }
+    type Student {
+      # inherits annotations and "readonly := true"
+      property email extending email_prop -> str;
+    }
+
+.. code-block:: sdl
+
+    abstract property email_prop {
+      annotation title := 'An email address';
+      readonly := true;
+    }
+
+    type Student {
+      # inherits annotations and "readonly := true"
+      email: str {
+        extending email_prop;
+      };
+    }
 
 
 Link properties
@@ -198,4 +313,5 @@ Properties can also be defined on **links**. For a full guide, refer to
   * - **See also**
   * - :ref:`SDL > Properties <ref_eql_sdl_props>`
   * - :ref:`DDL > Properties <ref_eql_ddl_props>`
-  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`.
+  * - :ref:`Introspection > Object types
+      <ref_datamodel_introspection_object_types>`

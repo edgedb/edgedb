@@ -460,9 +460,9 @@ aa';
 
     def test_edgeql_syntax_constants_39(self):
         r"""
-        SELECT '\x1F\x01\x00\x6e';
+        SELECT '\x1F\x01\x6e';
 % OK %
-        SELECT '\x1f\x01\x00n';
+        SELECT '\x1f\x01n';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -3165,6 +3165,12 @@ aa';
         );
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError)
+    def test_edgeql_syntex_insert_23(self):
+        """
+        INSERT { oops := "uhoh" };
+        """
+
     def test_edgeql_syntax_delete_01(self):
         """
         DELETE Foo;
@@ -5259,12 +5265,21 @@ aa';
         CREATE TYPE schema::TypeElement {
             CREATE REQUIRED LINK type: schema::Type;
             CREATE REQUIRED LINK num: std::int64;
-            CREATE PROPERTY name EXTENDING foo, bar: std::str;
-            CREATE LINK lnk EXTENDING l1: schema::Type;
-            CREATE LINK lnk1 EXTENDING l1, l2: schema::Type;
-            CREATE LINK lnk2 EXTENDING l1, l2: schema::Type {
+            CREATE PROPERTY name: std::str {
+                EXTENDING foo, bar;
+            };
+            CREATE LINK lnk: schema::Type {
+                EXTENDING l1;
+            };
+            CREATE LINK lnk1: schema::Type {
+                EXTENDING l1, l2;
+            };
+            CREATE LINK lnk2: schema::Type {
+                EXTENDING l1, l2;
                 CREATE PROPERTY lnk2_prop: std::str;
-                CREATE PROPERTY lnk2_prop2 EXTENDING foo: std::str;
+                CREATE PROPERTY lnk2_prop2: std::str {
+                    EXTENDING foo;
+                };
             };
         };
         """

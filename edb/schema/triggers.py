@@ -41,8 +41,8 @@ if TYPE_CHECKING:
 
 
 class Trigger(
-    referencing.ReferencedInheritingObject,
-    s_anno.AnnotationSubject,
+    referencing.NamedReferencedInheritingObject,
+    so.InheritingObject,  # Help reflection figure out the right db MRO
     qlkind=qltypes.SchemaObjectClass.TRIGGER,
     data_safe=True,
 ):
@@ -79,6 +79,17 @@ class Trigger(
         so.InheritingObject,
         compcoef=None,
         inheritable=False)
+
+    # We don't support SET/DROP OWNED owned on triggers so we set its
+    # compcoef to 0.0
+    owned = so.SchemaField(
+        bool,
+        default=False,
+        inheritable=False,
+        compcoef=0.0,
+        reflection_method=so.ReflectionMethod.AS_LINK,
+        special_ddl_syntax=True,
+    )
 
     def get_subject(self, schema: s_schema.Schema) -> s_objtypes.ObjectType:
         subj: s_objtypes.ObjectType = self.get_field_value(schema, 'subject')
@@ -159,7 +170,7 @@ class TriggerCommand(
             scope = self._get_scope(schema)
             kinds = self._get_kinds(schema)
 
-            anchors = {}
+            anchors: dict[str, pathid.PathId | s_types.Type] = {}
             if qltypes.TriggerKind.Insert not in kinds:
                 anchors['__old__'] = pathid.PathId.from_type(
                     schema, source, typename=sn.QualName(
@@ -175,23 +186,30 @@ class TriggerCommand(
                 frozenset(anchors.values())
                 if scope == qltypes.TriggerScope.Each else frozenset()
             )
+            anchors['__trigger_type__'] = source
 
             assert isinstance(source, s_types.Type)
 
-            return type(value).compiled(
-                value,
-                schema=schema,
-                options=qlcompiler.CompilerOptions(
-                    modaliases=context.modaliases,
-                    schema_object_context=self.get_schema_metaclass(),
-                    anchors=anchors,
-                    singletons=singletons,
-                    apply_query_rewrites=not context.stdmode,
-                    track_schema_ref_exprs=track_schema_ref_exprs,
-                    # in_ddl_context_name=in_ddl_context_name,
-                    detached=True,
-                ),
-            )
+            try:
+                return type(value).compiled(
+                    value,
+                    schema=schema,
+                    options=qlcompiler.CompilerOptions(
+                        modaliases=context.modaliases,
+                        schema_object_context=self.get_schema_metaclass(),
+                        anchors=anchors,
+                        singletons=singletons,
+                        apply_query_rewrites=not context.stdmode,
+                        track_schema_ref_exprs=track_schema_ref_exprs,
+                        # in_ddl_context_name=in_ddl_context_name,
+                        detached=True,
+                    ),
+                )
+            except errors.QueryError as e:
+                if not e.has_source_context():
+                    e.set_source_context(
+                        self.get_attribute_source_context(field.name))
+                raise
         else:
             return super().compile_expr_field(
                 schema, context, field, value, track_schema_ref_exprs)

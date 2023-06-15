@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+import typing
+
 from .. import common
 from . import base
 
@@ -45,11 +47,11 @@ class Constraint(base.DBObject):
             self.constraint_name(), self.get_subject_type(),
             self.get_subject_name())
 
-    def constraint_name(self, quote=True):
+    def constraint_name(self, quote=True) -> str:
         if quote and self._constraint_name:
             return common.quote_ident(self._constraint_name)
         else:
             return self._constraint_name
 
-    def constraint_code(self, block: base.PLBlock) -> str:
+    def constraint_code(self, block: base.PLBlock) -> str | typing.List[str]:
         raise NotImplementedError

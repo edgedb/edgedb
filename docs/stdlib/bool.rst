@@ -34,6 +34,8 @@ Booleans
     * - :eql:func:`any`
       - :eql:func-desc:`any`
 
+    * - :eql:func:`assert`
+      - :eql:func-desc:`assert`
 
 ----------
 
@@ -220,3 +222,112 @@ any(a) or any(b)``.
 
 For more customized handling of ``{}``, use the :eql:op:`?? <coalesce>`
 operator.
+
+
+----------
+
+
+.. eql:function:: std::assert( \
+                    input: bool, \
+                    named only message: optional str = <str>{} \
+                  ) -> bool
+
+    .. versionadded:: 3.0
+
+    Checks that the input bool is ``true``.
+
+    If the input bool is ``false``, ``assert`` raises a
+    ``QueryAssertionError``. Otherwise, this function returns ``true``.
+
+    .. code-block:: edgeql-repl
+
+        db> select assert(true);
+        {true}
+
+        db> select assert(false);
+        edgedb error: QueryAssertionError: assertion failed
+
+        db> select assert(false, message := 'value is not true');
+        edgedb error: QueryAssertionError: value is not true
+
+    ``assert`` can be used in triggers to create more powerful constraints. In
+    this schema, the ``Person`` type has both ``friends`` and ``enemies``
+    links. You may not want a ``Person`` to be both a friend and an enemy of
+    the same ``Person``. ``assert`` can be used inside a trigger to easily
+    prohibit this.
+
+    .. code-block:: sdl
+        
+          type Person {
+            required name: str;
+            multi friends: User;
+            multi enemies: User;
+
+            trigger prohibit_frenemies after insert, update for each do (
+              assert(
+                not exists (__new__.friends intersect __new__.enemies),
+                message := "Invalid frenemies",
+              )
+            )
+          }
+
+    With this trigger in place, it is impossible to link the same ``Person`` as
+    both a friend and an enemy of any other person.
+
+    .. code-block:: edgeql-repl
+
+        db> insert Person {name := 'Quincey Morris'};
+        {default::Person {id: e4a55480-d2de-11ed-93bd-9f4224fc73af}}
+        db> insert Person {name := 'Dracula'};
+        {default::Person {id: e7f2cff0-d2de-11ed-93bd-279780478afb}}
+        db> update User
+        ... filter .name = 'Quincey Morris'
+        ... set {
+        ...   enemies := (select Person filter .name = 'Dracula')
+        ... };
+        {default::Person {id: e4a55480-d2de-11ed-93bd-9f4224fc73af}}
+        db> update User
+        ... filter .name = 'Quincey Morris'
+        ... set {
+        ...   friends := (select Person filter .name = 'Dracula')
+        ... };
+        edgedb error: EdgeDBError: Invalid frenemies
+
+    In the following examples, the ``size`` properties of the ``File`` objects
+    are ``1024``, ``1024``, and ``131,072``.
+
+    .. code-block:: edgeql-repl
+
+        db> for obj in (select File)
+        ... union (assert(obj.size <= 128*1024, message := 'file too big'));
+        {true, true, true}
+
+        db> for obj in (select File)
+        ... union (assert(obj.size <= 64*1024, message := 'file too big'));
+        edgedb error: QueryAssertionError: file too big
+
+    You may call ``assert`` in the ``order by`` clause of your ``select``
+    statement. This will ensure it is called only on objects that pass your
+    filter.
+
+    .. code-block:: edgeql-repl
+
+        db> select File { name, size }
+        ... order by assert(.size <= 128*1024, message := "file too big");
+        {
+          default::File {name: 'File 2', size: 1024},
+          default::File {name: 'Asdf 3', size: 1024},
+          default::File {name: 'File 1', size: 131072},
+        }
+
+        db> select File { name, size }
+        ... order by assert(.size <= 64*1024, message := "file too big");
+        edgedb error: QueryAssertionError: file too big
+
+        db> select File { name, size }
+        ... filter .size <= 64*1024
+        ... order by assert(.size <= 64*1024, message := "file too big");
+        {
+          default::File {name: 'File 2', size: 1024},
+          default::File {name: 'Asdf 3', size: 1024}
+        }

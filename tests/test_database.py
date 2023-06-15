@@ -76,6 +76,22 @@ class TestDatabase(tb.ConnectedTestCase):
         finally:
             await tb.drop_db(self.con, 'databasename')
 
+    async def test_database_create_04(self):
+        if not self.has_create_database:
+            self.skipTest("create database is not supported by the backend")
+
+        # create database name that conflicts with names in schema
+        await self.con.execute('CREATE DATABASE range;')
+
+        conn = await self.connect(database='range')
+
+        res = await conn.query('select range(5, 10)')
+        self.assertEqual(res, [edgedb.Range(5, 10)])
+
+        await conn.aclose()
+
+        await tb.drop_db(self.con, 'range')
+
     async def test_database_drop_01(self):
         if not self.has_create_database:
             self.skipTest("create database is not supported by the backend")

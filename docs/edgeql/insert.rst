@@ -7,27 +7,51 @@ The ``insert`` command is used to create instances of object types. The code
 samples on this page assume the following schema:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  module default {
-    abstract type Person {
-      required property name -> str { constraint exclusive };
+    module default {
+      abstract type Person {
+        required property name -> str { constraint exclusive };
+      }
+
+      type Hero extending Person {
+        property secret_identity -> str;
+        multi link villains := .<nemesis[is Villain];
+      }
+
+      type Villain extending Person {
+        link nemesis -> Hero;
+      }
+
+      type Movie {
+        required property title -> str { constraint exclusive };
+        required property release_year -> int64;
+        multi link characters -> Person;
+      }
     }
 
-    type Hero extending Person {
-      property secret_identity -> str;
-      multi link villains := .<nemesis[is Villain];
-    }
+.. code-block:: sdl
 
-    type Villain extending Person {
-      link nemesis -> Hero;
-    }
+    module default {
+      abstract type Person {
+        required name: str { constraint exclusive };
+      }
 
-    type Movie {
-      required property title -> str { constraint exclusive };
-      required property release_year -> int64;
-      multi link characters -> Person;
+      type Hero extending Person {
+        secret_identity: str;
+        multi link villains := .<nemesis[is Villain];
+      }
+
+      type Villain extending Person {
+        nemesis: Hero;
+      }
+
+      type Movie {
+        required title: str { constraint exclusive };
+        required release_year: int64;
+        multi characters: Person;
+      }
     }
-  }
 
 
 .. _ref_eql_insert_basic:
@@ -75,7 +99,7 @@ Inserting links
 ---------------
 
 EdgeQL's composable syntax makes link insertion painless. Below, we insert
-"Avengers: Endgame" and include all known heroes and villains as
+"Spider-Man: No Way Home" and include all known heroes and villains as
 ``characters`` (which is basically true).
 
 .. code-block:: edgeql-repl
@@ -189,7 +213,8 @@ With block
 
 In the previous query, we selected Black Widow twice: once in the
 ``characters`` set and again as the ``nemesis`` of Dreykov. In circumstances
-like this, you should pull that subquery into a ``with`` block.
+like this, pulling a subquery into a ``with`` block lets you avoid
+duplication.
 
 .. code-block:: edgeql-repl
 
@@ -254,6 +279,11 @@ conflicts and provide a fallback expression.
   Note that the ``else`` clause is simply ``select Movie``. There's no need to
   apply additional filters on ``Movie``; in the context of the ``else`` clause,
   ``Movie`` is bound to the conflicting object.
+
+.. note::
+
+    Using ``unless conflict`` on :ref:`multi properties
+    <ref_datamodel_props_cardinality>` is only supported in 2.10 and later.
 
 .. _ref_eql_upsert:
 

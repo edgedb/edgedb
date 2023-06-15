@@ -47,6 +47,10 @@ EDGEDBGUI_REPO = 'https://github.com/edgedb/edgedb-studio.git'
 # This can be a branch, tag, or commit
 EDGEDBGUI_COMMIT = 'main'
 
+PGVECTOR_REPO = 'https://github.com/pgvector/pgvector.git'
+# This can be a branch, tag, or commit
+PGVECTOR_COMMIT = 'v0.4.2'
+
 SAFE_EXT_CFLAGS: list[str] = []
 if flag := os.environ.get('EDGEDB_OPT_CFLAG'):
     SAFE_EXT_CFLAGS += [flag]
@@ -285,6 +289,61 @@ def _compile_postgres(build_base, *,
             )
 
 
+def _compile_pgvector(build_base, build_temp):
+    git_rev = _get_git_rev(PGVECTOR_REPO, PGVECTOR_COMMIT)
+
+    pgv_root = (build_temp / 'pgvector').resolve()
+    if not pgv_root.exists():
+        subprocess.run(
+            [
+                'git',
+                'clone',
+                '--recursive',
+                PGVECTOR_REPO,
+                pgv_root,
+            ],
+            check=True
+        )
+    else:
+        subprocess.run(
+            ['git', 'fetch', '--all'],
+            check=True,
+            cwd=pgv_root,
+        )
+
+    subprocess.run(
+        ['git', 'reset', '--hard', git_rev],
+        check=True,
+        cwd=pgv_root,
+    )
+
+    pg_config = (
+        build_base / 'postgres' / 'install' / 'bin' / 'pg_config'
+    ).resolve()
+
+    cflags = os.environ.get("CFLAGS", "")
+    cflags = f"{cflags} {' '.join(SAFE_EXT_CFLAGS)} -std=gnu99"
+
+    subprocess.run(
+        [
+            'make',
+            f'PG_CONFIG={pg_config}',
+        ],
+        cwd=pgv_root,
+        check=True,
+    )
+
+    subprocess.run(
+        [
+            'make',
+            'install',
+            f'PG_CONFIG={pg_config}',
+        ],
+        cwd=pgv_root,
+        check=True,
+    )
+
+
 def _compile_libpg_query():
     dir = (ROOT_PATH / 'edb' / 'pgsql' / 'parser' / 'libpg_query').resolve()
 
@@ -334,9 +393,7 @@ def _get_pg_source_stamp():
         cwd=ROOT_PATH,
     )
     revision, _, _ = output[1:].partition(' ')
-    # I don't know why we needed the first empty char, but we don't want to
-    # force everyone to rebuild postgres either
-    source_stamp = output[0] + revision
+    source_stamp = revision + '+' + PGVECTOR_COMMIT
     return source_stamp
 
 
@@ -489,11 +546,10 @@ class ci_helper(setuptools.Command):
         elif self.type == 'rust':
             rust_hash = hash_dirs([
                 (pkg_dir / 'edgeql-parser', '.rs'),
-                (pkg_dir / 'edgeql-rust', '.rs'),
                 (pkg_dir / 'graphql-rewrite', '.rs'),
             ], extra_files=[
                 pkg_dir / 'edgeql-parser/Cargo.toml',
-                pkg_dir / 'edgeql-rust/Cargo.toml',
+                pkg_dir / 'edgeql-parser/edgeql-parser-python/Cargo.toml',
                 pkg_dir / 'graphql-rewrite/Cargo.toml',
             ])
             print(binascii.hexlify(rust_hash).decode())
@@ -567,6 +623,10 @@ class build_postgres(setuptools.Command):
             run_configure=self.configure,
             build_contrib=self.build_contrib,
             produce_compile_commands_json=self.compile_commands,
+        )
+        _compile_pgvector(
+            pathlib.Path(build.build_base).resolve(),
+            pathlib.Path(build.build_temp).resolve(),
         )
 
 
@@ -783,7 +843,10 @@ class build_parsers(setuptools.Command):
     sources = [
         "edb.edgeql.parser.grammar.single",
         "edb.edgeql.parser.grammar.block",
+        "edb.edgeql.parser.grammar.fragment",
         "edb.edgeql.parser.grammar.sdldocument",
+        "edb.edgeql.parser.grammar.migration_body",
+        "edb.edgeql.parser.grammar.extension_package_body",
     ]
 
     def initialize_options(self):
@@ -1037,8 +1100,8 @@ setuptools.setup(
     ],
     rust_extensions=[
         setuptools_rust.RustExtension(
-            "edb._edgeql_rust",
-            path="edb/edgeql-rust/Cargo.toml",
+            "edb._edgeql_parser",
+            path="edb/edgeql-parser/edgeql-parser-python/Cargo.toml",
             binding=setuptools_rust.Binding.RustCPython,
         ),
         setuptools_rust.RustExtension(

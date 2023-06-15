@@ -120,8 +120,10 @@ class AST:
     def _collect_direct_fields(cls):
         dct = cls.__dict__
         cls.__abstract_node__ = bool(dct.get('__abstract_node__'))
+        cls.__rust_ignore__ = bool(dct.get('__rust_ignore__'))
 
         if '__annotations__' not in dct:
+            cls._direct_fields = []
             return cls
 
         globalns = sys.modules[cls.__module__].__dict__.copy()
@@ -243,7 +245,11 @@ class AST:
     def __copy__(self):
         copied = self.__class__()
         for field, value in iter_fields(self, include_meta=False):
-            object.__setattr__(copied, field, value)
+            try:
+                object.__setattr__(copied, field, value)
+            except AttributeError:
+                # don't mind not setting getter_only attrs.
+                continue
         return copied
 
     def __deepcopy__(self, memo):
@@ -252,7 +258,7 @@ class AST:
             object.__setattr__(copied, field, copy.deepcopy(value, memo))
         return copied
 
-    def replace(self, **changes):
+    def replace(self: T, **changes) -> T:
         copied = copy.copy(self)
         for field, value in changes.items():
             object.__setattr__(copied, field, value)

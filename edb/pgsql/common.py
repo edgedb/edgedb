@@ -118,10 +118,18 @@ def quote_type(type_: Tuple[str, ...] | str):
     if is_array:
         last = last[:-2]
 
+    param = None
+    if '(' in last:
+        last, param = last.split('(', 1)
+        param = '(' + param
+
     last = quote_ident(last)
 
     if is_rowtype:
         last += '%ROWTYPE'
+
+    if param:
+        last += param
 
     if is_array:
         last += '[]'
@@ -219,7 +227,8 @@ def get_scalar_backend_name(id, module_name, catenate=True, *, aspect=None):
         "domain",
         "sequence",
         "enum",
-        "enum-cast",
+        "enum-cast-into-str",
+        "enum-cast-from-str",
         "source-del-imm-otl-f",
         "source-del-imm-otl-t",
     ):
@@ -227,7 +236,9 @@ def get_scalar_backend_name(id, module_name, catenate=True, *, aspect=None):
             f'unexpected aspect for scalar backend name: {aspect!r}')
     name = s_name.QualName(module=module_name, name=str(id))
 
-    if aspect == "enum-cast":
+    if aspect.startswith("enum-cast-"):
+        suffix = "_into_str" if aspect == "enum-cast-into-str" else "_from_str"
+        name = s_name.QualName(name.module, name.name + suffix)
         return get_cast_backend_name(name, catenate, aspect="function")
 
     return convert_name(name, aspect, catenate)
@@ -371,7 +382,9 @@ def get_index_backend_name(id, module_name, catenate=True, *, aspect=None):
     return convert_name(name, aspect, catenate)
 
 
-def get_tuple_backend_name(id, catenate=True, *, aspect=None):
+def get_tuple_backend_name(
+    id, catenate=True, *, aspect=None
+) -> Tuple[str, ...]:
 
     name = s_name.QualName(module='edgedb', name=f'{id}_t')
     return convert_name(name, aspect, catenate)

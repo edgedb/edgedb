@@ -1274,6 +1274,11 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                                 "name": "Profile",
                                 "kind": "INTERFACE"
                             },
+                            {
+                                "__typename": "__Type",
+                                "name": "Profile_OR_Setting",
+                                "kind": "INTERFACE"
+                            },
                         ],
                         "possibleTypes": None,
                         "enumValues": None,
@@ -1352,6 +1357,11 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                             {
                                 "__typename": "__Type",
                                 "name": "Object",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
+                                "name": "Profile_OR_Setting",
                                 "kind": "INTERFACE"
                             },
                             {
@@ -2495,6 +2505,404 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
             }
         })
 
+    def test_graphql_schema_type_20(self):
+        # make sure the union type got reflected
+        self.assert_graphql_query_result(r"""
+        query {
+            __type(name: "Profile_OR_Setting") {
+                __typename
+                name
+                kind
+                fields {
+                    __typename
+                    name
+                    description
+                    args {
+                        name
+                        description
+                        type {
+                            __typename
+                            name
+                            kind
+                            ofType {
+                                __typename
+                                name
+                                kind
+                            }
+                        }
+                        defaultValue
+                    }
+                    type {
+                        __typename
+                        name
+                        kind
+                        fields {name}
+                        ofType {
+                            name
+                            kind
+                            fields {name}
+                        }
+                    }
+                    isDeprecated
+                    deprecationReason
+                }
+                possibleTypes {
+                    name
+                }
+            }
+        }
+        """, {
+            "__type": {
+                "__typename": "__Type",
+                "name": "Profile_OR_Setting",
+                "kind": "INTERFACE",
+                "fields": [
+                    {
+                        "__typename": "__Field",
+                        "name": "id",
+                        "description": None,
+                        "args": [],
+                        "type": {
+                            "__typename": "__Type",
+                            "name": None,
+                            "kind": "NON_NULL",
+                            "fields": None,
+                            "ofType": {
+                                "name": "ID",
+                                "kind": "SCALAR",
+                                "fields": None
+                            }
+                        },
+                        "isDeprecated": False,
+                        "deprecationReason": None
+                    },
+                    {
+                        "__typename": "__Field",
+                        "name": "name",
+                        "description": None,
+                        "args": [],
+                        "type": {
+                            "__typename": "__Type",
+                            "name": None,
+                            "kind": "NON_NULL",
+                            "fields": None,
+                            "ofType": {
+                                "name": "String",
+                                "kind": "SCALAR",
+                                "fields": None
+                            }
+                        },
+                        "isDeprecated": False,
+                        "deprecationReason": None
+                    },
+                    {
+                        "__typename": "__Field",
+                        "name": "value",
+                        "description": None,
+                        "args": [],
+                        "type": {
+                            "__typename": "__Type",
+                            "name": None,
+                            "kind": "NON_NULL",
+                            "fields": None,
+                            "ofType": {
+                                "name": "String",
+                                "kind": "SCALAR",
+                                "fields": None
+                            }
+                        },
+                        "isDeprecated": False,
+                        "deprecationReason": None
+                    },
+                ],
+                "possibleTypes": [
+                    {"name": "Profile_Type"},
+                    {"name": "Setting_Type"},
+                ],
+            }
+        }, sort={
+            'fields': {
+                '.': lambda x: x['name'],
+                'args': lambda x: x['name'],
+            }
+        })
+
+    def test_graphql_schema_type_21(self):
+        # make sure that the union type supports filtering
+        self.assert_graphql_query_result(r"""
+            fragment _t on __Type {
+                name
+                kind
+            }
+
+            query {
+                __type(name: "FilterProfile_OR_Setting") {
+                    __typename
+                    ..._t
+                    inputFields {
+                        name
+                        type {
+                            ..._t
+                            ofType {
+                                ..._t
+                                ofType {
+                                    ..._t
+                                    ofType {
+                                        ..._t
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """, {
+            "__type": {
+                "__typename": "__Type",
+                "name": "FilterProfile_OR_Setting",
+                "kind": "INPUT_OBJECT",
+                "inputFields": [
+                    {
+                        "name": "and",
+                        "type": {
+                            "name": None,
+                            "kind": "LIST",
+                            "ofType": {
+                                "name": None,
+                                "kind": "NON_NULL",
+                                "ofType": {
+                                    "name": "FilterProfile_OR_Setting",
+                                    "kind": "INPUT_OBJECT",
+                                    "ofType": None
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "name": "id",
+                        "type": {
+                            "name": "FilterID",
+                            "kind": "INPUT_OBJECT",
+                            "ofType": None
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "type": {
+                            "name": "FilterString",
+                            "kind": "INPUT_OBJECT",
+                            "ofType": None
+                        }
+                    },
+                    {
+                        "name": "not",
+                        "type": {
+                            "name": "FilterProfile_OR_Setting",
+                            "kind": "INPUT_OBJECT",
+                            "ofType": None
+                        }
+                    },
+                    {
+                        "name": "or",
+                        "type": {
+                            "name": None,
+                            "kind": "LIST",
+                            "ofType": {
+                                "name": None,
+                                "kind": "NON_NULL",
+                                "ofType": {
+                                    "name": "FilterProfile_OR_Setting",
+                                    "kind": "INPUT_OBJECT",
+                                    "ofType": None
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "name": "value",
+                        "type": {
+                            "name": "FilterString",
+                            "kind": "INPUT_OBJECT",
+                            "ofType": None
+                        }
+                    },
+                ]
+            }
+        }, sort={
+            'inputFields': lambda x: x['name'],
+        })
+
+    def test_graphql_schema_type_22(self):
+        # make sure the union type is used as link target
+        self.assert_graphql_query_result(r"""
+        query {
+            __type(name: "Combo") {
+                __typename
+                name
+                kind
+                fields {
+                    __typename
+                    name
+                    description
+                    args {
+                        name
+                        description
+                        type {
+                            __typename
+                            name
+                            kind
+                            ofType {
+                                __typename
+                                name
+                                kind
+                            }
+                        }
+                        defaultValue
+                    }
+                    type {
+                        __typename
+                        name
+                        kind
+                        fields {name}
+                        ofType {
+                            name
+                            kind
+                            fields {name}
+                        }
+                    }
+                    isDeprecated
+                    deprecationReason
+                }
+            }
+        }
+        """, {
+            "__type": {
+
+                "__typename": "__Type",
+                "kind": "INTERFACE",
+                "name": "Combo",
+                "fields": [
+                    {
+                        "__typename": "__Field",
+                        "name": "data",
+                        "description": None,
+                        "args": [
+                            {
+                                "name": "after",
+                                "type": {
+                                    "kind": "SCALAR",
+                                    "name": "String",
+                                    "ofType": None,
+                                    "__typename": "__Type"
+                                },
+                                "description": None,
+                                "defaultValue": None
+                            },
+                            {
+                                "name": "before",
+                                "type": {
+                                    "kind": "SCALAR",
+                                    "name": "String",
+                                    "ofType": None,
+                                    "__typename": "__Type"
+                                },
+                                "description": None,
+                                "defaultValue": None
+                            },
+                            {
+                                "name": "filter",
+                                "type": {
+                                    "kind": "INPUT_OBJECT",
+                                    "name": "FilterProfile_OR_Setting",
+                                    "ofType": None,
+                                    "__typename": "__Type"
+                                },
+                                "description": None,
+                                "defaultValue": None
+                            },
+                            {
+                                "name": "first",
+                                "type": {
+                                    "kind": "SCALAR",
+                                    "name": "Int",
+                                    "ofType": None,
+                                    "__typename": "__Type"
+                                },
+                                "description": None,
+                                "defaultValue": None
+                            },
+                            {
+                                "name": "last",
+                                "type": {
+                                    "kind": "SCALAR",
+                                    "name": "Int",
+                                    "ofType": None,
+                                    "__typename": "__Type"
+                                },
+                                "description": None,
+                                "defaultValue": None
+                            },
+                            {
+                                "name": "order",
+                                "type": {
+                                    "kind": "INPUT_OBJECT",
+                                    "name": "OrderProfile_OR_Setting",
+                                    "ofType": None,
+                                    "__typename": "__Type"
+                                },
+                                "description": None,
+                                "defaultValue": None
+                            },
+                        ],
+                        "type": {
+                            "kind": "INTERFACE",
+                            "name": "Profile_OR_Setting",
+                            "fields": [
+                                {
+                                    "name": "id"
+                                },
+                                {
+                                    "name": "name"
+                                },
+                                {
+                                    "name": "value"
+                                }
+                            ],
+                            "ofType": None,
+                            "__typename": "__Type"
+                        },
+                        "isDeprecated": False,
+                        "deprecationReason": None
+                    },
+                    {
+                        "__typename": "__Field",
+                        "name": "id",
+                        "description": None,
+                        "args": [],
+                        "type": {
+                            "__typename": "__Type",
+                            "name": None,
+                            "kind": "NON_NULL",
+                            "fields": None,
+                            "ofType": {
+                                "name": "ID",
+                                "kind": "SCALAR",
+                                "fields": None
+                            }
+                        },
+                        "isDeprecated": False,
+                        "deprecationReason": None
+                    },
+                ],
+
+            }
+        }, sort={
+            'fields': {
+                '.': lambda x: x['name'],
+                'args': lambda x: x['name'],
+            }
+        })
+
     def test_graphql_reflection_01(self):
         # Make sure that FreeObject is not reflected.
         result = self.graphql_query(r"""
@@ -2562,3 +2970,40 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                 bad,
                 [t['name'] for t in result['up']['inputFields']]
             )
+
+    def test_graphql_reflection_03(self):
+        # Make sure that union type `Profile | Setting` is not reflected at
+        # the root of Query or Mutation.
+        result = self.graphql_query(r"""
+            query {
+                __schema {
+                    queryType {
+                        fields {
+                            name
+                        }
+                    }
+                    mutationType {
+                        fields {
+                            name
+                        }
+                    }
+                }
+            }
+        """)
+
+        self.assertNotIn(
+            'Profile_OR_Setting',
+            [t['name'] for t in result['__schema']['queryType']['fields']]
+        )
+        self.assertNotIn(
+            'delete_Profile_OR_Setting',
+            [t['name'] for t in result['__schema']['mutationType']['fields']]
+        )
+        self.assertNotIn(
+            'update_Profile_OR_Setting',
+            [t['name'] for t in result['__schema']['mutationType']['fields']]
+        )
+        self.assertNotIn(
+            'insert_Profile_OR_Setting',
+            [t['name'] for t in result['__schema']['mutationType']['fields']]
+        )

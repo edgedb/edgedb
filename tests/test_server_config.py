@@ -41,10 +41,12 @@ from edb.testbase import server as tb
 from edb.schema import objects as s_obj
 
 from edb.server import args
+from edb.server import cluster
 from edb.server import config
 from edb.server.config import ops
 from edb.server.config import spec
 from edb.server.config import types
+from edb.tools import test
 
 
 def make_port_value(*, protocol='graphql+http',
@@ -86,7 +88,7 @@ testspec1 = spec.Spec(
     spec.Setting(
         'port',
         type=Port,
-        default=Port.from_pyvalue(make_port_value())),
+        default=Port(**make_port_value())),
 
     spec.Setting(
         'ints',
@@ -109,14 +111,6 @@ testspec1 = spec.Spec(
 
 
 class TestServerConfigUtils(unittest.TestCase):
-
-    def setUp(self):
-        self._cfgspec = config.get_settings()
-        config.set_settings(testspec1)
-
-    def tearDown(self):
-        config.set_settings(self._cfgspec)
-        self._cfgspec = None  # some settings cannot be pickled by runner.py
 
     def test_server_config_01(self):
         conf = immutables.Map({
@@ -207,8 +201,10 @@ class TestServerConfigUtils(unittest.TestCase):
         self.assertEqual(
             config.lookup('ports', storage2, spec=testspec1),
             {
-                Port.from_pyvalue(make_port_value(database='f1')),
-                Port.from_pyvalue(make_port_value(database='f2')),
+                Port.from_pyvalue(
+                    make_port_value(database='f1'), spec=testspec1),
+                Port.from_pyvalue(
+                    make_port_value(database='f2'), spec=testspec1),
             })
 
         j = ops.to_json(testspec1, storage2)
@@ -226,7 +222,8 @@ class TestServerConfigUtils(unittest.TestCase):
         self.assertEqual(
             config.lookup('ports', storage3, spec=testspec1),
             {
-                Port.from_pyvalue(make_port_value(database='f2')),
+                Port.from_pyvalue(
+                    make_port_value(database='f2'), spec=testspec1),
             })
 
         op = ops.Operation(
@@ -290,16 +287,22 @@ class TestServerConfigUtils(unittest.TestCase):
         op.apply(testspec1, storage)
 
         self.assertEqual(
-            Port.from_pyvalue(make_port_value(address='aaa')),
-            Port.from_pyvalue(make_port_value(address=['aaa'])))
+            Port.from_pyvalue(
+                make_port_value(address='aaa'), spec=testspec1),
+            Port.from_pyvalue(
+                make_port_value(address=['aaa']), spec=testspec1))
 
         self.assertEqual(
-            Port.from_pyvalue(make_port_value(address=['aaa', 'bbb'])),
-            Port.from_pyvalue(make_port_value(address=['bbb', 'aaa'])))
+            Port.from_pyvalue(
+                make_port_value(address=['aaa', 'bbb']), spec=testspec1),
+            Port.from_pyvalue(
+                make_port_value(address=['bbb', 'aaa']), spec=testspec1))
 
         self.assertNotEqual(
-            Port.from_pyvalue(make_port_value(address=['aaa', 'bbb'])),
-            Port.from_pyvalue(make_port_value(address=['bbb', 'aa1'])))
+            Port.from_pyvalue(
+                make_port_value(address=['aaa', 'bbb']), spec=testspec1),
+            Port.from_pyvalue(
+                make_port_value(address=['bbb', 'aa1']), spec=testspec1))
 
     def test_server_config_04(self):
         storage = immutables.Map()
@@ -949,6 +952,33 @@ class TestServerConfig(tb.QueryTestCase):
                 CONFIGURE INSTANCE RESET multiprop;
             ''')
 
+    async def test_server_proto_configure_08(self):
+        with self.assertRaisesRegex(
+            edgedb.ConfigurationError, 'invalid setting value'
+        ):
+            await self.con.execute('''
+                CONFIGURE INSTANCE SET _pg_prepared_statement_cache_size := -5;
+            ''')
+        with self.assertRaisesRegex(
+            edgedb.ConfigurationError, 'invalid setting value'
+        ):
+            await self.con.execute('''
+                CONFIGURE INSTANCE SET _pg_prepared_statement_cache_size := 0;
+            ''')
+
+        try:
+            await self.con.execute('''
+                CONFIGURE INSTANCE SET _pg_prepared_statement_cache_size := 42;
+            ''')
+            conf = await self.con.query_single('''
+                SELECT cfg::Config._pg_prepared_statement_cache_size LIMIT 1
+            ''')
+            self.assertEqual(conf, 42)
+        finally:
+            await self.con.execute('''
+                CONFIGURE INSTANCE RESET _pg_prepared_statement_cache_size;
+            ''')
+
     async def test_server_proto_configure_describe_system_config(self):
         try:
             conf1 = "CONFIGURE INSTANCE SET singleprop := '1337';"
@@ -1171,6 +1201,43 @@ class TestServerConfig(tb.QueryTestCase):
                     SELECT assert_single(cfg::Config.__internal_sess_testvalue)
                 '''),
                 1,
+            )
+        finally:
+            await con2.aclose()
+
+    async def test_server_proto_orphan_rollback_state(self):
+        con1 = self.con
+        con2 = await self.connect(database=con1.dbname)
+        try:
+            await con2.execute('''
+                CONFIGURE SESSION SET __internal_sess_testvalue := 2;
+            ''')
+            await con1.execute('''
+                CONFIGURE SESSION SET __internal_sess_testvalue := 1;
+            ''')
+            self.assertEqual(
+                await con2.query_single('''
+                    SELECT assert_single(cfg::Config.__internal_sess_testvalue)
+                '''),
+                2,
+            )
+            self.assertEqual(
+                await con1.query_single('''
+                    SELECT assert_single(cfg::Config.__internal_sess_testvalue)
+                '''),
+                1,
+            )
+
+            # an orphan ROLLBACK must not change the last_state,
+            # because the implicit transaction is rolled back
+            await con2.execute("ROLLBACK")
+
+            # ... so that we can actually do the state sync again here
+            self.assertEqual(
+                await con2.query_single('''
+                    SELECT assert_single(cfg::Config.__internal_sess_testvalue)
+                '''),
+                2,
             )
         finally:
             await con2.aclose()
@@ -1648,6 +1715,14 @@ class TestSeparateCluster(tb.TestCase):
         ) as sd:
             conn = await sd.connect()
 
+            KEY = 'edgedb_server_backend_connections_aborted_total'
+
+            data = sd.fetch_metrics()
+            orig_aborted = 0.0
+            for line in data.split('\n'):
+                if line.startswith(KEY):
+                    orig_aborted += float(line.split(' ')[1])
+
             await conn.execute('''
                 configure session set
                     query_execution_timeout :=
@@ -1670,7 +1745,197 @@ class TestSeparateCluster(tb.TestCase):
             await conn.aclose()
 
             data = sd.fetch_metrics()
-            self.assertNotIn(
-                '\nedgedb_server_backend_connections_aborted_total',
-                data
-            )
+            new_aborted = 0.0
+            for line in data.split('\n'):
+                if line.startswith(KEY):
+                    new_aborted += float(line.split(' ')[1])
+            self.assertEqual(orig_aborted, new_aborted)
+
+
+class TestStaticServerConfig(tb.TestCase):
+    @test.xerror("static config args not supported")
+    async def test_server_config_args_01(self):
+        async with tb.start_edgedb_server(
+            extra_args=[
+                "--config-cfg::session_idle_timeout", "2m18s",
+                "--config-cfg::query_execution_timeout", "609",
+                "--config-no-cfg::apply_access_policies",
+            ]
+        ) as sd:
+            conn = await sd.connect()
+            try:
+                self.assertEqual(
+                    await conn.query_single("""\
+                        select assert_single(cfg::Config.session_idle_timeout)
+                    """),
+                    datetime.timedelta(minutes=2, seconds=18),
+                )
+                self.assertEqual(
+                    await conn.query_single("""\
+                        select assert_single(
+                            cfg::Config.query_execution_timeout)
+                    """),
+                    datetime.timedelta(seconds=609),
+                )
+                self.assertFalse(
+                    await conn.query_single("""\
+                        select assert_single(cfg::Config.apply_access_policies)
+                    """)
+                )
+            finally:
+                await conn.aclose()
+
+    @test.xfail("static config args not supported")
+    async def test_server_config_args_02(self):
+        with self.assertRaisesRegex(
+            cluster.ClusterError,
+            "invalid input syntax for type std::duration",
+        ):
+            async with tb.start_edgedb_server(
+                extra_args=[
+                    "--config-cfg::session_idle_timeout",
+                    "illegal input",
+                ]
+            ):
+                pass
+
+    async def test_server_config_args_03(self):
+        with self.assertRaisesRegex(cluster.ClusterError, "no such option"):
+            async with tb.start_edgedb_server(
+                extra_args=["--config-cfg::non_exist"]
+            ):
+                pass
+
+    async def test_server_config_env_01(self):
+        env = {
+            "EDGEDB_SERVER_CONFIG_cfg::session_idle_timeout": "1m22s",
+            "EDGEDB_SERVER_CONFIG_cfg::query_execution_timeout": "403",
+            "EDGEDB_SERVER_CONFIG_cfg::apply_access_policies": "false",
+        }
+        async with tb.start_edgedb_server(env=env) as sd:
+            conn = await sd.connect()
+            try:
+                self.assertEqual(
+                    await conn.query_single("""\
+                        select assert_single(cfg::Config.session_idle_timeout)
+                    """),
+                    datetime.timedelta(minutes=1, seconds=22),
+                )
+                self.assertEqual(
+                    await conn.query_single("""\
+                        select assert_single(
+                            cfg::Config.query_execution_timeout)
+                    """),
+                    datetime.timedelta(seconds=403),
+                )
+                self.assertFalse(
+                    await conn.query_single("""\
+                        select assert_single(cfg::Config.apply_access_policies)
+                    """)
+                )
+            finally:
+                await conn.aclose()
+
+    async def test_server_config_env_02(self):
+        env = {
+            "EDGEDB_SERVER_CONFIG_cfg::allow_bare_ddl": "illegal_input"
+        }
+        with self.assertRaisesRegex(
+            cluster.ClusterError,
+            "can only be one of: AlwaysAllow, NeverAllow"
+        ):
+            async with tb.start_edgedb_server(env=env):
+                pass
+
+    async def test_server_config_env_03(self):
+        env = {"EDGEDB_SERVER_CONFIG_cfg::apply_access_policies": "on"}
+        with self.assertRaisesRegex(
+            cluster.ClusterError,
+            "can only be one of: true, false",
+        ):
+            async with tb.start_edgedb_server(env=env):
+                pass
+
+    async def test_server_config_default(self):
+        p1 = tb.find_available_port(max_value=32767)
+        async with tb.start_edgedb_server(
+            extra_args=["--port", str(p1)]
+        ) as sd:
+            conn = await sd.connect()
+            try:
+                self.assertEqual(
+                    await conn.query_single("""\
+                        select assert_single(cfg::Config.listen_port)
+                    """),
+                    p1,
+                )
+                p2 = tb.find_available_port(p1 - 1)
+                await conn.execute(f"""\
+                    configure instance set listen_port := {p2}
+                """)
+            finally:
+                await conn.aclose()
+
+            conn = await sd.connect(port=p2)
+            try:
+                self.assertEqual(
+                    await conn.query_single("""\
+                        select assert_single(cfg::Config.listen_port)
+                    """),
+                    p2,
+                )
+                await conn.execute("""\
+                    configure instance reset listen_port
+                """)
+            finally:
+                await conn.aclose()
+
+            conn = await sd.connect()
+            try:
+                self.assertEqual(
+                    await conn.query_single("""\
+                        select assert_single(cfg::Config.listen_port)
+                    """),
+                    p1,
+                )
+            finally:
+                await conn.aclose()
+
+
+class TestDynamicSystemConfig(tb.TestCase):
+    async def test_server_dynamic_system_config(self):
+        async with tb.start_edgedb_server(
+            extra_args=["--disable-dynamic-system-config"]
+        ) as sd:
+            conn = await sd.connect()
+            try:
+                conf, sess = await conn.query_single('''
+                    SELECT (
+                        cfg::Config.__internal_testvalue,
+                        cfg::Config.__internal_sess_testvalue
+                    ) LIMIT 1
+                ''')
+
+                with self.assertRaisesRegex(
+                    edgedb.ConfigurationError, "disabled"
+                ):
+                    await conn.query(f'''
+                        CONFIGURE INSTANCE
+                        SET __internal_testvalue := {conf + 1};
+                    ''')
+
+                await conn.query(f'''
+                    CONFIGURE INSTANCE
+                    SET __internal_sess_testvalue := {sess + 1};
+                ''')
+
+                conf2, sess2 = await conn.query_single('''
+                    SELECT (
+                        cfg::Config.__internal_testvalue,
+                        cfg::Config.__internal_sess_testvalue
+                    ) LIMIT 1
+                ''')
+                self.assertEqual(conf, conf2)
+                self.assertEqual(sess + 1, sess2)
+            finally:
+                await conn.aclose()

@@ -280,7 +280,7 @@ def try_bind_call_args(
             # being called with no arguments.
             bargs: List[BoundArg] = []
             if has_inlined_defaults:
-                bytes_t = ctx.env.get_track_schema_type(
+                bytes_t = ctx.env.get_schema_type_and_track(
                     sn.QualName('std', 'bytes'))
                 typeref = typegen.type_to_typeref(bytes_t, env=ctx.env)
                 argval = setgen.ensure_set(
@@ -515,7 +515,7 @@ def try_bind_call_args(
     if has_inlined_defaults:
         # If we are compiling an EdgeQL function, inject the defaults
         # bit-mask as a first argument.
-        bytes_t = ctx.env.get_track_schema_type(
+        bytes_t = ctx.env.get_schema_type_and_track(
             sn.QualName('std', 'bytes'))
         bm = defaults_mask.to_bytes(nparams // 8 + 1, 'little')
         typeref = typegen.type_to_typeref(bytes_t, env=ctx.env)
@@ -557,15 +557,21 @@ def compile_arg(
     typemod: ft.TypeModifier,
     *,
     in_conditional: bool=False,
+    prefer_subquery_args: bool=False,
     ctx: context.ContextLevel,
 ) -> irast.Set:
     fenced = typemod is ft.TypeModifier.SetOfType
     optional = typemod is ft.TypeModifier.OptionalType
 
-    # Create a a branch for OPTIONAL ones. The OPTIONAL branch is to
+    # Create a branch for OPTIONAL ones. The OPTIONAL branch is to
     # have a place to mark as optional in the scope tree.
     # For fenced arguments we instead wrap it in a SELECT below.
-    new = ctx.newscope(fenced=False) if optional else ctx.new()
+    #
+    # We also put a branch when we are trying to compile the argument
+    # into a subquery, so that things it uses get bound locally.
+    branched = optional or (prefer_subquery_args and not fenced)
+
+    new = ctx.newscope(fenced=False) if branched else ctx.new()
     with new as argctx:
         if in_conditional:
             argctx.disallow_dml = "inside conditional expressions"
@@ -587,5 +593,8 @@ def compile_arg(
 
             if arg_ir.path_scope_id is None:
                 pathctx.assign_set_scope(arg_ir, argctx.path_scope, ctx=argctx)
+
+        elif branched:
+            arg_ir = setgen.scoped_set(arg_ir, ctx=argctx)
 
         return arg_ir

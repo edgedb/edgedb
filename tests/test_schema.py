@@ -341,6 +341,47 @@ class TestSchema(tb.BaseSchemaLoadTest):
             };
         """
 
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "illegal for the computed link.*to extend an abstract link",
+    )
+    def test_schema_bad_link_06(self):
+        """
+            abstract link abs { property foo: str };
+            type T { multi link following extending abs -> T {using (T)} }
+        """
+
+    @tb.must_fail(errors.InvalidDefinitionError,
+                  "cannot create a link property on a property")
+    def test_schema_link_prop_on_prop_01(self):
+        """
+            type Test1 {
+                title : str {
+                    sub_title : str
+                }
+            };
+        """
+
+    @tb.must_fail(errors.QueryError,
+                  "could not resolve partial path")
+    def test_schema_partial_path_in_default_of_link_prop_01(self):
+        """
+            module default {
+                type Person {
+                    required name : str {
+                        constraint exclusive;
+                    }
+
+                    multi friends : Person {
+                        note : str {
+                            default := .name
+                        }
+                    }
+
+                }
+            }
+        """
+
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "invalid property type: expected a scalar type, "
                   "or a scalar collection, got object type 'test::Object'",
@@ -797,17 +838,6 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(
-        errors.SchemaDefinitionError,
-        "module 'ext' is a reserved module name"
-    )
-    def test_schema_module_reserved_02(self):
-        """
-            module foo {
-                module ext {}
-            }
-        """
-
-    @tb.must_fail(
         errors.InvalidFunctionDefinitionError,
         r"cannot create the `test::foo\(VARIADIC bar: "
         r"OPTIONAL array<std::int64>\)` function: "
@@ -819,6 +849,70 @@ class TestSchema(tb.BaseSchemaLoadTest):
             function foo(variadic bar: optional int64) -> array<int64>
                 using (assert_exists(bar));
         """
+
+    def test_schema_hard_sorting_01(self):
+        # This is hard to sort properly because we don't understand the types.
+        # From #4683.
+        """
+            global current_user_id -> uuid;
+            global current_user := (
+              select User filter .id = global current_user_id
+            );
+            global current_user_role := (
+              (global current_user).role.slug
+            );
+
+            type Role {
+              property slug -> str;
+            }
+
+            type User {
+              required link role -> Role;
+            }
+        """
+
+    def test_schema_hard_sorting_02(self):
+        # This is hard to sort properly because we don't understand the types.
+        # From #5163
+        """
+            type Branch;
+            type CO2DataPoint{
+                required link datapoint -> DataPoint;
+                link branch := .datapoint.data_entry.branch;
+            }
+            type DataPoint{
+                required link data_entry := assert_exists(
+                    .<data_points[is DataEntry]);
+            }
+
+            type DataEntry{
+                required link branch -> Branch;
+                multi link data_points -> DataPoint;
+            }
+       """
+
+    def test_schema_hard_sorting_03(self):
+        # This is hard to sort properly because we don't understand the types.
+        """
+            type A {
+                property foo := assert_exists(B).bar;
+            };
+            type B {
+                property bar := 1;
+            };
+       """
+
+    def test_schema_hard_sorting_04(self):
+        # This is hard to sort properly because we don't understand the types.
+        """
+            type A {
+                property foo := (
+                    with Z := assert_exists(B) select Z.bar);
+            };
+            type B {
+                property bar := 1;
+            };
+       """
 
     def test_schema_refs_01(self):
         schema = self.load_schema("""
@@ -1021,6 +1115,22 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 obj2_num,
             })
         )
+
+    def test_schema_refs_04(self):
+        with self.assertRaisesRegex(
+            errors.InvalidReferenceError,
+            "__subject__ cannot be used in this expression",
+        ):
+            self.load_schema(
+                """
+                type User3 {
+                    required property nick: str;
+                    required property name: str {
+                        default := (select __subject__.nick);
+                    };
+                }
+                """
+            )
 
     def test_schema_annotation_inheritance_01(self):
         schema = self.load_schema("""
@@ -1315,6 +1425,27 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """
 
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "missing value for required property",
+                  line=9, col=42)
+    def test_schema_rewrite_missing_required_01(self):
+        """
+            type Project {
+                required name: str;
+                required owner: User;
+            }
+
+            type User {
+                link default_project: Project {
+                    rewrite insert using (
+                        insert Project {
+                            owner := __subject__,
+                        }
+                    )
+                };
+            }
+        """
+
     def test_schema_property_cardinality_alter_01(self):
         schema = self.load_schema('''
             type Foo {
@@ -1384,7 +1515,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
             CREATE MODULE default;
             CREATE TYPE default::A;
             CREATE TYPE default::B EXTENDING A;
-            CREATE TYPE default::C EXTENDING A, B;
+            CREATE TYPE default::C EXTENDING B, A;
         ''')
 
         orig_get_children = type(schema).get_children
@@ -2121,6 +2252,18 @@ class TestSchema(tb.BaseSchemaLoadTest):
             alias val_i := {'alice', 'billie'} intersect User.name;
         """
 
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        "unsupported range subtype: test::Age",
+    )
+    def test_schema_range_01(self):
+        """
+        scalar type Age extending int64;
+        type Y {
+            property age_requirement -> range<Age>
+        }
+        """
+
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
     """Test migration deparse consistency.
@@ -2139,9 +2282,9 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def _assert_migration_consistency(
         self,
         schema_text: str,
-        multi_module: bool = False,
+        explicit_modules: bool = False,
     ) -> s_schema.Schema:
-        if multi_module:
+        if explicit_modules:
             migration_text = f'''
                 START MIGRATION TO {{
                     {schema_text}
@@ -3226,6 +3369,23 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_get_migration_54(self):
+        schema = r'''
+            type Venue {
+                multi link meta_bookings := .<venue[is MetaBooking];
+            }
+            abstract type MetaBooking {
+                link venue -> Venue;
+            }
+
+            type Booking extending MetaBooking;
+            type ExternalBooking extending MetaBooking {
+                overloaded link venue -> Venue;
+            }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different
@@ -3243,7 +3403,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_02(self):
         schema = r'''
@@ -3258,7 +3418,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_03(self):
         # Test abstract and concrete constraints order of declaration,
@@ -3277,7 +3437,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_04(self):
         # View and type from different modules
@@ -3289,7 +3449,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_05(self):
         # View and type from different modules
@@ -3301,7 +3461,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_06(self):
         # Type and annotation from different modules.
@@ -3314,7 +3474,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         abstract annotation other::my_anno;
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_07(self):
         # Type and annotation from different modules.
@@ -3328,7 +3488,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         abstract annotation other::my_anno;
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_08(self):
         schema = r'''
@@ -3342,7 +3502,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_09(self):
         schema = r'''
@@ -3358,7 +3518,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_10(self):
         # Test prop default and function order of definition.
@@ -3374,7 +3534,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_11(self):
         # Test prop default and function order of definition.
@@ -3391,7 +3551,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_multi_module_12(self):
         # Test prop default and function order of definition.
@@ -3411,7 +3571,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_nested_module_01(self):
         schema = r'''
@@ -3425,7 +3585,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_nested_module_02(self):
         schema = r'''
@@ -3443,7 +3603,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_nested_module_03(self):
         schema = r'''
@@ -3452,7 +3612,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         };
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_nested_module_04(self):
         schema = r'''
@@ -3465,7 +3625,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             errors.InvalidReferenceError,
             "function '_test::abs' does not exist"
         ):
-            self._assert_migration_consistency(schema, multi_module=True)
+            self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_nested_module_05(self):
         schema = r'''
@@ -3479,7 +3639,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
         '''
 
-        self._assert_migration_consistency(schema, multi_module=True)
+        self._assert_migration_consistency(schema, explicit_modules=True)
 
     def test_schema_get_migration_default_ptrs_01(self):
         schema = r'''
@@ -3556,14 +3716,57 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_trigger_01(self):
+        schema = '''
+            type User {
+              trigger logInsert after insert for each do (
+                insert Log {
+                  user := __new__,
+                  action := 'Insert',
+                }
+              );
+            }
+
+            type Log {
+              required link user -> User;
+              required property action -> str;
+            }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_trigger_02(self):
+        schema = '''
+            type User {
+              trigger logInsert after insert for each do (
+                update Log set {
+                  user := __new__,
+                  action := 'Insert',
+                }
+              );
+            }
+
+            type Log {
+              required link user -> User;
+              required property action -> str;
+            }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_pointer_kind_infer_01(self):
         tschema = r'''
         type Bar;
         scalar type scl extending str;
+        abstract link friendship {
+            property strength: float64;
+            index on (__subject__@strength);
+        };
         type Foo {
             name: str;
             foo: Foo;
             bar: Bar;
+            bar2 extending friendship: Bar;
             or_: Foo | Bar;
             array1: array<str>;
             array2: array<scl>;
@@ -3578,6 +3781,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         obj.getptr(schema, s_name.UnqualName('array2'), type=s_props.Property)
         obj.getptr(schema, s_name.UnqualName('foo'), type=s_links.Link)
         obj.getptr(schema, s_name.UnqualName('bar'), type=s_links.Link)
+        obj.getptr(schema, s_name.UnqualName('bar2'), type=s_links.Link)
         obj.getptr(schema, s_name.UnqualName('or_'), type=s_links.Link)
 
     def test_schema_migrations_equivalence_01(self):
@@ -7769,7 +7973,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 abstract type C extending B;
                 abstract type C2 extending C;
                 abstract type D;
-                type F extending C, C2, B;
+                type F extending C2, C, B;
             """,
             r"""
             """,
@@ -7801,8 +8005,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 abstract type C extending B;
                 abstract type C2 extending C;
                 abstract type D;
-                type F extending C, C2, B;
-                type F2 extending C, C2, B, F;
+                type F extending C2, C, B;
+                type F2 extending F, C2, C, B;
             """,
             r"""
             """,
@@ -7814,6 +8018,35 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """, r"""
             module foo { module bar { module baz {} } }
         """])
+
+    def test_schema_migrations_property_aliases(self):
+        self._assert_migration_equivalence([
+            r"""
+                abstract type NamedObject {
+                    required property name: std::str;
+                };
+                type Person extending default::User;
+                type User extending default::NamedObject {
+                    multi link fav_users := (.favorites[is default::User]);
+                    multi link favorites: default::NamedObject;
+                };
+            """,
+            r"""
+            """,
+        ])
+
+    def test_schema_migrations_rewrites_01(self):
+        self._assert_migration_equivalence([
+            r"""
+                type User {
+                    name: str {
+                        rewrite update, insert using (.name ++ "!")
+                    }
+                };
+            """,
+            r"""
+            """,
+        ])
 
 
 class TestDescribe(tb.BaseSchemaLoadTest):
@@ -7849,7 +8082,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         tests = [iter(tests)] * 2
 
         for stmt_text, expected_output in zip(*tests):
-            qltree = qlparser.parse(stmt_text, {None: 'test'})
+            qltree = qlparser.parse_command(stmt_text, {None: 'test'})
             stmt = qlcompiler.compile_ast_to_ir(
                 qltree,
                 schema,
@@ -7918,7 +8151,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
             type test::Child extending test::Parent, test::Parent2 {
                 annotation test::anno := 'annotated';
-                overloaded link foo extending test::f: test::Foo {
+                overloaded link foo: test::Foo {
+                    extending test::f;
                     annotation test::anno := 'annotated link';
                     constraint std::exclusive {
                         annotation test::anno := 'annotated constraint';
@@ -7936,7 +8170,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 required single link __type__: schema::ObjectType {
                     readonly := true;
                 };
-                overloaded single link foo extending test::f: test::Foo {
+                overloaded single link foo: test::Foo {
+                    extending test::f;
                     annotation test::anno := 'annotated link';
                     constraint std::exclusive {
                         annotation test::anno := 'annotated constraint';
@@ -7960,7 +8195,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 required single link __type__: schema::ObjectType {
                     readonly := true;
                 };
-                overloaded single link foo extending test::f: test::Foo {
+                overloaded single link foo: test::Foo {
+                    extending test::f;
                     optional single property p: test::int_t;
                 };
                 required single property id: std::uuid {
@@ -8323,8 +8559,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             type test::UniqueName {
-                link translated_label extending test::translated_label:
-                        test::Label {
+                link translated_label: test::Label {
+                    extending test::translated_label;
                     constraint std::exclusive on (__subject__@prop1);
                     constraint std::exclusive on (
                         (__subject__@source, __subject__@lang)
@@ -8340,10 +8576,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 required single link __type__: schema::ObjectType {
                     readonly := true;
                 };
-                optional single link translated_label
-                extending test::translated_label:
-                    test::Label
-                {
+                optional single link translated_label: test::Label {
+                    extending test::translated_label;
                     optional single property lang: std::str;
                     optional single property prop1: std::str;
                 };
@@ -8360,10 +8594,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 required single link __type__: schema::ObjectType {
                     readonly := true;
                 };
-                optional single link translated_label
-                extending test::translated_label:
-                    test::Label
-                {
+                optional single link translated_label: test::Label {
+                    extending test::translated_label;
                     constraint std::exclusive on (__subject__@prop1);
                     constraint std::exclusive on (
                         (__subject__@source, __subject__@lang));
@@ -8869,14 +9101,14 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             # the links order is non-deterministic
             """
             CREATE TYPE schema::ObjectType
-            EXTENDING schema::InheritingObject,
+            EXTENDING schema::Source,
                       schema::ConsistencySubject,
-                      schema::AnnotationSubject,
+                      schema::InheritingObject,
                       schema::Type,
-                      schema::Source
+                      schema::AnnotationSubject
             {
-                CREATE MULTI LINK access_policies
-                  EXTENDING schema::reference: schema::AccessPolicy {
+                CREATE MULTI LINK access_policies: schema::AccessPolicy {
+                    EXTENDING schema::reference;
                     ON TARGET DELETE ALLOW;
                     CREATE CONSTRAINT std::exclusive;
                 };
@@ -8892,8 +9124,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 CREATE MULTI LINK properties := (
                     .pointers[IS schema::Property]
                 );
-                CREATE MULTI LINK triggers
-                  EXTENDING schema::reference: schema::Trigger {
+                CREATE MULTI LINK triggers: schema::Trigger {
+                    EXTENDING schema::reference;
                     ON TARGET DELETE ALLOW;
                     CREATE CONSTRAINT std::exclusive;
                 };
@@ -8903,15 +9135,15 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE TYPE schema::ObjectType AS SDL',
 
             """
-            type schema::ObjectType extending
-                    schema::InheritingObject,
-                    schema::ConsistencySubject,
-                    schema::AnnotationSubject,
-                    schema::Type,
-                    schema::Source
+            type schema::ObjectType
+            extending schema::Source,
+                      schema::ConsistencySubject,
+                      schema::InheritingObject,
+                      schema::Type,
+                      schema::AnnotationSubject
             {
-                multi link access_policies
-                  extending schema::reference: schema::AccessPolicy {
+                multi link access_policies: schema::AccessPolicy {
+                    extending schema::reference;
                     on target delete allow;
                     constraint std::exclusive;
                 };
@@ -8920,8 +9152,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 multi link properties := (
                     .pointers[IS schema::Property]
                 );
-                multi link triggers
-                  extending schema::reference: schema::Trigger {
+                multi link triggers: schema::Trigger {
+                    extending schema::reference;
                     on target delete allow;
                     constraint std::exclusive;
                 };
@@ -9194,7 +9426,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 };
                 type Child extending test::Parent, test::Parent2 {
                     annotation test::anno := 'annotated';
-                    overloaded link foo extending test::f: test::Foo {
+                    overloaded link foo: test::Foo {
+                        extending test::f;
                         annotation test::anno := 'annotated link';
                         constraint std::exclusive {
                             annotation test::anno := 'annotated constraint';
@@ -9232,9 +9465,9 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE SCHEMA AS DDL',
 
             """
+            CREATE EXTENSION NOTEBOOK VERSION '1.0';
             CREATE MODULE default IF NOT EXISTS;
             CREATE MODULE test IF NOT EXISTS;
-            CREATE EXTENSION NOTEBOOK VERSION '1.0';
             CREATE TYPE default::Foo;
             CREATE TYPE test::Bar {
                 CREATE LINK foo: default::Foo;
@@ -9256,6 +9489,49 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             module test {
                 type Bar {
                     link foo: default::Foo;
+                };
+            };
+            """,
+            explicit_modules=True,
+        )
+
+    @test.xfail('''
+        describe command includes module pgvector
+
+        ... this *doesn't* happen when actually testing via the CLI, though?
+    ''')
+    def test_schema_describe_schema_03(self):
+        self._assert_describe(
+            """
+            using extension pgvector version '0.4';
+            module default {
+                scalar type v3 extending ext::pgvector::vector<3>;
+
+                type Foo {
+                    data: v3;
+                }
+            };
+            """,
+
+            'describe schema as ddl',
+
+            """
+            create extension vector version '0.4';
+            create module default if not exists;
+            create scalar type default::v3 extending ext::pgvector::vector<3>;
+            create type default::Foo {
+                create property data: default::v3;
+            };
+            """,
+
+            'describe schema as sdl',
+
+            r"""
+            using extension pgvector version '0.4';
+            module default {
+                scalar type v3 extending ext::pgvector::vector<3>;
+                type Foo {
+                    property data: default::v3;
                 };
             };
             """,

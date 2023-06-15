@@ -52,8 +52,12 @@ def extend_binop(
     return result
 
 
-def ensure_qlstmt(expr: qlast.Expr) -> qlast.Statement:
-    if not isinstance(expr, qlast.Statement):
+def ensure_ql_query(expr: qlast.Expr) -> qlast.Query:
+
+    # a sanity check added after refactoring AST
+    assert isinstance(expr, qlast.Expr)
+
+    if not isinstance(expr, qlast.Query):
         expr = qlast.SelectQuery(
             result=expr,
             implicit=True,
@@ -122,9 +126,16 @@ class FindParams(ast.NodeVisitor):
         super().__init__()
         self.params: List[
             Tuple[qlast.TypeCast, Dict[Optional[str], str]]] = []
+        self.loose_params: List[qlast.Parameter] = []
         self.modaliases = modaliases
 
     def visit_Command(self, n: qlast.Command) -> None:
+        self._visit_with_stmt(n)
+
+    def visit_Query(self, n: qlast.Query) -> None:
+        self._visit_with_stmt(n)
+
+    def _visit_with_stmt(self, n: qlast.Statement) -> None:
         old = self.modaliases
         for with_entry in (n.aliases or ()):
             if isinstance(with_entry, qlast.ModuleAliasDecl):
@@ -140,16 +151,28 @@ class FindParams(ast.NodeVisitor):
     def visit_TypeCast(self, n: qlast.TypeCast) -> None:
         if isinstance(n.expr, qlast.Parameter):
             self.params.append((n, self.modaliases))
-        self.generic_visit(n)
+        else:
+            self.generic_visit(n)
+
+    def visit_Parameter(self, n: qlast.Parameter) -> None:
+        self.loose_params.append(n)
+
+    def visit_CreateFunction(self, n: qlast.CreateFunction) -> None:
+        pass
+
+    def visit_CreateConstraint(self, n: qlast.CreateFunction) -> None:
+        pass
 
 
 def find_parameters(
     ql: qlast.Base, modaliases: Dict[Optional[str], str]
-) -> List[Tuple[qlast.TypeCast, Dict[Optional[str], str]]]:
+) -> Tuple[
+        List[Tuple[qlast.TypeCast, Dict[Optional[str], str]]],
+        List[qlast.Parameter]]:
     """Get all query parameters"""
     v = FindParams(modaliases)
     v.visit(ql)
-    return v.params
+    return v.params, v.loose_params
 
 
 class alias_view(
