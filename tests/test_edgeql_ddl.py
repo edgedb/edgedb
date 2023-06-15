@@ -15914,3 +15914,19 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             await self.con.execute('''
                 drop extension package ltree_broken VERSION '1.0'
             ''')
+
+    async def test_edgeql_ddl_reindex(self):
+        await self.con.execute('''
+            create type Foo;
+            create module test;
+            create type test::Bar;
+        ''')
+        await self.con.execute('''
+            administer object_reindex(Foo)
+        ''')
+        await self.con.execute('''
+            administer object_reindex(test::Bar)
+        ''')
+        await self.con.execute('''
+            administer object_reindex(Object)
+        ''')
