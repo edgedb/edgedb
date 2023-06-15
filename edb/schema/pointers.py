@@ -1175,7 +1175,6 @@ class PointerCommandOrFragment(
                 'bases', so.ObjectList.create(schema, [base]),
             )
 
-            # if not isinstance(target_ref, ComputableRef):
             self.set_attribute_value(
                 'is_derived', True
             )

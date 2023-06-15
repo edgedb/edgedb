@@ -6214,6 +6214,21 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    def test_schema_migrations_equivalence_index_06(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property first_name -> str;
+                property name := .first_name;
+            }
+        """, r"""
+            type Base {
+                property first_name -> str;
+                property name := .first_name;
+                # an index on a computable
+                index on (.name);
+            }
+        """])
+
     def test_schema_migrations_equivalence_constraint_01(self):
         self._assert_migration_equivalence([r"""
             type Base {
