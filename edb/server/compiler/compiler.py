@@ -1430,63 +1430,6 @@ def _compile_ql_explain(
     )
 
 
-def _compile_ql_reindex(
-    ctx: CompileContext,
-    ql: qlast.AdministerStmt,
-    *,
-    script_info: Optional[irast.ScriptInfo] = None,
-) -> dbstate.BaseQuery:
-    from edb.schema import utils as s_utils
-
-    if len(ql.expr.args) != 1 or ql.expr.kwargs:
-        raise errors.QueryError(
-            'reindex() takes exactly one position argument',
-            context=ql.expr.context,
-        )
-
-    arg = ql.expr.args[0]
-    match arg:
-        case qlast.Path(
-            steps=[qlast.ObjectRef() as objref],
-            partial=False,
-        ):
-            pass
-        case _:
-            raise errors.QueryError(
-                'argument to reindex() must be an object type',
-                context=arg.context,
-            )
-
-    current_tx = ctx.state.current_tx()
-    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
-    modaliases = current_tx.get_modaliases()
-    name = s_utils.resolve_name(
-        s_utils.ast_ref_to_name(objref),
-        metaclass=s_objtypes.ObjectType, sourcectx=arg.context,
-        modaliases=modaliases, schema=schema,
-    )
-    obj = schema.get(name, type=s_objtypes.ObjectType, sourcectx=arg.context)
-
-    if not obj.is_material_object_type(schema):
-        raise errors.QueryError(
-            'argument to reindex() must be a regular object type',
-            context=arg.context,
-        )
-
-    objs = [obj] + [
-        desc for desc in obj.descendants(schema)
-        if desc.is_material_object_type(schema)
-    ]
-    commands = [
-        f'REINDEX TABLE {pg_common.get_backend_name(schema, obj)}'
-        for obj in objs
-    ]
-
-    return dbstate.MaintenanceQuery(
-        sql=tuple(q.encode('utf-8') for q in commands)
-    )
-
-
 def _compile_ql_administer(
     ctx: CompileContext,
     ql: qlast.AdministerStmt,
@@ -1509,7 +1452,7 @@ def _compile_ql_administer(
     elif ql.expr.func == 'schema_repair':
         return ddl.administer_repair_schema(ctx, ql)
     elif ql.expr.func == 'reindex':
-        return _compile_ql_reindex(ctx, ql)
+        return ddl.administer_reindex(ctx, ql)
     else:
         raise errors.QueryError(
             'Unknown ADMINISTER function',
