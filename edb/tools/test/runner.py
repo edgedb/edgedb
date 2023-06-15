@@ -924,6 +924,10 @@ class ParallelTextTestRunner:
                     if not cluster.has_create_database():
                         return []
 
+                    if not cluster.has_create_role():
+                        for case in cases:
+                            case.is_superuser = False
+
                     stats = await tb.setup_test_cases(
                         cases,
                         conn,

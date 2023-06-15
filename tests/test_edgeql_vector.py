@@ -27,6 +27,7 @@ from edb.tools import test
 
 class TestEdgeQLVector(tb.QueryTestCase):
     EXTENSIONS = ['pgvector']
+    BACKEND_SUPERUSER = True
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'pgvector.esdl')
