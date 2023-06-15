@@ -726,12 +726,11 @@ def resolve_ptr_with_intersections(
         if ptr is not None:
             ref = ptr.get_nearest_non_derived_parent(ctx.env.schema)
             if track_ref is not False:
-                # When ptr is a computed property, it is still referenced!
-                # We need to add this to ensure the correct order in DDL.
-                # If the computable is created from an alias, it is not
-                # an actual pointer.
                 # XXX: This condition is a hack that approximates what
                 # really exists in the schema and what does not exist.
+                # The approximation is taht a computed pointer that
+                # does not come from an alias is something that exists
+                # in the schema, even it is derived.
                 if (ref != ptr and
                         ptr.get_computable(ctx.env.schema) and
                         not ptr.get_from_alias(ctx.env.schema)):
