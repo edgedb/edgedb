@@ -6438,31 +6438,10 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
     )
 
 
-def get_support_views(
+def get_config_views(
     schema: s_schema.Schema,
-    backend_params: params.BackendRuntimeParams,
 ) -> dbops.CommandGroup:
     commands = dbops.CommandGroup()
-
-    schema_alias_views = _generate_schema_alias_views(
-        schema, s_name.UnqualName('schema'))
-
-    InhObject = schema.get(
-        'schema::InheritingObject', type=s_objtypes.ObjectType)
-    InhObject__ancestors = InhObject.getptr(
-        schema, s_name.UnqualName('ancestors'), type=s_links.Link)
-    schema_alias_views.append(
-        _generate_schema_alias_view(schema, InhObject__ancestors))
-
-    ObjectType = schema.get(
-        'schema::ObjectType', type=s_objtypes.ObjectType)
-    ObjectType__ancestors = ObjectType.getptr(
-        schema, s_name.UnqualName('ancestors'), type=s_links.Link)
-    schema_alias_views.append(
-        _generate_schema_alias_view(schema, ObjectType__ancestors))
-
-    for alias_view in schema_alias_views:
-        commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
     conf = schema.get('cfg::Config', type=s_objtypes.ObjectType)
     cfg_views, _ = _generate_config_type_view(
@@ -6502,6 +6481,37 @@ def get_support_views(
         dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
         for tn, q in cfg_views
     ])
+
+    return commands
+
+
+def get_support_views(
+    schema: s_schema.Schema,
+    backend_params: params.BackendRuntimeParams,
+) -> dbops.CommandGroup:
+    commands = dbops.CommandGroup()
+
+    schema_alias_views = _generate_schema_alias_views(
+        schema, s_name.UnqualName('schema'))
+
+    InhObject = schema.get(
+        'schema::InheritingObject', type=s_objtypes.ObjectType)
+    InhObject__ancestors = InhObject.getptr(
+        schema, s_name.UnqualName('ancestors'), type=s_links.Link)
+    schema_alias_views.append(
+        _generate_schema_alias_view(schema, InhObject__ancestors))
+
+    ObjectType = schema.get(
+        'schema::ObjectType', type=s_objtypes.ObjectType)
+    ObjectType__ancestors = ObjectType.getptr(
+        schema, s_name.UnqualName('ancestors'), type=s_links.Link)
+    schema_alias_views.append(
+        _generate_schema_alias_view(schema, ObjectType__ancestors))
+
+    for alias_view in schema_alias_views:
+        commands.add_command(dbops.CreateView(alias_view, or_replace=True))
+
+    commands.add_command(get_config_views(schema))
 
     for dbview in _generate_database_views(schema):
         commands.add_command(dbops.CreateView(dbview, or_replace=True))

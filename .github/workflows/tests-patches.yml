@@ -523,10 +523,14 @@ jobs:
 
     - name: Run tests with instance created on an older version
       run: |
+        # Run the server explicitly first to do the upgrade, since edb test
+        # has timeouts.
+        edb server --bootstrap-only --data-dir test-dir
         # Should we run *all* the tests?
         edb test -j2 -v --data-dir test-dir tests/test_edgeql_json.py tests/test_edgeql_casts.py tests/test_edgeql_functions.py tests/test_edgeql_expressions.py tests/test_edgeql_policies.py
 
     - name: Test downgrading a database after an upgrade
+      if: ${{ !contains(matrix.edgedb-version, '-rc') && !contains(matrix.edgedb-version, '-beta') }}
       env:
         EDGEDB_VERSION: ${{ matrix.edgedb-version }}
       shell: python

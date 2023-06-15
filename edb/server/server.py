@@ -932,6 +932,9 @@ class Server(ha_base.ClusterProtocol):
         """Prepare all the patches"""
         num_patches = await self.get_patch_count(conn)
 
+        if num_patches < len(pg_patches.PATCHES):
+            logger.info("preparing patches for database upgrade")
+
         patches = {}
         patch_list = list(enumerate(pg_patches.PATCHES))
         for num, (kind, patch) in patch_list[num_patches:]:
@@ -951,6 +954,12 @@ class Server(ha_base.ClusterProtocol):
             _, _, updates, _ = entry
             if 'stdschema' in updates:
                 self._std_schema = updates['stdschema']
+                # +config patches might modify config_spec, which requires
+                # a reload of it from the schema.
+                if '+config' in kind:
+                    config_spec = config.load_spec_from_schema(self._std_schema)
+                    config.set_settings(config_spec)
+
             if 'reflschema' in updates:
                 self._refl_schema = updates['reflschema']
             if 'local_intro_query' in updates:
@@ -959,6 +968,13 @@ class Server(ha_base.ClusterProtocol):
                 self._global_intro_query = updates['global_intro_query']
             if 'classlayout' in updates:
                 self._schema_class_layout = updates['classlayout']
+            if 'sysqueries' in updates:
+                queries = json.loads(updates['sysqueries'])
+                self._sys_queries = immutables.Map(
+                    {k: q.encode() for k, q in queries.items()})
+            if 'report_configs_typedesc' in updates:
+                self._report_config_typedesc = (
+                    updates['report_configs_typedesc'])
 
         return patches
 
@@ -1085,22 +1101,22 @@ class Server(ha_base.ClusterProtocol):
 
     async def _load_instance_data(self):
         async with self._use_sys_pgcon() as syscon:
+            patch_count = await self.get_patch_count(syscon)
+            version_key = pg_patches.get_version_key(patch_count)
+
             result = await syscon.sql_fetch_val(b'''\
                 SELECT json::json FROM edgedbinstdata.instdata
                 WHERE key = 'instancedata';
             ''')
             self._instance_data = immutables.Map(json.loads(result))
 
-            result = await syscon.sql_fetch_val(b'''\
+            result = await syscon.sql_fetch_val(f'''\
                 SELECT json::json FROM edgedbinstdata.instdata
-                WHERE key = 'sysqueries';
-            ''')
+                WHERE key = 'sysqueries{version_key}';
+            '''.encode('utf-8'))
             queries = json.loads(result)
             self._sys_queries = immutables.Map(
                 {k: q.encode() for k, q in queries.items()})
-
-            patch_count = await self.get_patch_count(syscon)
-            version_key = pg_patches.get_version_key(patch_count)
 
             self._local_intro_query = await syscon.sql_fetch_val(f'''\
                 SELECT text FROM edgedbinstdata.instdata
@@ -1142,10 +1158,10 @@ class Server(ha_base.ClusterProtocol):
                 raise RuntimeError(
                     'could not load schema class layout pickle') from e
 
-            self._report_config_typedesc = await syscon.sql_fetch_val(b'''\
+            self._report_config_typedesc = await syscon.sql_fetch_val(f'''\
                 SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'report_configs_typedesc';
-            ''')
+                WHERE key = 'report_configs_typedesc{version_key}';
+            '''.encode('utf-8'))
 
     def get_roles(self):
         return self._roles
