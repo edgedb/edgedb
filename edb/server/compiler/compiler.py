@@ -1440,7 +1440,7 @@ def _compile_ql_reindex(
 
     if len(ql.expr.args) != 1 or ql.expr.kwargs:
         raise errors.QueryError(
-            'object_reindex() takes exactly one position argument',
+            'reindex() takes exactly one position argument',
             context=ql.expr.context,
         )
 
@@ -1453,7 +1453,7 @@ def _compile_ql_reindex(
             pass
         case _:
             raise errors.QueryError(
-                'argument to object_reindex() must be an object type',
+                'argument to reindex() must be an object type',
                 context=arg.context,
             )
 
@@ -1469,7 +1469,7 @@ def _compile_ql_reindex(
 
     if not obj.is_material_object_type(schema):
         raise errors.QueryError(
-            'argument to object_reindex() must be a regular object type',
+            'argument to reindex() must be a regular object type',
             context=arg.context,
         )
 
@@ -1508,7 +1508,7 @@ def _compile_ql_administer(
         return dbstate.MaintenanceQuery(sql=(b'ANALYZE',))
     elif ql.expr.func == 'schema_repair':
         return ddl.administer_repair_schema(ctx, ql)
-    elif ql.expr.func == 'object_reindex':
+    elif ql.expr.func == 'reindex':
         return _compile_ql_reindex(ctx, ql)
     else:
         raise errors.QueryError(

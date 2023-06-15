@@ -15922,11 +15922,11 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             create type test::Bar;
         ''')
         await self.con.execute('''
-            administer object_reindex(Foo)
+            administer reindex(Foo)
         ''')
         await self.con.execute('''
-            administer object_reindex(test::Bar)
+            administer reindex(test::Bar)
         ''')
         await self.con.execute('''
-            administer object_reindex(Object)
+            administer reindex(Object)
         ''')

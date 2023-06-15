@@ -1007,7 +1007,6 @@ pub fn is_keyword(s: &str) -> bool {
         | "partition"
         | "raise"
         | "refresh"
-        | "reindex"
         | "revoke"
         | "on"
         | "over"
