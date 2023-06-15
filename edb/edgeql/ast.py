@@ -591,13 +591,16 @@ class UpdateQuery(Query):
 
     where: typing.Optional[Expr] = None
 
+
 class DeleteQuery(PipelinedQuery):
     subject: Expr
+
 
 class ForBinding(Base):
     optional: bool = False
     iterator: Expr
     iterator_alias: str
+
 
 class ForQuery(Query):
     iterator_bindings: typing.List[ForBinding]
