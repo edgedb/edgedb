@@ -605,6 +605,8 @@ class ForQuery(Query):
     result_alias: typing.Optional[str] = None
     result: Expr
 
+    orderby: typing.Optional[typing.List[SortExpr]] = None
+
 
 # Transactions
 #
