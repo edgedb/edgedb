@@ -84,8 +84,10 @@ def compile_trigger(
                 source, path_id=old_path, ignore_rewrites=True, ctx=sctx)
             old_set.expr = irast.TriggerAnchor(typeref=old_set.typeref)
             anchors['__old__'] = old_set
+
         if qltypes.TriggerKind.Delete not in kinds:
             anchors['__new__'] = new_set
+            sctx.partial_path_prefix = new_set
 
         for name, ir in anchors.items():
             if scope == qltypes.TriggerScope.Each:

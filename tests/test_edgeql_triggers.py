@@ -1119,3 +1119,23 @@ class TestTriggers(tb.QueryTestCase):
                 {'name': 'upd', 'note': "1"},
             ]
         )
+
+    async def test_edgeql_triggers_partial_path_prefix(self):
+        await self.con.execute('''
+            alter type InsertTest {
+              create trigger log_upd after update for each do (
+                assert_exists(.l2)
+              );
+            };
+        ''')
+
+        await self.con.execute(r'''
+            insert InsertTest { name := 'hello' };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError, 'returned an empty set'
+        ):
+            await self.con.execute(r'''
+                update InsertTest set { name := 'hey' };
+            ''')

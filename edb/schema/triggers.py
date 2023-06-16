@@ -170,6 +170,7 @@ class TriggerCommand(
             scope = self._get_scope(schema)
             kinds = self._get_kinds(schema)
 
+            path_prefix_anchor = None
             anchors: dict[str, pathid.PathId | s_types.Type] = {}
             if qltypes.TriggerKind.Insert not in kinds:
                 anchors['__old__'] = pathid.PathId.from_type(
@@ -181,6 +182,7 @@ class TriggerCommand(
                     schema, source, typename=sn.QualName(
                         module='__derived__', name='__new__')
                 )
+                path_prefix_anchor = '__new__'
 
             singletons = (
                 frozenset(anchors.values())
@@ -198,6 +200,7 @@ class TriggerCommand(
                         modaliases=context.modaliases,
                         schema_object_context=self.get_schema_metaclass(),
                         anchors=anchors,
+                        path_prefix_anchor=path_prefix_anchor,
                         singletons=singletons,
                         apply_query_rewrites=not context.stdmode,
                         track_schema_ref_exprs=track_schema_ref_exprs,

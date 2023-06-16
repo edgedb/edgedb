@@ -185,7 +185,7 @@ class RewriteCommand(
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,
                     schema_object_context=self.get_schema_metaclass(),
-                    path_prefix_anchor="__subject__",
+                    path_prefix_anchor=qlast.Subject().name,
                     anchors=anchors,
                     singletons=singletons,
                     apply_query_rewrites=not context.stdmode,
