@@ -127,6 +127,10 @@ class SessionStateQuery(BaseQuery):
     single_unit: bool = False
     globals: Optional[List[str]] = None
 
+    in_type_data: Optional[bytes] = None
+    in_type_id: Optional[bytes] = None
+    in_type_args: Optional[List[Param]] = None
+
 
 @dataclasses.dataclass(frozen=True)
 class DDLQuery(BaseQuery):

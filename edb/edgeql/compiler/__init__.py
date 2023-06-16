@@ -188,7 +188,7 @@ def compile_ast_to_ir(
     *,
     script_info: Optional[irast.ScriptInfo] = None,
     options: Optional[CompilerOptions] = None,
-) -> irast.Command:
+) -> irast.Statement | irast.ConfigCommand:
     """Compile given EdgeQL AST into EdgeDB IR.
 
     This is the normal compiler entry point.  It assumes that *tree*

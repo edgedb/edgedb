@@ -303,7 +303,7 @@ class Query(MetaCommand, adapts=sd.Query):
         schema = super().apply(schema, context)
 
         assert self.expr.irast
-        sql_tree, _ = compiler.compile_ir_to_sql_tree(
+        sql_tree, _, _ = compiler.compile_ir_to_sql_tree(
             self.expr.irast,
             output_format=compiler.OutputFormat.NATIVE_INTERNAL,
             explicit_top_cast=irtyputils.type_to_typeref(
@@ -1067,7 +1067,7 @@ class FunctionCommand(MetaCommand):
             if not irutils.is_const(ir.expr):
                 raise ValueError('expression not constant')
 
-            sql_tree, _ = compiler.compile_ir_to_sql_tree(
+            sql_tree, _, _ = compiler.compile_ir_to_sql_tree(
                 ir.expr, singleton_mode=True)
             return codegen.SQLSourceGenerator.to_source(sql_tree)
 
@@ -3433,7 +3433,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         table_name = common.get_backend_name(
             schema, subject, catenate=False)
 
-        sql_tree, _ = compiler.compile_ir_to_sql_tree(
+        sql_tree, _, _ = compiler.compile_ir_to_sql_tree(
             ir.expr, singleton_mode=True)
 
         if isinstance(sql_tree, pg_ast.ImplicitRowExpr):
@@ -3451,7 +3451,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 options=options,
             )
         if except_expr:
-            except_tree, _ = compiler.compile_ir_to_sql_tree(
+            except_tree, _, _ = compiler.compile_ir_to_sql_tree(
                 except_expr.irast.expr, singleton_mode=True)
             except_src = codegen.SQLSourceGenerator.to_source(except_tree)
             except_src = f'({except_src}) is not true'
@@ -3489,7 +3489,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                     as_fragment=True,
                 )
                 kw_ir = kw_expr.irast
-                kw_sql_tree, _ = compiler.compile_ir_to_sql_tree(
+                kw_sql_tree, _, _ = compiler.compile_ir_to_sql_tree(
                     kw_ir.expr, singleton_mode=True)
                 # HACK: the compiled SQL is expected to have some unnecessary
                 # casts, strip them as they mess with the requirement that
@@ -4662,7 +4662,7 @@ class PointerMetaCommand(
         )
 
         # compile
-        (sql_tree, env) = compiler.compile_ir_to_sql_tree(
+        sql_tree, env, _ = compiler.compile_ir_to_sql_tree(
             ir,
             output_format=compiler.OutputFormat.NATIVE_INTERNAL,
             external_rels=external_rels,

@@ -1217,6 +1217,9 @@ class ConfigCommand(Command, Expr):
     globals: typing.Optional[typing.List[Global]] = None
     scope_tree: typing.Optional[ScopeTreeNode] = None
 
+    params: typing.List[Param] = ast.field(factory=list)
+    schema: typing.Optional[s_schema.Schema] = None
+
 
 class ConfigSet(ConfigCommand):
 

@@ -146,7 +146,7 @@ def _edgeql_ref_to_pg_constr(
     origin_subject: s_types.Type | s_pointers.Pointer | None,
     tree: irast.Base,
 ) -> ExprData:
-    sql_tree, _ = compiler.compile_ir_to_sql_tree(tree, singleton_mode=True)
+    sql_tree, _, _ = compiler.compile_ir_to_sql_tree(tree, singleton_mode=True)
 
     sql_expr: pg_ast.Base
     if isinstance(sql_tree, pg_ast.SelectStmt):
@@ -260,7 +260,7 @@ def compile_constraint(
             schema,
             options=options,
         )
-        except_sql, _ = compiler.compile_ir_to_sql_tree(
+        except_sql, _, _ = compiler.compile_ir_to_sql_tree(
             except_ir, singleton_mode=True
         )
         except_data = _edgeql_tree_to_expr_data(except_sql)
@@ -357,7 +357,7 @@ def compile_constraint(
                 schema,
                 options=origin_options,
             )
-            except_sql, _ = compiler.compile_ir_to_sql_tree(
+            except_sql, _, _ = compiler.compile_ir_to_sql_tree(
                 except_ir, singleton_mode=True)
             origin_except_data = _edgeql_tree_to_expr_data(except_sql)
 
@@ -655,7 +655,9 @@ def ptr_default_to_col_default(schema, ptr, expr):
         return None
 
     try:
-        sql_expr, _ = compiler.compile_ir_to_sql_tree(ir, singleton_mode=True)
+        sql_expr, _, _ = compiler.compile_ir_to_sql_tree(
+            ir, singleton_mode=True
+        )
     except errors.UnsupportedFeatureError:
         return None
     sql_text = codegen.SQLSourceGenerator.to_source(sql_expr)

@@ -397,8 +397,6 @@ def fini_toplevel(
     stmt.ctes[:0] = list(ctx.param_ctes.values())
     stmt.ctes[:0] = list(ctx.type_ctes.values())
 
-    stmt.argnames = argmap = ctx.argmap
-
     if not ctx.env.use_named_params:
         # Adding unused parameters into a CTE
 
@@ -411,7 +409,7 @@ def fini_toplevel(
 
         targets = []
         for param in ctx.env.query_params:
-            pgparam = argmap[param.name]
+            pgparam = ctx.argmap[param.name]
             if pgparam.index in used or param.sub_params:
                 continue
             targets.append(pgast.ResTarget(val=pgast.TypeCast(
