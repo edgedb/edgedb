@@ -2045,8 +2045,10 @@ class ConstraintCommand(MetaCommand):
                 return has_table(subject.get_source(schema), schema)
         elif isinstance(subject, s_objtypes.ObjectType):
             return has_table(subject, schema)
+        elif isinstance(subject, s_scalars.ScalarType):
+            return not subject.get_abstract(schema)
         else:
-            return True
+            raise NotImplementedError()
 
     @classmethod
     def fixup_base_constraint_triggers(
