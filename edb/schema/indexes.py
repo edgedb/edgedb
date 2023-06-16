@@ -589,12 +589,13 @@ class IndexCommand(
                     singletons=frozenset([subject]),
                     apply_query_rewrites=False,
                     track_schema_ref_exprs=track_schema_ref_exprs,
+                    detached=True,
                 ),
             )
 
             # Check that the inferred cardinality is no more than 1
             if expr.irast.cardinality.is_multi():
-                raise errors.ResultCardinalityMismatchError(
+                raise errors.SchemaDefinitionError(
                     f'possibly more than one element returned by '
                     f'the index expression where only singletons '
                     f'are allowed',
