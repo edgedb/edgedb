@@ -142,7 +142,7 @@ def _edgeql_tree_to_expr_data(
 
 
 def _edgeql_ref_to_pg_constr(
-    subject: s_types.Type,
+    subject: s_constraints.ConsistencySubject,
     origin_subject: s_types.Type | s_pointers.Pointer | None,
     tree: irast.Base,
 ) -> ExprData:
@@ -211,13 +211,16 @@ def _edgeql_ref_to_pg_constr(
 
 
 def compile_constraint(
-    subject: s_types.Type,
+    subject: s_constraints.ConsistencySubject,
     constraint: s_constraints.Constraint,
     schema: s_schema.Schema,
     source_context: Optional[parsing.ParserContext],
 ) -> SchemaDomainConstraint | SchemaTableConstraint:
     assert constraint.get_subject(schema) is not None
     TypeOrPointer = s_types.Type | s_pointers.Pointer
+    assert isinstance(
+        subject, (s_types.Type, s_pointers.Pointer, s_scalars.ScalarType)
+    )
 
     constraint_origins = constraint.get_constraint_origins(schema)
     first_subject = constraint_origins[0].get_subject(schema)
@@ -447,7 +450,7 @@ def compile_constraint(
 
 @dataclasses.dataclass(kw_only=True, repr=False, eq=False, slots=True)
 class SchemaDomainConstraint:
-    subject: s_types.Type
+    subject: s_constraints.ConsistencySubject
     constraint: s_constraints.Constraint
     pg_constr_data: PGConstrData
     schema: s_schema.Schema
@@ -495,7 +498,7 @@ class SchemaDomainConstraint:
 
 @dataclasses.dataclass(kw_only=True, repr=False, eq=False, slots=True)
 class SchemaTableConstraint:
-    subject: s_types.Type
+    subject: s_constraints.ConsistencySubject
     constraint: s_constraints.Constraint
     pg_constr_data: PGConstrData
     schema: s_schema.Schema
@@ -559,7 +562,7 @@ class SchemaTableConstraint:
 
         return ops
 
-    def enforce_ops(self):
+    def enforce_ops(self) -> dbops.CommandGroup:
         ops = dbops.CommandGroup()
 
         tabconstr = self._table_constraint(self)
@@ -576,6 +579,7 @@ class SchemaTableConstraint:
             old_expr = origin_exprdata.old
             new_expr = exprdata.new
 
+            assert origin_expr.origin_subject_db_name
             schemaname, tablename = origin_expr.origin_subject_db_name
             real_tablename = tabconstr.get_subject_name(quote=False)
 
@@ -597,6 +601,7 @@ class SchemaTableConstraint:
             origin_except_data = origin_expr.origin_except_data
 
             if except_data:
+                assert origin_except_data
                 except_part = f'''
                     AND ({origin_except_data.old} is not true)
                     AND ({except_data.new} is not true)
