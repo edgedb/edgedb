@@ -32,6 +32,7 @@ from edb.common import uuidgen
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
+from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 from edb.edgeql import quote as qlquote
 
@@ -1262,4 +1263,145 @@ def administer_repair_schema(
         user_schema=current_tx.get_user_schema_if_updated(),  # type: ignore
         global_schema=current_tx.get_global_schema_if_updated(),
         config_ops=config_ops,
+    )
+
+
+def administer_reindex(
+    ctx: compiler.CompileContext,
+    ql: qlast.AdministerStmt,
+) -> dbstate.BaseQuery:
+    from edb.ir import ast as irast
+    from edb.ir import typeutils as irtypeutils
+
+    from edb.schema import objtypes as s_objtypes
+    from edb.schema import constraints as s_constraints
+    from edb.schema import indexes as s_indexes
+    from edb.schema import pointers as s_pointers
+
+    if len(ql.expr.args) != 1 or ql.expr.kwargs:
+        raise errors.QueryError(
+            'reindex() takes exactly one position argument',
+            context=ql.expr.context,
+        )
+
+    arg = ql.expr.args[0]
+    match arg:
+        case qlast.Path(
+            steps=[qlast.ObjectRef()],
+            partial=False,
+        ):
+            ptr = False
+        case qlast.Path(
+            steps=[qlast.ObjectRef(), qlast.Ptr()],
+            partial=False,
+        ):
+            ptr = True
+        case _:
+            raise errors.QueryError(
+                'argument to reindex() must be an object type',
+                context=arg.context,
+            )
+
+    current_tx = ctx.state.current_tx()
+    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
+    modaliases = current_tx.get_modaliases()
+
+    ir: irast.Statement = qlcompiler.compile_ast_to_ir(
+        arg,
+        schema=schema,
+        options=qlcompiler.CompilerOptions(
+            modaliases=modaliases
+        ),
+    )
+    expr = ir.expr
+    if ptr:
+        if (
+            not expr.expr
+            or not isinstance(expr.expr, irast.SelectStmt)
+            or not expr.expr.result.rptr
+        ):
+            raise errors.QueryError(
+                'invalid pointer argument to reindex()',
+                context=arg.context,
+            )
+        rptr = expr.expr.result.rptr
+        source = rptr.source
+    else:
+        rptr = None
+        source = expr
+    schema, obj = irtypeutils.ir_typeref_to_type(schema, source.typeref)
+
+    if (
+        not isinstance(obj, s_objtypes.ObjectType)
+        or not obj.is_material_object_type(schema)
+    ):
+        raise errors.QueryError(
+            'argument to reindex() must be a regular object type',
+            context=arg.context,
+        )
+
+    tables: set[s_pointers.Pointer | s_objtypes.ObjectType] = set()
+    pindexes: set[
+        s_constraints.Constraint | s_indexes.Index | s_pointers.Pointer
+    ] = set()
+
+    commands = []
+    if not rptr:
+        # On a type, we just reindex the type and its descendants
+        tables.update({obj} | {
+            desc for desc in obj.descendants(schema)
+            if desc.is_material_object_type(schema)
+        })
+    else:
+        # On a pointer, we reindex any indexes and constraints, as well as
+        # any link indexes (which might be table indexes on a link table)
+        if not isinstance(rptr.ptrref, irast.PointerRef):
+            raise errors.QueryError(
+                'invalid pointer argument to reindex()',
+                context=arg.context,
+            )
+        schema, ptrcls = irtypeutils.ptrcls_from_ptrref(
+            rptr.ptrref, schema=schema)
+
+        indexes = set(schema.get_referrers(ptrcls, scls_type=s_indexes.Index))
+
+        exclusive = schema.get('std::exclusive', type=s_constraints.Constraint)
+        constrs = {
+            c for c in
+            schema.get_referrers(ptrcls, scls_type=s_constraints.Constraint)
+            if c.issubclass(schema, exclusive)
+        }
+
+        pindexes.update(indexes | constrs)
+        pindexes.update({
+            desc for pindex in pindexes for desc in pindex.descendants(schema)
+        })
+
+        # For links, collect any single link indexes and any link table indexes
+        if not ptrcls.is_property(schema):
+            ptrclses = {ptrcls} | {
+                desc for desc in ptrcls.descendants(schema)
+                if isinstance(
+                    (src := desc.get_source(schema)), s_objtypes.ObjectType)
+                and src.is_material_object_type(schema)
+            }
+
+            card = ptrcls.get_cardinality(schema)
+            if card.is_single():
+                pindexes.update(ptrclses)
+            if card.is_multi() or ptrcls.has_user_defined_properties(schema):
+                tables.update(ptrclses)
+
+    commands = [
+        f'REINDEX TABLE '
+        f'{pg_common.get_backend_name(schema, table)};'
+        for table in tables
+    ] + [
+        f'REINDEX INDEX '
+        f'{pg_common.get_backend_name(schema, pindex, aspect="index")};'
+        for pindex in pindexes
+    ]
+
+    return dbstate.MaintenanceQuery(
+        sql=tuple(q.encode('utf-8') for q in commands)
     )

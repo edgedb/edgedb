@@ -1449,8 +1449,10 @@ def _compile_ql_administer(
             )
 
         return dbstate.MaintenanceQuery(sql=(b'ANALYZE',))
-    elif ql.expr.func == 'repair_schema':
+    elif ql.expr.func == 'schema_repair':
         return ddl.administer_repair_schema(ctx, ql)
+    elif ql.expr.func == 'reindex':
+        return ddl.administer_reindex(ctx, ql)
     else:
         raise errors.QueryError(
             'Unknown ADMINISTER function',

@@ -142,7 +142,6 @@ pub const FUTURE_RESERVED_KEYWORDS: &[&str] = &[
     "partition",
     "raise",
     "refresh",
-    "reindex",
     "revoke",
     "single",
     "when",

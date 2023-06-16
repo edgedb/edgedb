@@ -33,6 +33,7 @@ from edb.schema import casts as s_casts
 from edb.schema import constraints as s_constr
 from edb.schema import defines as s_def
 from edb.schema import functions as s_func
+from edb.schema import indexes as s_indexes
 from edb.schema import modules as s_mod
 from edb.schema import name as s_name
 from edb.schema import objtypes as s_objtypes
@@ -363,11 +364,15 @@ def get_function_backend_name(name, backend_name, catenate=False):
 
 def get_constraint_backend_name(
         id, module_name, catenate=True, *, aspect=None):
-    if aspect not in ('trigproc',):
+    if aspect not in ('trigproc', 'index'):
         raise ValueError(
             f'unexpected aspect for constraint backend name: {aspect!r}')
 
-    name = s_name.QualName(module=module_name, name=str(id))
+    sname = str(id)
+    if aspect == 'index':
+        aspect = None
+        sname = get_constraint_raw_name(id)
+    name = s_name.QualName(module=module_name, name=sname)
     return convert_name(name, aspect, catenate)
 
 
@@ -429,6 +434,11 @@ def get_backend_name(schema, obj, catenate=True, *, aspect=None):
     elif isinstance(obj, s_constr.Constraint):
         name = obj.get_name(schema)
         return get_constraint_backend_name(
+            obj.id, name.module, catenate, aspect=aspect)
+
+    elif isinstance(obj, s_indexes.Index):
+        name = obj.get_name(schema)
+        return get_index_backend_name(
             obj.id, name.module, catenate, aspect=aspect)
 
     elif isinstance(obj, s_types.Tuple):
