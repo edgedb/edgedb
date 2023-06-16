@@ -568,6 +568,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
+        await self.con.execute(
+            """
+            INSERT TestSelfLink1 { foo1 := 'hello' };
+            """
+        )
+
     async def test_edgeql_ddl_15(self):
         await self.con.execute(r"""
             CREATE TYPE TestSelfLink2 {

@@ -751,6 +751,15 @@ def _gen_pointers_from_defaults(
         with ctx.new() as scopectx:
             scopectx.active_defaults |= {stype}
 
+            # add __source__ to anchors
+            source_set = ir_set
+            scopectx.path_scope.attach_path(
+                source_set.path_id, context=None,
+                optional=False,
+            )
+            scopectx.iterator_path_ids |= {source_set.path_id}
+            scopectx.anchors['__source__'] = source_set
+
             pointer, ptr_set = _normalize_view_ptr_expr(
                 ir_set,
                 default_ql_desc,
