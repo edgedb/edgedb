@@ -42,6 +42,7 @@ from . import schema as s_schema
 from . import types as s_types
 from . import utils as s_utils
 
+
 class ScalarType(
     s_types.InheritingType,
     constraints.ConsistencySubject,
@@ -730,14 +731,17 @@ class RebaseScalarType(
 
             schema = super().apply(schema, context)
 
+            self.validate_scalar_bases(schema, context)
+
             new_concrete = self.scls.maybe_get_topmost_concrete_base(schema)
             if old_concrete != new_concrete and not scls.is_view(schema):
                 old_name = (old_concrete.get_displayname(schema) if old_concrete
                             else 'None')
 
                 if self.scls.is_concrete_enum(schema):
-                    new_name = (
-                        f"enum<{', '.join(scls.get_enum_values(schema))}>")
+                    values = self.scls.get_enum_values(schema)
+                    assert values is not None
+                    new_name = _prettyprint_enum(values)
                 elif new_concrete:
                     new_name = new_concrete.get_displayname(schema)
                 else:
@@ -747,8 +751,6 @@ class RebaseScalarType(
                     f'cannot change concrete base of scalar type '
                     f'{scls.get_displayname(schema)} from '
                     f'{old_name} to {new_name}')
-
-            self.validate_scalar_bases(schema, context)
 
         return schema
 

@@ -5974,7 +5974,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                r'cannot change concrete base of a scalar type'):
+                r'cannot change concrete base of scalar type '
+                r'default::Foo from std::str to std::int64'):
             await self.con.execute('''
                 alter scalar type Foo {
                     drop extending str;
@@ -11301,7 +11302,8 @@ type default::Foo {
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                'enumeration must be the only supertype specified'):
+                "cannot add supertype scalar type 'std::str' to enum type "
+                "default::Color"):
             await self.con.execute('''
                 ALTER SCALAR TYPE Color EXTENDING str FIRST;
             ''')
@@ -11311,8 +11313,7 @@ type default::Foo {
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                'cannot add another enum as supertype, '
-                'use EXTENDING without position qualification'):
+                'cannot add supertype enum<Bad> to enum type default::Color'):
             await self.con.execute('''
                 ALTER SCALAR TYPE Color
                     EXTENDING enum<Bad> LAST;
@@ -11323,7 +11324,7 @@ type default::Foo {
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                'cannot set more than one enum as supertype'):
+                'enums may not have multiple supertypes'):
             await self.con.execute('''
                 ALTER SCALAR TYPE Color
                     EXTENDING enum<Bad>, enum<AlsoBad>;
