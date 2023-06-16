@@ -321,6 +321,12 @@ class ScalarType(
                 ),
             )
             alter.add(rebase)
+
+        # Changing enum_values is the respoinsiblity of the rebase command.
+        # Either it's in the one we synthesized above, or, the rebase is doomed
+        # to throw. When we run the ddl directly, the ALTER will not have a
+        # enum_values set, so discard here for symmetry.
+        alter.discard_attribute('enum_values')
         return alter
 
 
@@ -687,8 +693,9 @@ class RebaseScalarType(
                 new_bases, pos = first_bases
 
                 if len(self.added_bases) > 1 or len(new_bases) > 1:
+                    dn = self.scls.get_displayname(schema)
                     raise errors.SchemaError(
-                        f'enums may not have multiple supertypes')
+                        f'enum {dn} may not have multiple supertypes')
 
                 new_base = new_bases[0]
                 if isinstance(new_base, AnonymousEnumTypeShell):

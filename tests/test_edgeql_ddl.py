@@ -11324,7 +11324,7 @@ type default::Foo {
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                'enums may not have multiple supertypes'):
+                'enum default::Color may not have multiple supertypes'):
             await self.con.execute('''
                 ALTER SCALAR TYPE Color
                     EXTENDING enum<Bad>, enum<AlsoBad>;
