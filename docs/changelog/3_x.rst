@@ -1160,3 +1160,25 @@ Other changes and fixes
 RC 4 is a re-release of RC 3 fixing a packaging problem that resulted in
 non-portable binaries which would crash on systems with older CPUs.
 This version also includes a fix for ``pgvector`` data support in the Web UI.
+
+
+3.0 RC 5
+========
+
+* Expose the ``maintenance_work_mem`` database configuration variable.
+  This may need to be tuned in order to build large pgvector indexes
+
+* Add an ``ADMINISTER reindex(...)`` function to reindex objects.
+  ``ADMINISTER reindex(Obj)`` will reindex all indexes on the table
+  backing ``Obj`` while ``ADMINISTER reindex(Obj.ptr)`` will reindex
+  any indexes referencing ``ptr``.
+  (:eql:gh:`#5659`)
+
+* Fix referring to ``__source__`` in defaults
+  (:eql:gh:`#5667`)
+
+* Fix constraints on custom abstract scalars
+  (:eql:gh:`#5666`)
+
+* Ensure changing scalar base types throws appropriately
+  (:eql:gh:`#5664`)
