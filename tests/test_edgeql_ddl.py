@@ -15914,3 +15914,45 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             await self.con.execute('''
                 drop extension package ltree_broken VERSION '1.0'
             ''')
+
+    async def test_edgeql_ddl_reindex(self):
+        await self.con.execute('''
+            create type Tgt;
+            create type Foo {
+                create property foo -> str {
+                    create constraint exclusive;
+                };
+                create property bar -> str;
+                create index on (.foo);
+                create constraint exclusive on ((.foo, .bar));
+                create link tgt -> Tgt {
+                    create property foo -> str;
+                };
+                create link tgts -> Tgt {
+                    create property foo -> str;
+                };
+            };
+            create module test;
+            create type test::Bar extending Foo;
+        ''')
+        await self.con.execute('''
+            administer reindex(Foo)
+        ''')
+        await self.con.execute('''
+            administer reindex(Foo.foo)
+        ''')
+        await self.con.execute('''
+            administer reindex(Foo.bar)
+        ''')
+        await self.con.execute('''
+            administer reindex(Foo.tgt)
+        ''')
+        await self.con.execute('''
+            administer reindex(Foo.tgts)
+        ''')
+        await self.con.execute('''
+            administer reindex(test::Bar)
+        ''')
+        await self.con.execute('''
+            administer reindex(Object)
+        ''')
