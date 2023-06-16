@@ -248,11 +248,11 @@ instance-level configuration object.
 
   * - **Environment variable**
     - **CLI flag**
-  * - ``EDGEDB_DATABASE``
+  * - ``EDGEDB_SERVER_DATABASE``
     - ``--database/-d <name>``
-  * - ``EDGEDB_USER``
+  * - ``EDGEDB_SERVER_USER``
     - ``--user/-u <user>``
-  * - ``EDGEDB_PASSWORD``
+  * - ``EDGEDB_SERVER_PASSWORD``
     - ``--password <pass>``
   * - ``EDGEDB_TLS_CA_FILE``
     - ``--tls-ca-file <path>``
@@ -261,12 +261,12 @@ instance-level configuration object.
   * - ``EDGEDB_CLIENT_SECURITY``
     - N/A
 
-**EDGEDB_DATABASE**
+**EDGEDB_SERVER_DATABASE**
   Each EdgeDB *instance* can contain multiple *databases*. When in instance is
   created, a default database named ``edgedb`` is created. Unless otherwise
   specified, all incoming connections connect to the ``edgedb`` database.
 
-**EDGEDB_USER/EDGEDB_PASSWORD**
+**EDGEDB_SERVER_USER/EDGEDB_SERVER_PASSWORD**
   These are the credentials of the database user account to connect to the
   EdgeDB instance.
 
@@ -320,8 +320,8 @@ instance, consider the following environment variables:
 .. code-block::
 
   EDGEDB_DSN=edgedb://olduser:oldpass@hostname.com:5656
-  EDGEDB_USER=newuser
-  EDGEDB_PASSWORD=newpass
+  EDGEDB_SERVER_USER=newuser
+  EDGEDB_SERVER_PASSWORD=newpass
 
 In this scenario, ``newuser`` will override ``olduser`` and ``newpass``
 will override ``oldpass``. The client library will try to connect using this
@@ -333,9 +333,9 @@ Overriding across priority levels
 This override behavior only happens *same or lower priority level*. For
 instance:
 
-- ``EDGEDB_PASSWORD`` **will** override the password specified in
+- ``EDGEDB_SERVER_PASSWORD`` **will** override the password specified in
   ``EDGEDB_DSN``
-- ``EDGEDB_PASSWORD`` **will be ignored** if a DSN is passed explicitly using
+- ``EDGEDB_SERVER_PASSWORD`` **will be ignored** if a DSN is passed explicitly using
   the ``--dsn`` flag. Explicit parameters take precedence over environment
   variables. To override the password of an explicit DSN, you need to pass it
   explicitly as well:
@@ -345,6 +345,6 @@ instance:
      $ edgedb --dsn edgedb://username:oldpass@hostname.com --password qwerty
      # connects to edgedb://username:qwerty@hostname.com
 
-- ``EDGEDB_PASSWORD`` **will** override the stored password associated with a
+- ``EDGEDB_SERVER_PASSWORD`` **will** override the stored password associated with a
   project-linked instance. (This is unlikely to be desirable.)
 
