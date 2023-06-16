@@ -1753,3 +1753,23 @@ class TestConstraintsDDL(tb.DDLTestCase):
             };
         """
         )
+
+    async def test_constraints_abstract_scalar(self):
+        await self.con.execute(
+            """
+            create abstract scalar type posint64 extending int64 {
+                create constraint min_value(0);
+            };
+
+            create scalar type limited_int64 extending posint64;
+
+            create type X {
+                create property y -> limited_int64;
+            };
+            """
+        )
+        await self.con.execute("insert X { y := 1 }")
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError, "Minimum allowed value for"
+        ):
+            await self.con.execute("insert X { y := -1 }")
