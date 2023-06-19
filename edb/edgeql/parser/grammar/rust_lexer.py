@@ -26,7 +26,7 @@ from edb.edgeql import tokenizer
 from edb._edgeql_parser import Token
 
 
-class EdgeQLLexer(object):
+class EdgeQLLexer:
     inputstr: str
     tokens: Optional[Deque[Token]]
     filename: Optional[str]
