@@ -47,7 +47,7 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
                 modaliases={None: 'default'},
             ),
         )
-        sql_tree, _ = pg_compiler.compile_ir_to_sql_tree(
+        sql_tree, _, _ = pg_compiler.compile_ir_to_sql_tree(
             ir,
             output_format=pg_compiler.OutputFormat.NATIVE,
         )
