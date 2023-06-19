@@ -184,21 +184,16 @@ def preload(
             preload(parsers=parsers, allow_rebuild=False)
 
 
-def parse_cheese(prs: parsing.Parser, query: str) -> qlast.Base:
+def parse_cheese(prs: parsing.Parser, query: str) -> dict:
     spec = prs.get_parser_spec()
     jspec = _process_spec(spec)
 
     try:
-        cst = json.loads(eql_parser.parse_cheese(jspec, query))
+        return json.loads(eql_parser.parse_cheese(jspec, query))
     except eql_parser.TokenizerError as e:
         message, position = e.args
         raise errors.EdgeQLSyntaxError(
             message, position=position) from e
-
-    # print(cst)
-
-    mod = prs.get_parser_spec_module()
-    return _cst_to_ast(cst, mod)
 
 
 def _process_spec(spec):
@@ -242,29 +237,3 @@ def _process_spec(spec):
     obj = dict(actions=table, goto=goto, start=str(spec.start_sym()))
 
     return json.dumps(obj)
-
-def _cst_to_ast(cst, mod) -> qlast.Base:
-    token_map = {}
-    for (_, token), cls in mod.TokenMeta.token_map.items():
-        token_map[token] = cls
-
-    return _cst_to_ast_re(cst, mod, token_map).val
-
-
-def _cst_to_ast_re(cst, mod, token_map):
-    if "nonterm" in cst:
-        args = [_cst_to_ast_re(a, mod, token_map) for a in cst["args"]]
-
-        cls = mod.__dict__[cst["nonterm"]]
-        obj = cls()
-        method = cls.__dict__[cst["production"]]
-        method(obj, *args)
-        return obj
-
-    elif "kind" in cst:
-        cls = token_map[cst["kind"]]
-
-        obj = cls(cst["text"], cst.get("value"))
-        return obj
-
-    assert False, cst

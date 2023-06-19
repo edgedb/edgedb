@@ -10,6 +10,9 @@ def parse(querystr: str) -> qlast.Expr:
 
 QS = [
     '''
+        select User
+    ''',
+    '''
         select User { name, email } filter .name = 'Sully'
     ''',
     '''
@@ -46,4 +49,8 @@ for q in QS:
 
     print(ast)
     for n in ast:
+        n.dump()
         n.dump_edgeql()
+
+        from edb.common import context as pctx
+        pctx.ContextValidator().visit(n)

@@ -5,7 +5,7 @@ use cpython::FromPyObject;
 use cpython::{ObjectProtocol, PyList, PyObject, PyTuple, ToPyObject};
 use cpython::{PyClone, PyResult, PyString, Python, PythonObject};
 
-use edgeql_parser::cparser;
+use edgeql_parser::cparser::{self, ParserToken};
 use edgeql_parser::keywords::CURRENT_RESERVED_KEYWORDS;
 use edgeql_parser::keywords::FUTURE_RESERVED_KEYWORDS;
 use edgeql_parser::keywords::{PARTIAL_RESERVED_KEYWORDS, UNRESERVED_KEYWORDS};
@@ -228,28 +228,34 @@ pub fn convert_tokens(py: Python, rust_tokens: Vec<PToken<'_>>, end_pos: Pos) ->
     Ok(PyList::new(py, &buf[..]))
 }
 
-// XXX positions
 pub fn convert_tokens_cheese(
     rust_tokens: Vec<PToken<'_>>,
     _end_pos: Pos,
-) -> PyResult<Vec<(&'_ str, String, Option<String>)>> {
+) -> PyResult<Vec<ParserToken>> {
     let tokens = unsafe { TOKENS_CHEESE.as_ref().expect("module initialized") };
     let mut cache = Cache {
         keyword_buf: String::with_capacity(MAX_KEYWORD_LENGTH),
     };
     let mut buf = Vec::with_capacity(rust_tokens.len());
-    for tok in rust_tokens {
-        let value = tok.value.and_then(|v| match v {
-            edgeql_parser::tokenizer::Value::String(s) => Some(s),
-            edgeql_parser::tokenizer::Value::Bytes(b) => Some(String::from_utf8(b).unwrap()),
-            _ => None,
+    for token in rust_tokens {
+        let (kind, text) =
+            get_token_kind_and_name_cheese(tokens, &mut cache, token.kind, token.text);
+
+        buf.push(ParserToken {
+            kind,
+            text,
+            value: token.value.and_then(|v| match v {
+                edgeql_parser::tokenizer::Value::String(s) => Some(s),
+                edgeql_parser::tokenizer::Value::Bytes(b) => Some(String::from_utf8(b).unwrap()),
+                _ => None,
+            }),
+            span: token.span,
         });
-
-        let (name, text) = get_token_kind_and_name_cheese(tokens, &mut cache, tok.kind, tok.text);
-
-        buf.push((name, text, value));
     }
-    buf.push((tokens.eof, tokens.empty.to_string(), None));
+    buf.push(ParserToken {
+        kind: tokens.eof,
+        ..Default::default()
+    });
     Ok(buf)
 }
 
@@ -566,7 +572,6 @@ pub struct TokensCheese {
     ident: &'static str,
     argument: &'static str,
     eof: &'static str,
-    empty: &'static str,
     substitution: &'static str,
 
     named_only: &'static str,
@@ -647,7 +652,6 @@ impl TokensCheese {
             ident: "IDENT",
             argument: "ARGUMENT",
             eof: "EOF",
-            empty: "",
             substitution: "SUBSTITUTION",
             named_only: "NAMEDONLY",
             named_only_val: "NAMED ONLY",

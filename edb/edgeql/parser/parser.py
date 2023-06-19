@@ -286,21 +286,67 @@ class EdgeQLParserBase(parsing.Parser):
 
 
 class CheeseParser():
+    parser: EdgeQLParserBase
+
+    filename: Optional[str]
+    source: str
 
     def __init__(self, p: EdgeQLParserBase):
         self.parser = p
+        self.filename = None
+        self.source = ''
+
+        mod = self.parser.get_parser_spec_module()
+        self.token_map = {}
+        for (_, token), cls in mod.TokenMeta.token_map.items():
+            self.token_map[token] = cls
 
     def parse(
         self,
         source: Union[str, Source],
         filename: Optional[str] = None
     ):
+        self.filename = filename
+
         if not isinstance(source, str):
             source = source.text()
-        return parser.parse_cheese(self.parser, source)
+
+        cst = parser.parse_cheese(self.parser, source)
+        return self._cst_to_ast(cst).val
 
     def get_parser_spec(self, allow_rebuild=False):
         return self.parser.get_parser_spec(allow_rebuild=allow_rebuild)
+
+
+    def _cst_to_ast(self, cst):
+        if "nonterm" in cst:
+            # Production
+
+            args = [self._cst_to_ast(a) for a in cst["args"]]
+
+            mod = self.parser.get_parser_spec_module()
+            cls = mod.__dict__[cst["nonterm"]]
+            obj = cls()
+            method = cls.__dict__[cst["production"]]
+            method(obj, *args)
+            return obj
+
+        elif "kind" in cst:
+            # Token
+
+            cls = self.token_map[cst["kind"]]
+            span = cst.get("span") or None
+            context = parsing.ParserContext(
+                name=self.filename,
+                buffer=self.source,
+                start=span.get("start").get("offset"),
+                end=span.get("end").get("offset")
+            ) if span else None
+
+            obj = cls(cst["text"], cst.get("value"), context)
+            return obj
+
+        assert False, cst
 
 
 class EdgeQLSingleParser(EdgeQLParserBase):

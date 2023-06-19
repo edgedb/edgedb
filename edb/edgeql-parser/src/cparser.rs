@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::helpers::quote_string;
+use crate::position::Span;
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
@@ -43,16 +43,20 @@ pub fn load(jspec: &str) -> Result<Spec, String> {
 #[serde(untagged)]
 pub enum CSTNode<'a> {
     Empty,
-    Token {
-        kind: &'a str,
-        text: String,
-        value: Option<String>,
-    },
+    Token(ParserToken<'a>),
     Value {
         nonterm: String,
         production: String,
         args: Vec<CSTNode<'a>>,
     },
+}
+
+#[derive(Serialize, Default)]
+pub struct ParserToken<'a> {
+    pub kind: &'a str,
+    pub text: String,
+    pub value: Option<String>,
+    pub span: Span,
 }
 
 #[derive(Debug)]
@@ -77,29 +81,24 @@ impl<'s, 't> Parser<'s, 't> {
         }
     }
 
-    pub fn act<'a>(
-        &mut self,
-        kind: &'t str,
-        text: String,
-        value: Option<String>,
-    ) -> Result<(), String> {
-        self.print_stack();
-        println!("INPUT: {text}");
+    pub fn act(&mut self, token: ParserToken<'t>) -> Result<(), String> {
+        // self.print_stack();
+        // println!("INPUT: {}", token.text);
 
         loop {
             let state = self.stack.last().unwrap().state;
 
-            let Some(action) = self.spec.actions[state].get(kind) else {
-                return Err(format!("Unexpected: {}", quote_string(&text)));
+            let Some(action) = self.spec.actions[state].get(token.kind) else {
+                return Err(format!("Unexpected token: {}", token.text));
             };
 
             match action {
                 Action::Shift(next) => {
-                    println!("   --> [shift {next}]");
+                    // println!("   --> [shift {next}]");
 
                     self.stack.push(StackNode {
                         state: *next,
-                        value: CSTNode::Token { kind, text, value },
+                        value: CSTNode::Token(token),
                     });
                     break;
                 }
@@ -122,10 +121,10 @@ impl<'s, 't> Parser<'s, 't> {
 
                     let nstate = self.stack.last().unwrap().state;
 
-                    println!(
-                        "   --> [reduce {} ::= ({} popped) at {}/{}]",
-                        production, cnt, state, nstate
-                    );
+                    // println!(
+                    //     "   --> [reduce {} ::= ({} popped) at {}/{}]",
+                    //     production, cnt, state, nstate
+                    // );
 
                     let next = *self.spec.goto[nstate]
                         .get(nonterm)
@@ -133,7 +132,7 @@ impl<'s, 't> Parser<'s, 't> {
 
                     self.stack.push(StackNode { state: next, value });
 
-                    self.print_stack();
+                    // self.print_stack();
                 }
             }
         }
@@ -143,26 +142,33 @@ impl<'s, 't> Parser<'s, 't> {
     pub fn eoi(&mut self) -> Result<(), String> {
         const EOI: &str = "<$>";
 
-        self.act(EOI, "".to_string(), None)?;
+        self.act(ParserToken {
+            kind: EOI,
+            ..Default::default()
+        })?;
 
         let eof = self.stack.pop();
         debug_assert!(eof.is_some());
         debug_assert!(matches!(
             eof.unwrap().value,
-            CSTNode::Token { kind: EOI, .. }
+            CSTNode::Token(ParserToken { kind: EOI, .. })
         ));
 
-        self.print_stack();
-        println!("   --> accept");
+        // self.print_stack();
+        // println!("   --> accept");
 
         #[cfg(debug_assertions)]
         {
             let first = self.stack.first().unwrap();
-            assert!(matches!(first.value, CSTNode::Token { kind: "<e>", .. }));
+            assert!(matches!(
+                first.value,
+                CSTNode::Token(ParserToken { kind: "<e>", .. })
+            ));
         }
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn print_stack(&self) {
         let prefix = "STACK: ";
 
@@ -183,15 +189,12 @@ impl<'s, 't> Parser<'s, 't> {
     }
 }
 
-pub fn cparse(
-    jspec: String,
-    input: Vec<(&str, String, Option<String>)>,
-) -> Result<CSTNode, String> {
+pub fn cparse(jspec: String, input: Vec<ParserToken>) -> Result<CSTNode, String> {
     let spec: Spec = load(&jspec)?;
     let mut parser = Parser::new(&spec);
 
-    for (tok, text, value) in input {
-        parser.act(tok, text, value)?;
+    for token in input {
+        parser.act(token)?;
     }
     parser.eoi()?;
 
@@ -203,7 +206,7 @@ impl<'t> std::fmt::Debug for CSTNode<'t> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Empty => f.write_str("<e>"),
-            Self::Token { text, .. } => f.write_str(text),
+            Self::Token(t) => f.write_str(&t.text),
             Self::Value { production, .. } => write!(f, "{production}"),
         }
     }
