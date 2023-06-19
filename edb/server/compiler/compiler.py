@@ -1611,14 +1611,6 @@ def _compile_ql_query(
 
     sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
 
-    in_type_args = None
-    params: list[tuple[str, s_obj.Object, bool]] = []
-    has_named_params = False
-    if ir.params:
-        params, in_type_args = _extract_params(
-            ir.params, argmap=argmap, script_info=script_info,
-            schema=ir.schema, ctx=ctx)
-
     globals = None
     if ir.globals:
         globals = [
@@ -1639,33 +1631,9 @@ def _compile_ql_query(
     else:
         out_type_data, out_type_id = sertypes.describe_str()
 
-    if ctx.protocol_version >= (0, 12):
-        in_type_data, in_type_id = sertypes.describe_params(
-            schema=ir.schema,
-            params=params,
-            protocol_version=ctx.protocol_version,
-        )
-    else:
-        # Legacy protocol support - for restoring pre-0.12 dumps
-        if params:
-            pschema, params_type = s_types.Tuple.create(
-                ir.schema,
-                element_types=collections.OrderedDict(
-                    # keep only param_name/param_type
-                    [param[:2] for param in params]
-                ),
-                named=has_named_params)
-        else:
-            pschema, params_type = s_types.Tuple.create(
-                ir.schema,
-                element_types={},
-                named=has_named_params)
-
-        in_type_data, in_type_id = sertypes.describe(
-            pschema,
-            params_type,
-            protocol_version=ctx.protocol_version,
-        )
+    in_type_args, in_type_data, in_type_id = describe_params(
+        ctx, ir, argmap, script_info
+    )
 
     sql_hash = _hash_sql(
         sql_bytes,
@@ -1699,6 +1667,54 @@ def _compile_ql_query(
         has_dml=ir.dml_exprs,
         query_asts=query_asts,
     )
+
+
+def describe_params(
+    ctx: CompileContext,
+    ir: irast.Statement | irast.ConfigCommand,
+    argmap: Dict[str, irast.Param],
+    script_info: Optional[irast.ScriptInfo],
+) -> Tuple[List[dbstate.Param], bytes, uuid.UUID]:
+    in_type_args = None
+    params: list[tuple[str, s_obj.Object, bool]] = []
+    if ir.params:
+        params, in_type_args = _extract_params(
+            ir.params,
+            argmap=argmap,
+            script_info=script_info,
+            schema=ir.schema,
+            ctx=ctx,
+        )
+
+    if ctx.protocol_version >= (0, 12):
+        in_type_data, in_type_id = sertypes.describe_params(
+            schema=ir.schema,
+            params=params,
+            protocol_version=ctx.protocol_version,
+        )
+    else:
+        # Legacy protocol support - for restoring pre-0.12 dumps
+        if params:
+            pschema, params_type = s_types.Tuple.create(
+                ir.schema,
+                element_types=collections.OrderedDict(
+                    # keep only param_name/param_type
+                    [param[:2] for param in params]
+                ),
+                named=False,
+            )
+        else:
+            pschema, params_type = s_types.Tuple.create(
+                ir.schema, element_types={}, named=False
+            )
+
+        in_type_data, in_type_id = sertypes.describe(
+            pschema,
+            params_type,
+            protocol_version=ctx.protocol_version,
+        )
+
+    return in_type_args, in_type_data, in_type_id
 
 
 def _compile_ql_transaction(
@@ -1887,7 +1903,7 @@ def _compile_ql_config_op(ctx: CompileContext, ql: qlast.Base):
     requires_restart = bool(getattr(ir, 'requires_restart', False))
     is_system_config = bool(getattr(ir, 'is_system_config', False))
 
-    sql_text, _ = pg_compiler.compile_ir_to_sql(
+    sql_text, argmap = pg_compiler.compile_ir_to_sql(
         ir,
         pretty=(debug.flags.edgeql_compile
                 or debug.flags.edgeql_compile_sql_text),
@@ -1895,6 +1911,10 @@ def _compile_ql_config_op(ctx: CompileContext, ql: qlast.Base):
     )
 
     sql = (sql_text.encode(),)
+
+    in_type_args, in_type_data, in_type_id = describe_params(
+        ctx, ir, argmap, None
+    )
 
     single_unit = False
     if ql.scope is qltypes.ConfigScope.SESSION:
@@ -1937,6 +1957,9 @@ def _compile_ql_config_op(ctx: CompileContext, ql: qlast.Base):
         single_unit=single_unit,
         config_op=config_op,
         globals=globals,
+        in_type_args=in_type_args,
+        in_type_data=in_type_data,
+        in_type_id=in_type_id.bytes,
     )
 
 
@@ -2281,6 +2304,13 @@ def _try_compile(
 
             if comp.config_op is not None:
                 unit.config_ops.append(comp.config_op)
+
+            if comp.in_type_args:
+                unit.in_type_args = comp.in_type_args
+            if comp.in_type_data:
+                unit.in_type_data = comp.in_type_data
+            if comp.in_type_id:
+                unit.in_type_id = comp.in_type_id
 
             unit.has_set = True
 

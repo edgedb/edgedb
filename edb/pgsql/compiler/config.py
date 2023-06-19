@@ -605,7 +605,6 @@ def top_output_as_config_op(
         )
 
         result.ctes = stmt.ctes
-        result.argnames = stmt.argnames
         stmt.ctes = []
 
         return result
