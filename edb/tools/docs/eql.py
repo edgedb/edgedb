@@ -987,9 +987,11 @@ class EdgeQLDomain(s_domains.Domain):
         'keyword': EQLKeywordDirective,
         'operator': EQLOperatorDirective,
         'synopsis': EQLSynopsisDirective,
+        'struct': EQLStructElement,
+
+        # TODO: Move to edb domain
         'react-element': EQLReactElement,
         'section-intro-page': EQLSectionIntroPage,
-        'struct': EQLStructElement,
     }
 
     roles = {
@@ -1001,6 +1003,8 @@ class EdgeQLDomain(s_domains.Domain):
         'op': s_roles.XRefRole(),
         'op-desc': EQLOperatorDescXRef(),
         'stmt': s_roles.XRefRole(),
+
+        # TODO: Move to edb domain
         'gh': GitHubLinkRole(),
     }
 
