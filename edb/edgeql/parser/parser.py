@@ -309,6 +309,9 @@ class CheeseParser():
     ):
         from edb import _edgeql_parser as eql_parser
 
+        import sys
+        sys.setrecursionlimit(10000)
+
         if not isinstance(source, str):
             source = source.text()
 
@@ -317,7 +320,9 @@ class CheeseParser():
 
         try:
             parser_name = self.parser.__class__.__name__
-            cst = json.loads(eql_parser.parse_cheese(parser_name, source))
+            cst_json = eql_parser.parse_cheese(parser_name, source)
+
+            cst = json.loads(cst_json)
             return self._cst_to_ast(cst).val
 
         except eql_parser.TokenizerError as e:
