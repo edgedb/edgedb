@@ -22,9 +22,7 @@ from typing import *
 import re
 import hashlib
 
-from edb._edgeql_parser import tokenize as _tokenize, TokenizerError, Token
-from edb._edgeql_parser import normalize as _normalize, Entry
-
+from edb import _edgeql_parser as eql_parser
 from edb import errors
 
 
@@ -33,7 +31,7 @@ TRAILING_WS_IN_CONTINUATION = re.compile(r'\\ \s+\n')
 
 class Source:
 
-    def __init__(self, text: str, tokens: List[Token]) -> None:
+    def __init__(self, text: str, tokens: List[eql_parser.Token]) -> None:
         self._cache_key = hashlib.blake2b(text.encode('utf-8')).digest()
         self._text = text
         self._tokens = tokens
@@ -47,7 +45,7 @@ class Source:
     def variables(self) -> Dict[str, Any]:
         return {}
 
-    def tokens(self) -> List[Token]:
+    def tokens(self) -> List[eql_parser.Token]:
         return self._tokens
 
     def first_extra(self) -> Optional[int]:
@@ -61,7 +59,7 @@ class Source:
 
     @classmethod
     def from_string(cls, text: str) -> Source:
-        return cls(text=text, tokens=tokenize(text))
+        return cls(text=text, tokens=_tokenize(text))
 
     def __repr__(self):
         return f'<edgeql.Source text={self._text!r}>'
@@ -69,7 +67,7 @@ class Source:
 
 class NormalizedSource(Source):
 
-    def __init__(self, normalized: Entry, text: str) -> None:
+    def __init__(self, normalized: eql_parser.Entry, text: str) -> None:
         self._text = text
         self._cache_key = normalized.key()
         self._tokens = normalized.tokens()
@@ -87,7 +85,7 @@ class NormalizedSource(Source):
     def variables(self) -> Dict[str, Any]:
         return self._variables
 
-    def tokens(self) -> List[Token]:
+    def tokens(self) -> List[eql_parser.Token]:
         return self._tokens
 
     def first_extra(self) -> Optional[int]:
@@ -101,23 +99,23 @@ class NormalizedSource(Source):
 
     @classmethod
     def from_string(cls, text: str) -> NormalizedSource:
-        return cls(normalize(text), text)
+        return cls(_normalize(text), text)
 
 
-def tokenize(eql: str) -> List[Token]:
+def _tokenize(eql: str) -> List[eql_parser.Token]:
     try:
-        return _tokenize(eql)
-    except TokenizerError as e:
+        return eql_parser.tokenize(eql)
+    except eql_parser.TokenizerError as e:
         message, position = e.args
         hint = _derive_hint(eql, message, position)
         raise errors.EdgeQLSyntaxError(
             message, position=position, hint=hint) from e
 
 
-def normalize(eql: str) -> Entry:
+def _normalize(eql: str) -> eql_parser.Entry:
     try:
-        return _normalize(eql)
-    except TokenizerError as e:
+        return eql_parser.normalize(eql)
+    except eql_parser.TokenizerError as e:
         message, position = e.args
         hint = _derive_hint(eql, message, position)
         raise errors.EdgeQLSyntaxError(

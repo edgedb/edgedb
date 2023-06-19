@@ -22,25 +22,24 @@ from __future__ import annotations
 import re
 from typing import *
 
-from edb import _edgeql_parser
+from edb import _edgeql_parser as eql_parser
 
 
 keyword_types = range(1, 5)
 (UNRESERVED_KEYWORD, RESERVED_KEYWORD, TYPE_FUNC_NAME_KEYWORD,
  PARTIAL_RESERVED_KEYWORD) = keyword_types
 
-unreserved_keywords = _edgeql_parser.unreserved_keywords
-future_reserved_keywords = _edgeql_parser.future_reserved_keywords
+unreserved_keywords = eql_parser.unreserved_keywords
+future_reserved_keywords = eql_parser.future_reserved_keywords
 reserved_keywords = (
-    future_reserved_keywords |
-    _edgeql_parser.current_reserved_keywords
+    future_reserved_keywords | eql_parser.current_reserved_keywords
 )
 # These keywords can be used in pretty much all the places where they are
 # preceeded by a reserved keyword or some other disambiguating token like `.`,
 # `.<`, or `@`.
 #
 # In practice we mainly relax their usage as link/property names.
-partial_reserved_keywords = _edgeql_parser.partial_reserved_keywords
+partial_reserved_keywords = eql_parser.partial_reserved_keywords
 
 
 def _check_keywords():
