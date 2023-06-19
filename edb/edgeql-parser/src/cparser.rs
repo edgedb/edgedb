@@ -29,14 +29,16 @@ pub struct SpecJson {
     pub start: String,
 }
 
-pub fn load(jspec: &str) -> Result<Spec, String> {
-    let v = serde_json::from_str::<SpecJson>(jspec).map_err(|e| format!("Error: {e}"))?;
+impl Spec {
+    pub fn from_json(j_spec: &str) -> Result<Spec, String> {
+        let v = serde_json::from_str::<SpecJson>(j_spec).map_err(|e| e.to_string())?;
 
-    Ok(Spec {
-        actions: v.actions.into_iter().map(HashMap::from_iter).collect(),
-        goto: v.goto.into_iter().map(HashMap::from_iter).collect(),
-        start: v.start,
-    })
+        Ok(Spec {
+            actions: v.actions.into_iter().map(HashMap::from_iter).collect(),
+            goto: v.goto.into_iter().map(HashMap::from_iter).collect(),
+            start: v.start,
+        })
+    }
 }
 
 #[derive(Serialize)]
@@ -189,8 +191,7 @@ impl<'s, 't> Parser<'s, 't> {
     }
 }
 
-pub fn cparse(jspec: String, input: Vec<ParserToken>) -> Result<CSTNode, String> {
-    let spec: Spec = load(&jspec)?;
+pub fn cparse<'s, 't>(spec: &'s Spec, input: Vec<ParserToken<'t>>) -> Result<CSTNode<'t>, String> {
     let mut parser = Parser::new(&spec);
 
     for token in input {

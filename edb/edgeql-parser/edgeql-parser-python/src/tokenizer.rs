@@ -5,7 +5,7 @@ use cpython::FromPyObject;
 use cpython::{ObjectProtocol, PyList, PyObject, PyTuple, ToPyObject};
 use cpython::{PyClone, PyResult, PyString, Python, PythonObject};
 
-use edgeql_parser::cparser::{self, ParserToken};
+use edgeql_parser::cparser::{self, ParserToken, Spec};
 use edgeql_parser::keywords::CURRENT_RESERVED_KEYWORDS;
 use edgeql_parser::keywords::FUTURE_RESERVED_KEYWORDS;
 use edgeql_parser::keywords::{PARTIAL_RESERVED_KEYWORDS, UNRESERVED_KEYWORDS};
@@ -19,6 +19,8 @@ use crate::pynormalize::{py_pos, value_to_py_object};
 static mut TOKENS: Option<Tokens> = None;
 
 static mut TOKENS_CHEESE: Option<TokensCheese> = None;
+
+static mut PARSER_SPECS: Option<HashMap<String, Spec>> = None;
 
 fn rs_pos(py: Python, value: &PyObject) -> PyResult<Pos> {
     let (line, column, offset) = FromPyObject::extract(py, value)?;
@@ -158,6 +160,7 @@ pub fn init_module(py: Python) {
     unsafe {
         TOKENS = Some(Tokens::new(py));
         TOKENS_CHEESE = Some(TokensCheese::new());
+        PARSER_SPECS = Some(HashMap::new());
     }
 }
 
@@ -260,6 +263,8 @@ pub fn convert_tokens_cheese(
 }
 
 pub fn parse_cheese(py: Python, spec: &PyString, s: &PyString) -> PyResult<PyString> {
+    let spec = load_spec(py, spec.to_string(py)?.as_ref())?;
+
     let data = s.to_string(py)?;
 
     let mut token_stream = Tokenizer::new(&data[..]).validated_values();
@@ -268,13 +273,32 @@ pub fn parse_cheese(py: Python, spec: &PyString, s: &PyString) -> PyResult<PyStr
         .map_err(|e| TokenizerError::new(py, (e.message, py_pos(py, &e.span.start))))?;
     let cheese = convert_tokens_cheese(rust_tokens, token_stream.current_pos())?;
 
-    let out = cparser::cparse(String::from(spec.to_string(py)?), cheese)
+    let out = cparser::cparse(spec, cheese)
         .and_then(|out| {
             serde_json::to_string(&out).map_err(|e| format!("cannot serialize CST: {e}"))
         })
         .map_err(|s| TokenizerError::new(py, (s, py.None())))?;
 
     Ok(PyString::new(py, &*out))
+}
+
+fn load_spec(py: Python, parser_name: &str) -> PyResult<&'static Spec> {
+    let parser_specs = unsafe { PARSER_SPECS.as_mut().unwrap() };
+    if !parser_specs.contains_key(parser_name) {
+        let parser_mod = py.import("edb.edgeql.parser.parser")?;
+
+        let process_spec = py.import("edb.edgeql.parser")?.get(py, "process_spec")?;
+
+        let parser_cls = parser_mod.get(py, parser_name)?;
+        let parser = parser_cls.call(py, PyTuple::new(py, &[]), None)?;
+        let spec_json = process_spec.call(py, (parser,), None)?;
+
+        let spec: Spec = Spec::from_json(&spec_json.to_string()).unwrap();
+
+        parser_specs.insert(parser_name.to_string(), spec);
+    }
+
+    Ok(unsafe { PARSER_SPECS.as_ref().unwrap().get(parser_name).unwrap() })
 }
 
 impl Tokens {

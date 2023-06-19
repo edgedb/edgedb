@@ -21,7 +21,6 @@ from __future__ import annotations
 from typing import *
 
 import multiprocessing
-import json
 
 from edb import errors
 from edb.common import parsing
@@ -29,8 +28,6 @@ from edb.common import parsing
 from . import parser as qlparser
 from .. import ast as qlast
 from .. import tokenizer as qltokenizer
-
-from edb import _edgeql_parser as eql_parser
 
 EdgeQLParserBase = qlparser.EdgeQLParserBase
 
@@ -184,20 +181,10 @@ def preload(
             preload(parsers=parsers, allow_rebuild=False)
 
 
-def parse_cheese(prs: parsing.Parser, query: str) -> dict:
-    spec = prs.get_parser_spec()
-    jspec = _process_spec(spec)
-
-    try:
-        return json.loads(eql_parser.parse_cheese(jspec, query))
-    except eql_parser.TokenizerError as e:
-        message, position = e.args
-        raise errors.EdgeQLSyntaxError(
-            message, position=position) from e
-
-
-def _process_spec(spec):
+def process_spec(parser: parsing.Parser) -> str:
     import json
+
+    spec = parser.get_parser_spec()
 
     # print(spec)
     actions = spec.actions()
@@ -208,19 +195,19 @@ def _process_spec(spec):
     table = []
     for st_actions in actions:
         out_st_actions = []
-        for tok, act in st_actions.items():
-            act = act[0]  # XXX: LR! NOT GLR??
+        for tok, acts in st_actions.items():
+            act = acts[0]  # XXX: LR! NOT GLR??
 
             stok = rmap.get(str(tok), str(tok))
             if 'ShiftAction' in str(type(act)):
-                oact = int(act.nextState)
+                oact: Any = int(cast(Any, act).nextState)
             else:
-                production = act.production
-                oact = dict(
-                    nonterm=str(production.lhs),
-                    production=production.qualified.split('.')[-1],
-                    cnt=len(production.rhs),
-                )
+                production = cast(Any, act).production
+                oact = {
+                    'nonterm': str(production.lhs),
+                    'production': production.qualified.split('.')[-1],
+                    'cnt': len(production.rhs),
+                }
             out_st_actions.append((stok, oact))
 
         table.append(out_st_actions)
@@ -229,8 +216,8 @@ def _process_spec(spec):
     goto = []
     for st_goto in spec.goto():
         out_goto = []
-        for nterm, act in st_goto.items():
-            out_goto.append((str(nterm), act))
+        for nterm, action in st_goto.items():
+            out_goto.append((str(nterm), action))
 
         goto.append(out_goto)
 

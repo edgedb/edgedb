@@ -20,6 +20,8 @@ from __future__ import annotations
 
 from typing import *
 
+import json
+
 from edb import errors
 from edb.common import debug, parsing
 from edb.common import context as pctx
@@ -30,7 +32,6 @@ from .grammar import expressions as gr_exprs
 from .grammar import commondl as gr_commondl
 from .grammar import keywords as gr_keywords
 from ..tokenizer import Source
-from .. import parser
 
 
 class EdgeQLParserBase(parsing.Parser):
@@ -306,13 +307,24 @@ class CheeseParser():
         source: Union[str, Source],
         filename: Optional[str] = None
     ):
-        self.filename = filename
+        from edb import _edgeql_parser as eql_parser
 
         if not isinstance(source, str):
             source = source.text()
 
-        cst = parser.parse_cheese(self.parser, source)
-        return self._cst_to_ast(cst).val
+        self.filename = filename
+        self.source = source
+
+        try:
+            parser_name = self.parser.__class__.__name__
+            cst = json.loads(eql_parser.parse_cheese(parser_name, source))
+            return self._cst_to_ast(cst).val
+
+        except eql_parser.TokenizerError as e:
+            message, position = e.args
+            raise errors.EdgeQLSyntaxError(
+                message, position=position) from e
+
 
     def get_parser_spec(self, allow_rebuild=False):
         return self.parser.get_parser_spec(allow_rebuild=allow_rebuild)
