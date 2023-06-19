@@ -13,6 +13,7 @@ Client Libraries
 * `Go <go/index>`_
 * `Rust <rust/index>`_
 * `.NET <dotnet/index>`_
+* `Java <java/index>`_
 
 **Community-Maintained Clients**
 
@@ -35,6 +36,7 @@ Client Libraries
     rust/index
     dart/index
     dotnet/index
+    java/index
     http/index
     graphql/index
 
