@@ -22,6 +22,7 @@ from __future__ import annotations
 from sphinx import domains as s_domains
 from docutils import nodes as d_nodes
 from docutils.parsers import rst as d_rst
+from docutils.parsers.rst import directives as d_directives  # type: ignore
 
 
 class EDBYoutubeEmbed(d_rst.Directive):
@@ -37,11 +38,30 @@ class EDBYoutubeEmbed(d_rst.Directive):
         return [node]
 
 
+class EDBCollapsed(d_rst.Directive):
+
+    has_content = True
+    optional_arguments = 0
+    required_arguments = 0
+    option_spec = {
+        'summary': d_directives.unchanged_required,
+    }
+
+    def run(self):
+        node = d_nodes.container()
+        node['collapsed_block'] = True
+        if 'summary' in self.options:
+            node['summary'] = self.options['summary']
+        self.state.nested_parse(self.content, self.content_offset, node)
+        return [node]
+
+
 class EdgeDBDomain(s_domains.Domain):
     name = "edb"
     label = "EdgeDB"
 
     directives = {
+        'collapsed': EDBCollapsed,
         'youtube-embed': EDBYoutubeEmbed
     }
 
