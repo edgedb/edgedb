@@ -53,12 +53,8 @@ def parse_fragment(
     source: Union[qltokenizer.Source, str],
     filename: Optional[str]=None,
 ) -> qlast.Expr:
-
-    if not isinstance(source, str):
-        source = source.text()
-
-    res = _parse_cheese(qlparser.EdgeQLExpressionParser(), source)
-
+    parser = qlparser.EdgeQLExpressionParser().get_cheese()
+    res = parser.parse(source, filename=filename)
     assert isinstance(res, qlast.Expr)
     return res
 
@@ -66,9 +62,7 @@ def parse_single(
     source: Union[qltokenizer.Source, str],
     filename: Optional[str]=None,
 ) -> qlast.Statement:
-    if isinstance(source, str):
-        source = qltokenizer.Source.from_string(source)
-    parser = qlparser.EdgeQLSingleParser()
+    parser = qlparser.EdgeQLSingleParser().get_cheese()
     res = parser.parse(source, filename=filename)
     assert isinstance(res, (qlast.Query | qlast.Command))
     return res
@@ -110,9 +104,7 @@ def parse_command(
 
 
 def parse_block(source: Union[qltokenizer.Source, str]) -> List[qlast.Base]:
-    if isinstance(source, str):
-        source = qltokenizer.Source.from_string(source)
-    parser = qlparser.EdgeQLBlockParser()
+    parser = qlparser.EdgeQLBlockParser().get_cheese()
     return parser.parse(source)
 
 
@@ -126,9 +118,8 @@ def parse_migration_body_block(
     # where the source contexts don't matter anyway.
     source = '{' + source + '}'
 
-    tsource = qltokenizer.Source.from_string(source)
-    parser = qlparser.EdgeQLMigrationBodyParser()
-    return parser.parse(tsource)
+    parser = qlparser.EdgeQLMigrationBodyParser().get_cheese()
+    return parser.parse(source)
 
 
 def parse_extension_package_body_block(
@@ -141,13 +132,12 @@ def parse_extension_package_body_block(
     # where the source contexts don't matter anyway.
     source = '{' + source + '}'
 
-    tsource = qltokenizer.Source.from_string(source)
-    parser = qlparser.EdgeQLExtensionPackageBodyParser()
-    return parser.parse(tsource)
+    parser = qlparser.EdgeQLExtensionPackageBodyParser().get_cheese()
+    return parser.parse(source)
 
 
 def parse_sdl(expr: str):
-    parser = qlparser.EdgeSDLParser()
+    parser = qlparser.EdgeSDLParser().get_cheese()
     return parser.parse(expr)
 
 
@@ -194,11 +184,18 @@ def preload(
             preload(parsers=parsers, allow_rebuild=False)
 
 
-def _parse_cheese(prs: parsing.Parser, query: str) -> qlast.Base:
+def parse_cheese(prs: parsing.Parser, query: str) -> qlast.Base:
     spec = prs.get_parser_spec()
     jspec = _process_spec(spec)
 
-    cst = json.loads(eql_parser.parse_cheese(jspec, query))
+    try:
+        cst = json.loads(eql_parser.parse_cheese(jspec, query))
+    except eql_parser.TokenizerError as e:
+        message, position = e.args
+        raise errors.EdgeQLSyntaxError(
+            message, position=position) from e
+
+    # print(cst)
 
     mod = prs.get_parser_spec_module()
     return _cst_to_ast(cst, mod)
@@ -264,10 +261,10 @@ def _cst_to_ast_re(cst, mod, token_map):
         method(obj, *args)
         return obj
 
-    elif "token" in cst:
-        cls = token_map[cst["token"]]
+    elif "kind" in cst:
+        cls = token_map[cst["kind"]]
 
-        obj = cls(cst["text"], cst["text"])
+        obj = cls(cst["text"], cst.get("value"))
         return obj
 
-    assert False
+    assert False, cst

@@ -18,6 +18,8 @@
 
 from __future__ import annotations
 
+from typing import *
+
 from edb import errors
 from edb.common import debug, parsing
 from edb.common import context as pctx
@@ -27,6 +29,8 @@ from .grammar import rust_lexer, tokens
 from .grammar import expressions as gr_exprs
 from .grammar import commondl as gr_commondl
 from .grammar import keywords as gr_keywords
+from ..tokenizer import Source
+from .. import parser
 
 
 class EdgeQLParserBase(parsing.Parser):
@@ -276,6 +280,27 @@ class EdgeQLParserBase(parsing.Parser):
 
     def get_lexer(self):
         return rust_lexer.EdgeQLLexer()
+
+    def get_cheese(self):
+        return CheeseParser(self)
+
+
+class CheeseParser():
+
+    def __init__(self, p: EdgeQLParserBase):
+        self.parser = p
+
+    def parse(
+        self,
+        source: Union[str, Source],
+        filename: Optional[str] = None
+    ):
+        if not isinstance(source, str):
+            source = source.text()
+        return parser.parse_cheese(self.parser, source)
+
+    def get_parser_spec(self, allow_rebuild=False):
+        return self.parser.get_parser_spec(allow_rebuild=allow_rebuild)
 
 
 class EdgeQLSingleParser(EdgeQLParserBase):

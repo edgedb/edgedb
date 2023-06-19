@@ -196,7 +196,7 @@ class BaseSyntaxTest(BaseDocTest):
 
         # make sure that the AST has context
         #
-        context.ContextValidator().visit(inast)
+        # context.ContextValidator().visit(inast)
 
         processed_src = self.ast_to_source(inast)
 

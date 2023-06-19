@@ -5,7 +5,7 @@ from edb.edgeql import ast as qlast
 
 
 def parse(querystr: str) -> qlast.Expr:
-    return parser.parse_fragment(querystr)
+    return parser.parse_block(querystr)
 
 
 QS = [
@@ -33,7 +33,11 @@ QS = [
         ))
         ''',
     '''
-    '10 seconds'
+    select '10 seconds'
+    ''',
+    '''
+        SELECT 1;
+        SELECT 2;
     '''
 ]
 
@@ -41,4 +45,5 @@ for q in QS:
     ast = parse(q)
 
     print(ast)
-    ast.dump_edgeql()
+    for n in ast:
+        n.dump_edgeql()

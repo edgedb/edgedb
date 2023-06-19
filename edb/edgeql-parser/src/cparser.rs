@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::helpers::quote_string;
+
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub enum Action {
@@ -42,8 +44,9 @@ pub fn load(jspec: &str) -> Result<Spec, String> {
 pub enum CSTNode<'a> {
     Empty,
     Token {
-        token: &'a String,
-        text: &'a String,
+        kind: &'a str,
+        text: String,
+        value: Option<String>,
     },
     Value {
         nonterm: String,
@@ -52,35 +55,51 @@ pub enum CSTNode<'a> {
     },
 }
 
+#[derive(Debug)]
 struct StackNode<'a> {
     state: usize,
     value: CSTNode<'a>,
 }
 
-fn cparse_main<'a>(spec: &Spec, input: &'a [(String, String)]) -> Result<CSTNode<'a>, String> {
-    let mut stack: Vec<StackNode> = Vec::new();
-    stack.push(StackNode {
-        state: 0,
-        value: CSTNode::Empty,
-    });
+pub struct Parser<'s, 't> {
+    spec: &'s Spec,
+    stack: Vec<StackNode<'t>>,
+}
 
-    let actions = &spec.actions;
+impl<'s, 't> Parser<'s, 't> {
+    fn new(spec: &'s Spec) -> Self {
+        Parser {
+            spec,
+            stack: vec![StackNode {
+                state: 0,
+                value: CSTNode::Empty,
+            }],
+        }
+    }
 
-    for (tok, text) in input {
+    pub fn act<'a>(
+        &mut self,
+        kind: &'t str,
+        text: String,
+        value: Option<String>,
+    ) -> Result<(), String> {
+        self.print_stack();
+        println!("INPUT: {text}");
+
         loop {
-            let state = stack[stack.len() - 1].state;
-            // println!("seeing {} at {}", tok, state);
+            let state = self.stack.last().unwrap().state;
 
-            let action = match actions[state].get(tok) {
-                Some(v) => v,
-                None => Err(format!("unexpected token {} in state {}", tok, state))?,
+            let Some(action) = self.spec.actions[state].get(kind) else {
+                return Err(format!("Unexpected: {}", quote_string(&text)));
             };
+
             match action {
                 Action::Shift(next) => {
-                    // println!("shifting {}/{} at {}", tok, next, state);
-                    stack.push(StackNode {
+                    println!("   --> [shift {next}]");
+
+                    self.stack.push(StackNode {
                         state: *next,
-                        value: CSTNode::Token { token: tok, text },
+                        value: CSTNode::Token { kind, text, value },
                     });
                     break;
                 }
@@ -89,10 +108,9 @@ fn cparse_main<'a>(spec: &Spec, input: &'a [(String, String)]) -> Result<CSTNode
                     production,
                     cnt,
                 } => {
-                    // let next = spec.goto[state][nonterm];
-
-                    let args = stack
-                        .drain((stack.len() - cnt)..)
+                    let args = self
+                        .stack
+                        .drain((self.stack.len() - cnt)..)
                         .map(|n| n.value)
                         .collect();
 
@@ -102,25 +120,91 @@ fn cparse_main<'a>(spec: &Spec, input: &'a [(String, String)]) -> Result<CSTNode
                         args,
                     };
 
-                    let nstate = stack[stack.len() - 1].state;
-                    // println!("reducing {}/{} ({} popped) at {}/{}",
-                    //          nonterm, prod, cnt, state, nstate);
-                    let next = *spec.goto[nstate]
+                    let nstate = self.stack.last().unwrap().state;
+
+                    println!(
+                        "   --> [reduce {} ::= ({} popped) at {}/{}]",
+                        production, cnt, state, nstate
+                    );
+
+                    let next = *self.spec.goto[nstate]
                         .get(nonterm)
                         .ok_or(format!("{} at {} fucked", nonterm, nstate))?;
 
-                    stack.push(StackNode { state: next, value });
+                    self.stack.push(StackNode { state: next, value });
+
+                    self.print_stack();
                 }
             }
         }
+        Ok(())
     }
 
-    stack.pop();
-    let out = stack.pop().ok_or("stack empty")?;
+    pub fn eoi(&mut self) -> Result<(), String> {
+        const EOI: &str = "<$>";
+
+        self.act(EOI, "".to_string(), None)?;
+
+        let eof = self.stack.pop();
+        debug_assert!(eof.is_some());
+        debug_assert!(matches!(
+            eof.unwrap().value,
+            CSTNode::Token { kind: EOI, .. }
+        ));
+
+        self.print_stack();
+        println!("   --> accept");
+
+        #[cfg(debug_assertions)]
+        {
+            let first = self.stack.first().unwrap();
+            assert!(matches!(first.value, CSTNode::Token { kind: "<e>", .. }));
+        }
+        Ok(())
+    }
+
+    fn print_stack(&self) {
+        let prefix = "STACK: ";
+
+        let names = self
+            .stack
+            .iter()
+            .map(|s| format!("{:?}", s.value))
+            .collect::<Vec<_>>();
+
+        let mut states = format!("{:6}", ' ');
+        for (index, node) in self.stack.iter().enumerate() {
+            let name_width = names[index].chars().count();
+            states += &format!(" {:<width$}", node.state, width = name_width);
+        }
+
+        println!("{}{}", prefix, names.join(" "));
+        println!("{}", states);
+    }
+}
+
+pub fn cparse(
+    jspec: String,
+    input: Vec<(&str, String, Option<String>)>,
+) -> Result<CSTNode, String> {
+    let spec: Spec = load(&jspec)?;
+    let mut parser = Parser::new(&spec);
+
+    for (tok, text, value) in input {
+        parser.act(tok, text, value)?;
+    }
+    parser.eoi()?;
+
+    let out = parser.stack.pop().ok_or("stack empty")?;
     Ok(out.value)
 }
 
-pub fn cparse(jspec: String, input: &[(String, String)]) -> Result<CSTNode, String> {
-    let spec = load(&jspec)?;
-    cparse_main(&spec, input)
+impl<'t> std::fmt::Debug for CSTNode<'t> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Empty => f.write_str("<e>"),
+            Self::Token { text, .. } => f.write_str(text),
+            Self::Value { production, .. } => write!(f, "{production}"),
+        }
+    }
 }
