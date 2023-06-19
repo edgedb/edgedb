@@ -689,7 +689,6 @@ def aggregate_json_output(
     )
 
     result.ctes = stmt.ctes
-    result.argnames = stmt.argnames
     stmt.ctes = []
 
     return result
@@ -757,7 +756,6 @@ def wrap_script_stmt(
         )
 
     result.ctes = stmt.ctes
-    result.argnames = stmt.argnames
     stmt.ctes = []
 
     return result

@@ -65,7 +65,7 @@ def compile_ir_to_sql_tree(
         ]
     ] = None,
     backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
-) -> Tuple[pgast.Base, context.Environment]:
+) -> Tuple[pgast.Base, context.Environment, Dict[str, pgast.Param]]:
     try:
         # Transform to sql tree
         query_params = []
@@ -85,6 +85,7 @@ def compile_ir_to_sql_tree(
         elif isinstance(ir_expr, irast.ConfigCommand):
             assert ir_expr.scope_tree
             scope_tree = ir_expr.scope_tree
+            query_params = list(ir_expr.params)
             if ir_expr.globals:
                 query_globals = list(ir_expr.globals)
         else:
@@ -150,7 +151,7 @@ def compile_ir_to_sql_tree(
             args = []
         raise errors.InternalServerError(*args) from e
 
-    return (qtree, env)
+    return (qtree, env, ctx.argmap)
 
 
 def compile_ir_to_tree_and_sql(
@@ -166,7 +167,7 @@ def compile_ir_to_tree_and_sql(
     backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
 ) -> Tuple[pgast.Base, str, Dict[str, pgast.Param]]:
 
-    qtree, _ = compile_ir_to_sql_tree(
+    qtree, _, argmap = compile_ir_to_sql_tree(
         ir_expr,
         output_format=output_format,
         ignore_shapes=ignore_shapes,
@@ -184,11 +185,6 @@ def compile_ir_to_tree_and_sql(
         debug.header('SQL Tree')
         debug.dump(
             qtree, _ast_include_meta=debug.flags.edgeql_compile_sql_ast_meta)
-
-    if isinstance(qtree, pgast.Query) and qtree.argnames:
-        argmap = qtree.argnames
-    else:
-        argmap = {}
 
     # Generate query text
     sql_text = run_codegen(qtree, pretty=pretty)

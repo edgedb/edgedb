@@ -151,7 +151,7 @@ def fini_expression(
     ir: irast.Set,
     *,
     ctx: context.ContextLevel,
-) -> irast.Command:
+) -> irast.Statement | irast.ConfigCommand:
 
     ctx.path_scope = ctx.env.path_scope
 
@@ -214,10 +214,15 @@ def fini_expression(
 
     ctx.path_scope.validate_unique_ids()
 
+    # Collect query parameters
+    params = collect_params(ctx)
+
     # ConfigSet and ConfigReset don't like being part of a Set, so bail early
     if isinstance(ir.expr, (irast.ConfigSet, irast.ConfigReset)):
         ir.expr.scope_tree = ctx.path_scope
         ir.expr.globals = list(ctx.env.query_globals.values())
+        ir.expr.params = params
+        ir.expr.schema = ctx.env.schema
 
         return ir.expr
 
@@ -249,22 +254,6 @@ def fini_expression(
     # If we are producing a schema view, clean up the result types
     if ctx.env.options.schema_view_mode:
         _fixup_schema_view(ctx=ctx)
-
-    # Collect query parameters
-    assert isinstance(ir, irast.Set)
-    lparams = [
-        p for p in ctx.env.query_parameters.values()
-        if not p.is_sub_param
-    ]
-    if lparams and lparams[0].name.isdecimal():
-        lparams.sort(key=lambda x: int(x.name))
-    params = []
-    # Now flatten it out, including all sub_params, making sure subparams
-    # appear in the right order.
-    for p in lparams:
-        params.append(p)
-        if p.sub_params:
-            params.extend(p.sub_params.params)
 
     result = irast.Statement(
         expr=ir,
@@ -299,6 +288,23 @@ def fini_expression(
         triggers=ir_triggers,
     )
     return result
+
+
+def collect_params(ctx: context.ContextLevel) -> List[irast.Param]:
+    lparams = [
+        p for p in ctx.env.query_parameters.values() if not p.is_sub_param
+    ]
+    if lparams and lparams[0].name.isdecimal():
+        lparams.sort(key=lambda x: int(x.name))
+
+    params = []
+    # Now flatten it out, including all sub_params, making sure subparams
+    # appear in the right order.
+    for p in lparams:
+        params.append(p)
+        if p.sub_params:
+            params.extend(p.sub_params.params)
+    return params
 
 
 def _fixup_materialized_sets(
