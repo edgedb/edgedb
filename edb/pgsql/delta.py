@@ -145,6 +145,8 @@ class CommandMeta(sd.CommandMeta):
 
 
 class MetaCommand(sd.Command, metaclass=CommandMeta):
+    pgops: ordered.OrderedSet[dbops.Command | sd.Command]
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.pgops = ordered.OrderedSet()
@@ -187,6 +189,7 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
 
     def generate(self, block: dbops.PLBlock) -> None:
         for op in self.pgops:
+            assert isinstance(op, (dbops.Command, MetaCommand))
             op.generate(block)
 
     @classmethod
@@ -7181,7 +7184,6 @@ class DeleteFutureBehavior(
 class DeltaRoot(MetaCommand, adapts=sd.DeltaRoot):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._renames = {}
         self.config_ops = []
 
     def apply(
@@ -7197,13 +7199,6 @@ class DeltaRoot(MetaCommand, adapts=sd.DeltaRoot):
         self.pgops.add(self.update_endpoint_delete_actions)
 
         return schema
-
-    def is_material(self):
-        return True
-
-    def generate(self, block: dbops.PLBlock) -> None:
-        for op in self.pgops:
-            op.generate(block)
 
 
 class MigrationCommand(MetaCommand):
