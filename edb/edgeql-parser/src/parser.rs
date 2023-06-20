@@ -91,7 +91,7 @@ impl<'s> Parser<'s> {
             let state = self.stack.last().unwrap().state;
 
             let Some(action) = self.spec.actions[state].get(&token.kind) else {
-                return Err(format!("Unexpected token: {}", token.text));
+                return Err(format!("Unexpected {token}"));
             };
 
             match action {
@@ -209,6 +209,18 @@ impl std::fmt::Debug for CSTNode {
             Self::Empty => f.write_str("<e>"),
             Self::Token(t) => f.write_str(&t.text),
             Self::Production { production, .. } => write!(f, "{production}"),
+        }
+    }
+}
+
+impl std::fmt::Display for ParserToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+
+        match self.kind.as_str() {
+            "EOF" => {
+                f.write_str("end of line")
+            }
+            _ => write!(f, "token: {}", self.kind),
         }
     }
 }

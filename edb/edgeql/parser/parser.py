@@ -58,9 +58,7 @@ class EdgeQLParserBase(parsing.ParserSpec):
                 # error occurred.
                 i, rule = self._get_rule()
 
-                if not token or token_kind == 'EOF':
-                    msg = 'Unexpected end of line'
-                elif (
+                if (
                     rule == 'shape' and
                     token_kind == 'IDENT' and
                     isinstance(ltok, parsing.Nonterm)
