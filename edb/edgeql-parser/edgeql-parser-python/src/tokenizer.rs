@@ -1,11 +1,9 @@
-use std::borrow::Cow;
 use std::collections::HashMap;
 
 use cpython::FromPyObject;
 use cpython::{ObjectProtocol, PyList, PyObject, PyTuple, ToPyObject};
 use cpython::{PyClone, PyResult, PyString, Python, PythonObject};
 
-use edgeql_parser::cparser::{self, ParserToken, Spec};
 use edgeql_parser::keywords::CURRENT_RESERVED_KEYWORDS;
 use edgeql_parser::keywords::FUTURE_RESERVED_KEYWORDS;
 use edgeql_parser::keywords::{PARTIAL_RESERVED_KEYWORDS, UNRESERVED_KEYWORDS};
@@ -17,10 +15,6 @@ use crate::errors::TokenizerError;
 use crate::pynormalize::{py_pos, value_to_py_object};
 
 static mut TOKENS: Option<Tokens> = None;
-
-static mut TOKENS_CHEESE: Option<TokensCheese> = None;
-
-static mut PARSER_SPECS: Option<HashMap<String, Spec>> = None;
 
 fn rs_pos(py: Python, value: &PyObject) -> PyResult<Pos> {
     let (line, column, offset) = FromPyObject::extract(py, value)?;
@@ -146,8 +140,8 @@ pub struct Tokens {
     unpickle_token: PyObject,
 }
 
-struct Cache {
-    keyword_buf: String,
+pub(super) struct Cache {
+    pub(super) keyword_buf: String,
 }
 
 pub struct TokenInfo {
@@ -159,8 +153,6 @@ pub struct TokenInfo {
 pub fn init_module(py: Python) {
     unsafe {
         TOKENS = Some(Tokens::new(py));
-        TOKENS_CHEESE = Some(TokensCheese::new());
-        PARSER_SPECS = Some(HashMap::new());
     }
 }
 
@@ -229,76 +221,6 @@ pub fn convert_tokens(py: Python, rust_tokens: Vec<PToken<'_>>, end_pos: Pos) ->
         .into_object(),
     );
     Ok(PyList::new(py, &buf[..]))
-}
-
-pub fn convert_tokens_cheese(
-    rust_tokens: Vec<PToken<'_>>,
-    _end_pos: Pos,
-) -> PyResult<Vec<ParserToken>> {
-    let tokens = unsafe { TOKENS_CHEESE.as_ref().expect("module initialized") };
-    let mut cache = Cache {
-        keyword_buf: String::with_capacity(MAX_KEYWORD_LENGTH),
-    };
-    let mut buf = Vec::with_capacity(rust_tokens.len());
-    for token in rust_tokens {
-        let (kind, text) =
-            get_token_kind_and_name_cheese(tokens, &mut cache, token.kind, token.text);
-
-        buf.push(ParserToken {
-            kind,
-            text,
-            value: token.value.and_then(|v| match v {
-                edgeql_parser::tokenizer::Value::String(s) => Some(s),
-                edgeql_parser::tokenizer::Value::Bytes(b) => Some(String::from_utf8(b).unwrap()),
-                _ => None,
-            }),
-            span: token.span,
-        });
-    }
-    buf.push(ParserToken {
-        kind: tokens.eof,
-        ..Default::default()
-    });
-    Ok(buf)
-}
-
-pub fn parse_cheese(py: Python, spec: &PyString, s: &PyString) -> PyResult<PyString> {
-    let spec = load_spec(py, spec.to_string(py)?.as_ref())?;
-
-    let data = s.to_string(py)?;
-
-    let mut token_stream = Tokenizer::new(&data[..]).validated_values();
-    let rust_tokens: Vec<_> = py
-        .allow_threads(|| (&mut token_stream).collect::<Result<_, _>>())
-        .map_err(|e| TokenizerError::new(py, (e.message, py_pos(py, &e.span.start))))?;
-    let cheese = convert_tokens_cheese(rust_tokens, token_stream.current_pos())?;
-
-    let out = cparser::cparse(spec, cheese)
-        .and_then(|out| {
-            serde_json::to_string(&out).map_err(|e| format!("cannot serialize CST: {e}"))
-        })
-        .map_err(|s| TokenizerError::new(py, (s, py.None())))?;
-
-    Ok(PyString::new(py, &*out))
-}
-
-fn load_spec(py: Python, parser_name: &str) -> PyResult<&'static Spec> {
-    let parser_specs = unsafe { PARSER_SPECS.as_mut().unwrap() };
-    if !parser_specs.contains_key(parser_name) {
-        let parser_mod = py.import("edb.edgeql.parser.parser")?;
-
-        let process_spec = py.import("edb.edgeql.parser")?.get(py, "process_spec")?;
-
-        let parser_cls = parser_mod.get(py, parser_name)?;
-        let parser = parser_cls.call(py, PyTuple::new(py, &[]), None)?;
-        let spec_json = process_spec.call(py, (parser,), None)?;
-
-        let spec: Spec = Spec::from_json(&spec_json.to_string()).unwrap();
-
-        parser_specs.insert(parser_name.to_string(), spec);
-    }
-
-    Ok(unsafe { PARSER_SPECS.as_ref().unwrap().get(parser_name).unwrap() })
 }
 
 impl Tokens {
@@ -589,284 +511,6 @@ fn get_token_kind_and_name(
             }
         },
         Substitution => (tokens.substitution.clone_ref(py), PyString::new(py, text)),
-    }
-}
-
-pub struct TokensCheese {
-    ident: &'static str,
-    argument: &'static str,
-    eof: &'static str,
-    substitution: &'static str,
-
-    named_only: &'static str,
-    named_only_val: &'static str,
-    set_annotation: &'static str,
-    set_annotation_val: &'static str,
-    set_type: &'static str,
-    set_type_val: &'static str,
-    extension_package: &'static str,
-    extension_package_val: &'static str,
-    order_by: &'static str,
-    order_by_val: &'static str,
-
-    dot: &'static str,
-    backward_link: &'static str,
-    open_bracket: &'static str,
-    close_bracket: &'static str,
-    open_paren: &'static str,
-    close_paren: &'static str,
-    open_brace: &'static str,
-    close_brace: &'static str,
-    namespace: &'static str,
-    double_splat: &'static str,
-    coalesce: &'static str,
-    colon: &'static str,
-    semicolon: &'static str,
-    comma: &'static str,
-    add: &'static str,
-    concat: &'static str,
-    sub: &'static str,
-    mul: &'static str,
-    div: &'static str,
-    floor_div: &'static str,
-    modulo: &'static str,
-    pow: &'static str,
-    less: &'static str,
-    greater: &'static str,
-    eq: &'static str,
-    ampersand: &'static str,
-    pipe: &'static str,
-    at: &'static str,
-
-    iconst: &'static str,
-    niconst: &'static str,
-    fconst: &'static str,
-    nfconst: &'static str,
-    bconst: &'static str,
-    sconst: &'static str,
-    op: &'static str,
-
-    greater_eq: &'static str,
-    less_eq: &'static str,
-    not_eq: &'static str,
-    distinct_from: &'static str,
-    not_distinct_from: &'static str,
-
-    assign: &'static str,
-    assign_op: &'static str,
-    add_assign: &'static str,
-    add_assign_op: &'static str,
-    sub_assign: &'static str,
-    sub_assign_op: &'static str,
-    arrow: &'static str,
-    arrow_op: &'static str,
-
-    keywords: HashMap<String, TokenInfoCheese>,
-}
-
-pub struct TokenInfoCheese {
-    pub kind: Kind,
-    pub name: String,
-    pub value: Option<String>,
-}
-
-impl TokensCheese {
-    pub fn new() -> TokensCheese {
-        let mut res = TokensCheese {
-            ident: "IDENT",
-            argument: "ARGUMENT",
-            eof: "EOF",
-            substitution: "SUBSTITUTION",
-            named_only: "NAMEDONLY",
-            named_only_val: "NAMED ONLY",
-            set_annotation: "SETANNOTATION",
-            set_annotation_val: "SET ANNOTATION",
-            set_type: "SETTYPE",
-            set_type_val: "SET TYPE",
-            extension_package: "EXTENSIONPACKAGE",
-            extension_package_val: "EXTENSION PACKAGE",
-            order_by: "ORDERBY",
-            order_by_val: "ORDER BY",
-
-            dot: ".",
-            backward_link: ".<",
-            open_bracket: "[",
-            close_bracket: "]",
-            open_paren: "(",
-            close_paren: ")",
-            open_brace: "{",
-            close_brace: "}",
-            namespace: "::",
-            double_splat: "**",
-            coalesce: "??",
-            colon: ":",
-            semicolon: ";",
-            comma: ",",
-            add: "+",
-            concat: "++",
-            sub: "-",
-            mul: "*",
-            div: "/",
-            floor_div: "//",
-            modulo: "%",
-            pow: "^",
-            less: "<",
-            greater: ">",
-            eq: "=",
-            ampersand: "&",
-            pipe: "|",
-            at: "@",
-
-            iconst: "ICONST",
-            niconst: "NICONST",
-            fconst: "FCONST",
-            nfconst: "NFCONST",
-            bconst: "BCONST",
-            sconst: "SCONST",
-            op: "OP",
-
-            // as OP
-            greater_eq: ">=",
-            less_eq: "<=",
-            not_eq: "!=",
-            distinct_from: "?!=",
-            not_distinct_from: "?=",
-
-            assign: "ASSIGN",
-            assign_op: ":=",
-            add_assign: "ADDASSIGN",
-            add_assign_op: "+=",
-            sub_assign: "REMASSIGN",
-            sub_assign_op: "-=",
-            arrow: "ARROW",
-            arrow_op: "->",
-
-            keywords: HashMap::new(),
-        };
-        // 'EOF'
-        for kw in UNRESERVED_KEYWORDS.iter() {
-            res.add_kw(kw);
-        }
-        for kw in PARTIAL_RESERVED_KEYWORDS.iter() {
-            res.add_kw(kw);
-        }
-        for kw in CURRENT_RESERVED_KEYWORDS.iter() {
-            res.add_kw(kw);
-        }
-        for kw in FUTURE_RESERVED_KEYWORDS.iter() {
-            res.add_kw(kw);
-        }
-        return res;
-    }
-    fn add_kw(&mut self, name: &str) {
-        let py_name = name.to_ascii_uppercase();
-        let tok_name = if name.starts_with("__") && name.ends_with("__") {
-            format!("DUNDER{}", name[2..name.len() - 2].to_ascii_uppercase())
-        } else {
-            py_name
-        };
-        self.keywords.insert(
-            name.into(),
-            TokenInfoCheese {
-                kind: if is_keyword(name) {
-                    Kind::Keyword
-                } else {
-                    Kind::Ident
-                },
-                name: tok_name,
-                value: None,
-            },
-        );
-    }
-}
-
-fn get_token_kind_and_name_cheese<'a, 'c>(
-    tokens: &'a TokensCheese,
-    cache: &'c mut Cache,
-    kind: Kind,
-    text: Cow<'a, str>,
-) -> (&'a str, String) {
-    use Kind::*;
-    match kind {
-        Assign => (tokens.assign, tokens.assign_op.to_string()),
-        SubAssign => (tokens.sub_assign, tokens.sub_assign_op.to_string()),
-        AddAssign => (tokens.add_assign, tokens.add_assign_op.to_string()),
-        Arrow => (tokens.arrow, tokens.arrow_op.to_string()),
-        Coalesce => (tokens.coalesce, tokens.coalesce.to_string()),
-        Namespace => (tokens.namespace, tokens.namespace.to_string()),
-        DoubleSplat => (tokens.double_splat, tokens.double_splat.to_string()),
-        BackwardLink => (tokens.backward_link, tokens.backward_link.to_string()),
-        FloorDiv => (tokens.floor_div, tokens.floor_div.to_string()),
-        Concat => (tokens.concat, tokens.concat.to_string()),
-        GreaterEq => (tokens.op, tokens.greater_eq.to_string()),
-        LessEq => (tokens.op, tokens.less_eq.to_string()),
-        NotEq => (tokens.op, tokens.not_eq.to_string()),
-        NotDistinctFrom => (tokens.op, tokens.not_distinct_from.to_string()),
-        DistinctFrom => (tokens.op, tokens.distinct_from.to_string()),
-        Comma => (tokens.comma, tokens.comma.to_string()),
-        OpenParen => (tokens.open_paren, tokens.open_paren.to_string()),
-        CloseParen => (tokens.close_paren, tokens.close_paren.to_string()),
-        OpenBracket => (tokens.open_bracket, tokens.open_bracket.to_string()),
-        CloseBracket => (tokens.close_bracket, tokens.close_bracket.to_string()),
-        OpenBrace => (tokens.open_brace, tokens.open_brace.to_string()),
-        CloseBrace => (tokens.close_brace, tokens.close_brace.to_string()),
-        Dot => (tokens.dot, tokens.dot.to_string()),
-        Semicolon => (tokens.semicolon, tokens.semicolon.to_string()),
-        Colon => (tokens.colon, tokens.colon.to_string()),
-        Add => (tokens.add, tokens.add.to_string()),
-        Sub => (tokens.sub, tokens.sub.to_string()),
-        Mul => (tokens.mul, tokens.mul.to_string()),
-        Div => (tokens.div, tokens.div.to_string()),
-        Modulo => (tokens.modulo, tokens.modulo.to_string()),
-        Pow => (tokens.pow, tokens.pow.to_string()),
-        Less => (tokens.less, tokens.less.to_string()),
-        Greater => (tokens.greater, tokens.greater.to_string()),
-        Eq => (tokens.eq, tokens.eq.to_string()),
-        Ampersand => (tokens.ampersand, tokens.ampersand.to_string()),
-        Pipe => (tokens.pipe, tokens.pipe.to_string()),
-        At => (tokens.at, tokens.at.to_string()),
-        Argument => (tokens.argument, text.to_string()),
-        DecimalConst => (tokens.nfconst, text.to_string()),
-        FloatConst => (tokens.fconst, text.to_string()),
-        IntConst => (tokens.iconst, text.to_string()),
-        BigIntConst => (tokens.niconst, text.to_string()),
-        BinStr => (tokens.bconst, text.to_string()),
-        Str => (tokens.sconst, text.to_string()),
-        BacktickName => (tokens.ident, text.to_string()),
-        Ident | Keyword => match text.as_ref() {
-            "named only" => (tokens.named_only, tokens.named_only_val.to_string()),
-            "set annotation" => (tokens.set_annotation, tokens.set_annotation_val.to_string()),
-            "set type" => (tokens.set_type, tokens.set_type_val.to_string()),
-            "extension package" => (
-                tokens.extension_package,
-                tokens.extension_package_val.to_string(),
-            ),
-            "order by" => (tokens.order_by, tokens.order_by_val.to_string()),
-
-            _ => {
-                if text.len() > MAX_KEYWORD_LENGTH {
-                    (tokens.ident, text.to_string())
-                } else {
-                    cache.keyword_buf.clear();
-                    cache.keyword_buf.push_str(&text);
-                    cache.keyword_buf.make_ascii_lowercase();
-
-                    let kind = match tokens.keywords.get(&cache.keyword_buf) {
-                        Some(keyword) => {
-                            debug_assert_eq!(keyword.kind, kind);
-
-                            keyword.name.as_str()
-                        }
-                        None => {
-                            debug_assert_eq!(Kind::Ident, kind);
-                            tokens.ident
-                        }
-                    };
-                    (kind, text.to_string())
-                }
-            }
-        },
-        Substitution => (tokens.substitution, text.to_string()),
     }
 }
 

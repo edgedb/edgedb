@@ -46,8 +46,8 @@ impl Spec {
 pub enum CSTNode<'a> {
     Empty,
     Token(ParserToken<'a>),
-    Value {
-        nonterm: String,
+    Production {
+        non_term: String,
         production: String,
         args: Vec<CSTNode<'a>>,
     },
@@ -115,8 +115,8 @@ impl<'s, 't> Parser<'s, 't> {
                         .map(|n| n.value)
                         .collect();
 
-                    let value = CSTNode::Value {
-                        nonterm: nonterm.clone(),
+                    let value = CSTNode::Production {
+                        non_term: nonterm.clone(),
                         production: production.clone(),
                         args,
                     };
@@ -191,7 +191,7 @@ impl<'s, 't> Parser<'s, 't> {
     }
 }
 
-pub fn cparse<'s, 't>(spec: &'s Spec, input: Vec<ParserToken<'t>>) -> Result<CSTNode<'t>, String> {
+pub fn parse<'s, 't>(spec: &'s Spec, input: Vec<ParserToken<'t>>) -> Result<CSTNode<'t>, String> {
     let mut parser = Parser::new(&spec);
 
     for token in input {
@@ -208,7 +208,7 @@ impl<'t> std::fmt::Debug for CSTNode<'t> {
         match self {
             Self::Empty => f.write_str("<e>"),
             Self::Token(t) => f.write_str(&t.text),
-            Self::Value { production, .. } => write!(f, "{production}"),
+            Self::Production { production, .. } => write!(f, "{production}"),
         }
     }
 }

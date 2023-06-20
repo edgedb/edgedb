@@ -33,6 +33,8 @@ from .grammar import commondl as gr_commondl
 from .grammar import keywords as gr_keywords
 from ..tokenizer import Source
 
+from edb import _edgeql_parser as eql_parser
+
 
 class EdgeQLParserBase(parsing.Parser):
     def get_debug(self):
@@ -307,11 +309,6 @@ class CheeseParser():
         source: Union[str, Source],
         filename: Optional[str] = None
     ):
-        from edb import _edgeql_parser as eql_parser
-
-        import sys
-        sys.setrecursionlimit(10000)
-
         if not isinstance(source, str):
             source = source.text()
 
@@ -320,9 +317,8 @@ class CheeseParser():
 
         try:
             parser_name = self.parser.__class__.__name__
-            cst_json = eql_parser.parse_cheese(parser_name, source)
+            cst = eql_parser.parse(parser_name, source)
 
-            cst = json.loads(cst_json)
             return self._cst_to_ast(cst).val
 
         except eql_parser.TokenizerError as e:
@@ -335,33 +331,27 @@ class CheeseParser():
         return self.parser.get_parser_spec(allow_rebuild=allow_rebuild)
 
 
-    def _cst_to_ast(self, cst):
-        if "nonterm" in cst:
-            # Production
+    def _cst_to_ast(self, cst: eql_parser.CSTNode):
+        if production := cst.production():
 
-            args = [self._cst_to_ast(a) for a in cst["args"]]
+            args = [self._cst_to_ast(a) for a in production.args()]
 
             mod = self.parser.get_parser_spec_module()
-            cls = mod.__dict__[cst["nonterm"]]
+            cls = mod.__dict__[production.non_term()]
             obj = cls()
-            method = cls.__dict__[cst["production"]]
+            method = cls.__dict__[production.production()]
             method(obj, *args)
             return obj
 
-        elif "kind" in cst:
-            # Token
+        elif token := cst.token():
 
-            cls = self.token_map[cst["kind"]]
-            span = cst.get("span") or None
             context = parsing.ParserContext(
                 name=self.filename,
                 buffer=self.source,
-                start=span.get("start").get("offset"),
-                end=span.get("end").get("offset")
-            ) if span else None
-
-            obj = cls(cst["text"], cst.get("value"), context)
-            return obj
+                start=token.start(),
+                end=token.end()
+            )
+            return parsing.Token(token.text(), token.value(), context)
 
         assert False, cst
 

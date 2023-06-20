@@ -7,14 +7,16 @@ mod errors;
 mod hash;
 mod keywords;
 pub mod normalize;
+mod parser;
 mod position;
 mod pynormalize;
 mod tokenizer;
 
 use errors::TokenizerError;
+use parser::{parse, CSTNode, Production};
 use position::{offset_of_line, SourcePoint};
 use pynormalize::normalize;
-use tokenizer::{get_unpickle_fn, parse_cheese, tokenize, Token};
+use tokenizer::{get_unpickle_fn, tokenize, Token};
 
 py_module_initializer!(
     _edgeql_parser,
@@ -22,6 +24,7 @@ py_module_initializer!(
     PyInit__edgeql_parser,
     |py, m| {
         tokenizer::init_module(py);
+        parser::init_module();
         let keywords = keywords::get_keywords(py)?;
         m.add(
             py,
@@ -30,11 +33,6 @@ py_module_initializer!(
         )?;
 
         m.add(py, "tokenize", py_fn!(py, tokenize(data: &PyString)))?;
-        m.add(
-            py,
-            "parse_cheese",
-            py_fn!(py, parse_cheese(spec: &PyString, data: &PyString)),
-        )?;
         m.add(py, "_unpickle_token", get_unpickle_fn(py))?;
         m.add(py, "Token", py.get_type::<Token>())?;
         m.add(py, "TokenizerError", py.get_type::<TokenizerError>())?;
@@ -51,6 +49,13 @@ py_module_initializer!(
         m.add(py, "partial_reserved_keywords", keywords.partial)?;
         m.add(py, "future_reserved_keywords", keywords.future)?;
         m.add(py, "current_reserved_keywords", keywords.current)?;
+        m.add(
+            py,
+            "parse",
+            py_fn!(py, parse(spec: &PyString, data: &PyString)),
+        )?;
+        m.add(py, "CSTNode", py.get_type::<CSTNode>())?;
+        m.add(py, "Production", py.get_type::<Production>())?;
         Ok(())
     }
 );
