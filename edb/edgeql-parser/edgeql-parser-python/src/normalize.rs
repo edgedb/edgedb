@@ -10,10 +10,10 @@ pub struct Variable {
     pub value: Value,
 }
 
-pub struct Entry<'a> {
+pub struct Entry {
     pub processed_source: String,
     pub hash: [u8; 64],
-    pub tokens: Vec<Token<'a>>,
+    pub tokens: Vec<Token>,
     pub variables: Vec<Vec<Variable>>,
     pub end_pos: Pos,
     pub named_args: bool,
@@ -26,7 +26,7 @@ pub enum Error {
     Assertion(String, Pos),
 }
 
-fn push_var<'x>(res: &mut Vec<Token<'x>>, module: &'x str, typ: &'x str,
+fn push_var<'x>(res: &mut Vec<Token>, module: &'x str, typ: &'x str,
     var: String, span: Span)
 {
     res.push(Token {kind: Kind::OpenParen, text: "(".into(), span, value: None});
@@ -42,7 +42,7 @@ fn push_var<'x>(res: &mut Vec<Token<'x>>, module: &'x str, typ: &'x str,
 }
 
 fn scan_vars<'x, 'y: 'x, I>(tokens: I) -> Option<(bool, usize)>
-    where I: IntoIterator<Item=&'x Token<'y>>,
+    where I: IntoIterator<Item=&'x Token>,
 {
     let mut max_visited = None::<usize>;
     let mut names = BTreeSet::new();
@@ -277,7 +277,7 @@ fn is_operator(token: &Token) -> bool {
     }
 }
 
-fn serialize_tokens(tokens: &[Token<'_>]) -> String {
+fn serialize_tokens(tokens: &[Token]) -> String {
     use edgeql_parser::tokenizer::Kind::Argument;
 
     let mut buf = String::new();
@@ -297,7 +297,7 @@ mod test {
     use super::scan_vars;
     use edgeql_parser::tokenizer::{Token, Tokenizer};
 
-    fn tokenize<'x>(s: &'x str) -> Vec<Token<'x>> {
+    fn tokenize<'x>(s: &'x str) -> Vec<Token> {
         let mut r = Vec::new();
         let mut s = Tokenizer::new(s);
         loop {

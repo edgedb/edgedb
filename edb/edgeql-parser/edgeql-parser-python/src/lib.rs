@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate cpython;
 
-use cpython::PyString;
+use cpython::{PyObject, PyString};
 
 mod errors;
 mod hash;
@@ -52,7 +52,7 @@ py_module_initializer!(
         m.add(
             py,
             "parse",
-            py_fn!(py, parse(spec: &PyString, data: &PyString)),
+            py_fn!(py, parse(parser_name: &PyString, data: PyObject)),
         )?;
         m.add(py, "CSTNode", py.get_type::<CSTNode>())?;
         m.add(py, "Production", py.get_type::<Production>())?;

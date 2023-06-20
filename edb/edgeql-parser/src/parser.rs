@@ -43,36 +43,36 @@ impl Spec {
 
 #[derive(Serialize)]
 #[serde(untagged)]
-pub enum CSTNode<'a> {
+pub enum CSTNode {
     Empty,
-    Token(ParserToken<'a>),
+    Token(ParserToken),
     Production {
         non_term: String,
         production: String,
-        args: Vec<CSTNode<'a>>,
+        args: Vec<CSTNode>,
     },
 }
 
 #[derive(Serialize, Default)]
-pub struct ParserToken<'a> {
-    pub kind: &'a str,
+pub struct ParserToken {
+    pub kind: String,
     pub text: String,
     pub value: Option<String>,
     pub span: Span,
 }
 
 #[derive(Debug)]
-struct StackNode<'a> {
+struct StackNode {
     state: usize,
-    value: CSTNode<'a>,
+    value: CSTNode,
 }
 
-pub struct Parser<'s, 't> {
+pub struct Parser<'s> {
     spec: &'s Spec,
-    stack: Vec<StackNode<'t>>,
+    stack: Vec<StackNode>,
 }
 
-impl<'s, 't> Parser<'s, 't> {
+impl<'s> Parser<'s> {
     fn new(spec: &'s Spec) -> Self {
         Parser {
             spec,
@@ -83,14 +83,14 @@ impl<'s, 't> Parser<'s, 't> {
         }
     }
 
-    pub fn act(&mut self, token: ParserToken<'t>) -> Result<(), String> {
+    pub fn act(&mut self, token: ParserToken) -> Result<(), String> {
         // self.print_stack();
         // println!("INPUT: {}", token.text);
 
         loop {
             let state = self.stack.last().unwrap().state;
 
-            let Some(action) = self.spec.actions[state].get(token.kind) else {
+            let Some(action) = self.spec.actions[state].get(&token.kind) else {
                 return Err(format!("Unexpected token: {}", token.text));
             };
 
@@ -145,7 +145,7 @@ impl<'s, 't> Parser<'s, 't> {
         const EOI: &str = "<$>";
 
         self.act(ParserToken {
-            kind: EOI,
+            kind: EOI.to_string(),
             ..Default::default()
         })?;
 
@@ -153,7 +153,7 @@ impl<'s, 't> Parser<'s, 't> {
         debug_assert!(eof.is_some());
         debug_assert!(matches!(
             eof.unwrap().value,
-            CSTNode::Token(ParserToken { kind: EOI, .. })
+            CSTNode::Token(ParserToken { kind, .. }) if kind == EOI
         ));
 
         // self.print_stack();
@@ -163,8 +163,8 @@ impl<'s, 't> Parser<'s, 't> {
         {
             let first = self.stack.first().unwrap();
             assert!(matches!(
-                first.value,
-                CSTNode::Token(ParserToken { kind: "<e>", .. })
+                &first.value,
+                CSTNode::Token(ParserToken { kind, .. }) if kind == "<e>"
             ));
         }
         Ok(())
@@ -191,7 +191,7 @@ impl<'s, 't> Parser<'s, 't> {
     }
 }
 
-pub fn parse<'s, 't>(spec: &'s Spec, input: Vec<ParserToken<'t>>) -> Result<CSTNode<'t>, String> {
+pub fn parse<'s, 't>(spec: &'s Spec, input: Vec<ParserToken>) -> Result<CSTNode, String> {
     let mut parser = Parser::new(&spec);
 
     for token in input {
@@ -203,7 +203,7 @@ pub fn parse<'s, 't>(spec: &'s Spec, input: Vec<ParserToken<'t>>) -> Result<CSTN
     Ok(out.value)
 }
 
-impl<'t> std::fmt::Debug for CSTNode<'t> {
+impl std::fmt::Debug for CSTNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Empty => f.write_str("<e>"),

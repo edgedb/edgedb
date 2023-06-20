@@ -14,9 +14,9 @@ use crate::position::{Pos, Span};
 pub const MAX_KEYWORD_LENGTH: usize = 16;
 
 #[derive(Debug, Clone)]
-pub struct Token<'a> {
+pub struct Token {
     pub kind: Kind,
-    pub text: Cow<'a, str>,
+    pub text: String,
 
     /// Parsed during validation.
     pub value: Option<Value>,
@@ -141,7 +141,7 @@ pub struct Checkpoint {
 }
 
 impl<'a> Iterator for Tokenizer<'a> {
-    type Item = Result<Token<'a>, Error>;
+    type Item = Result<Token, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let start = self.current_pos();
@@ -889,7 +889,7 @@ impl<'a> fmt::Display for TokenStub<'a> {
     }
 }
 
-impl<'a> fmt::Display for Token<'a> {
+impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}[{:?}]", self.text, self.kind)
     }
@@ -1025,7 +1025,7 @@ pub fn is_keyword(s: &str) -> bool {
     }
 }
 
-impl <'a> std::cmp::PartialEq for Token<'a> {
+impl std::cmp::PartialEq for Token {
     fn eq(&self, other: &Self) -> bool {
         self.kind == other.kind && self.text == other.text && self.value == other.value
     }

@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
-use cpython::FromPyObject;
+use cpython::{FromPyObject, PyClone, PyResult, PyString, Python, PythonObject};
 use cpython::{ObjectProtocol, PyList, PyObject, PyTuple, ToPyObject};
-use cpython::{PyClone, PyResult, PyString, Python, PythonObject};
 
 use edgeql_parser::keywords::CURRENT_RESERVED_KEYWORDS;
 use edgeql_parser::keywords::FUTURE_RESERVED_KEYWORDS;
 use edgeql_parser::keywords::{PARTIAL_RESERVED_KEYWORDS, UNRESERVED_KEYWORDS};
-use edgeql_parser::position::Pos;
+use edgeql_parser::position::{Pos, Span};
 use edgeql_parser::tokenizer::MAX_KEYWORD_LENGTH;
 use edgeql_parser::tokenizer::{is_keyword, Kind, Token as PToken, Tokenizer};
 
@@ -15,15 +14,6 @@ use crate::errors::TokenizerError;
 use crate::pynormalize::{py_pos, value_to_py_object};
 
 static mut TOKENS: Option<Tokens> = None;
-
-fn rs_pos(py: Python, value: &PyObject) -> PyResult<Pos> {
-    let (line, column, offset) = FromPyObject::extract(py, value)?;
-    Ok(Pos {
-        line,
-        column,
-        offset,
-    })
-}
 
 py_class!(pub class Token |py| {
     data _kind: PyString;
@@ -70,6 +60,51 @@ py_class!(pub class Token |py| {
         ).to_py_object(py))
     }
 });
+
+pub fn tokenize(py: Python, s: &PyString) -> PyResult<PyList> {
+    let data = s.to_string(py)?;
+
+    let mut token_stream = Tokenizer::new(&data[..]).validated_values();
+    let rust_tokens: Vec<_> = py
+        .allow_threads(|| (&mut token_stream).collect::<Result<_, _>>())
+        .map_err(|e| TokenizerError::new(py, (e.message, py_pos(py, &e.span.start))))?;
+    return convert_tokens(py, rust_tokens, token_stream.current_pos());
+}
+
+pub fn convert_tokens(py: Python, rust_tokens: Vec<PToken>, end_pos: Pos) -> PyResult<PyList> {
+    let tokens = unsafe { TOKENS.as_ref().expect("module initialized") };
+    let mut cache = Cache {
+        keyword_buf: String::with_capacity(MAX_KEYWORD_LENGTH),
+    };
+
+    let mut buf = Vec::with_capacity(rust_tokens.len());
+    for tok in rust_tokens {
+        let (kind, text) = get_token_kind_and_name(py, tokens, &mut cache, &tok);
+
+        let value = tok
+            .value
+            .as_ref()
+            .map(|v| value_to_py_object(py, v))
+            .transpose()?
+            .unwrap_or_else(|| py.None());
+
+        let py_tok = Token::create_instance(py, kind, text, value, tok.span.start, tok.span.end)?;
+
+        buf.push(py_tok.into_object());
+    }
+    buf.push(
+        Token::create_instance(
+            py,
+            tokens.eof.clone_ref(py),
+            tokens.empty.clone_ref(py),
+            py.None(),
+            end_pos,
+            end_pos,
+        )?
+        .into_object(),
+    );
+    Ok(PyList::new(py, &buf[..]))
+}
 
 pub struct Tokens {
     ident: PyString,
@@ -154,73 +189,6 @@ pub fn init_module(py: Python) {
     unsafe {
         TOKENS = Some(Tokens::new(py));
     }
-}
-
-pub fn _unpickle_token(
-    py: Python,
-    kind: &PyString,
-    text: &PyString,
-    value: &PyObject,
-    start: &PyObject,
-    end: &PyObject,
-) -> PyResult<Token> {
-    // TODO(tailhook) We might some strings from Tokens structure
-    //                (i.e. internning them).
-    //                But if we're storing a collection of tokens
-    //                they will store the tokens only once, so it
-    //                doesn't seem to help that much.
-    Token::create_instance(
-        py,
-        kind.clone_ref(py),
-        text.clone_ref(py),
-        value.clone_ref(py),
-        rs_pos(py, start)?,
-        rs_pos(py, end)?,
-    )
-}
-
-pub fn tokenize(py: Python, s: &PyString) -> PyResult<PyList> {
-    let data = s.to_string(py)?;
-
-    let mut token_stream = Tokenizer::new(&data[..]).validated_values();
-    let rust_tokens: Vec<_> = py
-        .allow_threads(|| (&mut token_stream).collect::<Result<_, _>>())
-        .map_err(|e| TokenizerError::new(py, (e.message, py_pos(py, &e.span.start))))?;
-    return convert_tokens(py, rust_tokens, token_stream.current_pos());
-}
-
-pub fn convert_tokens(py: Python, rust_tokens: Vec<PToken<'_>>, end_pos: Pos) -> PyResult<PyList> {
-    let tokens = unsafe { TOKENS.as_ref().expect("module initialized") };
-    let mut cache = Cache {
-        keyword_buf: String::with_capacity(MAX_KEYWORD_LENGTH),
-    };
-    let mut buf = Vec::with_capacity(rust_tokens.len());
-    for tok in rust_tokens {
-        let (kind, text) = get_token_kind_and_name(py, tokens, &mut cache, &tok);
-
-        let value = tok
-            .value
-            .as_ref()
-            .map(|v| value_to_py_object(py, v))
-            .transpose()?
-            .unwrap_or_else(|| py.None());
-
-        let py_tok = Token::create_instance(py, kind, text, value, tok.span.start, tok.span.end)?;
-
-        buf.push(py_tok.into_object());
-    }
-    buf.push(
-        Token::create_instance(
-            py,
-            tokens.eof.clone_ref(py),
-            tokens.empty.clone_ref(py),
-            py.None(),
-            end_pos,
-            end_pos,
-        )?
-        .into_object(),
-    );
-    Ok(PyList::new(py, &buf[..]))
 }
 
 impl Tokens {
@@ -517,4 +485,45 @@ fn get_token_kind_and_name(
 pub fn get_unpickle_fn(py: Python) -> PyObject {
     let tokens = unsafe { TOKENS.as_ref().expect("module initialized") };
     return tokens.unpickle_token.clone_ref(py);
+}
+
+impl Token {
+    pub(super) fn span(&self, py: Python) -> Span {
+        Span {
+            start: self._start(py).clone(),
+            end: self._end(py).clone(),
+        }
+    }
+}
+
+pub fn _unpickle_token(
+    py: Python,
+    kind: &PyString,
+    text: &PyString,
+    value: &PyObject,
+    start: &PyObject,
+    end: &PyObject,
+) -> PyResult<Token> {
+    // TODO(tailhook) We might some strings from Tokens structure
+    //                (i.e. internning them).
+    //                But if we're storing a collection of tokens
+    //                they will store the tokens only once, so it
+    //                doesn't seem to help that much.
+    Token::create_instance(
+        py,
+        kind.clone_ref(py),
+        text.clone_ref(py),
+        value.clone_ref(py),
+        rs_pos(py, start)?,
+        rs_pos(py, end)?,
+    )
+}
+
+fn rs_pos(py: Python, value: &PyObject) -> PyResult<Pos> {
+    let (line, column, offset) = FromPyObject::extract(py, value)?;
+    Ok(Pos {
+        line,
+        column,
+        offset,
+    })
 }

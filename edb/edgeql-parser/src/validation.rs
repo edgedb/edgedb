@@ -12,12 +12,12 @@ use crate::tokenizer::{Error, Kind, Token, Tokenizer, Value, MAX_KEYWORD_LENGTH}
 pub struct Validator<'a> {
     pub inner: Tokenizer<'a>,
 
-    pub(super) peeked: Option<Option<Result<Token<'a>, Error>>>,
+    pub(super) peeked: Option<Option<Result<Token, Error>>>,
     pub(super) keyword_buf: String,
 }
 
 impl<'a> Iterator for Validator<'a> {
-    type Item = Result<Token<'a>, Error>;
+    type Item = Result<Token, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut token = match self.next_inner()? {
@@ -51,7 +51,7 @@ impl<'a> Validator<'a> {
 
     /// Mimics behavior of [std::iter::Peekable]. We could use that, but it
     /// hides access to underlying iterator.
-    fn next_inner(&mut self) -> Option<Result<Token<'a>, Error>> {
+    fn next_inner(&mut self) -> Option<Result<Token, Error>> {
         if let Some(peeked) = self.peeked.take() {
             peeked
         } else {
@@ -61,7 +61,7 @@ impl<'a> Validator<'a> {
 
     /// Mimics behavior of [std::iter::Peekable]. We could use that, but it
     /// hides access to underlying iterator.
-    fn peek(&mut self) -> &Option<Result<Token<'a>, Error>> {
+    fn peek(&mut self) -> &Option<Result<Token, Error>> {
         if self.peeked.is_none() {
             self.peeked = Some(self.inner.next());
         }
@@ -127,7 +127,7 @@ impl<'a> Validator<'a> {
     }
 }
 
-pub fn parse_value(token: &Token<'_>) -> Result<Option<Value>, String> {
+pub fn parse_value(token: &Token) -> Result<Option<Value>, String> {
     use Kind::*;
     let text = &token.text;
     let string_value = match token.kind {

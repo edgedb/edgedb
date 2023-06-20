@@ -31,7 +31,7 @@ from .grammar import rust_lexer, tokens
 from .grammar import expressions as gr_exprs
 from .grammar import commondl as gr_commondl
 from .grammar import keywords as gr_keywords
-from ..tokenizer import Source
+from .. import tokenizer
 
 from edb import _edgeql_parser as eql_parser
 
@@ -292,12 +292,11 @@ class CheeseParser():
     parser: EdgeQLParserBase
 
     filename: Optional[str]
-    source: str
+    source: tokenizer.Source
 
     def __init__(self, p: EdgeQLParserBase):
         self.parser = p
         self.filename = None
-        self.source = ''
 
         mod = self.parser.get_parser_spec_module()
         self.token_map = {}
@@ -306,18 +305,18 @@ class CheeseParser():
 
     def parse(
         self,
-        source: Union[str, Source],
+        source: Union[str, tokenizer.Source],
         filename: Optional[str] = None
     ):
-        if not isinstance(source, str):
-            source = source.text()
+        if isinstance(source, str):
+            source = tokenizer.Source.from_string(source)
 
         self.filename = filename
         self.source = source
 
         try:
             parser_name = self.parser.__class__.__name__
-            cst = eql_parser.parse(parser_name, source)
+            cst = eql_parser.parse(parser_name, source.tokens())
 
             return self._cst_to_ast(cst).val
 
@@ -332,28 +331,48 @@ class CheeseParser():
 
 
     def _cst_to_ast(self, cst: eql_parser.CSTNode):
-        if production := cst.production():
+        stack: List[eql_parser.CSTNode | eql_parser.Production] = [cst]
+        result: List[Any] = []
 
-            args = [self._cst_to_ast(a) for a in production.args()]
+        while len(stack) > 0:
+            node = stack.pop()
 
-            mod = self.parser.get_parser_spec_module()
-            cls = mod.__dict__[production.non_term()]
-            obj = cls()
-            method = cls.__dict__[production.production()]
-            method(obj, *args)
-            return obj
+            if isinstance(node, eql_parser.CSTNode):
 
-        elif token := cst.token():
+                if token := node.token():
 
-            context = parsing.ParserContext(
-                name=self.filename,
-                buffer=self.source,
-                start=token.start(),
-                end=token.end()
-            )
-            return parsing.Token(token.text(), token.value(), context)
+                    context = parsing.ParserContext(
+                        name=self.filename,
+                        buffer=self.source.text(),
+                        start=token.start(),
+                        end=token.end()
+                    )
+                    result.append(
+                        parsing.Token(token.text(), token.value(), context)
+                    )
 
-        assert False, cst
+                elif production := node.production():
+                    stack.append(production)
+                    args = list(production.args())
+                    args.reverse()
+                    stack.extend(args)
+                else:
+                    assert False, node
+
+            elif isinstance(node, eql_parser.Production):
+                len_args = len(node.args())
+                split_at = len(result)-len_args
+                args = result[split_at:]
+                result = result[0:split_at]
+
+                mod = self.parser.get_parser_spec_module()
+                cls = mod.__dict__[node.non_term()]
+                obj = cls()
+                method = cls.__dict__[node.production()]
+                method(obj, *args)
+                result.append(obj)
+        return result.pop()
+
 
 
 class EdgeQLSingleParser(EdgeQLParserBase):
