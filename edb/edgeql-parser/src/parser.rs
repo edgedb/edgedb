@@ -5,6 +5,18 @@ use serde::Serialize;
 
 use crate::position::Span;
 
+pub fn parse<'s, 't>(spec: &'s Spec, input: Vec<Terminal>) -> Result<CSTNode, String> {
+    let mut parser = Parser::new(&spec);
+
+    for token in input {
+        parser.act(token)?;
+    }
+    parser.eoi()?;
+
+    let out = parser.stack.pop().ok_or("stack empty")?;
+    Ok(out.value)
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub enum Action {
@@ -22,15 +34,15 @@ pub struct Spec {
     pub start: String,
 }
 
-#[derive(Deserialize)]
-pub struct SpecJson {
-    pub actions: Vec<Vec<(String, Action)>>,
-    pub goto: Vec<Vec<(String, usize)>>,
-    pub start: String,
-}
-
 impl Spec {
     pub fn from_json(j_spec: &str) -> Result<Spec, String> {
+        #[derive(Deserialize)]
+        pub struct SpecJson {
+            pub actions: Vec<Vec<(String, Action)>>,
+            pub goto: Vec<Vec<(String, usize)>>,
+            pub start: String,
+        }
+
         let v = serde_json::from_str::<SpecJson>(j_spec).map_err(|e| e.to_string())?;
 
         Ok(Spec {
@@ -45,7 +57,7 @@ impl Spec {
 #[serde(untagged)]
 pub enum CSTNode {
     Empty,
-    Token(ParserToken),
+    Terminal(Terminal),
     Production {
         non_term: String,
         production: String,
@@ -54,7 +66,7 @@ pub enum CSTNode {
 }
 
 #[derive(Serialize, Default)]
-pub struct ParserToken {
+pub struct Terminal {
     pub kind: String,
     pub text: String,
     pub value: Option<String>,
@@ -83,7 +95,7 @@ impl<'s> Parser<'s> {
         }
     }
 
-    pub fn act(&mut self, token: ParserToken) -> Result<(), String> {
+    pub fn act(&mut self, token: Terminal) -> Result<(), String> {
         // self.print_stack();
         // println!("INPUT: {}", token.text);
 
@@ -100,7 +112,7 @@ impl<'s> Parser<'s> {
 
                     self.stack.push(StackNode {
                         state: *next,
-                        value: CSTNode::Token(token),
+                        value: CSTNode::Terminal(token),
                     });
                     break;
                 }
@@ -144,7 +156,7 @@ impl<'s> Parser<'s> {
     pub fn eoi(&mut self) -> Result<(), String> {
         const EOI: &str = "<$>";
 
-        self.act(ParserToken {
+        self.act(Terminal {
             kind: EOI.to_string(),
             ..Default::default()
         })?;
@@ -153,7 +165,7 @@ impl<'s> Parser<'s> {
         debug_assert!(eof.is_some());
         debug_assert!(matches!(
             eof.unwrap().value,
-            CSTNode::Token(ParserToken { kind, .. }) if kind == EOI
+            CSTNode::Terminal(Terminal { kind, .. }) if kind == EOI
         ));
 
         // self.print_stack();
@@ -164,7 +176,7 @@ impl<'s> Parser<'s> {
             let first = self.stack.first().unwrap();
             assert!(matches!(
                 &first.value,
-                CSTNode::Token(ParserToken { kind, .. }) if kind == "<e>"
+                CSTNode::Terminal(Terminal { kind, .. }) if kind == "<e>"
             ));
         }
         Ok(())
@@ -191,35 +203,20 @@ impl<'s> Parser<'s> {
     }
 }
 
-pub fn parse<'s, 't>(spec: &'s Spec, input: Vec<ParserToken>) -> Result<CSTNode, String> {
-    let mut parser = Parser::new(&spec);
-
-    for token in input {
-        parser.act(token)?;
-    }
-    parser.eoi()?;
-
-    let out = parser.stack.pop().ok_or("stack empty")?;
-    Ok(out.value)
-}
-
 impl std::fmt::Debug for CSTNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Empty => f.write_str("<e>"),
-            Self::Token(t) => f.write_str(&t.text),
+            Self::Terminal(t) => f.write_str(&t.text),
             Self::Production { production, .. } => write!(f, "{production}"),
         }
     }
 }
 
-impl std::fmt::Display for ParserToken {
+impl std::fmt::Display for Terminal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-
         match self.kind.as_str() {
-            "EOF" => {
-                f.write_str("end of line")
-            }
+            "EOF" => f.write_str("end of line"),
             _ => write!(f, "token: {}", self.kind),
         }
     }

@@ -329,17 +329,17 @@ class CheeseParser():
 
             if isinstance(node, eql_parser.CSTNode):
 
-                if token := node.token():
+                if terminal := node.terminal():
 
                     context = parsing.ParserContext(
                         name=self.filename,
                         buffer=self.source.text(),
-                        start=token.start(),
-                        end=token.end()
+                        start=terminal.start(),
+                        end=terminal.end()
                     )
-                    result.append(
-                        parsing.Token(token.text(), token.value(), context)
-                    )
+                    result.append(parsing.Token(
+                        terminal.text(), terminal.value(), context
+                    ))
 
                 elif production := node.production():
                     stack.append(production)

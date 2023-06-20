@@ -13,13 +13,13 @@ use crate::tokenizer::Token;
 
 py_class!(pub class CSTNode |py| {
     data _production: PyObject;
-    data _token: PyObject;
+    data _terminal: PyObject;
 
     def production(&self) -> PyResult<PyObject> {
         Ok(self._production(py).clone_ref(py))
     }
-    def token(&self) -> PyResult<PyObject> {
-        Ok(self._token(py).clone_ref(py))
+    def terminal(&self) -> PyResult<PyObject> {
+        Ok(self._terminal(py).clone_ref(py))
     }
 });
 
@@ -39,7 +39,7 @@ py_class!(pub class Production |py| {
     }
 });
 
-py_class!(pub class ParserToken |py| {
+py_class!(pub class Terminal |py| {
     data _text: PyString;
     data _value: PyObject;
     data _start: u64;
@@ -67,7 +67,7 @@ pub fn init_module() {
     }
 }
 
-pub fn convert_tokens<'a>(py: Python, tokens: PyObject) -> PyResult<Vec<parser::ParserToken>> {
+pub fn convert_tokens<'a>(py: Python, tokens: PyObject) -> PyResult<Vec<parser::Terminal>> {
     let tokens = PyList::downcast_from(py, tokens)?;
 
     let mut buf = Vec::with_capacity(tokens.len(py));
@@ -81,7 +81,7 @@ pub fn convert_tokens<'a>(py: Python, tokens: PyObject) -> PyResult<Vec<parser::
             Some(value.to_string())
         };
 
-        buf.push(parser::ParserToken {
+        buf.push(parser::Terminal {
             kind: token.kind(py)?.to_string(py)?.to_string(),
             text: token.text(py)?.to_string(py)?.to_string(),
             value,
@@ -125,10 +125,10 @@ fn load_spec(py: Python, parser_name: &str) -> PyResult<&'static parser::Spec> {
 fn to_py_cst<'a>(cst: parser::CSTNode, py: Python) -> PyResult<CSTNode> {
     match cst {
         parser::CSTNode::Empty => CSTNode::create_instance(py, py.None(), py.None()),
-        parser::CSTNode::Token(token) => CSTNode::create_instance(
+        parser::CSTNode::Terminal(token) => CSTNode::create_instance(
             py,
             py.None(),
-            ParserToken::create_instance(
+            Terminal::create_instance(
                 py,
                 token.text.into_py_object(py),
                 token.value.map(|v| v.into_py_object(py)).into_py_object(py),
