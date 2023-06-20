@@ -453,6 +453,7 @@ class MultiSchemaPool(pool_mod.FixedPool):
                 "compile",
                 "compile_notebook",
                 "compile_graphql",
+                "compile_sql",
             }:
                 pickled = await self._call_for_client(
                     client_id, method_name, args, msg
