@@ -20,14 +20,12 @@ from __future__ import annotations
 
 from typing import *
 
-import json
-
 from edb import errors
-from edb.common import debug, parsing
+from edb.common import parsing
 from edb.common import context as pctx
 from edb.common.english import add_a as a
 
-from .grammar import rust_lexer, tokens
+from .grammar import tokens
 from .grammar import expressions as gr_exprs
 from .grammar import commondl as gr_commondl
 from .grammar import keywords as gr_keywords
@@ -36,10 +34,7 @@ from .. import tokenizer
 from edb import _edgeql_parser as eql_parser
 
 
-class EdgeQLParserBase(parsing.Parser):
-    def get_debug(self):
-        return debug.flags.edgeql_parser
-
+class EdgeQLParserBase(parsing.ParserSpec):
     def get_exception(self, native_err, context, token=None):
         msg = native_err.args[0]
         details = None
@@ -281,10 +276,7 @@ class EdgeQLParserBase(parsing.Parser):
 
         return i, rule
 
-    def get_lexer(self):
-        return rust_lexer.EdgeQLLexer()
-
-    def get_cheese(self):
+    def get_parser(self):
         return CheeseParser(self)
 
 

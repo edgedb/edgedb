@@ -30,13 +30,7 @@ import re
 import parsing
 
 from edb.common.exceptions import add_context, get_context
-from edb.common import context as pctx
-from edb.edgeql import tokenizer
-from edb.errors import EdgeQLSyntaxError
-from edb import _edgeql_parser as ql_parser
-
-if TYPE_CHECKING:
-    from edb.edgeql.parser.grammar import rust_lexer
+from edb.common import context as pctx, debug
 
 ParserContext = pctx.ParserContext
 
@@ -336,35 +330,18 @@ class ParserError(Exception):
             return None
 
 
-def _derive_hint(
-    input: str,
-    message: str,
-    position: Tuple[int, int, int],
-) -> Optional[str]:
-    _, _, off = position
-    if message == r"invalid string literal: invalid escape sequence '\ '":
-        if TRAILING_WS_IN_CONTINUATION.search(input[off:]):
-            return "consider removing trailing whitespace"
-    return None
-
-
-class Parser:
+class ParserSpec:
     parser_spec: ClassVar[parsing.Spec | None]
-    lexer: Optional[rust_lexer.EdgeQLLexer]
 
     def __init__(self, **parser_data):
-        self.lexer = None
-        self.parser = None
         self.parser_data = parser_data
 
     def cleanup(self):
         self.__class__.parser_spec = None
         self.__class__.lexer_spec = None
-        self.lexer = None
-        self.parser = None
 
     def get_debug(self):
-        return False
+        return debug.flags.edgeql_parser
 
     def get_exception(self, native_err, context, token=None):
         if not isinstance(native_err, ParserError):
@@ -421,92 +398,6 @@ class Parser:
         return os.path.join(
             os.path.dirname(mod.__file__),
             mod.__name__.rpartition('.')[2] + '.' + type)
-
-    def get_lexer(self):
-        """Return an initialized lexer.
-
-        The lexer must implement 'setinputstr' and 'token' methods.
-        A lexer derived from edb.common.lexer.Lexer will satisfy these
-        criteria.
-        """
-        raise NotImplementedError
-
-    def reset_parser(
-        self,
-        input: Union[str, tokenizer.Source],
-        filename: Optional[str]=None
-    ):
-        if not self.parser:
-            self.lexer = self.get_lexer()
-            self.parser = parsing.Lr(self.get_parser_spec())
-            self.parser.parser_data = self.parser_data
-            self.parser.verbose = self.get_debug()
-
-        self.parser.reset()
-        assert self.lexer
-        self.lexer.setinputstr(input, filename=filename)
-
-    def convert_lex_token(self, mod: Any, tok: ql_parser.Token) -> Token:
-        token_cls = mod.TokenMeta.for_lex_token(tok.kind())
-        return token_cls(tok.text(), tok.value(), self.context(tok))
-
-    def parse(
-        self,
-        input: Union[str, tokenizer.Source],
-        filename: Optional[str] = None
-    ):
-        try:
-            self.reset_parser(input, filename=filename)
-            assert self.lexer
-            mod = self.get_parser_spec_module()
-
-            while tok := self.lexer.token():
-                token = self.convert_lex_token(mod, tok)
-                if token is None:
-                    continue
-
-                self.parser.token(token)
-
-            self.parser.eoi()
-
-        except ql_parser.TokenizerError as e:
-            message, position = e.args
-
-            assert self.lexer
-            hint = _derive_hint(self.lexer.inputstr, message, position)
-
-            raise EdgeQLSyntaxError(
-                message, context=self.context(pos=position), hint=hint
-            ) from e
-
-        except parsing.UnexpectedToken as e:
-            raise self.get_exception(
-                e, context=self.context(tok), token=tok
-            ) from e
-
-        except ParserError as e:
-            raise self.get_exception(e, context=e.context) from e
-
-        return self.parser.start[0].val
-
-    def context(self, tok=None, pos: Optional[Tuple[int, int, int]] = None):
-        lex = self.lexer
-        assert lex
-        name = lex.filename if lex.filename else '<string>'
-
-        if tok is None:
-            if pos is None:
-                pos = lex.end_of_input
-            context = pctx.ParserContext(
-                name=name, buffer=lex.inputstr,
-                start=pos[2], end=pos[2])
-        else:
-            context = pctx.ParserContext(
-                name=name, buffer=lex.inputstr,
-                start=tok.start()[2],
-                end=tok.end()[2])
-
-        return context
 
 
 def line_col_from_char_offset(source, position):

@@ -36,7 +36,7 @@ class EdgeQLSyntaxTest(tb.BaseSyntaxTest):
 
     @classmethod
     def get_parser(cls):
-        return edgeql_parser.EdgeQLBlockParser().get_cheese()
+        return edgeql_parser.EdgeQLBlockParser().get_parser()
 
 
 class TestEdgeQLParser(EdgeQLSyntaxTest):

@@ -50,7 +50,7 @@ def parse_fragment(
     source: Union[qltokenizer.Source, str],
     filename: Optional[str]=None,
 ) -> qlast.Expr:
-    parser = qlparser.EdgeQLExpressionParser().get_cheese()
+    parser = qlparser.EdgeQLExpressionParser().get_parser()
     res = parser.parse(source, filename=filename)
     assert isinstance(res, qlast.Expr)
     return res
@@ -59,7 +59,7 @@ def parse_single(
     source: Union[qltokenizer.Source, str],
     filename: Optional[str]=None,
 ) -> qlast.Statement:
-    parser = qlparser.EdgeQLSingleParser().get_cheese()
+    parser = qlparser.EdgeQLSingleParser().get_parser()
     res = parser.parse(source, filename=filename)
     assert isinstance(res, (qlast.Query | qlast.Command))
     return res
@@ -101,7 +101,7 @@ def parse_command(
 
 
 def parse_block(source: Union[qltokenizer.Source, str]) -> List[qlast.Base]:
-    parser = qlparser.EdgeQLBlockParser().get_cheese()
+    parser = qlparser.EdgeQLBlockParser().get_parser()
     return parser.parse(source)
 
 
@@ -115,7 +115,7 @@ def parse_migration_body_block(
     # where the source contexts don't matter anyway.
     source = '{' + source + '}'
 
-    parser = qlparser.EdgeQLMigrationBodyParser().get_cheese()
+    parser = qlparser.EdgeQLMigrationBodyParser().get_parser()
     return parser.parse(source)
 
 
@@ -129,12 +129,12 @@ def parse_extension_package_body_block(
     # where the source contexts don't matter anyway.
     source = '{' + source + '}'
 
-    parser = qlparser.EdgeQLExtensionPackageBodyParser().get_cheese()
+    parser = qlparser.EdgeQLExtensionPackageBodyParser().get_parser()
     return parser.parse(source)
 
 
 def parse_sdl(expr: str):
-    parser = qlparser.EdgeSDLParser().get_cheese()
+    parser = qlparser.EdgeSDLParser().get_parser()
     return parser.parse(expr)
 
 
@@ -181,7 +181,7 @@ def preload(
             preload(parsers=parsers, allow_rebuild=False)
 
 
-def process_spec(parser: parsing.Parser) -> str:
+def process_spec(parser: parsing.ParserSpec) -> str:
     import json
 
     spec = parser.get_parser_spec()
