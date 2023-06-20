@@ -7,8 +7,7 @@ use cpython::{
 
 use edgeql_parser::parser;
 
-use crate::errors::TokenizerError;
-
+use crate::errors::{parser_error_into_tuple, ParserResult};
 use crate::tokenizer::Token;
 
 py_class!(pub class CSTNode |py| {
@@ -91,16 +90,22 @@ pub fn convert_tokens<'a>(py: Python, tokens: PyObject) -> PyResult<Vec<parser::
     Ok(buf)
 }
 
-pub fn parse(py: Python, parser_name: &PyString, tokens: PyObject) -> PyResult<CSTNode> {
+pub fn parse(py: Python, parser_name: &PyString, tokens: PyObject) -> PyResult<ParserResult> {
     let spec = load_spec(py, parser_name.to_string(py)?.as_ref())?;
 
     let cheese = convert_tokens(py, tokens)?;
 
-    let cst = parser::parse(spec, cheese).map_err(|s| TokenizerError::new(py, (s, py.None())))?;
+    let (cst, errors) = parser::parse(spec, cheese);
 
-    let cst = to_py_cst(cst, py)?;
+    let cst = cst.map(|c| to_py_cst(c, py)).transpose()?;
 
-    Ok(cst)
+    let errors = errors
+        .into_iter()
+        .map(|e| parser_error_into_tuple(py, e))
+        .collect::<Vec<_>>();
+    let errors = PyList::new(py, &errors);
+
+    ParserResult::create_instance(py, cst.into_py_object(py), errors)
 }
 
 fn load_spec(py: Python, parser_name: &str) -> PyResult<&'static parser::Spec> {

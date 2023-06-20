@@ -12,7 +12,7 @@ mod position;
 mod pynormalize;
 mod tokenizer;
 
-use errors::TokenizerError;
+use errors::{SyntaxError, ParserResult};
 use parser::{parse, CSTNode, Production};
 use position::{offset_of_line, SourcePoint};
 use pynormalize::normalize;
@@ -35,7 +35,8 @@ py_module_initializer!(
         m.add(py, "tokenize", py_fn!(py, tokenize(data: &PyString)))?;
         m.add(py, "_unpickle_token", get_unpickle_fn(py))?;
         m.add(py, "Token", py.get_type::<Token>())?;
-        m.add(py, "TokenizerError", py.get_type::<TokenizerError>())?;
+        m.add(py, "SyntaxError", py.get_type::<SyntaxError>())?;
+        m.add(py, "ParserResult", py.get_type::<ParserResult>())?;
         m.add(py, "Entry", py.get_type::<pynormalize::Entry>())?;
         m.add(py, "SourcePoint", py.get_type::<SourcePoint>())?;
         m.add(py, "normalize", py_fn!(py, normalize(query: &PyString)))?;

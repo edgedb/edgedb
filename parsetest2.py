@@ -41,10 +41,11 @@ QS = [
     '''
         SELECT 1;
         SELECT 2;
-    '''
+    ''',
+    '''SELECT (false, true false) )'''
 ]
 
-for q in QS:
+for q in QS[:]:
     ast = parse(q)
 
     print(ast)

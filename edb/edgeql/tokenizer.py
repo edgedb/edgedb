@@ -104,19 +104,28 @@ class NormalizedSource(Source):
 
 
 def _tokenize(eql: str) -> List[ql_parser.Token]:
-    try:
-        return ql_parser.tokenize(eql)
-    except ql_parser.TokenizerError as e:
-        message, position = e.args
+    result = ql_parser.tokenize(eql)
+
+    if len(result.errors()) > 0:
+
+        # TODO: emit multiple errors
+        error = result.errors()[0]
+
+        message, (start, end) = error
+        (column, line, offset) = start
+        position = (column, line, offset, end[2])
+
         hint = _derive_hint(eql, message, position)
         raise errors.EdgeQLSyntaxError(
-            message, position=position, hint=hint) from e
+            message, position=position, hint=hint)
+
+    return result.out()
 
 
 def _normalize(eql: str) -> ql_parser.Entry:
     try:
         return ql_parser.normalize(eql)
-    except ql_parser.TokenizerError as e:
+    except ql_parser.SyntaxError as e:
         message, position = e.args
         hint = _derive_hint(eql, message, position)
         raise errors.EdgeQLSyntaxError(
@@ -126,9 +135,9 @@ def _normalize(eql: str) -> ql_parser.Entry:
 def _derive_hint(
     input: str,
     message: str,
-    position: Tuple[int, int, int],
+    position: Tuple[int, ...],
 ) -> Optional[str]:
-    _, _, off = position
+    _, _, off, *end_offset = position
     if message.endswith(
         r"invalid string literal: invalid escape sequence '\ '"
     ):

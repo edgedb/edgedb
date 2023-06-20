@@ -5,7 +5,7 @@ use cpython::exc::RuntimeError;
 
 use edgeql_parser::hash;
 
-use crate::errors::TokenizerError;
+use crate::errors::SyntaxError;
 use crate::pynormalize::py_pos;
 
 
@@ -26,7 +26,7 @@ py_class!(pub class Hasher |py| {
         hasher.add_source(&text)
             .map_err(|e| match e {
                 hash::Error::Tokenizer(msg, pos) => {
-                    TokenizerError::new(py, (msg, py_pos(py, &pos)))
+                    SyntaxError::new(py, (msg, py_pos(py, &pos)))
                 }
             })?;
         Ok(py.None())

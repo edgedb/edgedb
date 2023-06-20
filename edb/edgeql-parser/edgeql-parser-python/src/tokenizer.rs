@@ -10,7 +10,7 @@ use edgeql_parser::position::{Pos, Span};
 use edgeql_parser::tokenizer::MAX_KEYWORD_LENGTH;
 use edgeql_parser::tokenizer::{is_keyword, Kind, Token as PToken, Tokenizer};
 
-use crate::errors::TokenizerError;
+use crate::errors::{parser_error_into_tuple, ParserResult};
 use crate::pynormalize::{py_pos, value_to_py_object};
 
 static mut TOKENS: Option<Tokens> = None;
@@ -61,14 +61,31 @@ py_class!(pub class Token |py| {
     }
 });
 
-pub fn tokenize(py: Python, s: &PyString) -> PyResult<PyList> {
+pub fn tokenize(py: Python, s: &PyString) -> PyResult<ParserResult> {
     let data = s.to_string(py)?;
 
     let mut token_stream = Tokenizer::new(&data[..]).validated_values();
-    let rust_tokens: Vec<_> = py
-        .allow_threads(|| (&mut token_stream).collect::<Result<_, _>>())
-        .map_err(|e| TokenizerError::new(py, (e.message, py_pos(py, &e.span.start))))?;
-    return convert_tokens(py, rust_tokens, token_stream.current_pos());
+
+    let mut tokens: Vec<_> = Vec::new();
+    let mut errors: Vec<_> = Vec::new();
+
+    for res in &mut token_stream {
+        match res {
+            Ok(token) => tokens.push(token),
+            Err(e) => {
+                errors.push(parser_error_into_tuple(py, e));
+
+                // TODO: fix tokenizer to skip bad tokens and continue
+                break;
+            }
+        }
+    }
+
+    let tokens = convert_tokens(py, tokens, token_stream.current_pos())?;
+
+    let errors = PyList::new(py, errors.as_slice()).to_py_object(py);
+
+    ParserResult::create_instance(py, tokens.into_object(), errors)
 }
 
 pub fn convert_tokens(py: Python, rust_tokens: Vec<PToken>, end_pos: Pos) -> PyResult<PyList> {

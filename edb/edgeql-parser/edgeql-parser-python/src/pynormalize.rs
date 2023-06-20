@@ -8,10 +8,10 @@ use cpython::{PyFloat, PyObject};
 use bytes::{BufMut, Bytes, BytesMut};
 use edgedb_protocol::codec;
 use edgedb_protocol::model::{BigInt, Decimal};
-use edgeql_parser::position::Pos;
+use edgeql_parser::position::{Pos, Span};
 use edgeql_parser::tokenizer::Value;
 
-use crate::errors::TokenizerError;
+use crate::errors::SyntaxError;
 use crate::normalize::{normalize as _normalize, Error, Variable};
 use crate::tokenizer::convert_tokens;
 
@@ -62,6 +62,10 @@ py_class!(pub class Entry |py| {
 
 pub fn py_pos(py: Python, pos: &Pos) -> PyTuple {
     (pos.line, pos.column, pos.offset).to_py_object(py)
+}
+
+pub fn py_span(py: Python, span: &Span) -> PyTuple {
+    (py_pos(py, &span.start), py_pos(py, &span.end)).to_py_object(py)
 }
 
 pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
@@ -154,7 +158,7 @@ pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
             )?)
         }
         Err(Error::Tokenizer(msg, pos)) => {
-            return Err(TokenizerError::new(py, (msg, py_pos(py, &pos))))
+            return Err(SyntaxError::new(py, (msg, py_pos(py, &pos))))
         }
         Err(Error::Assertion(msg, pos)) => {
             return Err(PyErr::new::<AssertionError, _>(

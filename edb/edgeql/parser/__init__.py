@@ -204,7 +204,7 @@ def process_spec(parser: parsing.ParserSpec) -> str:
             else:
                 production = cast(Any, act).production
                 oact = {
-                    'nonterm': str(production.lhs),
+                    'non_term': str(production.lhs),
                     'production': production.qualified.split('.')[-1],
                     'cnt': len(production.rhs),
                 }

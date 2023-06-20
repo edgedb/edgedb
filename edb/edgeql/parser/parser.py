@@ -304,16 +304,25 @@ class CheeseParser():
         self.filename = filename
         self.source = source
 
-        try:
-            parser_name = self.parser.__class__.__name__
-            cst = eql_parser.parse(parser_name, source.tokens())
+        parser_name = self.parser.__class__.__name__
+        result = eql_parser.parse(parser_name, source.tokens())
 
-            return self._cst_to_ast(cst).val
+        if len(result.errors()) > 0:
 
-        except eql_parser.TokenizerError as e:
-            message, position = e.args
-            raise errors.EdgeQLSyntaxError(
-                message, position=position) from e
+            for error in result.errors():
+                message, (start, end) = error
+                print(f'[{start[0]}:{start[1]}] {message}')
+
+            # TODO: emit multiple errors
+            error = result.errors()[0]
+
+            message, (start, end) = error
+            (column, line, offset) = start
+            position = (column, line, offset, end[2])
+
+            raise errors.EdgeQLSyntaxError(message, position=position)
+
+        return self._cst_to_ast(result.out()).val
 
 
     def get_parser_spec(self, allow_rebuild=False):

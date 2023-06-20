@@ -3,29 +3,23 @@ use std::collections::HashMap;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::helpers::quote_name;
 use crate::position::Span;
+use crate::tokenizer::Error;
 
-pub fn parse<'s, 't>(spec: &'s Spec, input: Vec<Terminal>) -> Result<CSTNode, String> {
+pub fn parse<'s, 't>(spec: &'s Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>) {
     let mut parser = Parser::new(&spec);
 
     for token in input {
-        parser.act(token)?;
+        {
+            let ref mut this = parser;
+            this.act(token);
+        };
     }
-    parser.eoi()?;
+    parser.eoi();
 
-    let out = parser.stack.pop().ok_or("stack empty")?;
-    Ok(out.value)
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-pub enum Action {
-    Shift(usize),
-    Reduce {
-        nonterm: String,
-        production: String,
-        cnt: usize,
-    },
+    let node = parser.stack.pop().map(|n| n.value);
+    (node, parser.errors)
 }
 
 pub struct Spec {
@@ -34,9 +28,23 @@ pub struct Spec {
     pub start: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Action {
+    Shift(usize),
+    Reduce(Reduce),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Reduce {
+    pub non_term: String,
+    pub production: String,
+    pub cnt: usize,
+}
+
 impl Spec {
     pub fn from_json(j_spec: &str) -> Result<Spec, String> {
-        #[derive(Deserialize)]
+        #[derive(Debug, Deserialize)]
         pub struct SpecJson {
             pub actions: Vec<Vec<(String, Action)>>,
             pub goto: Vec<Vec<(String, usize)>>,
@@ -79,9 +87,20 @@ struct StackNode {
     value: CSTNode,
 }
 
+struct RecoveryPath {
+    actions: Vec<RecoveryAction>,
+    cost: u16,
+}
+
+enum RecoveryAction {
+    Pop,
+    SkipInto(),
+}
+
 pub struct Parser<'s> {
     spec: &'s Spec,
     stack: Vec<StackNode>,
+    errors: Vec<Error>,
 }
 
 impl<'s> Parser<'s> {
@@ -92,18 +111,45 @@ impl<'s> Parser<'s> {
                 state: 0,
                 value: CSTNode::Empty,
             }],
+            errors: Vec::new(),
         }
     }
 
-    pub fn act(&mut self, token: Terminal) -> Result<(), String> {
+    fn act(&mut self, token: Terminal) {
         // self.print_stack();
         // println!("INPUT: {}", token.text);
 
         loop {
-            let state = self.stack.last().unwrap().state;
+            // find next action
+            let action = loop {
+                // base case
+                if let Some(action) = self
+                    .stack
+                    .last()
+                    .and_then(|s| self.spec.actions[s.state].get(&(&token).kind))
+                {
+                    break action;
+                }
 
-            let Some(action) = self.spec.actions[state].get(&token.kind) else {
-                return Err(format!("Unexpected {token}"));
+                let error = Error::new(format!("Unexpected {token}")).with_span(token.span);
+                self.errors.push(error);
+
+                // special case: try to recover
+                if let Some(recovery) = self.find_recovery_path(&token) {
+                    self.apply_recovery(recovery);
+
+                    // retry lookup
+                    if let Some(action) = self
+                        .stack
+                        .last()
+                        .and_then(|s| self.spec.actions[s.state].get(&(&token).kind))
+                    {
+                        break action;
+                    }
+                }
+
+                // fail
+                return;
             };
 
             match action {
@@ -116,50 +162,54 @@ impl<'s> Parser<'s> {
                     });
                     break;
                 }
-                Action::Reduce {
-                    nonterm,
-                    production,
-                    cnt,
-                } => {
-                    let args = self
-                        .stack
-                        .drain((self.stack.len() - cnt)..)
-                        .map(|n| n.value)
-                        .collect();
+                Action::Reduce(reduce) => {
+                    let res = self.reduce(reduce);
 
-                    let value = CSTNode::Production {
-                        non_term: nonterm.clone(),
-                        production: production.clone(),
-                        args,
-                    };
-
-                    let nstate = self.stack.last().unwrap().state;
-
-                    // println!(
-                    //     "   --> [reduce {} ::= ({} popped) at {}/{}]",
-                    //     production, cnt, state, nstate
-                    // );
-
-                    let next = *self.spec.goto[nstate]
-                        .get(nonterm)
-                        .ok_or(format!("{} at {} fucked", nonterm, nstate))?;
-
-                    self.stack.push(StackNode { state: next, value });
-
-                    // self.print_stack();
+                    if let Err(message) = res {
+                        self.errors.push(Error::new(message).with_span(token.span));
+                        return;
+                    }
                 }
             }
         }
+    }
+
+    fn reduce(&mut self, reduce: &Reduce) -> Result<(), String> {
+        let args = self
+            .stack
+            .drain((self.stack.len() - reduce.cnt)..)
+            .map(|n| n.value)
+            .collect();
+
+        let value = CSTNode::Production {
+            non_term: reduce.non_term.clone(),
+            production: reduce.production.clone(),
+            args,
+        };
+
+        let nstate = self.stack.last().unwrap().state;
+
+        let next = *self.spec.goto[nstate]
+            .get(&reduce.non_term)
+            .ok_or_else(|| format!("{} at {} fucked", reduce.non_term, nstate))?;
+
+        self.stack.push(StackNode { state: next, value });
+
+        // println!(
+        //     "   --> [reduce {} ::= ({} popped) at {}/{}]",
+        //     production, cnt, state, nstate
+        // );
+        // self.print_stack();
         Ok(())
     }
 
-    pub fn eoi(&mut self) -> Result<(), String> {
+    pub fn eoi(&mut self) {
         const EOI: &str = "<$>";
 
         self.act(Terminal {
             kind: EOI.to_string(),
             ..Default::default()
-        })?;
+        });
 
         let eof = self.stack.pop();
         debug_assert!(eof.is_some());
@@ -179,7 +229,6 @@ impl<'s> Parser<'s> {
                 CSTNode::Terminal(Terminal { kind, .. }) if kind == "<e>"
             ));
         }
-        Ok(())
     }
 
     #[allow(dead_code)]
@@ -201,6 +250,47 @@ impl<'s> Parser<'s> {
         println!("{}{}", prefix, names.join(" "));
         println!("{}", states);
     }
+
+    fn find_recovery_path(&self, _token: &Terminal) -> Option<RecoveryPath> {
+        let mut path = RecoveryPath::new();
+        path.add(RecoveryAction::Pop);
+
+        Some(path)
+    }
+
+    fn apply_recovery(&mut self, recovery: RecoveryPath) {
+        for action in recovery.actions {
+            match action {
+                RecoveryAction::Pop => {
+                    self.stack.pop();
+                }
+                RecoveryAction::SkipInto() => todo!(),
+            }
+        }
+    }
+}
+
+impl RecoveryPath {
+    fn new() -> Self {
+        RecoveryPath {
+            actions: Vec::new(),
+            cost: 0,
+        }
+    }
+
+    fn add(&mut self, action: RecoveryAction) {
+        self.cost += action.cost();
+        self.actions.push(action);
+    }
+}
+
+impl RecoveryAction {
+    fn cost(&self) -> u16 {
+        match self {
+            RecoveryAction::Pop => 1,
+            RecoveryAction::SkipInto() => 5,
+        }
+    }
 }
 
 impl std::fmt::Debug for CSTNode {
@@ -217,6 +307,7 @@ impl std::fmt::Display for Terminal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind.as_str() {
             "EOF" => f.write_str("end of line"),
+            "IDENT" => f.write_str(&quote_name(&self.text)),
             _ => write!(f, "token: {}", self.kind),
         }
     }
