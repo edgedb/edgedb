@@ -24,7 +24,7 @@ from .data.expr_ops import (
     map_assume_link_target, map_expand_multiset_val,
       val_is_link_convertible, val_is_ref_val)
 from .data.type_ops import is_nominal_subtype_in_schema
-
+from .db_interface import *
 
 def make_eval_only(data: RTData) -> RTData:
     return RTData(data.cur_db, data.read_snapshots, data.schema, True)
@@ -65,7 +65,12 @@ def eval_order_by(
     return [elem for (_, elem) in result]
 
 
-def apply_shape(ctx: RTData, shape: ShapeExpr, value: Val) -> Val:
+EvalEnv = Dict[str, MultiSetVal]
+def ctx_extend(ctx: EvalEnv, bnd : BindingExpr, val: MultiSetVal) -> Tuple[EvalEnv, Expr]:
+    bnd_no_capture = ensure_no_capture(list(ctx.keys()), bnd)
+    return {**ctx, bnd_no_capture.var: val}, bnd_no_capture.body
+
+def apply_shape(ctx: EvalEnv, db : EdgeDatabaseInterface, shape: ShapeExpr, value: Val) -> Val:
     def apply_shape_to_prodval(
             shape: ShapeExpr, objectval: ObjectVal) -> ObjectVal:
         result: Dict[Label, Tuple[Marker, MultiSetVal]] = {}
@@ -76,19 +81,9 @@ def apply_shape(ctx: RTData, shape: ShapeExpr, value: Val) -> Val:
             else:
                 pass
         for (key, shape_elem) in shape.shape.items():
-            if key in objectval.val.keys():
-                new_val: MultiSetVal = eval_config(
-                    RTExpr(make_eval_only(ctx),
-                           instantiate_expr(value, shape.shape[key]))).val
-                result = {
-                    **result, key: (Visible(), (new_val))}
-            else:
-                new_val = eval_config(RTExpr(make_eval_only(ctx),
-                                             instantiate_expr(
-                                                 value, shape_elem)
-                                             )).val
-                result = {
-                    **result, key: (Visible(), (new_val))}
+            new_ctx, shape_body = ctx_extend(ctx, shape_elem, MultiSetVal([value]))
+            new_val: MultiSetVal = eval_config(new_ctx, db, shape_body)
+            result = { **result, key: (Visible(), (new_val))}
 
         return ObjectVal(result)
 
@@ -106,20 +101,19 @@ def apply_shape(ctx: RTData, shape: ShapeExpr, value: Val) -> Val:
             return eval_error(value, "Cannot apply shape to value")
 
 
-def eval_expr_list(init_data: RTData,
-                   exprs: Sequence[Expr]) -> Tuple[RTData,
-                                                   Sequence[MultiSetVal]]:
-    cur_data = init_data
+def eval_expr_list(ctx: EvalEnv,
+                   db : EdgeDatabaseInterface,
+                   exprs: Sequence[Expr]) -> Sequence[MultiSetVal]:
     result: Sequence[MultiSetVal] = []
     for expr in exprs:
-        (cur_data, val) = eval_config(RTExpr(cur_data, expr))
+        val = eval_config(ctx, db, expr)
         result = [*result, val]
-    return (cur_data, result)
+    return result
 
 # not sure why the semantics says to produce empty set when label not present
 
 
-def singular_proj(data: RTData, subject: Val, label: Label) -> Sequence[Val]:
+def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: Label) -> Sequence[Val]:
     match subject:
         case FreeVal(val=objVal):
             if label in objVal.val.keys():
@@ -127,7 +121,7 @@ def singular_proj(data: RTData, subject: Val, label: Label) -> Sequence[Val]:
             else:
                 raise ValueError("Label not found", label)
         case RefVal(refid=id, val=objVal):
-            entry_obj = data.read_snapshots[0].dbdata[id].data
+            # entry_obj = data.read_snapshots[0].dbdata[id].data
             if label in objVal.val.keys():
                 return objVal.val[label][1].vals
             elif label in entry_obj.val.keys():
@@ -256,44 +250,32 @@ class EvaluationLogsWrapper:
 eval_logs_wrapper = EvaluationLogsWrapper()
 
 
+
+# the database is a mutable reference that keeps track of a read snapshot inside
 @eval_logs_wrapper
-def eval_config(rt: RTExpr) -> RTVal:
-    match rt.expr:
+def eval_config(ctx: EvalEnv,
+                db: EdgeDatabaseInterface,
+                expr: Expr) -> MultiSetVal:
+    match expr:
         case (StrVal(_)
               | IntVal(_)
               | BoolVal(_)
-              | RefVal(_)
-              | ArrVal(_)
-              | UnnamedTupleVal(_)
-              | FreeVal(_)
-              | LinkPropVal(_)
               ):
-            return RTVal(rt.data, MultiSetVal([rt.expr]))
+            return MultiSetVal([expr])
         case ObjectExpr(val=dic):
-            cur_data = rt.data
             result: Dict[Label, Tuple[Marker, MultiSetVal]] = {}
             for (key, expr) in dic.items():  # type: ignore[has-type]
-                (cur_data, val) = eval_config(RTExpr(cur_data, expr))
-                result = {
-                    **result, key: (Visible(), (val))}
-            return RTVal(cur_data, MultiSetVal([FreeVal(ObjectVal(result))]))
+                val = eval_config(ctx, db, expr)
+                result = {**result, key: (Visible(), (val))}
+            return  MultiSetVal([FreeVal(ObjectVal(result))])
         case InsertExpr(tname, arg):
-            if rt.data.eval_only:
-                eval_error(
-                    rt.expr,
-                    "Attempting to Insert in an Eval-Only evaluation")
-            id = next_id()
-            enriched_db = DB(
-                dbdata={**rt.data.cur_db.dbdata,
-                        id: DBEntry(tp=VarTp(tname), data=ObjectVal({}))})
+            id = db.insert(tname, {})
             expr_with_default = object_tp_default_initial_step_with_insert(
-                rt.data.schema.val[tname], arg, id)
-            new_data, raw_object = eval_config(
-                RTExpr(RTData(enriched_db,
-                              rt.data.read_snapshots,
-                              rt.data.schema,
-                              rt.data.eval_only),
-                       expr_with_default))
+                db.getSchema().val[tname], arg, id)
+            raw_object = eval_config(
+                        ctx,
+                        db,
+                        expr_with_default)
 
             assert len(raw_object.vals) == 1, (
                 "Insert shape should return one object"
@@ -303,63 +285,58 @@ def eval_config(rt: RTExpr) -> RTVal:
             )
 
             new_object = coerce_to_storage(
-                get_object_val(raw_object.vals[0]), new_data.schema.val[tname])
-            new_db = DB(dbdata={**new_data.cur_db.dbdata,
-                        id: DBEntry(tp=VarTp(tname), data=new_object)})
+                get_object_val(raw_object.vals[0]), db.getSchema().val[tname])
+            db.replace(id, {k.label : v if isinstance(k, StrLabel) else eval_error(k) for k, v in new_object.val.items() })
             # inserts return empty dict
-            return RTVal(
-                RTData(
-                    new_db, new_data.read_snapshots, new_data.schema,
-                    new_data.eval_only),
-                MultiSetVal([RefVal(id, ObjectVal({}))]))
+            return MultiSetVal([RefVal(id, ObjectVal({}))])
         case FilterOrderExpr(subject=subject, filter=filter, order=order):
-            (new_data, selected) = eval_config(RTExpr(rt.data, subject))
+            selected = eval_config(ctx, db, subject)
             # assume data unchaged throught the evaluation of conditions
             conditions: Sequence[MultiSetVal] = [
                 eval_config(
-                    RTExpr(
-                        make_eval_only(new_data),
-                        instantiate_expr(select_i, filter))).val
-                for select_i in selected.vals]
+                        new_ctx,
+                        db, 
+                        filter_body)
+                for select_i in selected.vals
+                for new_ctx, filter_body in [ctx_extend(ctx, filter, select_i)]]
             after_condition: Sequence[Val] = [
                 select_i
                 for (select_i, condition) in zip(selected.vals, conditions)
                 if BoolVal(True) in condition.vals]
             orders: Sequence[ObjectVal] = [
-                raw_order[0].val
-                if
-                type(raw_order[0]) is FreeVal and
-                type(raw_order[0].val) is ObjectVal else
-                eval_error(raw_order[0],
-                           "Order must be an object val")
+                (raw_order[0].val
+                    if
+                    type(raw_order[0]) is FreeVal and
+                    type(raw_order[0].val) is ObjectVal else
+                    eval_error(raw_order[0],
+                            "Order must be an object val"))
+                if len(raw_order) == 1 else eval_error(raw_order)
                 for after_condition_i in after_condition
+                for new_ctx, order_body in [ctx_extend(ctx, order, MultiSetVal([after_condition_i]))]
                 for raw_order
                 in
-                [
-                    eval_config(
-                        RTExpr(
-                            make_eval_only(new_data),
-                            instantiate_expr(after_condition_i, order)
-                            )).val.vals]
-                if len(raw_order) == 1]
+                [eval_config(
+                        new_ctx,
+                        db,
+                        order_body)]]
             after_order = eval_order_by(after_condition, orders)
-            return RTVal(new_data, MultiSetVal(after_order))
+            return MultiSetVal(after_order)
         case ShapedExprExpr(expr=subject, shape=shape):
-            (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
-            after_shape: Sequence[Val] = [apply_shape(
-                new_data, shape, v) for v in subjectv.vals]
-            return RTVal(new_data, MultiSetVal(after_shape))
+            subjectv = eval_config(ctx, db, subject)
+            after_shape: Sequence[Val] = [apply_shape(ctx, db, shape, v) for v in subjectv.vals]
+            return MultiSetVal(after_shape)
         case FreeVarExpr(var=name):
-            cur_db_data = rt.data.read_snapshots[0].dbdata
-            all_ids: Sequence[Val] = [
-                RefVal(id, ObjectVal({}))
-                for (id, item) in cur_db_data.items()
-                if item.tp.name == name]
-            return RTVal(rt.data, MultiSetVal(all_ids))
+            if name in ctx.keys():
+                return ctx[name]
+            else:
+                all_ids: Sequence[Val] = [
+                    RefVal(id, ObjectVal({}))
+                    for id in db.queryIdsForAType(name)]
+                return MultiSetVal(all_ids)
         case FunAppExpr(fun=fname, args=args, overloading_index=_):
-            (new_data, argsv) = eval_expr_list(rt.data, args)
+            argsv = eval_expr_list(ctx, db, args)
             argsv = map_assume_link_target(argsv)
-            looked_up_fun = rt.data.schema.fun_defs[fname]
+            looked_up_fun = db.getSchema().fun_defs[fname]
             f_modifier = looked_up_fun.tp.args_mod
             assert len(f_modifier) == len(argsv)
             argv_final: Sequence[Sequence[Sequence[Val]]] = [[]]
@@ -385,9 +362,9 @@ def eval_config(rt: RTExpr) -> RTVal:
             # argv_final = [map_assume_link_target(f) for f in argv_final]
             after_fun_vals: Sequence[Val] = [
                 v for arg in argv_final for v in looked_up_fun.impl(arg)]
-            return RTVal(new_data, MultiSetVal(after_fun_vals))
+            return MultiSetVal(after_fun_vals)
         case ObjectProjExpr(subject=subject, label=label):
-            (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
+            subjectv = eval_config(ctx, db, subject)
             projected = [
                 p
                 for v in assume_link_target(subjectv).vals

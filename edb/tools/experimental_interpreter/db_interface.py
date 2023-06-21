@@ -1,12 +1,19 @@
 
 from typing import *
-from ..data.expr_ops import *
+from .data.expr_ops import *
+from .data.type_ops import *
 
 # id class
 EdgeID = int
 class EdgeDatabaseInterface:
 
     def queryIdsForAType(self, tp: str) -> List[EdgeID]:
+        raise NotImplementedError()
+
+    # determines whether the object with a specific id has a property/link that can be projected
+    # i.e. if the property/link is a computable, then this should return false and subsequent 
+    # calls to project will throw an error
+    def isProjectable(self, id: EdgeID, property: str) -> bool:
         raise NotImplementedError()
 
     # project a property/link from an object
@@ -27,5 +34,8 @@ class EdgeDatabaseInterface:
 
     # transactional evaluation: commit all inserts/updates/deletes
     def commitDML(self) -> None:
+        raise NotImplementedError()
+
+    def getSchema(self) -> DBSchema:
         raise NotImplementedError()
 
