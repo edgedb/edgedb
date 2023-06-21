@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use phf::phf_map;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -9,15 +10,76 @@ use crate::tokenizer::Error;
 
 pub fn parse<'s, 't>(spec: &'s Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>) {
     let arena = bumpalo::Bump::new();
-    let mut parser = Parser::new(&spec, &arena);
+
+    let stack_top = arena.alloc(StackNode {
+        parent: None,
+        state: 0,
+        value: CSTNode::Empty,
+    });
+    let initial_track = Parser {
+        stack_top,
+        error_cost: 0,
+        errors: Vec::new(),
+    };
+
+    let ctx = Context::new(&spec, &arena);
+
+    let mut parsers = vec![initial_track];
 
     for token in input {
-        {
-            let ref mut this = parser;
-            this.act(token);
-        };
+        let mut new_parsers = Vec::with_capacity(parsers.len() + 5);
+
+        while let Some(mut parser) = parsers.pop() {
+            let res = parser.act(&ctx, &token);
+
+            if res.is_ok() {
+                // base case: ok
+                parser.ease_error_cost();
+                new_parsers.push(parser);
+            } else {
+                // error: try to recover
+
+                // option 1: inject a token
+                let possible_actions = &ctx.spec.actions[parser.stack_top.state];
+                for token_kind in possible_actions.keys() {
+                    let mut inject = parser.clone();
+
+                    let injection = Terminal {
+                        kind: token_kind.clone(),
+                        ..Default::default()
+                    };
+
+                    let cost = ERROR_COST.get(token_kind).cloned().unwrap_or(KEYWORD);
+                    let error = Error::new(format!("Missing {injection}")).with_span(token.span);
+                    if inject.try_push_error(error, cost) {
+
+                        // println!("   --> [inject {injection}]");
+
+                        if inject.act(&ctx, &injection).is_ok() {
+                            // insert into parsers, to retry the original token
+                            parsers.push(inject);
+                        }
+                    }
+                }
+
+                // option 2: skip the token
+                let mut skip = parser;
+                let error = Error::new(format!("Unexpected {token}")).with_span(token.span);
+                if skip.try_push_error(error, ERROR_COST_SKIP) {
+
+                    // println!("   --> [skip]");
+
+                    // insert into new_parsers, so the token is skipped
+                    new_parsers.push(skip);
+                }
+            }
+        }
+
+        parsers = new_parsers;
     }
-    parser.eoi();
+
+    let mut parser = parsers.into_iter().min_by_key(|p| p.error_cost).unwrap();
+    parser.eoi(&ctx);
 
     let node = Some(parser.stack_top.value.clone());
     (node, parser.errors)
@@ -90,67 +152,34 @@ struct StackNode<'p> {
     value: CSTNode,
 }
 
-struct RecoveryPath {
-    actions: Vec<RecoveryAction>,
-    cost: u16,
-}
-
-enum RecoveryAction {
-    Pop,
-    SkipInto(),
-}
-
-pub struct Parser<'s> {
+struct Context<'s> {
     spec: &'s Spec,
     arena: &'s bumpalo::Bump,
+}
 
+#[derive(Clone)]
+struct Parser<'s> {
     stack_top: &'s StackNode<'s>,
+
+    error_cost: u16,
     errors: Vec<Error>,
 }
 
-impl<'s> Parser<'s> {
+impl<'s> Context<'s> {
     fn new(spec: &'s Spec, arena: &'s bumpalo::Bump) -> Self {
-        let stack_top = arena.alloc(StackNode {
-            parent: None,
-            state: 0,
-            value: CSTNode::Empty,
-        });
-
-        Parser {
-            spec,
-            arena,
-            stack_top,
-            errors: Vec::new(),
-        }
+        Context { spec, arena }
     }
+}
 
-    fn act(&mut self, token: Terminal) {
+impl<'s> Parser<'s> {
+    fn act(&mut self, ctx: &'s Context, token: &Terminal) -> Result<(), ()> {
         // self.print_stack();
         // println!("INPUT: {}", token.text);
 
         loop {
             // find next action
-            let action = loop {
-                // base case
-                if let Some(action) = self.spec.actions[self.stack_top.state].get(&token.kind) {
-                    break action;
-                }
-
-                let error = Error::new(format!("Unexpected {token}")).with_span(token.span);
-                self.errors.push(error);
-
-                // special case: try to recover
-                if let Some(recovery) = self.find_recovery_path(&token) {
-                    // recovery.apply(&mut self.stack_top);
-
-                    // retry lookup
-                    if let Some(action) = self.spec.actions[self.stack_top.state].get(&token.kind) {
-                        break action;
-                    }
-                }
-
-                // fail
-                return;
+            let Some(action) = ctx.spec.actions[self.stack_top.state].get(&token.kind) else {
+                return Err(());
             };
 
             match action {
@@ -158,26 +187,21 @@ impl<'s> Parser<'s> {
                     // println!("   --> [shift {next}]");
 
                     // push on stack
-                    self.stack_top = self.arena.alloc(StackNode {
+                    self.stack_top = ctx.arena.alloc(StackNode {
                         parent: Some(self.stack_top),
                         state: *next,
-                        value: CSTNode::Terminal(token),
+                        value: CSTNode::Terminal(token.clone()),
                     });
-                    break;
+                    return Ok(());
                 }
                 Action::Reduce(reduce) => {
-                    let res = self.reduce(reduce);
-
-                    if let Err(message) = res {
-                        self.errors.push(Error::new(message).with_span(token.span));
-                        return;
-                    }
+                    self.reduce(ctx, reduce);
                 }
             }
         }
     }
 
-    fn reduce(&mut self, reduce: &Reduce) -> Result<(), String> {
+    fn reduce(&mut self, ctx: &'s Context, reduce: &'s Reduce) {
         let mut args = Vec::new();
         for _ in 0..reduce.cnt {
             args.push(self.stack_top.value.clone());
@@ -193,12 +217,10 @@ impl<'s> Parser<'s> {
 
         let nstate = self.stack_top.state;
 
-        let next = *self.spec.goto[nstate]
-            .get(&reduce.non_term)
-            .ok_or_else(|| format!("{} at {} fucked", reduce.non_term, nstate))?;
+        let next = *ctx.spec.goto[nstate].get(&reduce.non_term).unwrap_or_else(|| panic!("{nstate} {} {}", reduce.non_term, reduce.production));
 
         // push on stack
-        self.stack_top = self.arena.alloc(StackNode {
+        self.stack_top = ctx.arena.alloc(StackNode {
             parent: Some(self.stack_top),
             state: next,
             value,
@@ -209,16 +231,16 @@ impl<'s> Parser<'s> {
         //     production, cnt, state, nstate
         // );
         // self.print_stack();
-        Ok(())
     }
 
-    pub fn eoi(&mut self) {
+    pub fn eoi(&mut self, ctx: &'s Context) {
         const EOI: &str = "<$>";
 
-        self.act(Terminal {
+        let token = Terminal {
             kind: EOI.to_string(),
             ..Default::default()
-        });
+        };
+        self.act(ctx, &token).unwrap(); // TODO: this should not be an unwrap
 
         let eof = self.stack_top;
         debug_assert!(matches!(
@@ -267,75 +289,85 @@ impl<'s> Parser<'s> {
         println!("{}", states);
     }
 
-    fn find_recovery_path(&self, token: &Terminal) -> Option<RecoveryPath> {
-        let mut recovery = RecoveryPath::new();
-
-        while recovery.cost < 10 {
-            recovery.add(RecoveryAction::Pop);
-
-            if self.is_recovery_valid(&recovery, &token.kind).is_some() {
-                return Some(recovery);
-            }
-        }
-
-        None
+    fn try_push_error(&mut self, error: Error, cost: u16) -> bool {
+        self.errors.push(error);
+        self.error_cost += cost;
+        return self.error_cost <= ERROR_COST_MAX;
     }
 
-    fn is_recovery_valid(&self, recovery: &RecoveryPath, token_kind: &str) -> Option<&Action> {
-        // let state = recovery.dry_run(&self.stack)?;
-
-        // self.spec.actions[state].get(token_kind)
-        None
-    }
-}
-
-impl RecoveryPath {
-    fn new() -> Self {
-        RecoveryPath {
-            actions: Vec::new(),
-            cost: 0,
-        }
-    }
-
-    fn add(&mut self, action: RecoveryAction) {
-        self.cost += action.cost();
-        self.actions.push(action);
-    }
-
-    fn apply(&self, stack: &mut Vec<StackNode>) {
-        for action in &self.actions {
-            match action {
-                RecoveryAction::Pop => {
-                    stack.pop();
-                }
-                RecoveryAction::SkipInto() => todo!(),
-            }
-        }
-    }
-
-    fn dry_run(&self, stack: &[StackNode]) -> Option<usize> {
-        let mut stack: Vec<usize> = stack.iter().map(|x| x.state).collect();
-
-        for action in &self.actions {
-            match action {
-                RecoveryAction::Pop => {
-                    stack.pop();
-                }
-                RecoveryAction::SkipInto() => todo!(),
-            }
-        }
-        stack.pop()
-    }
-}
-
-impl RecoveryAction {
-    fn cost(&self) -> u16 {
-        match self {
-            RecoveryAction::Pop => 1,
-            RecoveryAction::SkipInto() => 5,
+    fn ease_error_cost(&mut self) {
+        if self.error_cost > ERROR_COST_EASE {
+            self.error_cost -= ERROR_COST_EASE;
+        } else {
+            self.error_cost = 0;
         }
     }
 }
+
+const ERROR_COST_MAX: u16 = 10;
+const ERROR_COST_EASE: u16 = 2;
+const ERROR_COST_SKIP: u16 = 2;
+
+const FORBIDDEN: u16 = 11;
+const KEYWORD: u16 = 10;
+
+static ERROR_COST: phf::Map<&str, u16> = phf_map! {
+    "IDENT" => 10,
+    "ARGUMENT" => FORBIDDEN,
+    "EOF" => FORBIDDEN,
+    "SUBSTITUTION" => 8,
+    "NAMEDONLY" => 10,
+    "SETANNOTATION" => 10,
+    "SETTYPE" => 10,
+    "EXTENSIONPACKAGE" => 10,
+    "ORDERBY" => 10,
+    "." => 5,
+    ".<" => 5,
+    "[" => 5,
+    "]" => 1,
+    "(" => 5,
+    ")" => 1,
+    "{" => 5,
+    "}" => 1,
+    "::" => 10,
+    "**" => FORBIDDEN,
+    "??" => FORBIDDEN,
+    ":" => 5,
+    ";" => 5,
+    "," => 5,
+    "+" => FORBIDDEN,
+    "++" => FORBIDDEN,
+    "-" => FORBIDDEN,
+    "*" => FORBIDDEN,
+    "/" => FORBIDDEN,
+    "//" => FORBIDDEN,
+    "%" => FORBIDDEN,
+    "^" => FORBIDDEN,
+    "<" => FORBIDDEN,
+    ">" => FORBIDDEN,
+    "=" => 5,
+    "&" => FORBIDDEN,
+    "|" => FORBIDDEN,
+    "@" => 5,
+    "ICONST" => 8,
+    "NICONST" => FORBIDDEN,
+    "FCONST" => FORBIDDEN,
+    "NFCONST" => FORBIDDEN,
+    "BCONST" => FORBIDDEN,
+    "SCONST" => FORBIDDEN,
+    "OP" => FORBIDDEN,
+    ">=" => FORBIDDEN,
+    "<=" => FORBIDDEN,
+    "!=" => FORBIDDEN,
+    "?!=" => FORBIDDEN,
+    "?=" => FORBIDDEN,
+    "ASSIGN" => 10,
+    "ADDASSIGN" => 10,
+    "REMASSIGN" => 10,
+    "ARROW" => 10,
+    "<e>" => FORBIDDEN, // epsilon
+    "<$>" => FORBIDDEN, // eoi
+};
 
 impl std::fmt::Debug for CSTNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

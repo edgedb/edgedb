@@ -42,11 +42,19 @@ QS = [
         SELECT 1;
         SELECT 2;
     ''',
-    '''SELECT (false, true false false yes}] )'''
+    '''
+    with module cards
+        for g in (group Card by .element) union g.hello
+    ''',
+    '''SELECT (false, true false])''',
+    '''SELECT User name }''',
 ]
 
 for q in QS[:]:
-    ast = parse(q)
+    try:
+        ast = parse(q)
+    except:
+        continue
 
     print(ast)
     for n in ast:
