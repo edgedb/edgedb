@@ -8,7 +8,8 @@ use crate::position::Span;
 use crate::tokenizer::Error;
 
 pub fn parse<'s, 't>(spec: &'s Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>) {
-    let mut parser = Parser::new(&spec);
+    let arena = bumpalo::Bump::new();
+    let mut parser = Parser::new(&spec, &arena);
 
     for token in input {
         {
@@ -18,7 +19,7 @@ pub fn parse<'s, 't>(spec: &'s Spec, input: Vec<Terminal>) -> (Option<CSTNode>, 
     }
     parser.eoi();
 
-    let node = parser.stack.pop().map(|n| n.value);
+    let node = Some(parser.stack_top.value.clone());
     (node, parser.errors)
 }
 
@@ -61,7 +62,7 @@ impl Spec {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[serde(untagged)]
 pub enum CSTNode {
     Empty,
@@ -73,7 +74,7 @@ pub enum CSTNode {
     },
 }
 
-#[derive(Serialize, Default)]
+#[derive(Serialize, Default, Clone)]
 pub struct Terminal {
     pub kind: String,
     pub text: String,
@@ -82,7 +83,9 @@ pub struct Terminal {
 }
 
 #[derive(Debug)]
-struct StackNode {
+struct StackNode<'p> {
+    parent: Option<&'p StackNode<'p>>,
+
     state: usize,
     value: CSTNode,
 }
@@ -99,18 +102,24 @@ enum RecoveryAction {
 
 pub struct Parser<'s> {
     spec: &'s Spec,
-    stack: Vec<StackNode>,
+    arena: &'s bumpalo::Bump,
+
+    stack_top: &'s StackNode<'s>,
     errors: Vec<Error>,
 }
 
 impl<'s> Parser<'s> {
-    fn new(spec: &'s Spec) -> Self {
+    fn new(spec: &'s Spec, arena: &'s bumpalo::Bump) -> Self {
+        let stack_top = arena.alloc(StackNode {
+            parent: None,
+            state: 0,
+            value: CSTNode::Empty,
+        });
+
         Parser {
             spec,
-            stack: vec![StackNode {
-                state: 0,
-                value: CSTNode::Empty,
-            }],
+            arena,
+            stack_top,
             errors: Vec::new(),
         }
     }
@@ -123,11 +132,7 @@ impl<'s> Parser<'s> {
             // find next action
             let action = loop {
                 // base case
-                if let Some(action) = self
-                    .stack
-                    .last()
-                    .and_then(|s| self.spec.actions[s.state].get(&(&token).kind))
-                {
+                if let Some(action) = self.spec.actions[self.stack_top.state].get(&token.kind) {
                     break action;
                 }
 
@@ -136,14 +141,10 @@ impl<'s> Parser<'s> {
 
                 // special case: try to recover
                 if let Some(recovery) = self.find_recovery_path(&token) {
-                    recovery.apply(&mut self.stack);
+                    // recovery.apply(&mut self.stack_top);
 
                     // retry lookup
-                    if let Some(action) = self
-                        .stack
-                        .last()
-                        .and_then(|s| self.spec.actions[s.state].get(&(&token).kind))
-                    {
+                    if let Some(action) = self.spec.actions[self.stack_top.state].get(&token.kind) {
                         break action;
                     }
                 }
@@ -156,7 +157,9 @@ impl<'s> Parser<'s> {
                 Action::Shift(next) => {
                     // println!("   --> [shift {next}]");
 
-                    self.stack.push(StackNode {
+                    // push on stack
+                    self.stack_top = self.arena.alloc(StackNode {
+                        parent: Some(self.stack_top),
                         state: *next,
                         value: CSTNode::Terminal(token),
                     });
@@ -175,11 +178,12 @@ impl<'s> Parser<'s> {
     }
 
     fn reduce(&mut self, reduce: &Reduce) -> Result<(), String> {
-        let args = self
-            .stack
-            .drain((self.stack.len() - reduce.cnt)..)
-            .map(|n| n.value)
-            .collect();
+        let mut args = Vec::new();
+        for _ in 0..reduce.cnt {
+            args.push(self.stack_top.value.clone());
+            self.stack_top = self.stack_top.parent.unwrap();
+        }
+        args.reverse();
 
         let value = CSTNode::Production {
             non_term: reduce.non_term.clone(),
@@ -187,13 +191,18 @@ impl<'s> Parser<'s> {
             args,
         };
 
-        let nstate = self.stack.last().unwrap().state;
+        let nstate = self.stack_top.state;
 
         let next = *self.spec.goto[nstate]
             .get(&reduce.non_term)
             .ok_or_else(|| format!("{} at {} fucked", reduce.non_term, nstate))?;
 
-        self.stack.push(StackNode { state: next, value });
+        // push on stack
+        self.stack_top = self.arena.alloc(StackNode {
+            parent: Some(self.stack_top),
+            state: next,
+            value,
+        });
 
         // println!(
         //     "   --> [reduce {} ::= ({} popped) at {}/{}]",
@@ -211,19 +220,19 @@ impl<'s> Parser<'s> {
             ..Default::default()
         });
 
-        let eof = self.stack.pop();
-        debug_assert!(eof.is_some());
+        let eof = self.stack_top;
         debug_assert!(matches!(
-            eof.unwrap().value,
+            &eof.value,
             CSTNode::Terminal(Terminal { kind, .. }) if kind == EOI
         ));
+        self.stack_top = self.stack_top.parent.unwrap();
 
         // self.print_stack();
         // println!("   --> accept");
 
         #[cfg(debug_assertions)]
         {
-            let first = self.stack.first().unwrap();
+            let first = self.stack_top.parent.unwrap();
             assert!(matches!(
                 &first.value,
                 CSTNode::Terminal(Terminal { kind, .. }) if kind == "<e>"
@@ -235,14 +244,21 @@ impl<'s> Parser<'s> {
     fn print_stack(&self) {
         let prefix = "STACK: ";
 
-        let names = self
-            .stack
+        let mut stack = Vec::new();
+        let mut node = Some(self.stack_top);
+        while let Some(n) = node {
+            stack.push(n);
+            node = n.parent.clone();
+        }
+        stack.reverse();
+
+        let names = stack
             .iter()
             .map(|s| format!("{:?}", s.value))
             .collect::<Vec<_>>();
 
         let mut states = format!("{:6}", ' ');
-        for (index, node) in self.stack.iter().enumerate() {
+        for (index, node) in stack.iter().enumerate() {
             let name_width = names[index].chars().count();
             states += &format!(" {:<width$}", node.state, width = name_width);
         }
@@ -266,9 +282,10 @@ impl<'s> Parser<'s> {
     }
 
     fn is_recovery_valid(&self, recovery: &RecoveryPath, token_kind: &str) -> Option<&Action> {
-        let state = recovery.dry_run(&self.stack)?;
+        // let state = recovery.dry_run(&self.stack)?;
 
-        self.spec.actions[state].get(token_kind)
+        // self.spec.actions[state].get(token_kind)
+        None
     }
 }
 
@@ -337,5 +354,11 @@ impl std::fmt::Display for Terminal {
             "IDENT" => f.write_str(&quote_name(&self.text)),
             _ => write!(f, "token: {}", self.kind),
         }
+    }
+}
+
+impl Default for CSTNode {
+    fn default() -> Self {
+        CSTNode::Empty
     }
 }
