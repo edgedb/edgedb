@@ -340,6 +340,42 @@ A user can like multiple movies. And in the absence of an ``exclusive``
 constraint, each movie can be liked by multiple users. Thus this is a
 *many-to-many* relationship.
 
+.. note::
+
+  Links are always distinct. That means it's not possible to link the same objects twice.
+
+  .. code-block:: sdl
+    
+    type User {
+      required name: str;
+      multi watch_history: Movie {
+        property seen_at: datetime;
+      };
+    }
+    type Movie {
+      required title: str;
+    }
+
+  With this model it's not possible to watch the same movie twice.
+  Instead the watch history must be modeled more traditionally as its own type.
+
+  .. code-block:: sdl
+    
+    type User {
+      required name: str;
+      multi link watch_history := .<user[Is WatchHistory];
+    }
+    type Movie {
+      required title: str;
+    }
+    type WatchHistory {
+      required link user: User;
+      required link movie: Movie;
+      property seen_at: datetime;
+    }
+
+  Be sure to use single links in the join table instead of a multi link 
+  otherwise there will be 4 tables in the database.
 
 Default values
 --------------
