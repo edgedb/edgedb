@@ -38,12 +38,11 @@ QS = [
     '''
     select '10 seconds'
     ''',
+    '''SELECT (User.id, User { name := ''',
+    '''SELECT (false, }]})''',
     '''
-    SELECT (false, }]})
-    ''',
-    '''
-    SELECT 1
-    SELECT 2;
+    SELECT User { name, last_name }
+    WITH u := User SELECT u;
     ''',
     '''
     SELECT (false, true false])
@@ -52,7 +51,7 @@ QS = [
     for c Card union c.hello
     ''',
     '''
-    SELECT User name }
+    SELECT User id, name }
     ''',
 ]
 

@@ -24,6 +24,15 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
 
     let ctx = Context::new(spec, &arena);
 
+    // append EIO
+    let end = input.last().map(|t| t.span.end).unwrap_or_default();
+    let eio = Terminal {
+        kind: "<$>".to_string(),
+        span: Span { start: end, end },
+        ..Default::default()
+    };
+    let input = [input, vec![eio]].concat();
+
     let mut parsers = vec![initial_track];
 
     for token in input {
@@ -34,7 +43,6 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
 
             if res.is_ok() {
                 // base case: ok
-                parser.ease_error_cost();
                 new_parsers.push(parser);
             } else {
                 // error: try to recover
@@ -52,7 +60,6 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
                     let cost = ERROR_COST.get(token_kind).cloned().unwrap_or(KEYWORD);
                     let error = Error::new(format!("Missing {injection}")).with_span(token.span);
                     if inject.try_push_error(error, cost) {
-
                         // println!("   --> [inject {injection}]");
 
                         if inject.act(&ctx, &injection).is_ok() {
@@ -63,14 +70,15 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
                 }
 
                 // option 2: skip the token
-                let mut skip = parser;
-                let error = Error::new(format!("Unexpected {token}")).with_span(token.span);
-                if skip.try_push_error(error, ERROR_COST_SKIP) {
+                if token.kind != "EOF" {
+                    let mut skip = parser;
+                    let error = Error::new(format!("Unexpected {token}")).with_span(token.span);
+                    if skip.try_push_error(error, ERROR_COST_SKIP) {
+                        // println!("   --> [skip]");
 
-                    // println!("   --> [skip]");
-
-                    // insert into new_parsers, so the token is skipped
-                    new_parsers.push(skip);
+                        // insert into new_parsers, so the token is skipped
+                        new_parsers.push(skip);
+                    }
                 }
             }
         }
@@ -78,8 +86,9 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
         parsers = new_parsers;
     }
 
+    // TODO: handle error here
     let mut parser = parsers.into_iter().min_by_key(|p| p.error_cost).unwrap();
-    parser.eoi(&ctx);
+    parser.finish();
 
     let node = Some(parser.stack_top.value.clone());
     (node, parser.errors)
@@ -217,7 +226,9 @@ impl<'s> Parser<'s> {
 
         let nstate = self.stack_top.state;
 
-        let next = *ctx.spec.goto[nstate].get(&reduce.non_term).unwrap_or_else(|| panic!("{nstate} {} {}", reduce.non_term, reduce.production));
+        let next = *ctx.spec.goto[nstate]
+            .get(&reduce.non_term)
+            .unwrap_or_else(|| panic!("{nstate} {} {}", reduce.non_term, reduce.production));
 
         // push on stack
         self.stack_top = ctx.arena.alloc(StackNode {
@@ -233,19 +244,10 @@ impl<'s> Parser<'s> {
         // self.print_stack();
     }
 
-    pub fn eoi(&mut self, ctx: &'s Context) {
-        const EOI: &str = "<$>";
-
-        let token = Terminal {
-            kind: EOI.to_string(),
-            ..Default::default()
-        };
-        self.act(ctx, &token).unwrap(); // TODO: this should not be an unwrap
-
-        let eof = self.stack_top;
+    pub fn finish(&mut self) {
         debug_assert!(matches!(
-            &eof.value,
-            CSTNode::Terminal(Terminal { kind, .. }) if kind == EOI
+            &self.stack_top.value,
+            CSTNode::Terminal(Terminal { kind, .. }) if kind == "<$>"
         ));
         self.stack_top = self.stack_top.parent.unwrap();
 
@@ -294,21 +296,12 @@ impl<'s> Parser<'s> {
         self.error_cost += cost;
         return self.error_cost <= ERROR_COST_MAX;
     }
-
-    fn ease_error_cost(&mut self) {
-        if self.error_cost > ERROR_COST_EASE {
-            self.error_cost -= ERROR_COST_EASE;
-        } else {
-            self.error_cost = 0;
-        }
-    }
 }
 
-const ERROR_COST_MAX: u16 = 10;
-const ERROR_COST_EASE: u16 = 2;
+const ERROR_COST_MAX: u16 = 15;
 const ERROR_COST_SKIP: u16 = 2;
 
-const FORBIDDEN: u16 = 11;
+const FORBIDDEN: u16 = 100;
 const KEYWORD: u16 = 10;
 
 static ERROR_COST: phf::Map<&str, u16> = phf_map! {
@@ -321,14 +314,17 @@ static ERROR_COST: phf::Map<&str, u16> = phf_map! {
     "SETTYPE" => 10,
     "EXTENSIONPACKAGE" => 10,
     "ORDERBY" => 10,
+
     "." => 5,
     ".<" => 5,
     "[" => 5,
-    "]" => 1,
     "(" => 5,
-    ")" => 1,
     "{" => 5,
+
+    "]" => 1,
+    ")" => 1,
     "}" => 1,
+
     "::" => 10,
     "**" => FORBIDDEN,
     "??" => FORBIDDEN,
