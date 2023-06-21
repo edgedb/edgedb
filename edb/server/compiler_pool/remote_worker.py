@@ -268,6 +268,25 @@ def compile_graphql(
     )
 
 
+def compile_sql(
+    client_id: int,
+    dbname: str,
+    *compile_args: Any,
+    **compile_kwargs: Any,
+):
+    client_schema = clients[client_id]
+    db = client_schema.dbs[dbname]
+    return COMPILER.compile_sql(
+        db.user_schema,
+        client_schema.global_schema,
+        db.reflection_cache,
+        db.database_config,
+        client_schema.instance_config,
+        *compile_args,
+        **compile_kwargs,
+    )
+
+
 def call_for_client(client_id, pickled_schema, invalidation, msg, *args):
     __sync__(client_id, pickled_schema, invalidation)
     if msg is None:
@@ -286,6 +305,8 @@ def call_for_client(client_id, pickled_schema, invalidation, msg, *args):
         meth = compile_notebook
     elif methname == "compile_graphql":
         meth = compile_graphql
+    elif methname == "compile_sql":
+        meth = compile_sql
     else:
         meth = getattr(COMPILER, methname)
     return meth(client_id, dbname, *args)
