@@ -8,7 +8,7 @@ use crate::helpers::quote_name;
 use crate::position::Span;
 use crate::tokenizer::Error;
 
-pub fn parse<'s, 't>(spec: &'s Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>) {
+pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>) {
     let arena = bumpalo::Bump::new();
 
     let stack_top = arena.alloc(StackNode {
@@ -22,7 +22,7 @@ pub fn parse<'s, 't>(spec: &'s Spec, input: Vec<Terminal>) -> (Option<CSTNode>, 
         errors: Vec::new(),
     };
 
-    let ctx = Context::new(&spec, &arena);
+    let ctx = Context::new(spec, &arena);
 
     let mut parsers = vec![initial_track];
 

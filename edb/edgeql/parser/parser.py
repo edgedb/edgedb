@@ -312,19 +312,6 @@ class CheeseParser():
 
         if len(result.errors()) > 0:
 
-            # debug: print all errors
-            if result.out():
-                ast = self._cst_to_ast(result.out()).val
-                if isinstance(ast, list):
-                    for x in ast:
-                        x.dump_edgeql()
-                else:
-                    ast.dump_edgeql()
-
-            for error in result.errors():
-                message, (start, end) = error
-                print(f'[{start[0]}:{start[1]}] {message}')
-
             # TODO: emit multiple errors
             error = result.errors()[0]
 
@@ -378,12 +365,12 @@ class CheeseParser():
                     args.reverse()
                     stack.extend(args)
                 else:
-                    assert False, node
+                    raise NotImplementedError(node)
 
             elif isinstance(node, eql_parser.Production):
                 # production args are done, get them out of result stack
                 len_args = len(node.args())
-                split_at = len(result)-len_args
+                split_at = len(result) - len_args
                 args = result[split_at:]
                 result = result[0:split_at]
 
@@ -397,7 +384,6 @@ class CheeseParser():
                 # push into result stack
                 result.append(obj)
         return result.pop()
-
 
 
 class EdgeQLSingleParser(EdgeQLParserBase):

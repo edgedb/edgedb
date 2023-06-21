@@ -37,7 +37,7 @@ fn push_var<'x>(res: &mut Vec<Token>, module: &'x str, typ: &'x str,
         value: Some(Value::String(typ.to_string())),
     });
     res.push(Token {kind: Kind::Greater, text: ">".into(), span, value: None});
-    res.push(Token {kind: Kind::Argument, text: var.into(), span, value: None});
+    res.push(Token {kind: Kind::Argument, text: var, span, value: None});
     res.push(Token {kind: Kind::CloseParen, text: ")".into(), span, value: None});
 }
 

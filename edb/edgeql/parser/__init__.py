@@ -55,6 +55,7 @@ def parse_fragment(
     assert isinstance(res, qlast.Expr)
     return res
 
+
 def parse_single(
     source: Union[qltokenizer.Source, str],
     filename: Optional[str]=None,
