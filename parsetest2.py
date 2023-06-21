@@ -39,27 +39,29 @@ QS = [
     select '10 seconds'
     ''',
     '''
-        SELECT 1;
-        SELECT 2;
+    SELECT (false, }]})
     ''',
     '''
-    with module cards
-        for g in (group Card by .element) union g.hello
+    SELECT 1
+    SELECT 2;
     ''',
-    '''SELECT (false, true false])''',
-    '''SELECT User name }''',
+    '''
+    SELECT (false, true false])
+    ''',
+    '''
+    for c Card union c.hello
+    ''',
+    '''
+    SELECT User name }
+    ''',
 ]
 
 for q in QS[:]:
+    
+    print('-' * 30)
+    print()
+
     try:
         ast = parse(q)
     except:
-        continue
-
-    print(ast)
-    for n in ast:
-        n.dump()
-        n.dump_edgeql()
-
-        from edb.common import context as pctx
-        pctx.ContextValidator().visit(n)
+        pass

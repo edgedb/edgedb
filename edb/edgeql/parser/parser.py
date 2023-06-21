@@ -312,6 +312,24 @@ class CheeseParser():
 
         if len(result.errors()) > 0:
 
+            # DEBUG: print all errors
+            for index, error in enumerate(result.errors()):
+                message, (start, end) = error
+                (_, start, _) = start
+                (_, end, _) = end
+
+                print(f'Error [{index+1}/{len(result.errors())}]:')
+                print(source.text())
+                print(' ' * (start - 1) + '^' + '-' * (end - start - 1) + ' ' + message)
+                print()
+            print('Recovered AST:')
+            ast = self._cst_to_ast(result.out()).val
+            if isinstance(ast, list):
+                for x in ast:
+                    x.dump_edgeql()
+            else:
+                ast.dump_edgeql()
+
             # TODO: emit multiple errors
             error = result.errors()[0]
 
