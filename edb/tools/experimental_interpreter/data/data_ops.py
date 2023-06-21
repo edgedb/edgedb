@@ -654,27 +654,27 @@ class DBSchema:
 # RT Stands for Run Time
 
 
-@dataclass(frozen=True)
-class RTData:
-    cur_db: DB
-    read_snapshots: Sequence[DB]
-    schema: DBSchema
-    eval_only: bool  # a.k.a. no DML, no effect
+# @dataclass(frozen=True)
+# class RTData:
+#     cur_db: DB
+#     read_snapshots: Sequence[DB]
+#     schema: DBSchema
+#     eval_only: bool  # a.k.a. no DML, no effect
 
 
 class RTExpr(NamedTuple):
-    data: RTData
+    cur_db: DB
     expr: Expr
 
 
 class RTVal(NamedTuple):
-    data: RTData
+    cur_db: DB
     val: MultiSetVal
 
 
 @dataclass
 class TcCtx:
-    statics: RTData
+    schema: DBSchema
     varctx: Dict[str, ResultTp]
 
 
