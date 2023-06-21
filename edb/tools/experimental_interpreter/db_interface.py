@@ -10,6 +10,9 @@ class EdgeDatabaseInterface:
     def queryIdsForAType(self, tp: str) -> List[EdgeID]:
         raise NotImplementedError()
 
+    def getTypeForAnId(self, id: EdgeID) -> str:
+        raise NotImplementedError()
+
     # determines whether the object with a specific id has a property/link that can be projected
     # i.e. if the property/link is a computable, then this should return false and subsequent 
     # calls to project will throw an error

@@ -113,47 +113,45 @@ def eval_expr_list(ctx: EvalEnv,
 # not sure why the semantics says to produce empty set when label not present
 
 
-def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: Label) -> Sequence[Val]:
+def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: Label) -> MultiSetVal:
     match subject:
         case FreeVal(val=objVal):
             if label in objVal.val.keys():
-                return objVal.val[label][1].vals
+                return objVal.val[label][1]
             else:
                 raise ValueError("Label not found", label)
         case RefVal(refid=id, val=objVal):
             # entry_obj = data.read_snapshots[0].dbdata[id].data
             if label in objVal.val.keys():
-                return objVal.val[label][1].vals
-            elif label in entry_obj.val.keys():
-                return entry_obj.val[label][1].vals
+                return objVal.val[label][1]
             elif isinstance(label, StrLabel):
                 label_str = label.label
-                t_name = data.read_snapshots[0].dbdata[id].tp
-                t_def = data.schema.val[t_name.name]
-                if label_str in t_def.val.keys():
-                    target_tp = t_def.val[label_str].tp
-                    match target_tp:
-                        case e.ComputableTp(expr=comp_expr, tp=_):
-                            (_, val) = eval_config(
-                                RTExpr(make_eval_only(data),
-                                       instantiate_expr(subject, comp_expr)
-                                       ))
-                            return val.vals
-                        case _:
-                            raise ValueError("Label found, but not computable",
-                                             label)
+                if db.isProjectable(id, label_str):
+                    return db.project(id, label_str)
                 else:
-                    raise ValueError("Label not found", label)
+                    t_name = db.getTypeForAnId(id)
+                    t_def = db.getSchema().val[t_name]
+                    if label_str in t_def.val.keys():
+                        target_tp = t_def.val[label_str].tp
+                        match target_tp:
+                            case e.ComputableTp(expr=comp_expr, tp=_):
+                                new_ctx, comp_expr_body = ctx_extend(ctx, comp_expr, MultiSetVal([subject]))
+                                return eval_config(new_ctx, db, comp_expr_body)
+                            case _:
+                                raise ValueError("Label found, but not computable",
+                                                label)
+                    else:
+                        raise ValueError("Label not found", label)
             else:
                 raise ValueError("Label not found", label)
         case NamedTupleVal(val=dic):
             match label:
                 case StrLabel(l):
                     if l in dic.keys():
-                        return [dic[l]]
+                        return MultiSetVal([dic[l]])
                     else:
                         if l.isdigit() and int(l) < len(dic.keys()):
-                            return [dic[list(dic.keys())[int(l)]]]
+                            return MultiSetVal([dic[list(dic.keys())[int(l)]]])
                         else:
                             raise ValueError("key DNE")
             raise ValueError("Label not Str")
@@ -161,18 +159,17 @@ def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: 
             match label:
                 case StrLabel(l):
                     if l.isdigit() and int(l) < len(arr):
-                        return [arr[int(l)]]
+                        return MultiSetVal([arr[int(l)]])
                     else:
                         raise ValueError("key DNE")
             raise ValueError("Label not Str")
         case LinkPropVal(refid=id, linkprop=linkprop):
             match label:
                 case LinkPropLabel(label=lp_label):
-                    return singular_proj(
-                        data, FreeVal(val=linkprop),
-                        label=StrLabel(lp_label))
+                    return singular_proj(ctx, db,
+                        FreeVal(val=linkprop), label=StrLabel(lp_label))
                 case StrLabel(_):
-                    return singular_proj(data,
+                    return singular_proj(ctx, db,
                                          RefVal(refid=id, val=ObjectVal({})),
                                          label=label)
                 case _:
