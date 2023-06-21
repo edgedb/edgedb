@@ -293,6 +293,9 @@ class CheeseParser():
         for (_, token), cls in mod.TokenMeta.token_map.items():
             self.token_map[token] = cls
 
+    def get_parser_spec(self, allow_rebuild=False):
+        return self.parser.get_parser_spec(allow_rebuild=allow_rebuild)
+
     def parse(
         self,
         source: Union[str, tokenizer.Source],
@@ -309,6 +312,15 @@ class CheeseParser():
 
         if len(result.errors()) > 0:
 
+            # debug: print all errors
+            if result.out():
+                ast = self._cst_to_ast(result.out()).val
+                if isinstance(ast, list):
+                    for x in ast:
+                        x.dump_edgeql()
+                else:
+                    ast.dump_edgeql()
+
             for error in result.errors():
                 message, (start, end) = error
                 print(f'[{start[0]}:{start[1]}] {message}')
@@ -324,12 +336,18 @@ class CheeseParser():
 
         return self._cst_to_ast(result.out()).val
 
-
-    def get_parser_spec(self, allow_rebuild=False):
-        return self.parser.get_parser_spec(allow_rebuild=allow_rebuild)
-
-
     def _cst_to_ast(self, cst: eql_parser.CSTNode):
+        # Converts CST into AST by calling methods from the grammar classes.
+        #
+        # This function was originally written as a simple recursion.
+        # Then I had to unfold it, because it was hitting recursion limit.
+        # Stack here contains all remaining things to do:
+        # - CST node means the node has to be processed and pushed onto the
+        #   result stack,
+        # - production means that all args of production have been processed
+        #   are are ready to be passed to the production method. The result is
+        #   obviously pushed onto the result stack
+
         stack: List[eql_parser.CSTNode | eql_parser.Production] = [cst]
         result: List[Any] = []
 
@@ -337,9 +355,10 @@ class CheeseParser():
             node = stack.pop()
 
             if isinstance(node, eql_parser.CSTNode):
+                # this would be the body of the original recursion function
 
                 if terminal := node.terminal():
-
+                    # Terminal is simple: just convert to parsing.Token
                     context = parsing.ParserContext(
                         name=self.filename,
                         buffer=self.source.text(),
@@ -351,6 +370,9 @@ class CheeseParser():
                     ))
 
                 elif production := node.production():
+                    # Production needs to first process all args, then
+                    # call the appropriate method.
+                    # (this is all in reverse, because stacks)
                     stack.append(production)
                     args = list(production.args())
                     args.reverse()
@@ -359,16 +381,20 @@ class CheeseParser():
                     assert False, node
 
             elif isinstance(node, eql_parser.Production):
+                # production args are done, get them out of result stack
                 len_args = len(node.args())
                 split_at = len(result)-len_args
                 args = result[split_at:]
                 result = result[0:split_at]
 
+                # find correct method to call
                 mod = self.parser.get_parser_spec_module()
                 cls = mod.__dict__[node.non_term()]
                 obj = cls()
                 method = cls.__dict__[node.production()]
                 method(obj, *args)
+
+                # push into result stack
                 result.append(obj)
         return result.pop()
 

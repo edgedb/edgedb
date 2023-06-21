@@ -42,7 +42,7 @@ QS = [
         SELECT 1;
         SELECT 2;
     ''',
-    '''SELECT (false, true false) )'''
+    '''SELECT (false, true false false yes}] )'''
 ]
 
 for q in QS[:]:

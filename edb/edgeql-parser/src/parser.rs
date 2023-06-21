@@ -136,7 +136,7 @@ impl<'s> Parser<'s> {
 
                 // special case: try to recover
                 if let Some(recovery) = self.find_recovery_path(&token) {
-                    self.apply_recovery(recovery);
+                    recovery.apply(&mut self.stack);
 
                     // retry lookup
                     if let Some(action) = self
@@ -251,22 +251,24 @@ impl<'s> Parser<'s> {
         println!("{}", states);
     }
 
-    fn find_recovery_path(&self, _token: &Terminal) -> Option<RecoveryPath> {
-        let mut path = RecoveryPath::new();
-        path.add(RecoveryAction::Pop);
+    fn find_recovery_path(&self, token: &Terminal) -> Option<RecoveryPath> {
+        let mut recovery = RecoveryPath::new();
 
-        Some(path)
-    }
+        while recovery.cost < 10 {
+            recovery.add(RecoveryAction::Pop);
 
-    fn apply_recovery(&mut self, recovery: RecoveryPath) {
-        for action in recovery.actions {
-            match action {
-                RecoveryAction::Pop => {
-                    self.stack.pop();
-                }
-                RecoveryAction::SkipInto() => todo!(),
+            if self.is_recovery_valid(&recovery, &token.kind).is_some() {
+                return Some(recovery);
             }
         }
+
+        None
+    }
+
+    fn is_recovery_valid(&self, recovery: &RecoveryPath, token_kind: &str) -> Option<&Action> {
+        let state = recovery.dry_run(&self.stack)?;
+
+        self.spec.actions[state].get(token_kind)
     }
 }
 
@@ -281,6 +283,31 @@ impl RecoveryPath {
     fn add(&mut self, action: RecoveryAction) {
         self.cost += action.cost();
         self.actions.push(action);
+    }
+
+    fn apply(&self, stack: &mut Vec<StackNode>) {
+        for action in &self.actions {
+            match action {
+                RecoveryAction::Pop => {
+                    stack.pop();
+                }
+                RecoveryAction::SkipInto() => todo!(),
+            }
+        }
+    }
+
+    fn dry_run(&self, stack: &[StackNode]) -> Option<usize> {
+        let mut stack: Vec<usize> = stack.iter().map(|x| x.state).collect();
+
+        for action in &self.actions {
+            match action {
+                RecoveryAction::Pop => {
+                    stack.pop();
+                }
+                RecoveryAction::SkipInto() => todo!(),
+            }
+        }
+        stack.pop()
     }
 }
 
