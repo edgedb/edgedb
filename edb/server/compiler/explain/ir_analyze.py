@@ -200,8 +200,7 @@ def analyze_queries(
 
             for node in ns:
                 ir_node_to_alias[node] = alias
-                # TODO(Tailhook) is it okay to add all nodes, or just first
-                # like we do for context?
+                break
 
             # Find the enclosing
             sources = reverse_path_rvar_map.get(rvar, ())
