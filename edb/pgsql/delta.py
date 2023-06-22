@@ -66,6 +66,7 @@ from edb.schema import utils as s_utils
 from edb.common import markup
 from edb.common import ordered
 from edb.common import uuidgen
+from edb.common import parsing
 from edb.common.typeutils import not_none
 
 from edb.ir import pathid as irpathid
@@ -144,6 +145,8 @@ class CommandMeta(sd.CommandMeta):
 
 
 class MetaCommand(sd.Command, metaclass=CommandMeta):
+    pgops: ordered.OrderedSet[dbops.Command | sd.Command]
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.pgops = ordered.OrderedSet()
@@ -186,6 +189,7 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
 
     def generate(self, block: dbops.PLBlock) -> None:
         for op in self.pgops:
+            assert isinstance(op, (dbops.Command, MetaCommand))
             op.generate(block)
 
     @classmethod
@@ -274,8 +278,7 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        cmd: sd.Command | Callable[
-            [s_schema.Schema, sd.CommandContext], MetaCommand],
+        cmd: PostCommand,
         ctxcls: Type[sd.CommandContextToken[sd.Command]],
     ) -> None:
         ctx = context.get_topmost_ancestor(ctxcls)
@@ -2019,7 +2022,9 @@ class DeleteAnnotationValue(
 
 class ConstraintCommand(MetaCommand):
     @classmethod
-    def constraint_is_effective(cls, schema, constraint):
+    def constraint_is_effective(
+        cls, schema: s_schema.Schema, constraint: s_constr.Constraint
+    ) -> bool:
         subject = constraint.get_subject(schema)
         if subject is None:
             return False
@@ -2035,20 +2040,20 @@ class ConstraintCommand(MetaCommand):
         ):
             return False
 
-        elif is_cfg_view(subject, schema):
+        if is_cfg_view(subject, schema):
             return False
 
-        elif isinstance(subject, s_pointers.Pointer):
-            if subject.generic(schema):
-                return True
-            else:
-                return has_table(subject.get_source(schema), schema)
-        elif isinstance(subject, s_objtypes.ObjectType):
-            return has_table(subject, schema)
-        elif isinstance(subject, s_scalars.ScalarType):
-            return not subject.get_abstract(schema)
-        else:
-            raise NotImplementedError()
+        match subject:
+            case s_pointers.Pointer():
+                if subject.generic(schema):
+                    return True
+                else:
+                    return has_table(subject.get_source(schema), schema)
+            case s_objtypes.ObjectType():
+                return has_table(subject, schema)
+            case s_scalars.ScalarType():
+                return not subject.get_abstract(schema)
+        raise NotImplementedError(subject)
 
     @classmethod
     def fixup_base_constraint_triggers(
@@ -2082,7 +2087,11 @@ class ConstraintCommand(MetaCommand):
 
     @classmethod
     def create_constraint(
-            cls, constraint, schema, context, source_context=None):
+        cls,
+        constraint: s_constr.Constraint,
+        schema: s_schema.Schema,
+        source_context: Optional[parsing.ParserContext] = None,
+    ) -> dbops.Command:
         op = dbops.CommandGroup()
         if cls.constraint_is_effective(schema, constraint):
             subject = constraint.get_subject(schema)
@@ -2098,7 +2107,11 @@ class ConstraintCommand(MetaCommand):
 
     @classmethod
     def delete_constraint(
-            cls, constraint, schema, context, source_context=None):
+        cls,
+        constraint: s_constr.Constraint,
+        schema: s_schema.Schema,
+        source_context: Optional[parsing.ParserContext] = None,
+    ) -> dbops.Command:
         op = dbops.CommandGroup()
         if cls.constraint_is_effective(schema, constraint):
             subject = constraint.get_subject(schema)
@@ -2114,7 +2127,11 @@ class ConstraintCommand(MetaCommand):
 
     @classmethod
     def enforce_constraint(
-            cls, constraint, schema, context, source_context=None):
+        cls,
+        constraint: s_constr.Constraint,
+        schema: s_schema.Schema,
+        source_context: Optional[parsing.ParserContext] = None,
+    ) -> dbops.Command:
 
         if cls.constraint_is_effective(schema, constraint):
             subject = constraint.get_subject(schema)
@@ -2139,8 +2156,7 @@ class CreateConstraint(ConstraintCommand, adapts=s_constr.CreateConstraint):
         schema = super().apply(schema, context)
         constraint = self.scls
 
-        op = self.create_constraint(
-            constraint, schema, context, self.source_context)
+        op = self.create_constraint(constraint, schema, self.source_context)
         self.pgops.add(op)
         self.pgops.add(self.fixup_base_constraint_triggers(
             constraint, orig_schema, schema, context, self.source_context,
@@ -2157,10 +2173,16 @@ class CreateConstraint(ConstraintCommand, adapts=s_constr.CreateConstraint):
             and not context.is_creating(subject)
         ):
             op = self.enforce_constraint(
-                constraint, schema, context, self.source_context)
+                constraint, schema, self.source_context
+            )
+
+            # XXX: PostCommand or maybe even pg_ops have incorrect type
+            # annotations, but I cannot figure them out.
+            op2: sd.Command = op  # type: ignore
+
             self.schedule_post_inhview_update_command(
-                schema, context, op,
-                s_sources.SourceCommandContext)
+                schema, context, op2, s_sources.SourceCommandContext
+            )
 
         return schema
 
@@ -2261,7 +2283,8 @@ class AlterConstraint(
                 and not context.is_deleting(subject)
             ):
                 op = self.enforce_constraint(
-                    constraint, schema, context, self.source_context)
+                    constraint, schema, self.source_context
+                )
                 self.schedule_post_inhview_update_command(
                     schema,
                     context,
@@ -2284,11 +2307,12 @@ class DeleteConstraint(ConstraintCommand, adapts=s_constr.DeleteConstraint):
     ) -> s_schema.Schema:
         delta_root_ctx = context.top()
         orig_schema = delta_root_ctx.original_schema
-        constraint = schema.get(self.classname)
+        constraint = schema.get(self.classname, type=s_constr.Constraint)
 
         schema = super().apply(schema, context)
         op = self.delete_constraint(
-            constraint, orig_schema, context, self.source_context)
+            constraint, orig_schema, self.source_context
+        )
         self.pgops.add(op)
 
         self.pgops.add(self.fixup_base_constraint_triggers(
@@ -2616,8 +2640,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                     )
                 )
             elif isinstance(obj, s_constr.Constraint):
-                self.pgops.add(
-                    ConstraintCommand.delete_constraint(obj, schema, context))
+                self.pgops.add(ConstraintCommand.delete_constraint(obj, schema))
             elif isinstance(obj, s_indexes.Index):
                 self.pgops.add(DeleteIndex.delete_index(obj, schema, context))
             elif isinstance(obj, s_types.Tuple):
@@ -2663,8 +2686,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                     fc.set_attribute_value(f, obj.get_field_value(schema, f))
                 self.pgops.update(fc.make_op(obj, schema, context))
             elif isinstance(obj, s_constr.Constraint):
-                self.pgops.add(
-                    ConstraintCommand.create_constraint(obj, schema, context))
+                self.pgops.add(ConstraintCommand.create_constraint(obj, schema))
             elif isinstance(obj, s_indexes.Index):
                 self.pgops.add(
                     CreateIndex.create_index(obj, orig_schema, context))
@@ -2903,14 +2925,22 @@ class DeleteScalarType(ScalarTypeMetaCommand,
         return schema
 
 
-# In pgsql/delta, a "composite object" is anything that can have a table.
-# That is, an object type, a link, or a property.
-# We represent it as Source | Pointer, since many call sites are generic
-# over one of those things.
-CompositeObject = s_sources.Source | s_pointers.Pointer
+if TYPE_CHECKING:
+    # In pgsql/delta, a "composite object" is anything that can have a table.
+    # That is, an object type, a link, or a property.
+    # We represent it as Source | Pointer, since many call sites are generic
+    # over one of those things.
+    CompositeObject = s_sources.Source | s_pointers.Pointer
+
+    PostCommand = (
+        sd.Command | Callable[[s_schema.Schema, sd.CommandContext], sd.Command]
+    )
 
 
 class CompositeMetaCommand(MetaCommand):
+
+    post_inhview_update_commands: List[PostCommand]
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.table_name = None
@@ -4199,15 +4229,15 @@ class PointerMetaCommand(
         # constraints directly on the pointer) because we want to
         # pick up object constraints that reference it as well.
         for cnstr in schema.get_referrers(
-                pointer, scls_type=s_constr.Constraint):
-            self.pgops.add(
-                ConstraintCommand.delete_constraint(cnstr, schema, context))
+            pointer, scls_type=s_constr.Constraint
+        ):
+            self.pgops.add(ConstraintCommand.delete_constraint(cnstr, schema))
 
     def _recreate_constraints(self, pointer, schema, context):
         for cnstr in schema.get_referrers(
-                pointer, scls_type=s_constr.Constraint):
-            self.pgops.add(
-                ConstraintCommand.create_constraint(cnstr, schema, context))
+            pointer, scls_type=s_constr.Constraint
+        ):
+            self.pgops.add(ConstraintCommand.create_constraint(cnstr, schema))
 
     def _alter_pointer_type(self, pointer, schema, orig_schema, context):
         old_ptr_stor_info = types.get_pointer_storage_info(
@@ -7154,7 +7184,6 @@ class DeleteFutureBehavior(
 class DeltaRoot(MetaCommand, adapts=sd.DeltaRoot):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._renames = {}
         self.config_ops = []
 
     def apply(
@@ -7170,13 +7199,6 @@ class DeltaRoot(MetaCommand, adapts=sd.DeltaRoot):
         self.pgops.add(self.update_endpoint_delete_actions)
 
         return schema
-
-    def is_material(self):
-        return True
-
-    def generate(self, block: dbops.PLBlock) -> None:
-        for op in self.pgops:
-            op.generate(block)
 
 
 class MigrationCommand(MetaCommand):

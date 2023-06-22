@@ -141,7 +141,7 @@ class CompilerOptions(GlobalCompilerOptions):
     #: Type references that should be remaped to another type.  This
     #: is for dealing with remapping explicit type names in schema
     #: expressions to their subtypes when necessary.
-    type_remaps: Dict[s_obj.Object, s_types.Type] = dc_field(
+    type_remaps: Dict[s_obj.Object, s_obj.Object] = dc_field(
         default_factory=dict
     )
 
