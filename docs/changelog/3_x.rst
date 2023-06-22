@@ -452,8 +452,8 @@ Using the extension is quite straightforward and self-explanatory:
     order by .dist empty last
     limit 5
 
-For more details about ``ext::pgvector``, please refer to the dedicated
-documentation on this :ref:`page <ref_ext_pgvector>`.
+For more details about ``ext::pgvector``, please refer to :ref:`the dedicated
+ext::pgvector documentation <ref_ext_pgvector>`.
 
 
 SQL support
