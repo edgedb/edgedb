@@ -767,24 +767,6 @@ Bug fixes
 * Fix protocol state confusion after rollback
   (:eql:gh:`#4970`), (:eql:gh:`#4953`)
 
-* Fix indirect references to properties in triggers
-  (:eql:gh:`#5450`)
-
-* Fix rewrites of aliases types
-  (:eql:gh:`#5461`)
-
-* Do nicer translation of relation names in ``ANALYZE``
-  (:eql:gh:`#5467`)
-
-* Fix schema ordering bug when ``INSERT`` appears in triggers
-  (:eql:gh:`#5489`)
-
-* Produce correct error source locations in the SQL interface
-  (:eql:gh:`#5462`)
-
-* Fix deleting a pointer with rewrites in a migration
-  (:eql:gh:`#5503`)
-
 * Support disabling dynamic configuration of system config
   (:eql:gh:`#5425`)
 
@@ -853,10 +835,6 @@ Bug fixes
 * Make failovers more resilient
   (:eql:gh:`#5511`)
 
-* Improve the error reporting for missing pointers in inserts in
-  rewrites and triggers
-  (:eql:gh:`#5562`)
-
 * Fix support for Postgres 15
   (:eql:gh:`#5534`)
 
@@ -906,9 +884,6 @@ Bug fixes
 
 * Sort composite type display names consistently
   (:eql:gh:`#5580`)
-
-* Make ``describe module`` work on nested modules
-  (:eql:gh:`#5646`)
 
 * Make stdlib objects immutable
   (:eql:gh:`#5599`)
