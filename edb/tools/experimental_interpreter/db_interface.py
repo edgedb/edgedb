@@ -8,16 +8,19 @@ from .data.data_ops import *
 EdgeID = int
 class EdgeDatabaseInterface:
 
-    def queryIdsForAType(self, tp: str) -> List[EdgeID]:
+    def query_ids_for_a_type(self, tp: str) -> List[EdgeID]:
         raise NotImplementedError()
 
-    def getTypeForAnId(self, id: EdgeID) -> str:
+    def get_type_for_an_id(self, id: EdgeID) -> str:
+        raise NotImplementedError()
+
+    def get_props_for_id(self, id: EdgeID) -> Dict[str, MultiSetVal]:
         raise NotImplementedError()
 
     # determines whether the object with a specific id has a property/link that can be projected
     # i.e. if the property/link is a computable, then this should return false and subsequent 
     # calls to project will throw an error
-    def isProjectable(self, id: EdgeID, property: str) -> bool:
+    def is_projectable(self, id: EdgeID, property: str) -> bool:
         raise NotImplementedError()
 
     # project a property/link from an object
@@ -28,15 +31,16 @@ class EdgeDatabaseInterface:
     # objects, including its link properties
     # That is, return a list of ids which has a link (via the given property) 
     # to any object in the given set
-    def reverseProject(self, ids: Sequence[EdgeID], property: str) -> MultiSetVal:
+    def reverse_project(self, ids: Sequence[EdgeID], property: str) -> MultiSetVal:
         raise NotImplementedError()
 
     # insert an object into the database, returns the inserted object id
     def insert(self, tp: str, props : Dict[str, MultiSetVal]) -> EdgeID:
         raise NotImplementedError()
-    
-    # replace an object's properties in the database
-    def replace(self, id: EdgeID, newProps : Dict[str, MultiSetVal]) -> None:
+
+    # updates an object's properties in the database, unspecified properties are not changed
+    # the update must be able to apply the insert object in the SAME transaction
+    def update(self, id: EdgeID, props : Dict[str, MultiSetVal]) -> None:
         raise NotImplementedError()
 
     # delete an object in the database
@@ -44,12 +48,16 @@ class EdgeDatabaseInterface:
         raise NotImplementedError()
 
     # transactional evaluation: commit all inserts/updates/deletes
-    def commitDML(self) -> None:
+    def commit_dml(self) -> None:
         raise NotImplementedError()
 
-    def getSchema(self) -> DBSchema:
+    def get_schema(self) -> DBSchema:
         raise NotImplementedError()
 
+    # retrieves an next id for object assignment, this id will 
+    # not be identical to any id that is currently anywhere
+    def next_id(self) -> EdgeID:
+        raise NotImplementedError()
 
 class InMemoryEdgeDatabase(EdgeDatabaseInterface):
 
@@ -57,37 +65,47 @@ class InMemoryEdgeDatabase(EdgeDatabaseInterface):
         super().__init__()
         self.schema = schema
         self.db = DB({})
-        self.to_delete = DB({})
-        self.to_update = DB({})
+        self.to_delete : List[EdgeID] = []
+        self.to_update : Dict[EdgeID, Dict[str, MultiSetVal]]= {}
+        self.to_insert = DB({})
+        self.next_id_to_return = 1
 
-    def queryIdsForAType(self, tp: str) -> List[EdgeID]:
-        return [id for id in self.db.dbdata.keys() if self.db.dbdata[id].tp.name == tp]
+    def query_ids_for_a_type(self, tp: str) -> List[EdgeID]:
+        return [id for id in self.db.dbdata.keys() if self.db.dbdata[id].tp == tp]
 
-    def getDBEntryForId(self, id: EdgeID) -> DBEntry:
+    def get_props_for_id(self, id: EdgeID) -> Dict[str, MultiSetVal]:
         if id in self.db.dbdata.keys():
-            return self.db.dbdata[id]
-        elif id in self.to_update.dbdata.keys():
-            return self.to_update.dbdata[id]
-        elif id in self.to_delete.dbdata.keys():
-            return self.to_delete.dbdata[id]
+            return self.db.dbdata[id].data
+        # updates are queried before insert as we are able to update an inserted object
+        elif id in self.to_update.keys():
+            return self.to_update[id]
+        elif id in self.to_insert.dbdata.keys():
+            return self.to_insert.dbdata[id].data
+        # updates and deletes are all in db.dbdata
         else:
             raise ValueError(f"ID {id} not found in database")
 
     
-    def getTypeForAnId(self, id: EdgeID) -> str:
-        return self.getDBEntryForId(id).tp.name
+    def get_type_for_an_id(self, id: EdgeID) -> str:
+        if id in self.db.dbdata.keys():
+            return self.db.dbdata[id].tp
+        elif id in self.to_insert.dbdata.keys():
+            return self.to_insert.dbdata[id].tp
+        # updates and deletes are all in db or to_insert
+        else:
+            raise ValueError(f"ID {id} not found in database")
     
-    def isProjectable(self, id: EdgeID, prop: str) -> bool:
-        return StrLabel(prop) in self.getDBEntryForId(id).data.val.keys()
+    def is_projectable(self, id: EdgeID, prop: str) -> bool:
+        return prop in self.get_props_for_id(id).keys()
     
     def project(self, id: EdgeID, prop: str) -> MultiSetVal:
-        return self.getDBEntryForId(id).data.val[StrLabel(prop)][1]
+        return self.get_props_for_id(id)[prop]
 
-    def reverseProject(self, subject_ids: Sequence[EdgeID], prop: str) -> MultiSetVal:
+    def reverse_project(self, subject_ids: Sequence[EdgeID], prop: str) -> MultiSetVal:
         results: List[Val] = []
         for (id, obj) in self.db.dbdata.items():
-            if StrLabel(prop) in obj.data.val.keys():
-                object_vals = obj.data.val[StrLabel(prop)][1].vals
+            if prop in obj.data.keys():
+                object_vals = obj.data[prop].vals
                 if all(isinstance(object_val, LinkPropVal)
                         for object_val in object_vals):
                     object_id_mapping = {
@@ -103,7 +121,36 @@ class InMemoryEdgeDatabase(EdgeDatabaseInterface):
                                     refid=id,
                                     linkprop=obj_linkprop_val)]
         return MultiSetVal(results)
-    
 
+    def delete(self, id: EdgeID) -> None:
+        self.to_delete.append(id)
+
+    def insert(self, tp: str, props : Dict[str, MultiSetVal]) -> EdgeID:
+        id = self.next_id()
+        self.to_insert.dbdata[id] = DBEntry(tp, props)
+        return id
+
+    def update(self, id: EdgeID, props : Dict[str, MultiSetVal]) -> None:
+        self.to_update[id] = props
     
+    def commitDML(self) -> None:
+        # updates must happen after insert because it may update inserted data
+        for (id, insert_obj) in self.to_insert.dbdata.items():
+            self.db.dbdata[id] = insert_obj
+        for (id, obj) in self.to_update.items():
+            if id not in self.db.dbdata.keys():
+                raise ValueError(f"ID {id} not found in database")
+            self.db.dbdata[id] = DBEntry(
+                tp=self.db.dbdata[id].tp,
+                data={
+                    **self.db.dbdata[id].data,
+                    **obj
+                }
+            )
+        # delete happens last, you may also delete an inserted object
+        for id in self.to_delete:
+            del self.db.dbdata[id]
+        self.to_delete = []
+        self.to_update = {}
+        self.to_insert = DB({})
         

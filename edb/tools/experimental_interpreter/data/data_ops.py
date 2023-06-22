@@ -630,8 +630,8 @@ Expr = (
 
 @dataclass(frozen=True)
 class DBEntry:
-    tp: VarTp
-    data: ObjectVal  # actually values
+    tp: str
+    data: Dict[str, MultiSetVal]
 
 
 @dataclass(frozen=True)

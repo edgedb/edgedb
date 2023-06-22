@@ -14,7 +14,7 @@ from .data.data_ops import (
     ParamSingleton, RefVal, ShapedExprExpr, ShapeExpr, StrLabel, StrVal,
     SubqueryExpr, TpIntersectExpr, TypeCastExpr, UnionExpr,
     UnnamedTupleExpr, UnnamedTupleVal, UpdateExpr, Val, VarTp, Visible,
-    WithExpr, next_id, RTData, RTExpr, RTVal)
+    WithExpr, next_id,  RTExpr, RTVal)
 from .data import data_ops as e
 from .data import expr_ops as eops
 from .data import type_ops as tops
@@ -26,8 +26,8 @@ from .data.expr_ops import (
 from .data.type_ops import is_nominal_subtype_in_schema
 from .db_interface import *
 
-def make_eval_only(data: RTData) -> RTData:
-    return RTData(data.cur_db, data.read_snapshots, data.schema, True)
+# def make_eval_only(data: RTData) -> RTData:
+#     return RTData(data.cur_db, data.read_snapshots, data.schema, True)
 
 
 def eval_error(expr: Val | Expr | Sequence[Val], msg: str = "") -> Any:
@@ -126,11 +126,11 @@ def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: 
                 return objVal.val[label][1]
             elif isinstance(label, StrLabel):
                 label_str = label.label
-                if db.isProjectable(id, label_str):
+                if db.is_projectable(id, label_str):
                     return db.project(id, label_str)
                 else:
-                    t_name = db.getTypeForAnId(id)
-                    t_def = db.getSchema().val[t_name]
+                    t_name = db.get_type_for_an_id(id)
+                    t_def = db.get_schema().val[t_name]
                     if label_str in t_def.val.keys():
                         target_tp = t_def.val[label_str].tp
                         match target_tp:
@@ -223,18 +223,18 @@ class EvaluationLogsWrapper:
         self.logs = logs
         self.indexes: List[int] = []
 
-    def __call__(self, eval_config: Callable[[RTExpr], RTVal]):
+    def __call__(self, eval_config: Callable[[EvalEnv, EdgeDatabaseInterface, Expr], MultiSetVal]):
         self.original_eval_config = eval_config
 
-        def wrapper(rt_expr: RTExpr) -> RTVal:
+        def wrapper(ctx: EvalEnv, db: EdgeDatabaseInterface, expr: Expr) -> MultiSetVal:
             if self.logs is None:
-                return self.original_eval_config(rt_expr)
+                return self.original_eval_config(expr)
             else:
                 parent = self.logs
                 [parent := parent[i] for i in self.indexes]
                 self.indexes.append(len(parent))
-                parent.append([(rt_expr.expr, [StrVal("NOT AVAILABLE!!!")])])
-                rt_val = self.original_eval_config(rt_expr)
+                parent.append([(expr, [StrVal("NOT AVAILABLE!!!")])])
+                rt_val = self.original_eval_config(expr)
                 parent[self.indexes[-1]][0] = (parent[self.indexes[-1]][0][0],
                                                rt_val.val)
                 assert len(parent[self.indexes[-1]][0]) == 2
@@ -268,7 +268,7 @@ def eval_config(ctx: EvalEnv,
         case InsertExpr(tname, arg):
             id = db.insert(tname, {})
             expr_with_default = object_tp_default_initial_step_with_insert(
-                db.getSchema().val[tname], arg, id)
+                db.get_schema().val[tname], arg, id)
             raw_object = eval_config(
                         ctx,
                         db,
@@ -282,8 +282,8 @@ def eval_config(ctx: EvalEnv,
             )
 
             new_object = coerce_to_storage(
-                get_object_val(raw_object.vals[0]), db.getSchema().val[tname])
-            db.replace(id, {k.label : v if isinstance(k, StrLabel) else eval_error(k) for k, v in new_object.val.items() })
+                get_object_val(raw_object.vals[0]), db.get_schema().val[tname])
+            db.update(id, {k : v  for k, v in new_object.items() })
             # inserts return empty dict
             return MultiSetVal([RefVal(id, ObjectVal({}))])
         case FilterOrderExpr(subject=subject, filter=filter, order=order):
@@ -328,12 +328,12 @@ def eval_config(ctx: EvalEnv,
             else:
                 all_ids: Sequence[Val] = [
                     RefVal(id, ObjectVal({}))
-                    for id in db.queryIdsForAType(name)]
+                    for id in db.query_ids_for_a_type(name)]
                 return MultiSetVal(all_ids)
         case FunAppExpr(fun=fname, args=args, overloading_index=_):
             argsv = eval_expr_list(ctx, db, args)
             argsv = map_assume_link_target(argsv)
-            looked_up_fun = db.getSchema().fun_defs[fname]
+            looked_up_fun = db.get_schema().fun_defs[fname]
             f_modifier = looked_up_fun.tp.args_mod
             assert len(f_modifier) == len(argsv)
             argv_final: Sequence[Sequence[Sequence[Val]]] = [[]]
@@ -383,7 +383,7 @@ def eval_config(ctx: EvalEnv,
                            isinstance(v, RefVal) else
                            eval_error(v, "expecting references")
                            for v in subjectv.vals]
-            return db.reverseProject(subject_ids, label)
+            return db.reverse_project(subject_ids, label)
         case TpIntersectExpr(subject=subject, tp=tp_name):
             subjectv = eval_config(ctx, db, subject)
             after_intersect: List[Val] = []
@@ -393,8 +393,8 @@ def eval_config(ctx: EvalEnv,
                           | LinkPropVal(refid=vid,
                                         linkprop=_)):
                         if is_nominal_subtype_in_schema(
-                                db.getTypeForAnId(vid), tp_name,
-                                db.getSchema()):
+                                db.get_type_for_an_id(vid), tp_name,
+                                db.get_schema()):
                             after_intersect = [*after_intersect, v]
                     case _:
                         raise ValueError("Expecting References")
@@ -434,132 +434,112 @@ def eval_config(ctx: EvalEnv,
                               map_assume_link_target(elemsv)))]
             return MultiSetVal(arr_result)
         case e.DeleteExpr(subject=subject):
-            if rt.data.eval_only:
-                eval_error(
-                    rt.expr,
-                    "Attempting to Delete in an Eval-Only evaluation")
-            (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
+            subjectv = eval_config(ctx, db, subject)
             subjectv = assume_link_target(subjectv)
             if all([val_is_ref_val(v) for v in subjectv.vals]):
-                old_dbdata = rt.data.cur_db.dbdata
+                # old_dbdata = rt.data.cur_db.dbdata
                 delete_ref_ids = [v.refid for v in subjectv.vals]
-                deleted: Sequence[Val] = [
-                    v for v in subjectv.vals
-                    if v.refid in old_dbdata.keys()]  # type: ignore[misc]
-                new_dbdata = {
-                    k: v for k, v in old_dbdata.items()
-                    if k not in delete_ref_ids}
-                return RTVal(
-                    RTData(
-                        DB(new_dbdata),
-                        rt.data.read_snapshots, rt.data.schema,
-                        rt.data.eval_only),
-                    MultiSetVal(deleted))
+                # because write-through model, do not check whether 
+                # the references are valid
+                # deleted: Sequence[Val] = [
+                #     v for v in subjectv.vals
+                #     if v.refid in old_dbdata.keys()]  # type: ignore[misc]
+                for delete_id in delete_ref_ids:
+                    db.delete(delete_id)
+                # new_dbdata = {
+                #     k: v for k, v in old_dbdata.items()
+                #     if k not in delete_ref_ids}
+                return subjectv
             else:
-                return eval_error(rt.expr, "expecting all references")
+                return eval_error(expr, "expecting all references")
         case UpdateExpr(subject=subject, shape=shape):
-            if rt.data.eval_only:
-                eval_error(
-                    rt.expr,
-                    "Attempting to Update in an Eval-Only evaluation")
-            (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
+            subjectv = eval_config(ctx, db, subject)
             subjectv = assume_link_target(subjectv)
             if all([val_is_ref_val(v) for v in subjectv.vals]):
-                updated: Sequence[Val] = [apply_shape(
-                    new_data, shape, v)
-                    for v in subjectv.vals]  # type: ignore[misc]
-                old_dbdata = rt.data.cur_db.dbdata
-                new_dbdata = {
-                    **old_dbdata, **
-                    {u.refid:
-                     DBEntry(
-                         old_dbdata[u.refid].tp,
-                         coerce_to_storage(
-                             combine_object_val(
-                                 old_dbdata[u.refid].data, u.val),
-                             rt.data.schema.val
-                             [old_dbdata[u.refid].tp.name]))
-                     for u in cast(Sequence[RefVal],
-                                   updated)}}
-                return RTVal(
-                    RTData(
-                        DB(new_dbdata),
-                        rt.data.read_snapshots, rt.data.schema,
-                        rt.data.eval_only),
-                    MultiSetVal(updated))
+                updated: Sequence[Val] = [apply_shape(ctx, db, shape, v)
+                            for v in subjectv.vals]  # type: ignore[misc]
+                # the idea is to construct an object type only on the updated properties,
+                # and then perform on the coercion for the new constructed type
+                for u in cast(Sequence[RefVal], updated):
+                    full_tp = db.get_schema().val[db.get_type_for_an_id(u.refid)]
+                    cut_tp = {k : v for (k,v) in full_tp.val.items() if StrLabel(k) in u.val.val.keys()}
+                    db.update(
+                        u.refid,
+                        coerce_to_storage(u.val, ObjectTp(cut_tp))
+                    )
+                return MultiSetVal(updated)
             else:
-                return eval_error(rt.expr, "expecting all references")
+                return eval_error(expr, "expecting all references")
         case MultiSetExpr(expr=elems):
-            (new_data, elemsv) = eval_expr_list(rt.data, elems)
+            elemsv = eval_expr_list(ctx, db, elems)
             result_list = [e for el in elemsv for e in el.vals]
-            return RTVal(new_data, MultiSetVal(result_list))
+            return MultiSetVal(result_list)
         case WithExpr(bound=bound, next=next):
-            (new_data, boundv) = eval_config(RTExpr(rt.data, bound))
-            (new_data2, nextv) = eval_config(RTExpr(new_data, instantiate_expr(
-                MultiSetExpr(cast(Sequence[Expr], boundv.vals)), next)))
-            return RTVal(new_data2, nextv)
+            boundv = eval_config(ctx, db, bound)
+            new_ctx, next_body = ctx_extend(ctx, next, boundv)
+            nextv = eval_config(new_ctx, db, next_body)
+            return nextv
         case OffsetLimitExpr(subject=subject, offset=offset, limit=limit):
-            (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
-            (new_data2, offsetv_m) = eval_config(RTExpr(new_data, offset))
+            subjectv = eval_config(ctx, db, subject)
+            offsetv_m = eval_config(ctx, db, offset)
             assert len(offsetv_m.vals) <= 1
             offsetv = offsetv_m.vals[0] if len(offsetv_m.vals) == 1 else e.IntVal(0)
-            (new_data3, limitv_m) = eval_config(RTExpr(new_data2, limit))
+            limitv_m = eval_config(ctx, db, limit)
             assert len(limitv_m.vals) <= 1
             limitv = limitv_m.vals[0] if len(limitv_m.vals) == 1 else e.IntInfVal()
             result_list = list(limit_vals(
                              offset_vals(subjectv.vals, offsetv),
                              limitv))
-            return RTVal(new_data3, MultiSetVal(result_list))
+            return MultiSetVal(result_list)
         case SubqueryExpr(expr=expr):
-            (new_data, exprv) = eval_config(RTExpr(rt.data, expr))
-            return RTVal(new_data, exprv)
-        # case e.SingularExpr(expr=expr):
-        #     (new_data, exprv) = eval_config(RTExpr(rt.data, expr))
-        #     assert len(exprv.vals) <= 1
-        #     return RTVal(new_data, MultiSetVal(exprv.vals, singleton=True))
+            exprv = eval_config(ctx, db , expr)
+            return exprv
         case DetachedExpr(expr=expr):
-            (new_data, exprv) = eval_config(RTExpr(rt.data, expr))
-            return RTVal(new_data, exprv)
+            exprv = eval_config(ctx, db , expr)
+            return exprv
         case LinkPropProjExpr(subject=subject, linkprop=label):
-            (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
+            subjectv = eval_config(ctx, db, subject)
             projected = [p for v in subjectv.vals for p in singular_proj(
-                new_data, v, LinkPropLabel(label))]
-            return RTVal(new_data, MultiSetVal(projected))
+                ctx, db, v, LinkPropLabel(label)).vals]
+            return MultiSetVal(projected)
         case ForExpr(bound=bound, next=next):
-            (new_data, boundv) = eval_config(RTExpr(rt.data, bound))
-            (new_data2, vv) = eval_expr_list(new_data, [
-                instantiate_expr(v, next) for v in boundv.vals])
+            boundv = eval_config(ctx, db, bound)
+            vv = []
+            for v in boundv.vals:
+                new_ctx, next_body = ctx_extend(ctx, next, MultiSetVal([v]))
+                nextv = eval_config(new_ctx, db, next_body)
+                vv.append(nextv)
             result_list = [p for v in vv for p in v.vals]
-            return RTVal(new_data2, MultiSetVal(result_list))
+            return MultiSetVal(result_list)
         case e.IfElseExpr(then_branch=then_branch,
                           condition=condition,
                           else_branch=else_branch):
-            (new_data, conditionv) = eval_config(RTExpr(rt.data, condition))
-            (new_data2, vv) = eval_expr_list(new_data, [
+            conditionv = eval_config(ctx, db, condition)
+            vv2 = eval_expr_list(ctx, db, [
                 then_branch if v == e.BoolVal(True) else
                 else_branch if v == e.BoolVal(False) else
                 eval_error(condition, "condition must be a boolean")
                 for v in conditionv.vals])
-            result_list = [p for v in vv for p in v.vals]
-            return RTVal(new_data2, MultiSetVal(result_list))
+            result_list = [p for v in vv2 for p in v.vals]
+            return MultiSetVal(result_list)
         case OptionalForExpr(bound=bound, next=next):
-            (new_data, boundv) = eval_config(RTExpr(rt.data, bound))
+            boundv = eval_config(ctx, db, bound)
             if boundv.vals:
-                (new_data2, vv) = eval_expr_list(new_data, [
-                    instantiate_expr(v, next) for v in boundv.vals])
+                vv = []
+                for v in boundv.vals:
+                    new_ctx, next_body = ctx_extend(ctx, next, MultiSetVal([v]))
+                    nextv = eval_config(new_ctx, db, next_body)
+                    vv.append(nextv)
                 result_list = [p for v in vv for p in v.vals]
-                return RTVal(new_data2, MultiSetVal(result_list))
+                return MultiSetVal(result_list)
             else:
-                return eval_config(
-                    RTExpr(
-                        new_data, instantiate_expr(
-                            MultiSetExpr([]),
-                            next)))
+                new_ctx, next_body = ctx_extend(ctx, next, MultiSetVal([]))
+                return eval_config(new_ctx, db, next_body)
 
-    raise ValueError("Not Implemented", rt.expr)
+    raise ValueError("Not Implemented", expr)
 
 
-def eval_config_toplevel(rt: RTExpr, logs: Optional[Any] = None) -> RTVal:
+def eval_config_toplevel(rt: Expr, logs: Optional[Any] = None) -> MultiSetVal:
 
     # on exception, this is not none
     # assert eval_logs_wrapper.logs is None
@@ -571,10 +551,6 @@ def eval_config_toplevel(rt: RTExpr, logs: Optional[Any] = None) -> RTVal:
     # restore the decorator state
     eval_logs_wrapper.reset_logs(None)
 
-    match (final_v):
-        case RTVal(data=data, val=val):
-            # Do not dedup (see one of the test cases)
-            return RTVal(data=data, val=(val))
-            # return RTVal(data=data, val=assume_link_target(val))
-        case v:
-            raise ValueError(v)
+    # Do not dedup (see one of the test cases)
+    # return assume_link_target(final_v)
+    return final_v

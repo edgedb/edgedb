@@ -466,7 +466,7 @@ def make_storage_atomic(val: Val, tp: Tp) -> Val:
             raise ValueError("Coercion Not Implemented for", tp)
 
 
-def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> ObjectVal:
+def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> Dict[str, MultiSetVal]:
     # ensure no redundant keys
     extra_keys = [k for k in val.val.keys()
                   if k not in [StrLabel(k) for k in fmt.val.keys()]]
@@ -474,17 +474,15 @@ def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> ObjectVal:
         raise ValueError(
             "Coercion failed, object contains redundant keys:", extra_keys,
             "when coercing ", val, " to ", fmt)
-    return ObjectVal(val={
-        StrLabel(k): (Visible(),
-                      (MultiSetVal(
+    return {
+        k: (MultiSetVal(
                         [make_storage_atomic(v, tp[0])
                          for v in val.val[StrLabel(k)][1].vals])
                        if StrLabel(k) in val.val.keys()
                        else MultiSetVal([]))
-                      )
         for (k, tp) in fmt.val.items()
         if not isinstance(tp.tp, e.ComputableTp)
-    })
+    }
 
 
 def object_dedup(val: Sequence[Val]) -> Sequence[Val]:
