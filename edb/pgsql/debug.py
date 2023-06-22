@@ -41,17 +41,18 @@ def dump_ast_and_query(
     ir_expr: irast.Base,
 ) -> None:
     if not (
-        debug.flags.edgeql_compile or
-        debug.flags.edgeql_compile_sql_ast or
-        debug.flags.edgeql_compile_sql_reordered_text or
-        debug.flags.edgeql_compile_sql_text
+        debug.flags.edgeql_compile
+        or debug.flags.edgeql_compile_sql_ast
+        or debug.flags.edgeql_compile_sql_reordered_text
+        or debug.flags.edgeql_compile_sql_text
     ):
         return
 
     if debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_ast:
         debug.header('SQL Tree')
         debug.dump(
-            pg_expr, _ast_include_meta=debug.flags.edgeql_compile_sql_ast_meta)
+            pg_expr, _ast_include_meta=debug.flags.edgeql_compile_sql_ast_meta
+        )
 
     if debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_text:
         sql_text = pgcodegen.generate_source(pg_expr, pretty=True)
@@ -111,9 +112,8 @@ def _obj_to_name(
             s = f'@{s}'
         # If the pointer is multi, then it is probably a table name,
         # so let's give a fully qualified version with the source.
-        if (
-            sobj.get_cardinality(schema).is_multi()
-            and (src := sobj.get_source(schema))
+        if sobj.get_cardinality(schema).is_multi() and (
+            src := sobj.get_source(schema)
         ):
             src_name = src.get_name(schema)
             s = f'{src_name}.{s}'

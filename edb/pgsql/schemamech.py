@@ -660,9 +660,7 @@ def ptr_default_to_col_default(schema, ptr, expr):
         return None
 
     try:
-        sql_res = compiler.compile_ir_to_sql_tree(
-            ir, singleton_mode=True
-        )
+        sql_res = compiler.compile_ir_to_sql_tree(ir, singleton_mode=True)
     except errors.UnsupportedFeatureError:
         return None
     sql_text = codegen.generate_source(sql_res.ast)

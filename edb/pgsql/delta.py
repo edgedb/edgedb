@@ -3465,13 +3465,10 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         table_name = common.get_backend_name(
             schema, subject, catenate=False)
 
-        sql_res = compiler.compile_ir_to_sql_tree(
-            ir.expr, singleton_mode=True)
+        sql_res = compiler.compile_ir_to_sql_tree(ir.expr, singleton_mode=True)
 
         if isinstance(sql_res.ast, pg_ast.ImplicitRowExpr):
-            sql_exprs = [
-                codegen.generate_source(el) for el in sql_res.ast
-            ]
+            sql_exprs = [codegen.generate_source(el) for el in sql_res.ast]
         else:
             sql_exprs = [codegen.generate_source(sql_res.ast)]
 
