@@ -36,7 +36,6 @@ from edb import errors
 
 from edb.server import defines
 from edb.server import config
-from edb.pgsql import compiler as pg_compiler
 
 from edb import edgeql
 from edb.common import debug
@@ -65,6 +64,9 @@ from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 
 from edb.pgsql import ast as pgast
+from edb.pgsql import compiler as pg_compiler
+from edb.pgsql import codegen as pg_codegen
+from edb.pgsql import debug as pg_debug
 from edb.pgsql import common as pg_common
 from edb.pgsql import dbops as pg_dbops
 from edb.pgsql import params as pg_params
@@ -1570,18 +1572,17 @@ def _compile_ql_query(
 
     result_cardinality = enums.cardinality_from_ir_value(ir.cardinality)
 
-    qtree, sql_text, argmap = pg_compiler.compile_ir_to_tree_and_sql(
+    sql_res = pg_compiler.compile_ir_to_sql_tree(
         ir,
-        pretty=(
-            debug.flags.edgeql_compile
-            or debug.flags.edgeql_compile_sql_text
-            or debug.flags.delta_execute
-        ),
         expected_cardinality_one=ctx.expected_cardinality_one,
         output_format=_convert_format(ctx.output_format),
         backend_runtime_params=ctx.backend_runtime_params,
         expand_inhviews=options.expand_inhviews,
     )
+
+    sql_text = pg_codegen.generate_source(sql_res.ast)
+
+    pg_debug.dump_ast_and_query(sql_res.ast, ir)
 
     if (
         (mstate := current_tx.get_migration_state())
@@ -1617,7 +1618,7 @@ def _compile_ql_query(
         out_type_data, out_type_id = sertypes.describe_str()
 
     in_type_args, in_type_data, in_type_id = describe_params(
-        ctx, ir, argmap, script_info
+        ctx, ir, sql_res.argmap, script_info
     )
 
     sql_hash = _hash_sql(
@@ -1634,7 +1635,7 @@ def _compile_ql_query(
                 global_schema=ir.schema._global_schema,
                 base_schema=s_schema.FlatSchema(),
             )
-        query_asts = pickle.dumps((ql, ir, qtree, explain_data))
+        query_asts = pickle.dumps((ql, ir, sql_res.ast, explain_data))
     else:
         query_asts = None
 
@@ -1887,17 +1888,21 @@ def _compile_ql_config_op(ctx: CompileContext, ql: qlast.Base):
     requires_restart = bool(getattr(ir, 'requires_restart', False))
     is_system_config = bool(getattr(ir, 'is_system_config', False))
 
-    sql_text, argmap = pg_compiler.compile_ir_to_sql(
+    sql_res = pg_compiler.compile_ir_to_sql_tree(
         ir,
-        pretty=(debug.flags.edgeql_compile
-                or debug.flags.edgeql_compile_sql_text),
         backend_runtime_params=ctx.backend_runtime_params,
+    )
+    sql_text = pg_codegen.generate_source(
+        sql_res.ast,
+        pretty=(
+            debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_text
+        ),
     )
 
     sql = (sql_text.encode(),)
 
     in_type_args, in_type_data, in_type_id = describe_params(
-        ctx, ir, argmap, None
+        ctx, ir, sql_res.argmap, None
     )
 
     single_unit = False

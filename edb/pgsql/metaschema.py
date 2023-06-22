@@ -64,6 +64,7 @@ from . import compiler
 from . import dbops
 from . import types
 from . import params
+from . import codegen
 
 
 q = common.qname
@@ -5306,7 +5307,6 @@ def _generate_schema_ver_views(schema: s_schema.Schema) -> List[dbops.View]:
 def _make_json_caster(
     schema: s_schema.Schema,
     stype: s_types.Type,
-    context: str,
 ) -> Callable[[str], str]:
     cast_expr = qlast.TypeCast(
         expr=qlast.TypeCast(
@@ -5321,11 +5321,12 @@ def _make_json_caster(
         schema,
     )
 
-    cast_sql, _ = compiler.compile_ir_to_sql(
+    cast_sql_res = compiler.compile_ir_to_sql_tree(
         cast_ir,
         use_named_params=True,
         singleton_mode=True,
     )
+    cast_sql = codegen.generate_source(cast_sql_res.ast)
 
     return lambda val: cast_sql.replace('__replaceme__', val)
 
@@ -7156,8 +7157,7 @@ def _generate_config_type_view(
             else:
                 single_links.append(pp)
         else:
-            pp_cast = _make_json_caster(
-                schema, pp_type, f'cfg::Config.{".".join(path_steps)}')
+            pp_cast = _make_json_caster(schema, pp_type)
 
             if pp_multi:
                 multi_props.append((pp, pp_cast))

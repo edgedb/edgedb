@@ -40,7 +40,7 @@ from edb.schema import schema as s_schema
 from edb.server import config
 from edb.server import defines
 
-from edb.pgsql.codegen import SQLSourceGeneratorTranslationData
+from edb.pgsql import codegen as pgcodegen
 
 from . import enums
 from . import sertypes
@@ -427,7 +427,7 @@ class PrepareData(PreparedStmtOpData):
 
     query: str
     """Translated query string"""
-    translation_data: Optional[SQLSourceGeneratorTranslationData] = None
+    translation_data: Optional[pgcodegen.TranslationData] = None
     """Translation source map"""
 
 
@@ -449,7 +449,7 @@ class SQLQueryUnit:
     """Translated query text."""
     orig_query: str
     """Original query text before translation."""
-    translation_data: Optional[SQLSourceGeneratorTranslationData] = None
+    translation_data: Optional[pgcodegen.TranslationData] = None
     """Translation source map."""
     fe_settings: immutables.Map[str, str]
     """Frontend-only settings effective during translation of this unit."""

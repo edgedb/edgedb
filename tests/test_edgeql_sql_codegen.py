@@ -27,6 +27,7 @@ from edb.edgeql import compiler
 from edb.edgeql import parser as qlparser
 from edb.pgsql import ast as pgast
 from edb.pgsql import compiler as pg_compiler
+from edb.pgsql import codegen as pg_codegen
 
 
 class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
@@ -47,15 +48,15 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
                 modaliases={None: 'default'},
             ),
         )
-        sql_tree, _, _ = pg_compiler.compile_ir_to_sql_tree(
+        sql_res = pg_compiler.compile_ir_to_sql_tree(
             ir,
             output_format=pg_compiler.OutputFormat.NATIVE,
         )
-        return sql_tree
+        return sql_res.ast
 
     def _compile(self, source):
         qtree = self._compile_to_tree(source)
-        return pg_compiler.run_codegen(qtree, pretty=True)
+        return pg_codegen.generate_source(qtree, pretty=True)
 
     def no_self_join_test(self, query, tables):
         # Issue #2567: We generate a pointless self join
@@ -195,7 +196,7 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             lambda x: bool(x.group_clause),
             terminate_early=True
         )[0]
-        group_sql = pg_compiler.run_codegen(child, pretty=True)
+        group_sql = pg_codegen.generate_source(child, pretty=True)
 
         # We want no array_agg in the group - it should just be able
         # to do a count
