@@ -32,6 +32,7 @@ Standard Library
     constraints
     sys
     cfg
+    pgvector
     deprecated
 
 EdgeDB comes with a rigorously defined type system consisting of **scalar
@@ -97,4 +98,7 @@ Utilities
 - :ref:`Constraints <ref_std_constraints>`
 - :ref:`System <ref_std_sys>`
 
+Extensions
+----------
 
+- :ref:`ext::pgvector <ref_ext_pgvector>`
