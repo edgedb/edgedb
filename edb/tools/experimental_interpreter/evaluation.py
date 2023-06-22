@@ -365,8 +365,8 @@ def eval_config(ctx: EvalEnv,
             projected = [
                 p
                 for v in assume_link_target(subjectv).vals
-                for p in singular_proj(new_data, v, StrLabel(label))]
-            return RTVal(new_data, MultiSetVal(projected))
+                for p in singular_proj(ctx, db, v, StrLabel(label)).vals]
+            return MultiSetVal(projected)
             # if all([val_is_link_convertible(v) for v in projected]):
             #     return RTVal(
             #         new_data, [convert_to_link(v) for v in projected])
@@ -376,36 +376,16 @@ def eval_config(ctx: EvalEnv,
             #     return eval_error(
             #         projected, "Returned objects are not uniform")
         case BackLinkExpr(subject=subject, label=label):
-            (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
+            subjectv = eval_config(ctx, db, subject)
             subjectv = assume_link_target(subjectv)
             subject_ids = [v.refid
                            if
                            isinstance(v, RefVal) else
                            eval_error(v, "expecting references")
                            for v in subjectv.vals]
-            cur_read_data: Dict[int,
-                                DBEntry] = rt.data.read_snapshots[0].dbdata
-            results: List[Val] = []
-            for (id, obj) in cur_read_data.items():
-                if StrLabel(label) in obj.data.val.keys():
-                    object_vals = obj.data.val[StrLabel(label)][1].vals
-                    if all(isinstance(object_val, LinkPropVal)
-                           for object_val in object_vals):
-                        object_id_mapping = {
-                            object_val.refid: object_val.linkprop
-                            for object_val in object_vals
-                            if isinstance(object_val, LinkPropVal)}
-                        for (object_id,
-                             obj_linkprop_val) in object_id_mapping.items():
-                            if object_id in subject_ids:
-                                results = [
-                                    *results,
-                                    LinkPropVal(
-                                        refid=id,
-                                        linkprop=obj_linkprop_val)]
-            return RTVal(new_data, MultiSetVal(results))
+            return db.reverseProject(subject_ids, label)
         case TpIntersectExpr(subject=subject, tp=tp_name):
-            (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
+            subjectv = eval_config(ctx, db, subject)
             after_intersect: List[Val] = []
             for v in subjectv.vals:
                 match v:
@@ -413,29 +393,26 @@ def eval_config(ctx: EvalEnv,
                           | LinkPropVal(refid=vid,
                                         linkprop=_)):
                         if is_nominal_subtype_in_schema(
-                                new_data.cur_db.dbdata[vid].tp.name, tp_name,
-                                new_data.schema):
+                                db.getTypeForAnId(vid), tp_name,
+                                db.getSchema()):
                             after_intersect = [*after_intersect, v]
                     case _:
                         raise ValueError("Expecting References")
-            return RTVal(new_data, MultiSetVal(after_intersect))
+            return MultiSetVal(after_intersect)
         case TypeCastExpr(tp=tp, arg=arg):
-            (new_data, argv2) = eval_config(RTExpr(rt.data, arg))
+            argv2 = eval_config(ctx, db, arg)
             casted = [type_cast(tp, v) for v in argv2.vals]
-            return RTVal(new_data, MultiSetVal(casted))
+            return  MultiSetVal(casted)
         case UnnamedTupleExpr(val=tuples):
-            (new_data, tuplesv) = eval_expr_list(rt.data, tuples)
+            tuplesv = eval_expr_list(ctx, db, tuples)
             constructed = [
                 UnnamedTupleVal(list(p))
                 for p in itertools.product(
                     *map_expand_multiset_val(
                       map_assume_link_target(tuplesv)))]
-            return RTVal(
-                new_data, MultiSetVal(constructed)
-                )
+            return MultiSetVal(constructed)
         case NamedTupleExpr(val=tuples):
-            (new_data, tuplesv) = eval_expr_list(
-                rt.data, list(tuples.values()))
+            tuplesv = eval_expr_list(ctx, db, list(tuples.values()))
             result_list: List[Val] = [
                            NamedTupleVal({k: p})
                            for prod in itertools.product(
@@ -444,18 +421,18 @@ def eval_config(ctx: EvalEnv,
                            for (k, p) in zip(
                                tuples.keys(),
                                prod, strict=True)]
-            return RTVal(new_data, MultiSetVal(result_list))
+            return MultiSetVal(result_list)
         case UnionExpr(left=l, right=r):
-            (new_data, lvals) = eval_config(RTExpr(rt.data, l))
-            (new_data2, rvals) = eval_config(RTExpr(new_data, r))
-            return RTVal(new_data2, MultiSetVal([*lvals, *rvals]))
+            lvals = eval_config(ctx, db, l)
+            rvals = eval_config(ctx, db, r)
+            return MultiSetVal([*lvals, *rvals])
         case ArrExpr(elems=elems):
-            (new_data, elemsv) = eval_expr_list(rt.data, elems)
+            elemsv = eval_expr_list(ctx, db, elems)
             arr_result = [ArrVal(list(el))
                           for el in itertools.product(
                           *map_expand_multiset_val(
                               map_assume_link_target(elemsv)))]
-            return RTVal(new_data, MultiSetVal(arr_result))
+            return MultiSetVal(arr_result)
         case e.DeleteExpr(subject=subject):
             if rt.data.eval_only:
                 eval_error(
