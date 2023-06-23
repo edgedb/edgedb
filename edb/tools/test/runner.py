@@ -395,6 +395,7 @@ class ExperimentalInterpreterTestSuite(unittest.TestSuite):
                 {sk: suite},
                 use_experimental_interpreter=True)
             assert len(setup) <= 1, "expecting optional single setup"
+
             if len(setup) == 1:
                 (init_sdl, init_ql) = setup[0][2]
                 dbschema, db = (
@@ -406,11 +407,11 @@ class ExperimentalInterpreterTestSuite(unittest.TestSuite):
 
             for test in self.sort_test_func({sk: suite}):
                 test.use_experimental_interpreter = True
-                print("initiating new db and dbschema for test")
                 test.experimental_interpreter_dbschema_and_db = dbschema, db
+                restore_state = db.dump_state()
                 test.run(result)
-                # # reset the db and dbschema for the next test
-                # test.experimental_interpreter_dbschema_and_db = dbschema, db
+                db.restore_state(restore_state)
+                # TODO: QUESTION HOW DOES OUR TESTS RUN?
 
                 if self.stop_requested:
                     break

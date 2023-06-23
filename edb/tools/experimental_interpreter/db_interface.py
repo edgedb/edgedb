@@ -3,7 +3,7 @@ from typing import *
 from .data.expr_ops import *
 from .data.type_ops import *
 from .data.data_ops import *
-
+import copy
 # id class
 EdgeID = int
 class EdgeDatabaseInterface:
@@ -65,6 +65,12 @@ class EdgeDatabaseInterface:
     def close(self) -> None:
         raise NotImplementedError()
 
+    def dump_state(self) -> object:
+        raise NotImplementedError()
+    
+    def restore_state(self, dumped_state: object) -> None:
+        raise NotImplementedError()
+
 
 class InMemoryEdgeDatabase(EdgeDatabaseInterface):
 
@@ -76,6 +82,24 @@ class InMemoryEdgeDatabase(EdgeDatabaseInterface):
         self.to_update : Dict[EdgeID, Dict[str, MultiSetVal]]= {}
         self.to_insert = DB({})
         self.next_id_to_return = 1
+
+    def dump_state(self) -> object:
+        return {
+            "schema": self.schema, # assume schema is immutable
+            "db": copy.copy(self.db.dbdata),
+            "to_delete": copy.copy(self.to_delete),
+            "to_update": copy.copy(self.to_update),
+            "to_insert": copy.copy(self.to_insert),
+            "next_id_to_return": self.next_id_to_return
+        }
+
+    def restore_state(self, dumped_state) -> None:
+        self.schema = dumped_state["schema"]
+        self.db = DB(copy.copy(dumped_state["db"]))
+        self.to_delete = copy.copy(dumped_state["to_delete"])
+        self.to_update = copy.copy(dumped_state["to_update"])
+        self.to_insert = copy.copy(dumped_state["to_insert"])
+        self.next_id_to_return = dumped_state["next_id_to_return"]
 
     def query_ids_for_a_type(self, tp: str) -> List[EdgeID]:
         return [id for id in self.db.dbdata.keys() if self.db.dbdata[id].tp == tp]
