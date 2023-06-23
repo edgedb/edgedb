@@ -164,6 +164,6 @@ def show_schema(dbschema: e.DBSchema) -> str:
 
 
 def show_tcctx(tcctx: e.TcCtx) -> str:
-    return (show_schema(tcctx.statics.schema) + "\n" +
+    return (show_schema(tcctx.schema) + "\n" +
             ("\n".join(name + " := " + show_result_tp(r_tp)
                        for name, r_tp in tcctx.varctx.items())))

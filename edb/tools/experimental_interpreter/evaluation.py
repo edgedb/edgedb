@@ -82,7 +82,7 @@ def apply_shape(ctx: EvalEnv, db : EdgeDatabaseInterface, shape: ShapeExpr, valu
                 pass
         for (key, shape_elem) in shape.shape.items():
             new_ctx, shape_body = ctx_extend(ctx, shape_elem, MultiSetVal([value]))
-            new_val: MultiSetVal = eval_config(new_ctx, db, shape_body)
+            new_val: MultiSetVal = eval_expr(new_ctx, db, shape_body)
             result = { **result, key: (Visible(), (new_val))}
 
         return ObjectVal(result)
@@ -106,7 +106,7 @@ def eval_expr_list(ctx: EvalEnv,
                    exprs: Sequence[Expr]) -> Sequence[MultiSetVal]:
     result: Sequence[MultiSetVal] = []
     for expr in exprs:
-        val = eval_config(ctx, db, expr)
+        val = eval_expr(ctx, db, expr)
         result = [*result, val]
     return result
 
@@ -136,7 +136,7 @@ def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: 
                         match target_tp:
                             case e.ComputableTp(expr=comp_expr, tp=_):
                                 new_ctx, comp_expr_body = ctx_extend(ctx, comp_expr, MultiSetVal([subject]))
-                                return eval_config(new_ctx, db, comp_expr_body)
+                                return eval_expr(new_ctx, db, comp_expr_body)
                             case _:
                                 raise ValueError("Label found, but not computable",
                                                 label)
@@ -216,25 +216,25 @@ def object_tp_default_initial_step_with_insert(
 
 class EvaluationLogsWrapper:
     def __init__(self):
-        self.original_eval_config = None
+        self.original_eval_expr = None
         self.reset_logs(None)
 
     def reset_logs(self, logs: Optional[List[Any]]):
         self.logs = logs
         self.indexes: List[int] = []
 
-    def __call__(self, eval_config: Callable[[EvalEnv, EdgeDatabaseInterface, Expr], MultiSetVal]):
-        self.original_eval_config = eval_config
+    def __call__(self, eval_expr: Callable[[EvalEnv, EdgeDatabaseInterface, Expr], MultiSetVal]):
+        self.original_eval_expr = eval_expr
 
         def wrapper(ctx: EvalEnv, db: EdgeDatabaseInterface, expr: Expr) -> MultiSetVal:
             if self.logs is None:
-                return self.original_eval_config(expr)
+                return self.original_eval_expr(ctx, db, expr)
             else:
                 parent = self.logs
                 [parent := parent[i] for i in self.indexes]
                 self.indexes.append(len(parent))
                 parent.append([(expr, [StrVal("NOT AVAILABLE!!!")])])
-                rt_val = self.original_eval_config(expr)
+                rt_val = self.original_eval_expr(ctx, db, expr)
                 parent[self.indexes[-1]][0] = (parent[self.indexes[-1]][0][0],
                                                rt_val.val)
                 assert len(parent[self.indexes[-1]][0]) == 2
@@ -250,7 +250,7 @@ eval_logs_wrapper = EvaluationLogsWrapper()
 
 # the database is a mutable reference that keeps track of a read snapshot inside
 @eval_logs_wrapper
-def eval_config(ctx: EvalEnv,
+def eval_expr(ctx: EvalEnv,
                 db: EdgeDatabaseInterface,
                 expr: Expr) -> MultiSetVal:
     match expr:
@@ -262,14 +262,14 @@ def eval_config(ctx: EvalEnv,
         case ObjectExpr(val=dic):
             result: Dict[Label, Tuple[Marker, MultiSetVal]] = {}
             for (key, expr) in dic.items():  # type: ignore[has-type]
-                val = eval_config(ctx, db, expr)
+                val = eval_expr(ctx, db, expr)
                 result = {**result, key: (Visible(), (val))}
             return  MultiSetVal([FreeVal(ObjectVal(result))])
         case InsertExpr(tname, arg):
             id = db.insert(tname, {})
             expr_with_default = object_tp_default_initial_step_with_insert(
                 db.get_schema().val[tname], arg, id)
-            raw_object = eval_config(
+            raw_object = eval_expr(
                         ctx,
                         db,
                         expr_with_default)
@@ -287,10 +287,10 @@ def eval_config(ctx: EvalEnv,
             # inserts return empty dict
             return MultiSetVal([RefVal(id, ObjectVal({}))])
         case FilterOrderExpr(subject=subject, filter=filter, order=order):
-            selected = eval_config(ctx, db, subject)
+            selected = eval_expr(ctx, db, subject)
             # assume data unchaged throught the evaluation of conditions
             conditions: Sequence[MultiSetVal] = [
-                eval_config(
+                eval_expr(
                         new_ctx,
                         db, 
                         filter_body)
@@ -312,14 +312,14 @@ def eval_config(ctx: EvalEnv,
                 for new_ctx, order_body in [ctx_extend(ctx, order, MultiSetVal([after_condition_i]))]
                 for raw_order
                 in
-                [eval_config(
+                [eval_expr(
                         new_ctx,
                         db,
                         order_body)]]
             after_order = eval_order_by(after_condition, orders)
             return MultiSetVal(after_order)
         case ShapedExprExpr(expr=subject, shape=shape):
-            subjectv = eval_config(ctx, db, subject)
+            subjectv = eval_expr(ctx, db, subject)
             after_shape: Sequence[Val] = [apply_shape(ctx, db, shape, v) for v in subjectv.vals]
             return MultiSetVal(after_shape)
         case FreeVarExpr(var=name):
@@ -361,7 +361,7 @@ def eval_config(ctx: EvalEnv,
                 v for arg in argv_final for v in looked_up_fun.impl(arg)]
             return MultiSetVal(after_fun_vals)
         case ObjectProjExpr(subject=subject, label=label):
-            subjectv = eval_config(ctx, db, subject)
+            subjectv = eval_expr(ctx, db, subject)
             projected = [
                 p
                 for v in assume_link_target(subjectv).vals
@@ -376,7 +376,7 @@ def eval_config(ctx: EvalEnv,
             #     return eval_error(
             #         projected, "Returned objects are not uniform")
         case BackLinkExpr(subject=subject, label=label):
-            subjectv = eval_config(ctx, db, subject)
+            subjectv = eval_expr(ctx, db, subject)
             subjectv = assume_link_target(subjectv)
             subject_ids = [v.refid
                            if
@@ -385,7 +385,7 @@ def eval_config(ctx: EvalEnv,
                            for v in subjectv.vals]
             return db.reverse_project(subject_ids, label)
         case TpIntersectExpr(subject=subject, tp=tp_name):
-            subjectv = eval_config(ctx, db, subject)
+            subjectv = eval_expr(ctx, db, subject)
             after_intersect: List[Val] = []
             for v in subjectv.vals:
                 match v:
@@ -400,7 +400,7 @@ def eval_config(ctx: EvalEnv,
                         raise ValueError("Expecting References")
             return MultiSetVal(after_intersect)
         case TypeCastExpr(tp=tp, arg=arg):
-            argv2 = eval_config(ctx, db, arg)
+            argv2 = eval_expr(ctx, db, arg)
             casted = [type_cast(tp, v) for v in argv2.vals]
             return  MultiSetVal(casted)
         case UnnamedTupleExpr(val=tuples):
@@ -423,8 +423,8 @@ def eval_config(ctx: EvalEnv,
                                prod, strict=True)]
             return MultiSetVal(result_list)
         case UnionExpr(left=l, right=r):
-            lvals = eval_config(ctx, db, l)
-            rvals = eval_config(ctx, db, r)
+            lvals = eval_expr(ctx, db, l)
+            rvals = eval_expr(ctx, db, r)
             return MultiSetVal([*lvals, *rvals])
         case ArrExpr(elems=elems):
             elemsv = eval_expr_list(ctx, db, elems)
@@ -434,7 +434,7 @@ def eval_config(ctx: EvalEnv,
                               map_assume_link_target(elemsv)))]
             return MultiSetVal(arr_result)
         case e.DeleteExpr(subject=subject):
-            subjectv = eval_config(ctx, db, subject)
+            subjectv = eval_expr(ctx, db, subject)
             subjectv = assume_link_target(subjectv)
             if all([val_is_ref_val(v) for v in subjectv.vals]):
                 # old_dbdata = rt.data.cur_db.dbdata
@@ -453,7 +453,7 @@ def eval_config(ctx: EvalEnv,
             else:
                 return eval_error(expr, "expecting all references")
         case UpdateExpr(subject=subject, shape=shape):
-            subjectv = eval_config(ctx, db, subject)
+            subjectv = eval_expr(ctx, db, subject)
             subjectv = assume_link_target(subjectv)
             if all([val_is_ref_val(v) for v in subjectv.vals]):
                 updated: Sequence[Val] = [apply_shape(ctx, db, shape, v)
@@ -475,16 +475,16 @@ def eval_config(ctx: EvalEnv,
             result_list = [e for el in elemsv for e in el.vals]
             return MultiSetVal(result_list)
         case WithExpr(bound=bound, next=next):
-            boundv = eval_config(ctx, db, bound)
+            boundv = eval_expr(ctx, db, bound)
             new_ctx, next_body = ctx_extend(ctx, next, boundv)
-            nextv = eval_config(new_ctx, db, next_body)
+            nextv = eval_expr(new_ctx, db, next_body)
             return nextv
         case OffsetLimitExpr(subject=subject, offset=offset, limit=limit):
-            subjectv = eval_config(ctx, db, subject)
-            offsetv_m = eval_config(ctx, db, offset)
+            subjectv = eval_expr(ctx, db, subject)
+            offsetv_m = eval_expr(ctx, db, offset)
             assert len(offsetv_m.vals) <= 1
             offsetv = offsetv_m.vals[0] if len(offsetv_m.vals) == 1 else e.IntVal(0)
-            limitv_m = eval_config(ctx, db, limit)
+            limitv_m = eval_expr(ctx, db, limit)
             assert len(limitv_m.vals) <= 1
             limitv = limitv_m.vals[0] if len(limitv_m.vals) == 1 else e.IntInfVal()
             result_list = list(limit_vals(
@@ -492,29 +492,29 @@ def eval_config(ctx: EvalEnv,
                              limitv))
             return MultiSetVal(result_list)
         case SubqueryExpr(expr=expr):
-            exprv = eval_config(ctx, db , expr)
+            exprv = eval_expr(ctx, db , expr)
             return exprv
         case DetachedExpr(expr=expr):
-            exprv = eval_config(ctx, db , expr)
+            exprv = eval_expr(ctx, db , expr)
             return exprv
         case LinkPropProjExpr(subject=subject, linkprop=label):
-            subjectv = eval_config(ctx, db, subject)
+            subjectv = eval_expr(ctx, db, subject)
             projected = [p for v in subjectv.vals for p in singular_proj(
                 ctx, db, v, LinkPropLabel(label)).vals]
             return MultiSetVal(projected)
         case ForExpr(bound=bound, next=next):
-            boundv = eval_config(ctx, db, bound)
+            boundv = eval_expr(ctx, db, bound)
             vv = []
             for v in boundv.vals:
                 new_ctx, next_body = ctx_extend(ctx, next, MultiSetVal([v]))
-                nextv = eval_config(new_ctx, db, next_body)
+                nextv = eval_expr(new_ctx, db, next_body)
                 vv.append(nextv)
             result_list = [p for v in vv for p in v.vals]
             return MultiSetVal(result_list)
         case e.IfElseExpr(then_branch=then_branch,
                           condition=condition,
                           else_branch=else_branch):
-            conditionv = eval_config(ctx, db, condition)
+            conditionv = eval_expr(ctx, db, condition)
             vv2 = eval_expr_list(ctx, db, [
                 then_branch if v == e.BoolVal(True) else
                 else_branch if v == e.BoolVal(False) else
@@ -523,30 +523,32 @@ def eval_config(ctx: EvalEnv,
             result_list = [p for v in vv2 for p in v.vals]
             return MultiSetVal(result_list)
         case OptionalForExpr(bound=bound, next=next):
-            boundv = eval_config(ctx, db, bound)
+            boundv = eval_expr(ctx, db, bound)
             if boundv.vals:
                 vv = []
                 for v in boundv.vals:
                     new_ctx, next_body = ctx_extend(ctx, next, MultiSetVal([v]))
-                    nextv = eval_config(new_ctx, db, next_body)
+                    nextv = eval_expr(new_ctx, db, next_body)
                     vv.append(nextv)
                 result_list = [p for v in vv for p in v.vals]
                 return MultiSetVal(result_list)
             else:
                 new_ctx, next_body = ctx_extend(ctx, next, MultiSetVal([]))
-                return eval_config(new_ctx, db, next_body)
+                return eval_expr(new_ctx, db, next_body)
 
     raise ValueError("Not Implemented", expr)
 
 
-def eval_config_toplevel(rt: Expr, logs: Optional[Any] = None) -> MultiSetVal:
+def eval_expr_toplevel(db: EdgeDatabaseInterface, expr: Expr, logs: Optional[Any] = None) -> MultiSetVal:
 
     # on exception, this is not none
     # assert eval_logs_wrapper.logs is None
     if logs is not None:
         eval_logs_wrapper.reset_logs(logs)
 
-    final_v = eval_config(rt)
+    final_v = eval_expr([], db, expr)
+    # commit DML after evaluation
+    db.commit_dml()
 
     # restore the decorator state
     eval_logs_wrapper.reset_logs(None)

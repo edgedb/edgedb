@@ -20,60 +20,59 @@ from .data import path_factor as path_factor
 #         return expr
 
 
-def synthesize_type_for_val_seq(ctx: e.RTData,
-                                val_seq: Sequence[e.Val]) -> e.Tp:
-    first_type = synthesize_type_for_val(ctx, val_seq[0])
-    [check_type(e.TcCtx(ctx, {}), v,
-                e.ResultTp(first_type, e.CardOne))
-        for v in val_seq[1:]]
-    return first_type
+# def synthesize_type_for_val_seq(
+#                                 val_seq: Sequence[e.Val]) -> e.Tp:
+#     first_type = synthesize_type_for_val(val_seq[0])
+#     [check_type(e.TcCtx(ctx, {}), v,
+#                 e.ResultTp(first_type, e.CardOne))
+#         for v in val_seq[1:]]
+#     return first_type
 
 
-def synthesize_type_for_multiset_val(
-        ctx: e.RTData,
-        val: e.MultiSetVal) -> e.ResultTp:
-    if len(val.vals) == 0:
-        raise ValueError("Cannot synthesize type for empty list")
-    else:
-        card = len(val.vals)
-        return e.ResultTp(
-            synthesize_type_for_val_seq(ctx, val.vals),
-            e.CMMode(e.FiniteCardinal(card), e.FiniteCardinal(card)))
+# def synthesize_type_for_multiset_val(
+#         ctx: e.RTData,
+#         val: e.MultiSetVal) -> e.ResultTp:
+#     if len(val.vals) == 0:
+#         raise ValueError("Cannot synthesize type for empty list")
+#     else:
+#         card = len(val.vals)
+#         return e.ResultTp(
+#             synthesize_type_for_val_seq(ctx, val.vals),
+#             e.CMMode(e.FiniteCardinal(card), e.FiniteCardinal(card)))
 
 
-def synthesize_type_for_object_val(
-        ctx: e.RTData,
-        val: e.ObjectVal) -> e.Tp:
-    obj_tp: Dict[str, e.ResultTp] = {}
-    linkprop_tp: Dict[str, e.ResultTp] = {}
+# def synthesize_type_for_object_val(
+#         ctx: e.RTData,
+#         val: e.ObjectVal) -> e.Tp:
+#     obj_tp: Dict[str, e.ResultTp] = {}
+#     linkprop_tp: Dict[str, e.ResultTp] = {}
 
-    for lbl, v in val.val.items():
-        match lbl:
-            case e.StrLabel(label=s_lbl):
-                if s_lbl in obj_tp.keys():
-                    raise ValueError("duplicate keys in object val")
-                else:
-                    obj_tp = {
-                        **obj_tp,
-                        s_lbl: synthesize_type_for_multiset_val(ctx, v[1])}
-            case e.LinkPropLabel(label=l_lbl):
-                if l_lbl in linkprop_tp.keys():
-                    raise ValueError("duplicate keys in object val")
-                else:
-                    linkprop_tp = {
-                        **linkprop_tp,
-                        l_lbl: synthesize_type_for_multiset_val(ctx, v[1])}
+#     for lbl, v in val.val.items():
+#         match lbl:
+#             case e.StrLabel(label=s_lbl):
+#                 if s_lbl in obj_tp.keys():
+#                     raise ValueError("duplicate keys in object val")
+#                 else:
+#                     obj_tp = {
+#                         **obj_tp,
+#                         s_lbl: synthesize_type_for_multiset_val(ctx, v[1])}
+#             case e.LinkPropLabel(label=l_lbl):
+#                 if l_lbl in linkprop_tp.keys():
+#                     raise ValueError("duplicate keys in object val")
+#                 else:
+#                     linkprop_tp = {
+#                         **linkprop_tp,
+#                         l_lbl: synthesize_type_for_multiset_val(ctx, v[1])}
 
-    if len(linkprop_tp.keys()) == 0:
-        return e.ObjectTp(obj_tp)
-    else:
-        return e.LinkPropTp(
-            e.ObjectTp(obj_tp),
-            e.ObjectTp(linkprop_tp))
+#     if len(linkprop_tp.keys()) == 0:
+#         return e.ObjectTp(obj_tp)
+#     else:
+#         return e.LinkPropTp(
+#             e.ObjectTp(obj_tp),
+#             e.ObjectTp(linkprop_tp))
 
 
-def synthesize_type_for_val(ctx: e.RTData,
-                            val: e.Val) -> e.Tp:
+def synthesize_type_for_val(val: e.Val) -> e.Tp:
     match val:
         case e.StrVal(_):
             return e.StrTp()
@@ -83,28 +82,28 @@ def synthesize_type_for_val(ctx: e.RTData,
             return e.IntInfTp()
         case e.BoolVal(_):
             return e.BoolTp()
-        case e.RefVal(refid=id, val=obj):
-            # ref_tp = ctx.schema.val[ctx.cur_db.dbdata[id].tp]
-            ref_obj = ctx.cur_db.dbdata[id].data
-            combined = eops.combine_object_val(ref_obj, obj)
-            return synthesize_type_for_object_val(ctx, combined)
-        case e.FreeVal(val=obj):
-            return synthesize_type_for_object_val(ctx, obj)
-        case e.ArrVal(val=arr):
-            return e.ArrTp(
-                synthesize_type_for_val_seq(ctx, arr))
-        case e.UnnamedTupleVal(val=arr):
-            return e.UnnamedTupleTp(
-                [synthesize_type_for_val(ctx, e) for e in arr])
-        case e.NamedTupleVal(val=obj):
-            return e.NamedTupleTp(
-               {n: synthesize_type_for_val(ctx, e) for n, e in obj.items()})
-        case e.LinkPropVal(refid=id, linkprop=linkprop):
-            obj_tp: e.Tp = ctx.schema.val[ctx.cur_db.dbdata[id].tp.name]
-            obj_tp = tops.get_runtime_tp(obj_tp)
-            linkprop_tp = synthesize_type_for_object_val(ctx, linkprop)
-            assert isinstance(linkprop_tp, e.ObjectTp)
-            return e.LinkPropTp(obj_tp, linkprop_tp)
+        # case e.RefVal(refid=id, val=obj):
+        #     # ref_tp = ctx.schema.val[ctx.cur_db.dbdata[id].tp]
+        #     ref_obj = ctx.cur_db.dbdata[id].data
+        #     combined = eops.combine_object_val(ref_obj, obj)
+        #     return synthesize_type_for_object_val(ctx, combined)
+        # case e.FreeVal(val=obj):
+        #     return synthesize_type_for_object_val(ctx, obj)
+        # case e.ArrVal(val=arr):
+        #     return e.ArrTp(
+        #         synthesize_type_for_val_seq(ctx, arr))
+        # case e.UnnamedTupleVal(val=arr):
+        #     return e.UnnamedTupleTp(
+        #         [synthesize_type_for_val(ctx, e) for e in arr])
+        # case e.NamedTupleVal(val=obj):
+        #     return e.NamedTupleTp(
+        #        {n: synthesize_type_for_val(ctx, e) for n, e in obj.items()})
+        # case e.LinkPropVal(refid=id, linkprop=linkprop):
+        #     obj_tp: e.Tp = ctx.schema.val[ctx.cur_db.dbdata[id].tp.name]
+        #     obj_tp = tops.get_runtime_tp(obj_tp)
+        #     linkprop_tp = synthesize_type_for_object_val(ctx, linkprop)
+        #     assert isinstance(linkprop_tp, e.ObjectTp)
+        #     return e.LinkPropTp(obj_tp, linkprop_tp)
         case _:
             raise ValueError("Not implemented", val)
 
@@ -123,7 +122,7 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
             if isinstance(subject_tp, e.ObjectTp):
                 s_tp = subject_tp
             elif isinstance(subject_tp, e.VarTp):
-                s_tp = tops.dereference_var_tp(ctx.statics.schema, subject_tp)
+                s_tp = tops.dereference_var_tp(ctx.schema, subject_tp)
             else:
                 raise ValueError("NI", subject_tp)
         case e.ObjectTp(_):
@@ -236,25 +235,20 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case (e.StrVal(_)
               | e.IntVal(_)
               | e.BoolVal(_)
-              | e.RefVal(_)
-              | e.ArrVal(_)
-              | e.UnnamedTupleVal(_)
-              | e.FreeVal(_)
-              | e.LinkPropVal(_)
               ):
-            result_tp = synthesize_type_for_val(ctx.statics, expr)
+            result_tp = synthesize_type_for_val(expr)
             result_card = e.CardOne
         case e.FreeVarExpr(var=var):
             if var in ctx.varctx.keys():
                 result_tp, result_card = ctx.varctx[var]
-            elif var in ctx.statics.schema.val.keys():
-                result_tp = ctx.statics.schema.val[var]
+            elif var in ctx.schema.val.keys():
+                result_tp = ctx.schema.val[var]
                 result_card = e.CardAny
             else:
                 raise ValueError("Unknown variable", var,
                                  "list of known vars",
                                  list(ctx.varctx.keys())
-                                 + list(ctx.statics.schema.val.keys()))
+                                 + list(ctx.schema.val.keys()))
         case e.TypeCastExpr(tp=tp, arg=arg):
             (arg_tp, arg_v) = synthesize_type(ctx, arg)
             (result_tp, result_card) = type_cast_tp(arg_tp, tp)
@@ -277,7 +271,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.FunAppExpr(fun=fname, args=args, overloading_index=idx):
             assert idx is None, ("Overloading should be empty "
                                  "before type checking")
-            fun_tp = ctx.statics.schema.fun_defs[fname].tp
+            fun_tp = ctx.schema.fun_defs[fname].tp
             if fun_tp.effect_free:
                 assert all(eops.is_effect_free(arg) for arg in args), (
                     "Expect effectful arguments to effect-free functions")
@@ -393,7 +387,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.BackLinkExpr(subject=subject, label=label):
             (_, subject_ck) = synthesize_type(ctx, subject)
             candidates: List[e.LinkPropTp] = []
-            for (name, name_def) in ctx.statics.schema.val.items():
+            for (name, name_def) in ctx.schema.val.items():
                 for (name_label, comp_tp) in name_def.val.items():
                     if name_label == label:
                         match comp_tp.tp:
@@ -507,7 +501,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     e.min_cardinal(result_card.upper, e.Fin(lim_num)),
                     e.min_cardinal(result_card.multiplicity, e.Fin(lim_num)))
         case e.InsertExpr(name=tname, new=arg):
-            tname_tp = tops.get_runtime_tp(ctx.statics.schema.val[tname])
+            tname_tp = tops.get_runtime_tp(ctx.schema.val[tname])
             arg_shape_tp, arg_ck = check_shape_transform(
                 ctx, arg, tname_tp, is_insert_shape=True)
             # assert arg_tp.mode == e.CardOne, (

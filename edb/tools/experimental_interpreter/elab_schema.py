@@ -205,5 +205,4 @@ def schema_from_sdl_defs(schema_defs: str,
 def schema_from_sdl_file(init_sdl_file_path: str,
                          ) -> DBSchema:
     with open(init_sdl_file_path) as f:
-        return schema_from_sdl_defs(
-            f.read(), )
+        return schema_from_sdl_defs(f.read())

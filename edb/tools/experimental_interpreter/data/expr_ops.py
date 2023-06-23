@@ -446,11 +446,11 @@ def make_storage_atomic(val: Val, tp: Tp) -> Val:
                 obj_link_prop = remove_unless_link_props(obj)
                 temp_obj = link_prop_obj_to_obj(obj_link_prop)
                 after_obj = coerce_to_storage(temp_obj, tp_linkprop)
-                return LinkPropVal(id, after_obj)
+                return LinkPropVal(id, ObjectVal({StrLabel(k):(Visible(), v) for (k,v) in after_obj.items()}))
             case LinkPropVal(refid=id,
                              linkprop=linkprop):
                 after_obj = coerce_to_storage(linkprop, tp_linkprop)
-                return LinkPropVal(id, after_obj)
+                return LinkPropVal(id, ObjectVal({StrLabel(k):(Visible(), v) for (k,v) in after_obj.items()}))
             case _:
                 raise ValueError("Cannot Coerce to LinkPropType", val)
     match tp:
@@ -572,19 +572,15 @@ def tcctx_add_binding(ctx: e.TcCtx,
                       binder_tp: e.ResultTp) -> Tuple[e.TcCtx, Expr, str]:
     bnd_e = ensure_no_capture(list(get_free_vars(bnd_e))
                               + list(ctx.varctx.keys()), bnd_e)
-    new_ctx = e.TcCtx(ctx.statics, {**ctx.varctx, bnd_e.var: binder_tp})
+    new_ctx = e.TcCtx(ctx.schema, {**ctx.varctx, bnd_e.var: binder_tp})
     after_e = instantiate_expr(e.FreeVarExpr(bnd_e.var), bnd_e)
     return new_ctx, after_e, bnd_e.var
 
 
 def emtpy_tcctx_from_dbschema(dbschema: e.DBSchema) -> e.TcCtx:
     return e.TcCtx(
-        statics=e.RTData(
-            cur_db=e.DB({}),
-            read_snapshots=[],
-            schema=dbschema,
-            eval_only=False
-        ), varctx={})
+        schema=dbschema,
+        varctx={})
 
 
 def is_effect_free(expr: Expr) -> bool:

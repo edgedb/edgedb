@@ -59,6 +59,13 @@ class EdgeDatabaseInterface:
     def next_id(self) -> EdgeID:
         raise NotImplementedError()
 
+    # this function should close the database connection, to release resources
+    # it is a no-op if the database is not an actual database
+    # after closing, no operation shall be invoked
+    def close(self) -> None:
+        raise NotImplementedError()
+
+
 class InMemoryEdgeDatabase(EdgeDatabaseInterface):
 
     def __init__(self, schema) -> None:
@@ -154,3 +161,14 @@ class InMemoryEdgeDatabase(EdgeDatabaseInterface):
         self.to_update = {}
         self.to_insert = DB({})
         
+    def get_schema(self) -> DBSchema:
+        return self.schema
+    
+    def next_id(self) -> EdgeID:
+        id = self.next_id_to_return
+        self.next_id_to_return += 1
+        return id
+    
+    def close(self) -> None:
+        pass
+    

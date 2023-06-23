@@ -101,10 +101,10 @@ def assert_real_subtype(
         else:
             pass
     elif isinstance(tp1, e.VarTp):
-        tp1_tp = ctx.statics.schema.val[tp1.name]
+        tp1_tp = ctx.schema.val[tp1.name]
         assert_real_subtype(ctx, tp1_tp, tp2, subtyping_mode)
     elif isinstance(tp2, e.VarTp):
-        tp2_tp = ctx.statics.schema.val[tp2.name]
+        tp2_tp = ctx.schema.val[tp2.name]
         assert_real_subtype(ctx, tp1, tp2_tp, subtyping_mode)
 
     else:
@@ -256,7 +256,7 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
                                result_mode.multiplicity))
         return e.ResultTp(result_base_tp, result_mode)
     if isinstance(tp.tp, e.VarTp):
-        target_tp = dereference_var_tp(ctx.statics.schema, tp.tp)
+        target_tp = dereference_var_tp(ctx.schema, tp.tp)
         return tp_project(ctx, e.ResultTp(target_tp, tp.mode),
                           label)
 
