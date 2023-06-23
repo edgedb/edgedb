@@ -895,7 +895,7 @@ class ConnectedTestCaseMixin:
         try:
             if (hasattr(self, "use_experimental_interpreter") and
                     self.use_experimental_interpreter):
-                (result, _) = model.run_single_str_get_json(
+                result = model.run_single_str_get_json(
                     self.experimental_interpreter_dbschema_and_db, query,
                     print_asts=False)
                 res = result

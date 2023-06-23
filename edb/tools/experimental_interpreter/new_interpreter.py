@@ -198,13 +198,13 @@ def dbschema_and_db_with_initial_schema_and_queries(
         initial_schema_defs: str,
         initial_queries: str,
         debug_print=False,
-        logs: Optional[List[Any]] = None) -> DBSchema:
+        logs: Optional[List[Any]] = None) -> Tuple[DBSchema, EdgeDatabaseInterface]:
     dbschema = schema_from_sdl_defs(
         initial_schema_defs)
     db = empty_db(dbschema)
     run_str(db, dbschema, initial_queries,
                       print_asts=debug_print, logs=logs)
-    return dbschema
+    return dbschema, db
 
 
 if __name__ == "__main__":

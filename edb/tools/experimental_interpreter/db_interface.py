@@ -140,7 +140,7 @@ class InMemoryEdgeDatabase(EdgeDatabaseInterface):
     def update(self, id: EdgeID, props : Dict[str, MultiSetVal]) -> None:
         self.to_update[id] = props
     
-    def commitDML(self) -> None:
+    def commit_dml(self) -> None:
         # updates must happen after insert because it may update inserted data
         for (id, insert_obj) in self.to_insert.dbdata.items():
             self.db.dbdata[id] = insert_obj

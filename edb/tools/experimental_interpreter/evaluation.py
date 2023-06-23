@@ -67,8 +67,10 @@ def eval_order_by(
 
 EvalEnv = Dict[str, MultiSetVal]
 def ctx_extend(ctx: EvalEnv, bnd : BindingExpr, val: MultiSetVal) -> Tuple[EvalEnv, Expr]:
+    assert isinstance(val, MultiSetVal), "Expecting MultiSetVal"
     bnd_no_capture = ensure_no_capture(list(ctx.keys()), bnd)
-    return {**ctx, bnd_no_capture.var: val}, bnd_no_capture.body
+    return {**ctx, bnd_no_capture.var: val}, instantiate_expr(
+                e.FreeVarExpr(bnd_no_capture.var), bnd_no_capture)
 
 def apply_shape(ctx: EvalEnv, db : EdgeDatabaseInterface, shape: ShapeExpr, value: Val) -> Val:
     def apply_shape_to_prodval(
@@ -198,11 +200,11 @@ def limit_vals(val: Sequence[Val],
 def object_tp_default_initial_step_with_insert(
         tp: e.ObjectTp,
         insert_shape: e.ShapeExpr,
-        refid: int
+        initial_var: e.VarExpr
         ) -> e.Expr:
-    initial = tops.object_tp_default_initial(tp)
+    # initial = tops.object_tp_default_initial(tp)
     step = tops.object_tp_default_step(tp)
-    result: e.Expr = e.RefVal(refid=refid, val=initial)
+    result: e.Expr = initial_var
     for _ in range(len(tp.val.keys())):
         result = eops.ShapedExprExpr(expr=result, shape=step)
     post_step = tops.object_tp_default_post_step(tp, insert_shape)
@@ -236,7 +238,7 @@ class EvaluationLogsWrapper:
                 parent.append([(expr, [StrVal("NOT AVAILABLE!!!")])])
                 rt_val = self.original_eval_expr(ctx, db, expr)
                 parent[self.indexes[-1]][0] = (parent[self.indexes[-1]][0][0],
-                                               rt_val.val)
+                                               rt_val)
                 assert len(parent[self.indexes[-1]][0]) == 2
                 self.indexes.pop()
                 return rt_val
@@ -267,13 +269,15 @@ def eval_expr(ctx: EvalEnv,
             return  MultiSetVal([FreeVal(ObjectVal(result))])
         case InsertExpr(tname, arg):
             id = db.insert(tname, {})
-            expr_with_default = object_tp_default_initial_step_with_insert(
-                db.get_schema().val[tname], arg, id)
+            var_name = "insert_bnd_" + tname + "_" + str(next_id())
+            expr_with_default_bnd = abstract_over_expr(
+                object_tp_default_initial_step_with_insert(
+                    db.get_schema().val[tname], arg, e.FreeVarExpr(var_name)), var_name)
+            new_ctx, expr_with_default = ctx_extend(ctx, expr_with_default_bnd, MultiSetVal([RefVal(id, ObjectVal({}))]))
             raw_object = eval_expr(
-                        ctx,
+                        new_ctx,
                         db,
                         expr_with_default)
-
             assert len(raw_object.vals) == 1, (
                 "Insert shape should return one object"
             )
@@ -295,19 +299,19 @@ def eval_expr(ctx: EvalEnv,
                         db, 
                         filter_body)
                 for select_i in selected.vals
-                for new_ctx, filter_body in [ctx_extend(ctx, filter, select_i)]]
+                for new_ctx, filter_body in [ctx_extend(ctx, filter, MultiSetVal([select_i]))]]
             after_condition: Sequence[Val] = [
                 select_i
                 for (select_i, condition) in zip(selected.vals, conditions)
                 if BoolVal(True) in condition.vals]
             orders: Sequence[ObjectVal] = [
-                (raw_order[0].val
+                (raw_order.vals[0].val
                     if
-                    type(raw_order[0]) is FreeVal and
-                    type(raw_order[0].val) is ObjectVal else
-                    eval_error(raw_order[0],
+                    type(raw_order.vals[0]) is FreeVal and
+                    type(raw_order.vals[0].val) is ObjectVal else
+                    eval_error(raw_order.vals[0],
                             "Order must be an object val"))
-                if len(raw_order) == 1 else eval_error(raw_order)
+                if len(raw_order.vals) == 1 else eval_error(raw_order)
                 for after_condition_i in after_condition
                 for new_ctx, order_body in [ctx_extend(ctx, order, MultiSetVal([after_condition_i]))]
                 for raw_order
@@ -546,7 +550,7 @@ def eval_expr_toplevel(db: EdgeDatabaseInterface, expr: Expr, logs: Optional[Any
     if logs is not None:
         eval_logs_wrapper.reset_logs(logs)
 
-    final_v = eval_expr([], db, expr)
+    final_v = eval_expr({}, db, expr)
     # commit DML after evaluation
     db.commit_dml()
 

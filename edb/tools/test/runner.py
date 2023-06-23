@@ -406,8 +406,11 @@ class ExperimentalInterpreterTestSuite(unittest.TestSuite):
 
             for test in self.sort_test_func({sk: suite}):
                 test.use_experimental_interpreter = True
+                print("initiating new db and dbschema for test")
                 test.experimental_interpreter_dbschema_and_db = dbschema, db
                 test.run(result)
+                # # reset the db and dbschema for the next test
+                # test.experimental_interpreter_dbschema_and_db = dbschema, db
 
                 if self.stop_requested:
                     break

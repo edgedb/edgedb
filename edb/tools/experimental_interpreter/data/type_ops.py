@@ -312,16 +312,16 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
                                      "from a non object type", tp.tp)
 
 
-def object_tp_default_initial(tp: e.ObjectTp,
-                              ) -> e.ObjectVal:
-    result: Dict[e.Label, Tuple[e.Marker, e.MultiSetVal]] = {}
-    for lbl, tp_comp in tp.val.items():
-        match tp_comp.tp:
-            case e.ComputableTp(_):
-                continue
-            case _:
-                result[e.StrLabel(lbl)] = (e.Visible(), e.MultiSetVal([]))
-    return e.ObjectVal(val=result)
+# def object_tp_default_initial(tp: e.ObjectTp,
+#                               ) -> e.ShapeExpr:
+#     result: Dict[e.Label, Tuple[e.Marker, e.MultiSetVal]] = {}
+#     for lbl, tp_comp in tp.val.items():
+#         match tp_comp.tp:
+#             case e.ComputableTp(_):
+#                 continue
+#             case _:
+#                 result[e.StrLabel(lbl)] = (e.Visible(), e.MultiSetVal([]))
+#     return e.ShapeExpr(val=result)
 
 
 def object_tp_default_step(tp: e.ObjectTp) -> e.ShapeExpr:
