@@ -5,7 +5,8 @@ from typing import List
 
 from ..db_interface import EdgeID
 
-from ..data.data_ops import DB, DBSchema, MultiSetVal, ResultTp, ObjectTp
+from ..data.data_ops import DB, DBSchema, MultiSetVal, ResultTp, ObjectTp, IntVal, StringVal, LinkPropVal
+from ..data.data_ops import *
 from typing import *
 from ..basis.built_ins import all_builtin_funcs
 from ..db_interface import EdgeDatabaseInterface
@@ -17,6 +18,60 @@ import copy
 #     return DBSchema(sqlite_dbschema, all_builtin_funcs)
 
 
+def compute_projection(cursor: sqlite3.Cursor,
+                       id : EdgeID,
+                       tp : str,
+                       prop: str
+                        )  -> MultiSetVal:
+
+    table_name = f"{tp}_{prop}"
+    cursor.execute(f"SELECT property_type FROM property_types WHERE table_name=?", (table_name,))
+    property_tp_row  = cursor.fetchone()
+    if property_tp_row is None:
+        raise ValueError(f"Table {table_name} not found in database")
+    else:
+        property_tp = property_tp_row[0]
+        if property_tp == "INT":
+            cursor.execute(f"SELECT int_value FROM {table_name} WHERE id=?", (id,))
+            return MultiSetVal([IntVal(row[0]) for row in cursor.fetchall()])
+        elif property_tp == "STRING":
+            cursor.execute(f"SELECT string_value FROM {table_name} WHERE id=?", (id,))
+            return MultiSetVal([StringVal(row[0]) for row in cursor.fetchall()])
+        elif property_tp == "LINK":
+            cursor.execute(f"SELECT link_value FROM {table_name} WHERE id=?", (id,))
+            targets : List[RefVal]= []
+            for link_target_id_row in cursor.fetchall():
+                link_target_id = link_target_id_row[0]
+                link_source_id = id
+                link_props : Dict[Label, Tuple[Marker, MultiSetVal]]= {}
+
+                # search all possible link properties
+
+                prefix = tp + "_" + prop + "_%"
+                cursor.execute("SELECT table_name FROM property_types WHERE table_name LIKE ?", (prefix,))
+
+                for link_property_table_name in [row[0] for row in cursor.fetchall()]:
+                    link_property_name = link_property_table_name.split("_")[2]
+
+                    cursor.execute(f"SELECT property_type FROM property_types WHERE table_name=?", (link_property_table_name,))
+                    link_property_tp_row  = cursor.fetchone()
+                    if link_property_tp_row is None:
+                        raise ValueError(f"Table {link_property_table_name} not found in property_types")
+                    else:
+                        link_property_tp = link_property_tp_row[0]
+                        if link_property_tp == "INT":
+                            cursor.execute(f"SELECT int_value FROM {link_property_table_name} WHERE source_id=? AND target_id=?", 
+                                            (link_source_id, link_target_id))
+                            link_props[StrLabel(link_property_name)] = (Visible(), MultiSetVal([IntVal(row[0]) for row in cursor.fetchall()]))
+                        elif link_property_tp == "STRING":
+                            cursor.execute(f"SELECT string_value FROM {link_property_table_name} WHERE source_id=? AND target_id=?",
+                                                (link_source_id, link_target_id))
+                            link_props[StrLabel(link_property_name)] = (Visible(), MultiSetVal([StrVal(row[0]) for row in cursor.fetchall()]))
+
+                targets.append(RefVal(link_target_id, ObjectVal(link_props)))
+            return MultiSetVal(targets)
+        else:
+            raise ValueError(f"Unknown property type {property_tp}")
 
 class SQLiteEdgeDatabase(EdgeDatabaseInterface):
 
@@ -24,7 +79,10 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
         self.conn = conn
         self.cursor = conn.cursor()
         # to_insert is set to zero usually, but it is set to one to inserted but not committed data
-        self.cursor.execute("CREATE TABLE IF NOT EXISTS objects (id INTEGER PRIMARY KEY, tp TEXT, to_insert INTEGER)")
+        self.cursor.execute("CREATE TABLE IF NOT EXISTS objects (id INTEGER PRIMARY KEY, tp TEXT NOT NULL, to_insert INTEGER NOT NULL)")
+        # property_type can be "INT", "STRING", "LINK"
+        self.cursor.execute("CREATE TABLE IF NOT EXISTS property_types (table_name TEXT PRIMARY KEY, property_type TEXT)")
+        
         # deletes and updates are set on the side until commit
         # inserts are directly written to the database
         self.to_delete : List[EdgeID] = []
@@ -58,47 +116,56 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
     def query_ids_for_a_type(self, tp: str) -> List[EdgeID]:
         # to insert is set to 1 if it is to insert, set to zero usually
         # check if type exists
-        self.cursor.execute("SELECT tp FROM types WHERE type=?", (tp,))
-        tp_row = self.cursor.fetchone()
-        if tp_row is None:
-            self.cursor.execute("INSERT INTO types (tp) VALUES (?)", (tp,))
-            # create table if not exists
-            self.cursor.execute(f"CREATE TABLE IF NOT EXISTS {tp} (id INTEGER PRIMARY KEY)")
-        self.cursor.execute(f"SELECT id FROM {tp} WHERE to_insert=0")
+        self.cursor.execute(f"SELECT id FROM objects WHERE to_insert=0")
         return [row[0] for row in self.cursor.fetchall()]
 
     def get_props_for_id(self, id: EdgeID) -> Dict[str, MultiSetVal]:
+        self.cursor.execute("SELECT tp, to_update FROM objects WHERE id=?", (id,))
+        tp_row = self.cursor.fetchone()
+        if tp_row is None:
+            raise ValueError(f"ID {id} not found in database")
+        else:
+            tp, to_insert = tp_row
+            if to_insert == 1 and id in self.to_update.keys():
+                return self.to_update[id]
+            else:
+                # select all table names that are potential candidates
+                prefix = tp + "_%"
+                self.cursor.execute("SELECT table_name FROM property_types WHERE table_name LIKE ?", (prefix,))
+                table_names = [row[0] for row in self.cursor.fetchall()]
+                result = {}
+                # properties are stored in table with tp_property
+                # link properties are stored in table with tp_property_linkprop
+                for table_name in table_names:
+                    if table_name.count("_")>1:
+                        continue
+                    property_name = table_name.split("_")[1]
+                    result[property_name] = self.project(id, property_name)
+                return result
+
+
+                
+    def get_type_for_an_id(self, id: EdgeID) -> str:
         self.cursor.execute("SELECT tp FROM objects WHERE id=?", (id,))
         tp_row = self.cursor.fetchone()
         if tp_row is None:
-            
-
-        if id in self.db.dbdata.keys():
-            return self.db.dbdata[id].data
-        # updates are queried before insert as we are able to update an inserted object
-        elif id in self.to_update.keys():
-            return self.to_update[id]
-        elif id in self.to_insert.dbdata.keys():
-            return self.to_insert.dbdata[id].data
-        # updates and deletes are all in db.dbdata
-        else:
             raise ValueError(f"ID {id} not found in database")
-
-    
-    def get_type_for_an_id(self, id: EdgeID) -> str:
-        if id in self.db.dbdata.keys():
-            return self.db.dbdata[id].tp
-        elif id in self.to_insert.dbdata.keys():
-            return self.to_insert.dbdata[id].tp
-        # updates and deletes are all in db or to_insert
         else:
-            raise ValueError(f"ID {id} not found in database")
+            return tp_row[0]
     
     def is_projectable(self, id: EdgeID, prop: str) -> bool:
-        return prop in self.get_props_for_id(id).keys()
+        tp_name = self.get_type_for_an_id(id)
+        self.cursor.execute("SELECT property_type FROM property_types WHERE table_name=?", 
+                                (tp_name + "_" + prop,))
+        property_type_row = self.cursor.fetchone()
+        if property_type_row is None:
+            return False
+        else:
+            return True
     
     def project(self, id: EdgeID, prop: str) -> MultiSetVal:
-        return self.get_props_for_id(id)[prop]
+        tp_name = self.get_type_for_an_id(id)
+        return compute_projection(self.cursor, id, tp_name, prop)
 
     def reverse_project(self, subject_ids: Sequence[EdgeID], prop: str) -> MultiSetVal:
         results: List[Val] = []
@@ -157,12 +224,17 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
         return self.schema
     
     def next_id(self) -> EdgeID:
-        id = self.next_id_to_return
-        self.next_id_to_return += 1
+        ## XXX: This is not thread safe
+        self.cursor.execute("SELECT id FROM next_id_to_return_gen LIMIT 1")
+        id_row = self.cursor.fetchone()
+        if id_row is None:
+            raise ValueError("Cannot fetch next id, check initialization")
+        id = id_row[0]
+        self.cursor.execute("UPDATE next_id_to_return_gen SET id = id + 1")
         return id
     
     def close(self) -> None:
-        pass
+        self.conn.close()
     
 
     
