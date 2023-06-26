@@ -149,7 +149,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         opts: codegen.Options,
         *,
         with_translation_data: bool = False,
-        reordered: bool = True,
+        reordered: bool = False,
     ):
         super().__init__(
             indent_with=opts.indent_with,

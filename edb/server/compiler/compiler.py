@@ -600,7 +600,7 @@ class Compiler:
                             f'parameter "{stmt.name}" cannot be changed',
                             pgext_code='55P02',  # cant_change_runtime_param
                         )
-                    value = pg_gen_source(stmt.args)
+                    value = pg_codegen.generate_source(stmt.args)
                     args["set_vars"] = {stmt.name: value}
                 elif stmt.scope == pgast.OptionsScope.SESSION:
                     if len(stmt.args.args) == 1 and isinstance(
