@@ -308,7 +308,7 @@ class CheeseParser():
         self.source = source
 
         parser_name = self.parser.__class__.__name__
-        result = eql_parser.parse(parser_name, source.tokens())
+        result, productions = eql_parser.parse(parser_name, source.tokens())
 
         if len(result.errors()) > 0:
 
@@ -323,7 +323,7 @@ class CheeseParser():
                 print(' ' * (start - 1) + '^' + '-' * (end - start - 1) + ' ' + message)
                 print()
             print('Recovered AST:')
-            ast = self._cst_to_ast(result.out()).val
+            ast = self._cst_to_ast(result.out(), productions).val
             if isinstance(ast, list):
                 for x in ast:
                     x.dump_edgeql()
@@ -339,9 +339,9 @@ class CheeseParser():
 
             raise errors.EdgeQLSyntaxError(message, position=position)
 
-        return self._cst_to_ast(result.out()).val
+        return self._cst_to_ast(result.out(), productions).val
 
-    def _cst_to_ast(self, cst: eql_parser.CSTNode):
+    def _cst_to_ast(self, cst: eql_parser.CSTNode, productions: List[Callable]):
         # Converts CST into AST by calling methods from the grammar classes.
         #
         # This function was originally written as a simple recursion.
@@ -393,14 +393,15 @@ class CheeseParser():
                 result = result[0:split_at]
 
                 # find correct method to call
-                mod = self.parser.get_parser_spec_module()
-                cls = mod.__dict__[node.non_term()]
-                obj = cls()
-                method = cls.__dict__[node.production()]
-                method(obj, *args)
+                production_id = node.id()
+                production = productions[production_id]
+
+                sym = production.lhs.nontermType()
+                assert len(args) == len(production.rhs)
+                production.method(sym, *args)
 
                 # push into result stack
-                result.append(obj)
+                result.append(sym)
         return result.pop()
 
 

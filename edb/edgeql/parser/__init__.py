@@ -183,36 +183,50 @@ def preload(
             preload(parsers=parsers, allow_rebuild=False)
 
 
-def process_spec(parser: parsing.ParserSpec) -> str:
+def process_spec(parser: parsing.ParserSpec) -> Tuple[str, List[Any]]:
     # Converts a ParserSpec into JSON. Called from edgeql-parser Rust crate.
 
     spec = parser.get_parser_spec()
+    assert spec.pureLR
+
     rmap = {v._token: c for (_, c), v in parsing.TokenMeta.token_map.items()}
+
+    # productions
+    productions: List[Any] = []
+    production_ids: Dict[Any, int] = {}
+    inlines: List[Tuple[int, int]] = []
+    def get_production_id(prod: Any) -> int:
+        if prod in production_ids:
+            return production_ids[prod]
+
+        id = len(productions)
+        productions.append(prod)
+        production_ids[prod] = id
+
+        inline = getattr(prod.method, 'inline_index', None)
+        if inline != None:
+            assert isinstance(inline, int)
+            inlines.append((id, inline))
+
+        return id
 
     # XXX: TOKENS
     actions = []
-    inlines = {}
     for st_actions in spec.actions():
         out_st_actions = []
         for tok, acts in st_actions.items():
-            # This assumes LR and not GLR
-            act = acts[0]
+            act = cast(Any, acts[0])
 
             stok = rmap.get(str(tok), str(tok))
             if 'ShiftAction' in str(type(act)):
-                oact: Any = int(cast(Any, act).nextState)
+                oact: Any = int(act.nextState)
             else:
-                production = cast(Any, act).production
+                prod = act.production
                 oact = {
-                    'non_term': str(production.lhs),
-                    'production': production.qualified.split('.')[-1],
-                    'cnt': len(production.rhs),
+                    'production_id': get_production_id(prod),
+                    'non_term': str(prod.lhs),
+                    'cnt': len(prod.rhs),
                 }
-
-                inline = getattr(production.method, 'inline_index', None)
-                if inline != None:
-                    production_id = oact['non_term'] + '.' + oact['production']
-                    inlines[production_id] = inline
 
             out_st_actions.append((stok, oact))
 
@@ -227,10 +241,11 @@ def process_spec(parser: parsing.ParserSpec) -> str:
 
         goto.append(out_goto)
 
-    obj = {
+    res = {
         'actions': actions,
         'goto': goto,
         'start': str(spec.start_sym()),
-        'inlines': inlines
+        'inlines': inlines,
     }
-    return json.dumps(obj)
+    res_json = json.dumps(res)
+    return (res_json, productions)

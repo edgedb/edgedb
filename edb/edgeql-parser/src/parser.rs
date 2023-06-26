@@ -98,7 +98,7 @@ pub struct Spec {
     pub actions: Vec<HashMap<String, Action>>,
     pub goto: Vec<HashMap<String, usize>>,
     pub start: String,
-    pub inlines: HashMap<String, u8>,
+    pub inlines: HashMap<usize, u8>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -110,9 +110,10 @@ pub enum Action {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Reduce {
-    /// Identification of the associated production
+    /// Index of the production in the associated production array
+    pub production_id: usize,
+
     pub non_term: String,
-    pub production: String,
 
     /// Number of arguments
     pub cnt: usize,
@@ -125,7 +126,7 @@ impl Spec {
             pub actions: Vec<Vec<(String, Action)>>,
             pub goto: Vec<Vec<(String, usize)>>,
             pub start: String,
-            pub inlines: HashMap<String, u8>,
+            pub inlines: Vec<(usize, u8)>,
         }
 
         let v = serde_json::from_str::<SpecJson>(j_spec).map_err(|e| e.to_string())?;
@@ -134,7 +135,7 @@ impl Spec {
             actions: v.actions.into_iter().map(HashMap::from_iter).collect(),
             goto: v.goto.into_iter().map(HashMap::from_iter).collect(),
             start: v.start,
-            inlines: v.inlines,
+            inlines: HashMap::from_iter(v.inlines),
         })
     }
 }
@@ -157,8 +158,7 @@ pub struct Terminal {
 
 #[derive(Serialize, Clone)]
 pub struct Production {
-    pub non_term: String,
-    pub production: String,
+    pub id: usize,
     pub args: Vec<CSTNode>,
 }
 
@@ -228,23 +228,18 @@ impl<'s> Parser<'s> {
         args.reverse();
 
         let value = CSTNode::Production(Production {
-            non_term: reduce.non_term.clone(),
-            production: reduce.production.clone(),
+            id: reduce.production_id,
             args,
         });
 
         let nstate = self.stack_top.state;
 
-        let next = *ctx.spec.goto[nstate]
-            .get(&reduce.non_term)
-            .unwrap_or_else(|| panic!("{nstate} {} {}", reduce.non_term, reduce.production));
+        let next = *ctx.spec.goto[nstate].get(&reduce.non_term).unwrap();
 
         // inline (if there is an inlining rule)
         let mut value = value;
         if let CSTNode::Production(production) = value {
-            let production_id = format!("{}.{}", production.non_term, production.production);
-
-            if let Some(inline_position) = ctx.spec.inlines.get(&production_id) {
+            if let Some(inline_position) = ctx.spec.inlines.get(&production.id) {
                 let mut args = production.args;
                 value = args.swap_remove(*inline_position as usize);
             } else {
@@ -393,11 +388,7 @@ impl std::fmt::Debug for CSTNode {
             Self::Empty => f.write_str("<e>"),
             Self::Terminal(t) => f.write_str(&t.text),
             Self::Production(prod) => {
-                if f.alternate() {
-                    f.write_str(&prod.non_term)?;
-                    f.write_str(".")?;
-                }
-                f.write_str(&prod.production)?;
+                write!(f, "{}", prod.id)?;
                 if f.alternate() && !prod.args.is_empty() {
                     let mut l = f.debug_list();
                     for a in &prod.args {

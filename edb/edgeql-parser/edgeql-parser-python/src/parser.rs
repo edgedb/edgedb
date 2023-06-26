@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use cpython::{
     ObjectProtocol, PyClone, PyList, PyObject, PyResult, PyString, PyTuple, Python, PythonObject,
-    PythonObjectWithCheckedDowncast, ToPyObject,
+    PythonObjectWithCheckedDowncast, ToPyObject, PyInt,
 };
 
 use edgeql_parser::parser;
@@ -23,15 +23,11 @@ py_class!(pub class CSTNode |py| {
 });
 
 py_class!(pub class Production |py| {
-    data _non_term: PyString;
-    data _production: PyString;
+    data _id: PyInt;
     data _args: PyList;
 
-    def non_term(&self) -> PyResult<PyString> {
-        Ok(self._non_term(py).clone_ref(py))
-    }
-    def production(&self) -> PyResult<PyString> {
-        Ok(self._production(py).clone_ref(py))
+    def id(&self) -> PyResult<PyInt> {
+        Ok(self._id(py).clone_ref(py))
     }
     def args(&self) -> PyResult<PyList> {
         Ok(self._args(py).clone_ref(py))
@@ -58,7 +54,7 @@ py_class!(pub class Terminal |py| {
     }
 });
 
-static mut PARSER_SPECS: Option<HashMap<String, parser::Spec>> = None;
+static mut PARSER_SPECS: Option<HashMap<String, (parser::Spec, PyObject)>> = None;
 
 pub fn init_module() {
     unsafe {
@@ -90,8 +86,8 @@ pub fn convert_tokens<'a>(py: Python, tokens: PyObject) -> PyResult<Vec<parser::
     Ok(buf)
 }
 
-pub fn parse(py: Python, parser_name: &PyString, tokens: PyObject) -> PyResult<ParserResult> {
-    let spec = load_spec(py, parser_name.to_string(py)?.as_ref())?;
+pub fn parse(py: Python, parser_name: &PyString, tokens: PyObject) -> PyResult<PyTuple> {
+    let (spec, productions) = load_spec(py, parser_name.to_string(py)?.as_ref())?;
 
     let cheese = convert_tokens(py, tokens)?;
 
@@ -105,10 +101,12 @@ pub fn parse(py: Python, parser_name: &PyString, tokens: PyObject) -> PyResult<P
         .collect::<Vec<_>>();
     let errors = PyList::new(py, &errors);
 
-    ParserResult::create_instance(py, cst.into_py_object(py), errors)
+    let res = ParserResult::create_instance(py, cst.into_py_object(py), errors)?;
+
+    Ok((res, productions).into_py_object(py))
 }
 
-fn load_spec(py: Python, parser_name: &str) -> PyResult<&'static parser::Spec> {
+fn load_spec(py: Python, parser_name: &str) -> PyResult<&'static (parser::Spec, PyObject)> {
     let parser_specs = unsafe { PARSER_SPECS.as_mut().unwrap() };
     if !parser_specs.contains_key(parser_name) {
         let parser_mod = py.import("edb.edgeql.parser.parser")?;
@@ -117,11 +115,16 @@ fn load_spec(py: Python, parser_name: &str) -> PyResult<&'static parser::Spec> {
 
         let parser_cls = parser_mod.get(py, parser_name)?;
         let parser = parser_cls.call(py, PyTuple::new(py, &[]), None)?;
-        let spec_json = process_spec.call(py, (parser,), None)?;
 
-        let spec = parser::Spec::from_json(&spec_json.to_string()).unwrap();
+        let res = process_spec.call(py, (parser,), None)?;
+        let res = PyTuple::downcast_from(py, res).unwrap();
 
-        parser_specs.insert(parser_name.to_string(), spec);
+        let spec_json = PyString::downcast_from(py, res.get_item(py, 0)).unwrap();
+        let productions = res.get_item(py, 1);
+
+        let spec = parser::Spec::from_json(&spec_json.to_string(py).unwrap()).unwrap();
+
+        parser_specs.insert(parser_name.to_string(), (spec, productions));
     }
 
     Ok(unsafe { PARSER_SPECS.as_ref().unwrap().get(parser_name).unwrap() })
@@ -146,8 +149,7 @@ fn to_py_cst<'a>(cst: parser::CSTNode, py: Python) -> PyResult<CSTNode> {
             py,
             Production::create_instance(
                 py,
-                prod.non_term.into_py_object(py),
-                prod.production.into_py_object(py),
+                prod.id.into_py_object(py),
                 PyList::new(
                     py,
                     prod.args
