@@ -42,7 +42,7 @@ Install the EdgeDB package.
 
 .. code-block:: bash
 
-   $ sudo apt-get update && sudo apt-get install edgedb-2
+   $ sudo apt-get update && sudo apt-get install edgedb-3
 
 
 CentOS/RHEL 7/8
@@ -59,7 +59,7 @@ Install the EdgeDB package.
 
 .. code-block:: bash
 
-   $ sudo yum install edgedb-2
+   $ sudo yum install edgedb-3
 
 
 .. _ref_guide_deployment_bare_metal_enable_unit:
@@ -72,7 +72,7 @@ default. You can start the server by enabling the unit.
 
 .. code-block:: bash
 
-   $ sudo systemctl enable --now edgedb-server-2
+   $ sudo systemctl enable --now edgedb-server-3
 
 This will start the server on port 5656, and the data directory will be
 ``/var/lib/edgedb/1/data``.
@@ -88,7 +88,7 @@ To set environment variables when running EdgeDB with ``systemctl``,
 
 .. code-block:: bash
 
-   $ systemctl edit --full edgedb-server-2
+   $ systemctl edit --full edgedb-server-3
 
 This opens a ``systemd`` unit file. Set the desired environment variables
 under the ``[Service]`` section. View the supported environment variables at
@@ -104,7 +104,7 @@ Save the file and exit, then restart the service.
 
 .. code-block:: bash
 
-   $ systemctl restart edgedb-server-2
+   $ systemctl restart edgedb-server-3
 
 
 Set a password
@@ -136,7 +136,7 @@ You may need to restart the server after changing the listen port or addresses.
 
 .. code-block:: bash
 
-   $ sudo systemctl restart edgedb-server-2
+   $ sudo systemctl restart edgedb-server-3
 
 
 Link the instance with the CLI
@@ -172,7 +172,7 @@ Upgrading EdgeDB
    intended to manage production instances.
 
 When you want to upgrade to the newest point release upgrade the package and
-restart the ``edgedb-server-2`` unit.
+restart the ``edgedb-server-3`` unit.
 
 
 Debian/Ubuntu LTS
@@ -180,8 +180,8 @@ Debian/Ubuntu LTS
 
 .. code-block:: bash
 
-   $ sudo apt-get update && sudo apt-get install --only-upgrade edgedb-2
-   $ sudo systemctl restart edgedb-server-2
+   $ sudo apt-get update && sudo apt-get install --only-upgrade edgedb-3
+   $ sudo systemctl restart edgedb-server-3
 
 
 CentOS/RHEL 7/8
@@ -189,8 +189,8 @@ CentOS/RHEL 7/8
 
 .. code-block:: bash
 
-   $ sudo yum update edgedb-2
-   $ sudo systemctl restart edgedb-server-2
+   $ sudo yum update edgedb-3
+   $ sudo systemctl restart edgedb-server-3
 
 Health Checks
 =============
