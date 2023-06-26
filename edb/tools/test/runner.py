@@ -398,9 +398,16 @@ class ExperimentalInterpreterTestSuite(unittest.TestSuite):
 
             if len(setup) == 1:
                 (init_sdl, init_ql) = setup[0][2]
-                dbschema, db = (
-                    model.dbschema_and_db_with_initial_schema_and_queries(
-                                    init_sdl, init_ql))
+                if sqlite_file_name := os.environ.get('EDGEDB_INTERPRETER_USE_SQLITE'):
+                    if not sqlite_file_name.endswith(".sqlite"):
+                        sqlite_file_name = ":memory:"
+                    dbschema, db = (
+                        model.dbschema_and_db_with_initial_schema_and_queries(
+                                        init_sdl, init_ql, sqlite_file_name))
+                else:
+                    dbschema, db = (
+                        model.dbschema_and_db_with_initial_schema_and_queries(
+                                        init_sdl, init_ql))
             else:
                 db = model.empty_db()
                 dbschema = model.empty_dbschema()

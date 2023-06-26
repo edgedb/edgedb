@@ -164,7 +164,12 @@ def repl(*, init_sdl_file=None,
     logs: List[Any] = []  # type: ignore[var]
 
     if sqlite_file is not None:
-        (dbschema, db) = sqlite_adapter.schema_and_db_from_sqlite(init_sdl_file, sqlite_file)
+        if init_sdl_file is not None:
+            with open(init_sdl_file) as f:
+                init_sdl_file_content = f.read()
+        else:
+            init_sdl_file_content = None
+        (dbschema, db) = sqlite_adapter.schema_and_db_from_sqlite(init_sdl_file_content, sqlite_file)
     else:
         if init_sdl_file is not None:
             dbschema = schema_from_sdl_file(init_sdl_file_path=init_sdl_file)
@@ -197,11 +202,14 @@ def repl(*, init_sdl_file=None,
 def dbschema_and_db_with_initial_schema_and_queries(
         initial_schema_defs: str,
         initial_queries: str,
+        sqlite_file_name: Optional[str] = None,
         debug_print=False,
         logs: Optional[List[Any]] = None) -> Tuple[DBSchema, EdgeDatabaseInterface]:
-    dbschema = schema_from_sdl_defs(
-        initial_schema_defs)
-    db = empty_db(dbschema)
+    if sqlite_file_name is not None:
+        dbschema, db = sqlite_adapter.schema_and_db_from_sqlite(initial_schema_defs, sqlite_file_name)
+    else:
+        dbschema = schema_from_sdl_defs(initial_schema_defs)
+        db = empty_db(dbschema)
     run_str(db, dbschema, initial_queries,
                       print_asts=debug_print, logs=logs)
     return dbschema, db

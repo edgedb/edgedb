@@ -40,6 +40,9 @@ class EdgeDatabaseInterface:
 
     # updates an object's properties in the database, unspecified properties are not changed
     # the update must be able to apply the insert object in the SAME transaction
+    # XXX: the handling of link properties are currently under-discussion. In memory db replaces Link properties
+    # and sqlite leave unmentioned link properties unchanged
+    # the current interpreter will always send all link properties, so no ambiguities currently
     def update(self, id: EdgeID, props : Dict[str, MultiSetVal]) -> None:
         raise NotImplementedError()
 
