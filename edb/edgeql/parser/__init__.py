@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *
 
 import multiprocessing
+import json
 
 from edb import errors
 from edb.common import parsing
@@ -183,21 +184,19 @@ def preload(
 
 
 def process_spec(parser: parsing.ParserSpec) -> str:
-    import json
+    # Converts a ParserSpec into JSON. Called from edgeql-parser Rust crate.
 
     spec = parser.get_parser_spec()
-
-    # print(spec)
-    actions = spec.actions()
-
     rmap = {v._token: c for (_, c), v in parsing.TokenMeta.token_map.items()}
 
     # XXX: TOKENS
-    table = []
-    for st_actions in actions:
+    actions = []
+    inlines = {}
+    for st_actions in spec.actions():
         out_st_actions = []
         for tok, acts in st_actions.items():
-            act = acts[0]  # XXX: LR! NOT GLR??
+            # This assumes LR and not GLR
+            act = acts[0]
 
             stok = rmap.get(str(tok), str(tok))
             if 'ShiftAction' in str(type(act)):
@@ -209,9 +208,15 @@ def process_spec(parser: parsing.ParserSpec) -> str:
                     'production': production.qualified.split('.')[-1],
                     'cnt': len(production.rhs),
                 }
+
+                inline = getattr(production.method, 'inline_index', None)
+                if inline != None:
+                    production_id = oact['non_term'] + '.' + oact['production']
+                    inlines[production_id] = inline
+
             out_st_actions.append((stok, oact))
 
-        table.append(out_st_actions)
+        actions.append(out_st_actions)
 
     # goto
     goto = []
@@ -222,6 +227,10 @@ def process_spec(parser: parsing.ParserSpec) -> str:
 
         goto.append(out_goto)
 
-    obj = dict(actions=table, goto=goto, start=str(spec.start_sym()))
-
+    obj = {
+        'actions': actions,
+        'goto': goto,
+        'start': str(spec.start_sym()),
+        'inlines': inlines
+    }
     return json.dumps(obj)

@@ -142,19 +142,16 @@ fn to_py_cst<'a>(cst: parser::CSTNode, py: Python) -> PyResult<CSTNode> {
             )?
             .into_object(),
         ),
-        parser::CSTNode::Production {
-            non_term,
-            production,
-            args,
-        } => CSTNode::create_instance(
+        parser::CSTNode::Production(prod) => CSTNode::create_instance(
             py,
             Production::create_instance(
                 py,
-                non_term.into_py_object(py),
-                production.into_py_object(py),
+                prod.non_term.into_py_object(py),
+                prod.production.into_py_object(py),
                 PyList::new(
                     py,
-                    args.into_iter()
+                    prod.args
+                        .into_iter()
                         .map(|a| to_py_cst(a, py).map(|x| x.into_object()))
                         .collect::<PyResult<Vec<_>>>()?
                         .as_slice(),

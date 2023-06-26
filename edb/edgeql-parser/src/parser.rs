@@ -98,6 +98,7 @@ pub struct Spec {
     pub actions: Vec<HashMap<String, Action>>,
     pub goto: Vec<HashMap<String, usize>>,
     pub start: String,
+    pub inlines: HashMap<String, u8>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -109,8 +110,11 @@ pub enum Action {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Reduce {
+    /// Identification of the associated production
     pub non_term: String,
     pub production: String,
+
+    /// Number of arguments
     pub cnt: usize,
 }
 
@@ -121,6 +125,7 @@ impl Spec {
             pub actions: Vec<Vec<(String, Action)>>,
             pub goto: Vec<Vec<(String, usize)>>,
             pub start: String,
+            pub inlines: HashMap<String, u8>,
         }
 
         let v = serde_json::from_str::<SpecJson>(j_spec).map_err(|e| e.to_string())?;
@@ -129,6 +134,7 @@ impl Spec {
             actions: v.actions.into_iter().map(HashMap::from_iter).collect(),
             goto: v.goto.into_iter().map(HashMap::from_iter).collect(),
             start: v.start,
+            inlines: v.inlines,
         })
     }
 }
@@ -138,11 +144,7 @@ impl Spec {
 pub enum CSTNode {
     Empty,
     Terminal(Terminal),
-    Production {
-        non_term: String,
-        production: String,
-        args: Vec<CSTNode>,
-    },
+    Production(Production),
 }
 
 #[derive(Serialize, Default, Clone)]
@@ -151,6 +153,13 @@ pub struct Terminal {
     pub text: String,
     pub value: Option<String>,
     pub span: Span,
+}
+
+#[derive(Serialize, Clone)]
+pub struct Production {
+    pub non_term: String,
+    pub production: String,
+    pub args: Vec<CSTNode>,
 }
 
 #[derive(Debug)]
@@ -218,17 +227,30 @@ impl<'s> Parser<'s> {
         }
         args.reverse();
 
-        let value = CSTNode::Production {
+        let value = CSTNode::Production(Production {
             non_term: reduce.non_term.clone(),
             production: reduce.production.clone(),
             args,
-        };
+        });
 
         let nstate = self.stack_top.state;
 
         let next = *ctx.spec.goto[nstate]
             .get(&reduce.non_term)
             .unwrap_or_else(|| panic!("{nstate} {} {}", reduce.non_term, reduce.production));
+
+        // inline (if there is an inlining rule)
+        let mut value = value;
+        if let CSTNode::Production(production) = value {
+            let production_id = format!("{}.{}", production.non_term, production.production);
+
+            if let Some(inline_position) = ctx.spec.inlines.get(&production_id) {
+                let mut args = production.args;
+                value = args.swap_remove(*inline_position as usize);
+            } else {
+                value = CSTNode::Production(production);
+            }
+        }
 
         // push on stack
         self.stack_top = ctx.arena.alloc(StackNode {
@@ -370,7 +392,21 @@ impl std::fmt::Debug for CSTNode {
         match self {
             Self::Empty => f.write_str("<e>"),
             Self::Terminal(t) => f.write_str(&t.text),
-            Self::Production { production, .. } => write!(f, "{production}"),
+            Self::Production(prod) => {
+                if f.alternate() {
+                    f.write_str(&prod.non_term)?;
+                    f.write_str(".")?;
+                }
+                f.write_str(&prod.production)?;
+                if f.alternate() && !prod.args.is_empty() {
+                    let mut l = f.debug_list();
+                    for a in &prod.args {
+                        l.entry(a);
+                    }
+                    l.finish()?;
+                }
+                Ok(())
+            }
         }
     }
 }

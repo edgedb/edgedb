@@ -10,7 +10,7 @@ def parse(querystr: str) -> qlast.Expr:
 
 QS = [
     '''
-        select User
+        select 1
     ''',
     '''
         select User { name, email } filter .name = 'Sully'
@@ -55,12 +55,13 @@ QS = [
     ''',
 ]
 
-for q in QS[:]:
+for q in QS[:1]:
     
     print('-' * 30)
     print()
 
     try:
         ast = parse(q)
-    except:
+    except Exception as e:
+        print(e)
         pass
