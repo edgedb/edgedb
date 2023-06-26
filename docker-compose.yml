@@ -1,0 +1,29 @@
+services:
+  # postgres:
+  #   image: postgres:${{ matrix.postgres-version }}-alpine
+  #   environment:
+  #     POSTGRES_PASSWORD: postgres
+  #   ports:
+  #     - 5433:5432
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.10
+    networks:
+    - elastic
+    ports:
+    - 9200:9200
+    - 9300:9300
+    environment:
+    - "discovery.type=single-node"
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.11
+    networks:
+    - elastic
+    ports:
+    - 127.0.0.1:5601:5601
+    environment:
+    - "ELASTICSEARCH_HOSTS=http://elasticsearch:9200"
+
+networks:
+  elastic: {}
