@@ -316,12 +316,28 @@
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
 
-    - name: Publish Docker Image
+    - name: Publish Docker Image (docker.io)
       uses: elgohr/Publish-Docker-Github-Action@43dc228e327224b2eda11c8883232afd5b34943b  # v5
       with:
         name: edgedb/edgedb
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
+        <%- if subdist == "nightly" %>
+        tags: "nightly,nightly_${{ << pub_outputs >>.version-slot }}_cv${{ << pub_outputs >>.catalog-version }}"
+        <%- else %>
+        tags: "${{ steps.tags.outputs.tags }}"
+        <%- endif %>
+        workdir: dockerfile
+        buildargs: version=${{ << pub_outputs >>.version-slot }},exact_version=${{ << pub_outputs >>.version-core }}<% if subdist != "" %>,subdist=<< subdist >><% endif %>
+        platforms: << docker_tgts|map(attribute="docker_arch")|join(",") >>
+
+    - name: Publish Docker Image (ghcr.io)
+      uses: elgohr/Publish-Docker-Github-Action@43dc228e327224b2eda11c8883232afd5b34943b  # v5
+      with:
+        registry: ghcr.io
+        name: ${{ github.repository }}
+        username: "edgedb-ci"
+        password: ${{ secrets.GITHUB_CI_BOT_TOKEN }}
         <%- if subdist == "nightly" %>
         tags: "nightly,nightly_${{ << pub_outputs >>.version-slot }}_cv${{ << pub_outputs >>.catalog-version }}"
         <%- else %>

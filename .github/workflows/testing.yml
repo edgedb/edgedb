@@ -2417,12 +2417,24 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
 
-    - name: Publish Docker Image
+    - name: Publish Docker Image (docker.io)
       uses: elgohr/Publish-Docker-Github-Action@43dc228e327224b2eda11c8883232afd5b34943b  # v5
       with:
         name: edgedb/edgedb
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
+        tags: "${{ steps.tags.outputs.tags }}"
+        workdir: dockerfile
+        buildargs: version=${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-buster-x86_64.outputs.version-core }},subdist=testing
+        platforms: linux/amd64,linux/arm64
+
+    - name: Publish Docker Image (ghcr.io)
+      uses: elgohr/Publish-Docker-Github-Action@43dc228e327224b2eda11c8883232afd5b34943b  # v5
+      with:
+        registry: ghcr.io
+        name: ${{ github.repository }}
+        username: "edgedb-ci"
+        password: ${{ secrets.GITHUB_CI_BOT_TOKEN }}
         tags: "${{ steps.tags.outputs.tags }}"
         workdir: dockerfile
         buildargs: version=${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-buster-x86_64.outputs.version-core }},subdist=testing
