@@ -342,7 +342,8 @@ constraint, each movie can be liked by multiple users. Thus this is a
 
 .. note::
 
-  Links are always distinct. That means it's not possible to link the same objects twice.
+  Links are always distinct. That means it's not possible to link the same
+  objects twice.
 
   .. code-block:: sdl
     
