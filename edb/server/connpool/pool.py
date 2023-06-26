@@ -607,6 +607,9 @@ class BasePool(typing.Generic[C]):
             dbname=block.dbname, event='connect', value=block.count_conns())
         self._get_loop().create_task(self._connect(block, started_at, event))
 
+    def _schedule_discard(self, block: Block[C], conn: C) -> None:
+        self._get_loop().create_task(self._discard_conn(block, conn))
+
     async def _discard_conn(self, block: Block[C], conn: C) -> None:
         assert not block.conns[conn].in_use
         block.conns.pop(conn)
@@ -977,8 +980,7 @@ class Pool(BasePool[C]):
                 if to_block is not None:
                     self._schedule_transfer(block, conn, to_block)
                 else:
-                    self._get_loop().create_task(
-                        self._discard_conn(block, conn))
+                    self._schedule_discard(block, conn)
             else:
                 break
 
@@ -1117,7 +1119,7 @@ class Pool(BasePool[C]):
         only_older_than = time.monotonic() - self._gc_interval
         for block in self._blocks.values():
             while (conn := block.try_steal(only_older_than)) is not None:
-                loop.create_task(self._discard_conn(block, conn))
+                self._schedule_discard(block, conn)
 
     async def acquire(self, dbname: str) -> C:
         self._nacquires += 1
@@ -1170,8 +1172,7 @@ class Pool(BasePool[C]):
                 # Concurrent `acquire()` may be waiting to reuse the released
                 # connection here - as we should discard this one, let's just
                 # schedule a new one in the same block.
-                self._get_loop().create_task(
-                    self._discard_conn(block, conn))
+                self._schedule_discard(block, conn)
                 self._schedule_new_conn(block)
                 return
 

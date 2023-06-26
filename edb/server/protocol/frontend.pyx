@@ -145,7 +145,11 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                 conn.pinned_by = None
                 self._pinned_pgcon = None
                 if not self._pgcon_released_in_connection_lost:
-                    self.server.release_pgcon(self.dbname, conn)
+                    self.server.release_pgcon(
+                        self.dbname,
+                        conn,
+                        discard=debug.flags.server_clobber_pg_conns,
+                    )
             else:
                 self._pinned_pgcon_in_tx = True
         else:
@@ -153,7 +157,11 @@ cdef class FrontendConnection(AbstractFrontendConnection):
             self._pinned_pgcon_in_tx = False
             self._pinned_pgcon = None
             if not self._pgcon_released_in_connection_lost:
-                self.server.release_pgcon(self.dbname, conn)
+                self.server.release_pgcon(
+                    self.dbname,
+                    conn,
+                    discard=debug.flags.server_clobber_pg_conns,
+                )
 
     def on_aborted_pgcon(self, pgcon.PGConnection conn):
         try:

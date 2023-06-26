@@ -29,6 +29,7 @@ from edb.server.pgproto.pgproto cimport (
     FRBuffer,
 )
 
+from edb.server.dbview cimport dbview
 from edb.server.pgproto.debug cimport PG_DEBUG
 
 from edb.server.cache cimport stmt_cache
@@ -59,16 +60,17 @@ cdef enum PGAuthenticationState:
 
 
 cdef enum PGAction:
-    START_IMPLICIT = 0
+    START_IMPLICIT_TX = 0
     PARSE = 1
     BIND = 2
     DESCRIBE_STMT = 3
-    DESCRIBE_PORTAL = 4
-    EXECUTE = 5
-    CLOSE_STMT = 6
-    CLOSE_PORTAL = 7
-    FLUSH = 8
-    SYNC = 9
+    DESCRIBE_STMT_ROWS = 4
+    DESCRIBE_PORTAL = 5
+    EXECUTE = 6
+    CLOSE_STMT = 7
+    CLOSE_PORTAL = 8
+    FLUSH = 9
+    SYNC = 10
 
 
 cdef class PGMessage:
@@ -79,12 +81,16 @@ cdef class PGMessage:
         str orig_portal_name
         object args
         object query_unit
-        bint be_parse
+        bint frontend_only
+        bint valid
+        bint injected
 
         object orig_query
         object fe_settings
 
-    cdef inline bint frontend_only(self)
+    cdef inline bint is_frontend_only(self)
+    cdef inline bint is_valid(self)
+    cdef inline bint is_injected(self)
 
 
 @cython.final
@@ -145,7 +151,8 @@ cdef class PGConnection:
     cdef fallthrough(self)
     cdef fallthrough_idle(self)
 
-    cdef bint before_prepare(self, stmt_name, dbver, WriteBuffer outbuf)
+    cdef bint before_prepare(
+        self, bytes stmt_name, int dbver, WriteBuffer outbuf)
     cdef write_sync(self, WriteBuffer outbuf)
 
     cdef make_clean_stmt_message(self, bytes stmt_name)
@@ -174,7 +181,6 @@ cdef class PGConnection:
         dict type_id_map,
     )
 
-    cdef _write_sql_extended_query(self, actions, int dbver, dbv)
     cdef _rewrite_sql_error_response(self, PGMessage action, WriteBuffer buf)
 
     cpdef set_stmt_cache_size(self, int maxsize)
