@@ -443,6 +443,7 @@ class Cluster(BaseCluster):
             # inheritance hierarchies.  This is especially important in low
             # `max_connections` scenarios.
             'max_locks_per_transaction': 1024,
+            'max_pred_locks_per_transaction': 1024,
         }
 
         if os.getenv('EDGEDB_DEBUG_PGSERVER'):
