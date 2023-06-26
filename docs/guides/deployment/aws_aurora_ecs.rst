@@ -41,7 +41,7 @@ following parameters:
   <https://hub.docker.com/r/edgedb/edgedb/tags>`_.
 - ``InstanceName``: ⚠️ Due to limitations with AWS, this must be 22 characters
   or less!
-- ``SuperUserPassword``: this will used as the password for the new EdgeDB
+- ``SuperUserPassword``: this will be used as the password for the new EdgeDB
   instance. Keep track of the value you provide.
 
 Once the deployment is complete, follow these steps to find the host name that
@@ -62,7 +62,7 @@ has been assigned to your EdgeDB instance:
    .. code-block:: bash
 
      $ edgedb --dsn edgedb://edgedb:<password>@<hostname> --tls-security insecure
-     EdgeDB 2.x
+     EdgeDB 3.x
      Type \help for help, \quit to quit.
      edgedb>
 
@@ -90,7 +90,7 @@ against this instance, as with local instances.
 .. code-block:: bash
 
   $ edgedb -I my_aws_instance
-  EdgeDB 2.x
+  EdgeDB 3.x
   Type \help for help, \quit to quit.
   edgedb>
 

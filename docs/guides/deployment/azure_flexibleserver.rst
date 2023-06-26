@@ -69,7 +69,7 @@ Then create a Postgres Flexible server.
        --admin-user edgedb \
        --admin-password $PASSWORD \
        --sku-name Standard_D2s_v3 \
-       --version 13 \
+       --version 14 \
        --yes
 
 .. note::
