@@ -41,8 +41,6 @@ to. For specifying the connection target see :ref:`connection options
     revisions are applied on top.
 
 :cli:synopsis:`--dev-mode`
-    .. TODO: 3.0 release
-    .. Remove this note
     .. note::
 
         The ``--dev-mod`` option is compatible with EdgeDB server 3.0 and

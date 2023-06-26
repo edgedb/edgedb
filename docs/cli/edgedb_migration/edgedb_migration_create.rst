@@ -55,9 +55,6 @@ to. For specifying the connection target see :ref:`connection options
     ``./dbschema``.
 
 :cli:synopsis:`--squash`
-    .. TODO: 3.0 release
-    .. Remove this note
-
     .. note::
 
         This CLI feature is compatible with EdgeDB server 3.0 and above.
