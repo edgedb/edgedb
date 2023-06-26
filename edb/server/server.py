@@ -41,6 +41,7 @@ import uuid
 import immutables
 from jwcrypto import jwk
 
+from edb import buildmeta
 from edb import errors
 
 from edb.common import devmode
@@ -552,12 +553,25 @@ class Server(ha_base.ClusterProtocol):
             raise
 
     async def _create_compiler_pool(self):
+        # Force Postgres version in BackendRuntimeParams to be the
+        # minimal supported, because the compiler does not rely on
+        # the version, and not pinning it would make the remote compiler
+        # pool refuse connections from clients that have differing versions
+        # of Postgres backing them.
+        runtime_params = self.get_backend_runtime_params()
+        min_ver = '.'.join(str(v) for v in defines.MIN_POSTGRES_VERSION)
+        runtime_params = runtime_params._replace(
+            instance_params=runtime_params.instance_params._replace(
+                version=buildmeta.parse_pg_version(min_ver),
+            ),
+        )
+
         args = dict(
             pool_size=self._compiler_pool_size,
             pool_class=self._compiler_pool_mode.pool_class,
             dbindex=self._dbindex,
             runstate_dir=self._internal_runstate_dir,
-            backend_runtime_params=self.get_backend_runtime_params(),
+            backend_runtime_params=runtime_params,
             std_schema=self._std_schema,
             refl_schema=self._refl_schema,
             schema_class_layout=self._schema_class_layout,
