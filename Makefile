@@ -27,6 +27,8 @@ docs: build-reqs
 postgres: build-reqs
 	python setup.py build_postgres
 
+pg-ext: build-reqs
+	python setup.py build_postgres_extensions
 
 ui: build-reqs
 	python setup.py build_ui

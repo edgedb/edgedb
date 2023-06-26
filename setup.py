@@ -23,6 +23,7 @@ import os
 import os.path
 import pathlib
 import platform
+import re
 import shutil
 import subprocess
 import textwrap
@@ -50,6 +51,10 @@ EDGEDBGUI_COMMIT = 'main'
 PGVECTOR_REPO = 'https://github.com/pgvector/pgvector.git'
 # This can be a branch, tag, or commit
 PGVECTOR_COMMIT = 'v0.4.2'
+
+ZOMBODB_REPO = 'https://github.com/zombodb/zombodb.git'
+# This can be a branch, tag, or commit
+ZOMBODB_COMMIT = 'v3000.1.20'
 
 SAFE_EXT_CFLAGS: list[str] = []
 if flag := os.environ.get('EDGEDB_OPT_CFLAG'):
@@ -344,6 +349,101 @@ def _compile_pgvector(build_base, build_temp):
     )
 
 
+def _compile_zombodb(build_base, build_temp):
+    git_rev = _get_git_rev(ZOMBODB_REPO, ZOMBODB_COMMIT)
+
+    zdb_root = (build_temp / 'zombodb').resolve()
+    if not zdb_root.exists():
+        subprocess.run(
+            [
+                'git',
+                'clone',
+                '--recursive',
+                ZOMBODB_REPO,
+                zdb_root,
+            ],
+            check=True
+        )
+    else:
+        subprocess.run(
+            ['git', 'fetch', '--all'],
+            check=True,
+            cwd=zdb_root,
+        )
+
+    subprocess.run(
+        ['git', 'reset', '--hard', git_rev],
+        check=True,
+        cwd=zdb_root,
+    )
+
+    # Workaround Cargo's unwillingness to build a nested Cargo.toml
+    with open(zdb_root / "Cargo.toml", "a") as f:
+        f.write(f"\n[workspace]")
+
+    pg_config = (
+        build_base / 'postgres' / 'install' / 'bin' / 'pg_config'
+    ).resolve()
+
+    pg_ver_proc = subprocess.run(
+        [
+            str(pg_config),
+            '--version',
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    pg_ver = pg_ver_proc.stdout.strip()
+
+    if m := re.match(r"PostgreSQL (?P<major>\d+)\.(\d+).*", pg_ver):
+        pg_major_ver = m.group("major")
+    else:
+        raise RuntimeError(f"could not parse Postgres version: {pg_ver!r}")
+
+    env = dict(os.environ)
+
+    env['CARGO_TARGET_DIR'] = str(build_temp / 'rust' / 'target')
+
+    pgrx_dir = build_temp / 'rust' / 'cargo-pgrx'
+    pgrx_home = build_temp / 'rust' / 'pgrx-config'
+    pgrx_home.mkdir(parents=True, exist_ok=True)
+
+    subprocess.run(
+        [
+            'cargo', 'install',
+            '--verbose', '--verbose',
+            '--root', str(pgrx_dir),
+            'cargo-pgrx',
+        ],
+        env=env,
+        check=True,
+    )
+
+    env["PATH"] = f"{pgrx_dir / 'bin'}{os.pathsep}{env['PATH']}"
+    env["PGRX_HOME"] = str(pgrx_home)
+
+    subprocess.run(
+        [
+            'cargo', 'pgrx', 'init',
+            f'--pg{pg_major_ver}={pg_config}',
+        ],
+        env=env,
+        check=True,
+    )
+
+    subprocess.run(
+        [
+            'cargo', 'pgrx', 'install',
+            f'--pg-config={pg_config}',
+        ],
+        env=env,
+        cwd=zdb_root,
+        check=True,
+    )
+
+
 def _compile_libpg_query():
     dir = (ROOT_PATH / 'edb' / 'pgsql' / 'parser' / 'libpg_query').resolve()
 
@@ -400,7 +500,7 @@ def _get_pg_source_stamp():
 def _compile_cli(build_base, build_temp):
     rust_root = build_base / 'cli'
     env = dict(os.environ)
-    env['CARGO_TARGET_DIR'] = str(build_temp / 'rust' / 'cli')
+    env['CARGO_TARGET_DIR'] = str(build_temp / 'rust' / 'target')
     env['PSQL_DEFAULT_PATH'] = build_base / 'postgres' / 'install' / 'bin'
     git_ref = env.get("EDGEDBCLI_GIT_REV") or EDGEDBCLI_COMMIT
     git_rev = _get_git_rev(EDGEDBCLI_REPO, git_ref)
@@ -625,6 +725,36 @@ class build_postgres(setuptools.Command):
             produce_compile_commands_json=self.compile_commands,
         )
         _compile_pgvector(
+            pathlib.Path(build.build_base).resolve(),
+            pathlib.Path(build.build_temp).resolve(),
+        )
+        _compile_zombodb(
+            pathlib.Path(build.build_base).resolve(),
+            pathlib.Path(build.build_temp).resolve(),
+        )
+
+
+class build_postgres_extensions(setuptools.Command):
+
+    description = "build postgres extensions"
+
+    user_options: list[str] = []
+
+    editable_mode: bool
+
+    def initialize_options(self):
+        self.editable_mode = False
+
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        build = self.get_finalized_command('build')
+        # _compile_pgvector(
+        #     pathlib.Path(build.build_base).resolve(),
+        #     pathlib.Path(build.build_temp).resolve(),
+        # )
+        _compile_zombodb(
             pathlib.Path(build.build_base).resolve(),
             pathlib.Path(build.build_temp).resolve(),
         )
@@ -953,6 +1083,7 @@ setuptools.setup(
         'build_ext': build_ext,
         'build_rust': build_rust,
         'build_postgres': build_postgres,
+        'build_postgres_extensions': build_postgres_extensions,
         'build_cli': build_cli,
         'build_parsers': build_parsers,
         'build_ui': build_ui,
