@@ -136,6 +136,9 @@ class flags(metaclass=FlagsMeta):
     server_proto = Flag(
         doc="Print server protocol querying messages.")
 
+    server_clobber_pg_conns = Flag(
+        doc="Discard Postgres connections when releasing them to the pool.")
+
     http_inject_cors = Flag(
         doc="Inject 'Access-Control-Allow-Origin: *' header in HTTP ports.")
 

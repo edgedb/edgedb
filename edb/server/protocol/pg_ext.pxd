@@ -45,8 +45,10 @@ cdef class ConnectionView:
     cdef inline _reset_tx_state(
         self, bint chain_implicit, bint chain_explicit
     )
+    cpdef inline close_portal_if_exists(self, str name)
     cpdef inline close_portal(self, str name)
     cdef inline find_portal(self, str name)
+    cdef inline portal_exists(self, str name)
 
 
 cdef class PgConnection(frontend.FrontendConnection):
@@ -56,6 +58,9 @@ cdef class PgConnection(frontend.FrontendConnection):
 
         bytes secret
         dict prepared_stmts
+        dict sql_prepared_stmts
+        dict sql_prepared_stmts_map
+        dict wrapping_prepared_stmts
         bint ignore_till_sync
 
         object sslctx

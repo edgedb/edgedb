@@ -38,11 +38,20 @@ from edb.schema import objects as s_obj
 from edb.schema import schema as s_schema
 
 from edb.server import config
+from edb.server import defines
 
 from edb.pgsql.codegen import SQLSourceGeneratorTranslationData
 
 from . import enums
 from . import sertypes
+
+
+DEFAULT_SQL_SETTINGS: immutables.Map[str, str] = immutables.Map()
+DEFAULT_SQL_FE_SETTINGS = immutables.Map({
+    "search_path": "public",
+    "server_version": defines.PGEXT_POSTGRES_VERSION,
+    "server_version_num": str(defines.PGEXT_POSTGRES_VERSION_NUM),
+})
 
 
 class TxAction(enum.IntEnum):
@@ -401,22 +410,71 @@ class QueryUnitGroup:
         self.units.append(query_unit)
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class PreparedStmtOpData:
+    """Common prepared statement metadata"""
+
+    stmt_name: str
+    """Original statement name as passed by the frontend"""
+
+    be_stmt_name: bytes = b""
+    """Computed statement name as passed to the backend"""
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class PrepareData(PreparedStmtOpData):
+    """PREPARE statement data"""
+
+    query: str
+    """Translated query string"""
+    translation_data: Optional[SQLSourceGeneratorTranslationData] = None
+    """Translation source map"""
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class ExecuteData(PreparedStmtOpData):
+    """EXECUTE statement data"""
+    pass
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class DeallocateData(PreparedStmtOpData):
+    """DEALLOCATE statement data"""
+    pass
+
+
+@dataclasses.dataclass(kw_only=True)
 class SQLQueryUnit:
     query: str
+    """Translated query text."""
+    orig_query: str
+    """Original query text before translation."""
     translation_data: Optional[SQLSourceGeneratorTranslationData] = None
+    """Translation source map."""
+    fe_settings: immutables.Map[str, str]
+    """Frontend-only settings effective during translation of this unit."""
 
     tx_action: Optional[TxAction] = None
     tx_chain: bool = False
     sp_name: Optional[str] = None
 
+    prepare: Optional[PrepareData] = None
+    execute: Optional[ExecuteData] = None
+    deallocate: Optional[DeallocateData] = None
+
     set_vars: Optional[dict[str, Optional[str | list[str]]]] = None
+    get_var: Optional[str] = None
     is_local: bool = False
 
     stmt_name: bytes = b""
+    """Computed prepared statement name for this query."""
 
     frontend_only: bool = False
-    get_var: Optional[str] = None
+    """Whether the query is completely emulated outside of backend and so
+    the response should be synthesized also."""
+
+    command_tag: bytes = b""
+    """If frontend_only is True, only issue CommandComplete with this tag."""
 
 
 @dataclasses.dataclass
@@ -426,6 +484,12 @@ class SQLTransactionState:
     in_tx_settings: Optional[immutables.Map]
     in_tx_local_settings: Optional[immutables.Map]
     savepoints: list[tuple[str, immutables.Map, immutables.Map]]
+
+    def current_fe_settings(self) -> immutables.Map[str, str]:
+        if self.in_tx:
+            return self.in_tx_settings or DEFAULT_SQL_FE_SETTINGS
+        else:
+            return self.in_tx_local_settings or DEFAULT_SQL_FE_SETTINGS
 
     def get(self, name):
         if self.in_tx:

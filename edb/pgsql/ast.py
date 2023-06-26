@@ -1125,15 +1125,19 @@ class TransactionOptions(Base):
     options: dict[str, BaseExpr]
 
 
+class PrepareStmt(Statement):
+    name: str
+    argtypes: typing.Optional[typing.List[Base]]
+    query: BaseRelation
+
+
 class ExecuteStmt(Statement):
     name: str
     params: typing.Optional[typing.List[Base]]
 
 
-class PrepareStmt(Statement):
+class DeallocateStmt(Statement):
     name: str
-    argtypes: typing.Optional[typing.List[Base]]
-    query: BaseRelation
 
 
 class SQLValueFunctionOP(enum.IntEnum):

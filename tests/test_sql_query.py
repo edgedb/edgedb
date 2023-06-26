@@ -967,3 +967,75 @@ class TestSQL(tb.SQLQueryTestCase):
         ):
             await self.scon.fetch('''SELECT 1 +
                 'foo' FROM "Movie" ORDER BY id''')
+
+    async def test_sql_query_prepare_01(self):
+        await self.scon.execute(
+            """
+            PREPARE ps1(int) AS (
+                SELECT $1
+            )
+            """,
+        )
+
+        res = await self.squery_values(
+            """
+            EXECUTE ps1(100)
+            """,
+        )
+        self.assertEqual(res, [[100]])
+
+        await self.scon.execute(
+            """
+            DEALLOCATE ps1
+            """,
+        )
+
+        with self.assertRaises(
+            asyncpg.InvalidSQLStatementNameError,
+        ):
+            await self.scon.execute(
+                """
+                EXECUTE ps1(101)
+                """,
+            )
+
+        with self.assertRaises(
+            asyncpg.InvalidSQLStatementNameError,
+        ):
+            await self.scon.execute(
+                """
+                DEALLOCATE ps1
+                """,
+            )
+
+        # Prepare again to make sure DEALLOCATE worked
+        await self.scon.execute(
+            """
+            PREPARE ps1(int) AS (
+                SELECT $1 + 4
+            )
+            """,
+        )
+
+        res = await self.squery_values(
+            """
+            EXECUTE ps1(100)
+            """,
+        )
+        self.assertEqual(res, [[104]])
+
+        # Check that simple query works too.
+        res = await self.scon.execute(
+            """
+            EXECUTE ps1(100)
+            """,
+        )
+
+    async def test_sql_query_prepare_error_01(self):
+        query = "PREPARE pserr1 AS (SELECT * FROM \"Movie\" ORDER BY 1 + 'a')"
+        with self.assertRaisesRegex(
+            asyncpg.InvalidTextRepresentationError,
+            "type integer",
+            position=str(len(query) - 3),
+        ):
+            await self.scon.execute(query)

@@ -841,7 +841,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         EXECUTE fooplan(1, 'Hunter Valley', 't', 200.00)
         """
 
-    @test.xerror("unsupported")
     def test_sql_parse_query_11(self):
         """
         DEALLOCATE a123
