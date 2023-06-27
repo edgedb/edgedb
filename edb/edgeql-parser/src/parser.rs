@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use phf::phf_map;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::helpers::quote_name;
 use crate::position::Span;
 use crate::tokenizer::Error;
+use crate::tokenizer::Kind;
 
 pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>) {
     let arena = bumpalo::Bump::new();
@@ -27,9 +27,10 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
     // append EIO
     let end = input.last().map(|t| t.span.end).unwrap_or_default();
     let eio = Terminal {
-        kind: "<$>".to_string(),
+        kind: Kind::EOI,
         span: Span { start: end, end },
-        ..Default::default()
+        text: "".to_string(),
+        value: None,
     };
     let input = [input, vec![eio]].concat();
 
@@ -54,10 +55,12 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
 
                     let injection = Terminal {
                         kind: token_kind.clone(),
-                        ..Default::default()
+                        text: "".to_string(),
+                        value: None,
+                        span: Span::default(),
                     };
 
-                    let cost = ERROR_COST.get(token_kind).cloned().unwrap_or(KEYWORD);
+                    let cost = error_cost(token_kind);
                     let error = Error::new(format!("Missing {injection}")).with_span(token.span);
                     if inject.try_push_error(error, cost) {
                         // println!("   --> [inject {injection}]");
@@ -70,7 +73,7 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
                 }
 
                 // option 2: skip the token
-                if token.kind != "EOF" {
+                if token.kind != Kind::EOF {
                     let mut skip = parser;
                     let error = Error::new(format!("Unexpected {token}")).with_span(token.span);
                     if skip.try_push_error(error, ERROR_COST_SKIP) {
@@ -95,7 +98,7 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
 }
 
 pub struct Spec {
-    pub actions: Vec<HashMap<String, Action>>,
+    pub actions: Vec<HashMap<Kind, Action>>,
     pub goto: Vec<HashMap<String, usize>>,
     pub start: String,
     pub inlines: HashMap<usize, u8>,
@@ -119,44 +122,22 @@ pub struct Reduce {
     pub cnt: usize,
 }
 
-impl Spec {
-    pub fn from_json(j_spec: &str) -> Result<Spec, String> {
-        #[derive(Debug, Deserialize)]
-        pub struct SpecJson {
-            pub actions: Vec<Vec<(String, Action)>>,
-            pub goto: Vec<Vec<(String, usize)>>,
-            pub start: String,
-            pub inlines: Vec<(usize, u8)>,
-        }
-
-        let v = serde_json::from_str::<SpecJson>(j_spec).map_err(|e| e.to_string())?;
-
-        Ok(Spec {
-            actions: v.actions.into_iter().map(HashMap::from_iter).collect(),
-            goto: v.goto.into_iter().map(HashMap::from_iter).collect(),
-            start: v.start,
-            inlines: HashMap::from_iter(v.inlines),
-        })
-    }
-}
-
-#[derive(Serialize, Clone)]
-#[serde(untagged)]
+#[derive(Clone)]
 pub enum CSTNode {
     Empty,
     Terminal(Terminal),
     Production(Production),
 }
 
-#[derive(Serialize, Default, Clone)]
+#[derive(Clone)]
 pub struct Terminal {
-    pub kind: String,
+    pub kind: Kind,
     pub text: String,
     pub value: Option<String>,
     pub span: Span,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Clone)]
 pub struct Production {
     pub id: usize,
     pub args: Vec<CSTNode>,
@@ -264,7 +245,10 @@ impl<'s> Parser<'s> {
     pub fn finish(&mut self) {
         debug_assert!(matches!(
             &self.stack_top.value,
-            CSTNode::Terminal(Terminal { kind, .. }) if kind == "<$>"
+            CSTNode::Terminal(Terminal {
+                kind: Kind::EOI,
+                ..
+            })
         ));
         self.stack_top = self.stack_top.parent.unwrap();
 
@@ -276,7 +260,10 @@ impl<'s> Parser<'s> {
             let first = self.stack_top.parent.unwrap();
             assert!(matches!(
                 &first.value,
-                CSTNode::Terminal(Terminal { kind, .. }) if kind == "<e>"
+                CSTNode::Terminal(Terminal {
+                    kind: Kind::Epsilon,
+                    ..
+                })
             ));
         }
     }
@@ -318,69 +305,30 @@ impl<'s> Parser<'s> {
 const ERROR_COST_MAX: u16 = 15;
 const ERROR_COST_SKIP: u16 = 2;
 
-const FORBIDDEN: u16 = 100;
-const KEYWORD: u16 = 10;
+fn error_cost(kind: &Kind) -> u16 {
+    use Kind::*;
 
-static ERROR_COST: phf::Map<&str, u16> = phf_map! {
-    "IDENT" => 10,
-    "ARGUMENT" => FORBIDDEN,
-    "EOF" => FORBIDDEN,
-    "SUBSTITUTION" => 8,
-    "NAMEDONLY" => 10,
-    "SETANNOTATION" => 10,
-    "SETTYPE" => 10,
-    "EXTENSIONPACKAGE" => 10,
-    "ORDERBY" => 10,
+    match kind {
+        Ident => 10,
+        Substitution => 8,
+        Keyword(_) => 10,
 
-    "." => 5,
-    ".<" => 5,
-    "[" => 5,
-    "(" => 5,
-    "{" => 5,
+        Dot | BackwardLink => 5,
+        OpenBrace | OpenBracket | OpenParen => 5,
 
-    "]" => 1,
-    ")" => 1,
-    "}" => 1,
+        CloseBrace | CloseBracket | CloseParen => 1,
 
-    "::" => 10,
-    "**" => FORBIDDEN,
-    "??" => FORBIDDEN,
-    ":" => 5,
-    ";" => 5,
-    "," => 5,
-    "+" => FORBIDDEN,
-    "++" => FORBIDDEN,
-    "-" => FORBIDDEN,
-    "*" => FORBIDDEN,
-    "/" => FORBIDDEN,
-    "//" => FORBIDDEN,
-    "%" => FORBIDDEN,
-    "^" => FORBIDDEN,
-    "<" => FORBIDDEN,
-    ">" => FORBIDDEN,
-    "=" => 5,
-    "&" => FORBIDDEN,
-    "|" => FORBIDDEN,
-    "@" => 5,
-    "ICONST" => 8,
-    "NICONST" => FORBIDDEN,
-    "FCONST" => FORBIDDEN,
-    "NFCONST" => FORBIDDEN,
-    "BCONST" => FORBIDDEN,
-    "SCONST" => FORBIDDEN,
-    "OP" => FORBIDDEN,
-    ">=" => FORBIDDEN,
-    "<=" => FORBIDDEN,
-    "!=" => FORBIDDEN,
-    "?!=" => FORBIDDEN,
-    "?=" => FORBIDDEN,
-    "ASSIGN" => 10,
-    "ADDASSIGN" => 10,
-    "REMASSIGN" => 10,
-    "ARROW" => 10,
-    "<e>" => FORBIDDEN, // epsilon
-    "<$>" => FORBIDDEN, // eoi
-};
+        Namespace => 10,
+        Colon | Semicolon | Comma | Eq => 5,
+
+        At => 5,
+        IntConst => 8,
+
+        Assign | AddAssign | SubAssign | Arrow => 10,
+
+        _ => 100, // forbidden
+    }
+}
 
 impl std::fmt::Debug for CSTNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -404,10 +352,10 @@ impl std::fmt::Debug for CSTNode {
 
 impl std::fmt::Display for Terminal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.kind.as_str() {
-            "EOF" => f.write_str("end of line"),
-            "IDENT" => f.write_str(&quote_name(&self.text)),
-            _ => write!(f, "token: {}", self.kind),
+        match self.kind {
+            Kind::EOF => f.write_str("end of line"),
+            Kind::Ident => f.write_str(&quote_name(&self.text)),
+            _ => write!(f, "token: {}", self.text),
         }
     }
 }

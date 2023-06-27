@@ -1,17 +1,17 @@
 use std::fmt;
 use std::str::{from_utf8, Utf8Error};
 
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use unicode_width::UnicodeWidthStr;
 
 /// Span of an element in source code
-#[derive(Debug, Clone, Copy, Default, Serialize)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct Span {
     pub start: Pos,
     pub end: Pos,
 }
 /// Original position of element in source code
-#[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Default, Hash, Serialize)]
+#[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Default, Hash, Serialize, Deserialize)]
 pub struct Pos {
     /// One-based line number
     pub line: usize,

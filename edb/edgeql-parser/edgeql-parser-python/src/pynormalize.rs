@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 
+use bigdecimal::Num;
 use cpython::exc::AssertionError;
 use cpython::{PyBytes, PyErr, PyInt, PyTuple, PythonObject, ToPyObject};
 use cpython::{PyClone, PyDict, PyList, PyResult, PyString, Python};
@@ -95,8 +96,12 @@ pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
                     .map_err(|e| format!("float cannot be encoded: {}", e))?;
             }
             Value::BigInt(ref v) => {
-                let val = BigInt::try_from(v.clone())
-                    .map_err(|e| format!("bigint cannot be encoded: {}", e))?;
+                let val = bigdecimal::num_bigint::BigInt::from_str_radix(v, 16)
+                    .map_err(|e| format!("bigint cannot be encoded: {}", e))
+                    .and_then(|x| {
+                        BigInt::try_from(x).map_err(|e| format!("bigint cannot be encoded: {}", e))
+                    })?;
+
                 codec::BigInt
                     .encode(&mut buf, &P::BigInt(val))
                     .map_err(|e| format!("bigint cannot be encoded: {}", e))?;
@@ -174,10 +179,9 @@ pub fn value_to_py_object(py: Python, val: &Value) -> PyResult<PyObject> {
         Value::Int(v) => v.to_py_object(py).into_object(),
         Value::String(v) => v.to_py_object(py).into_object(),
         Value::Float(v) => v.to_py_object(py).into_object(),
-        Value::BigInt(v) => {
-            py.get_type::<PyInt>()
-                .call(py, (v.to_str_radix(16), 16.to_py_object(py)), None)?
-        }
+        Value::BigInt(v) => py
+            .get_type::<PyInt>()
+            .call(py, (v, 16.to_py_object(py)), None)?,
         Value::Decimal(v) => py.get_type::<PyFloat>().call(py, (v.to_string(),), None)?,
         Value::Bytes(v) => PyBytes::new(py, v).into_object(),
     })

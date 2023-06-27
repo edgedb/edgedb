@@ -1,14 +1,17 @@
 use std::collections::HashMap;
 
 use cpython::{
-    ObjectProtocol, PyClone, PyList, PyObject, PyResult, PyString, PyTuple, Python, PythonObject,
-    PythonObjectWithCheckedDowncast, ToPyObject, PyInt,
+    ObjectProtocol, PyClone, PyInt, PyList, PyObject, PyResult, PyString, PyTuple, Python,
+    PythonObject, PythonObjectWithCheckedDowncast, ToPyObject,
 };
 
+use edgeql_parser::keywords;
 use edgeql_parser::parser;
+use edgeql_parser::tokenizer;
+use edgeql_parser::tokenizer::Value;
 
 use crate::errors::{parser_error_into_tuple, ParserResult};
-use crate::tokenizer::Token;
+use crate::tokenizer::OpaqueToken;
 
 py_class!(pub class CSTNode |py| {
     data _production: PyObject;
@@ -67,20 +70,18 @@ pub fn convert_tokens<'a>(py: Python, tokens: PyObject) -> PyResult<Vec<parser::
 
     let mut buf = Vec::with_capacity(tokens.len(py));
     for token in tokens.iter(py) {
-        let token = Token::downcast_from(py, token)?;
+        let token = OpaqueToken::downcast_from(py, token)?.inner(py);
 
-        let value = token.value(py)?;
-        let value = if value.is_none(py) {
-            None
-        } else {
-            Some(value.to_string())
+        let value = match token.value {
+            Some(Value::String(s)) => Some(s),
+            _ => None,
         };
 
         buf.push(parser::Terminal {
-            kind: token.kind(py)?.to_string(py)?.to_string(),
-            text: token.text(py)?.to_string(py)?.to_string(),
+            kind: token.kind,
+            text: token.text,
             value,
-            span: token.span(py),
+            span: token.span,
         });
     }
     Ok(buf)
@@ -117,17 +118,120 @@ fn load_spec(py: Python, parser_name: &str) -> PyResult<&'static (parser::Spec, 
         let parser = parser_cls.call(py, PyTuple::new(py, &[]), None)?;
 
         let res = process_spec.call(py, (parser,), None)?;
-        let res = PyTuple::downcast_from(py, res).unwrap();
+        let res = PyTuple::downcast_from(py, res).expect("process_spec to return a tuple");
 
-        let spec_json = PyString::downcast_from(py, res.get_item(py, 0)).unwrap();
+        let spec_json =
+            PyString::downcast_from(py, res.get_item(py, 0)).expect("json to be a string");
         let productions = res.get_item(py, 1);
 
-        let spec = parser::Spec::from_json(&spec_json.to_string(py).unwrap()).unwrap();
+        let spec = spec_from_json(&spec_json.to_string(py).unwrap()).unwrap();
 
         parser_specs.insert(parser_name.to_string(), (spec, productions));
     }
 
     Ok(unsafe { PARSER_SPECS.as_ref().unwrap().get(parser_name).unwrap() })
+}
+
+pub fn spec_from_json(j_spec: &str) -> Result<parser::Spec, String> {
+    use serde::Deserialize;
+
+    #[derive(Debug, Deserialize)]
+    pub struct SpecJson {
+        pub actions: Vec<Vec<(String, parser::Action)>>,
+        pub goto: Vec<Vec<(String, usize)>>,
+        pub start: String,
+        pub inlines: Vec<(usize, u8)>,
+    }
+
+    let v = serde_json::from_str::<SpecJson>(j_spec).map_err(|e| e.to_string())?;
+
+    Ok(parser::Spec {
+        actions: v
+            .actions
+            .into_iter()
+            .map(|x| {
+                x.into_iter()
+                    .map(|(k, a)| (get_token_kind(&k), a))
+                    .collect()
+            })
+            .collect(),
+        goto: v.goto.into_iter().map(HashMap::from_iter).collect(),
+        start: v.start,
+        inlines: HashMap::from_iter(v.inlines),
+    })
+}
+
+fn get_token_kind(token_name: &str) -> tokenizer::Kind {
+    use tokenizer::Kind::*;
+
+    match token_name {
+        "+" => Add,
+        "&" => Ampersand,
+        "@" => At,
+        ".<" => BackwardLink,
+        "}" => CloseBrace,
+        "]" => CloseBracket,
+        ")" => CloseParen,
+        "??" => Coalesce,
+        ":" => Colon,
+        "," => Comma,
+        "++" => Concat,
+        "/" => Div,
+        "." => Dot,
+        "**" => DoubleSplat,
+        "=" => Eq,
+        "//" => FloorDiv,
+        "%" => Modulo,
+        "*" => Mul,
+        "::" => Namespace,
+        "{" => OpenBrace,
+        "[" => OpenBracket,
+        "(" => OpenParen,
+        "|" => Pipe,
+        "^" => Pow,
+        ";" => Semicolon,
+        "-" => Sub,
+
+        "?!=" => DistinctFrom,
+        ">=" => GreaterEq,
+        "<=" => LessEq,
+        "?=" => NotDistinctFrom,
+        "!=" => NotEq,
+        "<" => Less,
+        ">" => Greater,
+
+        "IDENT" => Ident,
+        "EOF" => EOF,
+        "<$>" => EOI,
+        "<e>" => Epsilon,
+
+        "BCONST" => BinStr,
+        "FCONST" => FloatConst,
+        "ICONST" => IntConst,
+        "NFCONST" => DecimalConst,
+        "NICONST" => BigIntConst,
+        "SCONST" => Str,
+
+        "ADDASSIGN" => AddAssign,
+        "ARROW" => Arrow,
+        "ASSIGN" => Assign,
+        "REMASSIGN" => SubAssign,
+
+        "ARGUMENT" => Argument,
+        "SUBSTITUTION" => Substitution,
+
+        _ => {
+            let mut token_name = token_name.to_lowercase();
+
+            if let Some(rem) = token_name.strip_prefix("dunder") {
+                token_name = format!("__{rem}__");
+            }
+
+            let kw = keywords::lookup_all(&token_name)
+                .unwrap_or_else(|| panic!("unknown keyword {token_name}"));
+            Keyword(kw)
+        }
+    }
 }
 
 fn to_py_cst<'a>(cst: parser::CSTNode, py: Python) -> PyResult<CSTNode> {

@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use edgeql_parser::keywords::Keyword;
 use edgeql_parser::tokenizer::{Kind, Tokenizer, Token, Value};
 use edgeql_parser::position::{Pos, Span};
 
@@ -120,8 +121,7 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
             // Don't replace 'LIMIT 1' as a special case
             && (tok.text != "1"
                 || !matches!(rewritten_tokens.last(),
-                    Some(Token { kind: Kind::Keyword, ref text, .. })
-                    if text.eq_ignore_ascii_case("LIMIT")))
+                    Some(Token { kind: Kind::Keyword(Keyword("limit")), .. })))
             && tok.text != "9223372036854775808"
             => {
                 push_var(&mut rewritten_tokens, "__std__", "int64",
@@ -168,14 +168,11 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
                 });
                 continue;
             }
-            Kind::Keyword
-            if (matches!(&(&tok.text[..].to_uppercase())[..],
-                         "CONFIGURE"|"CREATE"|"ALTER"|"DROP"|"START"|"ANALYZE")
-                || (last_was_set &&
-                    matches!(&(&tok.text[..].to_uppercase())[..],
-                             "GLOBAL"))
-            )
-            => {
+            Kind::Keyword(Keyword(kw))
+            if (
+                matches!(kw, "configure"|"create"|"alter"|"drop"|"start"|"analyze")
+                || (last_was_set && kw == "global")
+            ) => {
                 let processed_source = serialize_tokens(&tokens);
                 return Ok(Entry {
                     hash: hash(&processed_source),
@@ -198,8 +195,7 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
                 }
                 rewritten_tokens.push(tok.clone());
             }
-            Kind::Keyword
-            if (matches!(&(&tok.text[..].to_uppercase())[..], "SET")) => {
+            Kind::Keyword(Keyword("set")) => {
                 is_set = true;
                 rewritten_tokens.push(tok.clone());
             }
@@ -270,9 +266,12 @@ fn is_operator(token: &Token) -> bool {
         | Argument
         | Str
         | BacktickName
-        | Keyword
+        | Keyword(_)
         | Ident
         | Substitution
+        | EOF
+        | EOI
+        | Epsilon
         => false,
     }
 }

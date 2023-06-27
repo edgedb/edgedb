@@ -38,6 +38,7 @@ dependencies = [
  "num-bigint 0.4.3",
  "num-integer",
  "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -210,6 +211,7 @@ dependencies = [
  "edgeql-parser-derive",
  "indexmap",
  "memchr",
+ "num-bigint 0.3.3",
  "phf",
  "serde",
  "serde_json",
@@ -240,6 +242,8 @@ dependencies = [
  "edgedb-protocol",
  "edgeql-parser",
  "num-bigint 0.4.3",
+ "rmp-serde",
+ "serde",
  "serde_json",
 ]
 
@@ -330,6 +334,18 @@ dependencies = [
  "autocfg",
  "num-integer",
  "num-traits",
+]
+
+[[package]]
+name = "num-bigint"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f6f7833f2cbf2360a6cfd58cd41a53aa7a90bd4c202f5b1c7dd2ed73c57b2c3"
+dependencies = [
+ "autocfg",
+ "num-integer",
+ "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -496,6 +512,28 @@ name = "regex-syntax"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a5996294f19bd3aae0453a862ad728f60e6600695733dd5df01da90c54363a3c"
+
+[[package]]
+name = "rmp"
+version = "0.8.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44519172358fd6d58656c86ab8e7fbc9e1490c3e8f14d35ed78ca0dd07403c9f"
+dependencies = [
+ "byteorder",
+ "num-traits",
+ "paste",
+]
+
+[[package]]
+name = "rmp-serde"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5b13be192e0220b8afb7222aa5813cb62cc269ebb5cac346ca6487681d2913e"
+dependencies = [
+ "byteorder",
+ "rmp",
+ "serde",
+]
 
 [[package]]
 name = "ryu"

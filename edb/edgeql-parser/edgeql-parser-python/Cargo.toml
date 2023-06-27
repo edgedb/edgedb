@@ -12,7 +12,9 @@ bytes = "1.0.1"
 num-bigint = "0.4.3"
 bigdecimal = "0.3.0"
 blake2 = "0.10.4"
-serde_json = {version="1.0", features=["preserve_order"]}
+serde = {version="1.0", features=["derive"]}
+serde_json = "1.0"
+rmp-serde = "1.1.1"
 
 [dependencies.edgedb-protocol]
 git = "https://github.com/edgedb/edgedb-rust"
