@@ -1502,10 +1502,19 @@ def _normalize_view_ptr_expr(
             )
 
             try:
+                is_linkprop_mutation = (
+                    is_linkprop
+                    and s_ctx.view_rptr is not None
+                    and s_ctx.view_rptr.exprtype.is_mutation()
+                )
+
                 ptrcls = setgen.resolve_ptr(
                     ptrsource,
                     ptrname,
-                    track_ref=False,
+                    track_ref=(
+                        False if not is_linkprop_mutation
+                        else shape_el_desc.ptr_ql
+                    ),
                     ctx=ctx,
                 )
 
@@ -1515,11 +1524,7 @@ def _normalize_view_ptr_expr(
                 # Check if we aren't inside of modifying statement
                 # for link property, otherwise this is a NEW
                 # computable pointer, it's fine.
-                if (
-                    s_ctx.view_rptr is not None
-                    and s_ctx.view_rptr.exprtype.is_mutation()
-                    and is_linkprop
-                ):
+                if is_linkprop_mutation:
                     raise
 
         qlexpr = astutils.ensure_ql_query(compexpr)
@@ -2056,7 +2061,7 @@ def _inline_type_computable(
 
     ptr: Optional[s_pointers.Pointer]
     try:
-        ptr = setgen.resolve_ptr(stype, compname, track_ref=None, ctx=ctx)
+        ptr = setgen.resolve_ptr(stype, compname, track_ref=False, ctx=ctx)
         # The pointer might exist on the base type. That doesn't count,
         # and we need to re-inject it.
         if ptr not in ctx.env.source_map:
