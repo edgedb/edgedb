@@ -182,9 +182,6 @@ many of the commands:
 
 
 :cli:synopsis:`\\analyze QUERY`
-  .. TODO: 3.0 release
-  .. Remove this note
-
   .. note::
 
       This backslash command is compatible with EdgeDB server 3.0 and above.
