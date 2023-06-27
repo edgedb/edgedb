@@ -1301,25 +1301,13 @@ class Expr(Nonterm):
         self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
                                right=kids[2].val)
 
-    def reduce_Expr_LANGBRACKET_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
-                               right=kids[2].val)
-
-    def reduce_Expr_RANGBRACKET_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
-                               right=kids[2].val)
-
     @parsing.precedence(precedence.P_DOUBLEQMARK_OP)
     def reduce_Expr_DOUBLEQMARK_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
                                right=kids[2].val)
 
-    def reduce_Expr_EQUALS_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
-                               right=kids[2].val)
-
-    @parsing.precedence(precedence.P_OP)
-    def reduce_Expr_OP_Expr(self, *kids):
+    @parsing.precedence(precedence.P_COMPARE_OP)
+    def reduce_Expr_CompareOp_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
                                right=kids[2].val)
 
@@ -1415,6 +1403,40 @@ class Expr(Nonterm):
     def reduce_Expr_INTERSECT_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op='INTERSECT',
                                right=kids[2].val)
+
+
+class CompareOp(Nonterm):
+    @parsing.inline(0)
+    def reduce_DISTINCTFROM(self, *_):
+        pass
+
+    @parsing.inline(0)
+    def reduce_GREATEREQ(self, *_):
+        pass
+
+    @parsing.inline(0)
+    def reduce_LESSEQ(self, *_):
+        pass
+
+    @parsing.inline(0)
+    def reduce_NOTDISTINCTFROM(self, *_):
+        pass
+
+    @parsing.inline(0)
+    def reduce_NOTEQ(self, *_):
+        pass
+
+    @parsing.inline(0)
+    def reduce_LANGBRACKET(self, *_):
+        pass
+
+    @parsing.inline(0)
+    def reduce_RANGBRACKET(self, *_):
+        pass
+
+    @parsing.inline(0)
+    def reduce_EQUALS(self, *_):
+        pass
 
 
 class Tuple(Nonterm):

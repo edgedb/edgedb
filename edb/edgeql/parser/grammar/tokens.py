@@ -222,11 +222,27 @@ class T_RSCONST(Token):
     pass
 
 
-class T_IDENT(Token):
+class T_DISTINCTFROM(Token, lextoken="?!="):
     pass
 
 
-class T_OP(Token):
+class T_GREATEREQ(Token, lextoken=">="):
+    pass
+
+
+class T_LESSEQ(Token, lextoken="<="):
+    pass
+
+
+class T_NOTDISTINCTFROM(Token, lextoken="?="):
+    pass
+
+
+class T_NOTEQ(Token, lextoken="!="):
+    pass
+
+
+class T_IDENT(Token):
     pass
 
 
