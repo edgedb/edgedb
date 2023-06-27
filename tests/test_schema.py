@@ -6426,6 +6426,38 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    def test_schema_migrations_equivalence_constraint_11(self):
+        self._assert_migration_equivalence([r"""
+            type Foo {
+              required property name -> str {
+                constraint max_len_value(200) {
+                  errmessage := "name is too long";
+                }
+              }
+              constraint exclusive on (.name) {
+                errmessage := "exclusivity!";
+              }
+            }
+        """, r"""
+            type Foo {
+              required property name -> str {
+                constraint max_len_value(201) {
+                  errmessage := "name is too long";
+                }
+              }
+              constraint exclusive on (.name) {
+                errmessage := "exclusivity!";
+              }
+            }
+        """, r"""
+            type Foo {
+              required property name -> str;
+              constraint exclusive on (.name) {
+                errmessage := "exclusivity!";
+              }
+            }
+        """])
+
     def test_schema_migrations_equivalence_policies_01(self):
         self._assert_migration_equivalence([r"""
             type X {
