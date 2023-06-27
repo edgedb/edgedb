@@ -401,6 +401,10 @@ class ExperimentalInterpreterTestSuite(unittest.TestSuite):
                 if sqlite_file_name := os.environ.get('EDGEDB_INTERPRETER_USE_SQLITE'):
                     if not sqlite_file_name.endswith(".sqlite"):
                         sqlite_file_name = ":memory:"
+                    else:
+                        # always start with a clean db for tests
+                        if os.path.exists(sqlite_file_name):
+                            os.remove(sqlite_file_name)
                     dbschema, db = (
                         model.dbschema_and_db_with_initial_schema_and_queries(
                                         init_sdl, init_ql, sqlite_file_name))

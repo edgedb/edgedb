@@ -38,7 +38,7 @@ def compute_projection(cursor: sqlite3.Cursor,
             return MultiSetVal([StrVal(row[0]) for row in cursor.fetchall()])
         elif property_tp == "LINK":
             cursor.execute(f"SELECT link_value FROM {table_name} WHERE id=?", (id,))
-            targets : List[RefVal]= []
+            targets : List[Val]= []
             for link_target_id_row in cursor.fetchall():
                 link_target_id = link_target_id_row[0]
                 link_source_id = id
@@ -67,7 +67,7 @@ def compute_projection(cursor: sqlite3.Cursor,
                                                 (link_source_id, link_target_id))
                             link_props[StrLabel(link_property_name)] = (Visible(), MultiSetVal([StrVal(row[0]) for row in cursor.fetchall()]))
 
-                targets.append(RefVal(link_target_id, ObjectVal(link_props)))
+                targets.append(LinkPropVal(link_target_id, ObjectVal(link_props)))
             return MultiSetVal(targets)
         else:
             raise ValueError(f"Unknown property type {property_tp}")
@@ -106,14 +106,7 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
     def dump_state(self) -> object:
         self.conn.commit()
 
-        # Create a drop and restore routine by first dropping all tables
-        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        tables = self.cursor.fetchall()
-        drop_statements = [f"DROP TABLE IF EXISTS {table[0]};" for table in tables]
-
-        # Combine the DROP TABLE statements with the dump script
-        dump_script = '\n'.join(drop_statements) + '\n\n' + '\n'.join(self.conn.iterdump())
-
+        dump_script = '\n'.join(self.conn.iterdump())
         return {
             # "savepoint": save_point_name,
             "dump": dump_script,
@@ -124,8 +117,15 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
     def restore_state(self, dumped_state) -> None:
         self.to_delete = copy.copy(dumped_state["to_delete"])
         self.to_update = copy.copy(dumped_state["to_update"])
-        self.conn.executescript(dumped_state["dump"])
-        # self.conn.execute("ROLLBACK TO SAVEPOINT " + dumped_state["savepoint"])
+
+        # Drop all tables
+        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = self.cursor.fetchall()
+        drop_statements = [f"DROP TABLE IF EXISTS {table[0]};" for table in tables]
+        drop_script = '\n'.join(drop_statements)
+
+        # Execute the drop script and the dump script
+        self.conn.executescript(drop_script + '\n' + dumped_state["dump"])
 
     def query_ids_for_a_type(self, tp: str) -> List[EdgeID]:
         # to insert is set to 1 if it is to insert, set to zero usually
@@ -191,7 +191,7 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
         for link_table in link_tables:
             self.cursor.execute(f"SELECT id, link_value FROM {link_table} WHERE link_value IN ({','.join(['?']*len(subject_ids))})", subject_ids)
             # retrive link proerty for each subject_id
-            for (source_id, target_id) in [row[0] for row in self.cursor.fetchall()]:
+            for (source_id, target_id) in [row for row in self.cursor.fetchall()]:
                 # fetch the link property table names
                 self.cursor.execute("SELECT table_name, property_type FROM property_types WHERE property_type='LINK' AND table_name LIKE ?", (f"{link_table}_%",))
                 link_props : Dict[Label, Tuple[Marker, MultiSetVal]]= {}
@@ -391,7 +391,6 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
         # delete objects
         for id in self.to_delete:
             self.cursor.execute("DELETE FROM objects WHERE id=?", (id,))
-            tp = self.get_type_for_an_id(id)
             # delete all properties and links
             self.cursor.execute(f"SELECT table_name FROM property_types")
             for (table_name, ) in self.cursor.fetchall():
