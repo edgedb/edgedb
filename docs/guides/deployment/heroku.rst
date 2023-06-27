@@ -120,7 +120,8 @@ Commit the changes and push to Heroku to deploy the app.
 Scale the web dyno
 ==================
 
-The default dyno size only has 512MB of memory which is a little under powered to run EdgeDB. Scale the dyno so that it has 1GB of memory available.
+The default dyno size has 512MB of memory which is a little under powered to
+run EdgeDB. Scale the dyno so that it has 1GB of memory available.
 
 .. code-block:: bash
 
