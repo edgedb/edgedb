@@ -46,11 +46,11 @@ def compute_projection(cursor: sqlite3.Cursor,
 
                 # search all possible link properties
 
-                prefix = tp + "_" + prop + "_%"
+                prefix = tp + "|" + prop + "|%"
                 cursor.execute("SELECT table_name FROM property_types WHERE table_name LIKE ?", (prefix,))
 
                 for link_property_table_name in [row[0] for row in cursor.fetchall()]:
-                    link_property_name = link_property_table_name.split("_")[2]
+                    link_property_name = link_property_table_name.split("|")[2]
 
                     cursor.execute(f"SELECT property_type FROM property_types WHERE table_name=?", (link_property_table_name,))
                     link_property_tp_row  = cursor.fetchone()
@@ -193,7 +193,7 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
             # retrive link proerty for each subject_id
             for (source_id, target_id) in [row for row in self.cursor.fetchall()]:
                 # fetch the link property table names
-                self.cursor.execute("SELECT table_name, property_type FROM property_types WHERE property_type='LINK' AND table_name LIKE ?", (f"{link_table}_%",))
+                self.cursor.execute("SELECT table_name, property_type FROM property_types WHERE table_name LIKE ?", (f"{link_table}_%",))
                 link_props : Dict[Label, Tuple[Marker, MultiSetVal]]= {}
                 for (link_property_table, link_property_type) in [row for row in self.cursor.fetchall() if row[0].count("_")==2]:
                     property_name = link_property_table.split("_")[2]
