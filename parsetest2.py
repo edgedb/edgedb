@@ -53,9 +53,16 @@ QS = [
     '''
     SELECT User id, name }
     ''',
+    '''
+    CREATE TYPE cfg::TestSessionConfig EXTENDING cfg::ConfigObject {
+        CREATE REQUIRED PROPERTY name -> std::str {
+            CREATE CONSTRAINT std::exclusive;
+        }
+    };
+    ''',
 ]
 
-for q in QS[:1]:
+for q in QS[-1:]:
     
     print('-' * 30)
     print()

@@ -315,12 +315,12 @@ class CheeseParser():
             # DEBUG: print all errors
             for index, error in enumerate(result.errors()):
                 message, (start, end) = error
-                (_, start, _) = start
-                (_, end, _) = end
+                (start_row, start_col, _) = start
+                (end_row, end_col, _) = end
 
                 print(f'Error [{index+1}/{len(result.errors())}]:')
-                print(source.text())
-                print(' ' * (start - 1) + '^' + '-' * (end - start - 1) + ' ' + message)
+                print('\n'.join(source.text().splitlines()[(start_row-1):end_row]))
+                print(' ' * (start_col - 1) + '^' + '-' * (end_col - start_col - 1) + ' ' + message)
                 print()
             print('Recovered AST:')
             ast = self._cst_to_ast(result.out(), productions).val

@@ -907,7 +907,7 @@ impl<'a> Tokenizer<'a> {
         self.keyword_buf.clear();
         self.keyword_buf.push_str(s);
         self.keyword_buf.make_ascii_lowercase();
-        return keywords::lookup(&self.keyword_buf);
+        return keywords::lookup_all(&self.keyword_buf);
     }
 }
 
@@ -974,7 +974,7 @@ where
         where
             E: serde::de::Error,
         {
-            keywords::lookup(v)
+            keywords::lookup_all(v)
                 .ok_or_else(|| de::Error::invalid_value(de::Unexpected::Str(v), &"keyword"))
         }
     }
