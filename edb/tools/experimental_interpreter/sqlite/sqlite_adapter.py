@@ -23,7 +23,7 @@ def compute_projection(cursor: sqlite3.Cursor,
                        prop: str
                         )  -> MultiSetVal:
 
-    table_name = f"{tp}_{prop}"
+    table_name = f"{tp}.{prop}"
     cursor.execute(f"SELECT property_type FROM property_types WHERE table_name=?", (table_name,))
     property_tp_row  = cursor.fetchone()
     if property_tp_row is None:
@@ -31,13 +31,13 @@ def compute_projection(cursor: sqlite3.Cursor,
     else:
         property_tp = property_tp_row[0]
         if property_tp == "INT":
-            cursor.execute(f"SELECT int_value FROM {table_name} WHERE id=?", (id,))
+            cursor.execute(f"SELECT int_value FROM \"{table_name}\" WHERE id=?", (id,))
             return MultiSetVal([IntVal(row[0]) for row in cursor.fetchall()])
         elif property_tp == "STRING":
-            cursor.execute(f"SELECT string_value FROM {table_name} WHERE id=?", (id,))
+            cursor.execute(f"SELECT string_value FROM \"{table_name}\" WHERE id=?", (id,))
             return MultiSetVal([StrVal(row[0]) for row in cursor.fetchall()])
         elif property_tp == "LINK":
-            cursor.execute(f"SELECT link_value FROM {table_name} WHERE id=?", (id,))
+            cursor.execute(f"SELECT link_value FROM \"{table_name}\" WHERE id=?", (id,))
             targets : List[Val]= []
             for link_target_id_row in cursor.fetchall():
                 link_target_id = link_target_id_row[0]
@@ -46,11 +46,11 @@ def compute_projection(cursor: sqlite3.Cursor,
 
                 # search all possible link properties
 
-                prefix = tp + "|" + prop + "|%"
+                prefix = tp + "." + prop + ".%"
                 cursor.execute("SELECT table_name FROM property_types WHERE table_name LIKE ?", (prefix,))
 
                 for link_property_table_name in [row[0] for row in cursor.fetchall()]:
-                    link_property_name = link_property_table_name.split("|")[2]
+                    link_property_name = link_property_table_name.split(".")[2]
 
                     cursor.execute(f"SELECT property_type FROM property_types WHERE table_name=?", (link_property_table_name,))
                     link_property_tp_row  = cursor.fetchone()
@@ -59,11 +59,11 @@ def compute_projection(cursor: sqlite3.Cursor,
                     else:
                         link_property_tp = link_property_tp_row[0]
                         if link_property_tp == "INT":
-                            cursor.execute(f"SELECT int_value FROM {link_property_table_name} WHERE source_id=? AND target_id=?", 
+                            cursor.execute(f"SELECT int_value FROM \"{link_property_table_name}\" WHERE source_id=? AND target_id=?", 
                                             (link_source_id, link_target_id))
                             link_props[StrLabel(link_property_name)] = (Visible(), MultiSetVal([IntVal(row[0]) for row in cursor.fetchall()]))
                         elif link_property_tp == "STRING":
-                            cursor.execute(f"SELECT string_value FROM {link_property_table_name} WHERE source_id=? AND target_id=?",
+                            cursor.execute(f"SELECT string_value FROM \"{link_property_table_name}\" WHERE source_id=? AND target_id=?",
                                                 (link_source_id, link_target_id))
                             link_props[StrLabel(link_property_name)] = (Visible(), MultiSetVal([StrVal(row[0]) for row in cursor.fetchall()]))
 
@@ -121,7 +121,7 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
         # Drop all tables
         self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = self.cursor.fetchall()
-        drop_statements = [f"DROP TABLE IF EXISTS {table[0]};" for table in tables]
+        drop_statements = [f"DROP TABLE IF EXISTS \"{table[0]}\";" for table in tables]
         drop_script = '\n'.join(drop_statements)
 
         # Execute the drop script and the dump script
@@ -144,16 +144,16 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
                 return self.to_update[id]
             else:
                 # select all table names that are potential candidates
-                prefix = tp + "_%"
+                prefix = tp + ".%"
                 self.cursor.execute("SELECT table_name FROM property_types WHERE table_name LIKE ?", (prefix,))
                 table_names = [row[0] for row in self.cursor.fetchall()]
                 result = {}
                 # properties are stored in table with tp_property
                 # link properties are stored in table with tp_property_linkprop
                 for table_name in table_names:
-                    if table_name.count("_")>1:
+                    if table_name.count(".")>1:
                         continue
-                    property_name = table_name.split("_")[1]
+                    property_name = table_name.split(".")[1]
                     result[property_name] = self.project(id, property_name)
                 return result
 
@@ -170,7 +170,7 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
     def is_projectable(self, id: EdgeID, prop: str) -> bool:
         tp_name = self.get_type_for_an_id(id)
         self.cursor.execute("SELECT property_type FROM property_types WHERE table_name=?", 
-                                (tp_name + "_" + prop,))
+                                (tp_name + "." + prop,))
         property_type_row = self.cursor.fetchone()
         if property_type_row is None:
             return False
@@ -184,27 +184,27 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
     def reverse_project(self, subject_ids: Sequence[EdgeID], prop: str) -> MultiSetVal:
 
         # retrieve all link tables:
-        self.cursor.execute("SELECT table_name FROM property_types WHERE property_type='LINK' AND table_name LIKE ?", (f"%_{prop}",))
-        link_tables = [row[0] for row in self.cursor.fetchall() if row[0].count("_")==1] # do not allow link property table names
+        self.cursor.execute("SELECT table_name FROM property_types WHERE property_type='LINK' AND table_name LIKE ?", (f"%.{prop}",))
+        link_tables = [row[0] for row in self.cursor.fetchall() if row[0].count(".")==1] # do not allow link property table names
 
         result : List[Val] = []
         for link_table in link_tables:
-            self.cursor.execute(f"SELECT id, link_value FROM {link_table} WHERE link_value IN ({','.join(['?']*len(subject_ids))})", subject_ids)
+            self.cursor.execute(f"SELECT id, link_value FROM \"{link_table}\" WHERE link_value IN ({','.join(['?']*len(subject_ids))})", subject_ids)
             # retrive link proerty for each subject_id
             for (source_id, target_id) in [row for row in self.cursor.fetchall()]:
                 # fetch the link property table names
-                self.cursor.execute("SELECT table_name, property_type FROM property_types WHERE table_name LIKE ?", (f"{link_table}_%",))
+                self.cursor.execute("SELECT table_name, property_type FROM property_types WHERE table_name LIKE ?", (f"{link_table}.%",))
                 link_props : Dict[Label, Tuple[Marker, MultiSetVal]]= {}
-                for (link_property_table, link_property_type) in [row for row in self.cursor.fetchall() if row[0].count("_")==2]:
-                    property_name = link_property_table.split("_")[2]
+                for (link_property_table, link_property_type) in [row for row in self.cursor.fetchall() if row[0].count(".")==2]:
+                    property_name = link_property_table.split(".")[2]
                     match link_property_type:
                         case "LINK":
                             raise ValueError("Link property cannot be a link property")
                         case "INT":
-                            self.cursor.execute(f"SELECT int_value FROM {link_property_table} WHERE source_id=? AND target_id=?", (source_id, target_id))
+                            self.cursor.execute(f"SELECT int_value FROM \"{link_property_table}\" WHERE source_id=? AND target_id=?", (source_id, target_id))
                             link_props[StrLabel(property_name)] = (Visible(), MultiSetVal([IntVal(row[0]) for row in self.cursor.fetchall()]))
                         case "STRING":
-                            self.cursor.execute(f"SELECT string_value FROM {link_property_table} WHERE source_id=? AND target_id=?", (source_id, target_id))
+                            self.cursor.execute(f"SELECT string_value FROM \"{link_property_table}\" WHERE source_id=? AND target_id=?", (source_id, target_id))
                             link_props[StrLabel(property_name)] = (Visible(), MultiSetVal([StrVal(row[0]) for row in self.cursor.fetchall()]))
                         case _:
                             raise ValueError(f"Unknown property type {link_property_type}")
@@ -220,9 +220,9 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
     def get_type_for_proprty(self, tp : str, prop : str, lp_prop : Optional[str], val : MultiSetVal) -> str:
         # query the type from the database
         if lp_prop is None:
-            self.cursor.execute("SELECT property_type FROM property_types WHERE table_name=?", (tp + "_" + prop,))
+            self.cursor.execute("SELECT property_type FROM property_types WHERE table_name=?", (tp + "." + prop,))
         else:
-            self.cursor.execute("SELECT property_type FROM property_types WHERE table_name=?", (tp + "_" + prop + "_" + lp_prop,))
+            self.cursor.execute("SELECT property_type FROM property_types WHERE table_name=?", (tp + "." + prop + "." + lp_prop,))
         property_type_row = self.cursor.fetchone()
         if property_type_row is not None:
             return property_type_row[0]
@@ -270,33 +270,33 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
         if lp_prop is None:
             match result_tp:
                 case "STRING":
-                    self.cursor.execute(f"CREATE TABLE IF NOT EXISTS {tp}_{prop} (id INTEGER, string_value TEXT)") 
-                    self.cursor.execute(f"CREATE INDEX IF NOT EXISTS {tp}_{prop}_idx1 ON {tp}_{prop} (id)")
+                    self.cursor.execute(f"CREATE TABLE IF NOT EXISTS \"{tp}.{prop}\" (id INTEGER, string_value TEXT)") 
+                    self.cursor.execute(f"CREATE INDEX IF NOT EXISTS \"{tp}.{prop}_idx1\" ON \"{tp}.{prop}\" (id)")
                     # IF NOT EXISTS serves to rule out database anormalies (maybe previosu transaction was cutout in the middle)
                 case "INT":
-                    self.cursor.execute(f"CREATE TABLE IF NOT EXISTS {tp}_{prop} (id INTEGER, int_value INTEGER)")
-                    self.cursor.execute(f"CREATE INDEX IF NOT EXISTS {tp}_{prop}_idx1 ON {tp}_{prop} (id)")
+                    self.cursor.execute(f"CREATE TABLE IF NOT EXISTS \"{tp}.{prop}\" (id INTEGER, int_value INTEGER)")
+                    self.cursor.execute(f"CREATE INDEX IF NOT EXISTS \"{tp}.{prop}_idx1\" ON \"{tp}.{prop}\" (id)")
                 case "LINK":
-                    self.cursor.execute(f"CREATE TABLE IF NOT EXISTS {tp}_{prop} (id INTEGER, link_value INTEGER)")
-                    self.cursor.execute(f"CREATE INDEX IF NOT EXISTS {tp}_{prop}_idx1 ON {tp}_{prop} (id)")
+                    self.cursor.execute(f"CREATE TABLE IF NOT EXISTS \"{tp}.{prop}\" (id INTEGER, link_value INTEGER)")
+                    self.cursor.execute(f"CREATE INDEX IF NOT EXISTS \"{tp}.{prop}_idx1\" ON \"{tp}.{prop}\" (id)")
                 case _:
                     raise ValueError(f"Unknown type {result_tp}")
         else:
             match result_tp:
                 case "STRING":
-                    self.cursor.execute(f"CREATE TABLE IF NOT EXISTS {tp}_{prop}_{lp_prop} (source_id INTEGER, target_id INTEGER, string_value TEXT)")
-                    self.cursor.execute(f"CREATE INDEX IF NOT EXISTS {tp}_{prop}_{lp_prop}_idx1 ON {tp}_{prop}_{lp_prop} (source_id, target_id)")
+                    self.cursor.execute(f"CREATE TABLE IF NOT EXISTS \"{tp}.{prop}.{lp_prop}\" (source_id INTEGER, target_id INTEGER, string_value TEXT)")
+                    self.cursor.execute(f"CREATE INDEX IF NOT EXISTS \"{tp}.{prop}.{lp_prop}_idx1\" ON \"{tp}.{prop}.{lp_prop}\" (source_id, target_id)")
                 case "INT":
-                    self.cursor.execute(f"CREATE TABLE IF NOT EXISTS {tp}_{prop}_{lp_prop} (source_id INTEGER, target_id INTEGER, int_value INTEGER)")
-                    self.cursor.execute(f"CREATE INDEX IF NOT EXISTS {tp}_{prop}_{lp_prop}_idx1 ON {tp}_{prop}_{lp_prop} (source_id, target_id)")
+                    self.cursor.execute(f"CREATE TABLE IF NOT EXISTS \"{tp}.{prop}.{lp_prop}\" (source_id INTEGER, target_id INTEGER, int_value INTEGER)")
+                    self.cursor.execute(f"CREATE INDEX IF NOT EXISTS \"{tp}.{prop}.{lp_prop}_idx1\" ON \"{tp}.{prop}.{lp_prop}\" (source_id, target_id)")
                 case _:
                     raise ValueError(f"Unknown type {result_tp}")
 
         # insert into the property_types table
         if lp_prop is None:
-            self.cursor.execute("INSERT INTO property_types (table_name, property_type) VALUES (?, ?)", (tp + "_" + prop, result_tp))
+            self.cursor.execute("INSERT INTO property_types (table_name, property_type) VALUES (?, ?)", (tp + "." + prop, result_tp))
         else:
-            self.cursor.execute("INSERT INTO property_types (table_name, property_type) VALUES (?, ?)", (tp + "_" + prop + "_" + lp_prop, result_tp))
+            self.cursor.execute("INSERT INTO property_types (table_name, property_type) VALUES (?, ?)", (tp + "." + prop + "." + lp_prop, result_tp))
 
         return result_tp
 
@@ -316,9 +316,9 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
             for v in val.vals:
                 match v:
                     case StrVal(s):
-                        self.cursor.execute(f"INSERT INTO {tp}_{prop} (id, string_value) VALUES (?, ?)", (id, s))
+                        self.cursor.execute(f"INSERT INTO \"{tp}.{prop}\" (id, string_value) VALUES (?, ?)", (id, s))
                     case IntVal(i):
-                        self.cursor.execute(f"INSERT INTO {tp}_{prop} (id, int_value) VALUES (?, ?)", (id, i))
+                        self.cursor.execute(f"INSERT INTO \"{tp}.{prop}\" (id, int_value) VALUES (?, ?)", (id, i))
                     case LinkPropVal(refid, linkprop):
                         # insert the link property table if it does not exist
                         for (lp_name, (_, val)) in linkprop.val.items():
@@ -328,9 +328,9 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
                             for v in val.vals:
                                 match v:
                                     case StrVal(s):
-                                        self.cursor.execute(f"INSERT INTO {tp}_{prop}_{lp_name.label} (source_id, target_id, string_value) VALUES (?, ?, ?)", (id, refid, v))
+                                        self.cursor.execute(f"INSERT INTO {tp}.{prop}.{lp_name.label} (source_id, target_id, string_value) VALUES (?, ?, ?)", (id, refid, v))
                                     case IntVal(i):
-                                        self.cursor.execute(f"INSERT INTO {tp}_{prop}_{lp_name.label} (source_id, target_id, int_value) VALUES (?, ?, ?)", (id, refid, v))
+                                        self.cursor.execute(f"INSERT INTO {tp}.{prop}.{lp_name.label} (source_id, target_id, int_value) VALUES (?, ?, ?)", (id, refid, v))
                                     case _:
                                         raise ValueError(f"Unknown value {v}")
                     case _:
@@ -358,33 +358,33 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
                 prop_tp_str = self.get_type_for_proprty(tp, prop_name, None, prop_val)
                 match prop_tp_str:
                     case "STRING":
-                        self.cursor.execute(f"DELETE FROM {tp}_{prop_name} WHERE id=?", (id,))
+                        self.cursor.execute(f"DELETE FROM \"{tp}.{prop_name}\" WHERE id=?", (id,))
                         for v in prop_val.vals:
                             assert isinstance(v, StrVal), "type mismatch"
-                            self.cursor.execute(f"INSERT INTO {tp}_{prop_name} VALUES (?, ?)", (id, v.val))
+                            self.cursor.execute(f"INSERT INTO \"{tp}.{prop_name}\" VALUES (?, ?)", (id, v.val))
                     case "INT":
-                        self.cursor.execute(f"DELETE FROM {tp}_{prop_name} WHERE id=?", (id,))
+                        self.cursor.execute(f"DELETE FROM \"{tp}.{prop_name}\" WHERE id=?", (id,))
                         for v in prop_val.vals:
                             assert isinstance(v, IntVal), "type mismatch"
-                            self.cursor.execute(f"INSERT INTO {tp}_{prop_name} VALUES (?, ?)", (id, v.val))
+                            self.cursor.execute(f"INSERT INTO \"{tp}.{prop_name}\" VALUES (?, ?)", (id, v.val))
                     case "LINK":
-                        self.cursor.execute(f"DELETE FROM {tp}_{prop_name} WHERE id=?", (id,))
+                        self.cursor.execute(f"DELETE FROM \"{tp}.{prop_name}\" WHERE id=?", (id,))
                         for v in prop_val.vals:
                             assert isinstance(v, LinkPropVal), "type mismatch"
-                            self.cursor.execute(f"INSERT INTO {tp}_{prop_name} VALUES (?, ?)", (id, v.refid))
+                            self.cursor.execute(f"INSERT INTO \"{tp}.{prop_name}\" VALUES (?, ?)", (id, v.refid))
                             # replace all link properties
                             for (lp_name, (_, lp_val)) in v.linkprop.val.items():
                                 lp_prop_tp_str = self.get_type_for_proprty(tp, prop_name, lp_name.label, lp_val)
-                                self.cursor.execute(f"DELETE FROM {tp}_{prop_name}_{lp_name.label} WHERE source_id=? AND target_id=?", (id, v.refid))
+                                self.cursor.execute(f"DELETE FROM \"{tp}.{prop_name}.{lp_name.label}\" WHERE source_id=? AND target_id=?", (id, v.refid))
                                 match lp_prop_tp_str:
                                     case "STRING":
                                         for lp_v in lp_val.vals:
                                             assert isinstance(lp_v, StrVal), "type mismatch"
-                                            self.cursor.execute(f"INSERT INTO {tp}_{prop_name}_{lp_name.label} (source_id, target_id, string_value) VALUES (?, ?, ?)", (id, v.refid, lp_v.val))
+                                            self.cursor.execute(f"INSERT INTO \"{tp}.{prop_name}.{lp_name.label}\" (source_id, target_id, string_value) VALUES (?, ?, ?)", (id, v.refid, lp_v.val))
                                     case "INT":
                                         for lp_v in lp_val.vals:
                                             assert isinstance(lp_v, IntVal), "type mismatch"
-                                            self.cursor.execute(f"INSERT INTO {tp}_{prop_name}_{lp_name.label} (source_id, target_id, int_value) VALUES (?, ?, ?)", (id, v.refid, lp_v.val))
+                                            self.cursor.execute(f"INSERT INTO \"{tp}.{prop_name}.{lp_name.label}\" (source_id, target_id, int_value) VALUES (?, ?, ?)", (id, v.refid, lp_v.val))
                                     case _:
                                         raise ValueError(f"Unknown type {lp_v}")
 
@@ -394,12 +394,12 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
             # delete all properties and links
             self.cursor.execute(f"SELECT table_name FROM property_types")
             for (table_name, ) in self.cursor.fetchall():
-                if table_name.count("_") == 1:
+                if table_name.count(".") == 1:
                     # it is a property table
-                    self.cursor.execute(f"DELETE FROM {table_name} WHERE id=?", (id,))
-                elif table_name.count("_") == 2:
+                    self.cursor.execute(f"DELETE FROM \"{table_name}\" WHERE id=?", (id,))
+                elif table_name.count(".") == 2:
                     # it is a link proeprty table
-                    self.cursor.execute(f"DELETE FROM {table_name} WHERE source_id=? OR target_id=?", (id, id,))
+                    self.cursor.execute(f"DELETE FROM \"{table_name}\" WHERE source_id=? OR target_id=?", (id, id,))
 
             
         self.conn.commit() # do not commit as this may interfere with ROLLBACK, todo: figure out how to do proper checkpointing
