@@ -44,7 +44,9 @@ which client library you're using.
 
     import createClient from 'edgedb';
 
-    const baseClient = createClient()
+    const baseClient = createClient();
+    // returns a new Client instance that stores the provided 
+    // globals and sends them along with all future queries:
     const clientWithGlobals = baseClient.withGlobals({
       current_user_id: '2141a5b4-5634-4ccc-b835-437863534c51',
     });
@@ -104,9 +106,6 @@ which client library you're using.
 
     set global current_user_id := <uuid>'2141a5b4-5634-4ccc-b835-437863534c51';
 
-
-The ``.withGlobals/.with_globals`` method returns a new ``Client`` instance
-that stores the provided globals and sends them along with all future queries.
 
 Cardinality
 -----------
