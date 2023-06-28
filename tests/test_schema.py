@@ -8080,6 +8080,49 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             """,
         ])
 
+    def test_schema_migrations_implicit_type_01(self):
+        self._assert_migration_equivalence([
+            r"""
+                abstract type Pinnable {
+                    property pinned := __source__ in <Pinnable>{};
+                }
+            """,
+            r"""
+                abstract type Pinnable {
+                    property pinned := __source__ in <Pinnable>{};
+                }
+                type Foo extending Pinnable {}
+            """,
+        ])
+
+    def test_schema_migrations_implicit_type_02(self):
+        self._assert_migration_equivalence([
+            r"""
+                abstract type Person {
+                    multi link friends : Person{
+                        constraint expression on (
+                                __subject__ != __subject__@source
+                            );
+                    };
+
+                }
+            """,
+            r"""
+                abstract type Person {
+                    multi link friends : Person{
+                        constraint expression on (
+                                __subject__ != __subject__@source
+                            );
+                    };
+
+                }
+
+                type Employee extending Person{
+                    department: str;
+                }
+            """,
+        ])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
