@@ -837,8 +837,9 @@ def finalize_args(
             ):
                 arg_type_path_id = pathctx.extend_path_id(
                     arg.path_id,
-                    ptrcls=arg_type.getptr(
-                        ctx.env.schema, sn.UnqualName('__type__')),
+                    ptrcls=setgen.resolve_ptr(
+                        arg_type, '__type__', track_ref=None, ctx=ctx
+                    ),
                     ctx=ctx,
                 )
         else:

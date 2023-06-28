@@ -879,7 +879,11 @@ class TestSQL(tb.SQLQueryTestCase):
             "Movie", output=out, format="csv", delimiter="\t"
         )
         out = io.StringIO(out.getvalue().decode("utf-8"))
-        names = set(row[6] for row in csv.reader(out, delimiter="\t"))
+        # FIXME(#5716): Once COPY and information_schema are
+        # harmonized to agree on the order of columns, we should query
+        # information_schema to get the column number instead of
+        # hardcoding it.
+        names = set(row[7] for row in csv.reader(out, delimiter="\t"))
         self.assertEqual(names, {"Forrest Gump", "Saving Private Ryan"})
 
     async def test_sql_query_error_01(self):
