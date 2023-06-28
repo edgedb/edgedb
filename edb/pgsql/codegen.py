@@ -160,13 +160,11 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.with_translation_data: bool = with_translation_data
         self.reordered = reordered
 
-
         # state
         self.param_index: collections.defaultdict[int, list[int]] = (
             collections.defaultdict(list))
         self.write_index: int = 0
         self.translation_data: Optional[TranslationData] = None
-
 
     def write(
         self,
@@ -1250,7 +1248,6 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
         if opts:
             self.write(' (' + ', '.join(opts), ')')
-
 
 
 class GeneratorContext(markup.MarkupExceptionContext):

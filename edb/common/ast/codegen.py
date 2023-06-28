@@ -28,7 +28,7 @@ from . import base
 from .visitor import NodeVisitor
 
 
-@dataclass(kw_only=True, eq=False, match_args=False, slots=True)
+@dataclass(kw_only=True, eq=False, match_args=False, slots=True, frozen=True)
 class Options:
     indent_with: str = ' ' * 4
     add_line_information: bool = False
