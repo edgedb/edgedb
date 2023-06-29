@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import *
 
 from edb import buildmeta
 from edb.schema import defines as s_def
@@ -73,11 +74,13 @@ HTTP_PORT_QUERY_CACHE_SIZE = 1000
 # to the system database after the connection was broken during runtime.
 SYSTEM_DB_RECONNECT_INTERVAL = 1
 
-MIN_PROTOCOL = (1, 0)
-CURRENT_PROTOCOL = (1, 0)
+ProtocolVersion: TypeAlias = tuple[int, int]
 
-MIN_LEGACY_PROTOCOL = (0, 13)
-MAX_LEGACY_PROTOCOL = (0, 14)
+MIN_PROTOCOL: ProtocolVersion = (1, 0)
+CURRENT_PROTOCOL: ProtocolVersion = (2, 0)
+
+MIN_LEGACY_PROTOCOL: ProtocolVersion = (0, 13)
+MAX_LEGACY_PROTOCOL: ProtocolVersion = (0, 14)
 
 MIN_SUGGESTED_CLIENT_POOL_SIZE = 10
 MAX_SUGGESTED_CLIENT_POOL_SIZE = 100

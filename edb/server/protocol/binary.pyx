@@ -97,7 +97,7 @@ cdef object FMT_JSON_ELEMENTS = compiler.OutputFormat.JSON_ELEMENTS
 cdef object FMT_NONE = compiler.OutputFormat.NONE
 
 cdef tuple DUMP_VER_MIN = (0, 7)
-cdef tuple DUMP_VER_MAX = (1, 0)
+cdef tuple DUMP_VER_MAX = edbdef.CURRENT_PROTOCOL
 
 cdef tuple MIN_PROTOCOL = edbdef.MIN_PROTOCOL
 cdef tuple MAX_LEGACY_PROTOCOL = edbdef.MAX_LEGACY_PROTOCOL
@@ -155,7 +155,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         *,
         auth_data: bytes,
         conn_params: dict[str, str] | None,
-        protocol_version: tuple[int, int] = CURRENT_PROTOCOL,
+        protocol_version: edbdef.ProtocolVersion = CURRENT_PROTOCOL,
         **kwargs,
     ):
         super().__init__(server, **kwargs)
@@ -326,7 +326,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         )
         self.write_status(
             b'system_config',
-            self.server.get_report_config_data()
+            self.server.get_report_config_data(self.protocol_version),
         )
 
         self.write(self.sync_status())
@@ -1778,7 +1778,7 @@ async def eval_buffer(
     database: str,
     data: bytes,
     conn_params: dict[str, str],
-    protocol_version: tuple[int, int],
+    protocol_version: edbdef.ProtocolVersion,
     auth_data: bytes,
     transport: srvargs.ServerConnTransport,
 ):
@@ -1826,7 +1826,7 @@ def new_edge_connection(
     transport: srvargs.ServerConnTransport = (
         srvargs.ServerConnTransport.TCP),
     auth_data: bytes = b'',
-    protocol_version: tuple[int, int] = edbdef.CURRENT_PROTOCOL,
+    protocol_version: edbdef.ProtocolVersion = edbdef.CURRENT_PROTOCOL,
     conn_params: dict[str, str] | None = None,
 ):
     return EdgeConnectionBackwardsCompatible(

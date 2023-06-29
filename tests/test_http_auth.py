@@ -24,6 +24,7 @@ import edgedb
 from edgedb import scram
 
 from edb import protocol
+from edb.server import defines as edbdef
 from edb.testbase import server as tb_server
 
 
@@ -120,7 +121,7 @@ class BaseTestHttpAuth(tb_server.ConnectedTestCase):
 
 
 class TestHttpAuth(BaseTestHttpAuth):
-    def test_http_auth_scram(self):
+    def test_http_auth_scram_valid(self):
         args = self.get_connect_args()
         (token, headers, status, sid, expected_server_sig) = self._scram_auth(
             args["user"], args["password"]
@@ -136,6 +137,9 @@ class TestHttpAuth(BaseTestHttpAuth):
         server_final = base64.b64decode(values["data"])
         server_sig = scram.parse_server_final_message(server_final)
         self.assertEqual(server_sig, expected_server_sig)
+        proto_ver = edbdef.CURRENT_PROTOCOL
+        proto_ver_str = f"v_{proto_ver[0]}_{proto_ver[1]}"
+        mime_type = f"application/x.edgedb.{proto_ver_str}.binary"
 
         with self.http_con() as con:
             con.request(
@@ -157,17 +161,14 @@ class TestHttpAuth(BaseTestHttpAuth):
                 ).dump()
                 + protocol.Sync().dump(),
                 headers={
-                    "Content-Type": "application/x.edgedb.v_1_0.binary",
+                    "Content-Type": mime_type,
                     "Authorization": f"Bearer {token.decode('ascii')}",
                     "X-EdgeDB-User": args["user"],
                 },
             )
             content, headers, status = self.http_con_read_response(con)
         self.assertEqual(status, 200)
-        self.assertEqual(
-            headers,
-            headers | {"content-type": "application/x.edgedb.v_1_0.binary"},
-        )
+        self.assertEqual(headers, headers | {"content-type": mime_type})
         uint32_unpack = struct.Struct("!L").unpack
         msgs = []
         while content:
