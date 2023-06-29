@@ -830,7 +830,14 @@ def resolve_ptr_with_intersections(
 
     err = errors.InvalidReferenceError(msg, context=source_context)
 
-    if direction is s_pointers.PointerDirection.Outbound:
+    if (
+        direction is s_pointers.PointerDirection.Outbound
+        # In some call sites, we call resolve_ptr "experimentally",
+        # not tracking references and swallowing failures. Don't do an
+        # expensive (30% of compilation time in some benchmarks!)
+        # error enrichment for cases that won't really error.
+        and track_ref is not False
+    ):
         s_utils.enrich_schema_lookup_error(
             err,
             s_name.UnqualName(pointer_name),
