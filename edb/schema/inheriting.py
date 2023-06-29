@@ -226,17 +226,6 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                     for v in sd.sort_by_cross_refs(schema, base_refs.values())
                 }
 
-                # HACK: Because of issue #5661, we previously did not always
-                # properly discover dependencies on __type__ in computeds.
-                # This was fixed, but it may persist in existing databases.
-                # Currently, expr refs are not compared when diffing schemas,
-                # so a schema repair can't fix this. Thus, in addition to
-                # actually fixing the bug, we hack around it by forcing
-                # __type__ to sort to the front.
-                # TODO: Drop this after cherry-picking.
-                if (tname := sn.UnqualName('__type__')) in base_refs:
-                    base_refs[tname] = base_refs.pop(tname)
-
             for k, v in reversed(base_refs.items()):
                 if not v.should_propagate(schema):
                     continue
