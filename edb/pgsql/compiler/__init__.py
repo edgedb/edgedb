@@ -20,17 +20,13 @@
 from __future__ import annotations
 
 from typing import *
+from dataclasses import dataclass
 
 from edb import errors
-
-from edb.common import debug
-from edb.common import exceptions as edgedb_error
 
 from edb.ir import ast as irast
 
 from edb.pgsql import ast as pgast
-from edb.pgsql import codegen as pgcodegen
-from edb.pgsql import debug as pgdebug
 from edb.pgsql import params as pgparams
 
 from . import config as _config_compiler  # NOQA
@@ -43,6 +39,15 @@ from . import dispatch
 from . import dml
 
 from .context import OutputFormat as OutputFormat # NOQA
+
+
+@dataclass(kw_only=True, slots=True, repr=False, eq=False, frozen=True)
+class CompileResult:
+    ast: pgast.Base
+
+    env: context.Environment
+
+    argmap: Dict[str, pgast.Param]
 
 
 def compile_ir_to_sql_tree(
@@ -65,7 +70,7 @@ def compile_ir_to_sql_tree(
         ]
     ] = None,
     backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
-) -> Tuple[pgast.Base, context.Environment, Dict[str, pgast.Param]]:
+) -> CompileResult:
     try:
         # Transform to sql tree
         query_params = []
@@ -151,112 +156,7 @@ def compile_ir_to_sql_tree(
             args = []
         raise errors.InternalServerError(*args) from e
 
-    return (qtree, env, ctx.argmap)
-
-
-def compile_ir_to_tree_and_sql(
-    ir_expr: irast.Base, *,
-    output_format: Optional[OutputFormat]=None,
-    ignore_shapes: bool=False,
-    explicit_top_cast: Optional[irast.TypeRef]=None,
-    singleton_mode: bool=False,
-    use_named_params: bool=False,
-    expected_cardinality_one: bool=False,
-    expand_inhviews: bool = False,
-    pretty: bool=True,
-    backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
-) -> Tuple[pgast.Base, str, Dict[str, pgast.Param]]:
-
-    qtree, _, argmap = compile_ir_to_sql_tree(
-        ir_expr,
-        output_format=output_format,
-        ignore_shapes=ignore_shapes,
-        explicit_top_cast=explicit_top_cast,
-        singleton_mode=singleton_mode,
-        use_named_params=use_named_params,
-        expected_cardinality_one=expected_cardinality_one,
-        backend_runtime_params=backend_runtime_params,
-        expand_inhviews=expand_inhviews,
-    )
-
-    if (  # pragma: no cover
-        debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_ast
-    ):
-        debug.header('SQL Tree')
-        debug.dump(
-            qtree, _ast_include_meta=debug.flags.edgeql_compile_sql_ast_meta)
-
-    # Generate query text
-    sql_text = run_codegen(qtree, pretty=pretty)
-
-    if (  # pragma: no cover
-        debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_text
-    ):
-        debug.header('SQL')
-        debug.dump_code(sql_text, lexer='sql')
-    if (  # pragma: no cover
-        debug.flags.edgeql_compile_sql_reordered_text
-    ):
-        debug.header('Reordered SQL')
-        debug_sql_text = run_codegen(qtree, pretty=True, reordered=True)
-        if isinstance(ir_expr, irast.Statement):
-            # Rewrite uuids back into something approximating
-            # readable object names.
-            debug_sql_text = pgdebug.rewrite_names_in_sql(
-                debug_sql_text, ir_expr.schema)
-        debug.dump_code(debug_sql_text, lexer='sql')
-
-    return qtree, sql_text, argmap
-
-
-def compile_ir_to_sql(
-    ir_expr: irast.Base, *,
-    output_format: Optional[OutputFormat]=None,
-    ignore_shapes: bool=False,
-    explicit_top_cast: Optional[irast.TypeRef]=None,
-    singleton_mode: bool=False,
-    use_named_params: bool=False,
-    expected_cardinality_one: bool=False,
-    pretty: bool=True,
-    backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
-) -> Tuple[str, Dict[str, pgast.Param]]:
-    _, sql_text, argmap = compile_ir_to_tree_and_sql(
-        ir_expr,
-        output_format=output_format,
-        ignore_shapes=ignore_shapes,
-        explicit_top_cast=explicit_top_cast,
-        singleton_mode=singleton_mode,
-        use_named_params=use_named_params,
-        expected_cardinality_one=expected_cardinality_one,
-        backend_runtime_params=backend_runtime_params,
-        pretty=pretty,
-    )
-    return sql_text, argmap
-
-
-def run_codegen(
-    qtree: pgast.Base,
-    *,
-    pretty: bool=True,
-    reordered: bool=False,
-) -> str:
-    codegen = pgcodegen.SQLSourceGenerator(pretty=pretty, reordered=reordered)
-    try:
-        codegen.visit(qtree)
-    except pgcodegen.SQLSourceGeneratorError as e:  # pragma: no cover
-        ctx = pgcodegen.SQLSourceGeneratorContext(
-            qtree, codegen.result)
-        edgedb_error.add_context(e, ctx)
-        raise
-    except Exception as e:  # pragma: no cover
-        ctx = pgcodegen.SQLSourceGeneratorContext(
-            qtree, codegen.result)
-        err = pgcodegen.SQLSourceGeneratorError(
-            'error while generating SQL source')
-        edgedb_error.add_context(err, ctx)
-        raise err from e
-
-    return ''.join(codegen.result)
+    return CompileResult(ast=qtree, env=env, argmap=ctx.argmap)
 
 
 def new_external_rvar(

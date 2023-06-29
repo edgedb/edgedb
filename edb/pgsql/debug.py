@@ -23,6 +23,7 @@ from typing import *
 
 import uuid
 
+from edb.common import debug
 from edb.common import uuidgen
 
 from edb.schema import functions as s_funcs
@@ -30,32 +31,47 @@ from edb.schema import objects as so
 from edb.schema import pointers as s_pointers
 from edb.schema import schema as s_schema
 
-
-def _obj_to_name(
-    sobj: so.Object,
-    schema: s_schema.Schema,
-) -> str:
-    if isinstance(sobj, s_pointers.Pointer):
-        s = str(sobj.get_shortname(schema).name)
-        if sobj.is_link_property(schema):
-            s = f'@{s}'
-        # If the pointer is multi, then it is probably a table name,
-        # so let's give a fully qualified version with the source.
-        if (
-            sobj.get_cardinality(schema).is_multi()
-            and (src := sobj.get_source(schema))
-        ):
-            src_name = src.get_name(schema)
-            s = f'{src_name}.{s}'
-    elif isinstance(sobj, s_funcs.Function):
-        return str(sobj.get_shortname(schema))
-    else:
-        s = str(sobj.get_name(schema))
-
-    return s
+from edb.pgsql import ast as pgast
+from edb.pgsql import codegen as pgcodegen
+from edb.ir import ast as irast
 
 
-def rewrite_names_in_sql(text: str, schema: s_schema.Schema) -> str:
+def dump_ast_and_query(
+    pg_expr: pgast.Base,
+    ir_expr: irast.Base,
+) -> None:
+    if not (
+        debug.flags.edgeql_compile
+        or debug.flags.edgeql_compile_sql_ast
+        or debug.flags.edgeql_compile_sql_reordered_text
+        or debug.flags.edgeql_compile_sql_text
+    ):
+        return
+
+    if debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_ast:
+        debug.header('SQL Tree')
+        debug.dump(
+            pg_expr, _ast_include_meta=debug.flags.edgeql_compile_sql_ast_meta
+        )
+
+    if debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_text:
+        sql_text = pgcodegen.generate_source(pg_expr, pretty=True)
+        debug.header('SQL')
+        debug.dump_code(sql_text, lexer='sql')
+
+    if debug.flags.edgeql_compile_sql_reordered_text:
+        debug.header('Reordered SQL')
+        debug_sql_text = pgcodegen.generate_source(
+            pg_expr, pretty=True, reordered=True
+        )
+        if isinstance(ir_expr, irast.Statement):
+            debug_sql_text = _rewrite_names_in_sql(
+                debug_sql_text, ir_expr.schema
+            )
+        debug.dump_code(debug_sql_text, lexer='sql')
+
+
+def _rewrite_names_in_sql(text: str, schema: s_schema.Schema) -> str:
     """Rewrite the SQL output of the compiler to include real object names.
 
     Replace UUIDs with object names when possible. The output of this
@@ -84,3 +100,26 @@ def rewrite_names_in_sql(text: str, schema: s_schema.Schema) -> str:
             text = uuidgen.UUID_RE.sub(s, text, count=1)
 
     return text
+
+
+def _obj_to_name(
+    sobj: so.Object,
+    schema: s_schema.Schema,
+) -> str:
+    if isinstance(sobj, s_pointers.Pointer):
+        s = str(sobj.get_shortname(schema).name)
+        if sobj.is_link_property(schema):
+            s = f'@{s}'
+        # If the pointer is multi, then it is probably a table name,
+        # so let's give a fully qualified version with the source.
+        if sobj.get_cardinality(schema).is_multi() and (
+            src := sobj.get_source(schema)
+        ):
+            src_name = src.get_name(schema)
+            s = f'{src_name}.{s}'
+    elif isinstance(sobj, s_funcs.Function):
+        return str(sobj.get_shortname(schema))
+    else:
+        s = str(sobj.get_name(schema))
+
+    return s

@@ -306,7 +306,7 @@ class Query(MetaCommand, adapts=sd.Query):
         schema = super().apply(schema, context)
 
         assert self.expr.irast
-        sql_tree, _, _ = compiler.compile_ir_to_sql_tree(
+        sql_res = compiler.compile_ir_to_sql_tree(
             self.expr.irast,
             output_format=compiler.OutputFormat.NATIVE_INTERNAL,
             explicit_top_cast=irtyputils.type_to_typeref(
@@ -315,8 +315,7 @@ class Query(MetaCommand, adapts=sd.Query):
             ),
             backend_runtime_params=context.backend_runtime_params,
         )
-
-        sql_text = codegen.generate_source(sql_tree)
+        sql_text = codegen.generate_source(sql_res.ast)
 
         # The INTO _dummy_text bit is needed because PL/pgSQL _really_
         # wants the result of a returning query to be stored in a variable,
@@ -1070,9 +1069,9 @@ class FunctionCommand(MetaCommand):
             if not irutils.is_const(ir.expr):
                 raise ValueError('expression not constant')
 
-            sql_tree, _, _ = compiler.compile_ir_to_sql_tree(
+            sql_res = compiler.compile_ir_to_sql_tree(
                 ir.expr, singleton_mode=True)
-            return codegen.SQLSourceGenerator.to_source(sql_tree)
+            return codegen.generate_source(sql_res.ast)
 
         except Exception as ex:
             raise errors.QueryError(
@@ -1200,7 +1199,7 @@ class FunctionCommand(MetaCommand):
 
         nativecode = self.fix_return_type(func, nativecode, schema, context)
 
-        sql_text, _ = compiler.compile_ir_to_sql(
+        sql_res = compiler.compile_ir_to_sql_tree(
             nativecode.irast,
             ignore_shapes=True,
             explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
@@ -1208,7 +1207,7 @@ class FunctionCommand(MetaCommand):
             output_format=compiler.OutputFormat.NATIVE,
             use_named_params=True)
 
-        return sql_text
+        return codegen.generate_source(sql_res.ast)
 
     def compile_edgeql_overloaded_function_body(
         self,
@@ -1325,7 +1324,7 @@ class FunctionCommand(MetaCommand):
                 func, ov, ov_param_idx, schema, context)
             replace = True
         else:
-            body, _ = compiler.compile_ir_to_sql(
+            sql_res = compiler.compile_ir_to_sql_tree(
                 nativecode.irast,
                 ignore_shapes=True,
                 explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
@@ -1334,6 +1333,7 @@ class FunctionCommand(MetaCommand):
                 use_named_params=True,
                 backend_runtime_params=context.backend_runtime_params,
             )
+            body = codegen.generate_source(sql_res.ast)
 
         return self.make_function(func, body, schema), replace
 
@@ -3465,16 +3465,14 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         table_name = common.get_backend_name(
             schema, subject, catenate=False)
 
-        sql_tree, _, _ = compiler.compile_ir_to_sql_tree(
-            ir.expr, singleton_mode=True)
+        sql_res = compiler.compile_ir_to_sql_tree(ir.expr, singleton_mode=True)
 
-        if isinstance(sql_tree, pg_ast.ImplicitRowExpr):
+        if isinstance(sql_res.ast, pg_ast.ImplicitRowExpr):
             sql_exprs = [
-                codegen.SQLSourceGenerator.to_source(el)
-                for el in sql_tree.args
+                codegen.generate_source(el) for el in sql_res.ast.args
             ]
         else:
-            sql_exprs = [codegen.SQLSourceGenerator.to_source(sql_tree)]
+            sql_exprs = [codegen.generate_source(sql_res.ast)]
 
         except_expr = index.get_except_expr(schema)
         if except_expr:
@@ -3483,9 +3481,9 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 options=options,
             )
         if except_expr:
-            except_tree, _, _ = compiler.compile_ir_to_sql_tree(
+            except_res = compiler.compile_ir_to_sql_tree(
                 except_expr.irast.expr, singleton_mode=True)
-            except_src = codegen.SQLSourceGenerator.to_source(except_tree)
+            except_src = codegen.generate_source(except_res.ast)
             except_src = f'({except_src}) is not true'
         else:
             except_src = None
@@ -3521,15 +3519,16 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                     as_fragment=True,
                 )
                 kw_ir = kw_expr.irast
-                kw_sql_tree, _, _ = compiler.compile_ir_to_sql_tree(
+                kw_sql_res = compiler.compile_ir_to_sql_tree(
                     kw_ir.expr, singleton_mode=True)
+                kw_sql_tree = kw_sql_res.ast
                 # HACK: the compiled SQL is expected to have some unnecessary
                 # casts, strip them as they mess with the requirement that
                 # index expressions are IMMUTABLE (also indexes expect the
                 # usage of literals and will do their own implicit casts).
                 if isinstance(kw_sql_tree, pg_ast.TypeCast):
                     kw_sql_tree = kw_sql_tree.arg
-                sql = codegen.SQLSourceGenerator.to_source(kw_sql_tree)
+                sql = codegen.generate_source(kw_sql_tree)
                 sql_kwarg_exprs[name] = sql
 
         module_name = index.get_name(schema).module
@@ -4694,13 +4693,14 @@ class PointerMetaCommand(
         )
 
         # compile
-        sql_tree, env, _ = compiler.compile_ir_to_sql_tree(
+        sql_res = compiler.compile_ir_to_sql_tree(
             ir,
             output_format=compiler.OutputFormat.NATIVE_INTERNAL,
             external_rels=external_rels,
             external_rvars=external_rvars,
             backend_runtime_params=context.backend_runtime_params,
         )
+        sql_tree = sql_res.ast
         assert isinstance(sql_tree, pg_ast.SelectStmt)
 
         if produce_ctes:
@@ -4708,7 +4708,7 @@ class PointerMetaCommand(
 
             from edb.pgsql.compiler import pathctx
             pathctx.get_path_output(
-                sql_tree, src_path_id, aspect='identity', env=env
+                sql_tree, src_path_id, aspect='identity', env=sql_res.env
             )
 
         ctes = list(sql_tree.ctes or [])
@@ -4775,7 +4775,7 @@ class PointerMetaCommand(
                 query=sql_tree
             ))
             # compile to SQL
-            ctes_sql = codegen.SQLSourceGenerator.ctes_to_source(ctes)
+            ctes_sql = codegen.generate_ctes_source(ctes)
 
             return (ctes_sql, nullable)
 
@@ -4785,7 +4785,7 @@ class PointerMetaCommand(
             # contain DML.
             assert len(ctes) == 0
 
-            select_sql = codegen.SQLSourceGenerator.to_source(sql_tree)
+            select_sql = codegen.generate_source(sql_tree)
 
             return (select_sql, nullable)
 
