@@ -33,61 +33,23 @@ from edb.common import exceptions
 from edb.common import markup
 
 
-def generate_source(
+def generate(
     node: pgast.Base,
     *,
     indent_with: str = ' ' * 4,
     add_line_information: bool = False,
     pretty: bool = True,
     reordered: bool = False,
-) -> str:
-    # Main codegen entrypoint
+    with_translation_data: bool = False,
+) -> SQLSource:
+    # Main entrypoint
 
-    generator = _generate(
-        node,
+    generator = SQLSourceGenerator(
         opts=codegen.Options(
             indent_with=indent_with,
             add_line_information=add_line_information,
             pretty=pretty,
         ),
-        reordered=reordered,
-    )
-    return generator.finish()
-
-
-def generate_source_with_translation_data(
-    node: pgast.Base,
-) -> Tuple[str, TranslationData]:
-    # Alternative entry point to emit translation data as well.
-
-    generator = _generate(node, with_translation_data=True)
-    source = generator.finish()
-
-    assert generator.translation_data
-    return source, generator.translation_data
-
-
-def generate_ctes_source(
-    ctes: List[pgast.CommonTableExpr],
-) -> str:
-    # Alternative entry point generating 'WITH a AS (...)' only.
-
-    generator = SQLSourceGenerator(opts=codegen.Options())
-    generator.gen_ctes(ctes)
-
-    return generator.finish()
-
-
-def _generate(
-    node: pgast.Base,
-    *,
-    opts: codegen.Options = codegen.Options(),
-    reordered: bool = False,
-    with_translation_data: bool = False,
-) -> SQLSourceGenerator:
-
-    generator = SQLSourceGenerator(
-        opts=opts,
         reordered=reordered,
         with_translation_data=with_translation_data,
     )
@@ -105,7 +67,45 @@ def _generate(
         exceptions.add_context(err, ctx)
         raise err from error
 
-    return generator
+    if with_translation_data:
+        assert generator.translation_data
+
+    return SQLSource(
+        text=generator.finish(),
+        translation_data=generator.translation_data,
+        param_index=generator.param_index,
+    )
+
+
+def generate_source(
+    node: pgast.Base,
+    *,
+    indent_with: str = ' ' * 4,
+    add_line_information: bool = False,
+    pretty: bool = True,
+    reordered: bool = False,
+) -> str:
+    # Simplified entrypoint
+
+    source = generate(
+        node,
+        indent_with=indent_with,
+        add_line_information=add_line_information,
+        pretty=pretty,
+        reordered=reordered,
+    )
+    return source.text
+
+
+def generate_ctes_source(
+    ctes: List[pgast.CommonTableExpr],
+) -> str:
+    # Alternative simplified entrypoint generating 'WITH a AS (...)' only.
+
+    generator = SQLSourceGenerator(opts=codegen.Options())
+    generator.gen_ctes(ctes)
+
+    return generator.finish()
 
 
 class TranslationData:
@@ -138,7 +138,7 @@ class TranslationData:
 
 @dataclasses.dataclass(frozen=True)
 class SQLSource:
-    chunks: list[str]
+    text: str
     param_index: dict[int, list[int]]
     translation_data: Optional[TranslationData] = None
 

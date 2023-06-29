@@ -551,7 +551,9 @@ class Compiler:
                 **args
             )
             resolved = pg_resolver.resolve(stmt, schema, options)
-            return pg_codegen.generate_source_ex(resolved, pretty=False)
+            return pg_codegen.generate(
+                resolved, with_translation_data=True
+            )
 
         def compute_stmt_name(text: str) -> str:
             stmt_hash = hashlib.sha1(text.encode("utf-8"))
@@ -687,7 +689,6 @@ class Compiler:
             elif isinstance(stmt, pgast.PrepareStmt):
                 # Translate the underlying query.
                 stmt_source = translate_query(stmt.query)
-                stmt_query = "".join(stmt_source.chunks)
                 if stmt.argtypes:
                     param_types = []
                     for pt in stmt.argtypes:
@@ -696,7 +697,7 @@ class Compiler:
                 else:
                     param_text = ""
 
-                sql_trailer = f"{param_text} AS ({stmt_query})"
+                sql_trailer = f"{param_text} AS ({stmt_source.text})"
 
                 mangled_stmt_name = compute_stmt_name(
                     f"PREPARE {pg_common.quote_ident(stmt.name)}{sql_trailer}"
@@ -712,7 +713,7 @@ class Compiler:
                     prepare=dbstate.PrepareData(
                         stmt_name=stmt.name,
                         be_stmt_name=mangled_stmt_name.encode("utf-8"),
-                        query=stmt_query,
+                        query=stmt_source.text,
                         translation_data=stmt_source.translation_data,
                     ),
                     command_tag=b"PREPARE",
@@ -763,7 +764,7 @@ class Compiler:
             else:
                 source = translate_query(stmt)
                 unit = unit_ctor(
-                    query="".join(source.chunks),
+                    query=source.text,
                     translation_data=source.translation_data,
                 )
 
