@@ -65,22 +65,20 @@ pub fn init_module() {
     }
 }
 
-pub fn convert_tokens<'a>(py: Python, tokens: PyObject) -> PyResult<Vec<parser::Terminal>> {
-    let tokens = PyList::downcast_from(py, tokens)?;
+pub fn downcast_tokens<'a>(py: Python, token_list: PyObject) -> PyResult<Vec<parser::Terminal>> {
+    let tokens = PyList::downcast_from(py, token_list)?;
 
     let mut buf = Vec::with_capacity(tokens.len(py));
     for token in tokens.iter(py) {
         let token = OpaqueToken::downcast_from(py, token)?.inner(py);
 
-        let value = match token.value {
-            Some(Value::String(s)) => Some(s),
-            _ => None,
-        };
-
         buf.push(parser::Terminal {
             kind: token.kind,
             text: token.text,
-            value,
+            value: match token.value {
+                Some(Value::String(s)) => Some(s),
+                _ => None,
+            },
             span: token.span,
         });
     }
@@ -90,9 +88,9 @@ pub fn convert_tokens<'a>(py: Python, tokens: PyObject) -> PyResult<Vec<parser::
 pub fn parse(py: Python, parser_name: &PyString, tokens: PyObject) -> PyResult<PyTuple> {
     let (spec, productions) = load_spec(py, parser_name.to_string(py)?.as_ref())?;
 
-    let cheese = convert_tokens(py, tokens)?;
+    let tokens = downcast_tokens(py, tokens)?;
 
-    let (cst, errors) = parser::parse(spec, cheese);
+    let (cst, errors) = parser::parse(spec, tokens);
 
     let cst = cst.map(|c| to_py_cst(c, py)).transpose()?;
 

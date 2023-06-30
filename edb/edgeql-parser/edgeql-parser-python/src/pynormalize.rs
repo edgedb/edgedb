@@ -14,7 +14,7 @@ use edgeql_parser::tokenizer::Value;
 
 use crate::errors::SyntaxError;
 use crate::normalize::{normalize as _normalize, Error, Variable};
-use crate::tokenizer::convert_tokens;
+use crate::tokenizer::tokens_to_py;
 
 py_class!(pub class Entry |py| {
     data _key: PyBytes;
@@ -154,7 +154,7 @@ pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
                 py,
                 /* key: */ PyBytes::new(py, &entry.hash[..]),
                 /* processed_source: */ entry.processed_source,
-                /* tokens: */ convert_tokens(py, entry.tokens, entry.end_pos)?,
+                /* tokens: */ tokens_to_py(py, entry.tokens)?,
                 /* extra_blobs: */ blobs,
                 /* extra_named: */ entry.named_args,
                 /* first_extra: */ entry.first_arg,

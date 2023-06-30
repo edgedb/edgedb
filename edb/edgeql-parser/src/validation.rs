@@ -5,7 +5,7 @@ use bigdecimal::BigDecimal;
 
 use crate::helpers::{unquote_bytes, unquote_string};
 use crate::keywords::Keyword;
-use crate::position::Pos;
+use crate::position::{Pos, Span};
 use crate::tokenizer::{Error, Kind, Token, Tokenizer, Value, MAX_KEYWORD_LENGTH};
 
 /// Applies additional validation to the tokens.
@@ -47,6 +47,13 @@ impl<'a> Validator<'a> {
             inner,
             peeked: None,
             keyword_buf: String::with_capacity(MAX_KEYWORD_LENGTH),
+        }
+    }
+
+    pub fn with_eof(self) -> WithEof<'a> {
+        WithEof {
+            inner: self,
+            emitted: false,
         }
     }
 
@@ -203,4 +210,35 @@ pub fn parse_value(token: &Token) -> Result<Option<Value>, String> {
         _ => return Ok(None),
     };
     Ok(Some(Value::String(string_value)))
+}
+
+pub struct WithEof<'a> {
+    inner: Validator<'a>,
+
+    emitted: bool,
+}
+
+impl<'a> Iterator for WithEof<'a> {
+    type Item = Result<Token, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(next) = self.inner.next() {
+            Some(next)
+        } else if !self.emitted {
+            self.emitted = true;
+            let pos = self.inner.current_pos();
+
+            Some(Ok(Token {
+                kind: Kind::EOF,
+                text: "".to_string(),
+                value: None,
+                span: Span {
+                    start: pos,
+                    end: pos,
+                },
+            }))
+        } else {
+            None
+        }
+    }
 }

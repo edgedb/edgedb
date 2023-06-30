@@ -1,9 +1,7 @@
 use cpython::{PyBytes, PyClone, PyResult, PyString, Python, PythonObject};
 use cpython::{PyList, PyObject, PyTuple, ToPyObject};
 
-use edgeql_parser::position::{Pos, Span};
-
-use edgeql_parser::tokenizer::{Kind, Token, Tokenizer};
+use edgeql_parser::tokenizer::{Token, Tokenizer};
 
 use crate::errors::{parser_error_into_tuple, ParserResult};
 
@@ -30,7 +28,7 @@ py_class!(pub class OpaqueToken |py| {
 pub fn tokenize(py: Python, s: &PyString) -> PyResult<ParserResult> {
     let data = s.to_string(py)?;
 
-    let mut token_stream = Tokenizer::new(&data[..]).validated_values();
+    let mut token_stream = Tokenizer::new(&data[..]).validated_values().with_eof();
 
     let mut tokens: Vec<_> = Vec::new();
     let mut errors: Vec<_> = Vec::new();
@@ -47,35 +45,20 @@ pub fn tokenize(py: Python, s: &PyString) -> PyResult<ParserResult> {
         }
     }
 
-    let tokens = convert_tokens(py, tokens, token_stream.current_pos())?;
+    let tokens = tokens_to_py(py, tokens)?;
 
     let errors = PyList::new(py, errors.as_slice()).to_py_object(py);
 
     ParserResult::create_instance(py, tokens.into_object(), errors)
 }
 
-pub fn convert_tokens(py: Python, rust_tokens: Vec<Token>, end_pos: Pos) -> PyResult<PyList> {
+pub fn tokens_to_py(py: Python, rust_tokens: Vec<Token>) -> PyResult<PyList> {
     let mut buf = Vec::with_capacity(rust_tokens.len());
     for tok in rust_tokens {
         let py_tok = OpaqueToken::create_instance(py, tok)?.into_object();
 
         buf.push(py_tok);
     }
-    buf.push(
-        OpaqueToken::create_instance(
-            py,
-            Token {
-                kind: Kind::EOF,
-                text: "".to_string(),
-                value: None,
-                span: Span {
-                    start: end_pos,
-                    end: end_pos,
-                },
-            },
-        )?
-        .into_object(),
-    );
     Ok(PyList::new(py, &buf[..]))
 }
 

@@ -16,7 +16,6 @@ pub struct Entry {
     pub hash: [u8; 64],
     pub tokens: Vec<Token>,
     pub variables: Vec<Vec<Variable>>,
-    pub end_pos: Pos,
     pub named_args: bool,
     pub first_arg: Option<usize>,
 }
@@ -76,11 +75,12 @@ fn hash(text: &str) -> [u8; 64] {
 }
 
 pub fn normalize(text: &str) -> Result<Entry, Error> {
-    let mut token_stream = Tokenizer::new(text).validated_values();
-    let tokens = (&mut token_stream)
+    let tokens = Tokenizer::new(text)
+        .validated_values()
+        .with_eof()
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| Error::Tokenizer(e.message, e.span.start))?;
-    let end_pos = token_stream.current_pos();
+
     let (named_args, var_idx) = match scan_vars(&tokens) {
         Some(pair) => pair,
         None => {
@@ -91,7 +91,6 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
                 processed_source,
                 tokens,
                 variables: Vec::new(),
-                end_pos,
                 named_args: false,
                 first_arg: None,
             });
@@ -179,7 +178,6 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
                     processed_source,
                     tokens,
                     variables: Vec::new(),
-                    end_pos,
                     named_args: false,
                     first_arg: None,
                 });
@@ -213,7 +211,6 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
         first_arg: if counter <= var_idx { None } else { Some(var_idx) },
         tokens: rewritten_tokens,
         variables: all_variables,
-        end_pos,
     });
 }
 
