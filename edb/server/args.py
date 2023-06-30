@@ -93,8 +93,17 @@ class JOSEKeyMode(enum.StrEnum):
 class ReadinessState(enum.StrEnum):
 
     Default = "default"
+    """Default state: serving normally"""
+
     NotReady = "not_ready"
+    """/server/status/ready returns an error, but clients can still connect."""
+
     ReadOnly = "read_only"
+    """Only read-only queries are allowed."""
+
+    Offline = "offline"
+    """Any existing connections are gracefully terminated and no new
+    connections are allowed."""
 
 
 class ServerAuthMethod(enum.StrEnum):

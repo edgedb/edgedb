@@ -774,6 +774,12 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                     self.write_error(ex)
                     self.flush()
 
+                    if isinstance(ex, errors.ServerOfflineError):
+                        # This server is going into "offline" mode,
+                        # close the connection.
+                        self.close()
+                        return
+
                     # The connection was aborted while we were
                     # interpreting the error (via compiler/errmech.py).
                     if self._con_status == EDGECON_BAD:
