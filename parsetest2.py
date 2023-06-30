@@ -60,6 +60,17 @@ QS = [
         }
     };
     ''',
+    '''
+    CREATE FUNCTION
+    std::_gen_series(
+        `start`: std::int64,
+        stop: std::int64
+    ) -> SET OF std::int64
+    {
+        SET volatility := 'Immutable';
+        USING SQL FUNCTION 'generate_series';
+    };
+    ''',
 ]
 
 for q in QS[-1:]:

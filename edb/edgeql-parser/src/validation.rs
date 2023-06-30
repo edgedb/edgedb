@@ -10,6 +10,7 @@ use crate::tokenizer::{Error, Kind, Token, Tokenizer, Value, MAX_KEYWORD_LENGTH}
 
 /// Applies additional validation to the tokens.
 /// Combines multi-word keywords into single tokens.
+/// Remaps a few token kinds.
 pub struct Validator<'a> {
     pub inner: Tokenizer<'a>,
 
@@ -36,6 +37,8 @@ impl<'a> Iterator for Validator<'a> {
             token.kind = Kind::Keyword(Keyword(keyword));
             self.peeked = None;
         }
+
+        token.kind = remap_kind(token.kind);
 
         Some(Ok(token))
     }
@@ -210,6 +213,13 @@ pub fn parse_value(token: &Token) -> Result<Option<Value>, String> {
         _ => return Ok(None),
     };
     Ok(Some(Value::String(string_value)))
+}
+
+fn remap_kind(kind: Kind) -> Kind {
+    match kind {
+        Kind::BacktickName => Kind::Ident,
+        kind => kind,
+    }
 }
 
 pub struct WithEof<'a> {
