@@ -106,6 +106,16 @@ class ExprDataSources:
     plain_chunks: Sequence[str]
 
 
+def _to_source(sql_expr: pg_ast.Base) -> str:
+    src = codegen.generate_source(sql_expr)
+    # ColumnRefs are the most common thing, and they should be safe to
+    # skip parenthesizing, for deuglification purposes. anything else
+    # we put parens around, to be sure.
+    if not isinstance(sql_expr, pg_ast.ColumnRef):
+        src = f'({src})'
+    return src
+
+
 def _edgeql_tree_to_expr_data(
     sql_expr: pg_ast.Base, refs: Optional[Set[pg_ast.ColumnRef]] = None
 ) -> ExprDataSources:
@@ -113,13 +123,13 @@ def _edgeql_tree_to_expr_data(
         refs = set(ast.find_children(
             sql_expr, pg_ast.ColumnRef, lambda n: len(n.name) == 1))
 
-    plain_expr = codegen.generate_source(sql_expr)
+    plain_expr = _to_source(sql_expr)
 
     if isinstance(sql_expr, (pg_ast.RowExpr, pg_ast.ImplicitRowExpr)):
         chunks = []
 
         for elem in sql_expr.args:
-            chunks.append(codegen.generate_source(elem))
+            chunks.append(_to_source(elem))
     else:
         chunks = [plain_expr]
 
@@ -129,12 +139,12 @@ def _edgeql_tree_to_expr_data(
     for ref in refs:
         assert isinstance(ref.name, List)
         ref.name.insert(0, 'NEW')
-    new_expr = codegen.generate_source(sql_expr)
+    new_expr = _to_source(sql_expr)
 
     for ref in refs:
         assert isinstance(ref.name, List)
         ref.name[0] = 'OLD'
-    old_expr = codegen.generate_source(sql_expr)
+    old_expr = _to_source(sql_expr)
 
     return ExprDataSources(
         plain=plain_expr, new=new_expr, old=old_expr, plain_chunks=chunks
@@ -663,7 +673,7 @@ def ptr_default_to_col_default(schema, ptr, expr):
         sql_res = compiler.compile_ir_to_sql_tree(ir, singleton_mode=True)
     except errors.UnsupportedFeatureError:
         return None
-    sql_text = codegen.generate_source(sql_res.ast)
+    sql_text = _to_source(sql_res.ast)
 
     return sql_text
 

@@ -935,13 +935,13 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self, node: pgast.RecordIndirectionOp
     ) -> None:
         self.write('.')
-        self.write(node.name)
+        self.write(common.qname(node.name))
 
     def _visit_indirection_ops(
         self, ops: Sequence[pgast.IndirectionOp]
     ) -> None:
         for op in ops:
-            if isinstance(op, (pgast.Star, pgast.ColumnRef)):
+            if isinstance(op, pgast.Star):
                 self.write('.')
             self.visit(op)
 
