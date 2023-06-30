@@ -1,11 +1,16 @@
 from typing import *
+import pickle
 
 from edb.edgeql import parser
+from edb.edgeql import tokenizer
 from edb.edgeql import ast as qlast
 
 
 def parse(querystr: str) -> qlast.Expr:
-    return parser.parse_block(querystr)
+    s = tokenizer.NormalizedSource.from_string(querystr)
+    bytes = pickle.dumps(s)
+    s2 = pickle.loads(bytes)
+    return parser.parse_block(s2)
 
 
 QS = [
@@ -71,6 +76,32 @@ QS = [
         USING SQL FUNCTION 'generate_series';
     };
     ''',
+    '''
+    select b"04e3b";
+    ''',
+    '''
+    select User { intersect };
+    ''',
+    '''
+    create module __std__;
+    ''',
+    '''
+    create type Hello {
+        create property intersect -> str;
+        create property `__std__` -> str;
+    };
+    ''',
+    '''
+    SELECT
+    count(
+        schema::Module
+        FILTER NOT .builtin AND NOT .name = "default"
+    ) + count(
+        schema::Object
+        FILTER .name LIKE "default::%"
+    ) > 0
+    ''',
+    
 ]
 
 for q in QS[-1:]:
@@ -78,8 +109,11 @@ for q in QS[-1:]:
     print('-' * 30)
     print()
 
-    try:
-        ast = parse(q)
-    except Exception as e:
-        print(e)
-        pass
+    # try:
+    ast = parse(q)
+
+    for x in ast:
+        x.dump_edgeql()
+    # except Exception as e:
+        # print(e)
+        # pass

@@ -7,6 +7,7 @@ use crate::helpers::quote_name;
 use crate::position::Span;
 use crate::tokenizer::Error;
 use crate::tokenizer::Kind;
+use crate::tokenizer::Value;
 
 pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>) {
     let arena = bumpalo::Bump::new();
@@ -129,11 +130,11 @@ pub enum CSTNode {
     Production(Production),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Terminal {
     pub kind: Kind,
     pub text: String,
-    pub value: Option<String>,
+    pub value: Option<Value>,
     pub span: Span,
 }
 
@@ -143,7 +144,6 @@ pub struct Production {
     pub args: Vec<CSTNode>,
 }
 
-#[derive(Debug)]
 struct StackNode<'p> {
     parent: Option<&'p StackNode<'p>>,
 
@@ -268,7 +268,7 @@ impl<'s> Parser<'s> {
         }
     }
 
-    #[allow(dead_code)]
+    #[cfg(never)]
     fn print_stack(&self) {
         let prefix = "STACK: ";
 
@@ -327,26 +327,6 @@ fn error_cost(kind: &Kind) -> u16 {
         Assign | AddAssign | SubAssign | Arrow => 10,
 
         _ => 100, // forbidden
-    }
-}
-
-impl std::fmt::Debug for CSTNode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Empty => f.write_str("<e>"),
-            Self::Terminal(t) => f.write_str(&t.text),
-            Self::Production(prod) => {
-                write!(f, "{}", prod.id)?;
-                if f.alternate() && !prod.args.is_empty() {
-                    let mut l = f.debug_list();
-                    for a in &prod.args {
-                        l.entry(a);
-                    }
-                    l.finish()?;
-                }
-                Ok(())
-            }
-        }
     }
 }
 

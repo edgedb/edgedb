@@ -26,12 +26,13 @@ pub enum Error {
     Assertion(String, Pos),
 }
 
-fn push_var<'x>(res: &mut Vec<Token>, module: &'x str, typ: &'x str,
+fn push_var(res: &mut Vec<Token>, module: &str, typ: &str,
     var: String, span: Span)
 {
     res.push(Token {kind: Kind::OpenParen, text: "(".into(), span, value: None});
     res.push(Token {kind: Kind::Less, text: "<".into(), span, value: None});
-    res.push(Token {kind: Kind::Ident, text: module.into(), span, value: None});
+    res.push(Token {kind: Kind::Ident, text: module.into(), span,
+        value: Some(Value::String(module.to_string()))});
     res.push(Token {kind: Kind::Namespace, text: "::".into(), span, value: None});
     res.push(Token {kind: Kind::Ident, text: typ.into(), span,
         value: Some(Value::String(typ.to_string())),

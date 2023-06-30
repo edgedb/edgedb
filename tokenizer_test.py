@@ -12,9 +12,15 @@ QS = [
             cst := sum(g.elements.cost + gi),
         ))
     ''',
+    
+    '''
+        create module __std__;
+    ''',
 ]
 
-for q in QS[:1]:
+for q in QS:
+
+    print('-' * 20)
 
     tokens = tokenizer._tokenize(q)
     print(tokens)

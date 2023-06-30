@@ -8,9 +8,9 @@ use cpython::{
 use edgeql_parser::keywords;
 use edgeql_parser::parser;
 use edgeql_parser::tokenizer;
-use edgeql_parser::tokenizer::Value;
 
 use crate::errors::{parser_error_into_tuple, ParserResult};
+use crate::pynormalize::value_to_py_object;
 use crate::tokenizer::OpaqueToken;
 
 py_class!(pub class CSTNode |py| {
@@ -75,10 +75,7 @@ pub fn downcast_tokens<'a>(py: Python, token_list: PyObject) -> PyResult<Vec<par
         buf.push(parser::Terminal {
             kind: token.kind,
             text: token.text,
-            value: match token.value {
-                Some(Value::String(s)) => Some(s),
-                _ => None,
-            },
+            value: token.value,
             span: token.span,
         });
     }
@@ -90,7 +87,11 @@ pub fn parse(py: Python, parser_name: &PyString, tokens: PyObject) -> PyResult<P
 
     let tokens = downcast_tokens(py, tokens)?;
 
+    // dbg!(&tokens);
+
     let (cst, errors) = parser::parse(spec, tokens);
+
+    // debug_cst_node(py, cst.as_ref().unwrap(), productions);
 
     let cst = cst.map(|c| to_py_cst(c, py)).transpose()?;
 
@@ -241,7 +242,11 @@ fn to_py_cst<'a>(cst: parser::CSTNode, py: Python) -> PyResult<CSTNode> {
             Terminal::create_instance(
                 py,
                 token.text.into_py_object(py),
-                token.value.map(|v| v.into_py_object(py)).into_py_object(py),
+                if let Some(val) = token.value {
+                    value_to_py_object(py, &val)?
+                } else {
+                    py.None()
+                },
                 token.span.start.offset,
                 token.span.end.offset,
             )?
@@ -264,5 +269,31 @@ fn to_py_cst<'a>(cst: parser::CSTNode, py: Python) -> PyResult<CSTNode> {
             .into_object(),
             py.None(),
         ),
+    }
+}
+
+#[cfg(never)]
+fn debug_cst_node(py: Python, node: &parser::CSTNode, productions_obj: &PyObject) -> String {
+    let productions = PyList::downcast_borrow_from(py, productions_obj).unwrap();
+
+    match node {
+        parser::CSTNode::Empty => "<e>".to_string(),
+        parser::CSTNode::Terminal(t) => format!("{}", t.text),
+        parser::CSTNode::Production(prod) => {
+            let production = productions.get_item(py, prod.id);
+
+            let mut r = production.getattr(py, "qualified").unwrap().to_string();
+            if !prod.args.is_empty() {
+                r += "[";
+                r += &prod
+                    .args
+                    .iter()
+                    .map(|a| debug_cst_node(py, a, productions_obj))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                r += "]";
+            }
+            r
+        }
     }
 }
