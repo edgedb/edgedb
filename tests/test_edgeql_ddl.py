@@ -10249,6 +10249,43 @@ type default::Foo {
             };
         """)
 
+    async def test_edgeql_ddl_constraint_26(self):
+        await self.con.execute("""
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY val: tuple<int64, int64> {
+                    CREATE CONSTRAINT exclusive ON (.0);
+                };
+                CREATE CONSTRAINT exclusive ON (.val.1);
+                CREATE PROPERTY x: int64;
+                CREATE CONSTRAINT exclusive ON (<str>.x);
+            };
+        """)
+
+        await self.con.execute("""
+            insert Foo { val := (1, 2), x := 3 };
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'val violates exclusivity constraint'):
+            await self.con.execute("""
+                insert Foo { val := (1, -1), x := -1 };
+            """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'Foo violates exclusivity constraint'):
+            await self.con.execute("""
+                insert Foo { val := (-1, 2), x := -1 };
+            """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'Foo violates exclusivity constraint'):
+            await self.con.execute("""
+                insert Foo { val := (-1, -2), x := 3 };
+            """)
+
     async def test_edgeql_ddl_constraint_check_01a(self):
         await self.con.execute(r"""
             create type Foo {
