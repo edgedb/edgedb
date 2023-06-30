@@ -6,6 +6,7 @@
 SQL support
 ===========
 
+.. edb:youtube-embed:: 0KdY2MPb2oc
 
 Connecting
 ==========

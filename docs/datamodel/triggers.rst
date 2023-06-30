@@ -6,6 +6,8 @@
 Triggers
 ========
 
+.. edb:youtube-embed:: ImgMfb_jCJQ?start=41
+
 Triggers allow you to define an expression to be executed whenever a given
 query type is run on an object type. The original query will *trigger* your
 pre-defined expression to run in a transaction along with the original query.

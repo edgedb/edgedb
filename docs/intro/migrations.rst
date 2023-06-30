@@ -11,6 +11,9 @@ throughout the development process. If you want to work along with this guide,
 start a new project with :ref:`ref_cli_edgedb_project_init`. This will create a
 new instance and some empty schema files to get you started.
 
+.. edb:youtube-embed:: _IUSPBm2xEA
+
+
 1. Start the ``watch`` command
 ------------------------------
 
