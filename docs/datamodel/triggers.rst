@@ -13,9 +13,9 @@ These can be defined in your schema.
 
 .. note::
 
-    Triggers cannot be used to modify the object that set off the trigger. This
-    functionality will be addressed by the upcoming :eql:gh:`mutation rewrites
-    <#4937>` feature.
+    Triggers cannot be used to modify the object that set off the trigger.
+    Instead, you should use :ref:`mutation rewrites
+    <ref_datamodel_mutation_rewrites>` for this.
 
 Here's an example that creates a simple audit log type so that we can keep
 track of what's happening to our users in a database. First, we will create a
