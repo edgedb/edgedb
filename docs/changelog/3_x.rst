@@ -201,6 +201,8 @@ versioned sections of the documentation to the new syntax.
 Query performance analysis
 --------------------------
 
+.. edb:youtube-embed:: WoHJu0nq5z0
+
 Among other improvements, the UI now includes a visual query analyzer to help
 you tweak performance on your EdgeQL queries. Just drop the ``analyze`` keyword
 in front of your query in the UI's "Query Editor" tab to see the query analyzer
@@ -216,6 +218,8 @@ directly using the ``edgedb analyze <query>`` command.
 
 UI improvements
 ---------------
+
+.. edb:youtube-embed:: iwnP_6tkKgc
 
 The EdgeDB UI got a lot of love in this release. In addition to the visual
 query planning shown above, you'll see a number of improvements.
@@ -254,6 +258,8 @@ even when you're just learning EdgeQL.
 
 ``edgedb watch`` and a new development workflow
 -----------------------------------------------
+
+.. edb:youtube-embed:: _IUSPBm2xEA
 
 The new ``edgedb watch`` CLI command starts a long-running process that watches
 for changes in schema files in your project's ``dbschema`` directory and
@@ -306,6 +312,8 @@ these are ready to commit and push to your remote to share with your team.
 Triggers
 --------
 
+.. edb:youtube-embed:: ImgMfb_jCJQ?start=41
+
 Our new triggers feature is one of the most anticipated 3.0 features! Triggers
 allow you to define an expression to be executed whenever a given query type is
 run on an object type. The original query will *trigger* your pre-defined
@@ -335,6 +343,8 @@ You can read more about our triggers implementation in `the triggers RFC
 Mutation rewrites
 -----------------
 
+.. edb:youtube-embed:: ImgMfb_jCJQ?end=41
+
 The mutation rewrites feature is the sibling, or at least the first cousin, of
 triggers. Both are automatically invoked when a write operation occurs on the
 type they're on, but triggers are not able to make changes to the object that
@@ -361,6 +371,8 @@ Learn about our mutation rewrites implementation in `the mutation rewrites RFC
 
 Splats
 ------
+
+.. edb:youtube-embed:: 9-I1qjIp3KI
 
 This is one of the most fun features in 3.0, both to say _and_ to use! With
 splats, you can easily select all properties in your queries without typing all
@@ -458,6 +470,8 @@ ext::pgvector documentation <ref_ext_pgvector>`.
 
 SQL support
 -----------
+
+.. edb:youtube-embed:: 0KdY2MPb2oc
 
 EdgeDB supports running read-only SQL queries via the Postgres protocol to
 enable connecting EdgeDB to existing BI and analytics solutions. Any
