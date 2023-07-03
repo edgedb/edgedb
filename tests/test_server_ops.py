@@ -839,6 +839,45 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 rf.close()
                 os.unlink(rf_name)
 
+    async def test_server_ops_offline(self):
+        rf_no, rf_name = tempfile.mkstemp(text=True)
+        rf = open(rf_no, "wt")
+
+        try:
+            print("default", file=rf, flush=True)
+
+            async with tb.start_edgedb_server(
+                readiness_state_file=rf_name,
+            ) as sd:
+                conn = await sd.connect()
+                await conn.execute("select 1")
+
+                # Go offline
+                rf.seek(0)
+                print("offline", file=rf, flush=True)
+                await asyncio.sleep(0.01)
+
+                with self.assertRaises(
+                    (edgedb.AvailabilityError, edgedb.ClientConnectionError),
+                ):
+                    await conn.execute("select 1")
+
+                # Clear read-only by removing the file
+                rf.close()
+                os.unlink(rf_name)
+                await asyncio.sleep(0.05)
+                async for tr in self.try_until_succeeds(
+                    ignore=(errors.ClientConnectionError,),
+                ):
+                    async with tr:
+                        await conn.execute("select 1")
+
+                await conn.aclose()
+        finally:
+            if os.path.exists(rf_name):
+                rf.close()
+                os.unlink(rf_name)
+
     async def test_server_ops_restore_with_schema_signal(self):
         async def test(pgdata_path):
             backend_dsn = f'postgres:///?user=postgres&host={pgdata_path}'

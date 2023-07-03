@@ -89,6 +89,7 @@ __all__ = base.__all__ + (  # type: ignore
     'AuthenticationError',
     'AvailabilityError',
     'BackendUnavailableError',
+    'ServerOfflineError',
     'BackendError',
     'UnsupportedBackendFeatureError',
     'LogMessage',
@@ -414,6 +415,10 @@ class AvailabilityError(EdgeDBError):
 
 class BackendUnavailableError(AvailabilityError):
     _code = 0x_08_00_00_01
+
+
+class ServerOfflineError(AvailabilityError):
+    _code = 0x_08_00_00_02
 
 
 class BackendError(EdgeDBError):

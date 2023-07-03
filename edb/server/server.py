@@ -280,6 +280,7 @@ class Server(ha_base.ClusterProtocol):
         self._admin_ui = admin_ui
 
         self._readiness = srvargs.ReadinessState.Default
+        self._readiness_reason = ""
 
         # A set of databases that should not accept new connections.
         self._block_new_connections: set[str] = set()
@@ -326,11 +327,20 @@ class Server(ha_base.ClusterProtocol):
     def is_admin_ui_enabled(self):
         return self._admin_ui
 
+    def is_online(self) -> bool:
+        return self._readiness is not srvargs.ReadinessState.Offline
+
     def is_ready(self) -> bool:
-        return self._readiness is srvargs.ReadinessState.Default
+        return (
+            self._readiness is srvargs.ReadinessState.Default
+            or self._readiness is srvargs.ReadinessState.ReadOnly
+        )
 
     def is_readonly(self) -> bool:
         return self._readiness is srvargs.ReadinessState.ReadOnly
+
+    def get_readiness_reason(self) -> str:
+        return self._readiness_reason
 
     def get_pg_dbname(self, dbname: str) -> str:
         return self._cluster.get_db_name(dbname)
@@ -1960,13 +1970,16 @@ class Server(ha_base.ClusterProtocol):
     def reload_readiness_state(self, state_file):
         try:
             with open(state_file, 'rt') as rt:
-                state = rt.readline().strip()
+                line = rt.readline().strip()
                 try:
+                    state, _, reason = line.partition(":")
                     self._readiness = srvargs.ReadinessState(state)
+                    self._readiness_reason = reason
                     logger.info(
                         "readiness state file changed, "
-                        "setting server readiness to %r",
+                        "setting server readiness to %r%s",
                         state,
+                        f" ({reason})" if reason else "",
                     )
                 except ValueError:
                     logger.warning(
@@ -1993,6 +2006,8 @@ class Server(ha_base.ClusterProtocol):
                 e,
             )
             self._readiness = srvargs.ReadinessState.Default
+
+        self._accepting_connections = self.is_online()
 
     def reload_tls(self, tls_cert_file, tls_key_file):
         logger.info("loading TLS certificates")
