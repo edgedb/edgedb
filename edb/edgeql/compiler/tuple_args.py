@@ -301,21 +301,23 @@ def make_decoder(
             )
 
             loop = qlast.ForQuery(
-                iterator_alias=inner_idx_alias,
-                # TODO: Using _gen_series would be marginally faster,
-                # but it isn't actually available in distributions
-                # iterator=qlast.FunctionCall(
-                #     func=('__std__', '_gen_series'),
-                #     args=[lo, _plus_const(hi, -1)],
-                # ),
-                iterator=qlast.FunctionCall(
-                    func=('__std__', 'range_unpack'), args=[
-                        qlast.FunctionCall(
-                            func=('__std__', 'range'),
-                            args=[lo, hi],
-                        )
-                    ]
-                ),
+                iterator_bindings=[qlast.ForBinding(
+                    iterator_alias=inner_idx_alias,
+                    # TODO: Using _gen_series would be marginally faster,
+                    # but it isn't actually available in distributions
+                    # iterator=qlast.FunctionCall(
+                    #     func=('__std__', '_gen_series'),
+                    #     args=[lo, _plus_const(hi, -1)],
+                    # ),
+                    iterator=qlast.FunctionCall(
+                        func=('__std__', 'range_unpack'), args=[
+                            qlast.FunctionCall(
+                                func=('__std__', 'range'),
+                                args=[lo, hi],
+                            )
+                        ]
+                    ),
+                )],
                 result=sub_expr,
             )
             res: qlast.Expr = qlast.FunctionCall(

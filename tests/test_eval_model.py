@@ -608,3 +608,21 @@ class TestModelSmokeTests(unittest.TestCase):
                 [{"n": [3], "m": [2]}, 2],
             ]),
         )
+
+    def test_model_for_optional_01(self):
+        self.assert_test_query(
+            r'''
+                for optional x in
+                    (select User filter .name = 'George')
+                union x.deck_cost ?? 0;
+            ''',
+            [0],
+        )
+
+    def test_model_for_order_by(self):
+        self.assert_test_query(
+            r"""
+                for x in User union x.name order by x.name desc
+            """,
+            ["Dave", "Carol", "Bob", "Alice"],
+        )
