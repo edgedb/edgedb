@@ -203,6 +203,16 @@ QS = [
     '''
     SELECT (User IS (Named, Text));
     ''',
+    '''sdl
+    module test {
+        scalar type foobar {
+            index prop on (__source__);
+        };
+    };
+    ''',
+    '''
+    INSERT Foo FILTER Foo.bar = 42;
+    ''',
 ]
 
 for q in QS[-1:]:

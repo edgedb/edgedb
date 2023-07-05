@@ -748,7 +748,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Expected 'ON', but got 'prop' instead", line=4, col=23)
+                  r"Missing :=", line=4, col=22)
     def test_eschema_syntax_index_03(self):
         """
         module test {
@@ -757,6 +757,8 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
             };
         };
         """
+        # XXX: error recovery quality regression
+        #      Expected 'ON', but got 'prop' instead
 
     def test_eschema_syntax_index_04(self):
         """
@@ -1043,7 +1045,7 @@ type LogEntry extending    OwnedObject,    Text {
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected 'delegated'",
+                  r"Unexpected keyword 'DELEGATED'",
                   line=3, col=13)
     def test_eschema_syntax_constraint_02(self):
         """
@@ -1135,7 +1137,7 @@ type LogEntry extending    OwnedObject,    Text {
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected 'constraint'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected constraint",
                   line=3, col=13)
     def test_eschema_syntax_constraint_09(self):
         """
@@ -1198,7 +1200,7 @@ abstract property test::foo {
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected 'property'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected property",
                   line=3, col=13)
     def test_eschema_syntax_property_05(self):
         """
@@ -1410,7 +1412,7 @@ abstract property test::foo {
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected 'link'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected keyword 'LINK'",
                   line=3, col=13)
     def test_eschema_syntax_link_11(self):
         """
@@ -1419,7 +1421,7 @@ abstract property test::foo {
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected '::'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected ::",
                   line=4, col=25)
     def test_eschema_syntax_link_12(self):
         """
@@ -1664,7 +1666,7 @@ abstract property test::foo {
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected '>'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected >",
                   line=6, col=21)
     def test_eschema_syntax_function_17(self):
         """
@@ -1848,10 +1850,8 @@ abstract property test::foo {
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Unexpected token:.+2',
-                  hint=r"It appears that a ',' is missing in a tuple "
-                       r"before '2'",
-                  line=3, col=32)
+                  r'Missing ,',
+                  line=3, col=31)
     def test_eschema_syntax_alias_05(self):
         """
         module test {

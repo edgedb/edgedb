@@ -1,5 +1,5 @@
 use edgeql_rust::normalize::{normalize, Variable};
-use edgeql_parser::tokenizer::{Value as Value};
+use edgeql_parser::tokenizer::Value;
 use num_bigint::BigInt;
 
 
@@ -204,6 +204,7 @@ fn test_script() {
                 value: Value::Int(2),
             }
         ],
+        vec![]
     ]);
 }
 
@@ -228,5 +229,6 @@ fn test_script_with_args() {
                 value: Value::Int(2),
             }
         ],
+        vec![]
     ]);
 }

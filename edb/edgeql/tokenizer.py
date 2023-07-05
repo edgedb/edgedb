@@ -139,8 +139,8 @@ def _normalize(eql: str) -> ql_parser.Entry:
     try:
         return ql_parser.normalize(eql)
     except ql_parser.SyntaxError as e:
-        message, position_start, position_end = e.args
-        position = (position_start, position_end)
+        message, position = e.args
+        position = inflate_position(eql, position)
 
         hint = _derive_hint(eql, message, position)
         raise errors.EdgeQLSyntaxError(

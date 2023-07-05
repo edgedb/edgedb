@@ -143,8 +143,8 @@ impl InflatedPos {
 
     pub fn deflate(self) -> Pos {
         Pos {
-            line: self.line as usize,
-            column: self.column as usize,
+            line: self.line as usize + 1,
+            column: self.column as usize + 1,
             offset: self.offset,
         }
     }

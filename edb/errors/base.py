@@ -148,7 +148,10 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     def has_source_context(self):
         return FIELD_DETAILS in self._attrs
 
-    def set_source_context(self, context: pctx.ParserContext):
+    def set_source_context(self, context: Optional[pctx.ParserContext]):
+        if not context:
+            return
+
         start = context.start_point
         end = context.end_point
         ex.replace_context(self, context)

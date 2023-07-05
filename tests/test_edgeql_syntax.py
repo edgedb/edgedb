@@ -3015,7 +3015,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  line=2, col=19)
+                  'Unexpected keyword \'.*\'',
+                  line=2, col=20)
     def test_edgeql_syntax_insert_06(self):
         """
         INSERT Foo FILTER Foo.bar = 42;
@@ -3030,7 +3031,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  line=2, col=19)
+                  'Unexpected keyword \'.*\'',
+                  line=2, col=20)
     def test_edgeql_syntax_insert_08(self):
         """
         INSERT Foo ORDER BY Foo.bar;

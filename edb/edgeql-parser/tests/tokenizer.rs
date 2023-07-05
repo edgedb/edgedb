@@ -608,7 +608,7 @@ fn strings() {
     assert_eq!(tok_str(r#" rb'hello'  "#), [r#"rb'hello'"#]);
     assert_eq!(tok_typ(r#" rb'hello'  "#), [BinStr]);
     assert_eq!(tok_str(r#" `hello`  "#), [r#"`hello`"#]);
-    assert_eq!(tok_typ(r#" `hello`  "#), [BacktickName]);
+    assert_eq!(tok_typ(r#" `hello`  "#), [Ident]);
 
     assert_eq!(tok_str(r#" "hello""#), [r#""hello""#]);
     assert_eq!(tok_typ(r#" "hello""#), [Str]);
@@ -627,7 +627,7 @@ fn strings() {
     assert_eq!(tok_str(r#" rb'hello'"#), [r#"rb'hello'"#]);
     assert_eq!(tok_typ(r#" rb'hello'"#), [BinStr]);
     assert_eq!(tok_str(r#" `hello`"#), [r#"`hello`"#]);
-    assert_eq!(tok_typ(r#" `hello`"#), [BacktickName]);
+    assert_eq!(tok_typ(r#" `hello`"#), [Ident]);
 
     assert_eq!(tok_str(r#" "h\"ello" "#), [r#""h\"ello""#]);
     assert_eq!(tok_typ(r#" "h\"ello" "#), [Str]);
@@ -646,9 +646,9 @@ fn strings() {
     assert_eq!(tok_str(r#" rb'hello\' "#), [r#"rb'hello\'"#]);
     assert_eq!(tok_typ(r#" rb'hello\' "#), [BinStr]);
     assert_eq!(tok_str(r#" `hello\` "#), [r#"`hello\`"#]);
-    assert_eq!(tok_typ(r#" `hello\` "#), [BacktickName]);
+    assert_eq!(tok_typ(r#" `hello\` "#), [Ident]);
     assert_eq!(tok_str(r#" `hel``lo` "#), [r#"`hel``lo`"#]);
-    assert_eq!(tok_typ(r#" `hel``lo` "#), [BacktickName]);
+    assert_eq!(tok_typ(r#" `hel``lo` "#), [Ident]);
 
     assert_eq!(tok_str(r#" "h'el`lo" "#), [r#""h'el`lo""#]);
     assert_eq!(tok_typ(r#" "h'el`lo" "#), [Str]);
@@ -667,7 +667,7 @@ fn strings() {
     assert_eq!(tok_str(r#" rb'h"el`lo' "#), [r#"rb'h"el`lo'"#]);
     assert_eq!(tok_typ(r#" rb'h"el`lo' "#), [BinStr]);
     assert_eq!(tok_str(r#" `h'el"lo` "#), [r#"`h'el"lo`"#]);
-    assert_eq!(tok_typ(r#" `h'el"lo\` "#), [BacktickName]);
+    assert_eq!(tok_typ(r#" `h'el"lo\` "#), [Ident]);
 
     assert_eq!(tok_str(" \"hel\nlo\" "), ["\"hel\nlo\""]);
     assert_eq!(tok_typ(" \"hel\nlo\" "), [Str]);
@@ -686,7 +686,7 @@ fn strings() {
     assert_eq!(tok_str(" rb'hel\nlo' "), ["rb'hel\nlo'"]);
     assert_eq!(tok_str(" br'hel\nlo' "), ["br'hel\nlo'"]);
     assert_eq!(tok_str(" `hel\nlo` "), ["`hel\nlo`"]);
-    assert_eq!(tok_typ(" `hel\nlo` "), [BacktickName]);
+    assert_eq!(tok_typ(" `hel\nlo` "), [Ident]);
 
     assert_eq!(tok_err(r#""hello"#),
         "unterminated string, quoted by `\"`");

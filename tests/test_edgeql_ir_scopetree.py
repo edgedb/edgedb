@@ -63,7 +63,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
     @tb.must_fail(errors.QueryError,
                   "reference to 'User' changes the interpretation",
-                  line=3, col=9)
+                  line=3, col=16)
     def test_edgeql_ir_scope_tree_bad_02(self):
         """
         SELECT User.deck

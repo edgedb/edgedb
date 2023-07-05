@@ -111,7 +111,7 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
         }
     };
     let mut last_was_set = false;
-    for (idx, tok) in tokens.iter().enumerate() {
+    for tok in &tokens {
         let mut is_set = false;
         match tok.kind {
             Kind::IntConst
@@ -188,10 +188,8 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
             // because the only statements with internal semis are DDL
             // statements, which we don't support anyway.
             Kind::Semicolon => {
-                if idx + 1 < tokens.len() {
-                    all_variables.push(variables);
-                    variables = Vec::new();
-                }
+                all_variables.push(variables);
+                variables = Vec::new();
                 rewritten_tokens.push(tok.clone());
             }
             Kind::Keyword(Keyword("set")) => {
@@ -280,6 +278,10 @@ fn serialize_tokens(tokens: &[Token]) -> String {
     let mut buf = String::new();
     let mut needs_space = false;
     for token in tokens {
+        if matches!(token.kind, Kind::EOF | Kind::EOI) {
+            break;
+        }
+
         if needs_space && !is_operator(token) && token.kind != Argument {
             buf.push(' ');
         }
