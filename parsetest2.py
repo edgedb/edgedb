@@ -7,11 +7,19 @@ from edb.edgeql import ast as qlast
 
 
 def parse(querystr: str) -> qlast.Expr:
+    sdl = querystr.startswith('sdl')
+    if sdl:
+        querystr = querystr[3:]
+    
     # s = tokenizer.NormalizedSource.from_string(querystr)
     s = tokenizer.Source.from_string(querystr)
     bytes = pickle.dumps(s)
     s2 = pickle.loads(bytes)
-    return parser.parse_sdl(s2)
+    
+    if sdl:
+        return parser.parse_sdl(s2)
+    else:
+        return parser.parse_block(s2)
 
 
 QS = [
@@ -102,12 +110,93 @@ QS = [
         FILTER .name LIKE "default::%"
     ) > 0
     ''',
-    '''
+    '''sdl
     module test {
         function len1(a: str b: str) ->  std::str {
             using SQL function 'length1'
         }
+    ''',
     '''
+    SELECT len('');
+    ''',
+    '''
+    SELECT __std__::len({'hello', 'world'});
+    ''',
+    '''sdl
+    module test {
+        alias FooBaz := [1 2];
+    };
+    ''',
+    '''
+    SEL ECT 1
+    ''',
+    '''
+    SELECT (
+        foo: 1,
+        bar := 3
+    );
+    ''',
+    '''
+    SELECT (
+        foo: (
+            bar: 42
+        )
+    );
+    ''',
+    '''
+    SELECT count(FOR X IN {Foo} UNION X);
+    ''',
+    '''
+    SELECT some_agg(User.name) OVER (ORDER BY User.age ASC);
+    SELECT some_agg(User.name) OVER (
+        PARTITION BY strlen(User.name)
+        ORDER BY User.age ASC);
+    SELECT some_agg(User.name) OVER (
+        PARTITION BY User.email, User.age
+        ORDER BY User.age ASC);
+    SELECT some_agg(User.name) OVER (
+        PARTITION BY User.email, User.age
+        ORDER BY User.age ASC THEN User.name ASC);
+    ''',
+    '''
+    SELECT Issue{
+            name,
+            related_to *-1,
+        };
+    ''',
+    '''
+    SELECT __type__;
+    ''',
+    '''
+    SELECT Issue{
+        name,
+        related_to *,
+    };
+    ''',
+    '''
+    SELECT Foo {(bar)};
+    ''',
+    '''
+    SELECT Foo.__source__;
+    ''',
+    '''
+    SELECT Foo.bar@__type__;
+    ''',
+    '''
+    SELECT Foo {
+        __type__.name
+    };
+    ''',
+    '''
+    SELECT (User IS (Named, Text));
+    ''',
+    '''
+    SELECT INTROSPECT tuple<int64>;
+    ''',
+    '''
+    CREATE FUNCTION std::strlen(string: std::str = '1', abc: std::str)
+            -> std::int64 {};
+    ''',
 ]
 
 for q in QS[-1:]:
@@ -118,7 +207,11 @@ for q in QS[-1:]:
     # try:
     ast = parse(q)
 
+    if not isinstance(ast, list):
+        ast = [ast]
+
     for x in ast:
+        x.dump()
         x.dump_edgeql()
     # except Exception as e:
         # print(e)

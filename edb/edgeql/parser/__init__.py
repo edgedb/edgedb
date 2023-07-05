@@ -30,7 +30,7 @@ from . import parser as qlparser
 from .. import ast as qlast
 from .. import tokenizer as qltokenizer
 
-EdgeQLParserBase = qlparser.EdgeQLParserBase
+EdgeQLParserBase = qlparser.EdgeQLParserSpec
 
 
 def append_module_aliases(tree, aliases):
@@ -51,7 +51,7 @@ def parse_fragment(
     source: Union[qltokenizer.Source, str],
     filename: Optional[str]=None,
 ) -> qlast.Expr:
-    parser = qlparser.EdgeQLExpressionParser().get_parser()
+    parser = qlparser.EdgeQLExpressionSpec().get_parser()
     res = parser.parse(source, filename=filename)
     assert isinstance(res, qlast.Expr)
     return res
@@ -61,7 +61,7 @@ def parse_single(
     source: Union[qltokenizer.Source, str],
     filename: Optional[str]=None,
 ) -> qlast.Statement:
-    parser = qlparser.EdgeQLSingleParser().get_parser()
+    parser = qlparser.EdgeQLSingleSpec().get_parser()
     res = parser.parse(source, filename=filename)
     assert isinstance(res, (qlast.Query | qlast.Command))
     return res
@@ -103,7 +103,7 @@ def parse_command(
 
 
 def parse_block(source: Union[qltokenizer.Source, str]) -> List[qlast.Base]:
-    parser = qlparser.EdgeQLBlockParser().get_parser()
+    parser = qlparser.EdgeQLBlockSpec().get_parser()
     return parser.parse(source)
 
 
@@ -117,7 +117,7 @@ def parse_migration_body_block(
     # where the source contexts don't matter anyway.
     source = '{' + source + '}'
 
-    parser = qlparser.EdgeQLMigrationBodyParser().get_parser()
+    parser = qlparser.EdgeQLMigrationBodySpec().get_parser()
     return parser.parse(source)
 
 
@@ -131,30 +131,30 @@ def parse_extension_package_body_block(
     # where the source contexts don't matter anyway.
     source = '{' + source + '}'
 
-    parser = qlparser.EdgeQLExtensionPackageBodyParser().get_parser()
+    parser = qlparser.EdgeQLExtensionPackageBodySpec().get_parser()
     return parser.parse(source)
 
 
 def parse_sdl(expr: str):
-    parser = qlparser.EdgeSDLParser().get_parser()
+    parser = qlparser.EdgeSDLSpec().get_parser()
     return parser.parse(expr)
 
 
-def _load_parser(parser: qlparser.EdgeQLParserBase) -> None:
+def _load_parser(parser: qlparser.EdgeQLParserSpec) -> None:
     parser.get_parser_spec(allow_rebuild=True)
 
 
 def preload(
     allow_rebuild: bool = True,
     paralellize: bool = False,
-    parsers: Optional[List[qlparser.EdgeQLParserBase]] = None,
+    parsers: Optional[List[qlparser.EdgeQLParserSpec]] = None,
 ) -> None:
     if parsers is None:
         parsers = [
-            qlparser.EdgeQLBlockParser(),
-            qlparser.EdgeQLSingleParser(),
-            qlparser.EdgeQLExpressionParser(),
-            qlparser.EdgeSDLParser(),
+            qlparser.EdgeQLBlockSpec(),
+            qlparser.EdgeQLSingleSpec(),
+            qlparser.EdgeQLExpressionSpec(),
+            qlparser.EdgeSDLSpec(),
         ]
 
     if not paralellize:
@@ -195,6 +195,7 @@ def process_spec(parser: parsing.ParserSpec) -> Tuple[str, List[Any]]:
     productions: List[Any] = []
     production_ids: Dict[Any, int] = {}
     inlines: List[Tuple[int, int]] = []
+
     def get_production_id(prod: Any) -> int:
         if prod in production_ids:
             return production_ids[prod]
@@ -204,7 +205,7 @@ def process_spec(parser: parsing.ParserSpec) -> Tuple[str, List[Any]]:
         production_ids[prod] = id
 
         inline = getattr(prod.method, 'inline_index', None)
-        if inline != None:
+        if inline is not None:
             assert isinstance(inline, int)
             inlines.append((id, inline))
 

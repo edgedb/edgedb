@@ -1668,7 +1668,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.QueryError,
                     "can not take cross product of volatile operation",
-                    _position=36):
+                    _position=35):
                 await self.con.execute(
                     r"""
                     SELECT Obj.n + random()

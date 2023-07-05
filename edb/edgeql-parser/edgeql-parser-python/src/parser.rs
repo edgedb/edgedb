@@ -8,6 +8,7 @@ use cpython::{
 use edgeql_parser::keywords;
 use edgeql_parser::parser;
 use edgeql_parser::tokenizer;
+use indexmap::IndexMap;
 
 use crate::errors::{parser_error_into_tuple, ParserResult};
 use crate::pynormalize::value_to_py_object;
@@ -87,8 +88,6 @@ pub fn parse(py: Python, parser_name: &PyString, tokens: PyObject) -> PyResult<P
 
     let tokens = downcast_tokens(py, tokens)?;
 
-    // dbg!(&tokens);
-
     let (cst, errors) = parser::parse(spec, tokens);
 
     // debug_cst_node(py, cst.as_ref().unwrap(), productions);
@@ -144,19 +143,19 @@ pub fn spec_from_json(j_spec: &str) -> Result<parser::Spec, String> {
 
     let v = serde_json::from_str::<SpecJson>(j_spec).map_err(|e| e.to_string())?;
 
+    let actions = v
+        .actions
+        .into_iter()
+        .map(|x| x.into_iter().map(|(k, a)| (get_token_kind(&k), a)))
+        .map(IndexMap::from_iter)
+        .collect();
+    let goto = v.goto.into_iter().map(IndexMap::from_iter).collect();
+    let inlines = IndexMap::from_iter(v.inlines);
     Ok(parser::Spec {
-        actions: v
-            .actions
-            .into_iter()
-            .map(|x| {
-                x.into_iter()
-                    .map(|(k, a)| (get_token_kind(&k), a))
-                    .collect()
-            })
-            .collect(),
-        goto: v.goto.into_iter().map(HashMap::from_iter).collect(),
+        actions,
+        goto,
         start: v.start,
-        inlines: HashMap::from_iter(v.inlines),
+        inlines,
     })
 }
 
@@ -211,10 +210,10 @@ fn get_token_kind(token_name: &str) -> tokenizer::Kind {
         "NICONST" => BigIntConst,
         "SCONST" => Str,
 
-        "ADDASSIGN" => AddAssign,
-        "ARROW" => Arrow,
-        "ASSIGN" => Assign,
-        "REMASSIGN" => SubAssign,
+        "+=" => AddAssign,
+        "->" => Arrow,
+        ":=" => Assign,
+        "-=" => SubAssign,
 
         "ARGUMENT" => Argument,
         "SUBSTITUTION" => Substitution,

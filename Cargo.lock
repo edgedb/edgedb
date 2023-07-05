@@ -241,6 +241,7 @@ dependencies = [
  "cpython",
  "edgedb-protocol",
  "edgeql-parser",
+ "indexmap",
  "num-bigint 0.4.3",
  "rmp-serde",
  "serde",

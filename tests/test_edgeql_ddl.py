@@ -4336,7 +4336,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_function_20(self):
         with self.assertRaisesRegex(
                 edgedb.EdgeQLSyntaxError,
-                r"Unexpected ';'"):
+                "Unexpected \";\""):
 
             await self.con.execute(r'''
                 CREATE FUNCTION ddlf_20(f: int64) -> int64
@@ -12337,7 +12337,7 @@ type default::Foo {
         with self.assertRaisesRegex(
             edgedb.SchemaDefinitionError,
             r"possibly more than one element returned by the index expression",
-            _line=4, _col=34
+            _line=4, _col=38
         ):
             await self.con.execute(r"""
                 CREATE TYPE Foo {
@@ -12364,7 +12364,7 @@ type default::Foo {
         with self.assertRaisesRegex(
             edgedb.SchemaDefinitionError,
             r"possibly more than one element returned by the index expression",
-            _line=5, _col=34
+            _line=5, _col=38
         ):
             await self.con.execute(r"""
                 CREATE TYPE Foo {

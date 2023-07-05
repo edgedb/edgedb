@@ -1770,10 +1770,8 @@ abstract property test::foo {
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Unexpected token:.+b',
-                  hint=r"It appears that a ',' is missing in a list of "
-                       r"arguments before 'b'",
-                  line=3, col=34)
+                  r'Missing ,',
+                  line=3, col=33)
     def test_eschema_syntax_function_21(self):
         """
         module test {
@@ -1862,10 +1860,8 @@ abstract property test::foo {
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Unexpected token:.+2',
-                  hint=r"It appears that a ',' is missing in an array "
-                       r"before '2'",
-                  line=3, col=32)
+                  r'Missing ,',
+                  line=3, col=31)
     def test_eschema_syntax_alias_06(self):
         """
         module test {

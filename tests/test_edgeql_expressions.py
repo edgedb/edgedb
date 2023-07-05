@@ -7238,7 +7238,7 @@ aa \
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                _position=29):
+                _position=35):
 
             await self.con.execute('''\
                 SELECT Issue LIMIT LogEntry.spent_time;

@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-
+use indexmap::IndexMap;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -39,6 +38,7 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
     let input = [input, vec![eio]].concat();
 
     let mut parsers = vec![initial_track];
+    let mut prev_span: Option<Span> = None;
 
     for token in input {
         let mut new_parsers = Vec::with_capacity(parsers.len() + 5);
@@ -53,23 +53,27 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
             } else {
                 // error: try to recover
 
+                let gap_span = {
+                    let prev_end = prev_span.map(|p| p.end).unwrap_or(token.span.start);
+
+                    Span {
+                        start: prev_end,
+                        end: token.span.start,
+                    }
+                };
+
                 // option 1: inject a token
                 let possible_actions = &ctx.spec.actions[parser.stack_top.state];
                 for token_kind in possible_actions.keys() {
                     let mut inject = parser.clone();
 
-                    let injection = Terminal {
-                        kind: token_kind.clone(),
-                        text: "".to_string(),
-                        value: None,
-                        span: Span::default(),
-                    };
+                    let injection = new_token_for_injection(token_kind);
 
                     let cost = error_cost(token_kind);
-                    let error = Error::new(format!("Missing {injection}")).with_span(token.span);
+                    let error = Error::new(format!("Missing {injection}")).with_span(gap_span);
                     inject.push_error(error, cost);
 
-                    if inject.error_cost <= ERROR_COST_MAX {
+                    if inject.error_cost <= ERROR_COST_INJECT_MAX {
                         // println!("   --> [inject {injection}]");
 
                         if inject.act(&ctx, &injection).is_ok() {
@@ -86,7 +90,7 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
                 skip.push_error(error, ERROR_COST_SKIP);
                 if token.kind == Kind::EOF {
                     // extra penalty
-                    skip.error_cost += ERROR_COST_MAX;
+                    skip.error_cost += ERROR_COST_INJECT_MAX;
                     skip.can_recover = false;
                 };
 
@@ -117,6 +121,7 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
         }
 
         parsers = new_parsers;
+        prev_span = Some(token.span);
     }
 
     // there will always be a parser left,
@@ -132,11 +137,24 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
     (node, parser.errors)
 }
 
+fn new_token_for_injection(kind: &Kind) -> Terminal {
+    Terminal {
+        kind: kind.clone(),
+        text: kind.text().unwrap_or_default().to_string(),
+        value: match kind {
+            Kind::Keyword(Keyword(kw)) => Some(Value::String(kw.to_string())),
+            Kind::Ident => Some(Value::String("my_name".to_string())),
+            _ => None,
+        },
+        span: Span::default(),
+    }
+}
+
 pub struct Spec {
-    pub actions: Vec<HashMap<Kind, Action>>,
-    pub goto: Vec<HashMap<String, usize>>,
+    pub actions: Vec<IndexMap<Kind, Action>>,
+    pub goto: Vec<IndexMap<String, usize>>,
     pub start: String,
-    pub inlines: HashMap<usize, u8>,
+    pub inlines: IndexMap<usize, u8>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -357,14 +375,14 @@ impl<'s> Parser<'s> {
     }
 }
 
-const ERROR_COST_MAX: u16 = 15;
-const ERROR_COST_SKIP: u16 = 2;
+const ERROR_COST_INJECT_MAX: u16 = 15;
+const ERROR_COST_SKIP: u16 = 3;
 
 fn error_cost(kind: &Kind) -> u16 {
     use Kind::*;
 
     match kind {
-        Ident => 10,
+        Ident => 9,
         Substitution => 8,
         Keyword(_) => 10,
 
@@ -374,12 +392,13 @@ fn error_cost(kind: &Kind) -> u16 {
         CloseBrace | CloseBracket | CloseParen => 1,
 
         Namespace => 10,
-        Colon | Semicolon | Comma | Eq => 5,
+        Semicolon | Comma | Colon => 2,
+        Eq => 5,
 
         At => 5,
         IntConst => 8,
 
-        Assign | AddAssign | SubAssign | Arrow => 10,
+        Assign | Arrow => 5,
 
         _ => 100, // forbidden
     }
@@ -387,11 +406,14 @@ fn error_cost(kind: &Kind) -> u16 {
 
 impl std::fmt::Display for Terminal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.text.is_empty() {
+            return write!(f, "{}", self.kind.user_friendly_text().unwrap_or_default());
+        }
+
         match self.kind {
-            Kind::EOF => f.write_str("end of line"),
             Kind::Ident => f.write_str(&quote_name(&self.text)),
-            Kind::Keyword(Keyword(kw)) => write!(f, "{kw}"),
-            _ => write!(f, "token: {}", self.text),
+            Kind::Keyword(Keyword(kw)) => write!(f, "keyword '{}'", kw.to_ascii_uppercase()),
+            _ => f.write_str(&self.text),
         }
     }
 }

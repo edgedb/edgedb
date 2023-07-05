@@ -981,3 +981,77 @@ where
 
     deserializer.deserialize_str(Visitor)
 }
+
+impl Kind {
+    pub fn text(&self) -> Option<&'static str> {
+        use Kind::*;
+
+        Some(match self {
+            Add => "+",
+            Ampersand => "&",
+            At => "@",
+            BackwardLink => ".<",
+            CloseBrace => "}",
+            CloseBracket => "]",
+            CloseParen => ")",
+            Coalesce => "??",
+            Colon => ":",
+            Comma => ",",
+            Concat => "++",
+            Div => "/",
+            Dot => ".",
+            DoubleSplat => "**",
+            Eq => "=",
+            FloorDiv => "//",
+            Modulo => "%",
+            Mul => "*",
+            Namespace => "::",
+            OpenBrace => "{",
+            OpenBracket => "[",
+            OpenParen => "(",
+            Pipe => "|",
+            Pow => "^",
+            Semicolon => ";",
+            Sub => "-",
+
+            DistinctFrom => "?!=",
+            GreaterEq => ">=",
+            LessEq => "<=",
+            NotDistinctFrom => "?=",
+            NotEq => "!=",
+            Less => "<",
+            Greater => ">",
+
+            AddAssign => "+=",
+            Arrow => "->",
+            Assign => ":=",
+            SubAssign => "-=",
+
+            Keyword(keywords::Keyword(kw)) => kw,
+
+            _ => return None,
+        })
+    }
+
+    pub fn user_friendly_text(&self) -> Option<&'static str> {
+        if let Some(text) = self.text() {
+            return Some(text);
+        }
+
+        use Kind::*;
+        Some(match self {
+            Ident => "identifier",
+            EOF => "end of file",
+            EOI => "end of input",
+
+            BinStr => "binary constant",
+            FloatConst => "float constant",
+            IntConst => "int constant",
+            DecimalConst => "decimal constant",
+            BigIntConst => "big int constant",
+            Str => "string constant",
+
+            _ => return None,
+        })
+    }
+}
