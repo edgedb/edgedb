@@ -280,9 +280,15 @@ impl<'s> Parser<'s> {
         let mut value = value;
         if let CSTNode::Production(production) = value {
             if let Some(inline_position) = ctx.spec.inlines.get(&production.id) {
+                // inline rule found
                 let mut args = production.args;
+                let span = get_span_of_nodes(&args);
+
                 value = args.swap_remove(*inline_position as usize);
+
+                extend_span(&mut value, span);
             } else {
+                // place back
                 value = CSTNode::Production(production);
             }
         }
@@ -372,6 +378,35 @@ impl<'s> Parser<'s> {
 
     fn has_recovered(&self) -> bool {
         self.can_recover && self.adjusted_cost() == 0
+    }
+}
+
+fn get_span_of_nodes(args: &Vec<CSTNode>) -> Option<Span> {
+    let start = args.iter().find_map(|x| match x {
+        CSTNode::Terminal(t) => Some(t.span.start),
+        _ => None,
+    })?;
+    let end = args.iter().rev().find_map(|x| match x {
+        CSTNode::Terminal(t) => Some(t.span.end),
+        _ => None,
+    })?;
+    Some(Span { start, end })
+}
+
+fn extend_span(value: &mut CSTNode, span: Option<Span>) {
+    let Some(span) = span else {
+        return;
+    };
+
+    let CSTNode::Terminal(terminal) = value else {
+        return
+    };
+
+    if span.start.offset < terminal.span.start.offset {
+        terminal.span.start = span.start;
+    }
+    if span.end.offset > terminal.span.end.offset {
+        terminal.span.end = span.end;
     }
 }
 

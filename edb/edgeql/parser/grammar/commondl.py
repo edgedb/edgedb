@@ -31,7 +31,6 @@ from edb.edgeql import qltypes
 
 from edb.common import parsing
 from edb.common import verutils
-from edb.common import context as pctx
 
 from . import expressions
 from . import tokens
