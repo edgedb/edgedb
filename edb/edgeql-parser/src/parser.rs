@@ -4,6 +4,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::helpers::quote_name;
+use crate::keywords::Keyword;
 use crate::position::Span;
 use crate::tokenizer::Error;
 use crate::tokenizer::Kind;
@@ -20,6 +21,8 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
     let initial_track = Parser {
         stack_top,
         error_cost: 0,
+        node_count: 0,
+        can_recover: true,
         errors: Vec::new(),
     };
 
@@ -45,6 +48,7 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
 
             if res.is_ok() {
                 // base case: ok
+                parser.node_successful();
                 new_parsers.push(parser);
             } else {
                 // error: try to recover
@@ -63,7 +67,9 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
 
                     let cost = error_cost(token_kind);
                     let error = Error::new(format!("Missing {injection}")).with_span(token.span);
-                    if inject.try_push_error(error, cost) {
+                    inject.push_error(error, cost);
+
+                    if inject.error_cost <= ERROR_COST_MAX {
                         // println!("   --> [inject {injection}]");
 
                         if inject.act(&ctx, &injection).is_ok() {
@@ -74,27 +80,55 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
                 }
 
                 // option 2: skip the token
-                if token.kind != Kind::EOF {
-                    let mut skip = parser;
-                    let error = Error::new(format!("Unexpected {token}")).with_span(token.span);
-                    if skip.try_push_error(error, ERROR_COST_SKIP) {
-                        // println!("   --> [skip]");
 
-                        // insert into new_parsers, so the token is skipped
-                        new_parsers.push(skip);
-                    }
-                }
+                let mut skip = parser;
+                let error = Error::new(format!("Unexpected {token}")).with_span(token.span);
+                skip.push_error(error, ERROR_COST_SKIP);
+                if token.kind == Kind::EOF {
+                    // extra penalty
+                    skip.error_cost += ERROR_COST_MAX;
+                    skip.can_recover = false;
+                };
+
+                // println!("   --> [skip]");
+
+                // insert into new_parsers, so the token is skipped
+                new_parsers.push(skip);
             }
+        }
+
+        // has any parser recovered?
+        if new_parsers.len() > 1 {
+            let recovered = new_parsers.iter().position(Parser::has_recovered);
+
+            if let Some(recovered) = recovered {
+                let mut recovered = new_parsers.swap_remove(recovered);
+                recovered.error_cost = 0;
+
+                new_parsers.clear();
+                new_parsers.push(recovered);
+            }
+        }
+
+        // prune: pick only X best parsers
+        if new_parsers.len() > 10 {
+            new_parsers.sort_by_key(Parser::adjusted_cost);
+            new_parsers.drain(10..);
         }
 
         parsers = new_parsers;
     }
 
-    // TODO: handle error here
+    // there will always be a parser left,
+    // since we always allow a token to be skipped
     let mut parser = parsers.into_iter().min_by_key(|p| p.error_cost).unwrap();
     parser.finish();
 
-    let node = Some(parser.stack_top.value.clone());
+    let node = if parser.can_recover {
+        Some(parser.stack_top.value.clone())
+    } else {
+        None
+    };
     (node, parser.errors)
 }
 
@@ -160,7 +194,14 @@ struct Context<'s> {
 struct Parser<'s> {
     stack_top: &'s StackNode<'s>,
 
+    /// sum of cost of every error recovery action
     error_cost: u16,
+
+    /// number of nodes pushed to stack since last error
+    node_count: u16,
+
+    can_recover: bool,
+
     errors: Vec<Error>,
 }
 
@@ -295,10 +336,24 @@ impl<'s> Parser<'s> {
         println!("{}", states);
     }
 
-    fn try_push_error(&mut self, error: Error, cost: u16) -> bool {
+    fn push_error(&mut self, error: Error, cost: u16) {
         self.errors.push(error);
         self.error_cost += cost;
-        return self.error_cost <= ERROR_COST_MAX;
+        self.node_count = 0;
+    }
+
+    fn node_successful(&mut self) {
+        self.node_count += 1;
+    }
+
+    /// Error cost, subtracted by a function of successfully parsed nodes.
+    fn adjusted_cost(&self) -> u16 {
+        let x = self.node_count.saturating_sub(3);
+        self.error_cost.saturating_sub(x * x)
+    }
+
+    fn has_recovered(&self) -> bool {
+        self.can_recover && self.adjusted_cost() == 0
     }
 }
 
@@ -335,6 +390,7 @@ impl std::fmt::Display for Terminal {
         match self.kind {
             Kind::EOF => f.write_str("end of line"),
             Kind::Ident => f.write_str(&quote_name(&self.text)),
+            Kind::Keyword(Keyword(kw)) => write!(f, "{kw}"),
             _ => write!(f, "token: {}", self.text),
         }
     }

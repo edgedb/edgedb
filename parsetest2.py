@@ -7,10 +7,11 @@ from edb.edgeql import ast as qlast
 
 
 def parse(querystr: str) -> qlast.Expr:
-    s = tokenizer.NormalizedSource.from_string(querystr)
+    # s = tokenizer.NormalizedSource.from_string(querystr)
+    s = tokenizer.Source.from_string(querystr)
     bytes = pickle.dumps(s)
     s2 = pickle.loads(bytes)
-    return parser.parse_block(s2)
+    return parser.parse_sdl(s2)
 
 
 QS = [
@@ -101,7 +102,12 @@ QS = [
         FILTER .name LIKE "default::%"
     ) > 0
     ''',
-    
+    '''
+    module test {
+        function len1(a: str b: str) ->  std::str {
+            using SQL function 'length1'
+        }
+    '''
 ]
 
 for q in QS[-1:]:
