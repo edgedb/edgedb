@@ -96,6 +96,7 @@ cdef class HttpProtocol:
     ):
         self.loop = server.get_loop()
         self.server = server
+        self.tenant = None
         self.transport = None
         self.external_auth = external_auth
         self.sslctx = sslctx
@@ -326,9 +327,15 @@ cdef class HttpProtocol:
             response.body,
             response.close_connection)
 
+    cdef inline _ensure_tenant(self):
+        if self.tenant is None:
+            self.tenant = self.server.get_tenant(None)
+        return self.tenant
+
     def _switch_to_binary_protocol(self, data=None):
         binproto = binary.new_edge_connection(
             self.server,
+            self._ensure_tenant(),
             external_auth=self.external_auth,
         )
         self.transport.set_protocol(binproto)
@@ -367,6 +374,7 @@ cdef class HttpProtocol:
             self.transport, self, self.sslctx, server_side=True
         )
         sslobj = self.transport.get_extra_info('ssl_object')
+        self.tenant = self.server.retrieve_sni_tenant(sslobj)
         if sslobj.selected_alpn_protocol() == 'edgedb-binary':
             self._switch_to_binary_protocol()
         else:
@@ -508,6 +516,7 @@ cdef class HttpProtocol:
 
                     response.body = await binary.eval_buffer(
                         self.server,
+                        self._ensure_tenant(),
                         database=dbname,
                         data=self.current_request.body,
                         conn_params=conn_params,
