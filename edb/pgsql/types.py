@@ -82,6 +82,18 @@ type_to_range_name_map = {
     ('edgedb', 'date_t'): ('daterange',),
 }
 
+# Construct a multirange map based on type_to_range_name_map by replacing
+# 'range' with 'multirange' in the names.
+#
+# The multiranges are created automatically when ranges are created. They
+# have the same names except with "multi" in front of the "range".
+type_to_multirange_name_map = {}
+for key, val in type_to_range_name_map.items():
+    *pre, name = val
+    pre.append(name.replace('range', 'multirange'))
+    type_to_multirange_name_map[key] = tuple(pre)
+
+
 base_type_name_map_r = {
     'character varying': sn.QualName('std', 'str'),
     'character': sn.QualName('std', 'str'),
@@ -196,6 +208,10 @@ def pg_type_range(tp: Tuple[str, ...]) -> Tuple[str, ...]:
     return type_to_range_name_map[tp]
 
 
+def pg_type_multirange(tp: Tuple[str, ...]) -> Tuple[str, ...]:
+    return type_to_multirange_name_map[tp]
+
+
 def pg_type_from_object(
     schema: s_schema.Schema, obj: s_obj.Object, persistent_tuples: bool = False
 ) -> Tuple[str, ...]:
@@ -230,6 +246,15 @@ def pg_type_from_object(
                 persistent_tuples=persistent_tuples)
             return pg_type_range(tp)
 
+    elif isinstance(obj, s_types.Multirange):
+        if obj.is_polymorphic(schema):
+            return ('anymultirange',)
+        else:
+            tp = pg_type_from_object(
+                schema, obj.get_subtypes(schema)[0],
+                persistent_tuples=persistent_tuples)
+            return pg_type_multirange(tp)
+
     elif isinstance(obj, s_objtypes.ObjectType):
         return ('uuid',)
 
@@ -257,7 +282,7 @@ def pg_type_from_ir_typeref(
                 persistent_tuples=persistent_tuples)
             return pg_type_array(tp)
 
-    if irtyputils.is_range(ir_typeref):
+    elif irtyputils.is_range(ir_typeref):
         if (irtyputils.is_generic(ir_typeref)
                 or (irtyputils.is_abstract(ir_typeref.subtypes[0])
                     and irtyputils.is_scalar(ir_typeref.subtypes[0]))):
@@ -268,6 +293,18 @@ def pg_type_from_ir_typeref(
                 serialized=serialized,
                 persistent_tuples=persistent_tuples)
             return pg_type_range(tp)
+
+    elif irtyputils.is_multirange(ir_typeref):
+        if (irtyputils.is_generic(ir_typeref)
+                or (irtyputils.is_abstract(ir_typeref.subtypes[0])
+                    and irtyputils.is_scalar(ir_typeref.subtypes[0]))):
+            return ('anymultirange',)
+        else:
+            tp = pg_type_from_ir_typeref(
+                ir_typeref.subtypes[0],
+                serialized=serialized,
+                persistent_tuples=persistent_tuples)
+            return pg_type_multirange(tp)
 
     elif irtyputils.is_anytuple(ir_typeref):
         return ('record',)

@@ -1453,7 +1453,8 @@ async def _init_stdlib(
             compiler,
             stdlib.reflschema,
             '''
-            UPDATE (schema::Array UNION schema::Range)
+            UPDATE (
+                schema::Array UNION schema::Range UNION schema::Multirange)
             FILTER
                 .builtin
                 AND NOT (.abstract ?? False)

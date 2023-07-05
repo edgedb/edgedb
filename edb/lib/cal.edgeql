@@ -2061,3 +2061,15 @@ CREATE FUNCTION std::contains(
        SELECT "haystack" @> ("needle"::date)
     $$;
 };
+
+
+CREATE FUNCTION std::contains(
+    haystack: multirange<cal::local_date>,
+    needle: cal::local_date
+) -> std::bool
+{
+    SET volatility := 'Immutable';
+    USING SQL $$
+       SELECT "haystack" @> ("needle"::date)
+    $$;
+};

@@ -88,6 +88,11 @@ def is_range(typeref: irast.TypeRef) -> bool:
     return typeref.collection == s_types.Range.get_schema_name()
 
 
+def is_multirange(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes a multirange type."""
+    return typeref.collection == s_types.Multirange.get_schema_name()
+
+
 def is_any(typeref: irast.TypeRef) -> bool:
     """Return True if *typeref* describes the ``anytype`` generic type."""
     return isinstance(typeref, irast.AnyTypeRef)

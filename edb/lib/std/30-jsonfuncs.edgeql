@@ -399,7 +399,19 @@ CREATE CAST FROM range<std::anypoint> TO std::json {
 };
 
 
+CREATE CAST FROM multirange<std::anypoint> TO std::json {
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'edgedb.multirange_to_jsonb';
+};
+
+
 CREATE CAST FROM std::json TO range<std::anypoint> {
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+
+
+CREATE CAST FROM std::json TO multirange<std::anypoint> {
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
