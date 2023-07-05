@@ -2173,6 +2173,11 @@ def _try_compile(
             unit.config_ops.extend(comp.config_ops)
 
         elif isinstance(comp, dbstate.TxControlQuery):
+            if is_script:
+                raise errors.QueryError(
+                    "Explicit transaction control commands cannot be executed in "
+                    "an implicit transaction block"
+                )
             unit.sql = comp.sql
             unit.cacheable = comp.cacheable
             if comp.user_schema is not None:
