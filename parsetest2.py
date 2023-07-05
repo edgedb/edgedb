@@ -197,6 +197,12 @@ QS = [
     CREATE FUNCTION std::strlen(string: std::str = '1', abc: std::str)
             -> std::int64 {};
     ''',
+    '''
+    SELECT Obj.n + random()
+    ''',
+    '''
+    CREATE MIGRATION { ;;; CREATE TYPE Foo ;;; CREATE TYPE Bar ;;; };
+    ''',
 ]
 
 for q in QS[-1:]:

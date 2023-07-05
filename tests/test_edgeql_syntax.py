@@ -4076,8 +4076,6 @@ aa';
     def test_edgeql_syntax_ddl_create_migration_02(self):
         """
         CREATE MIGRATION { ;;; CREATE TYPE Foo ;;; CREATE TYPE Bar ;;; };
-% OK %
-        CREATE MIGRATION { ;;; CREATE TYPE Foo ;;; CREATE TYPE Bar ; };
         """
 
     def test_edgeql_syntax_ddl_create_migration_03(self):
@@ -4162,7 +4160,7 @@ aa';
     def test_edgeql_syntax_ddl_create_extension_package_02(self):
         """
         CREATE EXTENSION PACKAGE foo VERSION '1.0' {
-            ;;; CREATE TYPE Foo ;;; CREATE TYPE Bar ;
+            ;;; CREATE TYPE Foo ;;; CREATE TYPE Bar ;;;
         };
         """
 

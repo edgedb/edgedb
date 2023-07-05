@@ -90,7 +90,7 @@ pub fn parse(py: Python, parser_name: &PyString, tokens: PyObject) -> PyResult<P
 
     let (cst, errors) = parser::parse(spec, tokens);
 
-    // debug_cst_node(py, cst.as_ref().unwrap(), productions);
+    // println!("{}", debug_cst_node(py, cst.as_ref().unwrap(), productions));
 
     let cst = cst.map(|c| to_py_cst(c, py)).transpose()?;
 
@@ -276,21 +276,21 @@ fn debug_cst_node(py: Python, node: &parser::CSTNode, productions_obj: &PyObject
     let productions = PyList::downcast_borrow_from(py, productions_obj).unwrap();
 
     match node {
-        parser::CSTNode::Empty => "<e>".to_string(),
+        parser::CSTNode::Empty => "<empty>".to_string(),
         parser::CSTNode::Terminal(t) => format!("{}", t.text),
         parser::CSTNode::Production(prod) => {
             let production = productions.get_item(py, prod.id);
 
             let mut r = production.getattr(py, "qualified").unwrap().to_string();
             if !prod.args.is_empty() {
-                r += "[";
+                r += "[\n";
                 r += &prod
                     .args
                     .iter()
                     .map(|a| debug_cst_node(py, a, productions_obj))
                     .collect::<Vec<_>>()
-                    .join(", ");
-                r += "]";
+                    .join(",\n");
+                r += "]\n";
             }
             r
         }
