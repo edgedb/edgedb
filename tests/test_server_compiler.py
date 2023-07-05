@@ -434,7 +434,7 @@ class TestCompilerPool(tbs.TestCase):
                     0,
                     edgeql.Source.from_string('SELECT 123'),
                     edbcompiler.OutputFormat.BINARY,
-                    False, 101, False, True, False, (0, 12), True
+                    False, 101, False, True, False, (1, 0), True
                 ) for _ in range(4)))
             finally:
                 await pool_.stop()

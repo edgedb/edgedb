@@ -1674,34 +1674,11 @@ def describe_params(
             ctx=ctx,
         )
 
-    if ctx.protocol_version >= (0, 12):
-        in_type_data, in_type_id = sertypes.describe_params(
-            schema=ir.schema,
-            params=params,
-            protocol_version=ctx.protocol_version,
-        )
-    else:
-        # Legacy protocol support - for restoring pre-0.12 dumps
-        if params:
-            pschema, params_type = s_types.Tuple.create(
-                ir.schema,
-                element_types=collections.OrderedDict(
-                    # keep only param_name/param_type
-                    [param[:2] for param in params]
-                ),
-                named=False,
-            )
-        else:
-            pschema, params_type = s_types.Tuple.create(
-                ir.schema, element_types={}, named=False
-            )
-
-        in_type_data, in_type_id = sertypes.describe(
-            pschema,
-            params_type,
-            protocol_version=ctx.protocol_version,
-        )
-
+    in_type_data, in_type_id = sertypes.describe_params(
+        schema=ir.schema,
+        params=params,
+        protocol_version=ctx.protocol_version,
+    )
     return in_type_args, in_type_data, in_type_id
 
 
@@ -2337,24 +2314,17 @@ def _try_compile(
             argmap=None, script_info=None, schema=script_info.schema,
             ctx=ctx)
 
-        if ctx.protocol_version >= (0, 12):
-            in_type_data, in_type_id = sertypes.describe_params(
-                schema=script_info.schema,
-                params=params,
-                protocol_version=ctx.protocol_version,
-            )
-            rv.in_type_id = in_type_id.bytes
-            rv.in_type_args = in_type_args
-            rv.in_type_data = in_type_data
+        in_type_data, in_type_id = sertypes.describe_params(
+            schema=script_info.schema,
+            params=params,
+            protocol_version=ctx.protocol_version,
+        )
+        rv.in_type_id = in_type_id.bytes
+        rv.in_type_args = in_type_args
+        rv.in_type_data = in_type_data
 
+    # Sanity checks
     for unit in rv:  # pragma: no cover
-        if ctx.protocol_version < (0, 12):
-            if unit.in_type_id == sertypes.NULL_TYPE_ID.bytes:
-                unit.in_type_id = sertypes.EMPTY_TUPLE_ID.bytes
-                unit.in_type_data = sertypes.EMPTY_TUPLE_DESC
-
-        # Sanity checks
-
         na_cardinality = (
             unit.cardinality is enums.Cardinality.NO_RESULT
         )

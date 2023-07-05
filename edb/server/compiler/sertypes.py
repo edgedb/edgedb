@@ -915,8 +915,6 @@ def describe_params(
     params: list[tuple[str, s_types.Type, bool]],
     protocol_version: edbdef.ProtocolVersion,
 ) -> tuple[bytes, uuid.UUID]:
-    assert protocol_version >= (0, 12)
-
     if not params:
         return NULL_TYPE_DESC, NULL_TYPE_ID
 
