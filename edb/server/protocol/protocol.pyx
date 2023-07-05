@@ -96,6 +96,7 @@ cdef class HttpProtocol:
     ):
         self.loop = server.get_loop()
         self.server = server
+        self.tenant = None
         self.transport = None
         self.external_auth = external_auth
         self.sslctx = sslctx
@@ -326,9 +327,15 @@ cdef class HttpProtocol:
             response.body,
             response.close_connection)
 
+    cdef inline _ensure_tenant(self):
+        if self.tenant is None:
+            self.tenant = self.server.get_default_tenant()
+        return self.tenant
+
     def _switch_to_binary_protocol(self, data=None):
         binproto = binary.new_edge_connection(
             self.server,
+            self.tenant,
             external_auth=self.external_auth,
         )
         self.transport.set_protocol(binproto)
@@ -367,6 +374,7 @@ cdef class HttpProtocol:
             self.transport, self, self.sslctx, server_side=True
         )
         sslobj = self.transport.get_extra_info('ssl_object')
+        self.tenant = self.server.retrieve_sni_tenant(sslobj)
         if sslobj.selected_alpn_protocol() == 'edgedb-binary':
             self._switch_to_binary_protocol()
         else:
@@ -456,6 +464,7 @@ cdef class HttpProtocol:
             if path_parts_len < 2:
                 return self._not_found(request, response)
 
+            tenant = self._ensure_tenant()
             dbname = path_parts[1]
             db = self.server.maybe_get_db(dbname=dbname)
             if db is None:
@@ -508,6 +517,7 @@ cdef class HttpProtocol:
 
                     response.body = await binary.eval_buffer(
                         self.server,
+                        tenant,
                         database=dbname,
                         data=self.current_request.body,
                         conn_params=conn_params,
@@ -531,11 +541,11 @@ cdef class HttpProtocol:
 
                 if extname == 'graphql':
                     await graphql_ext.handle_request(
-                        request, response, db, args, self.server
+                        request, response, db, args, tenant
                     )
                 elif extname == 'notebook':
                     await notebook_ext.handle_request(
-                        request, response, db, args, self.server
+                        request, response, db, args, tenant
                     )
                 elif extname == 'edgeql_http':
                     await edgeql_ext.handle_request(
@@ -557,7 +567,7 @@ cdef class HttpProtocol:
                 request,
                 response,
                 path_parts[1:],
-                self.server,
+                self._ensure_tenant(),
             )
         elif route == 'server':
             # System API request
@@ -565,7 +575,7 @@ cdef class HttpProtocol:
                 request,
                 response,
                 path_parts[1:],
-                self.server,
+                self._ensure_tenant(),
             )
         elif path_parts == ['metrics'] and request.method == b'GET':
             # Quoting the Open Metrics spec:

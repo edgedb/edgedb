@@ -341,7 +341,7 @@ cdef class ConnectionView:
 
 cdef class PgConnection(frontend.FrontendConnection):
     def __init__(self, server, sslctx, endpoint_security, **kwargs):
-        super().__init__(server, **kwargs)
+        super().__init__(server, None, **kwargs)
         self._dbview = ConnectionView()
         self._id = str(<int32_t><uint32_t>(int(self._id) % (2 ** 32)))
         self.prepared_stmts = {}  # via extended query Parse
@@ -480,6 +480,9 @@ cdef class PgConnection(frontend.FrontendConnection):
                         self.sslctx,
                         server_side=True,
                     )
+                    self.tenant = self.server.retrieve_sni_tenant(
+                        self._transport.get_extra_info("ssl_object")
+                    )
                     self.is_tls = True
 
                 elif proto_ver_minor == 5680:  # GSSENCRequest
@@ -597,6 +600,8 @@ cdef class PgConnection(frontend.FrontendConnection):
             WriteBuffer msg_buf
             WriteBuffer buf
 
+        if self.tenant is None:
+            self.tenant = self.server.get_default_tenant()
         params = {}
         while True:
             name = self.buffer.read_null_str()

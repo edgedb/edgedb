@@ -37,6 +37,7 @@ import struct
 import sys
 import time
 import uuid
+import weakref
 
 import immutables
 from jwcrypto import jwk
@@ -61,6 +62,7 @@ from edb.server import connpool
 from edb.server import compiler_pool
 from edb.server import defines
 from edb.server import protocol
+from edb.server import tenant as edbtenant
 from edb.server.ha import base as ha_base
 from edb.server.ha import adaptive as adaptive_ha
 from edb.server.protocol import binary  # type: ignore
@@ -95,7 +97,9 @@ class StartupError(Exception):
 
 class Server(ha_base.ClusterProtocol):
 
-    _sys_pgcon: Optional[pgcon.PGConnection]
+    __sys_pgcon: Optional[pgcon.PGConnection]
+    _tenant: edbtenant.Tenant
+    _tenants_by_sslobj: MutableMapping
 
     _roles: Mapping[str, RoleDescriptor]
     _instance_data: Mapping[str, str]
@@ -162,7 +166,10 @@ class Server(ha_base.ClusterProtocol):
         admin_ui: bool = False,
         instance_name: str,
         disable_dynamic_system_config: bool = False,
+        tenant: edbtenant.Tenant,
     ):
+        self._tenant = tenant
+        tenant.set_server(self)
         self.__loop = asyncio.get_running_loop()
         self._config_settings = config.get_settings()
 
@@ -261,6 +268,7 @@ class Server(ha_base.ClusterProtocol):
         self._tls_cert_newly_generated = False
         self._sslctx = None
         self._sslctx_pgext = None
+        self._tenants_by_sslobj = weakref.WeakKeyDictionary()
 
         self._jws_key: jwk.JWK | None = None
         self._jws_keys_newly_generated = False
@@ -1847,6 +1855,7 @@ class Server(ha_base.ClusterProtocol):
         try:
             await binary.run_script(
                 server=self,
+                tenant=self._tenant,
                 database=self._startup_script.database,
                 user=self._startup_script.user,
                 script=self._startup_script.text,
@@ -1893,7 +1902,9 @@ class Server(ha_base.ClusterProtocol):
             + 1
         ), "admin Unix socket length exceeds maximum allowed"
         admin_unix_srv = await self.__loop.create_unix_server(
-            lambda: binary.new_edge_connection(self, external_auth=True),
+            lambda: binary.new_edge_connection(
+                self, self.get_default_tenant(), external_auth=True
+            ),
             admin_unix_sock_path
         )
         os.chmod(admin_unix_sock_path, stat.S_IRUSR | stat.S_IWUSR)
@@ -2100,7 +2111,15 @@ class Server(ha_base.ClusterProtocol):
 
             raise StartupError(f"Cannot load TLS certificates - {e}") from e
 
+        def sni_callback(sslobj, server_name, _sslctx):
+            try:
+                self._tenants_by_sslobj[sslobj] = self._get_tenant(server_name)
+            except Exception:
+                pass
+
         sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
+        sslctx.sni_callback = sni_callback
+        sslctx_pgext.sni_callback = sni_callback
         self._sslctx = sslctx
         self._sslctx_pgext = sslctx_pgext
 
@@ -2247,6 +2266,7 @@ class Server(ha_base.ClusterProtocol):
         if self._startup_script and self._new_instance:
             await binary.run_script(
                 server=self,
+                tenant=self._tenant,
                 database=self._startup_script.database,
                 user=self._startup_script.user,
                 script=self._startup_script.text,
@@ -2497,6 +2517,17 @@ class Server(ha_base.ClusterProtocol):
         obj['databases'] = dbs
 
         return obj
+
+    def _get_tenant(self, server_name: str) -> edbtenant.Tenant:
+        # Given a server name, return a corresponding tenant. Raise an error
+        # if the server name doesn't match any registered tenant.
+        return self._tenant
+
+    def get_default_tenant(self) -> edbtenant.Tenant:
+        return self._tenant
+
+    def retrieve_sni_tenant(self, sslobj) -> Optional[edbtenant.Tenant]:
+        return self._tenants_by_sslobj.pop(sslobj, None)
 
 
 def _cleanup_wildcard_addrs(

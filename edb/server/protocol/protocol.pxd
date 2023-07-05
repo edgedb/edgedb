@@ -63,6 +63,7 @@ cdef class HttpProtocol:
         bint is_tls
         object binary_endpoint_security
         object http_endpoint_security
+        object tenant
 
         HttpRequest current_request
 
@@ -80,3 +81,4 @@ cdef class HttpProtocol:
     cdef unhandled_exception(self, ex)
     cdef resume(self)
     cdef close(self)
+    cdef inline _ensure_tenant(self)

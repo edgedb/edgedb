@@ -47,6 +47,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
     def __init__(
         self,
         server,
+        tenant,
         *,
         passive: bool,
         transport: srvargs.ServerConnTransport,
@@ -54,6 +55,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
     ):
         self._id = server.on_binary_client_created()
         self.server = server
+        self.tenant = tenant
         self.loop = server.get_loop()
         self.dbname = None
 

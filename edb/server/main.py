@@ -176,6 +176,9 @@ async def _run_server(
         logger.info("detected service manager socket activation")
 
     with signalctl.SignalController(signal.SIGINT, signal.SIGTERM) as sc:
+        from . import tenant as edbtenant
+
+        tenant = edbtenant.Tenant()
         ss = server.Server(
             cluster=cluster,
             runstate_dir=runstate_dir,
@@ -200,6 +203,7 @@ async def _run_server(
             admin_ui=args.admin_ui,
             instance_name=args.instance_name,
             disable_dynamic_system_config=args.disable_dynamic_system_config,
+            tenant=tenant,
         )
         await sc.wait_for(ss.init())
 
