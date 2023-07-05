@@ -22,7 +22,6 @@
 from __future__ import annotations
 from typing import *
 
-import collections
 import dataclasses
 import functools
 import json
@@ -2175,8 +2174,8 @@ def _try_compile(
         elif isinstance(comp, dbstate.TxControlQuery):
             if is_script:
                 raise errors.QueryError(
-                    "Explicit transaction control commands cannot be executed in "
-                    "an implicit transaction block"
+                    "Explicit transaction control commands cannot be executed "
+                    "in an implicit transaction block"
                 )
             unit.sql = comp.sql
             unit.cacheable = comp.cacheable
