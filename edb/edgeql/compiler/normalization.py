@@ -554,10 +554,12 @@ def compile_TypeName(
     if isinstance(node.maintype, qlast.ObjectRef):
         # This is a specific path root, resolve it.
         if (
-                # maintype names 'array', 'tuple', and 'range' specifically
-                # should also be ignored
-                node.maintype.name not in {'array', 'tuple', 'range',
-                                           *localnames}):
+                # maintype names 'array', 'tuple', 'range', and 'multirange'
+                # specifically should also be ignored
+                node.maintype.name not in {
+                    'array', 'tuple', 'range', 'multirange', *localnames
+                }
+        ):
             maintype = schema.get(
                 s_utils.ast_ref_to_name(node.maintype),
                 default=None,

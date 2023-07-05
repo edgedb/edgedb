@@ -568,6 +568,18 @@ def serialize_expr_to_json(
                 type_name=pgast.TypeName(name=('json',))
             )
 
+    elif irtyputils.is_multirange(styperef) and not expr.ser_safe:
+        val = pgast.FuncCall(
+            # Use the actual generic helper for converting anymultirange to
+            # jsonb
+            name=('edgedb', 'multirange_to_jsonb'),
+            args=[expr], null_safe=True, ser_safe=True)
+        if env.output_format in _JSON_FORMATS:
+            val = pgast.TypeCast(
+                arg=val,
+                type_name=pgast.TypeName(name=('json',))
+            )
+
     elif irtyputils.is_collection(styperef) and not expr.ser_safe:
         val = coll_as_json_object(expr, styperef=styperef, env=env)
 
