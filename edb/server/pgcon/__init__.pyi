@@ -66,11 +66,7 @@ def set_init_con_script_data(cfg: list[dict[str, Any]]):
 
 class PGConnection:
 
-    async def sql_execute(
-        self,
-        sql: bytes | tuple[bytes, ...],
-        state: Optional[bytes] = None,
-    ) -> None:
+    async def sql_execute(self, sql: bytes | tuple[bytes, ...]) -> None:
         ...
 
     async def sql_fetch(
