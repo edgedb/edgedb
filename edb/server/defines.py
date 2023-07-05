@@ -79,9 +79,6 @@ ProtocolVersion: TypeAlias = tuple[int, int]
 MIN_PROTOCOL: ProtocolVersion = (1, 0)
 CURRENT_PROTOCOL: ProtocolVersion = (2, 0)
 
-MIN_LEGACY_PROTOCOL: ProtocolVersion = (0, 13)
-MAX_LEGACY_PROTOCOL: ProtocolVersion = (0, 14)
-
 MIN_SUGGESTED_CLIENT_POOL_SIZE = 10
 MAX_SUGGESTED_CLIENT_POOL_SIZE = 100
 

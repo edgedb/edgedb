@@ -291,7 +291,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         cdef char mtype
 
         try:
-            rv = await self.authenticate()
+            await self.authenticate()
         except Exception as ex:
             if self._transport is not None:
                 # If there's no transport it means that the connection
@@ -314,10 +314,6 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                 })
 
             return
-
-        # HACK for legacy protocol
-        if rv is not None:
-            return await rv
 
         self.authed = True
 
