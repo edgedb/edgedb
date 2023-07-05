@@ -236,7 +236,7 @@ impl<'a> Iterator for WithEof<'a> {
             Some(next)
         } else if !self.emitted {
             self.emitted = true;
-            let pos = self.inner.current_pos();
+            let pos = self.inner.current_pos().offset;
 
             Some(Ok(Token {
                 kind: Kind::EOF,

@@ -1,5 +1,5 @@
 use crate::cpython::PythonObjectWithTypeObject;
-use crate::pynormalize::py_span;
+
 use cpython::exc::Exception;
 use cpython::{
     PyClone, PyErr, PyList, PyObject, PyResult, PyType, Python, PythonObject, ToPyObject,
@@ -86,7 +86,7 @@ py_class!(pub class ParserResult |py| {
 });
 
 pub fn parser_error_into_tuple(py: Python, error: Error) -> PyObject {
-    (error.message, py_span(py, &error.span))
+    (error.message, (error.span.start, error.span.end))
         .into_py_object(py)
         .into_object()
 }

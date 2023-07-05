@@ -246,8 +246,8 @@ fn to_py_cst<'a>(cst: parser::CSTNode, py: Python) -> PyResult<CSTNode> {
                 } else {
                     py.None()
                 },
-                token.span.start.offset,
-                token.span.end.offset,
+                token.span.start,
+                token.span.end,
             )?
             .into_object(),
         ),

@@ -46,17 +46,9 @@ pub struct Error {
 
 impl Error {
     pub fn new<S: ToString>(message: S) -> Self {
-        let empty = Pos {
-            line: 0,
-            column: 0,
-            offset: 0,
-        };
         Error {
             message: message.to_string(),
-            span: Span {
-                start: empty.clone(),
-                end: empty,
-            },
+            span: Span::default(),
         }
     }
 
@@ -154,18 +146,21 @@ impl<'a> Iterator for Tokenizer<'a> {
     type Item = Result<Token, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let start = self.current_pos();
+        let start = self.current_pos().offset;
 
         Some(
             self.read_token()?
-                .map(|(token, end)| Token {
-                    kind: token.kind,
-                    text: token.text.into(),
-                    value: None,
-                    span: Span { start, end },
+                .map(|(token, end)| {
+                    let end = end.offset;
+                    Token {
+                        kind: token.kind,
+                        text: token.text.into(),
+                        value: None,
+                        span: Span { start, end },
+                    }
                 })
                 .map_err(|e| {
-                    let end = self.position;
+                    let end = self.position.offset;
                     e.with_span(Span { start, end })
                 }),
         )

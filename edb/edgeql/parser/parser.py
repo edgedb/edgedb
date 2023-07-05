@@ -69,19 +69,30 @@ class EdgeQLParser():
 
             # DEBUG: print all errors
             for index, error in enumerate(result.errors()):
-                message, (start, end) = error
-                (start_row, start_col, _) = start
-                (end_row, end_col, _) = end
+                message, position = error
+                (start, end) = tokenizer.inflate_position(
+                    source.text(), position
+                )
 
                 print(f'Error [{index+1}/{len(result.errors())}]:')
-                print('\n'.join(source.text().splitlines()[(start_row-1):end_row]))
-                print(' ' * (start_col - 1) + '^' + '-' * (end_col - start_col - 1) + ' ' + message)
+                print(
+                    '\n'.join(
+                        source.text().splitlines()[(start.line - 1) : end.line]
+                    )
+                )
+                print(
+                    ' ' * (start.column - 1)
+                    + '^'
+                    + '-' * (end.column - start.column - 1)
+                    + ' '
+                    + message
+                )
                 print()
             print('Recovered AST:')
             if result.out():
                 try:
                     ast = self._cst_to_ast(result.out(), productions).val
-                except:
+                except BaseException:
                     ast = None
                 if isinstance(ast, list):
                     for x in ast:
@@ -92,15 +103,16 @@ class EdgeQLParser():
             # TODO: emit multiple errors
             error = result.errors()[0]
 
-            message, (start, end) = error
-            (column, line, offset) = start
-            position = (column, line, offset, end[2])
+            message, (position) = error
+            position = tokenizer.inflate_position(source.text(), position)
 
             raise errors.EdgeQLSyntaxError(message, position=position)
 
         return self._cst_to_ast(result.out(), productions).val
 
-    def _cst_to_ast(self, cst: eql_parser.CSTNode, productions: List[Callable]) -> Any:
+    def _cst_to_ast(
+        self, cst: eql_parser.CSTNode, productions: List[Callable]
+    ) -> Any:
         # Converts CST into AST by calling methods from the grammar classes.
         #
         # This function was originally written as a simple recursion.

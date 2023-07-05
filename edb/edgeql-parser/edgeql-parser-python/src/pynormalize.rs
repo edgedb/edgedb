@@ -2,14 +2,13 @@ use std::convert::TryFrom;
 
 use bigdecimal::Num;
 use cpython::exc::AssertionError;
-use cpython::{PyBytes, PyErr, PyInt, PyTuple, PythonObject, ToPyObject};
+use cpython::{PyBytes, PyErr, PyInt, PythonObject, ToPyObject};
 use cpython::{PyClone, PyDict, PyList, PyResult, PyString, Python};
 use cpython::{PyFloat, PyObject};
 
 use bytes::{BufMut, Bytes, BytesMut};
 use edgedb_protocol::codec;
 use edgedb_protocol::model::{BigInt, Decimal};
-use edgeql_parser::position::{Pos, Span};
 use edgeql_parser::tokenizer::Value;
 
 use crate::errors::SyntaxError;
@@ -60,14 +59,6 @@ py_class!(pub class Entry |py| {
         Ok(self._extra_blobs(py).clone_ref(py))
     }
 });
-
-pub fn py_pos(py: Python, pos: &Pos) -> PyTuple {
-    (pos.line, pos.column, pos.offset).to_py_object(py)
-}
-
-pub fn py_span(py: Python, span: &Span) -> PyTuple {
-    (py_pos(py, &span.start), py_pos(py, &span.end)).to_py_object(py)
-}
 
 pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
     use edgedb_protocol::codec::Codec;
@@ -163,7 +154,7 @@ pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
             )?)
         }
         Err(Error::Tokenizer(msg, pos)) => {
-            return Err(SyntaxError::new(py, (msg, py_pos(py, &pos))))
+            return Err(SyntaxError::new(py, (msg, pos, py.None())))
         }
         Err(Error::Assertion(msg, pos)) => {
             return Err(PyErr::new::<AssertionError, _>(

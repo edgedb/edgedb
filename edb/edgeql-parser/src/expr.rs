@@ -1,4 +1,4 @@
-use crate::position::Pos;
+use crate::position::{Pos, InflatedPos};
 use crate::tokenizer::{Kind, self};
 
 /// Error of expression checking
@@ -79,6 +79,8 @@ pub fn check(text: &str) -> Result<(), Error> {
             }
         };
         let pos = token.span.start;
+        let pos = InflatedPos::from_offset(text.as_bytes(), pos).unwrap().deflate();
+
         empty = false;
         match token.kind {
             Comma | Semicolon if brackets.is_empty() => {

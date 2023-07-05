@@ -188,9 +188,6 @@ QS = [
     };
     ''',
     '''
-    SELECT (User IS (Named, Text));
-    ''',
-    '''
     SELECT INTROSPECT tuple<int64>;
     ''',
     '''
@@ -202,6 +199,9 @@ QS = [
     ''',
     '''
     CREATE MIGRATION { ;;; CREATE TYPE Foo ;;; CREATE TYPE Bar ;;; };
+    ''',
+    '''
+    SELECT (User IS (Named, Text));
     ''',
 ]
 

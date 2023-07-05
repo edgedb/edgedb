@@ -402,10 +402,10 @@ fn extend_span(value: &mut CSTNode, span: Option<Span>) {
         return
     };
 
-    if span.start.offset < terminal.span.start.offset {
+    if span.start < terminal.span.start {
         terminal.span.start = span.start;
     }
-    if span.end.offset > terminal.span.end.offset {
+    if span.end > terminal.span.end {
         terminal.span.end = span.end;
     }
 }

@@ -22,7 +22,7 @@ pub struct Entry {
 
 #[derive(Debug)]
 pub enum Error {
-    Tokenizer(String, Pos),
+    Tokenizer(String, u64),
     Assertion(String, Pos),
 }
 

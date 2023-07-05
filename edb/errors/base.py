@@ -24,6 +24,9 @@ from typing import *
 from edb.common import context as pctx
 from edb.common import exceptions as ex
 
+if TYPE_CHECKING:
+    from edb import _edgeql_parser as eql_parser
+
 import contextlib
 
 
@@ -90,7 +93,9 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         hint: Optional[str] = None,
         details: Optional[str] = None,
         context=None,
-        position: Optional[tuple[Optional[int], ...]] = None,
+        position: Optional[
+            tuple[eql_parser.SourcePoint, eql_parser.SourcePoint | None]
+        ] = None,
         filename: Optional[str] = None,
         token=None,
         pgext_code: Optional[str] = None,
@@ -125,7 +130,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     def set_filename(self, filename):
         self._attrs[FIELD_FILENAME] = filename
 
-    def set_linecol(self, line, col):
+    def set_linecol(self, line: Optional[int], col: Optional[int]):
         if line is not None:
             self._attrs[FIELD_LINE_START] = str(line)
         if col is not None:
@@ -143,7 +148,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     def has_source_context(self):
         return FIELD_DETAILS in self._attrs
 
-    def set_source_context(self, context):
+    def set_source_context(self, context: pctx.ParserContext):
         start = context.start_point
         end = context.end_point
         ex.replace_context(self, context)
@@ -163,17 +168,13 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
 
     def set_position(
         self,
-        line: Optional[int] = None,
-        column: Optional[int] = None,
-        start: Optional[int] = None,
-        end: Optional[int] = None,
+        start: eql_parser.SourcePoint,
+        end: eql_parser.SourcePoint | None,
     ):
-        self.set_linecol(line, column)
-        if start is not None:
-            self._attrs[FIELD_POSITION_START] = str(start)
+        self.set_linecol(start.line, start.column)
+        self._attrs[FIELD_POSITION_START] = str(start.offset)
         end = end or start
-        if end is not None:
-            self._attrs[FIELD_POSITION_END] = str(end)
+        self._attrs[FIELD_POSITION_END] = str(end.offset)
 
     @property
     def line(self):
