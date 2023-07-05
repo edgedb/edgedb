@@ -108,5 +108,11 @@ class PGConnection:
     def get_server_parameter_status(self, parameter: str) -> Optional[str]:
         ...
 
+    def is_healthy(self) -> bool:
+        ...
+
+    def abort(self) -> None:
+        ...
+
 
 SETUP_TEMP_TABLE_SCRIPT: str

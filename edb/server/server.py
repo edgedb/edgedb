@@ -61,6 +61,7 @@ from edb.server import connpool
 from edb.server import compiler_pool
 from edb.server import defines
 from edb.server import protocol
+from edb.server import tenant as edbtenant
 from edb.server.ha import base as ha_base
 from edb.server.ha import adaptive as adaptive_ha
 from edb.server.protocol import binary  # type: ignore
@@ -95,7 +96,8 @@ class StartupError(Exception):
 
 class Server(ha_base.ClusterProtocol):
 
-    _sys_pgcon: Optional[pgcon.PGConnection]
+    __sys_pgcon: Optional[pgcon.PGConnection]
+    _tenant: edbtenant.Tenant
 
     _roles: Mapping[str, RoleDescriptor]
     _instance_data: Mapping[str, str]
@@ -162,8 +164,12 @@ class Server(ha_base.ClusterProtocol):
         admin_ui: bool = False,
         instance_name: str,
         disable_dynamic_system_config: bool = False,
+        tenant: edbtenant.Tenant,
     ):
         self.__loop = asyncio.get_running_loop()
+
+        self._tenant = tenant
+        tenant.set_server(self)
         self._config_settings = config.get_settings()
 
         # Used to tag PG notifications to later disambiguate them.
