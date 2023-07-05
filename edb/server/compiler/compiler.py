@@ -992,21 +992,6 @@ class Compiler:
         # but we can just treat that as being version 0
         dump_catalog_version = dump_catalog_version or 0
 
-        if (
-            (dump_server_ver.major, dump_server_ver.minor) == (1, 0)
-            and dump_server_ver.stage is verutils.VersionStage.DEV
-        ):
-            # Pre-1.0 releases post RC3 have DEV in their stage,
-            # but for compatibility comparisons below we need to revert
-            # to the pre-1.0-rc3 layout
-            dump_server_ver = dump_server_ver._replace(
-                stage=verutils.VersionStage.RC,
-                stage_no=3,
-                local=(
-                    ('dev', dump_server_ver.stage_no) + dump_server_ver.local
-                ),
-            )
-
         state = dbstate.CompilerConnectionState(
             user_schema=user_schema,
             global_schema=global_schema,
