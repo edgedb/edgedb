@@ -391,10 +391,7 @@ class Compiler:
         self.state = state
 
     @staticmethod
-    def try_compile_rollback(
-        eql: Union[edgeql.Source, bytes],
-        protocol_version: defines.ProtocolVersion,
-    ):
+    def try_compile_rollback(eql: Union[edgeql.Source, bytes]):
         if isinstance(eql, edgeql.Source):
             source = eql
         else:
@@ -421,11 +418,6 @@ class Compiler:
                 cacheable=False)
 
         if unit is not None:
-            if protocol_version < (0, 12):
-                if unit.in_type_id == sertypes.NULL_TYPE_ID.bytes:
-                    unit.in_type_id = sertypes.EMPTY_TUPLE_ID.bytes
-                    unit.in_type_data = sertypes.EMPTY_TUPLE_DESC
-
             rv = dbstate.QueryUnitGroup()
             rv.append(unit)
             return rv, len(statements) - 1
@@ -878,7 +870,7 @@ class Compiler:
             # This is a special case when COMMIT MIGRATION fails, the compiler
             # doesn't have the right transaction state, so we just roll back.
             return (
-                self.try_compile_rollback(source, protocol_version)[0], state
+                self.try_compile_rollback(source)[0], state
             )
         else:
             state.sync_tx(txid)

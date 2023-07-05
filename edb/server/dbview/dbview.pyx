@@ -1085,10 +1085,7 @@ cdef class DatabaseConnectionView:
         assert self.in_tx_error()
         try:
             compiler_pool = self._db._index._server.get_compiler_pool()
-            return await compiler_pool.try_compile_rollback(
-                eql,
-                self._protocol_version
-            )
+            return await compiler_pool.try_compile_rollback(eql)
         except Exception:
             self.raise_in_tx_error()
 
