@@ -225,7 +225,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected unit", line=5, col=30)
+                  "Unexpected 'unit'", line=5, col=30)
     def test_eschema_syntax_type_08(self):
         """
         module test {
@@ -748,7 +748,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing :=", line=4, col=22)
+                  r"Missing ':='", line=4, col=22)
     def test_eschema_syntax_index_03(self):
         """
         module test {
@@ -878,7 +878,7 @@ type LogEntry extending    OwnedObject,    Text {
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing ;",
+                  r"Missing ';'",
                   line=2, col=55)
     def test_eschema_syntax_ws_03(self):
         """
@@ -988,7 +988,7 @@ type LogEntry extending    OwnedObject,    Text {
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected :=",
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected ':='",
                   line=4, col=47)
     def test_eschema_syntax_scalar_09(self):
         """
@@ -1421,7 +1421,7 @@ abstract property test::foo {
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected ::",
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected '::'",
                   line=4, col=25)
     def test_eschema_syntax_link_12(self):
         """
@@ -1666,7 +1666,7 @@ abstract property test::foo {
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected >",
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected '>'",
                   line=6, col=21)
     def test_eschema_syntax_function_17(self):
         """
@@ -1772,7 +1772,7 @@ abstract property test::foo {
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Missing ,',
+                  r"Missing ','",
                   line=3, col=33)
     def test_eschema_syntax_function_21(self):
         """
@@ -1834,7 +1834,7 @@ abstract property test::foo {
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Missing ,',
+                  r"Missing ','",
                   line=4, col=25)
     def test_eschema_syntax_alias_04(self):
         """
@@ -1848,7 +1848,7 @@ abstract property test::foo {
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Missing ,',
+                  r"Missing ','",
                   line=3, col=31)
     def test_eschema_syntax_alias_05(self):
         """
@@ -1858,7 +1858,7 @@ abstract property test::foo {
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Missing ,',
+                  r"Missing ','",
                   line=3, col=31)
     def test_eschema_syntax_alias_06(self):
         """

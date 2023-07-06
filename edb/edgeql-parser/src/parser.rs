@@ -381,7 +381,7 @@ impl<'s> Parser<'s> {
     }
 }
 
-fn get_span_of_nodes(args: &Vec<CSTNode>) -> Option<Span> {
+fn get_span_of_nodes(args: &[CSTNode]) -> Option<Span> {
     let start = args.iter().find_map(|x| match x {
         CSTNode::Terminal(t) => Some(t.span.start),
         _ => None,
@@ -446,9 +446,9 @@ impl std::fmt::Display for Terminal {
         }
 
         match self.kind {
-            Kind::Ident => f.write_str(&quote_name(&self.text)),
+            Kind::Ident => write!(f, "'{}'", &quote_name(&self.text)),
             Kind::Keyword(Keyword(kw)) => write!(f, "keyword '{}'", kw.to_ascii_uppercase()),
-            _ => f.write_str(&self.text),
+            _ => write!(f, "'{}'", self.text),
         }
     }
 }

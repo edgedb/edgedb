@@ -109,11 +109,11 @@ class TestServerProto(tb.QueryTestCase):
                 await self.con.query('select syntax error')
 
             with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
-                                        r'Missing \)'):
+                                        r"Missing '\)'"):
                 await self.con.query('select (')
 
             with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
-                                        r'Missing \)'):
+                                        r"Missing '\)'"):
                 await self.con.query_json('select (')
 
             for _ in range(10):
@@ -1405,7 +1405,7 @@ class TestServerProto(tb.QueryTestCase):
             # Test that syntax errors are not papered over by
             # a TransactionError.
             with self.assertRaisesRegex(
-                    edgedb.EdgeQLSyntaxError, "Unexpected ROLLBA"):
+                    edgedb.EdgeQLSyntaxError, "Unexpected 'ROLLBA'"):
                 await self.con.execute('ROLLBA;')
 
         finally:

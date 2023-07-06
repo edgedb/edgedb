@@ -1029,10 +1029,6 @@ impl Kind {
     }
 
     pub fn user_friendly_text(&self) -> Option<&'static str> {
-        if let Some(text) = self.text() {
-            return Some(text);
-        }
-
         use Kind::*;
         Some(match self {
             Ident => "identifier",
