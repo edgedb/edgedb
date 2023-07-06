@@ -1009,7 +1009,7 @@ receive support for a year and a half after their initial release.
   remote compiler pool
   (:eql:gh:`#5698`)
 
-* Do not lose constraint ``errmessage`` when a constraint is ``ALTER``ed
+* Do not lose constraint ``errmessage`` when a constraint is ALTERed
   (:eql:gh:`#5701`)
 
 * Properly track implicit dependance on ``__type__`` in function calls
@@ -1024,6 +1024,9 @@ receive support for a year and a half after their initial release.
 * Fix tuple derefencing and top-level casting in exclusive constraints
   (:eql:gh:`#5724`)
 
+* Add support for statement variants of prepared statement comands in
+  SQL mode
+  (:eql:gh:`#5685`)
 
 .. _v3anno:
     https://www.edgedb.com/blog/edgedb-3-0
