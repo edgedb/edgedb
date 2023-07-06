@@ -25,7 +25,7 @@ py_class!(pub class Hasher |py| {
         hasher.add_source(&text)
             .map_err(|e| match e {
                 hash::Error::Tokenizer(msg, pos) => {
-                    SyntaxError::new(py, (msg, pos.offset, py.None()))
+                    SyntaxError::new(py, (msg, (pos.offset, py.None())))
                 }
             })?;
         Ok(py.None())

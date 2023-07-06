@@ -154,7 +154,7 @@ pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
             )?)
         }
         Err(Error::Tokenizer(msg, pos)) => {
-            return Err(SyntaxError::new(py, (msg, pos, py.None())))
+            return Err(SyntaxError::new(py, (msg, (pos, py.None()))))
         }
         Err(Error::Assertion(msg, pos)) => {
             return Err(PyErr::new::<AssertionError, _>(
