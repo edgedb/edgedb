@@ -1847,9 +1847,14 @@ def _compile_ql_config_op(ctx: CompileContext, ql: qlast.Base):
             for glob in ir.globals
         ]
 
-    is_backend_setting = bool(getattr(ir, 'backend_setting', None))
-    requires_restart = bool(getattr(ir, 'requires_restart', False))
-    is_system_config = bool(getattr(ir, 'is_system_config', False))
+    if isinstance(ir, irast.Statement):
+        cfg_ir = ir.expr.expr
+    else:
+        cfg_ir = ir
+
+    is_backend_setting = bool(getattr(cfg_ir, 'backend_setting', None))
+    requires_restart = bool(getattr(cfg_ir, 'requires_restart', False))
+    is_system_config = bool(getattr(cfg_ir, 'is_system_config', False))
 
     sql_res = pg_compiler.compile_ir_to_sql_tree(
         ir,
