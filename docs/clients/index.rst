@@ -14,10 +14,7 @@ Client Libraries
 * `Rust <rust/index>`_
 * `.NET <dotnet/index>`_
 * `Java <java/index>`_
-
-**Community-Maintained Clients**
-
-* `Elixir <https://github.com/nsidnev/edgedb-elixir>`_
+* `Elixir <https://github.com/edgedb/edgedb-elixir>`_
 
 **HTTP Protocols**
 
