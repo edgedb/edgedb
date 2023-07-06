@@ -101,10 +101,10 @@ class NormalizedSource(Source):
         return cls(_normalize(text), text)
 
 
-def inflate_position(
-    source: str, position: Tuple[int, Optional[int]]
+def inflate_span(
+    source: str, span: Tuple[int, Optional[int]]
 ) -> Tuple[ql_parser.SourcePoint, ql_parser.SourcePoint]:
-    (start, end) = position
+    (start, end) = span
     source_bytes = source.encode('utf-8')
 
     [start_sp] = ql_parser.SourcePoint.from_offsets(source_bytes, [start])
@@ -117,6 +117,18 @@ def inflate_position(
     return (start_sp, end_sp)
 
 
+def inflate_position(
+    source: str, span: Tuple[int, Optional[int]]
+) -> Tuple[int, int, int, Optional[int]]:
+    (start, end) = inflate_span(source, span)
+    return (
+        start.column,
+        start.line,
+        start.offset,
+        end.offset if end else None,
+    )
+
+
 def _tokenize(eql: str) -> List[ql_parser.Token]:
     result = ql_parser.tokenize(eql)
 
@@ -124,12 +136,10 @@ def _tokenize(eql: str) -> List[ql_parser.Token]:
         # TODO: emit multiple errors
         error = result.errors()[0]
 
-        message, position = error
-        position = inflate_position(eql, position)
+        message, span = error
+        position = inflate_position(eql, span)
 
         hint = _derive_hint(eql, message, position)
-        (start, end) = position
-        position = (start.column, start.line, start.offset, end.offset)
         raise errors.EdgeQLSyntaxError(message, position=position, hint=hint)
 
     return result.out()
@@ -139,12 +149,10 @@ def _normalize(eql: str) -> ql_parser.Entry:
     try:
         return ql_parser.normalize(eql)
     except ql_parser.SyntaxError as e:
-        message, position = e.args
-        position = inflate_position(eql, position)
+        message, span = e.args
+        position = inflate_position(eql, span)
 
         hint = _derive_hint(eql, message, position)
-        (start, end) = position
-        position = (start.column, start.line, start.offset, end.offset)
         raise errors.EdgeQLSyntaxError(
             message, position=position, hint=hint
         ) from e
@@ -153,9 +161,9 @@ def _normalize(eql: str) -> ql_parser.Entry:
 def _derive_hint(
     input: str,
     message: str,
-    position: Tuple[ql_parser.SourcePoint, ql_parser.SourcePoint],
+    position: Tuple[int, int, int, Optional[int]],
 ) -> Optional[str]:
-    off = position[0].offset
+    _, _, off, _ = position
 
     if message.endswith(
         r"invalid string literal: invalid escape sequence '\ '"

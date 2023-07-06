@@ -118,12 +118,10 @@ class EdgeQLParser:
             errs.sort(key=lambda e: (e[1][0], -ord(e[0][1])))
             error = errs[0]
 
-            message, position = error
-            position_inf = tokenizer.inflate_position(source.text(), position)
+            message, span = error
+            position = tokenizer.inflate_position(source.text(), span)
 
-            (start, end) = position_inf
-            pos = (start.column, start.line, start.offset, end.offset)
-            raise errors.EdgeQLSyntaxError(message, position=pos)
+            raise errors.EdgeQLSyntaxError(message, position=position)
 
         return self._cst_to_ast(result.out(), productions).val
 

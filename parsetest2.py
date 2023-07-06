@@ -238,8 +238,8 @@ for q in QS[-2:]:
     print()
 
     for index, error in enumerate(result.errors()):
-        message, position = error
-        (start, end) = tokenizer.inflate_position(source.text(), position)
+        message, span = error
+        (start, end) = tokenizer.inflate_span(source.text(), span)
 
         print(f'Error [{index+1}/{len(result.errors())}]:')
         print(
