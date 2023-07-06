@@ -1459,21 +1459,12 @@ cdef class PGConnection:
                     f"received too many columns for sql_fetch_col({sql!r})")
             return [row[0] for row in data]
 
-    async def _sql_execute(self, bytes sql, bytes state):
+    async def _sql_execute(self, bytes sql):
         cdef:
             WriteBuffer out
             WriteBuffer buf
 
         out = WriteBuffer.new()
-
-        if state is not None:
-            # Only used in legacy protocol binary_v0
-            self._build_apply_state_req(state, out)
-            # We must use SYNC and not FLUSH here, as otherwise
-            # scripts that contain `SET TRANSACTION ISOLATION LEVEL` would
-            # complain that transaction has already started (by our state
-            # sync query) and the type of the transaction cannot be changed.
-            self.write_sync(out)
 
         buf = WriteBuffer.new_message(b'Q')
         buf.write_bytestring(sql)
@@ -1484,12 +1475,6 @@ cdef class PGConnection:
 
         exc = None
         result = None
-
-        if state is not None:
-            await self._parse_apply_state_resp(3)
-            await self.wait_for_sync()
-            if not self.in_tx():
-                self.last_state = state
 
         while True:
             if not self.buffer.take_message():
@@ -1531,11 +1516,7 @@ cdef class PGConnection:
         else:
             return result
 
-    async def sql_execute(
-        self,
-        sql: bytes | tuple[bytes, ...],
-        state: Optional[bytes] = None,
-    ) -> None:
+    async def sql_execute(self, sql: bytes | tuple[bytes, ...]) -> None:
         self.before_command()
         started_at = time.monotonic()
 
@@ -1545,7 +1526,7 @@ cdef class PGConnection:
             sql_string = sql
 
         try:
-            return await self._sql_execute(sql_string, state)
+            return await self._sql_execute(sql_string)
         finally:
             metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()

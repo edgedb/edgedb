@@ -205,12 +205,6 @@ async def execute_script(
 
     user_schema = cached_reflection = global_schema = None
     unit_group = compiled.query_unit_group
-    if unit_group.tx_control:
-        # TODO: move to the server.compiler once binary_v0 is dropped
-        raise errors.QueryError(
-            "Explicit transaction control commands cannot be executed in "
-            "an implicit transaction block"
-        )
 
     in_tx = dbv.in_tx()
     if not in_tx:

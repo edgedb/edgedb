@@ -572,14 +572,10 @@ def _describe_object_shape(
         if el_l:
             flags |= ShapePointerFlags.IS_LINK
 
-        if ctx.protocol_version >= (0, 11):
-            # ShapeElement.flags
-            buf.append(_uint32_packer(flags))
-            # ShapeElement.cardinality
-            buf.append(_uint8_packer(el_c.value))
-        else:
-            # ShapeElement.flags
-            buf.append(_uint8_packer(flags))
+        # ShapeElement.flags
+        buf.append(_uint32_packer(flags))
+        # ShapeElement.cardinality
+        buf.append(_uint8_packer(el_c.value))
 
         # ShapeElement.name
         buf.append(_string_packer(el_name))
@@ -915,8 +911,6 @@ def describe_params(
     params: list[tuple[str, s_types.Type, bool]],
     protocol_version: edbdef.ProtocolVersion,
 ) -> tuple[bytes, uuid.UUID]:
-    assert protocol_version >= (0, 12)
-
     if not params:
         return NULL_TYPE_DESC, NULL_TYPE_ID
 
@@ -1217,15 +1211,10 @@ def _parse_shape_descriptor(
     cardinalities = {}
     sources = {}
     for _ in range(els):
-        if ctx.protocol_version >= (0, 11):
-            # ShapeElement.flags
-            flag = desc.read_ui32()
-            # ShapeElement.cardinality
-            cardinality = enums.Cardinality(desc.read_bytes(1)[0])
-        else:
-            # ShapeElement.flags
-            flag = desc.read_bytes(1)[0]
-            cardinality = None
+        # ShapeElement.flags
+        flag = desc.read_ui32()
+        # ShapeElement.cardinality
+        cardinality = enums.Cardinality(desc.read_bytes(1)[0])
         # ShapeElement.name
         name = _parse_string(desc)
         # ShapeElement.type
@@ -1265,15 +1254,10 @@ def _parse_input_shape_descriptor(
     cardinalities = {}
     fields_list = []
     for idx in range(els):
-        if ctx.protocol_version >= (0, 11):
-            # ShapeElement.flags
-            flag = desc.read_ui32()
-            # ShapeElement.cardinality
-            cardinality = enums.Cardinality(desc.read_bytes(1)[0])
-        else:
-            # ShapeElement.flags
-            flag = desc.read_bytes(1)[0]
-            cardinality = None
+        # ShapeElement.flags
+        flag = desc.read_ui32()
+        # ShapeElement.cardinality
+        cardinality = enums.Cardinality(desc.read_bytes(1)[0])
         # ShapeElement.name
         name = _parse_string(desc)
         # ShapeElement.type

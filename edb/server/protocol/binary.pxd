@@ -111,6 +111,3 @@ cdef class VirtualTransport:
     cdef:
         WriteBuffer buf
         bint closed
-
-
-include "binary_v0.pxd"
