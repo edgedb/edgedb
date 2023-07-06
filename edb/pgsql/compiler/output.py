@@ -266,11 +266,7 @@ def unnamed_tuple_as_json_object(
         for el_idx, el_type in enumerate(styperef.subtypes):
             val: pgast.BaseExpr = pgast.Indirection(
                 arg=expr,
-                indirection=[
-                    pgast.ColumnRef(
-                        name=[str(el_idx)],
-                    ),
-                ],
+                indirection=[pgast.RecordIndirectionOp(name=str(el_idx))],
             )
             val = serialize_expr_to_json(
                 val, styperef=el_type, nested=True, env=env)
@@ -359,8 +355,8 @@ def named_tuple_as_json_object(
             val: pgast.BaseExpr = pgast.Indirection(
                 arg=expr,
                 indirection=[
-                    pgast.ColumnRef(
-                        name=[el_type.element_name]
+                    pgast.RecordIndirectionOp(
+                        name=el_type.element_name
                     )
                 ]
             )
