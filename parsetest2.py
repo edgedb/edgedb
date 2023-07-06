@@ -205,6 +205,9 @@ QS = [
     ''',
     '''
     SELECT (a := 1, foo);
+    ''',
+    '''
+    CREATE MODULE `__std__`;
     '''
 ]
 
@@ -219,6 +222,7 @@ for q in QS[-2:]:
     except BaseException as e:
         print('Error during tokenization:')
         print(e)
+        print(e._attrs)
         continue
 
     if sdl:

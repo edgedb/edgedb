@@ -166,8 +166,8 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
 
     def set_position(
         self,
-        line: int,
         column: int,
+        line: int,
         start: int,
         end: Optional[int],
     ):
