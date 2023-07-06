@@ -48,8 +48,8 @@ vector and specifying the desired length in angle brackets:
         embedding: v3
     }
 
-To populate your data, you can cast a array of any of the numeric types into
-``etc::pgvector::vector`` or simply assign that array directly:
+To populate your data, you can cast an array of any of the numeric types into
+``ext::pgvector::vector`` or simply assign that array directly:
 
 .. code-block:: edgeql-repl
 
