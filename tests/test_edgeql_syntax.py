@@ -1921,7 +1921,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected :=", line=4, col=20)
+                  "Missing identifier", line=4, col=19)
     def test_edgeql_syntax_struct_09(self):
         """
         SELECT (
@@ -1929,6 +1929,7 @@ aa';
             select := 2
         );
         """
+        ### XXX: error recovery quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Missing ,", line=2, col=21)
@@ -2106,23 +2107,19 @@ aa';
         SELECT ..foo;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Missing int constant",
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected keyword '__SOURCE__'",
                   line=2, col=20)
     def test_edgeql_syntax_path_18(self):
         """
         SELECT Foo.__source__;
         """
-        # XXX: error recovery quality regression
-        #      the more relevant error was discarded
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Missing int constant",
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected keyword '__SUBJECT__'",
                   line=2, col=20)
     def test_edgeql_syntax_path_19(self):
         """
         SELECT Foo.__subject__;
         """
-        # XXX: error recovery quality regression
-        #      the more relevant error was discarded
 
     def test_edgeql_syntax_path_20(self):
         # illegal semantically, but syntactically valid
@@ -2158,7 +2155,7 @@ aa';
         SELECT __type__;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Missing identifier",
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected keyword '__TYPE__'",
                   line=2, col=24)
     def test_edgeql_syntax_path_24(self):
         """
@@ -3015,8 +3012,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unexpected keyword \'.*\'',
-                  line=2, col=20)
+                  "Missing @",
+                  line=2, col=19)
     def test_edgeql_syntax_insert_06(self):
         """
         INSERT Foo FILTER Foo.bar = 42;
@@ -3031,12 +3028,16 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unexpected keyword \'.*\'',
-                  line=2, col=20)
+                  "Missing @",
+                  line=2, col=19)
     def test_edgeql_syntax_insert_08(self):
         """
         INSERT Foo ORDER BY Foo.bar;
         """
+        # XXX: error recovery quality regression
+        #      here parser suggest this:
+        #      INSERT Foo @ Foo.bar;
+        #      which is not wrong, but just worse
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'Unexpected keyword \'.*\'',

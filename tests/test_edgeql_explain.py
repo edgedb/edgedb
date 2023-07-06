@@ -278,7 +278,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                     "contexts": [
                         {
                             "buffer_idx": 0,
-                            "end": 174,
+                            "end": 173,
                             "start": 134,
                         },
                     ],

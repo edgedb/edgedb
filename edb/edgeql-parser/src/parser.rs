@@ -421,7 +421,7 @@ fn error_cost(kind: &Kind) -> u16 {
         Substitution => 8,
         Keyword(_) => 10,
 
-        Dot | BackwardLink => 5,
+        Dot => 5,
         OpenBrace | OpenBracket | OpenParen => 5,
 
         CloseBrace | CloseBracket | CloseParen => 1,
@@ -430,7 +430,7 @@ fn error_cost(kind: &Kind) -> u16 {
         Semicolon | Comma | Colon => 2,
         Eq => 5,
 
-        At => 5,
+        At => 6,
         IntConst => 8,
 
         Assign | Arrow => 5,

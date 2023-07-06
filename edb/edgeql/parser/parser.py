@@ -33,7 +33,49 @@ class EdgeQLParserSpec(parsing.ParserSpec):
         return EdgeQLParser(self)
 
 
-class EdgeQLParser():
+class EdgeQLSingleSpec(EdgeQLParserSpec):
+    def get_parser_spec_module(self):
+        from .grammar import single
+
+        return single
+
+
+class EdgeQLExpressionSpec(EdgeQLParserSpec):
+    def get_parser_spec_module(self):
+        from .grammar import fragment
+
+        return fragment
+
+
+class EdgeQLBlockSpec(EdgeQLParserSpec):
+    def get_parser_spec_module(self):
+        from .grammar import block
+
+        return block
+
+
+class EdgeQLMigrationBodySpec(EdgeQLParserSpec):
+    def get_parser_spec_module(self):
+        from .grammar import migration_body
+
+        return migration_body
+
+
+class EdgeQLExtensionPackageBodySpec(EdgeQLParserSpec):
+    def get_parser_spec_module(self):
+        from .grammar import extension_package_body
+
+        return extension_package_body
+
+
+class EdgeSDLSpec(EdgeQLParserSpec):
+    def get_parser_spec_module(self):
+        from .grammar import sdldocument
+
+        return sdldocument
+
+
+class EdgeQLParser:
     spec: EdgeQLParserSpec
 
     filename: Optional[str]
@@ -54,7 +96,7 @@ class EdgeQLParser():
     def parse(
         self,
         source: Union[str, tokenizer.Source],
-        filename: Optional[str] = None
+        filename: Optional[str] = None,
     ):
         if isinstance(source, str):
             source = tokenizer.Source.from_string(source)
@@ -67,9 +109,16 @@ class EdgeQLParser():
 
         if len(result.errors()) > 0:
             # TODO: emit multiple errors
-            error = result.errors()[0]
 
-            message, (position) = error
+            # Heuristic to pick the error:
+            # - first encountered,
+            # - Unexpected before Missing,
+            # - original order.
+            errs: List[Tuple[str, Tuple[int, Optional[int]]]] = result.errors()
+            errs.sort(key=lambda e: (e[1][0], -ord(e[0][1])))
+            error = errs[0]
+
+            message, position = error
             position = tokenizer.inflate_position(source.text(), position)
 
             raise errors.EdgeQLSyntaxError(message, position=position)
@@ -105,11 +154,13 @@ class EdgeQLParser():
                         name=self.filename,
                         buffer=self.source.text(),
                         start=terminal.start(),
-                        end=terminal.end()
+                        end=terminal.end(),
                     )
-                    result.append(parsing.Token(
-                        terminal.text(), terminal.value(), context
-                    ))
+                    result.append(
+                        parsing.Token(
+                            terminal.text(), terminal.value(), context
+                        )
+                    )
 
                 elif production := node.production():
                     # Production needs to first process all args, then
@@ -140,39 +191,3 @@ class EdgeQLParser():
                 # push into result stack
                 result.append(sym)
         return result.pop()
-
-
-class EdgeQLSingleSpec(EdgeQLParserSpec):
-    def get_parser_spec_module(self):
-        from .grammar import single
-        return single
-
-
-class EdgeQLExpressionSpec(EdgeQLParserSpec):
-    def get_parser_spec_module(self):
-        from .grammar import fragment
-        return fragment
-
-
-class EdgeQLBlockSpec(EdgeQLParserSpec):
-    def get_parser_spec_module(self):
-        from .grammar import block
-        return block
-
-
-class EdgeQLMigrationBodySpec(EdgeQLParserSpec):
-    def get_parser_spec_module(self):
-        from .grammar import migration_body
-        return migration_body
-
-
-class EdgeQLExtensionPackageBodySpec(EdgeQLParserSpec):
-    def get_parser_spec_module(self):
-        from .grammar import extension_package_body
-        return extension_package_body
-
-
-class EdgeSDLSpec(EdgeQLParserSpec):
-    def get_parser_spec_module(self):
-        from .grammar import sdldocument
-        return sdldocument

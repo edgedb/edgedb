@@ -196,18 +196,33 @@ QS = [
     '''
     INSERT Foo FILTER Foo.bar = 42;
     ''',
+    '''sdl
+    module test {
+        function some_func($`(`: str = ) ) -> std::str {
+            using edgeql function 'some_other_func';
+        }
+    };
+    ''',
+    '''
+    SELECT (a := 1, foo);
+    '''
 ]
 
-for q in QS:
+for q in QS[-2:]:
     sdl = q.startswith('sdl')
     if sdl:
         q = q[3:]
 
-    # s = tokenizer.NormalizedSource.from_string(q)
-    source = tokenizer.Source.from_string(q)
+    try:
+        # s = tokenizer.NormalizedSource.from_string(q)
+        source = tokenizer.Source.from_string(q)
+    except BaseException as e:
+        print('Error during tokenization:')
+        print(e)
+        continue
 
     if sdl:
-        spec = qlparser.EdgeQLBlockSpec()
+        spec = qlparser.EdgeSDLSpec()
     else:
         spec = qlparser.EdgeQLBlockSpec()
 

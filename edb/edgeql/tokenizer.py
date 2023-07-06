@@ -102,7 +102,7 @@ class NormalizedSource(Source):
 
 
 def inflate_position(
-    source: str, position: Tuple[int, int]
+    source: str, position: Tuple[int, Optional[int]]
 ) -> Tuple[ql_parser.SourcePoint, ql_parser.SourcePoint]:
     (start, end) = position
     source_bytes = source.encode('utf-8')
