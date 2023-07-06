@@ -279,6 +279,11 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         logger.debug('received connection request by %s to database %s',
                      user, database)
 
+        await self._authenticate(user, params)
+
+        logger.debug('successfully authenticated %s in database %s',
+                     user, database)
+
         if not self.server.is_database_connectable(database):
             raise errors.AccessError(
                 f'database {database!r} does not accept connections'
@@ -286,7 +291,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         await self._start_connection(database)
 
-        await self._authenticate(user, database, params)
+        self.dbname = database
+        self.username = user
 
         if self._transport_proto is srvargs.ServerConnTransport.HTTP:
             return
