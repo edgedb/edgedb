@@ -2140,10 +2140,14 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
             # and wait until it goes away on the server side
             # so that we can safely use the template for new
             # databases.
+            #
+            # The timeout is set weirdly high, because we were getting
+            # frequent timeouts in macos-x86_64 release builds when it
+            # was set to 10s.
             conn.terminate()
             rloop = retryloop.RetryLoop(
                 backoff=retryloop.exp_backoff(),
-                timeout=10.0,
+                timeout=60.0,
                 ignore=errors.ExecutionError,
             )
 
