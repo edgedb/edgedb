@@ -633,6 +633,11 @@ cdef class PgConnection(frontend.FrontendConnection):
         logger.debug('received pg connection request by %s to database %s',
                      user, database)
 
+        await self._authenticate(user, params)
+
+        logger.debug('successfully authenticated %s in database %s',
+                     user, database)
+
         if not self.server.is_database_connectable(database):
             raise pgerror.InvalidAuthSpec(
                 f'database {database!r} does not accept connections',
@@ -642,7 +647,8 @@ cdef class PgConnection(frontend.FrontendConnection):
         self.database = self.server.get_db(dbname=database)
         await self.database.introspection()
 
-        await self._authenticate(user, database, params)
+        self.dbname = database
+        self.username = user
 
         buf = WriteBuffer()
 
