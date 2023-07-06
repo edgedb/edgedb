@@ -3,7 +3,7 @@ from typing import *
 from edb.edgeql import ast as qlast
 from edb.edgeql.parser import parser as qlparser
 from edb.edgeql import tokenizer
-from edb import _edgeql_parser as eql_parser
+from edb import _edgeql_parser as ql_parser
 
 QS = [
     '''
@@ -232,7 +232,7 @@ for q in QS[-2:]:
     parser_obj.source = source
 
     parser_name = spec.__class__.__name__
-    result, productions = eql_parser.parse(parser_name, source.tokens())
+    result, productions = ql_parser.parse(parser_name, source.tokens())
 
     print('-' * 30)
     print()

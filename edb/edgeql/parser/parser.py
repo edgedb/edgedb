@@ -25,7 +25,7 @@ from edb.common import parsing
 
 from .. import tokenizer
 
-from edb import _edgeql_parser as eql_parser
+from edb import _edgeql_parser as ql_parser
 
 
 class EdgeQLParserSpec(parsing.ParserSpec):
@@ -105,7 +105,7 @@ class EdgeQLParser:
         self.source = source
 
         parser_name = self.spec.__class__.__name__
-        result, productions = eql_parser.parse(parser_name, source.tokens())
+        result, productions = ql_parser.parse(parser_name, source.tokens())
 
         if len(result.errors()) > 0:
             # TODO: emit multiple errors
@@ -126,7 +126,7 @@ class EdgeQLParser:
         return self._cst_to_ast(result.out(), productions).val
 
     def _cst_to_ast(
-        self, cst: eql_parser.CSTNode, productions: List[Callable]
+        self, cst: ql_parser.CSTNode, productions: List[Callable]
     ) -> Any:
         # Converts CST into AST by calling methods from the grammar classes.
         #
@@ -139,13 +139,13 @@ class EdgeQLParser:
         #   are are ready to be passed to the production method. The result is
         #   obviously pushed onto the result stack
 
-        stack: List[eql_parser.CSTNode | eql_parser.Production] = [cst]
+        stack: List[ql_parser.CSTNode | ql_parser.Production] = [cst]
         result: List[Any] = []
 
         while len(stack) > 0:
             node = stack.pop()
 
-            if isinstance(node, eql_parser.CSTNode):
+            if isinstance(node, ql_parser.CSTNode):
                 # this would be the body of the original recursion function
 
                 if terminal := node.terminal():
@@ -173,7 +173,7 @@ class EdgeQLParser:
                 else:
                     raise NotImplementedError(node)
 
-            elif isinstance(node, eql_parser.Production):
+            elif isinstance(node, ql_parser.Production):
                 # production args are done, get them out of result stack
                 len_args = len(node.args())
                 split_at = len(result) - len_args
