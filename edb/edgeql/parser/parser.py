@@ -66,40 +66,6 @@ class EdgeQLParser():
         result, productions = eql_parser.parse(parser_name, source.tokens())
 
         if len(result.errors()) > 0:
-
-            # DEBUG: print all errors
-            for index, error in enumerate(result.errors()):
-                message, position = error
-                (start, end) = tokenizer.inflate_position(
-                    source.text(), position
-                )
-
-                print(f'Error [{index+1}/{len(result.errors())}]:')
-                print(
-                    '\n'.join(
-                        source.text().splitlines()[(start.line - 1) : end.line]
-                    )
-                )
-                print(
-                    ' ' * (start.column - 1)
-                    + '^'
-                    + '-' * (end.column - start.column - 1)
-                    + ' '
-                    + message
-                )
-                print()
-            print('Recovered AST:')
-            if result.out():
-                try:
-                    ast = self._cst_to_ast(result.out(), productions).val
-                except BaseException:
-                    ast = None
-                if isinstance(ast, list):
-                    for x in ast:
-                        x.dump_edgeql()
-                elif ast:
-                    ast.dump_edgeql()
-
             # TODO: emit multiple errors
             error = result.errors()[0]
 

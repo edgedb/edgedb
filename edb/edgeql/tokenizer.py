@@ -109,8 +109,6 @@ def inflate_position(
 
     [start_sp] = ql_parser.SourcePoint.from_offsets(source_bytes, [start])
 
-    print(start_sp)
-
     if end is not None:
         [end_sp] = ql_parser.SourcePoint.from_offsets(source_bytes, [end])
     else:

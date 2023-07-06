@@ -1,26 +1,9 @@
 from typing import *
-import pickle
 
-from edb.edgeql import parser
-from edb.edgeql import tokenizer
 from edb.edgeql import ast as qlast
-
-
-def parse(querystr: str) -> qlast.Expr:
-    sdl = querystr.startswith('sdl')
-    if sdl:
-        querystr = querystr[3:]
-    
-    # s = tokenizer.NormalizedSource.from_string(querystr)
-    s = tokenizer.Source.from_string(querystr)
-    bytes = pickle.dumps(s)
-    s2 = pickle.loads(bytes)
-    
-    if sdl:
-        return parser.parse_sdl(s2)
-    else:
-        return parser.parse_block(s2)
-
+from edb.edgeql.parser import parser as qlparser
+from edb.edgeql import tokenizer
+from edb import _edgeql_parser as eql_parser
 
 QS = [
     '''
@@ -215,20 +198,58 @@ QS = [
     ''',
 ]
 
-for q in QS[-1:]:
-    
+for q in QS:
+    sdl = q.startswith('sdl')
+    if sdl:
+        q = q[3:]
+
+    # s = tokenizer.NormalizedSource.from_string(q)
+    source = tokenizer.Source.from_string(q)
+
+    if sdl:
+        spec = qlparser.EdgeQLBlockSpec()
+    else:
+        spec = qlparser.EdgeQLBlockSpec()
+
+    parser_obj = spec.get_parser()
+
+    parser_obj.filename = None
+    parser_obj.source = source
+
+    parser_name = spec.__class__.__name__
+    result, productions = eql_parser.parse(parser_name, source.tokens())
+
     print('-' * 30)
     print()
 
-    # try:
-    ast = parse(q)
+    for index, error in enumerate(result.errors()):
+        message, position = error
+        (start, end) = tokenizer.inflate_position(source.text(), position)
 
-    if not isinstance(ast, list):
-        ast = [ast]
+        print(f'Error [{index+1}/{len(result.errors())}]:')
+        print(
+            '\n'.join(source.text().splitlines()[(start.line - 1) : end.line])
+        )
+        print(
+            ' ' * (start.column - 1)
+            + '^'
+            + '-' * (end.column - start.column - 1)
+            + ' '
+            + message
+        )
+        print()
 
-    for x in ast:
-        x.dump()
-        x.dump_edgeql()
-    # except Exception as e:
-        # print(e)
-        # pass
+    if result.out():
+        try:
+            ast = parser_obj._cst_to_ast(result.out(), productions).val
+        except BaseException:
+            ast = None
+        if ast:
+            print('Recovered AST:')
+            if isinstance(ast, list):
+                for x in ast:
+                    x.dump_edgeql()
+            elif isinstance(ast, qlast.Base):
+                ast.dump_edgeql()
+            else:
+                print(ast)
