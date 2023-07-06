@@ -119,9 +119,11 @@ class EdgeQLParser:
             error = errs[0]
 
             message, position = error
-            position = tokenizer.inflate_position(source.text(), position)
+            position_inf = tokenizer.inflate_position(source.text(), position)
 
-            raise errors.EdgeQLSyntaxError(message, position=position)
+            (start, end) = position_inf
+            pos = (start.column, start.line, start.offset, end.offset)
+            raise errors.EdgeQLSyntaxError(message, position=pos)
 
         return self._cst_to_ast(result.out(), productions).val
 

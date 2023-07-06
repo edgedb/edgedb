@@ -24,9 +24,6 @@ from typing import *
 from edb.common import context as pctx
 from edb.common import exceptions as ex
 
-if TYPE_CHECKING:
-    from edb import _edgeql_parser as ql_parser
-
 import contextlib
 
 
@@ -93,9 +90,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         hint: Optional[str] = None,
         details: Optional[str] = None,
         context=None,
-        position: Optional[
-            tuple[ql_parser.SourcePoint, ql_parser.SourcePoint | None]
-        ] = None,
+        position: Optional[tuple[int, int, int, int | None]] = None,
         filename: Optional[str] = None,
         token=None,
         pgext_code: Optional[str] = None,
@@ -171,13 +166,14 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
 
     def set_position(
         self,
-        start: ql_parser.SourcePoint,
-        end: ql_parser.SourcePoint | None,
+        line: int,
+        column: int,
+        start: int,
+        end: Optional[int],
     ):
-        self.set_linecol(start.line, start.column)
-        self._attrs[FIELD_POSITION_START] = str(start.offset)
-        end = end or start
-        self._attrs[FIELD_POSITION_END] = str(end.offset)
+        self.set_linecol(line, column)
+        self._attrs[FIELD_POSITION_START] = str(start)
+        self._attrs[FIELD_POSITION_END] = str(end or start)
 
     @property
     def line(self):

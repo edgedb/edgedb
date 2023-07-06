@@ -128,6 +128,8 @@ def _tokenize(eql: str) -> List[ql_parser.Token]:
         position = inflate_position(eql, position)
 
         hint = _derive_hint(eql, message, position)
+        (start, end) = position
+        position = (start.column, start.line, start.offset, end.offset)
         raise errors.EdgeQLSyntaxError(message, position=position, hint=hint)
 
     return result.out()
@@ -141,6 +143,8 @@ def _normalize(eql: str) -> ql_parser.Entry:
         position = inflate_position(eql, position)
 
         hint = _derive_hint(eql, message, position)
+        (start, end) = position
+        position = (start.column, start.line, start.offset, end.offset)
         raise errors.EdgeQLSyntaxError(
             message, position=position, hint=hint
         ) from e
