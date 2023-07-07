@@ -33,7 +33,7 @@ from edb.common.exceptions import add_context, get_context
 from edb.common import context as pctx
 from edb.edgeql import tokenizer
 from edb.errors import EdgeQLSyntaxError
-from edb import _edgeql_parser as eql_parser
+from edb import _edgeql_parser as ql_parser
 
 if TYPE_CHECKING:
     from edb.edgeql.parser.grammar import rust_lexer
@@ -446,7 +446,7 @@ class Parser:
         assert self.lexer
         self.lexer.setinputstr(input, filename=filename)
 
-    def convert_lex_token(self, mod: Any, tok: eql_parser.Token) -> Token:
+    def convert_lex_token(self, mod: Any, tok: ql_parser.Token) -> Token:
         token_cls = mod.TokenMeta.for_lex_token(tok.kind())
         return token_cls(tok.text(), tok.value(), self.context(tok))
 
@@ -469,7 +469,7 @@ class Parser:
 
             self.parser.eoi()
 
-        except eql_parser.TokenizerError as e:
+        except ql_parser.TokenizerError as e:
             message, position = e.args
 
             assert self.lexer

@@ -22,7 +22,7 @@ from __future__ import annotations
 import re
 from typing import *
 
-from edb import _edgeql_parser as ql_parser
+import edb._edgeql_parser as ql_parser
 
 
 keyword_types = range(1, 5)

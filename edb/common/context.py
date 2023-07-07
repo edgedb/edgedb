@@ -36,7 +36,7 @@ from __future__ import annotations
 import re
 import bisect
 
-from edb import _edgeql_parser as ql_parser
+import edb._edgeql_parser as ql_parser
 
 from edb.common import ast
 from edb.common import markup

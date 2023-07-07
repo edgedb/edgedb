@@ -23,12 +23,12 @@ from typing import *
 from collections import deque
 
 from edb.edgeql import tokenizer
-from edb import _edgeql_parser as eql_parser
+from edb import _edgeql_parser as ql_parser
 
 
 class EdgeQLLexer:
     inputstr: str
-    tokens: Optional[Deque[eql_parser.Token]]
+    tokens: Optional[Deque[ql_parser.Token]]
     filename: Optional[str]
     end_of_input: Tuple[int, int, int]
 
@@ -48,6 +48,6 @@ class EdgeQLLexer:
         self.tokens = deque(source.tokens())
         self.end_of_input = self.tokens[-1].end()
 
-    def token(self) -> eql_parser.Token:
+    def token(self) -> ql_parser.Token:
         if self.tokens:
             return self.tokens.popleft()

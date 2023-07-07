@@ -25,7 +25,7 @@ from typing import *
 import re
 import textwrap
 
-from edb import _edgeql_parser as ql_parser
+import edb._edgeql_parser as ql_parser
 
 from edb.common import context as parser_context
 from edb.common import debug

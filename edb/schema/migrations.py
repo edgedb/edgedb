@@ -29,7 +29,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import qltypes
 from edb.edgeql import parser as qlparser
-from edb import _edgeql_parser as ql_parser
+import edb._edgeql_parser as ql_parser
 
 from . import abc as s_abc
 from . import delta as sd
