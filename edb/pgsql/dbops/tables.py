@@ -45,7 +45,7 @@ class Table(composites.CompositeDBObject):
         self.data = []
         super().__init__(name, columns=columns)
 
-    def _iter_columns(
+    def iter_columns(
         self, writable_only: bool = False, only_self: bool = False
     ) -> Iterable[Column]:
         cols: collections.OrderedDict = collections.OrderedDict()
@@ -65,13 +65,13 @@ class Table(composites.CompositeDBObject):
     def add_bases(self, iterable):
         self.bases.update(iterable)
         self.columns = collections.OrderedDict(
-            (c.name, c) for c in self._iter_columns()
+            (c.name, c) for c in self.iter_columns()
         )
 
     def add_columns(self, iterable):
         super().add_columns(iterable)
         self.columns = collections.OrderedDict(
-            (c.name, c) for c in self._iter_columns()
+            (c.name, c) for c in self.iter_columns()
         )
 
     def add_constraint(self, const):
@@ -128,7 +128,7 @@ class Column(base.DBObject):
         self.comment = comment
 
     def code(self, _context, short: bool = False):
-        code = "{} {}".format(qi(self.name), qt(self.type))
+        code = "{} {}".format(qi(self.name), self.type)
         if not short:
             default = 'DEFAULT {}'.format(
                 self.default) if self.default is not None else ''
@@ -316,7 +316,7 @@ class CreateTable(ddl.SchemaObjectOperation):
 
     def code(self, block: base.PLBlock) -> str:
         elems = [
-            c.code(block) for c in self.table._iter_columns(only_self=True)
+            c.code(block) for c in self.table.iter_columns(only_self=True)
         ]
         for c in self.table.constraints:
             elems.append(c.constraint_code(block))
