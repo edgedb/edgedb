@@ -6,7 +6,7 @@ dynamic = ["entry-points", "version"]
 dependencies = [
     'edgedb==1.3.0',
 
-    'httptools>=0.3.0',
+    'httptools>=0.6.0',
     'immutables>=0.18',
     'parsing~=2.0',
     'uvloop~=0.17.0',
