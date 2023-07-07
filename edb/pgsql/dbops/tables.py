@@ -64,13 +64,15 @@ class Table(composites.CompositeDBObject):
 
     def add_bases(self, iterable):
         self.bases.update(iterable)
-        self.columns = \
-            collections.OrderedDict((c.name, c) for c in self._iter_columns())
+        self.columns = collections.OrderedDict(
+            (c.name, c) for c in self._iter_columns()
+        )
 
     def add_columns(self, iterable):
         super().add_columns(iterable)
-        self.columns = \
-            collections.OrderedDict((c.name, c) for c in self._iter_columns())
+        self.columns = collections.OrderedDict(
+            (c.name, c) for c in self._iter_columns()
+        )
 
     def add_constraint(self, const):
         self.constraints.add(const)
@@ -114,9 +116,9 @@ class Column(base.DBObject):
         name: str | pgast.Star,
         type: str | tuple[str, str],
         required: bool = False,
-        default: Optional[str]=None,
+        default: Optional[str] = None,
         readonly: bool = False,
-        comment: Optional[str]=None,
+        comment: Optional[str] = None,
     ):
         self.name = name
         self.type = type

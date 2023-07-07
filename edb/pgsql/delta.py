@@ -3536,8 +3536,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 sql = codegen.generate_source(kw_sql_tree)
                 sql_kwarg_exprs[name] = sql
 
-        table_name = common.get_backend_name(
-            schema, subject, catenate=False)
+        table_name = common.get_backend_name(schema, subject, catenate=False)
 
         module_name = index.get_name(schema).module
         index_name = common.get_index_backend_name(

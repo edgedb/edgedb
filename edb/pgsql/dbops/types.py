@@ -35,7 +35,7 @@ from . import tables
 
 
 class CompositeType(composites.CompositeDBObject):
-    def __init__(self, name, columns: Collection[tables.Column]=()):
+    def __init__(self, name, columns: Collection[tables.Column] = ()):
         super().__init__(name)
         self._columns = ordered.OrderedSet(columns)
 

@@ -409,7 +409,7 @@ class Condition(BaseCommand):
 
 class Query(Command):
     def __init__(
-        self, text: str, *, type: Optional[str | Tuple[str, str]]=None
+        self, text: str, *, type: Optional[str | Tuple[str, str]] = None
     ):
         super().__init__()
         self.text = text
@@ -443,7 +443,7 @@ class Default(metaclass=DefaultMeta):
 
 
 class DBObject:
-    def __init__(self, *, metadata: Optional[Mapping[str, Any]]=None):
+    def __init__(self, *, metadata: Optional[Mapping[str, Any]] = None):
         self.metadata = dict(metadata) if metadata else None
 
     def add_metadata(self, key: str, value: Any):

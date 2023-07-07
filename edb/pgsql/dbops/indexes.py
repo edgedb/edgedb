@@ -40,12 +40,12 @@ class Index(tables.InheritableTableObject):
         self,
         name: str,
         table_name: str,
-        unique: bool=True,
-        exprs: Iterable[str] | None=None,
-        predicate: str | None=None,
+        unique: bool = True,
+        exprs: Iterable[str] | None = None,
+        predicate: str | None = None,
         inherit=False,
-        metadata: Dict[str, Any] | None=None,
-        columns: Iterable[str | pgast.Star] | None=None
+        metadata: Dict[str, Any] | None = None,
+        columns: Iterable[str | pgast.Star] | None = None,
     ):
         super().__init__(inherit=inherit, metadata=metadata)
 
