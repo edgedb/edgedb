@@ -71,18 +71,18 @@ def needs_quoting(string: str, allow_reserved: bool, allow_num: bool) -> bool:
 
     r = _re_ident_or_num if allow_num else _re_ident
     isalnum = r.fullmatch(string)
+    if not isalnum:
+        return True
 
-    string = string.lower()
+    if allow_reserved:
+        return False
 
+    string = string.upper()
     is_reserved = (
-        string not in {'__type__', '__std__'}
+        string not in {'__TYPE__', '__STD__'}
         and string in keywords.by_type[keywords.RESERVED_KEYWORD]
     )
-
-    return (
-        not isalnum
-        or (not allow_reserved and is_reserved)
-    )
+    return is_reserved
 
 
 def _quote_ident(string: str) -> str:
