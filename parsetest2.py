@@ -3,7 +3,7 @@ from typing import *
 from edb.edgeql import ast as qlast
 from edb.edgeql.parser import parser as qlparser
 from edb.edgeql import tokenizer
-from edb import _edgeql_parser as ql_parser
+import edb._edgeql_parser as ql_parser
 
 QS = [
     '''

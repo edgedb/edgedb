@@ -25,7 +25,7 @@ from edb.common import parsing
 
 from .. import tokenizer
 
-from edb import _edgeql_parser as ql_parser
+import edb._edgeql_parser as ql_parser
 
 
 class EdgeQLParserSpec(parsing.ParserSpec):
