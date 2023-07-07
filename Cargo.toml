@@ -9,7 +9,3 @@ members = [
 [profile.release]
 debug = true
 lto = true
-
-
-[patch.crates-io]
-bumpalo = { path = "../bumpalo" }
