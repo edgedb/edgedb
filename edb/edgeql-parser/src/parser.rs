@@ -3,14 +3,26 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::helpers::quote_name;
+use crate::keywords;
 use crate::keywords::Keyword;
 use crate::position::Span;
+use crate::tokenizer;
 use crate::tokenizer::Error;
 use crate::tokenizer::Kind;
+use crate::tokenizer::Token;
 use crate::tokenizer::Value;
 
 pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>) {
     let arena = bumpalo::Bump::new();
+
+    // dbg!(std::mem::size_of::<Spec>());
+    // dbg!(std::mem::size_of::<Action>());
+    // dbg!(std::mem::size_of::<Reduce>());
+    // dbg!(std::mem::size_of::<CSTNode>());
+    // dbg!(std::mem::size_of::<Terminal>());
+    // dbg!(std::mem::size_of::<Production>());
+    // dbg!(std::mem::size_of::<StackNode>());
+    // dbg!(std::mem::size_of::<Context>());
 
     let stack_top = arena.alloc(StackNode {
         parent: None,
@@ -40,7 +52,7 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
     let mut parsers = vec![initial_track];
     let mut prev_span: Option<Span> = None;
 
-    for token in input {
+    for token in input.into_iter() {
         let mut new_parsers = Vec::with_capacity(parsers.len() + 5);
 
         while let Some(mut parser) = parsers.pop() {
@@ -245,11 +257,7 @@ impl<'s> Parser<'s> {
                     // println!("   --> [shift {next}]");
 
                     // push on stack
-                    self.stack_top = ctx.arena.alloc(StackNode {
-                        parent: Some(self.stack_top),
-                        state: *next,
-                        value: CSTNode::Terminal(token.clone()),
-                    });
+                    self.push_on_stack(ctx, *next, CSTNode::Terminal(token.clone()));
                     return Ok(());
                 }
                 Action::Reduce(reduce) => {
@@ -293,18 +301,23 @@ impl<'s> Parser<'s> {
             }
         }
 
-        // push on stack
-        self.stack_top = ctx.arena.alloc(StackNode {
-            parent: Some(self.stack_top),
-            state: next,
-            value,
-        });
+        self.push_on_stack(ctx, next, value);
 
         // println!(
         //     "   --> [reduce {} ::= ({} popped) at {}/{}]",
         //     production, cnt, state, nstate
         // );
         // self.print_stack();
+    }
+
+    pub fn push_on_stack(&mut self, ctx: &'s Context, state: usize, value: CSTNode) {
+        let node = StackNode {
+            parent: Some(self.stack_top),
+            state,
+            value,
+        };
+        let node = bumpalo::boxed::Box::new_in(node, ctx.arena);
+        self.stack_top = ctx.arena.alloc(node);
     }
 
     pub fn finish(&mut self) {
@@ -456,5 +469,118 @@ impl std::fmt::Display for Terminal {
 impl Default for CSTNode {
     fn default() -> Self {
         CSTNode::Empty
+    }
+}
+
+impl Terminal {
+    pub fn from_token(token: Token) -> Self {
+        Terminal {
+            kind: token.kind,
+            text: token.text,
+            value: token.value,
+            span: token.span,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct SpecJson {
+    pub actions: Vec<Vec<(String, Action)>>,
+    pub goto: Vec<Vec<(String, usize)>>,
+    pub start: String,
+    pub inlines: Vec<(usize, u8)>,
+}
+
+impl Spec {
+    pub fn from_json(j_spec: &str) -> Result<Spec, String> {
+        let v = serde_json::from_str::<SpecJson>(j_spec).map_err(|e| e.to_string())?;
+
+        let actions = v
+            .actions
+            .into_iter()
+            .map(|x| x.into_iter().map(|(k, a)| (get_token_kind(&k), a)))
+            .map(IndexMap::from_iter)
+            .collect();
+        let goto = v.goto.into_iter().map(IndexMap::from_iter).collect();
+        let inlines = IndexMap::from_iter(v.inlines);
+        Ok(Spec {
+            actions,
+            goto,
+            start: v.start,
+            inlines,
+        })
+    }
+}
+
+fn get_token_kind(token_name: &str) -> tokenizer::Kind {
+    use tokenizer::Kind::*;
+
+    match token_name {
+        "+" => Add,
+        "&" => Ampersand,
+        "@" => At,
+        ".<" => BackwardLink,
+        "}" => CloseBrace,
+        "]" => CloseBracket,
+        ")" => CloseParen,
+        "??" => Coalesce,
+        ":" => Colon,
+        "," => Comma,
+        "++" => Concat,
+        "/" => Div,
+        "." => Dot,
+        "**" => DoubleSplat,
+        "=" => Eq,
+        "//" => FloorDiv,
+        "%" => Modulo,
+        "*" => Mul,
+        "::" => Namespace,
+        "{" => OpenBrace,
+        "[" => OpenBracket,
+        "(" => OpenParen,
+        "|" => Pipe,
+        "^" => Pow,
+        ";" => Semicolon,
+        "-" => Sub,
+
+        "?!=" => DistinctFrom,
+        ">=" => GreaterEq,
+        "<=" => LessEq,
+        "?=" => NotDistinctFrom,
+        "!=" => NotEq,
+        "<" => Less,
+        ">" => Greater,
+
+        "IDENT" => Ident,
+        "EOF" => EOF,
+        "<$>" => EOI,
+        "<e>" => Epsilon,
+
+        "BCONST" => BinStr,
+        "FCONST" => FloatConst,
+        "ICONST" => IntConst,
+        "NFCONST" => DecimalConst,
+        "NICONST" => BigIntConst,
+        "SCONST" => Str,
+
+        "+=" => AddAssign,
+        "->" => Arrow,
+        ":=" => Assign,
+        "-=" => SubAssign,
+
+        "ARGUMENT" => Argument,
+        "SUBSTITUTION" => Substitution,
+
+        _ => {
+            let mut token_name = token_name.to_lowercase();
+
+            if let Some(rem) = token_name.strip_prefix("dunder") {
+                token_name = format!("__{rem}__");
+            }
+
+            let kw = keywords::lookup_all(&token_name)
+                .unwrap_or_else(|| panic!("unknown keyword {token_name}"));
+            Keyword(kw)
+        }
     }
 }

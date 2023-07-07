@@ -23,8 +23,11 @@ edgeql-parser-derive = { path = "edgeql-parser-derive", optional = true }
 cpython = { version = "0.7.0", optional = true }
 indexmap = "1.9.3"
 serde_json = {version="1.0", features=["preserve_order"]}
-bumpalo = "3.13.0"
+bumpalo = {version="3.13.0", features=["boxed"]}
 phf = { version = "0.11.1", features = ["macros"] }
+
+[dev-dependencies]
+criterion = {version = "0.5.1"}
 
 [features]
 default = ["serde"]
@@ -32,3 +35,7 @@ wasm-lexer = ["wasm-bindgen", "serde"]
 python = ["cpython", "edgeql-parser-derive"]
 
 [lib]
+
+[[bench]]
+harness = false
+name = "bench"
