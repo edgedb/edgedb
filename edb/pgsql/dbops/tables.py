@@ -28,6 +28,9 @@ from edb.common import ordered
 from ..common import qname as qn
 from ..common import quote_ident as qi
 from ..common import quote_literal as ql
+from ..common import quote_type as qt
+
+from .. import ast as pgast
 
 from . import base
 from . import composites
@@ -42,9 +45,9 @@ class Table(composites.CompositeDBObject):
         self.data = []
         super().__init__(name, columns=columns)
 
-    def iter_columns(
+    def _iter_columns(
         self, writable_only: bool = False, only_self: bool = False
-    ):
+    ) -> Iterable[Column]:
         cols: collections.OrderedDict = collections.OrderedDict()
         cols.update((c.name, c) for c in self._columns
                     if not writable_only or not c.readonly)
@@ -62,12 +65,12 @@ class Table(composites.CompositeDBObject):
     def add_bases(self, iterable):
         self.bases.update(iterable)
         self.columns = \
-            collections.OrderedDict((c.name, c) for c in self.iter_columns())
+            collections.OrderedDict((c.name, c) for c in self._iter_columns())
 
     def add_columns(self, iterable):
         super().add_columns(iterable)
         self.columns = \
-            collections.OrderedDict((c.name, c) for c in self.iter_columns())
+            collections.OrderedDict((c.name, c) for c in self._iter_columns())
 
     def add_constraint(self, const):
         self.constraints.add(const)
@@ -108,12 +111,12 @@ class InheritableTableObject(base.InheritableDBObject):
 class Column(base.DBObject):
     def __init__(
         self,
-        name,
-        type,
+        name: str | pgast.Star,
+        type: str | tuple[str, str],
         required: bool = False,
-        default=None,
+        default: Optional[str]=None,
         readonly: bool = False,
-        comment=None,
+        comment: Optional[str]=None,
     ):
         self.name = name
         self.type = type
@@ -122,8 +125,8 @@ class Column(base.DBObject):
         self.readonly = readonly
         self.comment = comment
 
-    def code(self, context, short: bool = False):
-        code = "{} {}".format(qi(self.name), self.type)
+    def code(self, _context, short: bool = False):
+        code = "{} {}".format(qi(self.name), qt(self.type))
         if not short:
             default = 'DEFAULT {}'.format(
                 self.default) if self.default is not None else ''
@@ -197,6 +200,7 @@ class CheckConstraint(TableConstraint):
 
     def constraint_code(self, block: base.PLBlock) -> str:
         if isinstance(self.expr, base.Query):
+            assert self.expr.type
             var = block.declare_var(self.expr.type)
             indent = len(var) + 5
             expr_text = textwrap.indent(self.expr.text, ' ' * indent).strip()
@@ -297,7 +301,7 @@ class ColumnIsInherited(base.Condition):
 class CreateTable(ddl.SchemaObjectOperation):
     def __init__(
         self,
-        table,
+        table: Table,
         temporary: bool = False,
         *,
         conditions=None,
@@ -309,8 +313,9 @@ class CreateTable(ddl.SchemaObjectOperation):
         self.temporary = temporary
 
     def code(self, block: base.PLBlock) -> str:
-        elems = [c.code(block)
-                 for c in self.table.iter_columns(only_self=True)]
+        elems = [
+            c.code(block) for c in self.table._iter_columns(only_self=True)
+        ]
         for c in self.table.constraints:
             elems.append(c.constraint_code(block))
 
