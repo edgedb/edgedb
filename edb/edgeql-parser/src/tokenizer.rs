@@ -14,9 +14,9 @@ pub const MAX_KEYWORD_LENGTH: usize = 16;
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Token {
+pub struct Token<'a> {
     pub kind: Kind,
-    pub text: String,
+    pub text: Cow<'a, str>,
 
     /// Parsed during validation.
     pub value: Option<Value>,
@@ -142,7 +142,7 @@ pub struct Checkpoint {
 }
 
 impl<'a> Iterator for Tokenizer<'a> {
-    type Item = Result<Token, Error>;
+    type Item = Result<Token<'a>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let start = self.current_pos().offset;
@@ -911,9 +911,20 @@ impl<'a> fmt::Display for TokenStub<'a> {
     }
 }
 
-impl fmt::Display for Token {
+impl <'a> fmt::Display for Token<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}[{:?}]", self.text, self.kind)
+    }
+}
+
+impl <'a> Token<'a> {
+    pub fn cloned(self) -> Token<'static> {
+        Token {
+            kind: self.kind,
+            text: Cow::<'static, str>::Owned(self.text.to_string()),
+            value: self.value,
+            span: self.span,
+        }
     }
 }
 
@@ -939,7 +950,7 @@ fn check_prohibited(c: char, escape: bool) -> Result<(), Error> {
     }
 }
 
-impl std::cmp::PartialEq for Token {
+impl <'a> std::cmp::PartialEq for Token<'a> {
     fn eq(&self, other: &Self) -> bool {
         self.kind == other.kind && self.text == other.text && self.value == other.value
     }

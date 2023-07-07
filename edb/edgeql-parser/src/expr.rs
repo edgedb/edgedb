@@ -84,7 +84,7 @@ pub fn check(text: &str) -> Result<(), Error> {
         empty = false;
         match token.kind {
             Comma | Semicolon if brackets.is_empty() => {
-                return Err(UnexpectedToken(token.text, pos));
+                return Err(UnexpectedToken(token.text.into(), pos));
             }
             OpenParen | OpenBracket | OpenBrace => {
                 brackets.push((token.kind, pos));

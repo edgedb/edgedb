@@ -460,7 +460,7 @@ impl Terminal {
     pub fn from_token(token: Token) -> Self {
         Terminal {
             kind: token.kind,
-            text: token.text,
+            text: token.text.into(),
             value: token.value,
             span: token.span,
         }

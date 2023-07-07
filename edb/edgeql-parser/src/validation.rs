@@ -14,12 +14,12 @@ use crate::tokenizer::{Error, Kind, Token, Tokenizer, Value, MAX_KEYWORD_LENGTH}
 pub struct Validator<'a> {
     pub inner: Tokenizer<'a>,
 
-    pub(super) peeked: Option<Option<Result<Token, Error>>>,
+    pub(super) peeked: Option<Option<Result<Token<'a>, Error>>>,
     pub(super) keyword_buf: String,
 }
 
 impl<'a> Iterator for Validator<'a> {
-    type Item = Result<Token, Error>;
+    type Item = Result<Token<'a>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut token = match self.next_inner()? {
@@ -62,7 +62,7 @@ impl<'a> Validator<'a> {
 
     /// Mimics behavior of [std::iter::Peekable]. We could use that, but it
     /// hides access to underlying iterator.
-    fn next_inner(&mut self) -> Option<Result<Token, Error>> {
+    fn next_inner(&mut self) -> Option<Result<Token<'a>, Error>> {
         if let Some(peeked) = self.peeked.take() {
             peeked
         } else {
@@ -84,7 +84,7 @@ impl<'a> Validator<'a> {
         self.inner.current_pos()
     }
 
-    fn combine_multi_word_keywords(&mut self, token: &Token) -> Option<&'static str> {
+    fn combine_multi_word_keywords(&mut self, token: &Token<'a>) -> Option<&'static str> {
         if !matches!(token.kind, Kind::Ident | Kind::Keyword(_)) {
             return None;
         }
@@ -229,7 +229,7 @@ pub struct WithEof<'a> {
 }
 
 impl<'a> Iterator for WithEof<'a> {
-    type Item = Result<Token, Error>;
+    type Item = Result<Token<'a>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(next) = self.inner.next() {
@@ -240,7 +240,7 @@ impl<'a> Iterator for WithEof<'a> {
 
             Some(Ok(Token {
                 kind: Kind::EOF,
-                text: "".to_string(),
+                text: "".into(),
                 value: None,
                 span: Span {
                     start: pos,

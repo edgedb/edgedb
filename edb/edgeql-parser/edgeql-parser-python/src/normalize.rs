@@ -1,8 +1,9 @@
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 
 use edgeql_parser::keywords::Keyword;
-use edgeql_parser::tokenizer::{Kind, Tokenizer, Token, Value};
 use edgeql_parser::position::{Pos, Span};
+use edgeql_parser::tokenizer::{Kind, Token, Tokenizer, Value};
 
 use blake2::{Blake2b512, Digest};
 
@@ -14,7 +15,7 @@ pub struct Variable {
 pub struct Entry {
     pub processed_source: String,
     pub hash: [u8; 64],
-    pub tokens: Vec<Token>,
+    pub tokens: Vec<Token<'static>>,
     pub variables: Vec<Vec<Variable>>,
     pub named_args: bool,
     pub first_arg: Option<usize>,
@@ -26,59 +27,11 @@ pub enum Error {
     Assertion(String, Pos),
 }
 
-fn push_var(res: &mut Vec<Token>, module: &str, typ: &str,
-    var: String, span: Span)
-{
-    res.push(Token {kind: Kind::OpenParen, text: "(".into(), span, value: None});
-    res.push(Token {kind: Kind::Less, text: "<".into(), span, value: None});
-    res.push(Token {kind: Kind::Ident, text: module.into(), span,
-        value: Some(Value::String(module.to_string()))});
-    res.push(Token {kind: Kind::Namespace, text: "::".into(), span, value: None});
-    res.push(Token {kind: Kind::Ident, text: typ.into(), span,
-        value: Some(Value::String(typ.to_string())),
-    });
-    res.push(Token {kind: Kind::Greater, text: ">".into(), span, value: None});
-    res.push(Token {kind: Kind::Argument, text: var, span, value: None});
-    res.push(Token {kind: Kind::CloseParen, text: ")".into(), span, value: None});
-}
-
-fn scan_vars<'x, 'y: 'x, I>(tokens: I) -> Option<(bool, usize)>
-    where I: IntoIterator<Item=&'x Token>,
-{
-    let mut max_visited = None::<usize>;
-    let mut names = BTreeSet::new();
-    for t in tokens {
-        if t.kind == Kind::Argument {
-            if let Ok(v) = t.text[1..].parse() {
-                if max_visited.map(|old| v > old).unwrap_or(true) {
-                    max_visited = Some(v);
-                }
-            } else {
-                names.insert(&t.text[..]);
-            }
-        }
-    }
-    if names.is_empty() {
-        let next = max_visited.map(|x| x.checked_add(1)).unwrap_or(Some(0))?;
-        Some((false, next))
-    } else if max_visited.is_some() {
-        return None  // mixed arguments
-    } else {
-        Some((true, names.len()))
-    }
-}
-
-fn hash(text: &str) -> [u8; 64] {
-    let mut result = [0u8; 64];
-    result.copy_from_slice(&Blake2b512::new_with_prefix(text.as_bytes())
-                           .finalize());
-    return result;
-}
-
 pub fn normalize(text: &str) -> Result<Entry, Error> {
     let tokens = Tokenizer::new(text)
         .validated_values()
         .with_eof()
+        .map(|x| x.map(|t| t.cloned()))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| Error::Tokenizer(e.message, e.span.start))?;
 
@@ -124,45 +77,45 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
                     Some(Token { kind: Kind::Keyword(Keyword("limit")), .. })))
             && tok.text != "9223372036854775808"
             => {
-                push_var(&mut rewritten_tokens, "__std__", "int64",
+                rewritten_tokens.extend(arg_type_cast( "__std__", "int64",
                     next_var(),
-                    tok.span);
+                    tok.span));
                 variables.push(Variable {
                     value: tok.value.clone().unwrap(),
                 });
                 continue;
             }
             Kind::FloatConst => {
-                push_var(&mut rewritten_tokens, "__std__", "float64",
+                rewritten_tokens.extend(arg_type_cast( "__std__", "float64",
                     next_var(),
-                    tok.span);
+                    tok.span));
                 variables.push(Variable {
                     value: tok.value.clone().unwrap(),
                 });
                 continue;
             }
             Kind::BigIntConst => {
-                push_var(&mut rewritten_tokens, "__std__", "bigint",
+                rewritten_tokens.extend(arg_type_cast( "__std__", "bigint",
                     next_var(),
-                    tok.span);
+                    tok.span));
                 variables.push(Variable {
                     value: tok.value.clone().unwrap(),
                 });
                 continue;
             }
             Kind::DecimalConst => {
-                push_var(&mut rewritten_tokens, "__std__", "decimal",
+                rewritten_tokens.extend(arg_type_cast( "__std__", "decimal",
                     next_var(),
-                    tok.span);
+                    tok.span));
                 variables.push(Variable {
                     value: tok.value.clone().unwrap(),
                 });
                 continue;
             }
             Kind::Str => {
-                push_var(&mut rewritten_tokens, "__std__", "str",
+                rewritten_tokens.extend(arg_type_cast( "__std__", "str",
                     next_var(),
-                    tok.span);
+                    tok.span));
                 variables.push(Variable {
                     value: tok.value.clone().unwrap(),
                 });
@@ -207,7 +160,11 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
         hash: hash(&processed_source),
         processed_source,
         named_args,
-        first_arg: if counter <= var_idx { None } else { Some(var_idx) },
+        first_arg: if counter <= var_idx {
+            None
+        } else {
+            Some(var_idx)
+        },
         tokens: rewritten_tokens,
         variables: all_variables,
     });
@@ -216,59 +173,13 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
 fn is_operator(token: &Token) -> bool {
     use edgeql_parser::tokenizer::Kind::*;
     match token.kind {
-        | Assign
-        | SubAssign
-        | AddAssign
-        | Arrow
-        | Coalesce
-        | Namespace
-        | DoubleSplat
-        | BackwardLink
-        | FloorDiv
-        | Concat
-        | GreaterEq
-        | LessEq
-        | NotEq
-        | NotDistinctFrom
-        | DistinctFrom
-        | Comma
-        | OpenParen
-        | CloseParen
-        | OpenBracket
-        | CloseBracket
-        | OpenBrace
-        | CloseBrace
-        | Dot
-        | Semicolon
-        | Colon
-        | Add
-        | Sub
-        | Mul
-        | Div
-        | Modulo
-        | Pow
-        | Less
-        | Greater
-        | Eq
-        | Ampersand
-        | Pipe
-        | At
-        => true,
-        | DecimalConst
-        | FloatConst
-        | IntConst
-        | BigIntConst
-        | BinStr
-        | Argument
-        | Str
-        | BacktickName
-        | Keyword(_)
-        | Ident
-        | Substitution
-        | EOF
-        | EOI
-        | Epsilon
-        => false,
+        Assign | SubAssign | AddAssign | Arrow | Coalesce | Namespace | DoubleSplat
+        | BackwardLink | FloorDiv | Concat | GreaterEq | LessEq | NotEq | NotDistinctFrom
+        | DistinctFrom | Comma | OpenParen | CloseParen | OpenBracket | CloseBracket
+        | OpenBrace | CloseBrace | Dot | Semicolon | Colon | Add | Sub | Mul | Div | Modulo
+        | Pow | Less | Greater | Eq | Ampersand | Pipe | At => true,
+        DecimalConst | FloatConst | IntConst | BigIntConst | BinStr | Argument | Str
+        | BacktickName | Keyword(_) | Ident | Substitution | EOF | EOI | Epsilon => false,
     }
 }
 
@@ -289,6 +200,72 @@ fn serialize_tokens(tokens: &[Token]) -> String {
         needs_space = !is_operator(token);
     }
     return buf;
+}
+
+fn scan_vars<'x, 'y: 'x, I>(tokens: I) -> Option<(bool, usize)>
+where
+    I: IntoIterator<Item = &'x Token<'x>>,
+{
+    let mut max_visited = None::<usize>;
+    let mut names = BTreeSet::new();
+    for t in tokens {
+        if t.kind == Kind::Argument {
+            if let Ok(v) = t.text[1..].parse() {
+                if max_visited.map(|old| v > old).unwrap_or(true) {
+                    max_visited = Some(v);
+                }
+            } else {
+                names.insert(&t.text[..]);
+            }
+        }
+    }
+    if names.is_empty() {
+        let next = max_visited.map(|x| x.checked_add(1)).unwrap_or(Some(0))?;
+        Some((false, next))
+    } else if max_visited.is_some() {
+        return None; // mixed arguments
+    } else {
+        Some((true, names.len()))
+    }
+}
+
+fn hash(text: &str) -> [u8; 64] {
+    let mut result = [0u8; 64];
+    result.copy_from_slice(&Blake2b512::new_with_prefix(text.as_bytes()).finalize());
+    return result;
+}
+
+/// Produces tokens corresponding to (<module::typ>$var)
+fn arg_type_cast(
+    module: &'static str,
+    typ: &'static str,
+    var: String,
+    span: Span,
+) -> [Token<'static>; 8] {
+    fn tk<'a>(kind: Kind, text: Cow<'a, str>, span: Span) -> Token<'a> {
+        let value = if kind == Kind::Ident {
+            Some(Value::String(text.to_string()))
+        } else {
+            None
+        };
+        Token {
+            kind,
+            text,
+            value,
+            span,
+        }
+    }
+
+    [
+        tk(Kind::OpenParen, "(".into(), span),
+        tk(Kind::Less, "<".into(), span),
+        tk(Kind::Ident, module.into(), span),
+        tk(Kind::Namespace, "::".into(), span),
+        tk(Kind::Ident, typ.into(), span),
+        tk(Kind::Greater, ">".into(), span),
+        tk(Kind::Argument, var.into(), span),
+        tk(Kind::CloseParen, ")".into(), span),
+    ]
 }
 
 #[cfg(test)]
@@ -327,8 +304,10 @@ mod test {
         assert_eq!(scan_vars(&tokenize("$a")).unwrap(), (true, 1));
         assert_eq!(scan_vars(&tokenize("$b $c $d")).unwrap(), (true, 3));
         assert_eq!(scan_vars(&tokenize("$b $c $b")).unwrap(), (true, 2));
-        assert_eq!(scan_vars(&tokenize("$a $b $b $a $c $xx")).unwrap(),
-            (true, 4));
+        assert_eq!(
+            scan_vars(&tokenize("$a $b $b $a $c $xx")).unwrap(),
+            (true, 4)
+        );
     }
 
     #[test]
@@ -338,5 +317,4 @@ mod test {
         assert_eq!(scan_vars(&tokenize("$b $c $100")), None);
         assert_eq!(scan_vars(&tokenize("$10 $xx $yy")), None);
     }
-
 }

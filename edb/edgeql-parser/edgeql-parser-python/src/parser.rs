@@ -68,7 +68,8 @@ pub fn downcast_tokens<'a>(py: Python, token_list: PyObject) -> PyResult<Vec<par
 
     let mut buf = Vec::with_capacity(tokens.len(py));
     for token in tokens.iter(py) {
-        let token = OpaqueToken::downcast_from(py, token)?.inner(py);
+        let token = OpaqueToken::downcast_from(py, token)?;
+        let token = token.inner(py);
 
         buf.push(parser::Terminal::from_token(token));
     }
