@@ -3545,6 +3545,46 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         if root_code is None:
             raise AssertionError(f'index {root_name} is missing the code')
 
+        ops = dbops.CommandGroup()
+
+        # FTS
+        # XXX: hacky lookup
+        fts_base = None
+        for b in index.get_bases(schema).objects(schema):
+            base_name = b.get_name(schema)
+            if str(base_name) == 'fts::textsearch':
+                fts_base = base_name
+
+        if fts_base:
+
+            documents = []
+            for sql_expr in sql_exprs:
+                language = "'english'"
+                weight = "'A'"
+                documents.append(f'''
+                    setweight(
+                        to_tsvector(
+                            {language}::pg_catalog.regconfig,
+                            COALESCE({sql_expr}, '')
+                        ),
+                        {weight}
+                    )
+                ''')
+            document = ' || '.join(documents)
+
+            fts_document = dbops.Column(
+                name=f'__fts_document__',
+                type='pg_catalog.tsvector',
+                generated=f'ALWAYS AS ({document}) STORED'
+            )
+
+            alter_table = dbops.AlterTable(table_name)
+            alter_table.add_operation(
+                dbops.AlterTableAddColumn(fts_document))
+            ops.add_command(alter_table)
+
+            sql_exprs = ['__fts_document__']
+
         pg_index = dbops.Index(
             name=index_name[1], table_name=table_name, exprs=sql_exprs,
             unique=False, inherit=True,
@@ -3555,7 +3595,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 'kwargs': sql_kwarg_exprs,
             }
         )
-        return dbops.CreateIndex(pg_index)
+        ops.add_command(dbops.CreateIndex(pg_index))
+        return ops
 
     def _create_begin(
         self,
