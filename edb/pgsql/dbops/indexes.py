@@ -39,9 +39,10 @@ class Index(tables.InheritableTableObject):
     def __init__(
         self,
         name: str,
-        table_name: str,
+        table_name: Tuple[str, str],
         unique: bool = True,
         exprs: Iterable[str] | None = None,
+        with_clause: Dict[str, str] | None = None,
         predicate: str | None = None,
         inherit=False,
         metadata: Dict[str, Any] | None = None,
@@ -56,6 +57,7 @@ class Index(tables.InheritableTableObject):
         self._columns: ordered.OrderedSet[str] = ordered.OrderedSet()
         if columns:
             self.add_columns(columns)
+        self.with_clause = with_clause
         self.predicate = predicate
         self.unique = unique
         self.exprs = exprs
@@ -81,8 +83,13 @@ class Index(tables.InheritableTableObject):
         code: str = self.get_metadata('code')
         using, expr = code.split(' ', 1)
 
+        code = 'CREATE'
+        if self.unique:
+            code += ' UNIQUE'
+        code += f' INDEX {qn(self.name_in_catalog)} ON {qn(*self.table_name)}'
+
         if using:
-            using = f'USING {using}'
+            code += f' USING {using}'
 
         expr = expr[1:-1].replace('__col__', '{col}')
         expr = ', '.join(expr.format(col=e) for e in exprs)
@@ -94,18 +101,16 @@ class Index(tables.InheritableTableObject):
             expr = re.sub(r'(__kw_(\w+?)__)', r'{\2}', expr)
             expr = expr.format(**kwargs)
 
-        code = '''
-            CREATE {unique} INDEX {name}
-                ON {table} {using} ({expr})
-                {predicate}'''.format(
-            unique='UNIQUE' if self.unique else '',
-            name=qn(self.name_in_catalog),
-            table=qn(*self.table_name),
-            expr=expr,
-            using=using,
-            predicate=('WHERE {}'.format(self.predicate)
-                       if self.predicate else '')
-        )
+        code += f'({expr})'
+
+        if self.with_clause:
+            with_content = ','.join(
+                f'{k}={v}' for (k, v) in self.with_clause.items()
+            )
+            code += f' WITH ({with_content})'
+
+        if self.predicate:
+            code += f' WHERE {self.predicate}'
 
         return code
 
