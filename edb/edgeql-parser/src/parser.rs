@@ -1,14 +1,9 @@
 use indexmap::IndexMap;
 
 use crate::helpers::quote_name;
-use crate::keywords;
 use crate::keywords::Keyword;
 use crate::position::Span;
-use crate::tokenizer;
-use crate::tokenizer::Error;
-use crate::tokenizer::Kind;
-use crate::tokenizer::Token;
-use crate::tokenizer::Value;
+use crate::tokenizer::{Token, Value, Error, Kind};
 
 pub struct Context<'s> {
     spec: &'s Spec,
@@ -472,18 +467,17 @@ impl Terminal {
     }
 }
 
-#[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-struct SpecJson {
-    pub actions: Vec<Vec<(String, Action)>>,
-    pub goto: Vec<Vec<(String, usize)>>,
-    pub start: String,
-    pub inlines: Vec<(usize, u8)>,
-}
-
+#[cfg(feature = "serde")]
 impl Spec {
-    #[cfg(feature = "serde")]
     pub fn from_json(j_spec: &str) -> Result<Spec, String> {
+        #[derive(Debug, serde::Serialize, serde::Deserialize)]
+        struct SpecJson {
+            pub actions: Vec<Vec<(String, Action)>>,
+            pub goto: Vec<Vec<(String, usize)>>,
+            pub start: String,
+            pub inlines: Vec<(usize, u8)>,
+        }
+
         let v = serde_json::from_str::<SpecJson>(j_spec).map_err(|e| e.to_string())?;
 
         let actions = v
@@ -503,8 +497,9 @@ impl Spec {
     }
 }
 
-fn get_token_kind(token_name: &str) -> tokenizer::Kind {
-    use tokenizer::Kind::*;
+#[cfg(feature = "serde")]
+fn get_token_kind(token_name: &str) -> Kind {
+    use Kind::*;
 
     match token_name {
         "+" => Add,
@@ -569,7 +564,7 @@ fn get_token_kind(token_name: &str) -> tokenizer::Kind {
                 token_name = format!("__{rem}__");
             }
 
-            let kw = keywords::lookup_all(&token_name)
+            let kw = crate::keywords::lookup_all(&token_name)
                 .unwrap_or_else(|| panic!("unknown keyword {token_name}"));
             Keyword(kw)
         }
