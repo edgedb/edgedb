@@ -22,7 +22,7 @@ CREATE MODULE fts;
 CREATE ABSTRACT INDEX fts::textsearch(named only language: std::str) {
     CREATE ANNOTATION std::description :=
         "Full-text search index based on the Postgres's GIN index.";
-    SET code := 'gin (to_tsvector(__kw_language__, __col__))';
+    SET code := 'gin (__col__)';
 };
 
 ## Functions
@@ -31,18 +31,13 @@ CREATE ABSTRACT INDEX fts::textsearch(named only language: std::str) {
 CREATE FUNCTION
 fts::test(
     query: std::str,
-    variadic doc: optional std::str,
-    named only language: std::str,
+    variadic object: optional schema::Object,
 ) -> std::bool
 {
     CREATE ANNOTATION std::description :=
         'Return true if the document matches the FTS query.';
     SET volatility := 'Immutable';
-    USING SQL $$
-    SELECT
-        to_tsvector("language"::regconfig, array_to_string("doc", ' ')) @@
-        edgedb.fts_parse_query("query", "language"::regconfig)
-    $$;
+    USING SQL EXPRESSION;
 };
 
 

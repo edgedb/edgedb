@@ -116,6 +116,7 @@ class Column(base.DBObject):
         type: str | tuple[str, str],
         required: bool = False,
         default: Optional[str] = None,
+        generated: Optional[str] = None,
         readonly: bool = False,
         comment: Optional[str] = None,
     ):
@@ -123,16 +124,21 @@ class Column(base.DBObject):
         self.type = type
         self.required = required
         self.default = default
+        self.generated = generated
         self.readonly = readonly
         self.comment = comment
 
     def code(self, _context, short: bool = False):
-        code = "{} {}".format(qi(self.name), self.type)
+        code = f"{qi(self.name)} {self.type}"
         if not short:
-            default = 'DEFAULT {}'.format(
-                self.default) if self.default is not None else ''
-            code += ' {} {}'.format(
-                'NOT NULL' if self.required else '', default)
+            if self.required:
+                code += ' NOT NULL'
+
+            if self.default is not None:
+                code += f' DEFAULT {self.default}'
+
+            if self.generated is not None:
+                code += f' GENERATED {self.generated}'
         return code
 
     def generate_extra(self, block, alter_table):
