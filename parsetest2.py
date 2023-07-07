@@ -211,7 +211,7 @@ QS = [
     '''
 ]
 
-for q in QS[-2:]:
+for q in QS:
     sdl = q.startswith('sdl')
     if sdl:
         q = q[3:]
@@ -272,3 +272,7 @@ for q in QS[-2:]:
                 ast.dump_edgeql()
             else:
                 print(ast)
+
+import resource
+from pprint import pprint
+pprint(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
