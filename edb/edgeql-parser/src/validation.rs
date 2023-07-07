@@ -96,28 +96,28 @@ impl<'a> Validator<'a> {
 
         self.keyword_buf.clear();
         self.keyword_buf.push_str(text);
-        self.keyword_buf.make_ascii_uppercase();
+        self.keyword_buf.make_ascii_lowercase();
         match &self.keyword_buf[..] {
-            "NAMED" => {
-                if self.peek_keyword("ONLY") {
+            "named" => {
+                if self.peek_keyword("only") {
                     return Some("NAMED ONLY");
                 }
             }
-            "SET" => {
-                if self.peek_keyword("ANNOTATION") {
+            "set" => {
+                if self.peek_keyword("annotation") {
                     return Some("SET ANNOTATION");
                 }
                 if self.peek_keyword("type") {
                     return Some("SET TYPE");
                 }
             }
-            "EXTENSION" => {
-                if self.peek_keyword("PACKAGE") {
+            "extension" => {
+                if self.peek_keyword("package") {
                     return Some("EXTENSION PACKAGE");
                 }
             }
-            "ORDER" => {
-                if self.peek_keyword("BY") {
+            "order" => {
+                if self.peek_keyword("by") {
                     return Some("ORDER BY");
                 }
             }

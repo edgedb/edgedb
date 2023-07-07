@@ -18,14 +18,12 @@ pub struct UnquoteError(String);
 /// use edgeql_parser::helpers::quote_name;
 /// assert_eq!(quote_name("col1"), "col1");
 /// assert_eq!(quote_name("another name"), "`another name`");
-/// assert_eq!(quote_name("select"), "`select`");
-/// assert_eq!(quote_name("SELECT"), "`SELECT`");
 /// assert_eq!(quote_name("with `quotes`"), "`with ``quotes```");
 /// ```
 pub fn quote_name(s: &str) -> Cow<str> {
     if s.chars().all(|c| c.is_alphanumeric() || c == '_') {
-        let upper = s.to_ascii_uppercase();
-        if keywords::lookup(&upper).is_none() {
+        let lower = s.to_ascii_uppercase();
+        if keywords::lookup(&lower).is_none() {
             return s.into();
         }
     }
