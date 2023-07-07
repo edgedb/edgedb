@@ -138,6 +138,9 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
     } else {
         None
     };
+    println!("ARENA: {}",
+             ctx.arena.allocated_bytes() - ctx.arena.chunk_capacity());
+
     (node, parser.errors)
 }
 
