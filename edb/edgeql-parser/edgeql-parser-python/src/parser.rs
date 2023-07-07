@@ -80,7 +80,8 @@ pub fn parse(py: Python, parser_name: &PyString, tokens: PyObject) -> PyResult<P
 
     let tokens = downcast_tokens(py, tokens)?;
 
-    let (cst, errors) = parser::parse(spec, tokens);
+    let context = parser::Context::new(spec);
+    let (cst, errors) = parser::parse(&tokens, &context);
 
     // println!("{}", debug_cst_node(py, cst.as_ref().unwrap(), productions));
 
@@ -125,7 +126,7 @@ fn load_spec(py: Python, parser_name: &str) -> PyResult<&'static (parser::Spec, 
     Ok(unsafe { PARSER_SPECS.as_ref().unwrap().get(parser_name).unwrap() })
 }
 
-fn to_py_cst<'a>(cst: parser::CSTNode, py: Python) -> PyResult<CSTNode> {
+fn to_py_cst<'a>(cst: &'a parser::CSTNode<'a>, py: Python) -> PyResult<CSTNode> {
     match cst {
         parser::CSTNode::Empty => CSTNode::create_instance(py, py.None(), py.None()),
         parser::CSTNode::Terminal(token) => CSTNode::create_instance(
@@ -133,9 +134,9 @@ fn to_py_cst<'a>(cst: parser::CSTNode, py: Python) -> PyResult<CSTNode> {
             py.None(),
             Terminal::create_instance(
                 py,
-                token.text.into_py_object(py),
-                if let Some(val) = token.value {
-                    value_to_py_object(py, &val)?
+                token.text.to_py_object(py),
+                if let Some(val) = &token.value {
+                    value_to_py_object(py, val)?
                 } else {
                     py.None()
                 },
@@ -152,7 +153,7 @@ fn to_py_cst<'a>(cst: parser::CSTNode, py: Python) -> PyResult<CSTNode> {
                 PyList::new(
                     py,
                     prod.args
-                        .into_iter()
+                        .iter()
                         .map(|a| to_py_cst(a, py).map(|x| x.into_object()))
                         .collect::<PyResult<Vec<_>>>()?
                         .as_slice(),

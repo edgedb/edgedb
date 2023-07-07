@@ -12,19 +12,20 @@ use crate::tokenizer::Kind;
 use crate::tokenizer::Token;
 use crate::tokenizer::Value;
 
-pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>) {
-    let arena = bumpalo::Bump::new();
+pub struct Context<'s> {
+    spec: &'s Spec,
+    arena: bumpalo::Bump,
+}
 
-    // dbg!(std::mem::size_of::<Spec>());
-    // dbg!(std::mem::size_of::<Action>());
-    // dbg!(std::mem::size_of::<Reduce>());
-    // dbg!(std::mem::size_of::<CSTNode>());
-    // dbg!(std::mem::size_of::<Terminal>());
-    // dbg!(std::mem::size_of::<Production>());
-    // dbg!(std::mem::size_of::<StackNode>());
-    // dbg!(std::mem::size_of::<Context>());
+impl<'s> Context<'s> {
+    pub fn new(spec: &'s Spec) -> Self {
+        let arena = bumpalo::Bump::new();
+        Context { spec, arena }
+    }
+}
 
-    let stack_top = arena.alloc(StackNode {
+pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode<'a>>, Vec<Error>) {
+    let stack_top = ctx.arena.alloc(StackNode {
         parent: None,
         state: 0,
         value: CSTNode::Empty,
@@ -37,22 +38,20 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
         errors: Vec::new(),
     };
 
-    let ctx = Context::new(spec, &arena);
-
     // append EIO
     let end = input.last().map(|t| t.span.end).unwrap_or_default();
-    let eio = Terminal {
+    let eio: &Terminal = ctx.arena.alloc(Terminal {
         kind: Kind::EOI,
         span: Span { start: end, end },
         text: "".to_string(),
         value: None,
-    };
-    let input = [input, vec![eio]].concat();
+    });
+    let input = input.iter().chain(Some(eio));
 
     let mut parsers = vec![initial_track];
     let mut prev_span: Option<Span> = None;
 
-    for token in input.into_iter() {
+    for token in input {
         let mut new_parsers = Vec::with_capacity(parsers.len() + 5);
 
         while let Some(mut parser) = parsers.pop() {
@@ -79,7 +78,7 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
                 for token_kind in possible_actions.keys() {
                     let mut inject = parser.clone();
 
-                    let injection = new_token_for_injection(token_kind);
+                    let injection = new_token_for_injection(token_kind, &ctx.arena);
 
                     let cost = error_cost(token_kind);
                     let error = Error::new(format!("Missing {injection}")).with_span(gap_span);
@@ -142,15 +141,15 @@ pub fn parse(spec: &Spec, input: Vec<Terminal>) -> (Option<CSTNode>, Vec<Error>)
     parser.finish();
 
     let node = if parser.can_recover {
-        Some(parser.stack_top.value.clone())
+        Some(&parser.stack_top.value)
     } else {
         None
     };
     (node, parser.errors)
 }
 
-fn new_token_for_injection(kind: &Kind) -> Terminal {
-    Terminal {
+fn new_token_for_injection<'a>(kind: &Kind, arena: &'a bumpalo::Bump) -> &'a Terminal {
+    arena.alloc(Terminal {
         kind: kind.clone(),
         text: kind.text().unwrap_or_default().to_string(),
         value: match kind {
@@ -159,7 +158,7 @@ fn new_token_for_injection(kind: &Kind) -> Terminal {
             _ => None,
         },
         span: Span::default(),
-    }
+    })
 }
 
 pub struct Spec {
@@ -188,12 +187,11 @@ pub struct Reduce {
 }
 
 #[derive(Clone)]
-pub enum CSTNode {
+pub enum CSTNode<'a> {
     Empty,
-    Terminal(Terminal),
-    Production(Production),
+    Terminal(&'a Terminal),
+    Production(Production<'a>),
 }
-
 #[derive(Clone, Debug)]
 pub struct Terminal {
     pub kind: Kind,
@@ -203,21 +201,16 @@ pub struct Terminal {
 }
 
 #[derive(Clone)]
-pub struct Production {
+pub struct Production<'a> {
     pub id: usize,
-    pub args: Vec<CSTNode>,
+    pub args: bumpalo::collections::Vec<'a, CSTNode<'a>>,
 }
 
 struct StackNode<'p> {
     parent: Option<&'p StackNode<'p>>,
 
     state: usize,
-    value: CSTNode,
-}
-
-struct Context<'s> {
-    spec: &'s Spec,
-    arena: &'s bumpalo::Bump,
+    value: CSTNode<'p>,
 }
 
 #[derive(Clone)]
@@ -235,14 +228,8 @@ struct Parser<'s> {
     errors: Vec<Error>,
 }
 
-impl<'s> Context<'s> {
-    fn new(spec: &'s Spec, arena: &'s bumpalo::Bump) -> Self {
-        Context { spec, arena }
-    }
-}
-
 impl<'s> Parser<'s> {
-    fn act(&mut self, ctx: &'s Context, token: &Terminal) -> Result<(), ()> {
+    fn act(&mut self, ctx: &'s Context, token: &'s Terminal) -> Result<(), ()> {
         // self.print_stack();
         // println!("INPUT: {}", token.text);
 
@@ -257,7 +244,7 @@ impl<'s> Parser<'s> {
                     // println!("   --> [shift {next}]");
 
                     // push on stack
-                    self.push_on_stack(ctx, *next, CSTNode::Terminal(token.clone()));
+                    self.push_on_stack(ctx, *next, CSTNode::Terminal(token));
                     return Ok(());
                 }
                 Action::Reduce(reduce) => {
@@ -268,7 +255,7 @@ impl<'s> Parser<'s> {
     }
 
     fn reduce(&mut self, ctx: &'s Context, reduce: &'s Reduce) {
-        let mut args = Vec::new();
+        let mut args = bumpalo::collections::Vec::with_capacity_in(reduce.cnt, &ctx.arena);
         for _ in 0..reduce.cnt {
             args.push(self.stack_top.value.clone());
             self.stack_top = self.stack_top.parent.unwrap();
@@ -294,7 +281,7 @@ impl<'s> Parser<'s> {
 
                 value = args.swap_remove(*inline_position as usize);
 
-                extend_span(&mut value, span);
+                extend_span(&mut value, span, ctx);
             } else {
                 // place back
                 value = CSTNode::Production(production);
@@ -310,13 +297,12 @@ impl<'s> Parser<'s> {
         // self.print_stack();
     }
 
-    pub fn push_on_stack(&mut self, ctx: &'s Context, state: usize, value: CSTNode) {
+    pub fn push_on_stack(&mut self, ctx: &'s Context, state: usize, value: CSTNode<'s>) {
         let node = StackNode {
             parent: Some(self.stack_top),
             state,
             value,
         };
-        let node = bumpalo::boxed::Box::new_in(node, ctx.arena);
         self.stack_top = ctx.arena.alloc(node);
     }
 
@@ -406,7 +392,7 @@ fn get_span_of_nodes(args: &[CSTNode]) -> Option<Span> {
     Some(Span { start, end })
 }
 
-fn extend_span(value: &mut CSTNode, span: Option<Span>) {
+fn extend_span<'a>(value: &mut CSTNode<'a>, span: Option<Span>, ctx: &'a Context) {
     let Some(span) = span else {
         return;
     };
@@ -415,12 +401,15 @@ fn extend_span(value: &mut CSTNode, span: Option<Span>) {
         return
     };
 
-    if span.start < terminal.span.start {
-        terminal.span.start = span.start;
+    let new_term = ctx.arena.alloc(terminal.clone());
+
+    if span.start < new_term.span.start {
+        new_term.span.start = span.start;
     }
-    if span.end > terminal.span.end {
-        terminal.span.end = span.end;
+    if span.end > new_term.span.end {
+        new_term.span.end = span.end;
     }
+    *terminal = new_term;
 }
 
 const ERROR_COST_INJECT_MAX: u16 = 15;
@@ -466,7 +455,7 @@ impl std::fmt::Display for Terminal {
     }
 }
 
-impl Default for CSTNode {
+impl<'a> Default for CSTNode<'a> {
     fn default() -> Self {
         CSTNode::Empty
     }
