@@ -957,8 +957,9 @@ where
     D: serde::Deserializer<'de>,
 {
     struct Visitor;
+    use serde::de;
 
-    impl<'v> serde::de::Visitor<'v> for Visitor {
+    impl<'v> de::Visitor<'v> for Visitor {
         type Value = Keyword;
 
         fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -967,7 +968,7 @@ where
 
         fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
         where
-            E: serde::de::Error,
+            E: de::Error,
         {
             keywords::lookup_all(v)
                 .ok_or_else(|| de::Error::invalid_value(de::Unexpected::Str(v), &"keyword"))

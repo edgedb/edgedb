@@ -53,7 +53,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
         let mut new_parsers = Vec::with_capacity(parsers.len() + 5);
 
         while let Some(mut parser) = parsers.pop() {
-            let res = parser.act(&ctx, &token);
+            let res = parser.act(ctx, token);
 
             if res.is_ok() {
                 // base case: ok
@@ -85,7 +85,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
                     if inject.error_cost <= ERROR_COST_INJECT_MAX {
                         // println!("   --> [inject {injection}]");
 
-                        if inject.act(&ctx, &injection).is_ok() {
+                        if inject.act(ctx, injection).is_ok() {
                             // insert into parsers, to retry the original token
                             parsers.push(inject);
                         }
@@ -167,7 +167,7 @@ pub struct Spec {
 }
 
 #[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(untagged))]
 pub enum Action {
     Shift(usize),
@@ -175,7 +175,7 @@ pub enum Action {
 }
 
 #[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Reduce {
     /// Index of the production in the associated production array
     pub production_id: usize,
@@ -473,7 +473,7 @@ impl Terminal {
 }
 
 #[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct SpecJson {
     pub actions: Vec<Vec<(String, Action)>>,
     pub goto: Vec<Vec<(String, usize)>>,
