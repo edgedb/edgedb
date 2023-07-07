@@ -5,26 +5,6 @@ use edgeql_parser::tokenizer::{Token, Tokenizer};
 
 use crate::errors::{parser_error_into_tuple, ParserResult};
 
-// An opaque wrapper around [edgeql_parser::tokenizer::Token].
-// Supports Python pickle serialization.
-py_class!(pub class OpaqueToken |py| {
-    data _inner: Token<'static>;
-
-    def __repr__(&self) -> PyResult<PyString> {
-        Ok(PyString::new(py, &self._inner(py).to_string()))
-    }
-    def __reduce__(&self) -> PyResult<PyTuple> {
-        let data: Vec<u8> = rmp_serde::to_vec(self._inner(py)).unwrap().to_vec();
-
-        return Ok((
-            get_fn_unpickle_token(py),
-            (
-                PyBytes::new(py, &data),
-            ),
-        ).to_py_object(py))
-    }
-});
-
 pub fn tokenize(py: Python, s: &PyString) -> PyResult<ParserResult> {
     let data = s.to_string(py)?;
 
@@ -51,6 +31,26 @@ pub fn tokenize(py: Python, s: &PyString) -> PyResult<ParserResult> {
 
     ParserResult::create_instance(py, tokens.into_object(), errors)
 }
+
+// An opaque wrapper around [edgeql_parser::tokenizer::Token].
+// Supports Python pickle serialization.
+py_class!(pub class OpaqueToken |py| {
+    data _inner: Token<'static>;
+
+    def __repr__(&self) -> PyResult<PyString> {
+        Ok(PyString::new(py, &self._inner(py).to_string()))
+    }
+    def __reduce__(&self) -> PyResult<PyTuple> {
+        let data: Vec<u8> = rmp_serde::to_vec(self._inner(py)).unwrap().to_vec();
+
+        return Ok((
+            get_fn_unpickle_token(py),
+            (
+                PyBytes::new(py, &data),
+            ),
+        ).to_py_object(py))
+    }
+});
 
 pub fn tokens_to_py(py: Python, rust_tokens: Vec<Token>) -> PyResult<PyList> {
     let mut buf = Vec::with_capacity(rust_tokens.len());

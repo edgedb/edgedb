@@ -242,7 +242,7 @@ fn arg_type_cast(
     var: String,
     span: Span,
 ) -> [Token<'static>; 8] {
-    fn tk<'a>(kind: Kind, text: Cow<'a, str>, span: Span) -> Token<'a> {
+    fn tk(kind: Kind, text: Cow<'_, str>, span: Span) -> Token {
         let value = if kind == Kind::Ident {
             Some(Value::String(text.to_string()))
         } else {

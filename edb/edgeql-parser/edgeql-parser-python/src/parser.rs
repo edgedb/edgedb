@@ -11,6 +11,27 @@ use crate::errors::{parser_error_into_tuple, ParserResult};
 use crate::pynormalize::value_to_py_object;
 use crate::tokenizer::OpaqueToken;
 
+pub fn parse(py: Python, parser_name: &PyString, tokens: PyObject) -> PyResult<PyTuple> {
+    let (spec, productions) = load_spec(py, parser_name.to_string(py)?.as_ref())?;
+
+    let tokens = downcast_tokens(py, tokens)?;
+
+    let context = parser::Context::new(spec);
+    let (cst, errors) = parser::parse(&tokens, &context);
+
+    let cst = cst.map(|c| to_py_cst(c, py)).transpose()?;
+
+    let errors = errors
+        .into_iter()
+        .map(|e| parser_error_into_tuple(py, e))
+        .collect::<Vec<_>>();
+    let errors = PyList::new(py, &errors);
+
+    let res = ParserResult::create_instance(py, cst.into_py_object(py), errors)?;
+
+    Ok((res, productions).into_py_object(py))
+}
+
 py_class!(pub class CSTNode |py| {
     data _production: PyObject;
     data _terminal: PyObject;
@@ -63,7 +84,7 @@ pub fn init_module() {
     }
 }
 
-pub fn downcast_tokens<'a>(py: Python, token_list: PyObject) -> PyResult<Vec<parser::Terminal>> {
+fn downcast_tokens<'a>(py: Python, token_list: PyObject) -> PyResult<Vec<parser::Terminal>> {
     let tokens = PyList::downcast_from(py, token_list)?;
 
     let mut buf = Vec::with_capacity(tokens.len(py));
@@ -74,29 +95,6 @@ pub fn downcast_tokens<'a>(py: Python, token_list: PyObject) -> PyResult<Vec<par
         buf.push(parser::Terminal::from_token(token));
     }
     Ok(buf)
-}
-
-pub fn parse(py: Python, parser_name: &PyString, tokens: PyObject) -> PyResult<PyTuple> {
-    let (spec, productions) = load_spec(py, parser_name.to_string(py)?.as_ref())?;
-
-    let tokens = downcast_tokens(py, tokens)?;
-
-    let context = parser::Context::new(spec);
-    let (cst, errors) = parser::parse(&tokens, &context);
-
-    // println!("{}", debug_cst_node(py, cst.as_ref().unwrap(), productions));
-
-    let cst = cst.map(|c| to_py_cst(c, py)).transpose()?;
-
-    let errors = errors
-        .into_iter()
-        .map(|e| parser_error_into_tuple(py, e))
-        .collect::<Vec<_>>();
-    let errors = PyList::new(py, &errors);
-
-    let res = ParserResult::create_instance(py, cst.into_py_object(py), errors)?;
-
-    Ok((res, productions).into_py_object(py))
 }
 
 fn load_spec(py: Python, parser_name: &str) -> PyResult<&'static (parser::Spec, PyObject)> {
@@ -162,31 +160,5 @@ fn to_py_cst<'a>(cst: &'a parser::CSTNode<'a>, py: Python) -> PyResult<CSTNode> 
             .into_object(),
             py.None(),
         ),
-    }
-}
-
-#[cfg(never)]
-fn debug_cst_node(py: Python, node: &parser::CSTNode, productions_obj: &PyObject) -> String {
-    let productions = PyList::downcast_borrow_from(py, productions_obj).unwrap();
-
-    match node {
-        parser::CSTNode::Empty => "<empty>".to_string(),
-        parser::CSTNode::Terminal(t) => format!("{}", t.text),
-        parser::CSTNode::Production(prod) => {
-            let production = productions.get_item(py, prod.id);
-
-            let mut r = production.getattr(py, "qualified").unwrap().to_string();
-            if !prod.args.is_empty() {
-                r += "[\n";
-                r += &prod
-                    .args
-                    .iter()
-                    .map(|a| debug_cst_node(py, a, productions_obj))
-                    .collect::<Vec<_>>()
-                    .join(",\n");
-                r += "]\n";
-            }
-            r
-        }
     }
 }
