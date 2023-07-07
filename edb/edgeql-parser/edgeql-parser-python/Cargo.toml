@@ -7,7 +7,7 @@ rust-version = "1.59"
 edition = "2021"
 
 [dependencies]
-edgeql-parser = {path = ".."}
+edgeql-parser = {path = "..", features=["serde"]}
 bytes = "1.0.1"
 num-bigint = "0.4.3"
 bigdecimal = "0.3.0"

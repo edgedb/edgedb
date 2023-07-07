@@ -1,11 +1,11 @@
 use std::fmt;
 use std::str::{from_utf8, Utf8Error};
 
-use serde::{Serialize, Deserialize};
 use unicode_width::UnicodeWidthStr;
 
 /// Span of an element in source code
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Span {
     /// Byte offset in the original file
     ///
@@ -20,7 +20,8 @@ pub struct Span {
     pub end: u64,
 }
 /// Original position of element in source code
-#[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Default, Hash, Serialize, Deserialize)]
+#[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Default, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Pos {
     /// One-based line number
     pub line: usize,

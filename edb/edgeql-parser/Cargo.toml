@@ -27,8 +27,8 @@ bumpalo = {version="3.13.0", features=["collections"]}
 phf = { version = "0.11.1", features = ["macros"] }
 
 [features]
-default = ["serde"]
+default = []
 wasm-lexer = ["wasm-bindgen", "serde"]
-python = ["cpython", "edgeql-parser-derive"]
+python = ["cpython", "serde", "edgeql-parser-derive"]
 
 [lib]

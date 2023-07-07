@@ -4,7 +4,6 @@ use std::str::CharIndices;
 
 use bigdecimal::BigDecimal;
 use memchr::memmem::find;
-use serde::de;
 
 use crate::keywords::{self, Keyword};
 use crate::position::{Pos, Span};
@@ -110,7 +109,7 @@ pub enum Kind {
     BacktickName, // `xx`
     Substitution, // \(name)
 
-    #[serde(deserialize_with = "deserialize_keyword")]
+    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_keyword"))]
     Keyword(Keyword),
 
     Ident,
@@ -952,6 +951,7 @@ impl std::fmt::Display for Error {
     }
 }
 
+#[cfg(feature = "serde")]
 fn deserialize_keyword<'de, D>(deserializer: D) -> Result<Keyword, D::Error>
 where
     D: serde::Deserializer<'de>,

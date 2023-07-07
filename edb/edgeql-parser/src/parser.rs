@@ -1,6 +1,4 @@
 use indexmap::IndexMap;
-use serde::Deserialize;
-use serde::Serialize;
 
 use crate::helpers::quote_name;
 use crate::keywords;
@@ -168,14 +166,16 @@ pub struct Spec {
     pub inlines: IndexMap<usize, u8>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(untagged))]
 pub enum Action {
     Shift(usize),
     Reduce(Reduce),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Reduce {
     /// Index of the production in the associated production array
     pub production_id: usize,
@@ -472,7 +472,8 @@ impl Terminal {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct SpecJson {
     pub actions: Vec<Vec<(String, Action)>>,
     pub goto: Vec<Vec<(String, usize)>>,
@@ -481,6 +482,7 @@ struct SpecJson {
 }
 
 impl Spec {
+    #[cfg(feature = "serde")]
     pub fn from_json(j_spec: &str) -> Result<Spec, String> {
         let v = serde_json::from_str::<SpecJson>(j_spec).map_err(|e| e.to_string())?;
 
