@@ -184,7 +184,7 @@ pub struct Reduce {
     pub cnt: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum CSTNode<'a> {
     Empty,
     Terminal(&'a Terminal),
@@ -198,10 +198,10 @@ pub struct Terminal {
     pub span: Span,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Production<'a> {
     pub id: usize,
-    pub args: bumpalo::collections::Vec<'a, CSTNode<'a>>,
+    pub args: &'a[CSTNode<'a>],
 }
 
 struct StackNode<'p> {
@@ -253,11 +253,11 @@ impl<'s> Parser<'s> {
     }
 
     fn reduce(&mut self, ctx: &'s Context, reduce: &'s Reduce) {
-        let mut args = bumpalo::collections::Vec::with_capacity_in(reduce.cnt, &ctx.arena);
-        for _ in 0..reduce.cnt {
-            args.push(self.stack_top.value.clone());
+        let args = ctx.arena.alloc_slice_fill_with(reduce.cnt, |_| {
+            let v = self.stack_top.value;
             self.stack_top = self.stack_top.parent.unwrap();
-        }
+            v
+        });
         args.reverse();
 
         let value = CSTNode::Production(Production {
@@ -274,10 +274,10 @@ impl<'s> Parser<'s> {
         if let CSTNode::Production(production) = value {
             if let Some(inline_position) = ctx.spec.inlines.get(&production.id) {
                 // inline rule found
-                let mut args = production.args;
+                let args = production.args;
                 let span = get_span_of_nodes(&args);
 
-                value = args.swap_remove(*inline_position as usize);
+                value = args[*inline_position as usize];
 
                 extend_span(&mut value, span, ctx);
             } else {
