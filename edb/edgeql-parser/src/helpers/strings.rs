@@ -22,7 +22,7 @@ pub struct UnquoteError(String);
 /// ```
 pub fn quote_name(s: &str) -> Cow<str> {
     if s.chars().all(|c| c.is_alphanumeric() || c == '_') {
-        let lower = s.to_ascii_lowercase();
+        let lower = s.to_ascii_uppercase();
         if keywords::lookup(&lower).is_none() {
             return s.into();
         }

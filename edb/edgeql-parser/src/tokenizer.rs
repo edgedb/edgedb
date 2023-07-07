@@ -900,7 +900,7 @@ impl<'a> Tokenizer<'a> {
         }
         self.keyword_buf.clear();
         self.keyword_buf.push_str(s);
-        self.keyword_buf.make_ascii_lowercase();
+        self.keyword_buf.make_ascii_uppercase();
         return keywords::lookup_all(&self.keyword_buf);
     }
 }

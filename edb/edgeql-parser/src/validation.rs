@@ -100,25 +100,25 @@ impl<'a> Validator<'a> {
         match &self.keyword_buf[..] {
             "named" => {
                 if self.peek_keyword("only") {
-                    return Some("named only");
+                    return Some("NAMED ONLY");
                 }
             }
             "set" => {
                 if self.peek_keyword("annotation") {
-                    return Some("set annotation");
+                    return Some("SET ANNOTATION");
                 }
                 if self.peek_keyword("type") {
-                    return Some("set type");
+                    return Some("SET TYPE");
                 }
             }
             "extension" => {
                 if self.peek_keyword("package") {
-                    return Some("extension package");
+                    return Some("EXTENSION PACKAGE");
                 }
             }
             "order" => {
                 if self.peek_keyword("by") {
-                    return Some("order by");
+                    return Some("ORDER BY");
                 }
             }
             _ => {}

@@ -74,7 +74,7 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
             // Don't replace 'LIMIT 1' as a special case
             && (tok.text != "1"
                 || !matches!(rewritten_tokens.last(),
-                    Some(Token { kind: Kind::Keyword(Keyword("limit")), .. })))
+                    Some(Token { kind: Kind::Keyword(Keyword("LIMIT")), .. })))
             && tok.text != "9223372036854775808"
             => {
                 rewritten_tokens.extend(arg_type_cast( "__std__", "int64",
@@ -123,8 +123,8 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
             }
             Kind::Keyword(Keyword(kw))
             if (
-                matches!(kw, "configure"|"create"|"alter"|"drop"|"start"|"analyze")
-                || (last_was_set && kw == "global")
+                matches!(kw, "CONFIGURE"|"CREATE"|"ALTER"|"DROP"|"START"|"ANALYZE")
+                || (last_was_set && kw == "GLOBAL")
             ) => {
                 let processed_source = serialize_tokens(&tokens);
                 return Ok(Entry {
@@ -145,7 +145,7 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
                 variables = Vec::new();
                 rewritten_tokens.push(tok.clone());
             }
-            Kind::Keyword(Keyword("set")) => {
+            Kind::Keyword(Keyword("SET")) => {
                 is_set = true;
                 rewritten_tokens.push(tok.clone());
             }
