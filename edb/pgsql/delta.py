@@ -3441,8 +3441,14 @@ class IndexCommand(MetaCommand):
 
 class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
     @classmethod
-    def create_index(cls, index, schema, context):
+    def create_index(
+        cls,
+        index: s_indexes.Index,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ):
         subject = index.get_subject(schema)
+        assert isinstance(subject, s_types.Type)
 
         singletons = [subject]
         path_prefix_anchor = ql_ast.Subject().name
@@ -3456,7 +3462,9 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             apply_query_rewrites=False,
         )
 
-        index_expr = index.get_expr(schema).ensure_compiled(
+        index_sexpr = index.get_expr(schema)
+        assert index_sexpr
+        index_expr = index_sexpr.ensure_compiled(
             schema=schema,
             options=options,
         )
@@ -3481,6 +3489,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 options=options,
             )
         if except_expr:
+            assert except_expr.irast
             except_res = compiler.compile_ir_to_sql_tree(
                 except_expr.irast.expr, singleton_mode=True)
             except_src = codegen.generate_source(except_res.ast)
@@ -3493,7 +3502,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         orig_name = sn.shortname_from_fullname(index.get_name(schema))
         if orig_name == s_indexes.DEFAULT_INDEX:
             root_name = orig_name
-            root_code = DEFAULT_INDEX_CODE
+            root_code: str | None = DEFAULT_INDEX_CODE
         else:
             root = index.get_root(schema)
             root_name = root.get_name(schema)
