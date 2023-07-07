@@ -146,7 +146,7 @@ fn new_token_for_injection<'a>(kind: &Kind, arena: &'a bumpalo::Bump) -> &'a Ter
         kind: kind.clone(),
         text: kind.text().unwrap_or_default().to_string(),
         value: match kind {
-            Kind::Keyword(Keyword(kw)) => Some(Value::String(kw.to_ascii_lowercase())),
+            Kind::Keyword(Keyword(kw)) => Some(Value::String(kw.to_string())),
             Kind::Ident => Some(Value::String("my_name".to_string())),
             _ => None,
         },
@@ -444,7 +444,7 @@ impl std::fmt::Display for Terminal {
 
         match self.kind {
             Kind::Ident => write!(f, "'{}'", &quote_name(&self.text)),
-            Kind::Keyword(Keyword(kw)) => write!(f, "keyword '{kw}'"),
+            Kind::Keyword(Keyword(kw)) => write!(f, "keyword '{}'", kw.to_ascii_uppercase()),
             _ => write!(f, "'{}'", self.text),
         }
     }
@@ -558,9 +558,9 @@ fn get_token_kind(token_name: &str) -> Kind {
         "SUBSTITUTION" => Substitution,
 
         _ => {
-            let mut token_name = token_name.to_uppercase();
+            let mut token_name = token_name.to_lowercase();
 
-            if let Some(rem) = token_name.strip_prefix("DUNDER") {
+            if let Some(rem) = token_name.strip_prefix("dunder") {
                 token_name = format!("__{rem}__");
             }
 
