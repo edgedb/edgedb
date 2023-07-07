@@ -26,16 +26,9 @@ serde_json = {version="1.0", features=["preserve_order"]}
 bumpalo = {version="3.13.0", features=["collections"]}
 phf = { version = "0.11.1", features = ["macros"] }
 
-[dev-dependencies]
-criterion = {version = "0.5.1"}
-
 [features]
 default = ["serde"]
 wasm-lexer = ["wasm-bindgen", "serde"]
 python = ["cpython", "edgeql-parser-derive"]
 
 [lib]
-
-[[bench]]
-harness = false
-name = "bench"

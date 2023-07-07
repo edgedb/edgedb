@@ -114,7 +114,6 @@ fn load_spec(py: Python, parser_name: &str) -> PyResult<&'static (parser::Spec, 
         let spec_json =
             PyString::downcast_from(py, res.get_item(py, 0)).expect("json to be a string");
         let spec_json = spec_json.to_string(py).unwrap();
-        std::fs::write(parser_name, spec_json.as_bytes()).unwrap();
 
         let productions = res.get_item(py, 1);
 
