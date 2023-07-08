@@ -3087,7 +3087,7 @@ cdef class PGConnection:
             pinned_by.on_aborted_pgcon(self)
 
         if self.is_system_db:
-            self.server._on_sys_pgcon_connection_lost(exc)
+            self.tenant.on_sys_pgcon_connection_lost(exc)
         elif self.server is not None:
             if not self.close_requested:
                 self.server._on_pgcon_broken()

@@ -19,12 +19,16 @@
 from __future__ import annotations
 from typing import *
 
+import asyncio
+import contextlib
 import functools
+import logging
 import time
 
 from . import defines
 from . import metrics
 from . import pgcon
+from .pgcon import errors as pgcon_errors
 
 if TYPE_CHECKING:
     from edb.pgsql import params as pgparams
@@ -33,18 +37,39 @@ if TYPE_CHECKING:
     from . import server as edbserver
 
 
+logger = logging.getLogger('edb.server')
+
+
 class Tenant:
-    _server: edbserver.Server | None
+    _server: edbserver.Server
     _cluster: pgcluster.BaseCluster
     _tenant_id: str
 
+    __sys_pgcon: pgcon.PGConnection | None
+    _sys_pgcon_waiter: asyncio.Lock
+    _sys_pgcon_ready_evt: asyncio.Event
+    _sys_pgcon_reconnect_evt: asyncio.Event
+
     def __init__(self, cluster: pgcluster.BaseCluster):
-        self._server = None
         self._cluster = cluster
         self._tenant_id = self.get_backend_runtime_params().tenant_id
 
+        # Never use `self.__sys_pgcon` directly; get it via
+        # `async with self._use_sys_pgcon()`.
+        self.__sys_pgcon = None
+
     def set_server(self, server: edbserver.Server) -> None:
         self._server = server
+
+    def on_switch_over(self):
+        if self.__sys_pgcon is None:
+            # Assume a reconnect task is already running, now that we know the
+            # new master is likely ready, let's just give the task a push.
+            self._sys_pgcon_reconnect_evt.set()
+        else:
+            # Brutally close the sys_pgcon to the old master - this should
+            # trigger a reconnect task.
+            self.__sys_pgcon.abort()
 
     @property
     def tenant_id(self) -> str:
@@ -60,8 +85,25 @@ class Tenant:
     def get_backend_runtime_params(self) -> pgparams.BackendRuntimeParams:
         return self._cluster.get_runtime_params()
 
+    async def init(self) -> None:
+        self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
+        self._sys_pgcon_waiter = asyncio.Lock()
+        self._sys_pgcon_ready_evt = asyncio.Event()
+        self._sys_pgcon_reconnect_evt = asyncio.Event()
+
+    async def start(self) -> None:
+        assert self.__sys_pgcon is not None
+        await self.__sys_pgcon.listen_for_sysevent()
+        self.__sys_pgcon.mark_as_system_db()
+        self._sys_pgcon_ready_evt.set()
+
+    def stop(self) -> None:
+        if self.__sys_pgcon is not None:
+            self.__sys_pgcon.terminate()
+            self.__sys_pgcon = None
+        del self._sys_pgcon_waiter
+
     async def _pg_connect(self, dbname: str) -> pgcon.PGConnection:
-        assert self._server is not None
         ha_serial = self._server._ha_master_serial
         if self.get_backend_runtime_params().has_create_database:
             pg_dbname = self.get_pg_dbname(dbname)
@@ -97,3 +139,112 @@ class Tenant:
     async def _pg_disconnect(self, conn: pgcon.PGConnection) -> None:
         metrics.current_backend_connections.dec()
         conn.terminate()
+
+    @contextlib.asynccontextmanager
+    async def _use_sys_pgcon(self) -> AsyncGenerator[pgcon.PGConnection, None]:
+        if not self._server._initing and not self._server._serving:
+            raise RuntimeError("EdgeDB server is not serving.")
+
+        await self._sys_pgcon_waiter.acquire()
+
+        if not self._server._initing and not self._server._serving:
+            self._sys_pgcon_waiter.release()
+            raise RuntimeError("EdgeDB server is not serving.")
+
+        if self.__sys_pgcon is None or not self.__sys_pgcon.is_healthy():
+            conn, self.__sys_pgcon = self.__sys_pgcon, None
+            if conn is not None:
+                self._sys_pgcon_ready_evt.clear()
+                conn.abort()
+            # We depend on the reconnect on connection_lost() of __sys_pgcon
+            await self._sys_pgcon_ready_evt.wait()
+            if self.__sys_pgcon is None:
+                self._sys_pgcon_waiter.release()
+                raise RuntimeError("Cannot acquire pgcon to the system DB.")
+
+        try:
+            yield self.__sys_pgcon
+        finally:
+            self._sys_pgcon_waiter.release()
+
+    def on_sys_pgcon_connection_lost(self, exc):
+        try:
+            if not self._server._serving:
+                # The server is shutting down, release all events so that
+                # the waiters if any could continue and exit
+                self._sys_pgcon_ready_evt.set()
+                self._sys_pgcon_reconnect_evt.set()
+                return
+
+            logger.error(
+                "Connection to the system database is " +
+                ("closed." if exc is None else f"broken! Reason: {exc}")
+            )
+            self._server.set_pg_unavailable_msg(
+                "Connection is lost, please check server log for the reason."
+            )
+            self.__sys_pgcon = None
+            self._sys_pgcon_ready_evt.clear()
+            if self._server._accept_new_tasks:
+                self._server.create_task(
+                    self._reconnect_sys_pgcon(), interruptable=True
+                )
+            self._server._on_pgcon_broken(True)
+        except Exception:
+            metrics.background_errors.inc(1.0, 'on_sys_pgcon_connection_lost')
+            raise
+
+    async def _reconnect_sys_pgcon(self):
+        try:
+            conn = None
+            while self._server._serving:
+                try:
+                    conn = await self._pg_connect(
+                        defines.EDGEDB_SYSTEM_DB
+                    )
+                    break
+                except OSError:
+                    # Keep retrying as far as:
+                    #   1. The EdgeDB server is still serving,
+                    #   2. We still cannot connect to the Postgres cluster, or
+                    pass
+                except pgcon_errors.BackendError as e:
+                    #   3. The Postgres cluster is still starting up, or the
+                    #      HA failover is still in progress
+                    if not (
+                        e.code_is(pgcon_errors.ERROR_FEATURE_NOT_SUPPORTED) or
+                        e.code_is(pgcon_errors.ERROR_CANNOT_CONNECT_NOW) or
+                        e.code_is(pgcon_errors.ERROR_READ_ONLY_SQL_TRANSACTION)
+                    ):
+                        # TODO: ERROR_FEATURE_NOT_SUPPORTED should be removed
+                        # once PostgreSQL supports SERIALIZABLE in hot standbys
+                        raise
+
+                if self._server._serving:
+                    try:
+                        # Retry after INTERVAL seconds, unless the event is set
+                        # and we can retry immediately after the event.
+                        await asyncio.wait_for(
+                            self._sys_pgcon_reconnect_evt.wait(),
+                            defines.SYSTEM_DB_RECONNECT_INTERVAL,
+                        )
+                        # But the event can only skip one INTERVAL.
+                        self._sys_pgcon_reconnect_evt.clear()
+                    except asyncio.TimeoutError:
+                        pass
+
+            if not self._server._serving:
+                if conn is not None:
+                    conn.abort()
+                return
+
+            logger.info("Successfully reconnected to the system database.")
+            self.__sys_pgcon = conn
+            self.__sys_pgcon.mark_as_system_db()
+            # This await is meant to be after mark_as_system_db() because we
+            # need the pgcon to be able to trigger another reconnect if its
+            # connection is lost during this await.
+            await self.__sys_pgcon.listen_for_sysevent()
+            self._server.set_pg_unavailable_msg(None)
+        finally:
+            self._sys_pgcon_ready_evt.set()
