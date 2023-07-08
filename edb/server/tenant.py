@@ -19,7 +19,11 @@
 from __future__ import annotations
 from typing import *
 
+import functools
+
 if TYPE_CHECKING:
+    from edb.pgsql import params as pgparams
+
     from . import pgcluster
     from . import server as edbserver
 
@@ -32,7 +36,7 @@ class Tenant:
     def __init__(self, cluster: pgcluster.BaseCluster):
         self._server = None
         self._cluster = cluster
-        self._tenant_id = cluster.get_runtime_params().tenant_id
+        self._tenant_id = self.get_backend_runtime_params().tenant_id
 
     def set_server(self, server: edbserver.Server) -> None:
         self._server = server
@@ -46,3 +50,7 @@ class Tenant:
 
     def get_pgaddr(self) -> Dict[str, Any]:
         return self._cluster.get_connection_spec()
+
+    @functools.lru_cache
+    def get_backend_runtime_params(self) -> pgparams.BackendRuntimeParams:
+        return self._cluster.get_runtime_params()

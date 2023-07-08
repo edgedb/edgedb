@@ -1234,7 +1234,7 @@ cdef class DatabaseIndex:
         )
         block = dbops.PLTopBlock()
         metadata = {'sysconfig': json.loads(data)}
-        if self._server.get_backend_runtime_params().has_create_database:
+        if self._tenant.get_backend_runtime_params().has_create_database:
             dbops.UpdateMetadata(
                 dbops.Database(
                     name=self._tenant.get_pg_dbname(defines.EDGEDB_SYSTEM_DB),

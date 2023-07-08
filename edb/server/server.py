@@ -19,7 +19,6 @@
 
 from __future__ import annotations
 
-import functools
 from typing import *
 
 import asyncio
@@ -408,7 +407,7 @@ class Server(ha_base.ClusterProtocol):
 
     async def _pg_connect(self, dbname):
         ha_serial = self._ha_master_serial
-        if self.get_backend_runtime_params().has_create_database:
+        if self._tenant.get_backend_runtime_params().has_create_database:
             pg_dbname = self._tenant.get_pg_dbname(dbname)
         else:
             pg_dbname = self._tenant.get_pg_dbname(defines.EDGEDB_SUPERUSER_DB)
@@ -417,7 +416,7 @@ class Server(ha_base.ClusterProtocol):
             rv = await pgcon.connect(
                 self._tenant.get_pgaddr(),
                 pg_dbname,
-                self.get_backend_runtime_params(),
+                self._tenant.get_backend_runtime_params(),
             )
             if self._stmt_cache_size is not None:
                 rv.set_stmt_cache_size(self._stmt_cache_size)
@@ -567,7 +566,7 @@ class Server(ha_base.ClusterProtocol):
         # the version, and not pinning it would make the remote compiler
         # pool refuse connections from clients that have differing versions
         # of Postgres backing them.
-        runtime_params = self.get_backend_runtime_params()
+        runtime_params = self._tenant.get_backend_runtime_params()
         min_ver = '.'.join(str(v) for v in defines.MIN_POSTGRES_VERSION)
         runtime_params = runtime_params._replace(
             instance_params=runtime_params.instance_params._replace(
@@ -976,7 +975,7 @@ class Server(ha_base.ClusterProtocol):
                 entry = bootstrap.prepare_patch(
                     num, kind, patch, self._std_schema, self._refl_schema,
                     self._schema_class_layout,
-                    self.get_backend_runtime_params())
+                    self._tenant.get_backend_runtime_params())
 
                 await bootstrap._store_static_bin_cache_conn(
                     conn, f'patch_log_{idx}', pickle.dumps(entry))
@@ -1042,7 +1041,7 @@ class Server(ha_base.ClusterProtocol):
                             user_schema,
                             global_schema,
                             self._schema_class_layout,
-                            self.get_backend_runtime_params(),
+                            self._tenant.get_backend_runtime_params(),
                             config,
                         )
                     except errors.EdgeDBError as e:
@@ -2407,10 +2406,6 @@ class Server(ha_base.ClusterProtocol):
 
     def get_instance_data(self, key):
         return self._instance_data[key]
-
-    @functools.lru_cache
-    def get_backend_runtime_params(self) -> Any:
-        return self._tenant._cluster.get_runtime_params()
 
     def set_pg_unavailable_msg(self, msg):
         if msg is None or self._pg_unavailable_msg is None:
