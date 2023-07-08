@@ -1236,7 +1236,7 @@ cdef class DatabaseIndex:
         if self._server.get_backend_runtime_params().has_create_database:
             dbops.UpdateMetadata(
                 dbops.Database(
-                    name=self._server.get_pg_dbname(defines.EDGEDB_SYSTEM_DB),
+                    name=self._tenant.get_pg_dbname(defines.EDGEDB_SYSTEM_DB),
                 ),
                 metadata,
             ).generate(block)
