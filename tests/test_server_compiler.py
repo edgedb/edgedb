@@ -25,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import unittest.mock
 
 import immutables
 
@@ -390,7 +391,7 @@ class TestCompilerPool(tbs.TestCase):
                 runstate_dir=td,
                 pool_size=2,
                 dbindex=dbview.DatabaseIndex(
-                    None,
+                    unittest.mock.MagicMock(),
                     std_schema=self._std_schema,
                     global_schema=None,
                     sys_config={},
