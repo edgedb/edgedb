@@ -43,3 +43,6 @@ class Tenant:
 
     def get_pg_dbname(self, dbname: str) -> str:
         return self._cluster.get_db_name(dbname)
+
+    def get_pgaddr(self) -> Dict[str, Any]:
+        return self._cluster.get_connection_spec()

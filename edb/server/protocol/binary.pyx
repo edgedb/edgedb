@@ -315,7 +315,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         self.write(buf)
 
         if self.server.in_dev_mode():
-            pgaddr = dict(self.server._get_pgaddr())
+            pgaddr = dict(self.tenant.get_pgaddr())
             if pgaddr.get('password'):
                 pgaddr['password'] = '********'
             pgaddr['database'] = self.tenant.get_pg_dbname(
