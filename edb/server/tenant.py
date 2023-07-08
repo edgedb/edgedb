@@ -27,10 +27,16 @@ if TYPE_CHECKING:
 class Tenant:
     _server: edbserver.Server | None
     _cluster: pgcluster.BaseCluster
+    _tenant_id: str
 
     def __init__(self, cluster: pgcluster.BaseCluster):
         self._server = None
         self._cluster = cluster
+        self._tenant_id = cluster.get_runtime_params().tenant_id
 
     def set_server(self, server: edbserver.Server) -> None:
         self._server = server
+
+    @property
+    def tenant_id(self) -> str:
+        return self._tenant_id

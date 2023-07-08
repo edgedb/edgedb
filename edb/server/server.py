@@ -182,9 +182,6 @@ class Server(ha_base.ClusterProtocol):
         self._accept_new_tasks = False
         self._tasks = set()
 
-        inst_params = self._tenant._cluster.get_runtime_params()
-        self._tenant_id = inst_params.tenant_id
-
         # 1 connection is reserved for the system DB
         pool_capacity = max_backend_connections - 1
         self._pg_pool = connpool.Pool(
@@ -321,9 +318,6 @@ class Server(ha_base.ClusterProtocol):
 
     def get_loop(self):
         return self.__loop
-
-    def get_tenant_id(self):
-        return self._tenant_id
 
     def get_instance_name(self):
         return self._instance_name
@@ -2290,7 +2284,7 @@ class Server(ha_base.ClusterProtocol):
                 "port": self._listen_port,
                 "socket_dir": str(self._runstate_dir),
                 "main_pid": os.getpid(),
-                "tenant_id": self._tenant_id,
+                "tenant_id": self._tenant.tenant_id,
                 "tls_cert_file": self._tls_cert_file,
                 "tls_cert_newly_generated": self._tls_cert_newly_generated,
                 "jws_keys_newly_generated": self._jws_keys_newly_generated,
@@ -2468,7 +2462,7 @@ class Server(ha_base.ClusterProtocol):
             params=dict(
                 max_backend_connections=self._max_backend_connections,
                 suggested_client_pool_size=self._suggested_client_pool_size,
-                tenant_id=self._tenant_id,
+                tenant_id=self._tenant.tenant_id,
                 dev_mode=self._devmode,
                 test_mode=self._testmode,
                 default_auth_method=str(self._default_auth_method),
