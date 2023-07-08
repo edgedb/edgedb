@@ -175,6 +175,39 @@ class Tenant:
         finally:
             self._sys_pgcon_waiter.release()
 
+    def on_sys_pgcon_parameter_status_updated(
+        self,
+        name: str,
+        value: str,
+    ) -> None:
+        try:
+            if name == 'in_hot_standby' and value == 'on':
+                # It is a strong evidence of failover if the sys_pgcon receives
+                # a notification that in_hot_standby is turned on.
+                self.on_sys_pgcon_failover_signal()
+        except Exception:
+            metrics.background_errors.inc(
+                1.0, 'on_sys_pgcon_parameter_status_updated')
+            raise
+
+    def on_sys_pgcon_failover_signal(self) -> None:
+        if not self._server._serving:
+            return
+        try:
+            if self._server._backend_adaptive_ha is not None:
+                # Switch to FAILOVER if adaptive HA is enabled
+                self._server._backend_adaptive_ha.set_state_failover()
+            elif getattr(self._cluster, '_ha_backend', None) is None:
+                # If the server is not using an HA backend, nor has enabled the
+                # adaptive HA monitoring, we still try to "switch over" by
+                # disconnecting all pgcons if failover signal is received,
+                # allowing reconnection to happen sooner.
+                self._server.on_switch_over()
+            # Else, the HA backend should take care of calling on_switch_over()
+        except Exception:
+            metrics.background_errors.inc(1.0, 'on_sys_pgcon_failover_signal')
+            raise
+
     def on_sys_pgcon_connection_lost(self, exc):
         try:
             if not self._server._serving:
