@@ -347,9 +347,6 @@ class Server(ha_base.ClusterProtocol):
     def get_readiness_reason(self) -> str:
         return self._readiness_reason
 
-    def get_pg_dbname(self, dbname: str) -> str:
-        return self._tenant.get_pg_dbname(dbname)
-
     def on_binary_client_created(self) -> str:
         self._binary_proto_id_counter += 1
 
@@ -411,38 +408,7 @@ class Server(ha_base.ClusterProtocol):
             conn.cancel(secret)
 
     async def _pg_connect(self, dbname):
-        ha_serial = self._ha_master_serial
-        if self._tenant.get_backend_runtime_params().has_create_database:
-            pg_dbname = self.get_pg_dbname(dbname)
-        else:
-            pg_dbname = self.get_pg_dbname(defines.EDGEDB_SUPERUSER_DB)
-        started_at = time.monotonic()
-        try:
-            rv = await pgcon.connect(
-                self._tenant.get_pgaddr(),
-                pg_dbname,
-                self._tenant.get_backend_runtime_params(),
-            )
-            if self._stmt_cache_size is not None:
-                rv.set_stmt_cache_size(self._stmt_cache_size)
-        except Exception:
-            metrics.backend_connection_establishment_errors.inc()
-            raise
-        finally:
-            metrics.backend_connection_establishment_latency.observe(
-                time.monotonic() - started_at)
-        if ha_serial == self._ha_master_serial:
-            rv.set_tenant(self._tenant)
-            if self._backend_adaptive_ha is not None:
-                self._backend_adaptive_ha.on_pgcon_made(
-                    dbname == defines.EDGEDB_SYSTEM_DB
-                )
-            metrics.total_backend_connections.inc()
-            metrics.current_backend_connections.inc()
-            return rv
-        else:
-            rv.terminate()
-            raise ConnectionError("connected to outdated Postgres master")
+        return await self._tenant._pg_connect(dbname)
 
     async def _pg_disconnect(self, conn):
         metrics.current_backend_connections.dec()
