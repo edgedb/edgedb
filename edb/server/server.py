@@ -137,7 +137,6 @@ class Server(ha_base.ClusterProtocol):
     def __init__(
         self,
         *,
-        cluster,
         runstate_dir,
         internal_runstate_dir,
         max_backend_connections,
@@ -179,9 +178,8 @@ class Server(ha_base.ClusterProtocol):
 
         self._initing = False
 
-        self._cluster = cluster
         self._pg_addr = self._get_pgaddr()
-        inst_params = cluster.get_runtime_params().instance_params
+        inst_params = self._tenant._cluster.get_runtime_params()
         self._tenant_id = inst_params.tenant_id
 
         # 1 connection is reserved for the system DB
@@ -358,7 +356,7 @@ class Server(ha_base.ClusterProtocol):
         return self._readiness_reason
 
     def get_pg_dbname(self, dbname: str) -> str:
-        return self._cluster.get_db_name(dbname)
+        return self._tenant._cluster.get_db_name(dbname)
 
     def on_binary_client_created(self) -> str:
         self._binary_proto_id_counter += 1
@@ -612,7 +610,7 @@ class Server(ha_base.ClusterProtocol):
         self._sys_auth = tuple(sorted(auth, key=lambda a: a.priority))
 
     def _get_pgaddr(self):
-        return self._cluster.get_connection_spec()
+        return self._tenant._cluster.get_connection_spec()
 
     def get_compiler_pool(self):
         return self._compiler_pool
@@ -1768,7 +1766,7 @@ class Server(ha_base.ClusterProtocol):
             if self._backend_adaptive_ha is not None:
                 # Switch to FAILOVER if adaptive HA is enabled
                 self._backend_adaptive_ha.set_state_failover()
-            elif getattr(self._cluster, '_ha_backend', None) is None:
+            elif getattr(self._tenant._cluster, '_ha_backend', None) is None:
                 # If the server is not using an HA backend, nor has enabled the
                 # adaptive HA monitoring, we still tries to "switch over" by
                 # disconnecting all pgcons if failover signal is received,
@@ -2256,7 +2254,6 @@ class Server(ha_base.ClusterProtocol):
             self._request_stats_logger()
         )
 
-        await self._cluster.start_watching(self.on_switch_over)
         await self._create_compiler_pool()
 
         if self._startup_script and self._new_instance:
@@ -2325,7 +2322,6 @@ class Server(ha_base.ClusterProtocol):
                 self._idle_gc_handler.cancel()
                 self._idle_gc_handler = None
 
-            self._cluster.stop_watching()
             if self._http_request_logger is not None:
                 self._http_request_logger.cancel()
 
@@ -2399,7 +2395,7 @@ class Server(ha_base.ClusterProtocol):
 
     @functools.lru_cache
     def get_backend_runtime_params(self) -> Any:
-        return self._cluster.get_runtime_params()
+        return self._tenant._cluster.get_runtime_params()
 
     def set_pg_unavailable_msg(self, msg):
         if msg is None or self._pg_unavailable_msg is None:
