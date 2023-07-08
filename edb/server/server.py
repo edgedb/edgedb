@@ -182,7 +182,6 @@ class Server(ha_base.ClusterProtocol):
         self._accept_new_tasks = False
         self._tasks = set()
 
-        self._pg_addr = self._get_pgaddr()
         inst_params = self._tenant._cluster.get_runtime_params()
         self._tenant_id = inst_params.tenant_id
 
@@ -2478,7 +2477,7 @@ class Server(ha_base.ClusterProtocol):
             ),
             instance_config=serialize_config(self._dbindex.get_sys_config()),
             user_roles=self._roles,
-            pg_addr=self._pg_addr,
+            pg_addr=self._get_pgaddr(),
             pg_pool=self._pg_pool._build_snapshot(now=time.monotonic()),
             compiler_pool=dict(
                 worker_pids=list(self._compiler_pool._workers.keys()),
