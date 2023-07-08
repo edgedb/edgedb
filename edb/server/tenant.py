@@ -93,3 +93,7 @@ class Tenant:
         else:
             rv.terminate()
             raise ConnectionError("connected to outdated Postgres master")
+
+    async def _pg_disconnect(self, conn: pgcon.PGConnection) -> None:
+        metrics.current_backend_connections.dec()
+        conn.terminate()
