@@ -49,6 +49,7 @@ class Tenant:
     _sys_pgcon_waiter: asyncio.Lock
     _sys_pgcon_ready_evt: asyncio.Event
     _sys_pgcon_reconnect_evt: asyncio.Event
+    _ha_master_serial: int
 
     def __init__(self, cluster: pgcluster.BaseCluster):
         self._cluster = cluster
@@ -58,10 +59,17 @@ class Tenant:
         # `async with self._use_sys_pgcon()`.
         self.__sys_pgcon = None
 
+        # Increase-only counter to reject outdated attempts to connect
+        self._ha_master_serial = 0
+
     def set_server(self, server: edbserver.Server) -> None:
         self._server = server
 
     def on_switch_over(self):
+        # Bumping this serial counter will "cancel" all pending connections
+        # to the old master.
+        self._ha_master_serial += 1
+
         if self.__sys_pgcon is None:
             # Assume a reconnect task is already running, now that we know the
             # new master is likely ready, let's just give the task a push.
@@ -104,7 +112,7 @@ class Tenant:
         del self._sys_pgcon_waiter
 
     async def _pg_connect(self, dbname: str) -> pgcon.PGConnection:
-        ha_serial = self._server._ha_master_serial
+        ha_serial = self._ha_master_serial
         if self.get_backend_runtime_params().has_create_database:
             pg_dbname = self.get_pg_dbname(dbname)
         else:
@@ -122,7 +130,7 @@ class Tenant:
         finally:
             metrics.backend_connection_establishment_latency.observe(
                 time.monotonic() - started_at)
-        if ha_serial == self._server._ha_master_serial:
+        if ha_serial == self._ha_master_serial:
             rv.set_server(self._server)
             rv.set_tenant(self)
             if self._server._backend_adaptive_ha is not None:

@@ -171,9 +171,6 @@ class Server(ha_base.ClusterProtocol):
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
 
-        # Increase-only counter to reject outdated attempts to connect
-        self._ha_master_serial = 0
-
         self._serving = False
         self._initing = False
         self._accept_new_tasks = False
@@ -2243,10 +2240,6 @@ class Server(ha_base.ClusterProtocol):
             self._pg_unavailable_msg = msg
 
     def on_switch_over(self):
-        # Bumping this serial counter will "cancel" all pending connections
-        # to the old master.
-        self._ha_master_serial += 1
-
         if self._accept_new_tasks:
             self.create_task(
                 self._pg_pool.prune_all_connections(), interruptable=True
