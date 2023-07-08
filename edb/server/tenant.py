@@ -25,11 +25,13 @@ import sys
 from edb.common import taskgroup
 
 if TYPE_CHECKING:
+    from . import pgcluster
     from . import server as edbserver
 
 
 class Tenant:
     _server: edbserver.Server
+    _cluster: pgcluster.BaseCluster
     _running: bool
     _accepting_connections: bool
 
@@ -40,7 +42,9 @@ class Tenant:
 
     def __init__(
         self,
+        cluster: pgcluster.BaseCluster,
     ):
+        self._cluster = cluster
         self._running = False
         self._accepting_connections = False
 
@@ -64,6 +68,7 @@ class Tenant:
         self._task_group = taskgroup.TaskGroup()
         await self._task_group.__aenter__()
         self._accept_new_tasks = True
+        await self._cluster.start_watching(self._server.on_switch_over)
 
     def start_running(self) -> None:
         self._running = True
@@ -103,6 +108,7 @@ class Tenant:
     def stop(self) -> None:
         self._running = False
         self._accept_new_tasks = False
+        self._cluster.stop_watching()
 
     async def wait_stopped(self) -> None:
         if self._task_group is not None:
