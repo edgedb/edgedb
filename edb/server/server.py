@@ -1621,22 +1621,6 @@ class Server(ha_base.ClusterProtocol):
 
         self.create_task(task(), interruptable=True)
 
-    def _on_pgcon_broken(self, is_sys_pgcon=False):
-        try:
-            if self._backend_adaptive_ha:
-                self._backend_adaptive_ha.on_pgcon_broken(is_sys_pgcon)
-        except Exception:
-            metrics.background_errors.inc(1.0, 'on_pgcon_broken')
-            raise
-
-    def _on_pgcon_lost(self):
-        try:
-            if self._backend_adaptive_ha:
-                self._backend_adaptive_ha.on_pgcon_lost()
-        except Exception:
-            metrics.background_errors.inc(1.0, 'on_pgcon_lost')
-            raise
-
     async def run_startup_script_and_exit(self):
         """Run the script specified in *startup_script* and exit immediately"""
         if self._startup_script is None:
