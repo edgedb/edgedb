@@ -69,6 +69,9 @@ class Tenant:
     def get_pg_dbname(self, dbname: str) -> str:
         return self._cluster.get_db_name(dbname)
 
+    def get_pgaddr(self) -> Dict[str, Any]:
+        return self._cluster.get_connection_spec()
+
     def is_accepting_connections(self) -> bool:
         return self._accepting_connections and self._accept_new_tasks
 

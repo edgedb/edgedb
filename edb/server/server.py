@@ -417,7 +417,7 @@ class Server(ha_base.ClusterProtocol):
         started_at = time.monotonic()
         try:
             rv = await pgcon.connect(
-                self._get_pgaddr(),
+                self._tenant.get_pgaddr(),
                 pg_dbname,
                 self.get_backend_runtime_params(),
             )
@@ -598,9 +598,6 @@ class Server(ha_base.ClusterProtocol):
         cfg = self._dbindex.get_sys_config()
         auth = config.lookup('auth', cfg) or ()
         self._sys_auth = tuple(sorted(auth, key=lambda a: a.priority))
-
-    def _get_pgaddr(self):
-        return self._tenant._cluster.get_connection_spec()
 
     def get_compiler_pool(self):
         return self._compiler_pool
@@ -2443,7 +2440,7 @@ class Server(ha_base.ClusterProtocol):
             ),
             instance_config=serialize_config(self._dbindex.get_sys_config()),
             user_roles=self._roles,
-            pg_addr=self._get_pgaddr(),
+            pg_addr=tenant.get_pgaddr(),
             pg_pool=self._pg_pool._build_snapshot(now=time.monotonic()),
             compiler_pool=dict(
                 worker_pids=list(self._compiler_pool._workers.keys()),
