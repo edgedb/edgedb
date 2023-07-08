@@ -350,7 +350,7 @@ class Server(ha_base.ClusterProtocol):
         return self._readiness_reason
 
     def get_pg_dbname(self, dbname: str) -> str:
-        return self._cluster.get_db_name(dbname)
+        return self._tenant.get_pg_dbname(dbname)
 
     def on_binary_client_created(self) -> str:
         self._binary_proto_id_counter += 1
