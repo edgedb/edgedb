@@ -311,7 +311,7 @@ class Tenant:
                 self.create_task(
                     self._reconnect_sys_pgcon(), interruptable=True
                 )
-            self._server._on_pgcon_broken(True)
+            self.on_pgcon_broken(True)
         except Exception:
             metrics.background_errors.inc(1.0, "on_sys_pgcon_connection_lost")
             raise
@@ -371,3 +371,19 @@ class Tenant:
             self._server.set_pg_unavailable_msg(None)
         finally:
             self._sys_pgcon_ready_evt.set()
+
+    def on_pgcon_broken(self, is_sys_pgcon: bool = False) -> None:
+        try:
+            if self._server._backend_adaptive_ha:
+                self._server._backend_adaptive_ha.on_pgcon_broken(is_sys_pgcon)
+        except Exception:
+            metrics.background_errors.inc(1.0, "on_pgcon_broken")
+            raise
+
+    def on_pgcon_lost(self) -> None:
+        try:
+            if self._server._backend_adaptive_ha:
+                self._server._backend_adaptive_ha.on_pgcon_lost()
+        except Exception:
+            metrics.background_errors.inc(1.0, "on_pgcon_lost")
+            raise
