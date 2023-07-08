@@ -59,8 +59,6 @@ from edb.server import compiler_pool
 from edb.server import defines
 from edb.server import protocol
 from edb.server import tenant as edbtenant
-from edb.server.ha import base as ha_base
-from edb.server.ha import adaptive as adaptive_ha
 from edb.server.protocol import binary  # type: ignore
 from edb.server.protocol import pg_ext  # type: ignore
 from edb.server import metrics
@@ -91,7 +89,7 @@ class StartupError(Exception):
     pass
 
 
-class Server(ha_base.ClusterProtocol):
+class Server:
 
     _tenant: edbtenant.Tenant
 
@@ -109,8 +107,6 @@ class Server(ha_base.ClusterProtocol):
     _schema_class_layout: s_refl.SchemaTypeLayout
 
     _servers: Mapping[str, asyncio.AbstractServer]
-
-    _backend_adaptive_ha: Optional[adaptive_ha.AdaptiveHASupport]
 
     _testmode: bool
 
@@ -150,7 +146,6 @@ class Server(ha_base.ClusterProtocol):
         echo_runtime_info: bool = False,
         status_sinks: Sequence[Callable[[str], None]] = (),
         startup_script: Optional[srvargs.StartupScript] = None,
-        backend_adaptive_ha: bool = False,
         default_auth_method: srvargs.ServerAuthMethods = (
             srvargs.DEFAULT_AUTH_METHODS),
         admin_ui: bool = False,
@@ -251,10 +246,6 @@ class Server(ha_base.ClusterProtocol):
         self._default_auth_method = default_auth_method
         self._binary_endpoint_security = binary_endpoint_security
         self._http_endpoint_security = http_endpoint_security
-        if backend_adaptive_ha:
-            self._backend_adaptive_ha = adaptive_ha.AdaptiveHASupport(self)
-        else:
-            self._backend_adaptive_ha = None
 
         self._idle_gc_handler = None
         self._session_idle_timeout = None
@@ -2173,25 +2164,6 @@ class Server(ha_base.ClusterProtocol):
     def set_pg_unavailable_msg(self, msg):
         if msg is None or self._pg_unavailable_msg is None:
             self._pg_unavailable_msg = msg
-
-    def on_switch_over(self):
-        if self._accept_new_tasks:
-            self.create_task(
-                self._pg_pool.prune_all_connections(), interruptable=True
-            )
-
-        self._tenant.on_switch_over()
-
-        if self._backend_adaptive_ha is not None:
-            # Switch to FAILOVER if adaptive HA is enabled
-            self._backend_adaptive_ha.set_state_failover(
-                call_on_switch_over=False
-            )
-
-    def get_active_pgcon_num(self) -> int:
-        return (
-            self._pg_pool.current_capacity - self._pg_pool.get_pending_conns()
-        )
 
     def get_debug_info(self):
         """Used to render the /server-info endpoint in dev/test modes.
