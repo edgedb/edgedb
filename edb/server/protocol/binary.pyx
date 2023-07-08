@@ -318,7 +318,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             pgaddr = dict(self.server._get_pgaddr())
             if pgaddr.get('password'):
                 pgaddr['password'] = '********'
-            pgaddr['database'] = self.server.get_pg_dbname(
+            pgaddr['database'] = self.tenant.get_pg_dbname(
                 self.get_dbview().dbname
             )
             pgaddr.pop('ssl', None)

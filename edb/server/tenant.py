@@ -40,3 +40,6 @@ class Tenant:
     @property
     def tenant_id(self) -> str:
         return self._tenant_id
+
+    def get_pg_dbname(self, dbname: str) -> str:
+        return self._cluster.get_db_name(dbname)
