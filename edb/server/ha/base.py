@@ -25,6 +25,9 @@ from edb.common import asyncwatcher
 
 
 class ClusterProtocol:
+    def on_switch_over(self):
+        pass
+
     def get_active_pgcon_num(self) -> int:
         raise NotImplementedError()
 

@@ -74,7 +74,6 @@ class AsyncWatcher:
 
     def stop_watching(self) -> None:
         self._watching = False
-        self._cluster_protocol = None
         protocol, self._protocol = self._protocol, None
         if protocol is not None:
             self._stop_waiter = asyncio.get_running_loop().create_future()

@@ -132,7 +132,7 @@ class StolonConsulBackend(StolonBackend):
                 consul.ConsulKVProtocol,
                 self,
                 self._host,
-                f"/v1/kv/stolon/cluster/{self._cluster_name}/clusterdata",
+                f"stolon/cluster/{self._cluster_name}/clusterdata",
             ),
             self._host,
             self._port,

@@ -38,6 +38,7 @@ class ConsulKVProtocol(asyncwatcher.AsyncWatcherProtocol):
         consul_host: str,
         key: str,
     ) -> None:
+        assert not key.startswith("/"), "absolute path rewrites Consul KV URL"
         super().__init__(watcher)
         self._host = consul_host
         self._key = key
@@ -50,8 +51,13 @@ class ConsulKVProtocol(asyncwatcher.AsyncWatcherProtocol):
         self._parser.feed_data(data)
 
     def on_status(self, status: bytes) -> None:
-        if self._parser.get_status_code() != 200:
-            logger.debug("Consul is returning non-200 responses")
+        status_code = self._parser.get_status_code()
+        if status_code != 200:
+            logger.debug(
+                "Consul is returning non-200 responses: %s %r",
+                status_code,
+                status,
+            )
             if self._transport is not None:
                 self._transport.close()
 
@@ -71,7 +77,7 @@ class ConsulKVProtocol(asyncwatcher.AsyncWatcherProtocol):
             self._buffers.clear()
 
     def request(self) -> None:
-        uri = urllib.parse.urljoin("/v1/kv", self._key)
+        uri = urllib.parse.urljoin("/v1/kv/", self._key)
         if self._last_modify_index is not None:
             uri += f"?index={self._last_modify_index}"
         if self._transport is None or self._transport.is_closing():
