@@ -184,7 +184,7 @@ class Server(ha_base.ClusterProtocol):
         # 1 connection is reserved for the system DB
         pool_capacity = max_backend_connections - 1
         self._pg_pool = connpool.Pool(
-            connect=self._pg_connect,
+            connect=self._tenant._pg_connect,
             disconnect=self._pg_disconnect,
             max_capacity=pool_capacity,
         )
@@ -405,41 +405,6 @@ class Server(ha_base.ClusterProtocol):
         if conn is not None:
             conn.cancel(secret)
 
-    async def _pg_connect(self, dbname):
-        ha_serial = self._ha_master_serial
-        if self._tenant.get_backend_runtime_params().has_create_database:
-            pg_dbname = self._tenant.get_pg_dbname(dbname)
-        else:
-            pg_dbname = self._tenant.get_pg_dbname(defines.EDGEDB_SUPERUSER_DB)
-        started_at = time.monotonic()
-        try:
-            rv = await pgcon.connect(
-                self._tenant.get_pgaddr(),
-                pg_dbname,
-                self._tenant.get_backend_runtime_params(),
-            )
-            if self._stmt_cache_size is not None:
-                rv.set_stmt_cache_size(self._stmt_cache_size)
-        except Exception:
-            metrics.backend_connection_establishment_errors.inc()
-            raise
-        finally:
-            metrics.backend_connection_establishment_latency.observe(
-                time.monotonic() - started_at)
-        if ha_serial == self._ha_master_serial:
-            rv.set_server(self)
-            rv.set_tenant(self._tenant)
-            if self._backend_adaptive_ha is not None:
-                self._backend_adaptive_ha.on_pgcon_made(
-                    dbname == defines.EDGEDB_SYSTEM_DB
-                )
-            metrics.total_backend_connections.inc()
-            metrics.current_backend_connections.inc()
-            return rv
-        else:
-            rv.terminate()
-            raise ConnectionError("connected to outdated Postgres master")
-
     async def _pg_disconnect(self, conn):
         metrics.current_backend_connections.dec()
         conn.terminate()
@@ -447,7 +412,9 @@ class Server(ha_base.ClusterProtocol):
     async def init(self):
         self._initing = True
         try:
-            self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
+            self.__sys_pgcon = await self._tenant._pg_connect(
+                defines.EDGEDB_SYSTEM_DB
+            )
             self._sys_pgcon_waiter = asyncio.Lock()
             self._sys_pgcon_ready_evt = asyncio.Event()
             self._sys_pgcon_reconnect_evt = asyncio.Event()
@@ -1517,7 +1484,7 @@ class Server(ha_base.ClusterProtocol):
     ) -> AsyncGenerator[pgcon.PGConnection, None]:
         conn = None
         try:
-            conn = await self._pg_connect(dbname)
+            conn = await self._tenant._pg_connect(dbname)
             yield conn
         finally:
             if conn is not None:
@@ -1784,7 +1751,9 @@ class Server(ha_base.ClusterProtocol):
             conn = None
             while self._serving:
                 try:
-                    conn = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
+                    conn = await self._tenant._pg_connect(
+                        defines.EDGEDB_SYSTEM_DB
+                    )
                     break
                 except OSError:
                     # Keep retrying as far as:

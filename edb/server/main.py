@@ -56,7 +56,6 @@ from . import defines
 from . import pgconnparams
 from . import pgcluster
 from . import service_manager
-from . import tenant as edbtenant
 
 
 if TYPE_CHECKING:
@@ -177,6 +176,8 @@ async def _run_server(
         logger.info("detected service manager socket activation")
 
     with signalctl.SignalController(signal.SIGINT, signal.SIGTERM) as sc:
+        from . import tenant as edbtenant
+
         tenant = edbtenant.Tenant(cluster)
         ss = server.Server(
             runstate_dir=runstate_dir,
