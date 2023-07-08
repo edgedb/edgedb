@@ -180,7 +180,7 @@ class Server(ha_base.ClusterProtocol):
         pool_capacity = max_backend_connections - 1
         self._pg_pool = connpool.Pool(
             connect=self._tenant._pg_connect,
-            disconnect=self._pg_disconnect,
+            disconnect=self._tenant._pg_disconnect,
             max_capacity=pool_capacity,
         )
         self._pg_unavailable_msg = None
@@ -405,10 +405,6 @@ class Server(ha_base.ClusterProtocol):
         conn = self._pgext_conns.get(pid)
         if conn is not None:
             conn.cancel(secret)
-
-    async def _pg_disconnect(self, conn):
-        metrics.current_backend_connections.dec()
-        conn.terminate()
 
     async def init(self):
         self._initing = True
@@ -1488,7 +1484,7 @@ class Server(ha_base.ClusterProtocol):
             yield conn
         finally:
             if conn is not None:
-                await self._pg_disconnect(conn)
+                await self._tenant._pg_disconnect(conn)
 
     async def _cancel_pgcon_operation(self, pgcon) -> bool:
         async with self._use_sys_pgcon() as syscon:
