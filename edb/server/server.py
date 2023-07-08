@@ -135,7 +135,6 @@ class Server(ha_base.ClusterProtocol):
     def __init__(
         self,
         *,
-        cluster,
         runstate_dir,
         internal_runstate_dir,
         max_backend_connections,
@@ -177,9 +176,8 @@ class Server(ha_base.ClusterProtocol):
 
         self._initing = False
 
-        self._cluster = cluster
         self._pg_addr = self._get_pgaddr()
-        inst_params = cluster.get_runtime_params().instance_params
+        inst_params = self._cluster.get_runtime_params()
         self._tenant_id = inst_params.tenant_id
 
         # 1 connection is reserved for the system DB
@@ -298,6 +296,10 @@ class Server(ha_base.ClusterProtocol):
     @property
     def _serving(self):
         return self._tenant._running
+
+    @property
+    def _cluster(self):
+        return self._tenant._cluster
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -2258,7 +2260,6 @@ class Server(ha_base.ClusterProtocol):
             self._request_stats_logger()
         )
 
-        await self._cluster.start_watching(self.on_switch_over)
         await self._create_compiler_pool()
 
         if self._startup_script and self._new_instance:
@@ -2327,7 +2328,6 @@ class Server(ha_base.ClusterProtocol):
                 self._idle_gc_handler.cancel()
                 self._idle_gc_handler = None
 
-            self._cluster.stop_watching()
             if self._http_request_logger is not None:
                 self._http_request_logger.cancel()
 
