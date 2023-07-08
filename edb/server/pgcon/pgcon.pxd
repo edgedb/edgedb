@@ -126,6 +126,7 @@ cdef class PGConnection:
 
         object pgaddr
         object server
+        object tenant
         bint is_system_db
         bint close_requested
 
