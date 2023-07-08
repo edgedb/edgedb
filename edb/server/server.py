@@ -411,8 +411,7 @@ class Server(ha_base.ClusterProtocol):
         return await self._tenant._pg_connect(dbname)
 
     async def _pg_disconnect(self, conn):
-        metrics.current_backend_connections.dec()
-        conn.terminate()
+        await self._tenant._pg_disconnect(conn)
 
     async def init(self):
         self._initing = True
