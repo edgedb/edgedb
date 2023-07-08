@@ -120,5 +120,11 @@ class PGConnection:
     def set_tenant(self, tenant: Any) -> None:
         ...
 
+    async def listen_for_sysevent(self) -> None:
+        ...
+
+    def mark_as_system_db(self) -> None:
+        ...
+
 
 SETUP_TEMP_TABLE_SCRIPT: str
