@@ -178,7 +178,10 @@ async def _run_server(
     with signalctl.SignalController(signal.SIGINT, signal.SIGTERM) as sc:
         from . import tenant as edbtenant
 
-        tenant = edbtenant.Tenant(cluster)
+        tenant = edbtenant.Tenant(
+            cluster,
+            backend_adaptive_ha=args.backend_adaptive_ha,
+        )
         ss = server.Server(
             runstate_dir=runstate_dir,
             internal_runstate_dir=internal_runstate_dir,
@@ -195,7 +198,6 @@ async def _run_server(
             startup_script=args.startup_script,
             binary_endpoint_security=args.binary_endpoint_security,
             http_endpoint_security=args.http_endpoint_security,
-            backend_adaptive_ha=args.backend_adaptive_ha,
             default_auth_method=args.default_auth_method,
             testmode=args.testmode,
             new_instance=new_instance,
