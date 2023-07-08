@@ -558,6 +558,7 @@ cdef class PGConnection:
 
         self.pgaddr = addr
         self.server = None
+        self.tenant = None
         self.is_system_db = False
         self.close_requested = False
 
@@ -643,8 +644,9 @@ cdef class PGConnection:
     async def close(self):
         self.terminate()
 
-    def set_server(self, server):
-        self.server = server
+    def set_tenant(self, tenant):
+        self.tenant = tenant
+        self.server = tenant.server
 
     def mark_as_system_db(self):
         if self.server.get_backend_runtime_params().has_create_database:

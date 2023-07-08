@@ -434,7 +434,7 @@ class Server(ha_base.ClusterProtocol):
             metrics.backend_connection_establishment_latency.observe(
                 time.monotonic() - started_at)
         if ha_serial == self._ha_master_serial:
-            rv.set_server(self)
+            rv.set_tenant(self._tenant)
             if self._backend_adaptive_ha is not None:
                 self._backend_adaptive_ha.on_pgcon_made(
                     dbname == defines.EDGEDB_SYSTEM_DB
