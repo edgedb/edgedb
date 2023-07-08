@@ -3086,11 +3086,11 @@ cdef class PGConnection:
 
         if self.is_system_db:
             self.tenant.on_sys_pgcon_connection_lost(exc)
-        elif self.server is not None:
+        elif self.tenant is not None:
             if not self.close_requested:
-                self.server._on_pgcon_broken()
+                self.tenant.on_pgcon_broken()
             else:
-                self.server._on_pgcon_lost()
+                self.tenant.on_pgcon_lost()
 
         if self.connected_fut is not None and not self.connected_fut.done():
             self.connected_fut.set_exception(ConnectionAbortedError())
