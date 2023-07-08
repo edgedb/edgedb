@@ -2795,7 +2795,7 @@ cdef class PGConnection:
 
                     if self.is_system_db:
                         self.server.set_pg_unavailable_msg(pgmsg)
-                        self.server._on_sys_pgcon_failover_signal()
+                        self.tenant.on_sys_pgcon_failover_signal()
 
                 else:
                     pgmsg = fields.get('M', '<empty message>')
@@ -2815,7 +2815,7 @@ cdef class PGConnection:
             # ParameterStatus
             name, value = self.parse_parameter_status_message()
             if self.is_system_db:
-                self.server._on_sys_pgcon_parameter_status_updated(name, value)
+                self.tenant.on_sys_pgcon_parameter_status_updated(name, value)
             self.parameter_status[name] = value
             return True
 

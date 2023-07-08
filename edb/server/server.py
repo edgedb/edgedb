@@ -282,10 +282,6 @@ class Server(ha_base.ClusterProtocol):
     def _serving(self):
         return self._tenant._running
 
-    @property
-    def _cluster(self):
-        return self._tenant._cluster
-
     async def _request_stats_logger(self):
         last_seen = -1
         while True:
@@ -1624,35 +1620,6 @@ class Server(ha_base.ClusterProtocol):
                 raise
 
         self.create_task(task(), interruptable=True)
-
-    def _on_sys_pgcon_parameter_status_updated(self, name, value):
-        try:
-            if name == 'in_hot_standby' and value == 'on':
-                # It is a strong evidence of failover if the sys_pgcon receives
-                # a notification that in_hot_standby is turned on.
-                self._on_sys_pgcon_failover_signal()
-        except Exception:
-            metrics.background_errors.inc(
-                1.0, 'on_sys_pgcon_parameter_status_updated')
-            raise
-
-    def _on_sys_pgcon_failover_signal(self):
-        if not self._serving:
-            return
-        try:
-            if self._backend_adaptive_ha is not None:
-                # Switch to FAILOVER if adaptive HA is enabled
-                self._backend_adaptive_ha.set_state_failover()
-            elif getattr(self._cluster, '_ha_backend', None) is None:
-                # If the server is not using an HA backend, nor has enabled the
-                # adaptive HA monitoring, we still tries to "switch over" by
-                # disconnecting all pgcons if failover signal is received,
-                # allowing reconnection to happen sooner.
-                self.on_switch_over()
-            # Else, the HA backend should take care of calling on_switch_over()
-        except Exception:
-            metrics.background_errors.inc(1.0, 'on_sys_pgcon_failover_signal')
-            raise
 
     def _on_pgcon_broken(self, is_sys_pgcon=False):
         try:
