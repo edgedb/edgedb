@@ -93,7 +93,6 @@ class StartupError(Exception):
 
 class Server(ha_base.ClusterProtocol):
 
-    __sys_pgcon: Optional[pgcon.PGConnection]
     _tenant: edbtenant.Tenant
 
     _roles: Mapping[str, RoleDescriptor]
@@ -109,7 +108,6 @@ class Server(ha_base.ClusterProtocol):
     _refl_schema: s_schema.Schema
     _schema_class_layout: s_refl.SchemaTypeLayout
 
-    _sys_pgcon_waiter: asyncio.Lock
     _servers: Mapping[str, asyncio.AbstractServer]
 
     _backend_adaptive_ha: Optional[adaptive_ha.AdaptiveHASupport]
@@ -222,10 +220,6 @@ class Server(ha_base.ClusterProtocol):
         self._new_instance = new_instance
 
         self._instance_name = instance_name
-
-        # Never use `self.__sys_pgcon` directly; get it via
-        # `await self._acquire_sys_pgcon()`.
-        self.__sys_pgcon = None
 
         self._roles = immutables.Map()
         self._instance_data = immutables.Map()
@@ -416,10 +410,7 @@ class Server(ha_base.ClusterProtocol):
     async def init(self):
         self._initing = True
         try:
-            self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
-            self._sys_pgcon_waiter = asyncio.Lock()
-            self._sys_pgcon_ready_evt = asyncio.Event()
-            self._sys_pgcon_reconnect_evt = asyncio.Event()
+            await self._tenant.init_sys_pgcon()
 
             await self._load_instance_data()
             await self._maybe_patch()
@@ -442,9 +433,7 @@ class Server(ha_base.ClusterProtocol):
 
             # Now, once all DBs have been introspected, start listening on
             # any notifications about schema/roles/etc changes.
-            await self.__sys_pgcon.listen_for_sysevent()
-            self.__sys_pgcon.mark_as_system_db()
-            self._sys_pgcon_ready_evt.set()
+            await self._tenant.start_sys_pgcon()
 
             self._populate_sys_auth()
 
@@ -629,7 +618,7 @@ class Server(ha_base.ClusterProtocol):
             raise
 
     async def load_sys_config(self, query_name='sysconfig'):
-        async with self._use_sys_pgcon() as syscon:
+        async with self._tenant.use_sys_pgcon() as syscon:
             query = self.get_sys_query(query_name)
             sys_config_json = await syscon.sql_fetch_val(query)
 
@@ -656,32 +645,33 @@ class Server(ha_base.ClusterProtocol):
             return self._report_config_data[(1, 0)]
 
     async def load_reported_config(self) -> None:
-        syscon = await self._acquire_sys_pgcon()
-        try:
-            data = await syscon.sql_fetch_val(
-                self.get_sys_query('report_configs'),
-                use_prep_stmt=True,
-            )
-
-            for protocol_ver, typedesc in self._report_config_typedesc.items():
-                self._report_config_data[protocol_ver] = (
-                    struct.pack('!L', len(typedesc)) +
-                    typedesc +
-                    struct.pack('!L', len(data)) +
-                    data
+        async with self._tenant.use_sys_pgcon() as syscon:
+            try:
+                data = await syscon.sql_fetch_val(
+                    self.get_sys_query('report_configs'),
+                    use_prep_stmt=True,
                 )
-        except Exception:
-            metrics.background_errors.inc(1.0, 'load_reported_config')
-            raise
-        finally:
-            self._release_sys_pgcon()
+
+                for (
+                    protocol_ver,
+                    typedesc,
+                ) in self._report_config_typedesc.items():
+                    self._report_config_data[protocol_ver] = (
+                        struct.pack('!L', len(typedesc)) +
+                        typedesc +
+                        struct.pack('!L', len(data)) +
+                        data
+                    )
+            except Exception:
+                metrics.background_errors.inc(1.0, 'load_reported_config')
+                raise
 
     async def introspect_global_schema(self, conn=None):
         intro_query = self._global_intro_query
         if conn is not None:
             json_data = await conn.sql_fetch_val(intro_query)
         else:
-            async with self._use_sys_pgcon() as syscon:
+            async with self._tenant.use_sys_pgcon() as syscon:
                 json_data = await syscon.sql_fetch_val(intro_query)
 
         return s_refl.parse_into(
@@ -885,7 +875,7 @@ class Server(ha_base.ClusterProtocol):
         return json.loads(json_data)
 
     async def _introspect_dbs(self):
-        async with self._use_sys_pgcon() as syscon:
+        async with self._tenant.use_sys_pgcon() as syscon:
             dbnames = await self.get_dbnames(syscon)
 
         async with taskgroup.TaskGroup(name='introspect DB extensions') as g:
@@ -1046,7 +1036,7 @@ class Server(ha_base.ClusterProtocol):
     async def _maybe_patch(self):
         """Apply patches to all the databases"""
 
-        async with self._use_sys_pgcon() as syscon:
+        async with self._tenant.use_sys_pgcon() as syscon:
             patches = await self._prepare_patches(syscon)
             if not patches:
                 return
@@ -1073,7 +1063,7 @@ class Server(ha_base.ClusterProtocol):
         #
         # Driving everything from the system db like this lets us
         # always use the correct schema when compiling patches.
-        async with self._use_sys_pgcon() as syscon:
+        async with self._tenant.use_sys_pgcon() as syscon:
             await self._maybe_apply_patches(
                 defines.EDGEDB_SYSTEM_DB, syscon, patches, sys=True)
 
@@ -1098,7 +1088,7 @@ class Server(ha_base.ClusterProtocol):
         return res
 
     async def _load_instance_data(self):
-        async with self._use_sys_pgcon() as syscon:
+        async with self._tenant.use_sys_pgcon() as syscon:
             patch_count = await self.get_patch_count(syscon)
             version_key = pg_patches.get_version_key(patch_count)
 
@@ -1326,7 +1316,7 @@ class Server(ha_base.ClusterProtocol):
                     await self._pg_ensure_database_not_connected(dbname)
 
     async def _pg_ensure_database_not_connected(self, dbname: str) -> None:
-        async with self._use_sys_pgcon() as pgcon:
+        async with self._tenant.use_sys_pgcon() as pgcon:
             conns = await pgcon.sql_fetch_col(
                 b"""
                 SELECT
@@ -1444,40 +1434,6 @@ class Server(ha_base.ClusterProtocol):
         # CONFIGURE INSTANCE RESET setting_name;
         pass
 
-    async def _acquire_sys_pgcon(self) -> pgcon.PGConnection:
-        if not self._initing and not self._serving:
-            raise RuntimeError("EdgeDB server is not serving.")
-
-        await self._sys_pgcon_waiter.acquire()
-
-        if not self._initing and not self._serving:
-            self._sys_pgcon_waiter.release()
-            raise RuntimeError("EdgeDB server is not serving.")
-
-        if self.__sys_pgcon is None or not self.__sys_pgcon.is_healthy():
-            conn, self.__sys_pgcon = self.__sys_pgcon, None
-            if conn is not None:
-                self._sys_pgcon_ready_evt.clear()
-                conn.abort()
-            # We depend on the reconnect on connection_lost() of __sys_pgcon
-            await self._sys_pgcon_ready_evt.wait()
-            if self.__sys_pgcon is None:
-                self._sys_pgcon_waiter.release()
-                raise RuntimeError("Cannot acquire pgcon to the system DB.")
-
-        return self.__sys_pgcon
-
-    def _release_sys_pgcon(self):
-        self._sys_pgcon_waiter.release()
-
-    @contextlib.asynccontextmanager
-    async def _use_sys_pgcon(self):
-        conn = await self._acquire_sys_pgcon()
-        try:
-            yield conn
-        finally:
-            self._release_sys_pgcon()
-
     @contextlib.asynccontextmanager
     async def _direct_pgcon(
         self,
@@ -1492,7 +1448,7 @@ class Server(ha_base.ClusterProtocol):
                 await self._pg_disconnect(conn)
 
     async def _cancel_pgcon_operation(self, pgcon) -> bool:
-        async with self._use_sys_pgcon() as syscon:
+        async with self._tenant.use_sys_pgcon() as syscon:
             if pgcon.idle:
                 # pgcon could have received the query results while we
                 # were acquiring a system connection to cancel it.
@@ -1532,11 +1488,8 @@ class Server(ha_base.ClusterProtocol):
                 # in flight.
                 return
 
-            pgcon = await self._acquire_sys_pgcon()
-            try:
+            async with self._tenant.use_sys_pgcon() as pgcon:
                 await pgcon.signal_sysevent(event, **kwargs)
-            finally:
-                self._release_sys_pgcon()
         except Exception:
             metrics.background_errors.inc(1.0, 'signal_sysevent')
             raise
@@ -1579,7 +1532,7 @@ class Server(ha_base.ClusterProtocol):
         # Triggered by a postgres notification event 'database-changes'
         # on the __edgedb_sysevent__ channel
         async def task():
-            async with self._use_sys_pgcon() as syscon:
+            async with self._tenant.use_sys_pgcon() as syscon:
                 dbnames = set(await self.get_dbnames(syscon))
 
             tg = taskgroup.TaskGroup(name='new database introspection')
@@ -1675,33 +1628,6 @@ class Server(ha_base.ClusterProtocol):
 
         self.create_task(task(), interruptable=True)
 
-    def _on_sys_pgcon_connection_lost(self, exc):
-        try:
-            if not self._serving:
-                # The server is shutting down, release all events so that
-                # the waiters if any could continue and exit
-                self._sys_pgcon_ready_evt.set()
-                self._sys_pgcon_reconnect_evt.set()
-                return
-
-            logger.error(
-                "Connection to the system database is " +
-                ("closed." if exc is None else f"broken! Reason: {exc}")
-            )
-            self.set_pg_unavailable_msg(
-                "Connection is lost, please check server log for the reason."
-            )
-            self.__sys_pgcon = None
-            self._sys_pgcon_ready_evt.clear()
-            if self._accept_new_tasks:
-                self.create_task(
-                    self._reconnect_sys_pgcon(), interruptable=True
-                )
-            self._on_pgcon_broken(True)
-        except Exception:
-            metrics.background_errors.inc(1.0, 'on_sys_pgcon_connection_lost')
-            raise
-
     def _on_sys_pgcon_parameter_status_updated(self, name, value):
         try:
             if name == 'in_hot_standby' and value == 'on':
@@ -1746,59 +1672,6 @@ class Server(ha_base.ClusterProtocol):
         except Exception:
             metrics.background_errors.inc(1.0, 'on_pgcon_lost')
             raise
-
-    async def _reconnect_sys_pgcon(self):
-        try:
-            conn = None
-            while self._serving:
-                try:
-                    conn = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
-                    break
-                except OSError:
-                    # Keep retrying as far as:
-                    #   1. The EdgeDB server is still serving,
-                    #   2. We still cannot connect to the Postgres cluster, or
-                    pass
-                except pgcon_errors.BackendError as e:
-                    #   3. The Postgres cluster is still starting up, or the
-                    #      HA failover is still in progress
-                    if not (
-                        e.code_is(pgcon_errors.ERROR_FEATURE_NOT_SUPPORTED) or
-                        e.code_is(pgcon_errors.ERROR_CANNOT_CONNECT_NOW) or
-                        e.code_is(pgcon_errors.ERROR_READ_ONLY_SQL_TRANSACTION)
-                    ):
-                        # TODO: ERROR_FEATURE_NOT_SUPPORTED should be removed
-                        # once PostgreSQL supports SERIALIZABLE in hot standbys
-                        raise
-
-                if self._serving:
-                    try:
-                        # Retry after INTERVAL seconds, unless the event is set
-                        # and we can retry immediately after the event.
-                        await asyncio.wait_for(
-                            self._sys_pgcon_reconnect_evt.wait(),
-                            defines.SYSTEM_DB_RECONNECT_INTERVAL,
-                        )
-                        # But the event can only skip one INTERVAL.
-                        self._sys_pgcon_reconnect_evt.clear()
-                    except asyncio.TimeoutError:
-                        pass
-
-            if not self._serving:
-                if conn is not None:
-                    conn.abort()
-                return
-
-            logger.info("Successfully reconnected to the system database.")
-            self.__sys_pgcon = conn
-            self.__sys_pgcon.mark_as_system_db()
-            # This await is meant to be after mark_as_system_db() because we
-            # need the pgcon to be able to trigger another reconnect if its
-            # connection is lost during this await.
-            await self.__sys_pgcon.listen_for_sysevent()
-            self.set_pg_unavailable_msg(None)
-        finally:
-            self._sys_pgcon_ready_evt.set()
 
     async def run_startup_script_and_exit(self):
         """Run the script specified in *startup_script* and exit immediately"""
@@ -2304,10 +2177,7 @@ class Server(ha_base.ClusterProtocol):
             await self._destroy_compiler_pool()
 
         finally:
-            if self.__sys_pgcon is not None:
-                self.__sys_pgcon.terminate()
-                self.__sys_pgcon = None
-            self._sys_pgcon_waiter = None
+            self._tenant.terminate_sys_pgcon()
 
     def create_task(self, coro, *, interruptable):
         return self._tenant.create_task(coro, interruptable=interruptable)
@@ -2366,14 +2236,8 @@ class Server(ha_base.ClusterProtocol):
                 self._pg_pool.prune_all_connections(), interruptable=True
             )
 
-        if self.__sys_pgcon is None:
-            # Assume a reconnect task is already running, now that we know the
-            # new master is likely ready, let's just give the task a push.
-            self._sys_pgcon_reconnect_evt.set()
-        else:
-            # Brutally close the sys_pgcon to the old master - this should
-            # trigger a reconnect task.
-            self.__sys_pgcon.abort()
+        self._tenant.on_switch_over()
+
         if self._backend_adaptive_ha is not None:
             # Switch to FAILOVER if adaptive HA is enabled
             self._backend_adaptive_ha.set_state_failover(
