@@ -177,9 +177,8 @@ async def _run_server(
         logger.info("detected service manager socket activation")
 
     with signalctl.SignalController(signal.SIGINT, signal.SIGTERM) as sc:
-        tenant = edbtenant.Tenant()
+        tenant = edbtenant.Tenant(cluster)
         ss = server.Server(
-            cluster=cluster,
             runstate_dir=runstate_dir,
             internal_runstate_dir=internal_runstate_dir,
             max_backend_connections=args.max_backend_connections,

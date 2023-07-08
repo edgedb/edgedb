@@ -20,14 +20,17 @@ from __future__ import annotations
 from typing import *
 
 if TYPE_CHECKING:
+    from . import pgcluster
     from . import server as edbserver
 
 
 class Tenant:
     _server: edbserver.Server | None
+    _cluster: pgcluster.BaseCluster
 
-    def __init__(self):
+    def __init__(self, cluster: pgcluster.BaseCluster):
         self._server = None
+        self._cluster = cluster
 
     def set_server(self, server: edbserver.Server) -> None:
         self._server = server
