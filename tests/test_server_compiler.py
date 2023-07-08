@@ -391,6 +391,7 @@ class TestCompilerPool(tbs.TestCase):
                 pool_size=2,
                 dbindex=dbview.DatabaseIndex(
                     None,
+                    None,
                     std_schema=self._std_schema,
                     global_schema=None,
                     sys_config={},

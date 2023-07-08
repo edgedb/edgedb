@@ -465,6 +465,7 @@ class Server(ha_base.ClusterProtocol):
 
             self._dbindex = dbview.DatabaseIndex(
                 self,
+                self._tenant,
                 std_schema=self._std_schema,
                 global_schema=global_schema,
                 sys_config=sys_config,
