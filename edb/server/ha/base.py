@@ -16,8 +16,12 @@
 # limitations under the License.
 #
 
-import urllib.parse
+from __future__ import annotations
 from typing import *
+
+import urllib.parse
+
+from edb.common import asyncwatcher
 
 
 class ClusterProtocol:
@@ -28,20 +32,19 @@ class ClusterProtocol:
         raise NotImplementedError()
 
 
-class HABackend:
+class HABackend(asyncwatcher.AsyncWatcher):
+    def __init__(self) -> None:
+        super().__init__()
+        self._failover_cb: Optional[Callable[[], None]] = None
+
     async def get_cluster_consensus(self) -> Tuple[str, int]:
-        raise NotImplementedError
-
-    async def start_watching(
-        self, cluster_protocol: Optional[ClusterProtocol] = None
-    ) -> bool:
-        raise NotImplementedError
-
-    def stop_watching(self):
         raise NotImplementedError
 
     def get_master_addr(self) -> Optional[Tuple[str, int]]:
         raise NotImplementedError
+
+    def set_failover_callback(self, cb: Optional[Callable[[], None]]) -> None:
+        self._failover_cb = cb
 
 
 def get_backend(parsed_dsn: urllib.parse.ParseResult) -> Optional[HABackend]:
