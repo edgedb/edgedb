@@ -20,11 +20,14 @@ from __future__ import annotations
 from typing import *
 
 import asyncio
+import functools
 import sys
 
 from edb.common import taskgroup
 
 if TYPE_CHECKING:
+    from edb.pgsql import params as pgparams
+
     from . import pgcluster
     from . import server as edbserver
 
@@ -46,7 +49,7 @@ class Tenant:
         cluster: pgcluster.BaseCluster,
     ):
         self._cluster = cluster
-        self._tenant_id = cluster.get_runtime_params().tenant_id
+        self._tenant_id = self.get_backend_runtime_params().tenant_id
         self._running = False
         self._accepting_connections = False
 
@@ -71,6 +74,10 @@ class Tenant:
 
     def get_pgaddr(self) -> Dict[str, Any]:
         return self._cluster.get_connection_spec()
+
+    @functools.lru_cache
+    def get_backend_runtime_params(self) -> pgparams.BackendRuntimeParams:
+        return self._cluster.get_runtime_params()
 
     def is_accepting_connections(self) -> bool:
         return self._accepting_connections and self._accept_new_tasks
