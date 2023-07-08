@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 class Tenant:
     _server: edbserver.Server
     _cluster: pgcluster.BaseCluster
+    _tenant_id: str
     _running: bool
     _accepting_connections: bool
 
@@ -45,6 +46,7 @@ class Tenant:
         cluster: pgcluster.BaseCluster,
     ):
         self._cluster = cluster
+        self._tenant_id = cluster.get_runtime_params().tenant_id
         self._running = False
         self._accepting_connections = False
 
@@ -59,6 +61,10 @@ class Tenant:
     @property
     def server(self) -> edbserver.Server:
         return self._server
+
+    @property
+    def tenant_id(self) -> str:
+        return self._tenant_id
 
     def is_accepting_connections(self) -> bool:
         return self._accepting_connections and self._accept_new_tasks
@@ -119,6 +125,7 @@ class Tenant:
     def get_debug_info(self) -> dict[str, Any]:
         obj = dict(
             params=dict(
+                tenant_id=self._tenant_id,
             ),
         )
 

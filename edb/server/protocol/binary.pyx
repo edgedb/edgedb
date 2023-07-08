@@ -1208,7 +1208,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             elif isinstance(static_exc, (
                     errors.DuplicateDatabaseDefinitionError,
                     errors.UnknownDatabaseError)):
-                tenant_id = self.server.get_tenant_id()
+                tenant_id = self.tenant.tenant_id
                 message = static_exc.args[0].replace(f'{tenant_id}_', '')
                 exc = type(static_exc)(message)
             else:
