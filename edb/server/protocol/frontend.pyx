@@ -291,7 +291,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         cdef char mtype
 
         try:
-            rv = await self.authenticate()
+            await self.authenticate()
         except Exception as ex:
             if self._transport is not None:
                 # If there's no transport it means that the connection
@@ -314,10 +314,6 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                 })
 
             return
-
-        # HACK for legacy protocol
-        if rv is not None:
-            return await rv
 
         self.authed = True
 
@@ -520,9 +516,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         if user not in roles:
             raise errors.AuthenticationError('authentication failed')
 
-    async def _authenticate(self, user, database, params):
-        self.dbname = database
-
+    async def _authenticate(self, user, params):
         # The user has already been authenticated by other means
         # (such as the ability to write to a protected socket).
         if self._external_auth:
@@ -541,10 +535,6 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         else:
             raise errors.InternalServerError(
                 f'unimplemented auth method: {authmethod_name}')
-
-        self.username = user
-        logger.debug('successfully authenticated %s in database %s',
-                     user, database)
 
     cdef WriteBuffer _make_authentication_sasl_initial(self, list methods):
         raise NotImplementedError

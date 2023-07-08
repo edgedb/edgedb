@@ -100,7 +100,6 @@ cdef tuple DUMP_VER_MIN = (0, 7)
 cdef tuple DUMP_VER_MAX = edbdef.CURRENT_PROTOCOL
 
 cdef tuple MIN_PROTOCOL = edbdef.MIN_PROTOCOL
-cdef tuple MAX_LEGACY_PROTOCOL = edbdef.MAX_LEGACY_PROTOCOL
 cdef tuple CURRENT_PROTOCOL = edbdef.CURRENT_PROTOCOL
 
 cdef object logger = logging.getLogger('edb.server')
@@ -279,6 +278,11 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         logger.debug('received connection request by %s to database %s',
                      user, database)
 
+        await self._authenticate(user, params)
+
+        logger.debug('successfully authenticated %s in database %s',
+                     user, database)
+
         if not self.server.is_database_connectable(database):
             raise errors.AccessError(
                 f'database {database!r} does not accept connections'
@@ -286,7 +290,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         await self._start_connection(database)
 
-        await self._authenticate(user, database, params)
+        self.dbname = database
+        self.username = user
 
         if self._transport_proto is srvargs.ServerConnTransport.HTTP:
             return
@@ -1003,23 +1008,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.flush()
 
-    async def legacy_main(self, params):
-        raise NotImplementedError
-
     async def authenticate(self):
-        cdef:
-            bint is_legacy
-
         params = await self.do_handshake()
-        is_legacy = self.protocol_version <= MAX_LEGACY_PROTOCOL
-        if not is_legacy:
-            await self.auth(params)
-
-        if is_legacy:
-            # GOTCHA: awaited outside
-            return self.legacy_main(params)
-        else:
-            self.server.on_binary_client_authed(self)
+        await self.auth(params)
+        self.server.on_binary_client_authed(self)
 
     async def main_step(self, char mtype):
         try:
@@ -1821,9 +1813,6 @@ async def eval_buffer(
     return data
 
 
-include "binary_v0.pyx"
-
-
 def new_edge_connection(
     server,
     *,
@@ -1835,7 +1824,7 @@ def new_edge_connection(
     protocol_version: edbdef.ProtocolVersion = edbdef.CURRENT_PROTOCOL,
     conn_params: dict[str, str] | None = None,
 ):
-    return EdgeConnectionBackwardsCompatible(
+    return EdgeConnection(
         server,
         external_auth=external_auth,
         passive=passive,

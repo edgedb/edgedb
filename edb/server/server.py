@@ -1454,7 +1454,7 @@ class Server(ha_base.ClusterProtocol):
     def before_alter_system_config(self):
         if self._disable_dynamic_system_config:
             raise errors.ConfigurationError(
-                "Changing the value of system config is disabled"
+                "cannot change this configuration value in this instance"
             )
 
     async def _after_system_config_add(self, setting_name, value):

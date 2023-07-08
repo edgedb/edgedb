@@ -1917,7 +1917,7 @@ class TestDynamicSystemConfig(tb.TestCase):
                 ''')
 
                 with self.assertRaisesRegex(
-                    edgedb.ConfigurationError, "disabled"
+                    edgedb.ConfigurationError, "cannot change"
                 ):
                     await conn.query(f'''
                         CONFIGURE INSTANCE

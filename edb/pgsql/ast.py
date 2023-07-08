@@ -807,7 +807,7 @@ class RecordIndirectionOp(ImmutableBase):
     name: str
 
 
-IndirectionOp = Slice | Index | ColumnRef | Star | RecordIndirectionOp
+IndirectionOp = Slice | Index | Star | RecordIndirectionOp
 
 
 class Indirection(ImmutableBaseExpr):

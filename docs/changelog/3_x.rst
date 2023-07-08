@@ -996,6 +996,43 @@ more predictable cadence will be worth it. Every third release starting with
 3.0 will be a long-term support (LTS) release. These releases will continue to
 receive support for a year and a half after their initial release.
 
+3.1
+===
+
+* Add support for "offline" readiness state
+  (:eql:gh:`#5730`)
+
+* Bump ``max_pred_locks_per_transaction`` to 1024
+  (:eql:gh:`#5694`)
+
+* Be more permissive about differing postgres versions when using
+  remote compiler pool
+  (:eql:gh:`#5698`)
+
+* Do not lose constraint ``errmessage`` when a constraint is ALTERed
+  (:eql:gh:`#5701`)
+
+* Properly track implicit dependance on ``__type__`` in function calls
+  (:eql:gh:`#5715`)
+
+* Avoid very slow error formatting in non-error cases
+  (:eql:gh:`#5706`)
+
+* Push Docker images to ghcr.io also
+  (:eql:gh:`#5700`)
+
+* Fix tuple derefencing and top-level casting in exclusive constraints
+  (:eql:gh:`#5724`)
+
+* Add support for statement variants of prepared statement comands in
+  SQL mode
+  (:eql:gh:`#5685`)
+
+* Respect ``cfg::`` annotations on object configuration
+  (:eql:gh:`#5746`)
+
+* Avoid leaking database existence information to unauthenticated users
+  (:eql:gh:`#5744`)
 
 .. _v3anno:
     https://www.edgedb.com/blog/edgedb-3-0

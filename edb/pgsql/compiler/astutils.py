@@ -87,11 +87,7 @@ def tuple_getattr(
     if irtyputils.is_persistent_tuple(tuple_typeref):
         set_expr = pgast.Indirection(
             arg=tuple_val,
-            indirection=[
-                pgast.ColumnRef(
-                    name=[attr],
-                ),
-            ],
+            indirection=[pgast.RecordIndirectionOp(name=attr)],
         )
     else:
         set_expr = pgast.SelectStmt(

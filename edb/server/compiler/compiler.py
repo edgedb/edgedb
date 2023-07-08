@@ -22,7 +22,6 @@
 from __future__ import annotations
 from typing import *
 
-import collections
 import dataclasses
 import functools
 import json
@@ -391,10 +390,7 @@ class Compiler:
         self.state = state
 
     @staticmethod
-    def try_compile_rollback(
-        eql: Union[edgeql.Source, bytes],
-        protocol_version: defines.ProtocolVersion,
-    ):
+    def try_compile_rollback(eql: Union[edgeql.Source, bytes]):
         if isinstance(eql, edgeql.Source):
             source = eql
         else:
@@ -421,11 +417,6 @@ class Compiler:
                 cacheable=False)
 
         if unit is not None:
-            if protocol_version < (0, 12):
-                if unit.in_type_id == sertypes.NULL_TYPE_ID.bytes:
-                    unit.in_type_id = sertypes.EMPTY_TUPLE_ID.bytes
-                    unit.in_type_data = sertypes.EMPTY_TUPLE_DESC
-
             rv = dbstate.QueryUnitGroup()
             rv.append(unit)
             return rv, len(statements) - 1
@@ -878,7 +869,7 @@ class Compiler:
             # This is a special case when COMMIT MIGRATION fails, the compiler
             # doesn't have the right transaction state, so we just roll back.
             return (
-                self.try_compile_rollback(source, protocol_version)[0], state
+                self.try_compile_rollback(source)[0], state
             )
         else:
             state.sync_tx(txid)
@@ -999,21 +990,6 @@ class Compiler:
         # catalog_version didn't exist until late in the 3.0 cycle,
         # but we can just treat that as being version 0
         dump_catalog_version = dump_catalog_version or 0
-
-        if (
-            (dump_server_ver.major, dump_server_ver.minor) == (1, 0)
-            and dump_server_ver.stage is verutils.VersionStage.DEV
-        ):
-            # Pre-1.0 releases post RC3 have DEV in their stage,
-            # but for compatibility comparisons below we need to revert
-            # to the pre-1.0-rc3 layout
-            dump_server_ver = dump_server_ver._replace(
-                stage=verutils.VersionStage.RC,
-                stage_no=3,
-                local=(
-                    ('dev', dump_server_ver.stage_no) + dump_server_ver.local
-                ),
-            )
 
         state = dbstate.CompilerConnectionState(
             user_schema=user_schema,
@@ -1682,34 +1658,11 @@ def describe_params(
             ctx=ctx,
         )
 
-    if ctx.protocol_version >= (0, 12):
-        in_type_data, in_type_id = sertypes.describe_params(
-            schema=ir.schema,
-            params=params,
-            protocol_version=ctx.protocol_version,
-        )
-    else:
-        # Legacy protocol support - for restoring pre-0.12 dumps
-        if params:
-            pschema, params_type = s_types.Tuple.create(
-                ir.schema,
-                element_types=collections.OrderedDict(
-                    # keep only param_name/param_type
-                    [param[:2] for param in params]
-                ),
-                named=False,
-            )
-        else:
-            pschema, params_type = s_types.Tuple.create(
-                ir.schema, element_types={}, named=False
-            )
-
-        in_type_data, in_type_id = sertypes.describe(
-            pschema,
-            params_type,
-            protocol_version=ctx.protocol_version,
-        )
-
+    in_type_data, in_type_id = sertypes.describe_params(
+        schema=ir.schema,
+        params=params,
+        protocol_version=ctx.protocol_version,
+    )
     return in_type_args, in_type_data, in_type_id
 
 
@@ -1894,9 +1847,14 @@ def _compile_ql_config_op(ctx: CompileContext, ql: qlast.Base):
             for glob in ir.globals
         ]
 
-    is_backend_setting = bool(getattr(ir, 'backend_setting', None))
-    requires_restart = bool(getattr(ir, 'requires_restart', False))
-    is_system_config = bool(getattr(ir, 'is_system_config', False))
+    if isinstance(ir, irast.Statement):
+        cfg_ir = ir.expr.expr
+    else:
+        cfg_ir = ir
+
+    is_backend_setting = bool(getattr(cfg_ir, 'backend_setting', None))
+    requires_restart = bool(getattr(cfg_ir, 'requires_restart', False))
+    is_system_config = bool(getattr(cfg_ir, 'is_system_config', False))
 
     sql_res = pg_compiler.compile_ir_to_sql_tree(
         ir,
@@ -2219,6 +2177,11 @@ def _try_compile(
             unit.config_ops.extend(comp.config_ops)
 
         elif isinstance(comp, dbstate.TxControlQuery):
+            if is_script:
+                raise errors.QueryError(
+                    "Explicit transaction control commands cannot be executed "
+                    "in an implicit transaction block"
+                )
             unit.sql = comp.sql
             unit.cacheable = comp.cacheable
             if comp.user_schema is not None:
@@ -2345,24 +2308,17 @@ def _try_compile(
             argmap=None, script_info=None, schema=script_info.schema,
             ctx=ctx)
 
-        if ctx.protocol_version >= (0, 12):
-            in_type_data, in_type_id = sertypes.describe_params(
-                schema=script_info.schema,
-                params=params,
-                protocol_version=ctx.protocol_version,
-            )
-            rv.in_type_id = in_type_id.bytes
-            rv.in_type_args = in_type_args
-            rv.in_type_data = in_type_data
+        in_type_data, in_type_id = sertypes.describe_params(
+            schema=script_info.schema,
+            params=params,
+            protocol_version=ctx.protocol_version,
+        )
+        rv.in_type_id = in_type_id.bytes
+        rv.in_type_args = in_type_args
+        rv.in_type_data = in_type_data
 
+    # Sanity checks
     for unit in rv:  # pragma: no cover
-        if ctx.protocol_version < (0, 12):
-            if unit.in_type_id == sertypes.NULL_TYPE_ID.bytes:
-                unit.in_type_id = sertypes.EMPTY_TUPLE_ID.bytes
-                unit.in_type_data = sertypes.EMPTY_TUPLE_DESC
-
-        # Sanity checks
-
         na_cardinality = (
             unit.cardinality is enums.Cardinality.NO_RESULT
         )
