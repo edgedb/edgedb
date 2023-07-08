@@ -2211,7 +2211,7 @@ class Server(ha_base.ClusterProtocol):
             self._request_stats_logger(), interruptable=True
         )
 
-        await self._tenant._cluster.start_watching(self)
+        await self._tenant._cluster.start_watching(self.on_switch_over)
         await self._create_compiler_pool()
 
         if self._startup_script and self._new_instance:
