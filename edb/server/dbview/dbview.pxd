@@ -62,6 +62,7 @@ cdef class DatabaseIndex:
     cdef:
         dict _dbs
         object _server
+        object _tenant
         object _sys_config
         object _comp_sys_config
         object _std_schema

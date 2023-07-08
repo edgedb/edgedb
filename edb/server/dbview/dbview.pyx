@@ -1135,7 +1135,7 @@ cdef class DatabaseIndex:
 
     def __init__(
         self,
-        server,
+        tenant,
         *,
         std_schema,
         global_schema,
@@ -1143,7 +1143,8 @@ cdef class DatabaseIndex:
         default_sysconfig,  # system config without system override
     ):
         self._dbs = {}
-        self._server = server
+        self._server = tenant.server
+        self._tenant = tenant
         self._std_schema = std_schema
         self._global_schema = global_schema
         self._default_sysconfig = default_sysconfig
