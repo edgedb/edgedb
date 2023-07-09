@@ -69,6 +69,7 @@ class Tenant(ha_base.ClusterProtocol):
     _max_backend_connections: int
     _suggested_client_pool_size: int
     _pg_pool: connpool.Pool
+    _pg_unavailable_msg: str | None
 
     _ha_master_serial: int
     _backend_adaptive_ha: adaptive_ha.AdaptiveHASupport | None
@@ -114,6 +115,7 @@ class Tenant(ha_base.ClusterProtocol):
             # 1 connection is reserved for the system DB
             max_capacity=max_backend_connections - 1,
         )
+        self._pg_unavailable_msg = None
 
     def set_server(self, server: edbserver.Server) -> None:
         self._server = server
@@ -373,7 +375,7 @@ class Tenant(ha_base.ClusterProtocol):
                 "Connection to the system database is "
                 + ("closed." if exc is None else f"broken! Reason: {exc}")
             )
-            self._server.set_pg_unavailable_msg(
+            self.set_pg_unavailable_msg(
                 "Connection is lost, please check server log for the reason."
             )
             self.__sys_pgcon = None
@@ -439,7 +441,7 @@ class Tenant(ha_base.ClusterProtocol):
             # need the pgcon to be able to trigger another reconnect if its
             # connection is lost during this await.
             await self.__sys_pgcon.listen_for_sysevent()
-            self._server.set_pg_unavailable_msg(None)
+            self.set_pg_unavailable_msg(None)
         finally:
             self._sys_pgcon_ready_evt.set()
 
@@ -458,3 +460,7 @@ class Tenant(ha_base.ClusterProtocol):
         except Exception:
             metrics.background_errors.inc(1.0, "on_pgcon_lost")
             raise
+
+    def set_pg_unavailable_msg(self, msg: str | None) -> None:
+        if msg is None or self._pg_unavailable_msg is None:
+            self._pg_unavailable_msg = msg

@@ -2794,7 +2794,7 @@ cdef class PGConnection:
                     )
 
                     if self.is_system_db:
-                        self.server.set_pg_unavailable_msg(pgmsg)
+                        self.tenant.set_pg_unavailable_msg(pgmsg)
                         self.tenant.on_sys_pgcon_failover_signal()
 
                 else:
