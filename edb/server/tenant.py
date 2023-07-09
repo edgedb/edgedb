@@ -32,6 +32,7 @@ from edb import errors
 from edb.common import retryloop
 
 from . import connpool
+from . import dbview
 from . import defines
 from . import metrics
 from . import pgcon
@@ -54,6 +55,7 @@ class Tenant(ha_base.ClusterProtocol):
     _cluster: pgcluster.BaseCluster
     _tenant_id: str
     _instance_data: Mapping[str, str]
+    _dbindex: dbview.DatabaseIndex | None
 
     __sys_pgcon: pgcon.PGConnection | None
     _sys_pgcon_waiter: asyncio.Lock
@@ -106,6 +108,9 @@ class Tenant(ha_base.ClusterProtocol):
         )
         self._pg_unavailable_msg = None
         self._block_new_connections = set()
+
+        # DB state will be initialized in Server.init().
+        self._dbindex = None
 
     def set_server(self, server: edbserver.Server) -> None:
         self._server = server
