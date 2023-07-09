@@ -690,17 +690,7 @@ class Server:
             backend_ids = json.loads(backend_ids_json)
 
             db_config = await self.introspect_db_config(conn)
-            extensions = await self._introspect_extensions(conn)
-
-            extension_names_json = await conn.sql_fetch_val(
-                b'''
-                    SELECT json_agg(name) FROM edgedb."_SchemaExtension";
-                ''',
-            )
-            if extension_names_json:
-                extensions = set(json.loads(extension_names_json))
-            else:
-                extensions = set()
+            extensions = await self._tenant._introspect_extensions(conn)
 
             assert self._dbindex is not None
             self._dbindex.register_db(
@@ -714,19 +704,6 @@ class Server:
         finally:
             self._tenant.release_pgcon(dbname, conn)
 
-    async def _introspect_extensions(self, conn):
-        extension_names_json = await conn.sql_fetch_val(
-            b'''
-                SELECT json_agg(name) FROM edgedb."_SchemaExtension";
-            ''',
-        )
-        if extension_names_json:
-            extensions = set(json.loads(extension_names_json))
-        else:
-            extensions = set()
-
-        return extensions
-
     async def introspect_extensions(self, dbname):
         logger.info("introspecting extensions for database '%s'", dbname)
         conn = await self._tenant._acquire_intro_pgcon(dbname)
@@ -734,7 +711,7 @@ class Server:
             return
 
         try:
-            extensions = await self._introspect_extensions(conn)
+            extensions = await self._tenant._introspect_extensions(conn)
         finally:
             self._tenant.release_pgcon(dbname, conn)
 
@@ -761,7 +738,7 @@ class Server:
         try:
             assert self._dbindex is not None
             if not self._dbindex.has_db(dbname):
-                extensions = await self._introspect_extensions(conn)
+                extensions = await self._tenant._introspect_extensions(conn)
                 # Re-check in case we have a concurrent introspection task.
                 if not self._dbindex.has_db(dbname):
                     self._dbindex.register_db(
