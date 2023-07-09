@@ -34,6 +34,7 @@ from edb.common import retryloop
 from edb.common import taskgroup
 
 from . import connpool
+from . import dbview
 from . import defines
 from . import metrics
 from . import pgcon
@@ -56,6 +57,7 @@ class Tenant(ha_base.ClusterProtocol):
     _cluster: pgcluster.BaseCluster
     _tenant_id: str
     _instance_data: Mapping[str, str]
+    _dbindex: dbview.DatabaseIndex | None
     _running: bool
     _accepting_connections: bool
 
@@ -122,6 +124,9 @@ class Tenant(ha_base.ClusterProtocol):
         )
         self._pg_unavailable_msg = None
         self._block_new_connections = set()
+
+        # DB state will be initialized in Server.init().
+        self._dbindex = None
 
     def set_server(self, server: edbserver.Server) -> None:
         self._server = server
@@ -519,9 +524,7 @@ class Tenant(ha_base.ClusterProtocol):
         )
 
     async def ensure_database_not_connected(self, dbname: str) -> None:
-        if self._server._dbindex and self._server._dbindex.count_connections(
-            dbname
-        ):
+        if self._dbindex and self._dbindex.count_connections(dbname):
             # If there are open EdgeDB connections to the `dbname` DB
             # just raise the error Postgres would have raised itself.
             raise errors.ExecutionError(

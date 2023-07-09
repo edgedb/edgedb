@@ -162,9 +162,6 @@ class Server:
 
         self._initing = False
 
-        # DB state will be initialized in init().
-        self._dbindex = None
-
         self._runstate_dir = runstate_dir
         self._internal_runstate_dir = internal_runstate_dir
         self._compiler_pool = None
@@ -365,6 +362,10 @@ class Server:
         if conn is not None:
             conn.cancel(secret)
 
+    @property
+    def _dbindex(self) -> dbview.DatabaseIndex | None:
+        return self._tenant._dbindex
+
     async def init(self):
         self._initing = True
         try:
@@ -378,7 +379,7 @@ class Server:
             default_sysconfig = await self.load_sys_config('sysconfig_default')
             await self.load_reported_config()
 
-            self._dbindex = dbview.DatabaseIndex(
+            self._tenant._dbindex = dbview.DatabaseIndex(
                 self._tenant,
                 std_schema=self._std_schema,
                 global_schema=global_schema,
