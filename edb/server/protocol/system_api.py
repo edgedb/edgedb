@@ -35,13 +35,13 @@ async def handle_request(
     request,
     response,
     path_parts,
-    server,
+    tenant,
 ):
     try:
         if path_parts == ['status', 'ready'] and request.method == b'GET':
-            await handle_readiness_query(request, response, server)
+            await handle_readiness_query(request, response, tenant)
         elif path_parts == ['status', 'alive'] and request.method == b'GET':
-            await handle_liveness_query(request, response, server)
+            await handle_liveness_query(request, response, tenant)
         else:
             response.body = b'Unknown path'
             response.status = http.HTTPStatus.NOT_FOUND
@@ -88,9 +88,9 @@ def _response_ok(response, message):
     response.body = message
 
 
-async def _ping(server):
+async def _ping(tenant):
     return await execute.parse_execute_json(
-        server.get_db(dbname=edbdef.EDGEDB_SYSTEM_DB),
+        tenant.server.get_db(dbname=edbdef.EDGEDB_SYSTEM_DB),
         query="SELECT 'OK'",
         output_format=compiler.OutputFormat.JSON_ELEMENTS,
         # Disable query cache because we need to ensure that the compiled
@@ -102,17 +102,17 @@ async def _ping(server):
 async def handle_liveness_query(
     request,
     response,
-    server,
+    tenant,
 ):
-    _response_ok(response, await _ping(server))
+    _response_ok(response, await _ping(tenant))
 
 
 async def handle_readiness_query(
     request,
     response,
-    server,
+    tenant,
 ):
-    if not server.is_ready():
+    if not tenant.server.is_ready():
         _response_error(
             response,
             http.HTTPStatus.SERVICE_UNAVAILABLE,
@@ -120,4 +120,4 @@ async def handle_readiness_query(
             errors.AccessError,
         )
     else:
-        _response_ok(response, await _ping(server))
+        _response_ok(response, await _ping(tenant))
