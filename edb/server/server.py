@@ -552,26 +552,7 @@ class Server:
         return self._dbindex.get_compilation_system_config()
 
     async def acquire_pgcon(self, dbname):
-        if self._tenant._pg_unavailable_msg is not None:
-            raise errors.BackendUnavailableError(
-                'Postgres is not available: '
-                + self._tenant._pg_unavailable_msg
-            )
-
-        for _ in range(self._pg_pool.max_capacity):
-            conn = await self._pg_pool.acquire(dbname)
-            if conn.is_healthy():
-                return conn
-            else:
-                logger.warning('Acquired an unhealthy pgcon; discard now.')
-                self._pg_pool.release(dbname, conn, discard=True)
-        else:
-            # This is unlikely to happen, but we defer to the caller to retry
-            # when it does happen
-            raise errors.BackendUnavailableError(
-                'No healthy backend connection available at the moment, '
-                'please try again.'
-            )
+        return await self._tenant.acquire_pgcon(dbname)
 
     def release_pgcon(self, dbname, conn, *, discard=False):
         if not conn.is_healthy():

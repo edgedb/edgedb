@@ -449,6 +449,7 @@ async def parse_execute_json(
             debug.flags.disable_qcache or debug.flags.edgeql_compile)
 
     server = db.server
+    tenant = db.tenant
     dbv = await server.new_dbview(
         dbname=db.name,
         query_cache=query_cache_enabled,
@@ -465,7 +466,7 @@ async def parse_execute_json(
 
     compiled = await dbv.parse(query_req)
 
-    pgcon = await server.acquire_pgcon(db.name)
+    pgcon = await tenant.acquire_pgcon(db.name)
     try:
         return await execute_json(
             pgcon,

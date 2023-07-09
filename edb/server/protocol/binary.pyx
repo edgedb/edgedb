@@ -1323,7 +1323,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         compiler_pool = server.get_compiler_pool()
 
         dbname = _dbview.dbname
-        pgcon = await server.acquire_pgcon(dbname)
+        tenant = self.tenant
+        pgcon = await tenant.acquire_pgcon(dbname)
         self._in_dump_restore = True
         try:
             # To avoid having races, we want to:
@@ -1566,7 +1567,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.buffer.finish_message()
         dbname = _dbview.dbname
-        pgcon = await server.acquire_pgcon(dbname)
+        tenant = self.tenant
+        pgcon = await tenant.acquire_pgcon(dbname)
 
         self._in_dump_restore = True
         try:
