@@ -24,6 +24,7 @@ import contextlib
 import functools
 import json
 import logging
+import struct
 import time
 
 import immutables
@@ -79,6 +80,7 @@ class Tenant(ha_base.ClusterProtocol):
 
     # A set of databases that should not accept new connections.
     _block_new_connections: set[str]
+    _report_config_data: dict[defines.ProtocolVersion, bytes]
 
     _roles: Mapping[str, RoleDescriptor]
 
@@ -118,6 +120,7 @@ class Tenant(ha_base.ClusterProtocol):
         )
         self._pg_unavailable_msg = None
         self._block_new_connections = set()
+        self._report_config_data = {}
 
         # DB state will be initialized in Server.init().
         self._dbindex = None
@@ -186,6 +189,15 @@ class Tenant(ha_base.ClusterProtocol):
 
     def get_instance_data(self, key: str) -> str:
         return self._instance_data[key]
+
+    def get_report_config_data(
+        self,
+        protocol_version: defines.ProtocolVersion,
+    ) -> bytes:
+        if protocol_version >= (2, 0):
+            return self._report_config_data[(2, 0)]
+        else:
+            return self._report_config_data[(1, 0)]
 
     def get_roles(self) -> Mapping[str, RoleDescriptor]:
         return self._roles
@@ -604,3 +616,25 @@ class Tenant(ha_base.ClusterProtocol):
                 # between us building the list of databases and loading
                 # information about them.
                 g.create_task(self._early_introspect_db(dbname))
+
+    async def _load_reported_config(self) -> None:
+        async with self._use_sys_pgcon() as syscon:
+            try:
+                data = await syscon.sql_fetch_val(
+                    self._server.get_sys_query('report_configs'),
+                    use_prep_stmt=True,
+                )
+
+                for (
+                    protocol_ver,
+                    typedesc,
+                ) in self._server._report_config_typedesc.items():
+                    self._report_config_data[protocol_ver] = (
+                        struct.pack('!L', len(typedesc)) +
+                        typedesc +
+                        struct.pack('!L', len(data)) +
+                        data
+                    )
+            except Exception:
+                metrics.background_errors.inc(1.0, 'load_reported_config')
+                raise
