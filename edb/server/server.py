@@ -239,9 +239,6 @@ class Server:
         self._readiness = srvargs.ReadinessState.Default
         self._readiness_reason = ""
 
-        # A set of databases that should not accept new connections.
-        self._block_new_connections: set[str] = set()
-
         self._file_watch_handles = []
         self._tls_certs_reload_retry_handle = None
 
@@ -1214,7 +1211,7 @@ class Server:
             raise errors.ExecutionError(
                 f'database {dbname!r} is being accessed by other users')
         else:
-            self._block_new_connections.add(dbname)
+            self._tenant._block_new_connections.add(dbname)
 
             # Prune our inactive connections.
             await self._tenant._pg_pool.prune_inactive_connections(dbname)
@@ -1254,15 +1251,12 @@ class Server:
             raise errors.ExecutionError(
                 f'database {dbname!r} is being accessed by other users')
 
-    def _allow_database_connections(self, dbname: str) -> None:
-        self._block_new_connections.discard(dbname)
-
     def _on_after_drop_db(self, dbname: str):
         try:
             assert self._dbindex is not None
             if self._dbindex.has_db(dbname):
                 self._dbindex.unregister_db(dbname)
-            self._block_new_connections.discard(dbname)
+            self._tenant._block_new_connections.discard(dbname)
         except Exception:
             metrics.background_errors.inc(1.0, 'on_after_drop_db')
             raise
@@ -1420,7 +1414,7 @@ class Server:
             return
 
         # Block new connections to the database.
-        self._block_new_connections.add(dbname)
+        self._tenant._block_new_connections.add(dbname)
 
         async def task():
             try:
@@ -2080,12 +2074,6 @@ class Server:
         auth_type = config.get_settings().get_type_by_name(
             default_method.value)
         return auth_type()
-
-    def is_database_connectable(self, dbname: str) -> bool:
-        return (
-            dbname != defines.EDGEDB_TEMPLATE_DB
-            and dbname not in self._block_new_connections
-        )
 
     def get_sys_query(self, key):
         return self._sys_queries[key]
