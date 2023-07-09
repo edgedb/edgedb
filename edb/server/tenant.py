@@ -135,6 +135,10 @@ class Tenant(ha_base.ClusterProtocol):
         )
 
     @property
+    def server(self) -> edbserver.Server:
+        return self._server
+
+    @property
     def tenant_id(self) -> str:
         return self._tenant_id
 

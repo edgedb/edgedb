@@ -208,7 +208,6 @@ async def _run_server(
             disable_dynamic_system_config=args.disable_dynamic_system_config,
             tenant=tenant,
         )
-        tenant.set_server(ss)
         await sc.wait_for(ss.init())
 
         tls_cert_newly_generated = False

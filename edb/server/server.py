@@ -158,6 +158,7 @@ class Server:
         tenant: edbtenant.Tenant,
     ):
         self._tenant = tenant
+        tenant.set_server(self)
         self.__loop = asyncio.get_running_loop()
         self._config_settings = config.get_settings()
 
