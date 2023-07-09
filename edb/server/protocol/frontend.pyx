@@ -548,7 +548,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         raise NotImplementedError
 
     def _auth_trust(self, user):
-        roles = self.server.get_roles()
+        roles = self.tenant.get_roles()
         if user not in roles:
             raise errors.AuthenticationError('authentication failed')
 
@@ -695,7 +695,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                 done = True
 
     def _get_scram_verifier(self, user):
-        roles = self.server.get_roles()
+        roles = self.tenant.get_roles()
 
         rolerec = roles.get(user)
         if rolerec is not None:

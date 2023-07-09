@@ -76,12 +76,6 @@ logger = logging.getLogger('edb.server')
 log_metrics = logging.getLogger('edb.server.metrics')
 
 
-class RoleDescriptor(TypedDict):
-    superuser: bool
-    name: str
-    password: str
-
-
 class StartupError(Exception):
     pass
 
@@ -90,7 +84,6 @@ class Server:
 
     _tenant: edbtenant.Tenant
 
-    _roles: Mapping[str, RoleDescriptor]
     _sys_queries: Mapping[str, str]
     _local_intro_query: bytes
     _global_intro_query: bytes
@@ -190,7 +183,6 @@ class Server:
 
         self._instance_name = instance_name
 
-        self._roles = immutables.Map()
         self._sys_queries = immutables.Map()
 
         self._devmode = devmode.is_in_dev_mode()
@@ -943,7 +935,7 @@ class Server:
                 'password': role.get_password(global_schema),
             }
 
-        self._roles = immutables.Map(roles)
+        self._tenant._roles = immutables.Map(roles)
 
     def _load_schema(self, result, version_key):
         res = pickle.loads(result[2:])
@@ -1017,9 +1009,6 @@ class Server:
                     WHERE key = 'report_configs_typedesc_2_0{version_key}';
                 '''.encode('utf-8'),
             )
-
-    def get_roles(self):
-        return self._roles
 
     async def _restart_servers_new_addr(self, nethosts, netport):
         if not netport:
@@ -1994,7 +1983,6 @@ class Server:
                 listen_port=self._listen_port,
             ),
             instance_config=serialize_config(self._dbindex.get_sys_config()),
-            user_roles=self._roles,
             compiler_pool=dict(
                 worker_pids=list(self._compiler_pool._workers.keys()),
                 template_pid=self._compiler_pool.get_template_pid(),
