@@ -354,7 +354,7 @@ async def _execute(db, tenant, query, operation_name, variables, globals):
         protocol_version=edbdef.CURRENT_PROTOCOL,
     )
 
-    pgcon = await server.acquire_pgcon(db.name)
+    pgcon = await tenant.acquire_pgcon(db.name)
     try:
         return await execute.execute_json(
             pgcon,
