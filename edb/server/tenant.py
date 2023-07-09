@@ -410,3 +410,20 @@ class Tenant(ha_base.ClusterProtocol):
                 'No healthy backend connection available at the moment, '
                 'please try again.'
             )
+
+    def release_pgcon(
+        self,
+        dbname: str,
+        conn: pgcon.PGConnection,
+        *,
+        discard: bool = False,
+    ) -> None:
+        if not conn.is_healthy():
+            if not discard:
+                logger.warning('Released an unhealthy pgcon; discard now.')
+            discard = True
+        try:
+            self._pg_pool.release(dbname, conn, discard=discard)
+        except Exception:
+            metrics.background_errors.inc(1.0, 'release_pgcon')
+            raise

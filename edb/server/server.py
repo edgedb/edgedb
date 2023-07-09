@@ -546,17 +546,6 @@ class Server:
     def get_compilation_system_config(self):
         return self._dbindex.get_compilation_system_config()
 
-    def release_pgcon(self, dbname, conn, *, discard=False):
-        if not conn.is_healthy():
-            if not discard:
-                logger.warning('Released an unhealthy pgcon; discard now.')
-            discard = True
-        try:
-            self._tenant._pg_pool.release(dbname, conn, discard=discard)
-        except Exception:
-            metrics.background_errors.inc(1.0, 'release_pgcon')
-            raise
-
     async def load_sys_config(self, query_name='sysconfig'):
         async with self._tenant._use_sys_pgcon() as syscon:
             query = self.get_sys_query(query_name)
@@ -746,7 +735,7 @@ class Server:
                 extensions=extensions,
             )
         finally:
-            self.release_pgcon(dbname, conn)
+            self._tenant.release_pgcon(dbname, conn)
 
     async def _introspect_extensions(self, conn):
         extension_names_json = await conn.sql_fetch_val(
@@ -770,7 +759,7 @@ class Server:
         try:
             extensions = await self._introspect_extensions(conn)
         finally:
-            self.release_pgcon(dbname, conn)
+            self._tenant.release_pgcon(dbname, conn)
 
         db = self._dbindex.maybe_get_db(dbname)
         if db is not None:
@@ -807,7 +796,7 @@ class Server:
                         extensions=extensions,
                     )
         finally:
-            self.release_pgcon(dbname, conn)
+            self._tenant.release_pgcon(dbname, conn)
 
     async def get_dbnames(self, syscon):
         dbs_query = self.get_sys_query('listdbs')
@@ -1411,7 +1400,7 @@ class Server:
             if self._serving:
                 await self._cancel_pgcon_operation(pgcon)
         finally:
-            self.release_pgcon(dbname, pgcon, discard=True)
+            self._tenant.release_pgcon(dbname, pgcon, discard=True)
 
     async def _signal_sysevent(self, event, **kwargs):
         try:
