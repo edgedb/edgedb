@@ -22,9 +22,12 @@ from typing import *
 import asyncio
 import contextlib
 import functools
+import json
 import logging
 import sys
 import time
+
+import immutables
 
 from edb.common import taskgroup
 
@@ -49,6 +52,7 @@ class Tenant(ha_base.ClusterProtocol):
     _server: edbserver.Server
     _cluster: pgcluster.BaseCluster
     _tenant_id: str
+    _instance_data: Mapping[str, str]
     _running: bool
     _accepting_connections: bool
 
@@ -73,6 +77,7 @@ class Tenant(ha_base.ClusterProtocol):
     ):
         self._cluster = cluster
         self._tenant_id = self.get_backend_runtime_params().tenant_id
+        self._instance_data = immutables.Map()
         self._running = False
         self._accepting_connections = False
 
@@ -145,6 +150,9 @@ class Tenant(ha_base.ClusterProtocol):
     def get_backend_runtime_params(self) -> pgparams.BackendRuntimeParams:
         return self._cluster.get_runtime_params()
 
+    def get_instance_data(self, key: str) -> str:
+        return self._instance_data[key]
+
     def is_accepting_connections(self) -> bool:
         return self._accepting_connections and self._accept_new_tasks
 
@@ -153,6 +161,15 @@ class Tenant(ha_base.ClusterProtocol):
         self._sys_pgcon_waiter = asyncio.Lock()
         self._sys_pgcon_ready_evt = asyncio.Event()
         self._sys_pgcon_reconnect_evt = asyncio.Event()
+
+        async with self.use_sys_pgcon() as syscon:
+            result = await syscon.sql_fetch_val(
+                b"""\
+                    SELECT json::json FROM edgedbinstdata.instdata
+                    WHERE key = 'instancedata';
+                """
+            )
+            self._instance_data = immutables.Map(json.loads(result))
 
     async def start_sys_pgcon(self) -> None:
         assert self.__sys_pgcon is not None
