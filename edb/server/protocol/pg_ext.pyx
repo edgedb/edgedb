@@ -649,7 +649,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 severity="FATAL",
             )
 
-        self.database = self.server.get_db(dbname=database)
+        self.database = self.tenant.get_db(dbname=database)
         await self.database.introspection()
 
         self.dbname = database

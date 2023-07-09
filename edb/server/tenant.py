@@ -210,6 +210,14 @@ class Tenant(ha_base.ClusterProtocol):
         assert self._dbindex is not None
         return self._dbindex.get_global_schema()
 
+    def get_db(self, *, dbname: str) -> dbview.Database:
+        assert self._dbindex is not None
+        return self._dbindex.get_db(dbname)
+
+    def maybe_get_db(self, *, dbname: str) -> dbview.Database:
+        assert self._dbindex is not None
+        return self._dbindex.maybe_get_db(dbname)
+
     def get_roles(self) -> Mapping[str, RoleDescriptor]:
         return self._roles
 
@@ -647,7 +655,7 @@ class Tenant(ha_base.ClusterProtocol):
 
         return extensions
 
-    async def introspect_db(self, dbname):
+    async def introspect_db(self, dbname: str) -> None:
         """Use this method to (re-)introspect a DB.
 
         If the DB is already registered in self._dbindex, its
