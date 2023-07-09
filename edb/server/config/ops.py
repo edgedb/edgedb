@@ -364,7 +364,7 @@ def to_json(
     return json.dumps(dct)
 
 
-def from_json(spec: spec.Spec, js: str) -> SettingsMap:
+def from_json(spec: spec.Spec, js: str | bytes) -> SettingsMap:
     base: SettingsMap = immutables.Map()
     with base.mutate() as mm:
         dct = json.loads(js)

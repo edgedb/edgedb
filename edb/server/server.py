@@ -538,11 +538,7 @@ class Server:
         self._tenant.release_pgcon(dbname, conn, discard=discard)
 
     async def load_sys_config(self, query_name='sysconfig'):
-        async with self._tenant.use_sys_pgcon() as syscon:
-            query = self.get_sys_query(query_name)
-            sys_config_json = await syscon.sql_fetch_val(query)
-
-        return config.from_json(config.get_settings(), sys_config_json)
+        return await self._tenant._load_sys_config(query_name)
 
     async def reload_sys_config(self):
         cfg = await self.load_sys_config()
