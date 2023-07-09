@@ -61,7 +61,7 @@ logger = logging.getLogger('edb.server')
 class RoleDescriptor(TypedDict):
     superuser: bool
     name: str
-    password: str
+    password: str | None
 
 
 class Tenant(ha_base.ClusterProtocol):
@@ -206,12 +206,15 @@ class Tenant(ha_base.ClusterProtocol):
         else:
             return self._report_config_data[(1, 0)]
 
+    def get_global_schema(self) -> s_schema.FlatSchema:
+        assert self._dbindex is not None
+        return self._dbindex.get_global_schema()
+
     def get_roles(self) -> Mapping[str, RoleDescriptor]:
         return self._roles
 
     def fetch_roles(self) -> None:
-        assert self._dbindex is not None
-        global_schema = self._dbindex.get_global_schema()
+        global_schema = self.get_global_schema()
 
         roles = {}
         for role in global_schema.get_objects(type=s_role.Role):

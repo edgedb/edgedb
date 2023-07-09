@@ -186,12 +186,11 @@ async def handle_request(
 
             # only use the backend if schema is required
             if static_exc is errormech.SchemaRequired:
-                server = tenant.server
                 ex = errormech.interpret_backend_error(
                     s_schema.ChainedSchema(
-                        server._std_schema,
+                        tenant.server._std_schema,
                         db.user_schema,
-                        server.get_global_schema(),
+                        tenant.get_global_schema(),
                     ),
                     ex.fields,
                     from_graphql=True,
@@ -217,18 +216,19 @@ async def handle_request(
 
 async def compile(
     db,
-    server,
+    tenant,
     query: str,
     tokens: Optional[List[Tuple[int, int, int, str]]],
     substitutions: Optional[Dict[str, Tuple[str, int, int]]],
     operation_name: Optional[str],
     variables: Dict[str, Any],
 ):
+    server = tenant.server
     compiler_pool = server.get_compiler_pool()
     return await compiler_pool.compile_graphql(
         db.name,
         db.user_schema,
-        server.get_global_schema(),
+        tenant.get_global_schema(),
         db.reflection_cache,
         db.db_config,
         server.get_compilation_system_config(),
@@ -308,7 +308,7 @@ async def _execute(db, tenant, query, operation_name, variables, globals):
         if rewritten is not None:
             qug, gql_op = await compile(
                 db,
-                server,
+                tenant,
                 query,
                 rewritten.tokens(gql_lexer.TokenKind),
                 rewritten.substitutions(),
@@ -318,7 +318,7 @@ async def _execute(db, tenant, query, operation_name, variables, globals):
         else:
             qug, gql_op = await compile(
                 db,
-                server,
+                tenant,
                 query,
                 None,
                 None,
