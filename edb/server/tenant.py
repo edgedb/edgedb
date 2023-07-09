@@ -660,6 +660,15 @@ class Tenant(ha_base.ClusterProtocol):
                 raise
         return conn
 
+    async def introspect_user_schema(
+        self,
+        conn: pgcon.PGConnection,
+        global_schema: s_schema.Schema | None = None,
+    ) -> s_schema.Schema:
+        if global_schema is None:
+            global_schema = self.get_global_schema()
+        return await self._server.introspect_user_schema(conn, global_schema)
+
     async def introspect_extensions(self, dbname: str) -> None:
         logger.info("introspecting extensions for database '%s'", dbname)
         conn = await self._acquire_intro_pgcon(dbname)
