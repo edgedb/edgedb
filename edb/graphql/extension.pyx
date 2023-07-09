@@ -78,7 +78,7 @@ async def handle_request(
     object response,
     object db,
     list args,
-    object server,
+    object tenant,
 ):
     if args == ['explore'] and request.method == b'GET':
         response.body = explore.EXPLORE_HTML
@@ -171,7 +171,7 @@ async def handle_request(
     response.content_type = b'application/json'
     try:
         result = await _execute(
-            db, server, query, operation_name, variables, globals)
+            db, tenant, query, operation_name, variables, globals)
     except Exception as ex:
         if debug.flags.server:
             markup.dump(ex)
@@ -186,6 +186,7 @@ async def handle_request(
 
             # only use the backend if schema is required
             if static_exc is errormech.SchemaRequired:
+                server = tenant.server
                 ex = errormech.interpret_backend_error(
                     s_schema.ChainedSchema(
                         server._std_schema,
@@ -239,7 +240,8 @@ async def compile(
     )
 
 
-async def _execute(db, server, query, operation_name, variables, globals):
+async def _execute(db, tenant, query, operation_name, variables, globals):
+    server = tenant.server
     dbver = db.dbver
     query_cache = server._http_query_cache
 

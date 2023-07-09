@@ -540,7 +540,7 @@ cdef class HttpProtocol:
 
                 if extname == 'graphql':
                     await graphql_ext.handle_request(
-                        request, response, db, args, self.server
+                        request, response, db, args, self.tenant
                     )
                 elif extname == 'notebook':
                     await notebook_ext.handle_request(
