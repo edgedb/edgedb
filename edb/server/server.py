@@ -166,8 +166,6 @@ class Server:
         self._listen_hosts = nethosts
         self._listen_port = netport
 
-        self._sys_auth: Tuple[Any, ...] = tuple()
-
         # Shutdown the server after the last management
         # connection has disconnected
         # and there have been no new connections for n seconds
@@ -363,8 +361,6 @@ class Server:
 
             await self._tenant.init()
 
-            self._populate_sys_auth()
-
             sys_config = self._dbindex.get_sys_config()
             if not self._listen_hosts:
                 self._listen_hosts = (
@@ -478,11 +474,6 @@ class Server:
         if self._compiler_pool is not None:
             await self._compiler_pool.stop()
             self._compiler_pool = None
-
-    def _populate_sys_auth(self):
-        cfg = self._dbindex.get_sys_config()
-        auth = config.lookup('auth', cfg) or ()
-        self._sys_auth = tuple(sorted(auth, key=lambda a: a.priority))
 
     def get_compiler_pool(self):
         return self._compiler_pool
@@ -1105,7 +1096,7 @@ class Server:
         # CONFIGURE INSTANCE INSERT ConfigObject;
         try:
             if setting_name == 'auth':
-                self._populate_sys_auth()
+                self._tenant.populate_sys_auth()
         except Exception:
             metrics.background_errors.inc(1.0, 'after_system_config_add')
             raise
@@ -1114,7 +1105,7 @@ class Server:
         # CONFIGURE INSTANCE RESET ConfigObject;
         try:
             if setting_name == 'auth':
-                self._populate_sys_auth()
+                self._tenant.populate_sys_auth()
         except Exception:
             metrics.background_errors.inc(1.0, 'after_system_config_rem')
             raise
@@ -1830,31 +1821,6 @@ class Server:
     async def serve_forever(self):
         await self._stop_evt.wait()
 
-    async def get_auth_method(
-        self,
-        user: str,
-        transport: srvargs.ServerConnTransport,
-    ) -> Any:
-        authlist = self._sys_auth
-
-        if authlist:
-            for auth in authlist:
-                match = (
-                    (user in auth.user or '*' in auth.user)
-                    and (
-                        not auth.method.transports
-                        or transport in auth.method.transports
-                    )
-                )
-
-                if match:
-                    return auth.method
-
-        default_method = self._default_auth_method.get(transport)
-        auth_type = config.get_settings().get_type_by_name(
-            default_method.value)
-        return auth_type()
-
     def get_sys_query(self, key):
         return self._sys_queries[key]
 
@@ -1919,6 +1885,11 @@ class Server:
         self
     ) -> dict[defines.ProtocolVersion, bytes]:
         return self._report_config_typedesc
+
+    def get_default_auth_method(
+        self, transport: srvargs.ServerConnTransport
+    ) -> srvargs.ServerAuthMethod:
+        return self._default_auth_method.get(transport)
 
     def retrieve_tenant(self, sslobj) -> edbtenant.Tenant | None:
         return self.get_default_tenant()
