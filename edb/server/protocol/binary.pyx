@@ -284,7 +284,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         logger.debug('successfully authenticated %s in database %s',
                      user, database)
 
-        if not self.server.is_database_connectable(database):
+        if not self.tenant.is_database_connectable(database):
             raise errors.AccessError(
                 f'database {database!r} does not accept connections'
             )

@@ -75,6 +75,9 @@ class Tenant(ha_base.ClusterProtocol):
     _ha_master_serial: int
     _backend_adaptive_ha: adaptive_ha.AdaptiveHASupport | None
 
+    # A set of databases that should not accept new connections.
+    _block_new_connections: set[str]
+
     def __init__(
         self,
         cluster: pgcluster.BaseCluster,
@@ -117,6 +120,7 @@ class Tenant(ha_base.ClusterProtocol):
             max_capacity=max_backend_connections - 1,
         )
         self._pg_unavailable_msg = None
+        self._block_new_connections = set()
 
     def set_server(self, server: edbserver.Server) -> None:
         self._server = server
@@ -499,6 +503,15 @@ class Tenant(ha_base.ClusterProtocol):
         except Exception:
             metrics.background_errors.inc(1.0, "release_pgcon")
             raise
+
+    def allow_database_connections(self, dbname: str) -> None:
+        self._block_new_connections.discard(dbname)
+
+    def is_database_connectable(self, dbname: str) -> bool:
+        return (
+            dbname != defines.EDGEDB_TEMPLATE_DB
+            and dbname not in self._block_new_connections
+        )
 
     def get_debug_info(self) -> dict[str, Any]:
         obj = dict(
