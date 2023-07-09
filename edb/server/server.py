@@ -507,9 +507,6 @@ class Server:
     def remove_dbview(self, dbview):
         return self._dbindex.remove_view(dbview)
 
-    def get_global_schema(self):
-        return self._tenant.get_global_schema()
-
     def get_compilation_system_config(self):
         return self._dbindex.get_compilation_system_config()
 
@@ -548,13 +545,17 @@ class Server:
     async def _reintrospect_global_schema(self):
         await self._tenant._reintrospect_global_schema()
 
-    async def introspect_user_schema(self, conn, global_schema=None):
+    async def introspect_user_schema(
+        self,
+        conn: pgcon.PGConnection,
+        global_schema: s_schema.Schema,
+    ) -> s_schema.Schema:
         json_data = await conn.sql_fetch_val(self._local_intro_query)
 
         base_schema = s_schema.ChainedSchema(
             self._std_schema,
             s_schema.FlatSchema(),
-            global_schema or self.get_global_schema(),
+            global_schema,
         )
 
         return s_refl.parse_into(
@@ -589,7 +590,7 @@ class Server:
             return
 
         try:
-            user_schema = await self.introspect_user_schema(conn)
+            user_schema = await self._tenant.introspect_user_schema(conn)
 
             reflection_cache_json = await conn.sql_fetch_val(
                 b'''
@@ -763,7 +764,7 @@ class Server:
                     global_schema = (
                         await self._tenant.introspect_global_schema(conn)
                     )
-                    user_schema = await self.introspect_user_schema(
+                    user_schema = await self._tenant.introspect_user_schema(
                         conn, global_schema)
                     config = await self.introspect_db_config(conn)
                     try:
