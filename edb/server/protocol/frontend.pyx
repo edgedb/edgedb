@@ -558,7 +558,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         if self._external_auth:
             authmethod_name = 'Trust'
         else:
-            authmethod = await self.server.get_auth_method(
+            authmethod = await self.tenant.get_auth_method(
                 user, self._transport_proto)
             authmethod_name = type(authmethod).__name__
 
