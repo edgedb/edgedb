@@ -478,9 +478,6 @@ class Server:
     def get_compiler_pool(self):
         return self._compiler_pool
 
-    def get_compilation_system_config(self):
-        return self._dbindex.get_compilation_system_config()
-
     async def reload_sys_config(self):
         cfg = await self._tenant._load_sys_config()
         self._dbindex.update_sys_config(cfg)
