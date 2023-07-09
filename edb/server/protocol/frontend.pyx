@@ -695,8 +695,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                 done = True
 
     def _get_scram_verifier(self, user):
-        server = self.server
-        roles = server.get_roles()
+        roles = self.server.get_roles()
 
         rolerec = roles.get(user)
         if rolerec is not None:
@@ -714,7 +713,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         # generate a mock verifier using a salt derived from the
         # received user name and the cluster mock auth nonce.
         # The same approach is taken by Postgres.
-        nonce = server.get_instance_data('mock_auth_nonce')
+        nonce = self.tenant.get_instance_data('mock_auth_nonce')
         salt = hashlib.sha256(nonce.encode() + user.encode()).digest()
 
         verifier = scram.SCRAMVerifier(
