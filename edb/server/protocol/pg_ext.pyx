@@ -643,7 +643,7 @@ cdef class PgConnection(frontend.FrontendConnection):
         logger.debug('successfully authenticated %s in database %s',
                      user, database)
 
-        if not self.server.is_database_connectable(database):
+        if not self.tenant.is_database_connectable(database):
             raise pgerror.InvalidAuthSpec(
                 f'database {database!r} does not accept connections',
                 severity="FATAL",
