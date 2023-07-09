@@ -850,7 +850,7 @@ cdef class DatabaseConnectionView:
                     pickle.loads(query_unit.global_schema))
             if query_unit.has_role_ddl:
                 side_effects |= SideEffects.RoleChanges
-                self._db._index._server._fetch_roles()
+                self._db.tenant.fetch_roles()
             if query_unit.create_ext or query_unit.drop_ext:
                 side_effects |= SideEffects.ExtensionChanges
                 self._db.schedule_extensions_update()
@@ -891,7 +891,7 @@ cdef class DatabaseConnectionView:
                 side_effects |= SideEffects.GlobalSchemaChanges
                 self._db._index.update_global_schema(
                     pickle.loads(query_unit.global_schema))
-                self._db._index._server._fetch_roles()
+                self._db.tenant.fetch_roles()
             if self._in_tx_with_role_ddl:
                 side_effects |= SideEffects.RoleChanges
 
@@ -936,7 +936,7 @@ cdef class DatabaseConnectionView:
             side_effects |= SideEffects.GlobalSchemaChanges
             self._db._index.update_global_schema(
                 pickle.loads(global_schema))
-            self._db._index._server._fetch_roles()
+            self._db.tenant.fetch_roles()
         if self._in_tx_with_role_ddl:
             side_effects |= SideEffects.RoleChanges
 
