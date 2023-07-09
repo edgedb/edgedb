@@ -644,19 +644,7 @@ class Server:
         return await self._tenant._introspect_extensions(conn)
 
     async def introspect_extensions(self, dbname):
-        logger.info("introspecting extensions for database '%s'", dbname)
-        conn = await self._acquire_intro_pgcon(dbname)
-        if not conn:
-            return
-
-        try:
-            extensions = await self._introspect_extensions(conn)
-        finally:
-            self.release_pgcon(dbname, conn)
-
-        db = self._dbindex.maybe_get_db(dbname)
-        if db is not None:
-            db.extensions = extensions
+        await self._tenant.introspect_extensions(dbname)
 
     async def introspect_db_config(self, conn):
         result = await conn.sql_fetch_val(self.get_sys_query('dbconfig'))
