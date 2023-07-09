@@ -648,8 +648,7 @@ class Server:
         await self._tenant.introspect_extensions(dbname)
 
     async def introspect_db_config(self, conn):
-        result = await conn.sql_fetch_val(self.get_sys_query('dbconfig'))
-        return config.from_json(config.get_settings(), result)
+        return await self._tenant.introspect_db_config(conn)
 
     async def _early_introspect_db(self, dbname):
         await self._tenant._early_introspect_db(dbname)
@@ -766,7 +765,7 @@ class Server:
                     )
                     user_schema = await self._tenant.introspect_user_schema(
                         conn, global_schema)
-                    config = await self.introspect_db_config(conn)
+                    config = await self._tenant.introspect_db_config(conn)
                     try:
                         logger.info("repairing database '%s'", dbname)
                         sql += bootstrap.prepare_repair_patch(
