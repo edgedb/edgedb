@@ -112,7 +112,7 @@ def _response_ok(response, message):
 
 async def _ping(tenant):
     return await execute.parse_execute_json(
-        tenant.server.get_db(dbname=edbdef.EDGEDB_SYSTEM_DB),
+        tenant.get_db(dbname=edbdef.EDGEDB_SYSTEM_DB),
         query="SELECT 'OK'",
         output_format=compiler.OutputFormat.JSON_ELEMENTS,
         # Disable query cache because we need to ensure that the compiled

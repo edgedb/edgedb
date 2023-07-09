@@ -224,6 +224,14 @@ class Tenant(ha_base.ClusterProtocol):
         assert self._dbindex is not None
         return self._dbindex.get_global_schema()
 
+    def get_db(self, *, dbname: str) -> dbview.Database:
+        assert self._dbindex is not None
+        return self._dbindex.get_db(dbname)
+
+    def maybe_get_db(self, *, dbname: str) -> dbview.Database:
+        assert self._dbindex is not None
+        return self._dbindex.maybe_get_db(dbname)
+
     def is_accepting_connections(self) -> bool:
         return self._accepting_connections and self._accept_new_tasks
 

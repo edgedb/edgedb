@@ -478,16 +478,8 @@ class Server:
     def get_compiler_pool(self):
         return self._compiler_pool
 
-    def get_db(self, *, dbname: str):
-        assert self._dbindex is not None
-        return self._dbindex.get_db(dbname)
-
-    def maybe_get_db(self, *, dbname: str):
-        assert self._dbindex is not None
-        return self._dbindex.maybe_get_db(dbname)
-
     async def new_dbview(self, *, dbname, query_cache, protocol_version):
-        db = self.get_db(dbname=dbname)
+        db = self._tenant.get_db(dbname=dbname)
         await db.introspection()
         return self._dbindex.new_view(
             dbname, query_cache=query_cache, protocol_version=protocol_version
