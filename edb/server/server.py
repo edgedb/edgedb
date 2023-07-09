@@ -169,8 +169,6 @@ class Server:
         self._accept_new_tasks = False
         self._tasks = set()
 
-        self._pg_unavailable_msg = None
-
         # DB state will be initialized in init().
         self._dbindex = None
 
@@ -548,9 +546,10 @@ class Server:
         return self._dbindex.get_compilation_system_config()
 
     async def acquire_pgcon(self, dbname):
-        if self._pg_unavailable_msg is not None:
+        if self._tenant._pg_unavailable_msg is not None:
             raise errors.BackendUnavailableError(
-                'Postgres is not available: ' + self._pg_unavailable_msg
+                'Postgres is not available: '
+                + self._tenant._pg_unavailable_msg
             )
 
         for _ in range(self._tenant._pg_pool.max_capacity):
@@ -2152,10 +2151,6 @@ class Server:
 
     def get_sys_query(self, key):
         return self._sys_queries[key]
-
-    def set_pg_unavailable_msg(self, msg):
-        if msg is None or self._pg_unavailable_msg is None:
-            self._pg_unavailable_msg = msg
 
     def get_debug_info(self):
         """Used to render the /server-info endpoint in dev/test modes.
