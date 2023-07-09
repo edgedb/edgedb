@@ -587,6 +587,21 @@ class Tenant(ha_base.ClusterProtocol):
                 raise
         return conn
 
+    async def _introspect_extensions(
+        self, conn: pgcon.PGConnection
+    ) -> set[str]:
+        extension_names_json = await conn.sql_fetch_val(
+            b"""
+                SELECT json_agg(name) FROM edgedb."_SchemaExtension";
+            """,
+        )
+        if extension_names_json:
+            extensions = set(json.loads(extension_names_json))
+        else:
+            extensions = set()
+
+        return extensions
+
     def get_debug_info(self) -> dict[str, Any]:
         obj = dict(
             params=dict(
