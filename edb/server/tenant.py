@@ -35,6 +35,7 @@ from edb.common import retryloop
 from edb.common import taskgroup
 from edb.schema import roles as s_role
 
+from . import config
 from . import connpool
 from . import dbview
 from . import defines
@@ -713,3 +714,13 @@ class Tenant(ha_base.ClusterProtocol):
             except Exception:
                 metrics.background_errors.inc(1.0, "load_reported_config")
                 raise
+
+    async def _load_sys_config(
+        self,
+        query_name: str = "sysconfig",
+    ) -> Mapping[str, config.SettingValue]:
+        async with self.use_sys_pgcon() as syscon:
+            query = self._server.get_sys_query(query_name)
+            sys_config_json = await syscon.sql_fetch_val(query)
+
+        return config.from_json(config.get_settings(), sys_config_json)
