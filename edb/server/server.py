@@ -61,7 +61,6 @@ from edb.server.protocol import binary  # type: ignore
 from edb.server.protocol import pg_ext  # type: ignore
 from edb.server import metrics
 from edb.server import pgcon
-from edb.server.pgcon import errors as pgcon_errors
 
 from edb.pgsql import patches as pg_patches
 
@@ -552,9 +551,6 @@ class Server:
     def get_compilation_system_config(self):
         return self._dbindex.get_compilation_system_config()
 
-    async def acquire_pgcon(self, dbname):
-        return await self._tenant.acquire_pgcon(dbname)
-
     def release_pgcon(self, dbname, conn, *, discard=False):
         self._tenant.release_pgcon(dbname, conn, discard=discard)
 
@@ -650,21 +646,7 @@ class Server:
         )
 
     async def _acquire_intro_pgcon(self, dbname):
-        try:
-            conn = await self.acquire_pgcon(dbname)
-        except pgcon_errors.BackendError as e:
-            if e.code_is(pgcon_errors.ERROR_INVALID_CATALOG_NAME):
-                # database does not exist (anymore)
-                logger.warning(
-                    "Detected concurrently-dropped database %s; skipping.",
-                    dbname,
-                )
-                if self._dbindex is not None and self._dbindex.has_db(dbname):
-                    self._dbindex.unregister_db(dbname)
-                return None
-            else:
-                raise
-        return conn
+        return await self._tenant._acquire_intro_pgcon(dbname)
 
     async def introspect_db(self, dbname):
         """Use this method to (re-)introspect a DB.
