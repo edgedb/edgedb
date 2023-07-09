@@ -160,9 +160,6 @@ class Server:
 
         self._initing = False
 
-        # DB state will be initialized in init().
-        self._dbindex = None
-
         self._runstate_dir = runstate_dir
         self._internal_runstate_dir = internal_runstate_dir
         self._compiler_pool = None
@@ -376,6 +373,10 @@ class Server:
     async def _pg_disconnect(self, conn):
         await self._tenant._pg_disconnect(conn)
 
+    @property
+    def _dbindex(self) -> dbview.DatabaseIndex | None:
+        return self._tenant._dbindex
+
     async def init(self):
         self._initing = True
         try:
@@ -389,7 +390,7 @@ class Server:
             default_sysconfig = await self.load_sys_config('sysconfig_default')
             await self.load_reported_config()
 
-            self._dbindex = dbview.DatabaseIndex(
+            self._tenant._dbindex = dbview.DatabaseIndex(
                 self._tenant,
                 std_schema=self._std_schema,
                 global_schema=global_schema,
@@ -2078,30 +2079,6 @@ class Server:
                 template_pid=self._compiler_pool.get_template_pid(),
             ),
         )
-
-        dbs = {}
-        for db in self._dbindex.iter_dbs():
-            if db.name in defines.EDGEDB_SPECIAL_DBS:
-                continue
-
-            dbs[db.name] = dict(
-                name=db.name,
-                dbver=db.dbver,
-                config=serialize_config(db.db_config),
-                extensions=sorted(db.extensions),
-                query_cache_size=db.get_query_cache_size(),
-                connections=[
-                    dict(
-                        in_tx=view.in_tx(),
-                        in_tx_error=view.in_tx_error(),
-                        config=serialize_config(view.get_session_config()),
-                        module_aliases=view.get_modaliases(),
-                    )
-                    for view in db.iter_views()
-                ],
-            )
-
-        parent['databases'] = dbs
 
         child = self._tenant.get_debug_info()
         parent["params"].update(child["params"])
