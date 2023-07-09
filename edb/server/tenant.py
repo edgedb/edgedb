@@ -910,6 +910,24 @@ class Tenant(ha_base.ClusterProtocol):
         )
         return auth_type()
 
+    async def new_dbview(
+        self,
+        *,
+        dbname: str,
+        query_cache: bool,
+        protocol_version: defines.ProtocolVersion,
+    ) -> dbview.DatabaseConnectionView:
+        db = self.get_db(dbname=dbname)
+        await db.introspection()
+        assert self._dbindex is not None
+        return self._dbindex.new_view(
+            dbname, query_cache=query_cache, protocol_version=protocol_version
+        )
+
+    def remove_dbview(self, dbview_: dbview.DatabaseConnectionView) -> None:
+        assert self._dbindex is not None
+        return self._dbindex.remove_view(dbview_)
+
     def get_debug_info(self) -> dict[str, Any]:
         obj = dict(
             params=dict(
