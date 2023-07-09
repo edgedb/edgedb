@@ -154,13 +154,12 @@ cdef class NotebookConnection(frontend.AbstractFrontendConnection):
 
 
 async def execute(db, tenant, queries: list):
-    server = tenant.server
-    dbv: dbview.DatabaseConnectionView = await server.new_dbview(
+    dbv: dbview.DatabaseConnectionView = await tenant.new_dbview(
         dbname=db.name,
         query_cache=False,
         protocol_version=edbdef.CURRENT_PROTOCOL,
     )
-    compiler_pool = server.get_compiler_pool()
+    compiler_pool = tenant.server.get_compiler_pool()
     units = await compiler_pool.compile_notebook(
         dbv.dbname,
         dbv.get_user_schema(),

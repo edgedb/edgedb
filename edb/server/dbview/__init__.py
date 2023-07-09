@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from .dbview import DatabaseIndex, Database
+from .dbview import DatabaseIndex, Database, DatabaseConnectionView
 
 
-__all__ = ('DatabaseIndex', 'Database')
+__all__ = ('DatabaseIndex', 'Database', 'DatabaseConnectionView')
