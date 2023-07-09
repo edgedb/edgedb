@@ -215,7 +215,7 @@ async def handle_request(
 
 
 async def compile(
-    db,
+    dbview.Database db,
     tenant,
     query: str,
     tokens: Optional[List[Tuple[int, int, int, str]]],
@@ -223,15 +223,14 @@ async def compile(
     operation_name: Optional[str],
     variables: Dict[str, Any],
 ):
-    server = tenant.server
-    compiler_pool = server.get_compiler_pool()
+    compiler_pool = tenant.server.get_compiler_pool()
     return await compiler_pool.compile_graphql(
         db.name,
         db.user_schema,
         tenant.get_global_schema(),
         db.reflection_cache,
         db.db_config,
-        server.get_compilation_system_config(),
+        db._index.get_compilation_system_config(),
         query,
         tokens,
         substitutions,
