@@ -145,7 +145,7 @@ async def execute(
                     query_unit.sp_name, query_unit.sp_id)
 
             if query_unit.create_db:
-                await server.introspect_db(query_unit.create_db)
+                await tenant.introspect_db(query_unit.create_db)
 
             if query_unit.drop_db:
                 server._on_after_drop_db(query_unit.drop_db)

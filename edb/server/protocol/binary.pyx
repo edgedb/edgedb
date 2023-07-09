@@ -1517,8 +1517,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         # Now parse the embedded dump header message:
 
-        server = self.server
-        compiler_pool = server.get_compiler_pool()
+        compiler_pool = self.server.get_compiler_pool()
 
         global_schema = _dbview.get_global_schema()
         user_schema = _dbview.get_user_schema()
@@ -1712,7 +1711,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             tenant.release_pgcon(dbname, pgcon)
 
         execute.signal_side_effects(_dbview, dbview.SideEffects.SchemaChanges)
-        await server.introspect_db(dbname)
+        await tenant.introspect_db(dbname)
 
         if _dbview.is_state_desc_changed():
             self.write(self.make_state_data_description_msg())
