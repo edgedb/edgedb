@@ -139,7 +139,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._block_new_connections = set()
         self._report_config_data = {}
 
-        # DB state will be initialized in Server.init().
+        # DB state will be initialized in init().
         self._dbindex = None
 
         self._roles = immutables.Map()
@@ -240,6 +240,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._sys_pgcon_ready_evt = asyncio.Event()
         self._sys_pgcon_reconnect_evt = asyncio.Event()
 
+    async def init(self) -> None:
         async with self.use_sys_pgcon() as syscon:
             result = await syscon.sql_fetch_val(
                 b"""\
@@ -249,7 +250,19 @@ class Tenant(ha_base.ClusterProtocol):
             )
             self._instance_data = immutables.Map(json.loads(result))
 
-    async def init(self) -> None:
+        global_schema = await self.introspect_global_schema()
+        sys_config = await self._load_sys_config()
+        default_sysconfig = await self._load_sys_config("sysconfig_default")
+        await self._load_reported_config()
+
+        self._dbindex = dbview.DatabaseIndex(
+            self,
+            std_schema=self._server._std_schema,
+            global_schema=global_schema,
+            sys_config=sys_config,
+            default_sysconfig=default_sysconfig,
+        )
+
         self.fetch_roles()
         await self._introspect_dbs()
 
