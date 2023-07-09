@@ -147,7 +147,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                 conn.pinned_by = None
                 self._pinned_pgcon = None
                 if not self._pgcon_released_in_connection_lost:
-                    self.server.release_pgcon(
+                    self.tenant.release_pgcon(
                         self.dbname,
                         conn,
                         discard=debug.flags.server_clobber_pg_conns,
@@ -159,7 +159,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
             self._pinned_pgcon_in_tx = False
             self._pinned_pgcon = None
             if not self._pgcon_released_in_connection_lost:
-                self.server.release_pgcon(
+                self.tenant.release_pgcon(
                     self.dbname,
                     conn,
                     discard=debug.flags.server_clobber_pg_conns,
@@ -170,7 +170,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
             self._pinned_pgcon = None
 
             if not self._pgcon_released_in_connection_lost:
-                self.server.release_pgcon(self.dbname, conn, discard=True)
+                self.tenant.release_pgcon(self.dbname, conn, discard=True)
 
             if conn.aborted_with_error is not None:
                 self.write_error(conn.aborted_with_error)
@@ -181,7 +181,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         if self._pinned_pgcon is not None:
             self._pinned_pgcon.pinned_by = None
             self._pinned_pgcon.abort()
-            self.server.release_pgcon(
+            self.tenant.release_pgcon(
                 self.dbname, self._pinned_pgcon, discard=True)
             self._pinned_pgcon = None
 

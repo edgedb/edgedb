@@ -555,15 +555,7 @@ class Server:
         return await self._tenant.acquire_pgcon(dbname)
 
     def release_pgcon(self, dbname, conn, *, discard=False):
-        if not conn.is_healthy():
-            if not discard:
-                logger.warning('Released an unhealthy pgcon; discard now.')
-            discard = True
-        try:
-            self._pg_pool.release(dbname, conn, discard=discard)
-        except Exception:
-            metrics.background_errors.inc(1.0, 'release_pgcon')
-            raise
+        self._tenant.release_pgcon(dbname, conn, discard=discard)
 
     async def load_sys_config(self, query_name='sysconfig'):
         async with self._tenant.use_sys_pgcon() as syscon:

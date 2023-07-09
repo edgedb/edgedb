@@ -1459,7 +1459,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         finally:
             self._in_dump_restore = False
-            server.release_pgcon(dbname, pgcon)
+            tenant.release_pgcon(dbname, pgcon)
 
         msg_buf = WriteBuffer.new_message(b'C')
         msg_buf.write_int16(0)  # no headers
@@ -1710,7 +1710,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         finally:
             self._transport.resume_reading()
             self._in_dump_restore = False
-            server.release_pgcon(dbname, pgcon)
+            tenant.release_pgcon(dbname, pgcon)
 
         execute.signal_side_effects(_dbview, dbview.SideEffects.SchemaChanges)
         await server.introspect_db(dbname)
