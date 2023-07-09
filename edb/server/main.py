@@ -178,14 +178,16 @@ async def _run_server(
     with signalctl.SignalController(signal.SIGINT, signal.SIGTERM) as sc:
         from . import tenant as edbtenant
 
+        # max_backend_connections should've been calculated already by now
+        assert args.max_backend_connections is not None
         tenant = edbtenant.Tenant(
             cluster,
+            max_backend_connections=args.max_backend_connections,
             backend_adaptive_ha=args.backend_adaptive_ha,
         )
         ss = server.Server(
             runstate_dir=runstate_dir,
             internal_runstate_dir=internal_runstate_dir,
-            max_backend_connections=args.max_backend_connections,
             compiler_pool_size=args.compiler_pool_size,
             compiler_pool_mode=args.compiler_pool_mode,
             compiler_pool_addr=args.compiler_pool_addr,
