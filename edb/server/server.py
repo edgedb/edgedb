@@ -511,22 +511,6 @@ class Server:
             self.create_task(
                 self._tenant._load_reported_config(), interruptable=True)
 
-    async def introspect_user_schema(self, conn, global_schema=None):
-        json_data = await conn.sql_fetch_val(self._local_intro_query)
-
-        base_schema = s_schema.ChainedSchema(
-            self._std_schema,
-            s_schema.FlatSchema(),
-            global_schema or self._tenant.get_global_schema(),
-        )
-
-        return s_refl.parse_into(
-            base_schema=base_schema,
-            schema=s_schema.FlatSchema(),
-            data=json_data,
-            schema_class_layout=self._schema_class_layout,
-        )
-
     async def introspect_db(self, dbname):
         """Use this method to (re-)introspect a DB.
 
@@ -549,7 +533,7 @@ class Server:
             return
 
         try:
-            user_schema = await self.introspect_user_schema(conn)
+            user_schema = await self._tenant.introspect_user_schema(conn)
 
             reflection_cache_json = await conn.sql_fetch_val(
                 b'''
@@ -714,7 +698,7 @@ class Server:
                     global_schema = (
                         await self._tenant.introspect_global_schema(conn)
                     )
-                    user_schema = await self.introspect_user_schema(
+                    user_schema = await self._tenant.introspect_user_schema(
                         conn, global_schema)
                     config = await self.introspect_db_config(conn)
                     try:
