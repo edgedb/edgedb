@@ -52,6 +52,12 @@ if TYPE_CHECKING:
 logger = logging.getLogger("edb.server")
 
 
+class RoleDescriptor(TypedDict):
+    superuser: bool
+    name: str
+    password: str
+
+
 class Tenant(ha_base.ClusterProtocol):
     _server: edbserver.Server
     _cluster: pgcluster.BaseCluster
@@ -80,6 +86,8 @@ class Tenant(ha_base.ClusterProtocol):
 
     # A set of databases that should not accept new connections.
     _block_new_connections: set[str]
+
+    _roles: Mapping[str, RoleDescriptor]
 
     def __init__(
         self,
@@ -127,6 +135,8 @@ class Tenant(ha_base.ClusterProtocol):
 
         # DB state will be initialized in Server.init().
         self._dbindex = None
+
+        self._roles = immutables.Map()
 
     def set_server(self, server: edbserver.Server) -> None:
         self._server = server
@@ -194,6 +204,9 @@ class Tenant(ha_base.ClusterProtocol):
 
     def is_accepting_connections(self) -> bool:
         return self._accepting_connections and self._accept_new_tasks
+
+    def get_roles(self) -> Mapping[str, RoleDescriptor]:
+        return self._roles
 
     async def init_sys_pgcon(self) -> None:
         self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)

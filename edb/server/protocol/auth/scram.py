@@ -256,8 +256,7 @@ def handle_request(scheme, auth_str, response, tenant):
 
 
 def get_scram_verifier(user, tenant):
-    server = tenant.server
-    roles = server.get_roles()
+    roles = tenant.get_roles()
 
     rolerec = roles.get(user)
     if rolerec is not None:

@@ -435,7 +435,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             raise errors.AuthenticationError(
                 'authentication failed: malformed JWT')
 
-        role = self.server.get_roles().get(user)
+        role = self.tenant.get_roles().get(user)
         if role is None:
             raise errors.AuthenticationError('authentication failed')
 
