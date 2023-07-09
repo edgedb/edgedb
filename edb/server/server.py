@@ -236,9 +236,6 @@ class Server:
         self._readiness = srvargs.ReadinessState.Default
         self._readiness_reason = ""
 
-        # A set of databases that should not accept new connections.
-        self._block_new_connections: set[str] = set()
-
         self._file_watch_handles = []
         self._tls_certs_reload_retry_handle = None
 
@@ -257,6 +254,10 @@ class Server:
     @property
     def _pg_pool(self):
         return self._tenant._pg_pool
+
+    @property
+    def _block_new_connections(self):
+        return self._tenant._block_new_connections
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -1267,9 +1268,6 @@ class Server:
             raise errors.ExecutionError(
                 f'database {dbname!r} is being accessed by other users')
 
-    def _allow_database_connections(self, dbname: str) -> None:
-        self._block_new_connections.discard(dbname)
-
     def _on_after_drop_db(self, dbname: str):
         try:
             assert self._dbindex is not None
@@ -2098,12 +2096,6 @@ class Server:
         auth_type = config.get_settings().get_type_by_name(
             default_method.value)
         return auth_type()
-
-    def is_database_connectable(self, dbname: str) -> bool:
-        return (
-            dbname != defines.EDGEDB_TEMPLATE_DB
-            and dbname not in self._block_new_connections
-        )
 
     def get_sys_query(self, key):
         return self._sys_queries[key]

@@ -71,6 +71,7 @@ async def execute(
 
     new_types = None
     server = dbv.server
+    tenant = dbv.tenant
 
     data = None
 
@@ -177,9 +178,9 @@ async def execute(
                 be_conn.last_state = state
     finally:
         if query_unit.drop_db:
-            server._allow_database_connections(query_unit.drop_db)
+            tenant.allow_database_connections(query_unit.drop_db)
         if query_unit.create_db_template:
-            server._allow_database_connections(
+            tenant.allow_database_connections(
                 query_unit.create_db_template,
             )
 
