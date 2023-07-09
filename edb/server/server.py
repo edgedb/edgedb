@@ -725,35 +725,6 @@ class Server:
         result = await conn.sql_fetch_val(self.get_sys_query('dbconfig'))
         return config.from_json(config.get_settings(), result)
 
-    async def _early_introspect_db(self, dbname):
-        """We need to always introspect the extensions for each database.
-
-        Otherwise we won't know to accept connections for graphql or
-        http, for example, until a native connection is made.
-        """
-        logger.info("introspecting extensions for database '%s'", dbname)
-
-        conn = await self._tenant._acquire_intro_pgcon(dbname)
-        if not conn:
-            return
-
-        try:
-            assert self._dbindex is not None
-            if not self._dbindex.has_db(dbname):
-                extensions = await self._tenant._introspect_extensions(conn)
-                # Re-check in case we have a concurrent introspection task.
-                if not self._dbindex.has_db(dbname):
-                    self._dbindex.register_db(
-                        dbname,
-                        user_schema=None,
-                        db_config=None,
-                        reflection_cache=None,
-                        backend_ids=None,
-                        extensions=extensions,
-                    )
-        finally:
-            self._tenant.release_pgcon(dbname, conn)
-
     async def get_dbnames(self, syscon):
         dbs_query = self.get_sys_query('listdbs')
         json_data = await syscon.sql_fetch_val(dbs_query)
@@ -768,7 +739,7 @@ class Server:
                 # There's a risk of the DB being dropped by another server
                 # between us building the list of databases and loading
                 # information about them.
-                g.create_task(self._early_introspect_db(dbname))
+                g.create_task(self._tenant._early_introspect_db(dbname))
 
     async def get_patch_count(self, conn):
         """Get the number of applied patches."""
@@ -1370,7 +1341,9 @@ class Server:
             async with tg as g:
                 for dbname in dbnames:
                     if not self._dbindex.has_db(dbname):
-                        g.create_task(self._early_introspect_db(dbname))
+                        g.create_task(
+                            self._tenant._early_introspect_db(dbname)
+                        )
 
             dropped = []
             for db in self._dbindex.iter_dbs():
