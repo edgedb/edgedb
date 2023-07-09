@@ -55,6 +55,7 @@ class Tenant(ha_base.ClusterProtocol):
     _sys_pgcon_waiter: asyncio.Lock
     _sys_pgcon_ready_evt: asyncio.Event
     _sys_pgcon_reconnect_evt: asyncio.Event
+    _max_backend_connections: int
 
     _ha_master_serial: int
     _backend_adaptive_ha: Optional[adaptive_ha.AdaptiveHASupport]
@@ -63,6 +64,7 @@ class Tenant(ha_base.ClusterProtocol):
         self,
         cluster: pgcluster.BaseCluster,
         *,
+        max_backend_connections: int,
         backend_adaptive_ha: bool = False,
     ):
         self._cluster = cluster
@@ -79,6 +81,8 @@ class Tenant(ha_base.ClusterProtocol):
             self._backend_adaptive_ha = adaptive_ha.AdaptiveHASupport(self)
         else:
             self._backend_adaptive_ha = None
+
+        self._max_backend_connections = max_backend_connections
 
     def set_server(self, server: edbserver.Server) -> None:
         self._server = server
@@ -118,6 +122,10 @@ class Tenant(ha_base.ClusterProtocol):
     @property
     def tenant_id(self) -> str:
         return self._tenant_id
+
+    @property
+    def max_backend_connections(self) -> int:
+        return self._max_backend_connections
 
     def get_pg_dbname(self, dbname: str) -> str:
         return self._cluster.get_db_name(dbname)

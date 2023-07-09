@@ -135,7 +135,6 @@ class Server:
         *,
         runstate_dir,
         internal_runstate_dir,
-        max_backend_connections,
         compiler_pool_size,
         compiler_pool_mode: srvargs.CompilerPoolMode,
         compiler_pool_addr,
@@ -172,7 +171,7 @@ class Server:
         self._tasks = set()
 
         # 1 connection is reserved for the system DB
-        pool_capacity = max_backend_connections - 1
+        pool_capacity = tenant.max_backend_connections - 1
         self._pg_pool = connpool.Pool(
             connect=self._tenant._pg_connect,
             disconnect=self._tenant._pg_disconnect,
@@ -185,13 +184,12 @@ class Server:
 
         self._runstate_dir = runstate_dir
         self._internal_runstate_dir = internal_runstate_dir
-        self._max_backend_connections = max_backend_connections
         self._compiler_pool = None
         self._compiler_pool_size = compiler_pool_size
         self._compiler_pool_mode = compiler_pool_mode
         self._compiler_pool_addr = compiler_pool_addr
         self._suggested_client_pool_size = max(
-            min(max_backend_connections,
+            min(tenant.max_backend_connections,
                 defines.MAX_SUGGESTED_CLIENT_POOL_SIZE),
             defines.MIN_SUGGESTED_CLIENT_POOL_SIZE
         )
@@ -2186,7 +2184,7 @@ class Server:
 
         obj = dict(
             params=dict(
-                max_backend_connections=self._max_backend_connections,
+                max_backend_connections=self._tenant.max_backend_connections,
                 suggested_client_pool_size=self._suggested_client_pool_size,
                 tenant_id=self._tenant.tenant_id,
                 dev_mode=self._devmode,
