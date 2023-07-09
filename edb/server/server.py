@@ -42,7 +42,6 @@ from edb import buildmeta
 from edb import errors
 
 from edb.common import devmode
-from edb.common import retryloop
 from edb.common import secretkey
 from edb.common import taskgroup
 from edb.common import windowedsum
@@ -995,7 +994,9 @@ class Server:
             g.create_task(self._maybe_patch_db(
                 defines.EDGEDB_TEMPLATE_DB, patches))
 
-        await self._ensure_database_not_connected(defines.EDGEDB_TEMPLATE_DB)
+        await self._tenant.ensure_database_not_connected(
+            defines.EDGEDB_TEMPLATE_DB
+        )
 
         # Patch the system db last. The system db needs to go last so
         # that it only gets updated if all of the other databases have
@@ -1207,7 +1208,7 @@ class Server:
             raise errors.ExecutionError(
                 f'cannot drop the currently open database {dbname!r}')
 
-        await self._ensure_database_not_connected(dbname)
+        await self._tenant.ensure_database_not_connected(dbname)
 
     async def _on_before_create_db_from_template(
         self,
@@ -1219,54 +1220,7 @@ class Server:
                 f'cannot create database using currently open database '
                 f'{dbname!r} as a template database')
 
-        await self._ensure_database_not_connected(dbname)
-
-    async def _ensure_database_not_connected(self, dbname: str) -> None:
-        if self._dbindex and self._dbindex.count_connections(dbname):
-            # If there are open EdgeDB connections to the `dbname` DB
-            # just raise the error Postgres would have raised itself.
-            raise errors.ExecutionError(
-                f'database {dbname!r} is being accessed by other users')
-        else:
-            self._block_new_connections.add(dbname)
-
-            # Prune our inactive connections.
-            await self._pg_pool.prune_inactive_connections(dbname)
-
-            # Signal adjacent servers to prune their connections to this
-            # database.
-            await self._signal_sysevent(
-                'ensure-database-not-used',
-                dbname=dbname,
-            )
-
-            rloop = retryloop.RetryLoop(
-                backoff=retryloop.exp_backoff(),
-                timeout=10.0,
-                ignore=errors.ExecutionError,
-            )
-
-            async for iteration in rloop:
-                async with iteration:
-                    await self._pg_ensure_database_not_connected(dbname)
-
-    async def _pg_ensure_database_not_connected(self, dbname: str) -> None:
-        async with self._tenant.use_sys_pgcon() as pgcon:
-            conns = await pgcon.sql_fetch_col(
-                b"""
-                SELECT
-                    pid
-                FROM
-                    pg_stat_activity
-                WHERE
-                    datname = $1
-                """,
-                args=[dbname.encode("utf-8")],
-            )
-
-        if conns:
-            raise errors.ExecutionError(
-                f'database {dbname!r} is being accessed by other users')
+        await self._tenant.ensure_database_not_connected(dbname)
 
     def _on_after_drop_db(self, dbname: str):
         try:
