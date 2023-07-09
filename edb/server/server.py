@@ -54,7 +54,6 @@ from edb.schema import schema as s_schema
 from edb.server import args as srvargs
 from edb.server import cache
 from edb.server import config
-from edb.server import connpool
 from edb.server import compiler_pool
 from edb.server import defines
 from edb.server import protocol
@@ -151,7 +150,6 @@ class Server:
         disable_dynamic_system_config: bool = False,
         tenant: edbtenant.Tenant,
     ):
-        max_backend_connections = tenant._max_backend_connections
         self.__loop = asyncio.get_running_loop()
 
         self._tenant = tenant
@@ -163,13 +161,6 @@ class Server:
 
         self._initing = False
 
-        # 1 connection is reserved for the system DB
-        pool_capacity = max_backend_connections - 1
-        self._pg_pool = connpool.Pool(
-            connect=self._pg_connect,
-            disconnect=self._pg_disconnect,
-            max_capacity=pool_capacity,
-        )
         self._pg_unavailable_msg = None
 
         # DB state will be initialized in init().
@@ -264,6 +255,10 @@ class Server:
     @property
     def _serving(self):
         return self._tenant._running
+
+    @property
+    def _pg_pool(self):
+        return self._tenant._pg_pool
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -2164,7 +2159,6 @@ class Server:
             ),
             instance_config=serialize_config(self._dbindex.get_sys_config()),
             user_roles=self._roles,
-            pg_pool=self._pg_pool._build_snapshot(now=time.monotonic()),
             compiler_pool=dict(
                 worker_pids=list(self._compiler_pool._workers.keys()),
                 template_pid=self._compiler_pool.get_template_pid(),
