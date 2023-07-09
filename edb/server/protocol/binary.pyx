@@ -1356,7 +1356,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
             user_schema = await tenant.introspect_user_schema(pgcon)
             global_schema = await tenant.introspect_global_schema(pgcon)
-            db_config = await server.introspect_db_config(pgcon)
+            db_config = await tenant.introspect_db_config(pgcon)
             dump_protocol = self.max_protocol
 
             schema_ddl, schema_dynamic_ddl, schema_ids, blocks = (
