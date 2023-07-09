@@ -608,6 +608,14 @@ class Tenant(ha_base.ClusterProtocol):
             schema_class_layout=self._server._schema_class_layout,
         )
 
+    async def introspect_db_config(
+        self, conn: pgcon.PGConnection
+    ) -> SettingsMap:
+        result = await conn.sql_fetch_val(
+            self._server.get_sys_query('dbconfig')
+        )
+        return config.from_json(config.get_settings(), result)
+
     async def introspect_extensions(self, dbname: str) -> None:
         logger.info("introspecting extensions for database '%s'", dbname)
         conn = await self._acquire_intro_pgcon(dbname)

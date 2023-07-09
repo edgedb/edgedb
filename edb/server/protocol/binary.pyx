@@ -1319,8 +1319,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 'DUMP must not be executed while in transaction'
             )
 
-        server = self.server
-        compiler_pool = server.get_compiler_pool()
+        compiler_pool = self.server.get_compiler_pool()
 
         dbname = _dbview.dbname
         tenant = self.tenant
@@ -1356,7 +1355,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
             user_schema = await tenant.introspect_user_schema(pgcon)
             global_schema = await tenant.introspect_global_schema(pgcon)
-            db_config = await server.introspect_db_config(pgcon)
+            db_config = await tenant.introspect_db_config(pgcon)
             dump_protocol = self.max_protocol
 
             schema_ddl, schema_dynamic_ddl, schema_ids, blocks = (

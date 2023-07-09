@@ -569,7 +569,7 @@ class Server:
             )
             backend_ids = json.loads(backend_ids_json)
 
-            db_config = await self.introspect_db_config(conn)
+            db_config = await self._tenant.introspect_db_config(conn)
             extensions = await self._tenant._introspect_extensions(conn)
 
             assert self._dbindex is not None
@@ -583,10 +583,6 @@ class Server:
             )
         finally:
             self._tenant.release_pgcon(dbname, conn)
-
-    async def introspect_db_config(self, conn):
-        result = await conn.sql_fetch_val(self.get_sys_query('dbconfig'))
-        return config.from_json(config.get_settings(), result)
 
     async def get_dbnames(self, syscon):
         dbs_query = self.get_sys_query('listdbs')
@@ -700,7 +696,7 @@ class Server:
                     )
                     user_schema = await self._tenant.introspect_user_schema(
                         conn, global_schema)
-                    config = await self.introspect_db_config(conn)
+                    config = await self._tenant.introspect_db_config(conn)
                     try:
                         logger.info("repairing database '%s'", dbname)
                         sql += bootstrap.prepare_repair_patch(
