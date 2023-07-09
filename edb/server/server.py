@@ -31,7 +31,6 @@ import pickle
 import socket
 import ssl
 import stat
-import struct
 import time
 import uuid
 
@@ -87,7 +86,6 @@ class Server:
     _local_intro_query: bytes
     _global_intro_query: bytes
     _report_config_typedesc: dict[defines.ProtocolVersion, bytes]
-    _report_config_data: dict[defines.ProtocolVersion, bytes]
     _file_watch_handles: list[asyncio.Handle]
 
     _std_schema: s_schema.Schema
@@ -227,7 +225,6 @@ class Server:
 
         self._disable_dynamic_system_config = disable_dynamic_system_config
         self._report_config_typedesc = {}
-        self._report_config_data = {}
 
     @property
     def _accept_new_tasks(self):
@@ -558,36 +555,8 @@ class Server:
             self.create_task(
                 self.load_reported_config(), interruptable=True)
 
-    def get_report_config_data(
-        self,
-        protocol_version: defines.ProtocolVersion,
-    ) -> bytes:
-        if protocol_version >= (2, 0):
-            return self._report_config_data[(2, 0)]
-        else:
-            return self._report_config_data[(1, 0)]
-
     async def load_reported_config(self) -> None:
-        async with self._tenant.use_sys_pgcon() as syscon:
-            try:
-                data = await syscon.sql_fetch_val(
-                    self.get_sys_query('report_configs'),
-                    use_prep_stmt=True,
-                )
-
-                for (
-                    protocol_ver,
-                    typedesc,
-                ) in self._report_config_typedesc.items():
-                    self._report_config_data[protocol_ver] = (
-                        struct.pack('!L', len(typedesc)) +
-                        typedesc +
-                        struct.pack('!L', len(data)) +
-                        data
-                    )
-            except Exception:
-                metrics.background_errors.inc(1.0, 'load_reported_config')
-                raise
+        await self._tenant._load_reported_config()
 
     async def introspect_global_schema(self, conn=None):
         intro_query = self._global_intro_query
@@ -1978,6 +1947,11 @@ class Server:
         child["params"] = parent["params"]
         parent.update(child)
         return parent
+
+    def get_report_config_typedesc(
+        self
+    ) -> dict[defines.ProtocolVersion, bytes]:
+        return self._report_config_typedesc
 
     def retrieve_tenant(self, sslobj) -> edbtenant.Tenant | None:
         # After TLS handshake, the client connection would use this method to
