@@ -567,6 +567,7 @@ cdef class HttpProtocol:
                 response,
                 path_parts[1:],
                 self.server,
+                self.tenant,
             )
         elif route == 'server':
             # System API request

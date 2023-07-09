@@ -35,7 +35,7 @@ SESSION_HIGH_WATER_MARK = SESSION_TIMEOUT * 10
 sessions: collections.OrderedDict[str, tuple] = collections.OrderedDict()
 
 
-def handle_request(scheme, auth_str, response, server):
+def handle_request(scheme, auth_str, response, server, tenant):
     if scheme != "SCRAM-SHA-256":
         response.body = (
             b"Client selected an invalid SASL authentication mechanism"
@@ -110,7 +110,7 @@ def handle_request(scheme, auth_str, response, server):
             return
 
         try:
-            verifier, mock_auth = get_scram_verifier(username, server)
+            verifier, mock_auth = get_scram_verifier(username, server, tenant)
         except ValueError as ex:
             if debug.flags.server:
                 markup.dump(ex)
@@ -254,7 +254,7 @@ def handle_request(scheme, auth_str, response, server):
         ] = f"sid={sid}, data={server_final}"
 
 
-def get_scram_verifier(user, server):
+def get_scram_verifier(user, server, tenant):
     roles = server.get_roles()
 
     rolerec = roles.get(user)
