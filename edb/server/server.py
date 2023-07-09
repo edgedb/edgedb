@@ -31,7 +31,6 @@ import pickle
 import socket
 import ssl
 import stat
-import struct
 import time
 import uuid
 import weakref
@@ -89,7 +88,6 @@ class Server:
     _local_intro_query: bytes
     _global_intro_query: bytes
     _report_config_typedesc: dict[defines.ProtocolVersion, bytes]
-    _report_config_data: dict[defines.ProtocolVersion, bytes]
     _file_watch_handles: list[asyncio.Handle]
 
     _std_schema: s_schema.Schema
@@ -230,7 +228,6 @@ class Server:
 
         self._disable_dynamic_system_config = disable_dynamic_system_config
         self._report_config_typedesc = {}
-        self._report_config_data = {}
 
     @property
     def _accept_new_tasks(self):
@@ -367,7 +364,7 @@ class Server:
             global_schema = await self.introspect_global_schema()
             sys_config = await self.load_sys_config()
             default_sysconfig = await self.load_sys_config('sysconfig_default')
-            await self.load_reported_config()
+            await self._tenant._load_reported_config()
 
             self._tenant._dbindex = dbview.DatabaseIndex(
                 self._tenant,
@@ -542,38 +539,7 @@ class Server:
         setting = self._config_settings[setting_name]
         if setting.report and self._accept_new_tasks:
             self.create_task(
-                self.load_reported_config(), interruptable=True)
-
-    def get_report_config_data(
-        self,
-        protocol_version: defines.ProtocolVersion,
-    ) -> bytes:
-        if protocol_version >= (2, 0):
-            return self._report_config_data[(2, 0)]
-        else:
-            return self._report_config_data[(1, 0)]
-
-    async def load_reported_config(self) -> None:
-        async with self._tenant.use_sys_pgcon() as syscon:
-            try:
-                data = await syscon.sql_fetch_val(
-                    self.get_sys_query('report_configs'),
-                    use_prep_stmt=True,
-                )
-
-                for (
-                    protocol_ver,
-                    typedesc,
-                ) in self._report_config_typedesc.items():
-                    self._report_config_data[protocol_ver] = (
-                        struct.pack('!L', len(typedesc)) +
-                        typedesc +
-                        struct.pack('!L', len(data)) +
-                        data
-                    )
-            except Exception:
-                metrics.background_errors.inc(1.0, 'load_reported_config')
-                raise
+                self._tenant._load_reported_config(), interruptable=True)
 
     async def introspect_global_schema(self, conn=None):
         intro_query = self._global_intro_query
@@ -1979,6 +1945,11 @@ class Server:
         obj['databases'] = dbs
 
         return obj
+
+    def get_report_config_typedesc(
+        self
+    ) -> dict[defines.ProtocolVersion, bytes]:
+        return self._report_config_typedesc
 
     def retrieve_tenant(self, sslobj) -> edbtenant.Tenant | None:
         return self.get_default_tenant()
