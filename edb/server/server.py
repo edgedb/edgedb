@@ -50,7 +50,6 @@ from edb.common import taskgroup
 from edb.common import windowedsum
 
 from edb.schema import reflection as s_refl
-from edb.schema import roles as s_role
 from edb.schema import schema as s_schema
 
 from edb.server import args as srvargs
@@ -380,7 +379,6 @@ class Server:
                 default_sysconfig=default_sysconfig,
             )
 
-            self._fetch_roles()
             await self._tenant.start()
 
             self._populate_sys_auth()
@@ -603,7 +601,7 @@ class Server:
             return
         new_global_schema = await self.introspect_global_schema()
         self._dbindex.update_global_schema(new_global_schema)
-        self._fetch_roles()
+        self._tenant.fetch_roles()
 
     async def introspect_user_schema(self, conn, global_schema=None):
         json_data = await conn.sql_fetch_val(self._local_intro_query)
@@ -901,20 +899,6 @@ class Server:
         async with self._tenant._use_sys_pgcon() as syscon:
             await self._maybe_apply_patches(
                 defines.EDGEDB_SYSTEM_DB, syscon, patches, sys=True)
-
-    def _fetch_roles(self):
-        global_schema = self._dbindex.get_global_schema()
-
-        roles = {}
-        for role in global_schema.get_objects(type=s_role.Role):
-            role_name = str(role.get_name(global_schema))
-            roles[role_name] = {
-                'name': role_name,
-                'superuser': role.get_superuser(global_schema),
-                'password': role.get_password(global_schema),
-            }
-
-        self._tenant._roles = immutables.Map(roles)
 
     def _load_schema(self, result, version_key):
         res = pickle.loads(result[2:])
