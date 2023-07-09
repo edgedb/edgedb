@@ -36,6 +36,7 @@ from edb.common import taskgroup
 from edb.schema import roles as s_role
 from edb.schema import schema as s_schema
 
+from . import args as srvargs
 from . import config
 from . import connpool
 from . import dbview
@@ -93,6 +94,7 @@ class Tenant(ha_base.ClusterProtocol):
     _report_config_data: dict[defines.ProtocolVersion, bytes]
 
     _roles: Mapping[str, RoleDescriptor]
+    _sys_auth: Tuple[Any, ...]
 
     def __init__(
         self,
@@ -143,6 +145,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._dbindex = None
 
         self._roles = immutables.Map()
+        self._sys_auth = tuple()
 
     def set_server(self, server: edbserver.Server) -> None:
         self._server = server
@@ -272,6 +275,8 @@ class Tenant(ha_base.ClusterProtocol):
         await self.__sys_pgcon.listen_for_sysevent()
         self.__sys_pgcon.mark_as_system_db()
         self._sys_pgcon_ready_evt.set()
+
+        self.populate_sys_auth()
 
     async def start_accepting_new_tasks(self) -> None:
         assert self._task_group is None
@@ -756,6 +761,35 @@ class Tenant(ha_base.ClusterProtocol):
         assert self._dbindex is not None
         self._dbindex.update_global_schema(new_global_schema)
         self.fetch_roles()
+
+    def populate_sys_auth(self) -> None:
+        assert self._dbindex is not None
+        cfg = self._dbindex.get_sys_config()
+        auth = config.lookup("auth", cfg) or ()
+        self._sys_auth = tuple(sorted(auth, key=lambda a: a.priority))
+
+    async def get_auth_method(
+        self,
+        user: str,
+        transport: srvargs.ServerConnTransport,
+    ) -> Any:
+        authlist = self._sys_auth
+
+        if authlist:
+            for auth in authlist:
+                match = (user in auth.user or "*" in auth.user) and (
+                    not auth.method.transports
+                    or transport in auth.method.transports
+                )
+
+                if match:
+                    return auth.method
+
+        default_method = self._server.get_default_auth_method(transport)
+        auth_type = config.get_settings().get_type_by_name(
+            default_method.value
+        )
+        return auth_type()
 
     def get_debug_info(self) -> dict[str, Any]:
         obj = dict(
