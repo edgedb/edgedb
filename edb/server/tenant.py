@@ -66,6 +66,7 @@ class Tenant(ha_base.ClusterProtocol):
     _sys_pgcon_ready_evt: asyncio.Event
     _sys_pgcon_reconnect_evt: asyncio.Event
     _max_backend_connections: int
+    _suggested_client_pool_size: int
 
     _ha_master_serial: int
     _backend_adaptive_ha: adaptive_ha.AdaptiveHASupport | None
@@ -99,6 +100,12 @@ class Tenant(ha_base.ClusterProtocol):
             self._backend_adaptive_ha = None
 
         self._max_backend_connections = max_backend_connections
+        self._suggested_client_pool_size = max(
+            min(
+                max_backend_connections, defines.MAX_SUGGESTED_CLIENT_POOL_SIZE
+            ),
+            defines.MIN_SUGGESTED_CLIENT_POOL_SIZE,
+        )
 
     def set_server(self, server: edbserver.Server) -> None:
         self._server = server
@@ -147,6 +154,10 @@ class Tenant(ha_base.ClusterProtocol):
     @property
     def max_backend_connections(self) -> int:
         return self._max_backend_connections
+
+    @property
+    def suggested_client_pool_size(self) -> int:
+        return self._suggested_client_pool_size
 
     def get_pg_dbname(self, dbname: str) -> str:
         return self._cluster.get_db_name(dbname)
