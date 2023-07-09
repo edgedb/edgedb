@@ -29,6 +29,7 @@ import time
 import immutables
 
 from edb import errors
+from edb.common import retryloop
 
 from . import connpool
 from . import defines
@@ -440,3 +441,52 @@ class Tenant(ha_base.ClusterProtocol):
             dbname != defines.EDGEDB_TEMPLATE_DB
             and dbname not in self._block_new_connections
         )
+
+    async def ensure_database_not_connected(self, dbname: str) -> None:
+        if self._server._dbindex and self._server._dbindex.count_connections(
+            dbname
+        ):
+            # If there are open EdgeDB connections to the `dbname` DB
+            # just raise the error Postgres would have raised itself.
+            raise errors.ExecutionError(
+                f'database {dbname!r} is being accessed by other users')
+        else:
+            self._block_new_connections.add(dbname)
+
+            # Prune our inactive connections.
+            await self._pg_pool.prune_inactive_connections(dbname)
+
+            # Signal adjacent servers to prune their connections to this
+            # database.
+            await self._server._signal_sysevent(
+                'ensure-database-not-used',
+                dbname=dbname,
+            )
+
+            rloop = retryloop.RetryLoop(
+                backoff=retryloop.exp_backoff(),
+                timeout=10.0,
+                ignore=errors.ExecutionError,
+            )
+
+            async for iteration in rloop:
+                async with iteration:
+                    await self._pg_ensure_database_not_connected(dbname)
+
+    async def _pg_ensure_database_not_connected(self, dbname: str) -> None:
+        async with self._use_sys_pgcon() as pgcon:
+            conns = await pgcon.sql_fetch_col(
+                b"""
+                SELECT
+                    pid
+                FROM
+                    pg_stat_activity
+                WHERE
+                    datname = $1
+                """,
+                args=[dbname.encode("utf-8")],
+            )
+
+        if conns:
+            raise errors.ExecutionError(
+                f'database {dbname!r} is being accessed by other users')
