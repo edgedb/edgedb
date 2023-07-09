@@ -389,10 +389,6 @@ class Server:
             )
 
             self._fetch_roles()
-            await self._introspect_dbs()
-
-            # Now, once all DBs have been introspected, start listening on
-            # any notifications about schema/roles/etc changes.
             await self._tenant.start()
 
             self._populate_sys_auth()
@@ -729,17 +725,6 @@ class Server:
         dbs_query = self.get_sys_query('listdbs')
         json_data = await syscon.sql_fetch_val(dbs_query)
         return json.loads(json_data)
-
-    async def _introspect_dbs(self):
-        async with self._tenant._use_sys_pgcon() as syscon:
-            dbnames = await self.get_dbnames(syscon)
-
-        async with taskgroup.TaskGroup(name='introspect DB extensions') as g:
-            for dbname in dbnames:
-                # There's a risk of the DB being dropped by another server
-                # between us building the list of databases and loading
-                # information about them.
-                g.create_task(self._tenant._early_introspect_db(dbname))
 
     async def get_patch_count(self, conn):
         """Get the number of applied patches."""
