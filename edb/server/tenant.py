@@ -657,6 +657,22 @@ class Tenant(ha_base.ClusterProtocol):
                 raise
         return conn
 
+    async def introspect_extensions(self, dbname: str) -> None:
+        logger.info("introspecting extensions for database '%s'", dbname)
+        conn = await self._acquire_intro_pgcon(dbname)
+        if not conn:
+            return
+
+        try:
+            extensions = await self._introspect_extensions(conn)
+        finally:
+            self.release_pgcon(dbname, conn)
+
+        if self._dbindex is not None:
+            db = self._dbindex.maybe_get_db(dbname)
+            if db is not None:
+                db.extensions = extensions
+
     async def _introspect_extensions(
         self, conn: pgcon.PGConnection
     ) -> set[str]:
