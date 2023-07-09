@@ -571,3 +571,22 @@ class Tenant(ha_base.ClusterProtocol):
             raise errors.ExecutionError(
                 f"database {dbname!r} is being accessed by other users"
             )
+
+    async def _acquire_intro_pgcon(
+        self, dbname: str
+    ) -> pgcon.PGConnection | None:
+        try:
+            conn = await self.acquire_pgcon(dbname)
+        except pgcon_errors.BackendError as e:
+            if e.code_is(pgcon_errors.ERROR_INVALID_CATALOG_NAME):
+                # database does not exist (anymore)
+                logger.warning(
+                    "Detected concurrently-dropped database %s; skipping.",
+                    dbname,
+                )
+                if self._dbindex is not None and self._dbindex.has_db(dbname):
+                    self._dbindex.unregister_db(dbname)
+                return None
+            else:
+                raise
+        return conn
