@@ -215,7 +215,7 @@ async def handle_request(
 
 
 async def compile(
-    db,
+    dbview.Database db,
     tenant,
     query: str,
     tokens: Optional[List[Tuple[int, int, int, str]]],
@@ -231,7 +231,7 @@ async def compile(
         tenant.get_global_schema(),
         db.reflection_cache,
         db.db_config,
-        server.get_compilation_system_config(),
+        db._index.get_compilation_system_config(),
         query,
         tokens,
         substitutions,
