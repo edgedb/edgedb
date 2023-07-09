@@ -133,7 +133,7 @@ async def handle_request(
 
 async def heartbeat_check(db, tenant):
     server = tenant.server
-    pgcon = await server.acquire_pgcon(db.name)
+    pgcon = await tenant.acquire_pgcon(db.name)
     try:
         await pgcon.sql_execute(b"SELECT 'OK';")
     finally:
@@ -175,7 +175,7 @@ async def execute(db, tenant, queries: list):
     )
     result = []
     bind_data = None
-    pgcon = await server.acquire_pgcon(db.name)
+    pgcon = await tenant.acquire_pgcon(db.name)
     try:
         await pgcon.sql_execute(b'START TRANSACTION;')
 

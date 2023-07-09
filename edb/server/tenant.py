@@ -28,6 +28,8 @@ import time
 
 import immutables
 
+from edb import errors
+
 from . import connpool
 from . import defines
 from . import metrics
@@ -387,3 +389,24 @@ class Tenant(ha_base.ClusterProtocol):
     def set_pg_unavailable_msg(self, msg: str | None) -> None:
         if msg is None or self._pg_unavailable_msg is None:
             self._pg_unavailable_msg = msg
+
+    async def acquire_pgcon(self, dbname: str) -> pgcon.PGConnection:
+        if self._pg_unavailable_msg is not None:
+            raise errors.BackendUnavailableError(
+                'Postgres is not available: ' + self._pg_unavailable_msg
+            )
+
+        for _ in range(self._pg_pool.max_capacity):
+            conn = await self._pg_pool.acquire(dbname)
+            if conn.is_healthy():
+                return conn
+            else:
+                logger.warning('Acquired an unhealthy pgcon; discard now.')
+                self._pg_pool.release(dbname, conn, discard=True)
+        else:
+            # This is unlikely to happen, but we defer to the caller to retry
+            # when it does happen
+            raise errors.BackendUnavailableError(
+                'No healthy backend connection available at the moment, '
+                'please try again.'
+            )

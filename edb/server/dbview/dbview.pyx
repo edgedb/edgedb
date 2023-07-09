@@ -187,6 +187,10 @@ cdef class Database:
     def server(self):
         return self._index._server
 
+    @property
+    def tenant(self):
+        return self._index._tenant
+
     cdef schedule_config_update(self):
         self._index._server._on_local_database_config_change(self.name)
 

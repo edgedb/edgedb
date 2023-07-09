@@ -122,7 +122,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                 return self._pinned_pgcon
             if self._pinned_pgcon is not None:
                 raise RuntimeError('there is already a pinned pgcon')
-            conn = await self.server.acquire_pgcon(self.dbname)
+            conn = await self.tenant.acquire_pgcon(self.dbname)
             self._pinned_pgcon = conn
             conn.pinned_by = self
             return conn
