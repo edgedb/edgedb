@@ -132,12 +132,11 @@ async def handle_request(
 
 
 async def heartbeat_check(db, tenant):
-    server = tenant.server
     pgcon = await tenant.acquire_pgcon(db.name)
     try:
         await pgcon.sql_execute(b"SELECT 'OK';")
     finally:
-        server.release_pgcon(db.name, pgcon)
+        tenant.release_pgcon(db.name, pgcon)
 
 
 cdef class NotebookConnection(frontend.AbstractFrontendConnection):
@@ -247,6 +246,6 @@ async def execute(db, tenant, queries: list):
         try:
             await pgcon.sql_execute(b'ROLLBACK;')
         finally:
-            server.release_pgcon(db.name, pgcon)
+            tenant.release_pgcon(db.name, pgcon)
 
     return json.dumps(result).encode()

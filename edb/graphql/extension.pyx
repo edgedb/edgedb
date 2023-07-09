@@ -366,4 +366,4 @@ async def _execute(db, tenant, query, operation_name, variables, globals):
             use_prep_stmt=use_prep_stmt,
         )
     finally:
-        server.release_pgcon(db.name, pgcon)
+        tenant.release_pgcon(db.name, pgcon)
