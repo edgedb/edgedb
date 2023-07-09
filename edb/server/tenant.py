@@ -34,6 +34,7 @@ from edb import errors
 from edb.common import retryloop
 from edb.common import taskgroup
 from edb.schema import roles as s_role
+from edb.schema import schema as s_schema
 
 from . import config
 from . import connpool
@@ -720,6 +721,16 @@ class Tenant(ha_base.ClusterProtocol):
             sys_config_json = await syscon.sql_fetch_val(query)
 
         return config.from_json(config.get_settings(), sys_config_json)
+
+    async def introspect_global_schema(
+        self,
+        conn: pgcon.PGConnection | None = None,
+    ) -> s_schema.Schema:
+        if conn is not None:
+            return await self._server.introspect_global_schema(conn)
+        else:
+            async with self.use_sys_pgcon() as syscon:
+                return await self._server.introspect_global_schema(syscon)
 
     def get_debug_info(self) -> dict[str, Any]:
         obj = dict(

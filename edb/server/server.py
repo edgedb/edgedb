@@ -90,7 +90,7 @@ class Server:
 
     _std_schema: s_schema.Schema
     _refl_schema: s_schema.Schema
-    _schema_class_layout: s_refl.SchemaTypeLayout
+    _schema_class_layout: s_refl.SchemaClassLayout
 
     _servers: Mapping[str, asyncio.AbstractServer]
 
@@ -372,7 +372,7 @@ class Server:
             await self._load_instance_data()
             await self._maybe_patch()
 
-            global_schema = await self.introspect_global_schema()
+            global_schema = await self._tenant.introspect_global_schema()
             sys_config = await self.load_sys_config()
             default_sysconfig = await self.load_sys_config('sysconfig_default')
             await self.load_reported_config()
@@ -554,14 +554,11 @@ class Server:
     async def load_reported_config(self) -> None:
         await self._tenant._load_reported_config()
 
-    async def introspect_global_schema(self, conn=None):
+    async def introspect_global_schema(
+        self, conn: pgcon.PGConnection
+    ) -> s_schema.Schema:
         intro_query = self._global_intro_query
-        if conn is not None:
-            json_data = await conn.sql_fetch_val(intro_query)
-        else:
-            async with self._tenant.use_sys_pgcon() as syscon:
-                json_data = await syscon.sql_fetch_val(intro_query)
-
+        json_data = await conn.sql_fetch_val(intro_query)
         return s_refl.parse_into(
             base_schema=self._std_schema,
             schema=s_schema.FlatSchema(),
@@ -804,7 +801,9 @@ class Server:
                 if last_repair:
                     from . import bootstrap
 
-                    global_schema = await self.introspect_global_schema(conn)
+                    global_schema = (
+                        await self._tenant.introspect_global_schema(conn)
+                    )
                     user_schema = await self.introspect_user_schema(
                         conn, global_schema)
                     config = await self.introspect_db_config(conn)
