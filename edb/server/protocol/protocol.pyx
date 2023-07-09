@@ -486,7 +486,7 @@ cdef class HttpProtocol:
                 return self._not_found(request, response)
 
             dbname = path_parts[1]
-            db = self.server.maybe_get_db(dbname=dbname)
+            db = self.tenant.maybe_get_db(dbname=dbname)
             if db is None:
                 return self._not_found(request, response)
 
