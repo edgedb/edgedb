@@ -210,7 +210,11 @@ class Tenant(ha_base.ClusterProtocol):
             )
             self._instance_data = immutables.Map(json.loads(result))
 
-    async def start_sys_pgcon(self) -> None:
+    async def init(self) -> None:
+        await self._introspect_dbs()
+
+        # Now, once all DBs have been introspected, start listening on
+        # any notifications about schema/roles/etc changes.
         assert self.__sys_pgcon is not None
         await self.__sys_pgcon.listen_for_sysevent()
         self.__sys_pgcon.mark_as_system_db()
@@ -634,3 +638,14 @@ class Tenant(ha_base.ClusterProtocol):
                     )
         finally:
             self.release_pgcon(dbname, conn)
+
+    async def _introspect_dbs(self) -> None:
+        async with self.use_sys_pgcon() as syscon:
+            dbnames = await self._server.get_dbnames(syscon)
+
+        async with taskgroup.TaskGroup(name="introspect DB extensions") as g:
+            for dbname in dbnames:
+                # There's a risk of the DB being dropped by another server
+                # between us building the list of databases and loading
+                # information about them.
+                g.create_task(self._early_introspect_db(dbname))
