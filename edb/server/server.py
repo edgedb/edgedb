@@ -55,7 +55,6 @@ from edb.schema import schema as s_schema
 from edb.server import args as srvargs
 from edb.server import cache
 from edb.server import config
-from edb.server import connpool
 from edb.server import compiler_pool
 from edb.server import defines
 from edb.server import protocol
@@ -164,13 +163,6 @@ class Server:
 
         self._initing = False
 
-        # 1 connection is reserved for the system DB
-        pool_capacity = tenant.max_backend_connections - 1
-        self._pg_pool = connpool.Pool(
-            connect=self._tenant._pg_connect,
-            disconnect=self._tenant._pg_disconnect,
-            max_capacity=pool_capacity,
-        )
         self._pg_unavailable_msg = None
 
         # DB state will be initialized in init().
@@ -456,7 +448,7 @@ class Server:
             '_pg_prepared_statement_cache_size', self._dbindex.get_sys_config()
         )
         self._stmt_cache_size = size
-        for conn in self._pg_pool.iterate_connections():
+        for conn in self._tenant._pg_pool.iterate_connections():
             conn.set_stmt_cache_size(size)
 
     def _idle_gc_collector(self):
@@ -560,13 +552,13 @@ class Server:
                 'Postgres is not available: ' + self._pg_unavailable_msg
             )
 
-        for _ in range(self._pg_pool.max_capacity):
-            conn = await self._pg_pool.acquire(dbname)
+        for _ in range(self._tenant._pg_pool.max_capacity):
+            conn = await self._tenant._pg_pool.acquire(dbname)
             if conn.is_healthy():
                 return conn
             else:
                 logger.warning('Acquired an unhealthy pgcon; discard now.')
-                self._pg_pool.release(dbname, conn, discard=True)
+                self._tenant._pg_pool.release(dbname, conn, discard=True)
         else:
             # This is unlikely to happen, but we defer to the caller to retry
             # when it does happen
@@ -581,7 +573,7 @@ class Server:
                 logger.warning('Released an unhealthy pgcon; discard now.')
             discard = True
         try:
-            self._pg_pool.release(dbname, conn, discard=discard)
+            self._tenant._pg_pool.release(dbname, conn, discard=discard)
         except Exception:
             metrics.background_errors.inc(1.0, 'release_pgcon')
             raise
@@ -1259,7 +1251,7 @@ class Server:
             self._block_new_connections.add(dbname)
 
             # Prune our inactive connections.
-            await self._pg_pool.prune_inactive_connections(dbname)
+            await self._tenant._pg_pool.prune_inactive_connections(dbname)
 
             # Signal adjacent servers to prune their connections to this
             # database.
@@ -1466,7 +1458,7 @@ class Server:
 
         async def task():
             try:
-                await self._pg_pool.prune_inactive_connections(dbname)
+                await self._tenant._pg_pool.prune_inactive_connections(dbname)
             except Exception:
                 metrics.background_errors.inc(1.0, 'remote_db_quarantine')
                 raise
@@ -2160,7 +2152,7 @@ class Server:
             instance_config=serialize_config(self._dbindex.get_sys_config()),
             user_roles=self._roles,
             pg_addr=tenant.get_pgaddr(),
-            pg_pool=self._pg_pool._build_snapshot(now=time.monotonic()),
+            pg_pool=tenant._pg_pool._build_snapshot(now=time.monotonic()),
             compiler_pool=dict(
                 worker_pids=list(self._compiler_pool._workers.keys()),
                 template_pid=self._compiler_pool.get_template_pid(),

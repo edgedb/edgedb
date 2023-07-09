@@ -31,6 +31,7 @@ import immutables
 
 from edb.common import taskgroup
 
+from . import connpool
 from . import defines
 from . import metrics
 from . import pgcon
@@ -67,6 +68,7 @@ class Tenant(ha_base.ClusterProtocol):
     _sys_pgcon_reconnect_evt: asyncio.Event
     _max_backend_connections: int
     _suggested_client_pool_size: int
+    _pg_pool: connpool.Pool
 
     _ha_master_serial: int
     _backend_adaptive_ha: adaptive_ha.AdaptiveHASupport | None
@@ -106,6 +108,12 @@ class Tenant(ha_base.ClusterProtocol):
             ),
             defines.MIN_SUGGESTED_CLIENT_POOL_SIZE,
         )
+        self._pg_pool = connpool.Pool(
+            connect=self._pg_connect,
+            disconnect=self._pg_disconnect,
+            # 1 connection is reserved for the system DB
+            max_capacity=max_backend_connections - 1,
+        )
 
     def set_server(self, server: edbserver.Server) -> None:
         self._server = server
@@ -118,7 +126,7 @@ class Tenant(ha_base.ClusterProtocol):
 
         if self._accept_new_tasks:
             self.create_task(
-                self._server._pg_pool.prune_all_connections(),
+                self._pg_pool.prune_all_connections(),
                 interruptable=True,
             )
 
@@ -139,8 +147,7 @@ class Tenant(ha_base.ClusterProtocol):
 
     def get_active_pgcon_num(self) -> int:
         return (
-            self._server._pg_pool.current_capacity
-            - self._server._pg_pool.get_pending_conns()
+            self._pg_pool.current_capacity - self._pg_pool.get_pending_conns()
         )
 
     @property
