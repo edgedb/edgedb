@@ -476,7 +476,7 @@ async def parse_execute_json(
             globals_=globals_,
         )
     finally:
-        server.release_pgcon(db.name, pgcon)
+        tenant.release_pgcon(db.name, pgcon)
 
 
 async def execute_json(
