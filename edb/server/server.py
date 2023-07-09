@@ -128,7 +128,6 @@ class Server:
         *,
         runstate_dir,
         internal_runstate_dir,
-        max_backend_connections,
         compiler_pool_size,
         compiler_pool_mode: srvargs.CompilerPoolMode,
         compiler_pool_addr,
@@ -152,6 +151,7 @@ class Server:
         disable_dynamic_system_config: bool = False,
         tenant: edbtenant.Tenant,
     ):
+        max_backend_connections = tenant._max_backend_connections
         self.__loop = asyncio.get_running_loop()
 
         self._tenant = tenant
@@ -177,7 +177,6 @@ class Server:
 
         self._runstate_dir = runstate_dir
         self._internal_runstate_dir = internal_runstate_dir
-        self._max_backend_connections = max_backend_connections
         self._compiler_pool = None
         self._compiler_pool_size = compiler_pool_size
         self._compiler_pool_mode = compiler_pool_mode
@@ -2165,7 +2164,6 @@ class Server:
 
         parent = dict(
             params=dict(
-                max_backend_connections=self._max_backend_connections,
                 suggested_client_pool_size=self._suggested_client_pool_size,
                 dev_mode=self._devmode,
                 test_mode=self._testmode,
