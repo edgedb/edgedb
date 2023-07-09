@@ -709,16 +709,6 @@ class Server:
             db_config = await self.introspect_db_config(conn)
             extensions = await self._introspect_extensions(conn)
 
-            extension_names_json = await conn.sql_fetch_val(
-                b'''
-                    SELECT json_agg(name) FROM edgedb."_SchemaExtension";
-                ''',
-            )
-            if extension_names_json:
-                extensions = set(json.loads(extension_names_json))
-            else:
-                extensions = set()
-
             assert self._dbindex is not None
             self._dbindex.register_db(
                 dbname,
@@ -732,17 +722,7 @@ class Server:
             self.release_pgcon(dbname, conn)
 
     async def _introspect_extensions(self, conn):
-        extension_names_json = await conn.sql_fetch_val(
-            b'''
-                SELECT json_agg(name) FROM edgedb."_SchemaExtension";
-            ''',
-        )
-        if extension_names_json:
-            extensions = set(json.loads(extension_names_json))
-        else:
-            extensions = set()
-
-        return extensions
+        return await self._tenant._introspect_extensions(conn)
 
     async def introspect_extensions(self, dbname):
         logger.info("introspecting extensions for database '%s'", dbname)
