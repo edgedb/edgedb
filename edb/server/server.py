@@ -489,9 +489,6 @@ class Server:
     def get_compiler_pool(self):
         return self._compiler_pool
 
-    def get_compilation_system_config(self):
-        return self._dbindex.get_compilation_system_config()
-
     def release_pgcon(self, dbname, conn, *, discard=False):
         self._tenant.release_pgcon(dbname, conn, discard=discard)
 
