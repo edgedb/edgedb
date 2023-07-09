@@ -32,6 +32,7 @@ import immutables
 from edb import errors
 from edb.common import retryloop
 from edb.common import taskgroup
+from edb.schema import roles as s_role
 
 from . import connpool
 from . import dbview
@@ -208,6 +209,21 @@ class Tenant(ha_base.ClusterProtocol):
     def get_roles(self) -> Mapping[str, RoleDescriptor]:
         return self._roles
 
+    def fetch_roles(self) -> None:
+        assert self._dbindex is not None
+        global_schema = self._dbindex.get_global_schema()
+
+        roles = {}
+        for role in global_schema.get_objects(type=s_role.Role):
+            role_name = str(role.get_name(global_schema))
+            roles[role_name] = RoleDescriptor(
+                name=role_name,
+                superuser=role.get_superuser(global_schema),
+                password=role.get_password(global_schema),
+            )
+
+        self._roles = immutables.Map(roles)
+
     async def init_sys_pgcon(self) -> None:
         self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
         self._sys_pgcon_waiter = asyncio.Lock()
@@ -224,6 +240,7 @@ class Tenant(ha_base.ClusterProtocol):
             self._instance_data = immutables.Map(json.loads(result))
 
     async def init(self) -> None:
+        self.fetch_roles()
         await self._introspect_dbs()
 
         # Now, once all DBs have been introspected, start listening on
