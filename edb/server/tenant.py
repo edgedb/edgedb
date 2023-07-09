@@ -732,6 +732,18 @@ class Tenant(ha_base.ClusterProtocol):
             async with self.use_sys_pgcon() as syscon:
                 return await self._server.introspect_global_schema(syscon)
 
+    async def _reintrospect_global_schema(self) -> None:
+        if not self._server._initing and not self._running:
+            logger.warning(
+                "global-schema-changes event received during shutdown; "
+                "ignoring."
+            )
+            return
+        new_global_schema = await self.introspect_global_schema()
+        assert self._dbindex is not None
+        self._dbindex.update_global_schema(new_global_schema)
+        self.fetch_roles()
+
     def get_debug_info(self) -> dict[str, Any]:
         obj = dict(
             params=dict(

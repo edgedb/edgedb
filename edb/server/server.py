@@ -567,15 +567,7 @@ class Server:
         )
 
     async def _reintrospect_global_schema(self):
-        if not self._initing and not self._serving:
-            logger.warning(
-                "global-schema-changes event received during shutdown; "
-                "ignoring."
-            )
-            return
-        new_global_schema = await self.introspect_global_schema()
-        self._dbindex.update_global_schema(new_global_schema)
-        self._tenant.fetch_roles()
+        await self._tenant._reintrospect_global_schema()
 
     async def introspect_user_schema(self, conn, global_schema=None):
         json_data = await conn.sql_fetch_val(self._local_intro_query)
