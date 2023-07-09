@@ -332,7 +332,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         )
         self.write_status(
             b'system_config',
-            self.server.get_report_config_data(self.protocol_version),
+            self.tenant.get_report_config_data(self.protocol_version),
         )
 
         self.write(self.sync_status())
