@@ -328,7 +328,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.write_status(
             b'suggested_pool_concurrency',
-            str(self.server.get_suggested_client_pool_size()).encode()
+            str(self.tenant.suggested_client_pool_size).encode()
         )
         self.write_status(
             b'system_config',

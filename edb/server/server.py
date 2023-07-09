@@ -181,11 +181,6 @@ class Server:
         self._compiler_pool_size = compiler_pool_size
         self._compiler_pool_mode = compiler_pool_mode
         self._compiler_pool_addr = compiler_pool_addr
-        self._suggested_client_pool_size = max(
-            min(max_backend_connections,
-                defines.MAX_SUGGESTED_CLIENT_POOL_SIZE),
-            defines.MIN_SUGGESTED_CLIENT_POOL_SIZE
-        )
 
         self._listen_sockets = listen_sockets
         if listen_sockets:
@@ -538,9 +533,6 @@ class Server:
 
     def get_compiler_pool(self):
         return self._compiler_pool
-
-    def get_suggested_client_pool_size(self) -> int:
-        return self._suggested_client_pool_size
 
     def get_db(self, *, dbname: str):
         assert self._dbindex is not None
@@ -2164,7 +2156,6 @@ class Server:
 
         parent = dict(
             params=dict(
-                suggested_client_pool_size=self._suggested_client_pool_size,
                 dev_mode=self._devmode,
                 test_mode=self._testmode,
                 default_auth_method=str(self._default_auth_method),
