@@ -382,7 +382,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         return params
 
     async def _start_connection(self, database: str) -> None:
-        dbv = await self.server.new_dbview(
+        dbv = await self.tenant.new_dbview(
             dbname=database,
             query_cache=self.query_cache_enabled,
             protocol_version=self.protocol_version,
@@ -397,7 +397,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         self._con_status = EDGECON_BAD
 
         if self._dbview is not None:
-            self.server.remove_dbview(self._dbview)
+            self.tenant.remove_dbview(self._dbview)
             self._dbview = None
 
     def _extract_token_from_auth_data(self, auth_data):

@@ -479,16 +479,6 @@ class Server:
     def get_compiler_pool(self):
         return self._compiler_pool
 
-    async def new_dbview(self, *, dbname, query_cache, protocol_version):
-        db = self._tenant.get_db(dbname=dbname)
-        await db.introspection()
-        return self._dbindex.new_view(
-            dbname, query_cache=query_cache, protocol_version=protocol_version
-        )
-
-    def remove_dbview(self, dbview):
-        return self._dbindex.remove_view(dbview)
-
     def get_compilation_system_config(self):
         return self._dbindex.get_compilation_system_config()
 

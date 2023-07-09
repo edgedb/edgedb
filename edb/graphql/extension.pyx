@@ -241,9 +241,8 @@ async def compile(
 
 
 async def _execute(db, tenant, query, operation_name, variables, globals):
-    server = tenant.server
     dbver = db.dbver
-    query_cache = server._http_query_cache
+    query_cache = tenant.server._http_query_cache
 
     if variables:
         for var_name in variables:
@@ -347,7 +346,7 @@ async def _execute(db, tenant, query, operation_name, variables, globals):
 
     compiled = dbview.CompiledQuery(query_unit_group=qug)
 
-    dbv = await server.new_dbview(
+    dbv = await tenant.new_dbview(
         dbname=db.name,
         query_cache=False,
         protocol_version=edbdef.CURRENT_PROTOCOL,

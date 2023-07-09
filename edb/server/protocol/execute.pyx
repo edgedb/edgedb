@@ -448,9 +448,8 @@ async def parse_execute_json(
         query_cache_enabled = not (
             debug.flags.disable_qcache or debug.flags.edgeql_compile)
 
-    server = db.server
     tenant = db.tenant
-    dbv = await server.new_dbview(
+    dbv = await tenant.new_dbview(
         dbname=db.name,
         query_cache=query_cache_enabled,
         protocol_version=edbdef.CURRENT_PROTOCOL,
