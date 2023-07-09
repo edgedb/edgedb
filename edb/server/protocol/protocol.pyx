@@ -544,7 +544,7 @@ cdef class HttpProtocol:
                     )
                 elif extname == 'notebook':
                     await notebook_ext.handle_request(
-                        request, response, db, args, self.server
+                        request, response, db, args, self.tenant
                     )
                 elif extname == 'edgeql_http':
                     await edgeql_ext.handle_request(
