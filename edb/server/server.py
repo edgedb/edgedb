@@ -508,7 +508,7 @@ class Server:
         return self._dbindex.remove_view(dbview)
 
     def get_global_schema(self):
-        return self._dbindex.get_global_schema()
+        return self._tenant.get_global_schema()
 
     def get_compilation_system_config(self):
         return self._dbindex.get_compilation_system_config()
