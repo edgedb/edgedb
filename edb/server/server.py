@@ -188,11 +188,6 @@ class Server:
         self._compiler_pool_size = compiler_pool_size
         self._compiler_pool_mode = compiler_pool_mode
         self._compiler_pool_addr = compiler_pool_addr
-        self._suggested_client_pool_size = max(
-            min(tenant.max_backend_connections,
-                defines.MAX_SUGGESTED_CLIENT_POOL_SIZE),
-            defines.MIN_SUGGESTED_CLIENT_POOL_SIZE
-        )
 
         self._listen_sockets = listen_sockets
         if listen_sockets:
@@ -535,9 +530,6 @@ class Server:
 
     def get_compiler_pool(self):
         return self._compiler_pool
-
-    def get_suggested_client_pool_size(self) -> int:
-        return self._suggested_client_pool_size
 
     def get_db(self, *, dbname: str):
         assert self._dbindex is not None
@@ -2182,11 +2174,12 @@ class Server:
         def serialize_config(cfg):
             return {name: value.value for name, value in cfg.items()}
 
+        tenant = self._tenant
         obj = dict(
             params=dict(
-                max_backend_connections=self._tenant.max_backend_connections,
-                suggested_client_pool_size=self._suggested_client_pool_size,
-                tenant_id=self._tenant.tenant_id,
+                max_backend_connections=tenant.max_backend_connections,
+                suggested_client_pool_size=tenant.suggested_client_pool_size,
+                tenant_id=tenant.tenant_id,
                 dev_mode=self._devmode,
                 test_mode=self._testmode,
                 default_auth_method=str(self._default_auth_method),
@@ -2195,7 +2188,7 @@ class Server:
             ),
             instance_config=serialize_config(self._dbindex.get_sys_config()),
             user_roles=self._roles,
-            pg_addr=self._tenant.get_pgaddr(),
+            pg_addr=tenant.get_pgaddr(),
             pg_pool=self._pg_pool._build_snapshot(now=time.monotonic()),
             compiler_pool=dict(
                 worker_pids=list(self._compiler_pool._workers.keys()),
