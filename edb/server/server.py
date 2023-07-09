@@ -98,7 +98,6 @@ class Server:
     _tenants_by_sslobj: MutableMapping
 
     _roles: Mapping[str, RoleDescriptor]
-    _instance_data: Mapping[str, str]
     _sys_queries: Mapping[str, str]
     _local_intro_query: bytes
     _global_intro_query: bytes
@@ -222,7 +221,6 @@ class Server:
         self._instance_name = instance_name
 
         self._roles = immutables.Map()
-        self._instance_data = immutables.Map()
         self._sys_queries = immutables.Map()
 
         self._devmode = devmode.is_in_dev_mode()
@@ -1073,12 +1071,6 @@ class Server:
         async with self._tenant._use_sys_pgcon() as syscon:
             patch_count = await self.get_patch_count(syscon)
             version_key = pg_patches.get_version_key(patch_count)
-
-            result = await syscon.sql_fetch_val(b'''\
-                SELECT json::json FROM edgedbinstdata.instdata
-                WHERE key = 'instancedata';
-            ''')
-            self._instance_data = immutables.Map(json.loads(result))
 
             result = await syscon.sql_fetch_val(f'''\
                 SELECT json::json FROM edgedbinstdata.instdata
@@ -2178,9 +2170,6 @@ class Server:
 
     def get_sys_query(self, key):
         return self._sys_queries[key]
-
-    def get_instance_data(self, key):
-        return self._instance_data[key]
 
     def set_pg_unavailable_msg(self, msg):
         if msg is None or self._pg_unavailable_msg is None:

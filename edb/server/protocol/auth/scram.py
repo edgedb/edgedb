@@ -269,7 +269,7 @@ def get_scram_verifier(user, server, tenant):
     # generate a mock verifier using a salt derived from the
     # received user name and the cluster mock auth nonce.
     # The same approach is taken by Postgres.
-    nonce = server.get_instance_data("mock_auth_nonce")
+    nonce = tenant.get_instance_data("mock_auth_nonce")
     salt = hashlib.sha256(nonce.encode() + user.encode()).digest()
 
     verifier = scram.SCRAMVerifier(
