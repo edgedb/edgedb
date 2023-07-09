@@ -708,6 +708,81 @@ class Tenant(ha_base.ClusterProtocol):
 
         return extensions
 
+    async def introspect_db(self, dbname: str) -> None:
+        """Use this method to (re-)introspect a DB.
+
+        If the DB is already registered in self._dbindex, its
+        schema, config, etc. would simply be updated. If it's missing
+        an entry for it would be created.
+
+        All remote notifications of remote events should use this method
+        to refresh the state. Even if the remote event was a simple config
+        change, a lot of other events could happen before it was sent to us
+        by a remote server and us receiving it. E.g. a DB could have been
+        dropped and recreated again. It's safer to refresh the entire state
+        than refreshing individual components of it. Besides, DDL and
+        database-level config modifications are supposed to be rare events.
+        """
+        logger.info("introspecting database '%s'", dbname)
+
+        conn = await self._acquire_intro_pgcon(dbname)
+        if not conn:
+            return
+
+        try:
+            user_schema = await self.introspect_user_schema(conn)
+
+            reflection_cache_json = await conn.sql_fetch_val(
+                b"""
+                    SELECT json_agg(o.c)
+                    FROM (
+                        SELECT
+                            json_build_object(
+                                'eql_hash', t.eql_hash,
+                                'argnames', array_to_json(t.argnames)
+                            ) AS c
+                        FROM
+                            ROWS FROM(edgedb._get_cached_reflection())
+                                AS t(eql_hash text, argnames text[])
+                    ) AS o;
+                """,
+            )
+
+            reflection_cache = immutables.Map(
+                {
+                    r["eql_hash"]: tuple(r["argnames"])
+                    for r in json.loads(reflection_cache_json)
+                }
+            )
+
+            backend_ids_json = await conn.sql_fetch_val(
+                b"""
+                SELECT
+                    json_object_agg(
+                        "id"::text,
+                        "backend_id"
+                    )::text
+                FROM
+                    edgedb."_SchemaType"
+                """,
+            )
+            backend_ids = json.loads(backend_ids_json)
+
+            db_config = await self.introspect_db_config(conn)
+            extensions = await self._introspect_extensions(conn)
+
+            assert self._dbindex is not None
+            self._dbindex.register_db(
+                dbname,
+                user_schema=user_schema,
+                db_config=db_config,
+                reflection_cache=reflection_cache,
+                backend_ids=backend_ids,
+                extensions=extensions,
+            )
+        finally:
+            self.release_pgcon(dbname, conn)
+
     async def _early_introspect_db(self, dbname: str) -> None:
         """We need to always introspect the extensions for each database.
 
