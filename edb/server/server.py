@@ -94,7 +94,7 @@ class Server:
 
     _std_schema: s_schema.Schema
     _refl_schema: s_schema.Schema
-    _schema_class_layout: s_refl.SchemaTypeLayout
+    _schema_class_layout: s_refl.SchemaClassLayout
 
     _servers: Mapping[str, asyncio.AbstractServer]
 
@@ -362,26 +362,11 @@ class Server:
             await self._load_instance_data()
             await self._maybe_patch()
 
-            global_schema = await self.introspect_global_schema()
-            sys_config = await self._tenant._load_sys_config()
-            default_sysconfig = await self._tenant._load_sys_config(
-                'sysconfig_default'
-            )
-            await self._tenant._load_reported_config()
-
-            self._tenant._dbindex = dbview.DatabaseIndex(
-                self,
-                self._tenant,
-                std_schema=self._std_schema,
-                global_schema=global_schema,
-                sys_config=sys_config,
-                default_sysconfig=default_sysconfig,
-            )
-
             await self._tenant.start()
 
             self._populate_sys_auth()
 
+            sys_config = self._dbindex.get_sys_config()
             if not self._listen_hosts:
                 self._listen_hosts = (
                     config.lookup('listen_addresses', sys_config)
@@ -537,32 +522,6 @@ class Server:
         if setting.report and self._accept_new_tasks:
             self.create_task(
                 self._tenant._load_reported_config(), interruptable=True)
-
-    async def introspect_global_schema(self, conn=None):
-        intro_query = self._global_intro_query
-        if conn is not None:
-            json_data = await conn.sql_fetch_val(intro_query)
-        else:
-            async with self._tenant._use_sys_pgcon() as syscon:
-                json_data = await syscon.sql_fetch_val(intro_query)
-
-        return s_refl.parse_into(
-            base_schema=self._std_schema,
-            schema=s_schema.FlatSchema(),
-            data=json_data,
-            schema_class_layout=self._schema_class_layout,
-        )
-
-    async def _reintrospect_global_schema(self):
-        if not self._initing and not self._serving:
-            logger.warning(
-                "global-schema-changes event received during shutdown; "
-                "ignoring."
-            )
-            return
-        new_global_schema = await self.introspect_global_schema()
-        self._dbindex.update_global_schema(new_global_schema)
-        self._tenant.fetch_roles()
 
     async def introspect_user_schema(self, conn, global_schema=None):
         json_data = await conn.sql_fetch_val(self._local_intro_query)
@@ -779,7 +738,9 @@ class Server:
                 if last_repair:
                     from . import bootstrap
 
-                    global_schema = await self.introspect_global_schema(conn)
+                    global_schema = (
+                        await self._tenant.introspect_global_schema(conn)
+                    )
                     user_schema = await self.introspect_user_schema(
                         conn, global_schema)
                     config = await self.introspect_db_config(conn)
@@ -1343,7 +1304,7 @@ class Server:
 
         async def task():
             try:
-                await self._reintrospect_global_schema()
+                await self._tenant._reintrospect_global_schema()
             except Exception:
                 metrics.background_errors.inc(
                     1.0, 'on_global_schema_change')
