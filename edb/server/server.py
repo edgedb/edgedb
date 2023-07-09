@@ -372,23 +372,11 @@ class Server:
             await self._load_instance_data()
             await self._maybe_patch()
 
-            global_schema = await self._tenant.introspect_global_schema()
-            sys_config = await self.load_sys_config()
-            default_sysconfig = await self.load_sys_config('sysconfig_default')
-            await self.load_reported_config()
-
-            self._tenant._dbindex = dbview.DatabaseIndex(
-                self._tenant,
-                std_schema=self._std_schema,
-                global_schema=global_schema,
-                sys_config=sys_config,
-                default_sysconfig=default_sysconfig,
-            )
-
             await self._tenant.init()
 
             self._populate_sys_auth()
 
+            sys_config = self._dbindex.get_sys_config()
             if not self._listen_hosts:
                 self._listen_hosts = (
                     config.lookup('listen_addresses', sys_config)
