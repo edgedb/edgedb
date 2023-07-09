@@ -285,7 +285,7 @@ cdef class Database:
         if self.user_schema is None:
             async with self._introspection_lock:
                 if self.user_schema is None:
-                    await self._index._server.introspect_db(self.name)
+                    await self.tenant.introspect_db(self.name)
 
 
 cdef class DatabaseConnectionView:
