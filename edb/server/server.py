@@ -363,8 +363,10 @@ class Server:
             await self._maybe_patch()
 
             global_schema = await self.introspect_global_schema()
-            sys_config = await self.load_sys_config()
-            default_sysconfig = await self.load_sys_config('sysconfig_default')
+            sys_config = await self._tenant._load_sys_config()
+            default_sysconfig = await self._tenant._load_sys_config(
+                'sysconfig_default'
+            )
             await self._tenant._load_reported_config()
 
             self._tenant._dbindex = dbview.DatabaseIndex(
@@ -525,15 +527,8 @@ class Server:
     def get_compilation_system_config(self):
         return self._dbindex.get_compilation_system_config()
 
-    async def load_sys_config(self, query_name='sysconfig'):
-        async with self._tenant._use_sys_pgcon() as syscon:
-            query = self.get_sys_query(query_name)
-            sys_config_json = await syscon.sql_fetch_val(query)
-
-        return config.from_json(config.get_settings(), sys_config_json)
-
     async def reload_sys_config(self):
-        cfg = await self.load_sys_config()
+        cfg = await self._tenant._load_sys_config()
         self._dbindex.update_sys_config(cfg)
         self._reinit_idle_gc_collector()
 
