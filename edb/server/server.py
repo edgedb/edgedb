@@ -64,7 +64,6 @@ from edb.server.protocol import binary  # type: ignore
 from edb.server.protocol import pg_ext  # type: ignore
 from edb.server import metrics
 from edb.server import pgcon
-from edb.server.pgcon import errors as pgcon_errors
 
 from edb.pgsql import patches as pg_patches
 
@@ -634,23 +633,6 @@ class Server:
             schema_class_layout=self._schema_class_layout,
         )
 
-    async def _acquire_intro_pgcon(self, dbname):
-        try:
-            conn = await self._tenant.acquire_pgcon(dbname)
-        except pgcon_errors.BackendError as e:
-            if e.code_is(pgcon_errors.ERROR_INVALID_CATALOG_NAME):
-                # database does not exist (anymore)
-                logger.warning(
-                    "Detected concurrently-dropped database %s; skipping.",
-                    dbname,
-                )
-                if self._dbindex is not None and self._dbindex.has_db(dbname):
-                    self._dbindex.unregister_db(dbname)
-                return None
-            else:
-                raise
-        return conn
-
     async def introspect_db(self, dbname):
         """Use this method to (re-)introspect a DB.
 
@@ -668,7 +650,7 @@ class Server:
         """
         logger.info("introspecting database '%s'", dbname)
 
-        conn = await self._acquire_intro_pgcon(dbname)
+        conn = await self._tenant._acquire_intro_pgcon(dbname)
         if not conn:
             return
 
@@ -749,7 +731,7 @@ class Server:
 
     async def introspect_extensions(self, dbname):
         logger.info("introspecting extensions for database '%s'", dbname)
-        conn = await self._acquire_intro_pgcon(dbname)
+        conn = await self._tenant._acquire_intro_pgcon(dbname)
         if not conn:
             return
 
@@ -774,7 +756,7 @@ class Server:
         """
         logger.info("introspecting extensions for database '%s'", dbname)
 
-        conn = await self._acquire_intro_pgcon(dbname)
+        conn = await self._tenant._acquire_intro_pgcon(dbname)
         if not conn:
             return
 
