@@ -122,7 +122,6 @@ pub struct Tokens {
     nfconst: PyString,
     bconst: PyString,
     sconst: PyString,
-    op: PyString,
 
     greater_eq: PyString,
     less_eq: PyString,
@@ -277,7 +276,6 @@ impl Tokens {
             nfconst: PyString::new(py, "NFCONST"),
             bconst: PyString::new(py, "BCONST"),
             sconst: PyString::new(py, "SCONST"),
-            op: PyString::new(py, "OP"),
 
             // as OP
             greater_eq: PyString::new(py, ">="),
@@ -381,23 +379,23 @@ fn get_token_kind_and_name(
             tokens.concat.clone_ref(py),
         ),
         GreaterEq => (
-            tokens.op.clone_ref(py),
+            tokens.greater_eq.clone_ref(py),
             tokens.greater_eq.clone_ref(py),
         ),
         LessEq => (
-            tokens.op.clone_ref(py),
+            tokens.less_eq.clone_ref(py),
             tokens.less_eq.clone_ref(py),
         ),
         NotEq => (
-            tokens.op.clone_ref(py),
+            tokens.not_eq.clone_ref(py),
             tokens.not_eq.clone_ref(py),
         ),
         NotDistinctFrom => (
-            tokens.op.clone_ref(py),
+            tokens.not_distinct_from.clone_ref(py),
             tokens.not_distinct_from.clone_ref(py),
         ),
         DistinctFrom => (
-            tokens.op.clone_ref(py),
+            tokens.distinct_from.clone_ref(py),
             tokens.distinct_from.clone_ref(py),
         ),
         Comma => (
