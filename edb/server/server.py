@@ -210,9 +210,6 @@ class Server:
 
         self._admin_ui = admin_ui
 
-        self._readiness = srvargs.ReadinessState.Default
-        self._readiness_reason = ""
-
         self._file_watch_handles = []
         self._tls_certs_reload_retry_handle = None
 
@@ -260,21 +257,6 @@ class Server:
 
     def is_admin_ui_enabled(self):
         return self._admin_ui
-
-    def is_online(self) -> bool:
-        return self._readiness is not srvargs.ReadinessState.Offline
-
-    def is_ready(self) -> bool:
-        return (
-            self._readiness is srvargs.ReadinessState.Default
-            or self._readiness is srvargs.ReadinessState.ReadOnly
-        )
-
-    def is_readonly(self) -> bool:
-        return self._readiness is srvargs.ReadinessState.ReadOnly
-
-    def get_readiness_reason(self) -> str:
-        return self._readiness_reason
 
     def on_binary_client_created(self) -> str:
         self._binary_proto_id_counter += 1
@@ -1342,56 +1324,13 @@ class Server:
 
         return servers, port, addrs
 
-    def init_readiness_state(self, state_file):
-        def reload_state_file(_file_modified, _event):
-            self.reload_readiness_state(state_file)
-
-        self.reload_readiness_state(state_file)
+    def monitor_fs(
+        self, path: str | pathlib.Path,
+        cb: Callable[[str, int], None],
+    ) -> None:
         self._file_watch_handles.append(
-            self.__loop._monitor_fs(str(state_file), reload_state_file)
+            self.__loop._monitor_fs(str(path), cb)  # type: ignore
         )
-
-    def reload_readiness_state(self, state_file):
-        try:
-            with open(state_file, 'rt') as rt:
-                line = rt.readline().strip()
-                try:
-                    state, _, reason = line.partition(":")
-                    self._readiness = srvargs.ReadinessState(state)
-                    self._readiness_reason = reason
-                    logger.info(
-                        "readiness state file changed, "
-                        "setting server readiness to %r%s",
-                        state,
-                        f" ({reason})" if reason else "",
-                    )
-                except ValueError:
-                    logger.warning(
-                        "invalid state in readiness state file (%r): %r, "
-                        "resetting server readiness to 'default'",
-                        state_file,
-                        state,
-                    )
-                    self._readiness = srvargs.ReadinessState.Default
-
-        except FileNotFoundError:
-            logger.info(
-                "readiness state file (%s) removed, resetting "
-                "server readiness to 'default'",
-                state_file,
-            )
-            self._readiness = srvargs.ReadinessState.Default
-
-        except Exception as e:
-            logger.warning(
-                "cannot read readiness state file (%s): %s, "
-                "resetting server readiness to 'default'",
-                state_file,
-                e,
-            )
-            self._readiness = srvargs.ReadinessState.Default
-
-        self._tenant._accepting_connections = self.is_online()
 
     def _sni_callback(self, sslobj, server_name, sslctx):
         pass
@@ -1501,13 +1440,9 @@ class Server:
                 )
                 self.request_shutdown()
 
-        self._file_watch_handles.append(
-            self.__loop._monitor_fs(str(tls_cert_file), reload_tls)
-        )
+        self.monitor_fs(tls_cert_file, reload_tls)
         if tls_cert_file != tls_key_file:
-            self._file_watch_handles.append(
-                self.__loop._monitor_fs(str(tls_key_file), reload_tls)
-            )
+            self.monitor_fs(tls_key_file, reload_tls)
 
     def load_jwcrypto(self, jws_key_file: pathlib.Path) -> None:
         try:

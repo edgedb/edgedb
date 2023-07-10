@@ -134,7 +134,7 @@ async def handle_readiness_query(
     response,
     tenant,
 ):
-    if not tenant.server.is_ready():
+    if not tenant.is_ready():
         _response_error(
             response,
             http.HTTPStatus.SERVICE_UNAVAILABLE,
