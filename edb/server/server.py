@@ -23,7 +23,6 @@ from typing import *
 
 import asyncio
 import collections
-import contextlib
 import ipaddress
 import json
 import logging
@@ -61,7 +60,6 @@ from edb.server import tenant as edbtenant
 from edb.server.protocol import binary  # type: ignore
 from edb.server.protocol import pg_ext  # type: ignore
 from edb.server import metrics
-from edb.server import pgcon
 
 from edb.pgsql import patches as pg_patches
 
@@ -579,7 +577,7 @@ class Server:
         logger.info("applying patches to database '%s'", dbname)
 
         try:
-            async with self._direct_pgcon(dbname) as conn:
+            async with self._tenant.direct_pgcon(dbname) as conn:
                 await self._maybe_apply_patches(dbname, conn, patches)
         except Exception as e:
             if (
@@ -888,19 +886,6 @@ class Server:
     async def _after_system_config_reset(self, setting_name):
         # CONFIGURE INSTANCE RESET setting_name;
         pass
-
-    @contextlib.asynccontextmanager
-    async def _direct_pgcon(
-        self,
-        dbname: str,
-    ) -> AsyncGenerator[pgcon.PGConnection, None]:
-        conn = None
-        try:
-            conn = await self._tenant._pg_connect(dbname)
-            yield conn
-        finally:
-            if conn is not None:
-                await self._tenant._pg_disconnect(conn)
 
     async def _cancel_pgcon_operation(self, pgcon) -> bool:
         async with self._tenant._use_sys_pgcon() as syscon:
