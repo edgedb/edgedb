@@ -437,11 +437,6 @@ class Server:
     def get_compiler_pool(self):
         return self._compiler_pool
 
-    async def reload_sys_config(self):
-        cfg = await self._tenant._load_sys_config()
-        self._dbindex.update_sys_config(cfg)
-        self._reinit_idle_gc_collector()
-
     async def get_dbnames(self, syscon):
         dbs_query = self.get_sys_query('listdbs')
         json_data = await syscon.sql_fetch_val(dbs_query)
@@ -1101,7 +1096,9 @@ class Server:
 
         async def task():
             try:
-                await self.reload_sys_config()
+                cfg = await self._tenant._load_sys_config()
+                self._dbindex.update_sys_config(cfg)
+                self._reinit_idle_gc_collector()
             except Exception:
                 metrics.background_errors.inc(
                     1.0, 'on_remote_system_config_change')
