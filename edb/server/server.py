@@ -112,6 +112,7 @@ class Server:
     _binary_conns: collections.OrderedDict[binary.EdgeConnection, bool]
     _pgext_conns: dict[str, pg_ext.PgConnection]
     _idle_gc_handler: asyncio.TimerHandle | None = None
+    _stmt_cache_size: int | None = None
 
     def __init__(
         self,
@@ -343,6 +344,10 @@ class Server:
                     or defines.EDGEDB_PORT
                 )
 
+            self._stmt_cache_size = config.lookup(
+                '_pg_prepared_statement_cache_size', sys_config
+            )
+
             self._reinit_idle_gc_collector()
 
         finally:
@@ -368,6 +373,18 @@ class Server:
                 timeout, self._idle_gc_collector)
 
         return timeout
+
+    @property
+    def stmt_cache_size(self) -> int | None:
+        return self._stmt_cache_size
+
+    def _reload_stmt_cache_size(self):
+        size = config.lookup(
+            '_pg_prepared_statement_cache_size', self._dbindex.get_sys_config()
+        )
+        self._stmt_cache_size = size
+        for conn in self._tenant._pg_pool.iterate_connections():
+            conn.set_stmt_cache_size(size)
 
     def _idle_gc_collector(self):
         try:
@@ -820,7 +837,7 @@ class Server:
                 self._reinit_idle_gc_collector()
 
             elif setting_name == '_pg_prepared_statement_cache_size':
-                self._tenant._reload_stmt_cache_size()
+                self._reload_stmt_cache_size()
 
             self._tenant._schedule_reported_config_if_needed(setting_name)
         except Exception:
@@ -848,7 +865,7 @@ class Server:
                 self._reinit_idle_gc_collector()
 
             elif setting_name == '_pg_prepared_statement_cache_size':
-                self._tenant._reload_stmt_cache_size()
+                self._reload_stmt_cache_size()
 
             self._tenant._schedule_reported_config_if_needed(setting_name)
         except Exception:
