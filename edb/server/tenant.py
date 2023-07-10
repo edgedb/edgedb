@@ -435,6 +435,19 @@ class Tenant(ha_base.ClusterProtocol):
         conn.terminate()
 
     @contextlib.asynccontextmanager
+    async def direct_pgcon(
+        self,
+        dbname: str,
+    ) -> AsyncGenerator[pgcon.PGConnection, None]:
+        conn = None
+        try:
+            conn = await self._pg_connect(dbname)
+            yield conn
+        finally:
+            if conn is not None:
+                await self._pg_disconnect(conn)
+
+    @contextlib.asynccontextmanager
     async def use_sys_pgcon(self) -> AsyncGenerator[pgcon.PGConnection, None]:
         if not self._server._initing and not self._running:
             raise RuntimeError("EdgeDB server is not running.")
