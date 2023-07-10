@@ -849,17 +849,6 @@ class Server:
 
         await self._stop_servers(servers_to_stop)
 
-    async def _on_before_drop_db(
-        self,
-        dbname: str,
-        current_dbname: str
-    ) -> None:
-        if current_dbname == dbname:
-            raise errors.ExecutionError(
-                f'cannot drop the currently open database {dbname!r}')
-
-        await self._tenant.ensure_database_not_connected(dbname)
-
     async def _on_before_create_db_from_template(
         self,
         dbname: str,

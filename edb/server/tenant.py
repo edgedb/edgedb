@@ -1085,3 +1085,13 @@ class Tenant(ha_base.ClusterProtocol):
             self._readiness = srvargs.ReadinessState.Default
 
         self._accepting_connections = self.is_online()
+
+    async def on_before_drop_db(
+        self, dbname: str, current_dbname: str
+    ) -> None:
+        if current_dbname == dbname:
+            raise errors.ExecutionError(
+                f"cannot drop the currently open database {dbname!r}"
+            )
+
+        await self.ensure_database_not_connected(dbname)
