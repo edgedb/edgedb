@@ -68,6 +68,7 @@ class Tenant(ha_base.ClusterProtocol):
     _server: edbserver.Server
     _cluster: pgcluster.BaseCluster
     _tenant_id: str
+    _instance_name: str
     _instance_data: Mapping[str, str]
     _dbindex: dbview.DatabaseIndex | None
 
@@ -95,11 +96,13 @@ class Tenant(ha_base.ClusterProtocol):
         self,
         cluster: pgcluster.BaseCluster,
         *,
+        instance_name: str,
         max_backend_connections: int,
         backend_adaptive_ha: bool = False,
     ):
         self._cluster = cluster
         self._tenant_id = self.get_backend_runtime_params().tenant_id
+        self._instance_name = instance_name
         self._instance_data = immutables.Map()
 
         # Never use `self.__sys_pgcon` directly; get it via
@@ -195,6 +198,9 @@ class Tenant(ha_base.ClusterProtocol):
     @functools.lru_cache
     def get_backend_runtime_params(self) -> pgparams.BackendRuntimeParams:
         return self._cluster.get_runtime_params()
+
+    def get_instance_name(self) -> str:
+        return self._instance_name
 
     def get_instance_data(self, key: str) -> str:
         return self._instance_data[key]

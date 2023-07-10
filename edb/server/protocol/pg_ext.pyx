@@ -685,7 +685,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 elif name == "session_authorization":
                     value = user
                 elif name == "application_name":
-                    value = self.server.get_instance_name()
+                    value = self.tenant.get_instance_name()
                 msg_buf.write_str(value, "utf-8")
                 msg_buf.end_message()
                 buf.write_buffer(msg_buf)

@@ -491,7 +491,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         if (
             token_instances is not None
-            and self.server.get_instance_name() not in token_instances
+            and self.tenant.get_instance_name() not in token_instances
         ):
             raise errors.AuthenticationError(
                 'authentication failed: secret key does not authorize '

@@ -182,6 +182,7 @@ async def _run_server(
         assert args.max_backend_connections is not None
         tenant = edbtenant.Tenant(
             cluster,
+            instance_name=args.instance_name,
             max_backend_connections=args.max_backend_connections,
             backend_adaptive_ha=args.backend_adaptive_ha,
         )
@@ -204,7 +205,6 @@ async def _run_server(
             testmode=args.testmode,
             new_instance=new_instance,
             admin_ui=args.admin_ui,
-            instance_name=args.instance_name,
             disable_dynamic_system_config=args.disable_dynamic_system_config,
             tenant=tenant,
         )
