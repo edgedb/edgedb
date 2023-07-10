@@ -146,7 +146,6 @@ class Server:
         self._tenant = tenant
         tenant.set_server(self)
         self.__loop = asyncio.get_running_loop()
-        self._config_settings = config.get_settings()
 
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
@@ -468,12 +467,6 @@ class Server:
         cfg = await self._tenant._load_sys_config()
         self._dbindex.update_sys_config(cfg)
         self._reinit_idle_gc_collector()
-
-    def schedule_reported_config_if_needed(self, setting_name):
-        setting = self._config_settings[setting_name]
-        if setting.report and self._accept_new_tasks:
-            self.create_task(
-                self._tenant._load_reported_config(), interruptable=True)
 
     async def get_dbnames(self, syscon):
         dbs_query = self.get_sys_query('listdbs')
@@ -895,7 +888,7 @@ class Server:
             elif setting_name == '_pg_prepared_statement_cache_size':
                 self._tenant._reload_stmt_cache_size()
 
-            self.schedule_reported_config_if_needed(setting_name)
+            self._tenant._schedule_reported_config_if_needed(setting_name)
         except Exception:
             metrics.background_errors.inc(1.0, 'on_system_config_set')
             raise
@@ -923,7 +916,7 @@ class Server:
             elif setting_name == '_pg_prepared_statement_cache_size':
                 self._tenant._reload_stmt_cache_size()
 
-            self.schedule_reported_config_if_needed(setting_name)
+            self._tenant._schedule_reported_config_if_needed(setting_name)
         except Exception:
             metrics.background_errors.inc(1.0, 'on_system_config_reset')
             raise

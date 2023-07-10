@@ -893,3 +893,9 @@ class Tenant(ha_base.ClusterProtocol):
         self._stmt_cache_size = size
         for conn in self._pg_pool.iterate_connections():
             conn.set_stmt_cache_size(size)
+
+    def _schedule_reported_config_if_needed(self, setting_name: str) -> None:
+        setting = config.get_settings()[setting_name]
+        if setting.report and self._server._accept_new_tasks:
+            self._server.create_task(
+                self._load_reported_config(), interruptable=True)
