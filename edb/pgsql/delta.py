@@ -3448,7 +3448,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         context: sd.CommandContext,
     ):
         subject = index.get_subject(schema)
-        assert isinstance(subject, s_types.Type)
+        assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
 
         singletons = [subject]
         path_prefix_anchor = ql_ast.Subject().name

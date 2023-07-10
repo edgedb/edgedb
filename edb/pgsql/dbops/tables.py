@@ -28,7 +28,6 @@ from edb.common import ordered
 from ..common import qname as qn
 from ..common import quote_ident as qi
 from ..common import quote_literal as ql
-from ..common import quote_type as qt
 
 from .. import ast as pgast
 
