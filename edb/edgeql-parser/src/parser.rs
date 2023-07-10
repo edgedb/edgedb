@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 use crate::helpers::quote_name;
 use crate::keywords::Keyword;
 use crate::position::Span;
-use crate::tokenizer::{Token, Value, Error, Kind};
+use crate::tokenizer::{Error, Kind, Token, Value};
 
 pub struct Context<'s> {
     spec: &'s Spec,
@@ -33,20 +33,19 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
 
     // append EIO
     let end = input.last().map(|t| t.span.end).unwrap_or_default();
-    let eio: &Terminal = ctx.arena.alloc(Terminal {
+    let eoi: &Terminal = ctx.new_boxed(Terminal {
         kind: Kind::EOI,
         span: Span { start: end, end },
         text: "".to_string(),
         value: None,
     });
-    let input = input.iter().chain(Some(eio));
+    let input = input.iter().chain(Some(eoi));
 
     let mut parsers = vec![initial_track];
     let mut prev_span: Option<Span> = None;
+    let mut new_parsers = Vec::with_capacity(parsers.len() + 5);
 
     for token in input {
-        let mut new_parsers = Vec::with_capacity(parsers.len() + 5);
-
         while let Some(mut parser) = parsers.pop() {
             let res = parser.act(ctx, token);
 
@@ -71,7 +70,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
                 for token_kind in possible_actions.keys() {
                     let mut inject = parser.clone();
 
-                    let injection = new_token_for_injection(token_kind, &ctx.arena);
+                    let injection = new_token_for_injection(token_kind, ctx);
 
                     let cost = error_cost(token_kind);
                     let error = Error::new(format!("Missing {injection}")).with_span(gap_span);
@@ -119,12 +118,13 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
         }
 
         // prune: pick only X best parsers
-        if new_parsers.len() > 10 {
+        if new_parsers.len() > PARSER_COUNT_MAX {
             new_parsers.sort_by_key(Parser::adjusted_cost);
-            new_parsers.drain(10..);
+            new_parsers.drain(PARSER_COUNT_MAX..);
         }
 
-        parsers = new_parsers;
+        assert!(parsers.is_empty());
+        std::mem::swap(&mut parsers, &mut new_parsers);
         prev_span = Some(token.span);
     }
 
@@ -141,8 +141,15 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
     (node, parser.errors)
 }
 
-fn new_token_for_injection<'a>(kind: &Kind, arena: &'a bumpalo::Bump) -> &'a Terminal {
-    arena.alloc(Terminal {
+impl<'a> Context<'a> {
+    fn new_boxed<T>(&self, t: T) -> &'a mut bumpalo::boxed::Box<T> {
+        let boxed = bumpalo::boxed::Box::new_in(t, &self.arena);
+        self.arena.alloc(boxed)
+    }
+}
+
+fn new_token_for_injection<'a>(kind: &Kind, ctx: &'a Context) -> &'a Terminal {
+    ctx.new_boxed(Terminal {
         kind: kind.clone(),
         text: kind.text().unwrap_or_default().to_string(),
         value: match kind {
@@ -198,7 +205,7 @@ pub struct Terminal {
 #[derive(Clone, Copy)]
 pub struct Production<'a> {
     pub id: usize,
-    pub args: &'a[CSTNode<'a>],
+    pub args: &'a [CSTNode<'a>],
 }
 
 struct StackNode<'p> {
@@ -396,7 +403,7 @@ fn extend_span<'a>(value: &mut CSTNode<'a>, span: Option<Span>, ctx: &'a Context
         return
     };
 
-    let new_term = ctx.arena.alloc(terminal.clone());
+    let new_term = ctx.new_boxed(terminal.clone());
 
     if span.start < new_term.span.start {
         new_term.span.start = span.start;
@@ -406,6 +413,8 @@ fn extend_span<'a>(value: &mut CSTNode<'a>, span: Option<Span>, ctx: &'a Context
     }
     *terminal = new_term;
 }
+
+const PARSER_COUNT_MAX: usize = 10;
 
 const ERROR_COST_INJECT_MAX: u16 = 15;
 const ERROR_COST_SKIP: u16 = 3;

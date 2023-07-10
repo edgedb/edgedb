@@ -87,6 +87,9 @@ pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
                     .map_err(|e| format!("float cannot be encoded: {}", e))?;
             }
             Value::BigInt(ref v) => {
+                // We have two different versions of BigInt implementations here.
+                // We have to use bigdecimal::num_bigint::BigInt because it can parse with radix 16.
+
                 let val = bigdecimal::num_bigint::BigInt::from_str_radix(v, 16)
                     .map_err(|e| format!("bigint cannot be encoded: {}", e))
                     .and_then(|x| {

@@ -62,6 +62,13 @@ pub fn tokens_to_py(py: Python, rust_tokens: Vec<Token>) -> PyResult<PyList> {
     Ok(PyList::new(py, &buf[..]))
 }
 
+/// To support pickle serialization of OpaqueTokens, we need to provide a
+/// deserialization function in __reduce__ methods.
+/// This function must not be inlined and must be globally accessible.
+/// To achieve this, we expose it a part of the module definition
+/// (`_unpickle_token`) and save reference to is in the `FN_UNPICKLE_TOKEN`.
+///
+/// A bit hackly, but it works.
 static mut FN_UNPICKLE_TOKEN: Option<PyObject> = None;
 
 pub fn init_module(py: Python) {

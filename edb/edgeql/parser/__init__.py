@@ -49,7 +49,7 @@ def append_module_aliases(tree, aliases):
 
 def parse_fragment(
     source: Union[qltokenizer.Source, str],
-    filename: Optional[str]=None,
+    filename: Optional[str] = None,
 ) -> qlast.Expr:
     parser = qlparser.EdgeQLExpressionSpec().get_parser()
     res = parser.parse(source, filename=filename)
@@ -59,7 +59,7 @@ def parse_fragment(
 
 def parse_single(
     source: Union[qltokenizer.Source, str],
-    filename: Optional[str]=None,
+    filename: Optional[str] = None,
 ) -> qlast.Statement:
     parser = qlparser.EdgeQLSingleSpec().get_parser()
     res = parser.parse(source, filename=filename)
@@ -189,7 +189,9 @@ def process_spec(parser: parsing.ParserSpec) -> Tuple[str, List[Any]]:
     spec = parser.get_parser_spec()
     assert spec.pureLR
 
-    rmap = {v._token: c for (_, c), v in parsing.TokenMeta.token_map.items()}
+    token_map: Dict[str, str] = {
+        v._token: c for (_, c), v in parsing.TokenMeta.token_map.items()
+    }
 
     # productions
     productions: List[Any] = []
@@ -211,25 +213,24 @@ def process_spec(parser: parsing.ParserSpec) -> Tuple[str, List[Any]]:
 
         return id
 
-    # XXX: TOKENS
     actions = []
     for st_actions in spec.actions():
         out_st_actions = []
         for tok, acts in st_actions.items():
             act = cast(Any, acts[0])
 
-            stok = rmap.get(str(tok), str(tok))
+            str_tok = token_map.get(str(tok), str(tok))
             if 'ShiftAction' in str(type(act)):
-                oact: Any = int(act.nextState)
+                action_obj: Any = int(act.nextState)
             else:
                 prod = act.production
-                oact = {
+                action_obj = {
                     'production_id': get_production_id(prod),
                     'non_term': str(prod.lhs),
                     'cnt': len(prod.rhs),
                 }
 
-            out_st_actions.append((stok, oact))
+            out_st_actions.append((str_tok, action_obj))
 
         actions.append(out_st_actions)
 

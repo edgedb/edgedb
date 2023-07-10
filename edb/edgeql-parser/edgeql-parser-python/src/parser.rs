@@ -108,10 +108,9 @@ fn load_spec(py: Python, parser_name: &str) -> PyResult<&'static (parser::Spec, 
         let parser = parser_cls.call(py, PyTuple::new(py, &[]), None)?;
 
         let res = process_spec.call(py, (parser,), None)?;
-        let res = PyTuple::downcast_from(py, res).expect("process_spec to return a tuple");
+        let res = PyTuple::downcast_from(py, res)?;
 
-        let spec_json =
-            PyString::downcast_from(py, res.get_item(py, 0)).expect("json to be a string");
+        let spec_json = PyString::downcast_from(py, res.get_item(py, 0))?;
         let spec_json = spec_json.to_string(py).unwrap();
 
         let productions = res.get_item(py, 1);
