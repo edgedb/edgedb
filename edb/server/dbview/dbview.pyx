@@ -197,10 +197,10 @@ cdef class Database:
         return self._index._tenant
 
     cdef schedule_config_update(self):
-        self._index._server._on_local_database_config_change(self.name)
+        self._index._tenant.on_local_database_config_change(self.name)
 
     cdef schedule_extensions_update(self):
-        self._index._server._on_database_extensions_changes(self.name)
+        self._index._tenant.on_database_extensions_changes(self.name)
 
     cdef _set_and_signal_new_user_schema(
         self,

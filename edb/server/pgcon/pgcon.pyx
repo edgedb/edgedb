@@ -2850,21 +2850,21 @@ cdef class PGConnection:
                 event_payload = event_data.get('args')
                 if event == 'schema-changes':
                     dbname = event_payload['dbname']
-                    self.server._on_remote_ddl(dbname)
+                    self.tenant.on_remote_ddl(dbname)
                 elif event == 'database-config-changes':
                     dbname = event_payload['dbname']
-                    self.server._on_remote_database_config_change(dbname)
+                    self.tenant.on_remote_database_config_change(dbname)
                 elif event == 'system-config-changes':
-                    self.server._on_remote_system_config_change()
+                    self.tenant.on_remote_system_config_change()
                 elif event == 'global-schema-changes':
-                    self.server._on_global_schema_change()
+                    self.tenant.on_global_schema_change()
                 elif event == 'database-changes':
-                    self.server._on_remote_database_changes()
+                    self.tenant.on_remote_database_changes()
                 elif event == 'extension-changes':
-                    self.server._on_database_extensions_changes()
+                    self.tenant.on_database_extensions_changes()
                 elif event == 'ensure-database-not-used':
                     dbname = event_payload['dbname']
-                    self.server._on_remote_database_quarantine(dbname)
+                    self.tenant.on_remote_database_quarantine(dbname)
                 else:
                     raise AssertionError(f'unexpected system event: {event!r}')
 
