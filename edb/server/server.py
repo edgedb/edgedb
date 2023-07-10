@@ -213,16 +213,8 @@ class Server:
         self._report_config_typedesc = {}
 
     @property
-    def _accept_new_tasks(self):
-        return self._tenant.accept_new_tasks
-
-    @property
     def _pg_pool(self):
         return self._tenant._pg_pool
-
-    @property
-    def _block_new_connections(self):
-        return self._tenant._block_new_connections
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -453,14 +445,6 @@ class Server:
     def get_compiler_pool(self):
         return self._compiler_pool
 
-    async def load_sys_config(self, query_name='sysconfig'):
-        return await self._tenant._load_sys_config(query_name)
-
-    async def reload_sys_config(self):
-        cfg = await self.load_sys_config()
-        self._dbindex.update_sys_config(cfg)
-        self._reinit_idle_gc_collector()
-
     async def introspect_global_schema(
         self, conn: pgcon.PGConnection
     ) -> s_schema.Schema:
@@ -472,9 +456,6 @@ class Server:
             data=json_data,
             schema_class_layout=self._schema_class_layout,
         )
-
-    async def _reintrospect_global_schema(self):
-        await self._tenant._reintrospect_global_schema()
 
     async def introspect_user_schema(
         self,
@@ -495,15 +476,6 @@ class Server:
             data=json_data,
             schema_class_layout=self._schema_class_layout,
         )
-
-    async def introspect_db(self, dbname):
-        await self._tenant.introspect_db(dbname)
-
-    async def introspect_extensions(self, dbname):
-        await self._tenant.introspect_extensions(dbname)
-
-    async def _early_introspect_db(self, dbname):
-        await self._tenant._early_introspect_db(dbname)
 
     async def get_dbnames(self, syscon):
         dbs_query = self.get_sys_query('listdbs')
@@ -869,9 +841,6 @@ class Server:
 
         await self._stop_servers(servers_to_stop)
 
-    def _on_after_drop_db(self, dbname: str):
-        self._tenant.on_after_drop_db(dbname)
-
     async def _on_system_config_add(self, setting_name, value):
         # CONFIGURE INSTANCE INSERT ConfigObject;
         pass
@@ -959,140 +928,6 @@ class Server:
     async def _after_system_config_reset(self, setting_name):
         # CONFIGURE INSTANCE RESET setting_name;
         pass
-
-    def _on_remote_database_quarantine(self, dbname):
-        if not self._accept_new_tasks:
-            return
-
-        # Block new connections to the database.
-        self._block_new_connections.add(dbname)
-
-        async def task():
-            try:
-                await self._pg_pool.prune_inactive_connections(dbname)
-            except Exception:
-                metrics.background_errors.inc(1.0, 'remote_db_quarantine')
-                raise
-
-        self.create_task(task(), interruptable=True)
-
-    def _on_remote_ddl(self, dbname):
-        if not self._accept_new_tasks:
-            return
-
-        # Triggered by a postgres notification event 'schema-changes'
-        # on the __edgedb_sysevent__ channel
-        async def task():
-            try:
-                await self.introspect_db(dbname)
-            except Exception:
-                metrics.background_errors.inc(1.0, 'on_remote_ddl')
-                raise
-
-        self.create_task(task(), interruptable=True)
-
-    def _on_remote_database_changes(self):
-        if not self._accept_new_tasks:
-            return
-
-        # Triggered by a postgres notification event 'database-changes'
-        # on the __edgedb_sysevent__ channel
-        async def task():
-            async with self._tenant.use_sys_pgcon() as syscon:
-                dbnames = set(await self.get_dbnames(syscon))
-
-            tg = taskgroup.TaskGroup(name='new database introspection')
-            async with tg as g:
-                for dbname in dbnames:
-                    if not self._dbindex.has_db(dbname):
-                        g.create_task(self._early_introspect_db(dbname))
-
-            dropped = []
-            for db in self._dbindex.iter_dbs():
-                if db.name not in dbnames:
-                    dropped.append(db.name)
-            for dbname in dropped:
-                self._on_after_drop_db(dbname)
-
-        self.create_task(task(), interruptable=True)
-
-    def _on_remote_database_config_change(self, dbname):
-        if not self._accept_new_tasks:
-            return
-
-        # Triggered by a postgres notification event 'database-config-changes'
-        # on the __edgedb_sysevent__ channel
-        async def task():
-            try:
-                await self.introspect_db(dbname)
-            except Exception:
-                metrics.background_errors.inc(
-                    1.0, 'on_remote_database_config_change')
-                raise
-
-        self.create_task(task(), interruptable=True)
-
-    def _on_database_extensions_changes(self, dbname):
-        if not self._accept_new_tasks:
-            return
-
-        async def task():
-            try:
-                await self.introspect_extensions(dbname)
-            except Exception:
-                metrics.background_errors.inc(
-                    1.0, 'on_database_extensions_change')
-                raise
-
-        self.create_task(task(), interruptable=True)
-
-    def _on_local_database_config_change(self, dbname):
-        if not self._accept_new_tasks:
-            return
-
-        # Triggered by DB Index.
-        # It's easier and safer to just schedule full re-introspection
-        # of the DB and update all components of it.
-        async def task():
-            try:
-                await self.introspect_db(dbname)
-            except Exception:
-                metrics.background_errors.inc(
-                    1.0, 'on_local_database_config_change')
-                raise
-
-        self.create_task(task(), interruptable=True)
-
-    def _on_remote_system_config_change(self):
-        if not self._accept_new_tasks:
-            return
-
-        # Triggered by a postgres notification event 'system-config-changes'
-        # on the __edgedb_sysevent__ channel
-
-        async def task():
-            try:
-                await self.reload_sys_config()
-            except Exception:
-                metrics.background_errors.inc(
-                    1.0, 'on_remote_system_config_change')
-                raise
-
-        self.create_task(task(), interruptable=True)
-
-    def _on_global_schema_change(self):
-        if not self._accept_new_tasks:
-            return
-
-        async def task():
-            try:
-                await self._reintrospect_global_schema()
-            except Exception:
-                metrics.background_errors.inc(
-                    1.0, 'on_global_schema_change')
-                raise
-
-        self.create_task(task(), interruptable=True)
 
     async def run_startup_script_and_exit(self):
         """Run the script specified in *startup_script* and exit immediately"""
@@ -1498,9 +1333,6 @@ class Server:
 
         finally:
             self._tenant.terminate_sys_pgcon()
-
-    def create_task(self, coro, *, interruptable):
-        return self._tenant.create_task(coro, interruptable=interruptable)
 
     async def serve_forever(self):
         await self._stop_evt.wait()
