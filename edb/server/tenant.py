@@ -1179,3 +1179,142 @@ class Tenant(ha_base.ClusterProtocol):
         except Exception:
             metrics.background_errors.inc(1.0, "signal_sysevent")
             raise
+
+    def on_remote_database_quarantine(self, dbname: str) -> None:
+        if not self._accept_new_tasks:
+            return
+
+        # Block new connections to the database.
+        self._block_new_connections.add(dbname)
+
+        async def task():
+            try:
+                await self._pg_pool.prune_inactive_connections(dbname)
+            except Exception:
+                metrics.background_errors.inc(1.0, "remote_db_quarantine")
+                raise
+
+        self.create_task(task(), interruptable=True)
+
+    def on_remote_ddl(self, dbname: str) -> None:
+        if not self._accept_new_tasks:
+            return
+
+        # Triggered by a postgres notification event 'schema-changes'
+        # on the __edgedb_sysevent__ channel
+        async def task():
+            try:
+                await self.introspect_db(dbname)
+            except Exception:
+                metrics.background_errors.inc(1.0, "on_remote_ddl")
+                raise
+
+        self.create_task(task(), interruptable=True)
+
+    def on_remote_database_changes(self) -> None:
+        if not self._accept_new_tasks:
+            return
+
+        # Triggered by a postgres notification event 'database-changes'
+        # on the __edgedb_sysevent__ channel
+        async def task():
+            async with self.use_sys_pgcon() as syscon:
+                dbnames = set(await self._server.get_dbnames(syscon))
+
+            tg = taskgroup.TaskGroup(name="new database introspection")
+            async with tg as g:
+                for dbname in dbnames:
+                    if not self._dbindex.has_db(dbname):
+                        g.create_task(self._early_introspect_db(dbname))
+
+            dropped = []
+            for db in self._dbindex.iter_dbs():
+                if db.name not in dbnames:
+                    dropped.append(db.name)
+            for dbname in dropped:
+                self.on_after_drop_db(dbname)
+
+        self.create_task(task(), interruptable=True)
+
+    def on_remote_database_config_change(self, dbname: str) -> None:
+        if not self._accept_new_tasks:
+            return
+
+        # Triggered by a postgres notification event 'database-config-changes'
+        # on the __edgedb_sysevent__ channel
+        async def task():
+            try:
+                await self.introspect_db(dbname)
+            except Exception:
+                metrics.background_errors.inc(
+                    1.0, "on_remote_database_config_change"
+                )
+                raise
+
+        self.create_task(task(), interruptable=True)
+
+    def on_database_extensions_changes(self, dbname: str) -> None:
+        if not self._accept_new_tasks:
+            return
+
+        async def task():
+            try:
+                await self.introspect_extensions(dbname)
+            except Exception:
+                metrics.background_errors.inc(
+                    1.0, "on_database_extensions_change"
+                )
+                raise
+
+        self.create_task(task(), interruptable=True)
+
+    def on_local_database_config_change(self, dbname: str) -> None:
+        if not self._accept_new_tasks:
+            return
+
+        # Triggered by DB Index.
+        # It's easier and safer to just schedule full re-introspection
+        # of the DB and update all components of it.
+        async def task():
+            try:
+                await self.introspect_db(dbname)
+            except Exception:
+                metrics.background_errors.inc(
+                    1.0, "on_local_database_config_change"
+                )
+                raise
+
+        self.create_task(task(), interruptable=True)
+
+    def on_remote_system_config_change(self) -> None:
+        if not self._accept_new_tasks:
+            return
+
+        # Triggered by a postgres notification event 'system-config-changes'
+        # on the __edgedb_sysevent__ channel
+
+        async def task():
+            try:
+                cfg = await self._load_sys_config()
+                self._dbindex.update_sys_config(cfg)
+                self._server._reinit_idle_gc_collector()
+            except Exception:
+                metrics.background_errors.inc(
+                    1.0, "on_remote_system_config_change"
+                )
+                raise
+
+        self.create_task(task(), interruptable=True)
+
+    def on_global_schema_change(self) -> None:
+        if not self._accept_new_tasks:
+            return
+
+        async def task():
+            try:
+                await self._reintrospect_global_schema()
+            except Exception:
+                metrics.background_errors.inc(1.0, "on_global_schema_change")
+                raise
+
+        self.create_task(task(), interruptable=True)
