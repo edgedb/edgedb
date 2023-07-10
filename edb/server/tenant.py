@@ -931,3 +931,8 @@ class Tenant(ha_base.ClusterProtocol):
     def remove_dbview(self, dbview_: dbview.DatabaseConnectionView) -> None:
         assert self._dbindex is not None
         return self._dbindex.remove_view(dbview_)
+
+    def schedule_reported_config_if_needed(self, setting_name: str) -> None:
+        setting = config.get_settings()[setting_name]
+        if setting.report and self._accept_new_tasks:
+            self.create_task(self._load_reported_config(), interruptable=True)
