@@ -138,19 +138,19 @@ class T_ARGUMENT(Token):
     pass
 
 
-class T_ASSIGN(Token):
+class T_ASSIGN(Token, lextoken=':='):
     pass
 
 
-class T_ADDASSIGN(Token):
+class T_ADDASSIGN(Token, lextoken='+='):
     pass
 
 
-class T_REMASSIGN(Token):
+class T_REMASSIGN(Token, lextoken='-='):
     pass
 
 
-class T_ARROW(Token):
+class T_ARROW(Token, lextoken='->'):
     pass
 
 
