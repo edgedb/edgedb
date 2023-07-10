@@ -88,7 +88,7 @@ async def execute(
                 dbv.dbname,
             )
         if query_unit.drop_db:
-            await server._on_before_drop_db(query_unit.drop_db, dbv.dbname)
+            await tenant.on_before_drop_db(query_unit.drop_db, dbv.dbname)
         if query_unit.system_config:
             await execute_system_config(be_conn, dbv, query_unit)
         else:
