@@ -380,12 +380,13 @@ async def execute_system_config(
 
 def signal_side_effects(dbv, side_effects):
     server = dbv.server
+    tenant = dbv.tenant
     if not server._accept_new_tasks:
         return
 
     if side_effects & dbview.SideEffects.SchemaChanges:
         server.create_task(
-            server._signal_sysevent(
+            tenant.signal_sysevent(
                 'schema-changes',
                 dbname=dbv.dbname,
             ),
@@ -394,7 +395,7 @@ def signal_side_effects(dbv, side_effects):
 
     if side_effects & dbview.SideEffects.GlobalSchemaChanges:
         server.create_task(
-            server._signal_sysevent(
+            tenant.signal_sysevent(
                 'global-schema-changes',
             ),
             interruptable=False,
@@ -402,7 +403,7 @@ def signal_side_effects(dbv, side_effects):
 
     if side_effects & dbview.SideEffects.DatabaseConfigChanges:
         server.create_task(
-            server._signal_sysevent(
+            tenant.signal_sysevent(
                 'database-config-changes',
                 dbname=dbv.dbname,
             ),
@@ -411,7 +412,7 @@ def signal_side_effects(dbv, side_effects):
 
     if side_effects & dbview.SideEffects.DatabaseChanges:
         server.create_task(
-            server._signal_sysevent(
+            tenant.signal_sysevent(
                 'database-changes',
             ),
             interruptable=False,
@@ -419,7 +420,7 @@ def signal_side_effects(dbv, side_effects):
 
     if side_effects & dbview.SideEffects.InstanceConfigChanges:
         server.create_task(
-            server._signal_sysevent(
+            tenant.signal_sysevent(
                 'system-config-changes',
             ),
             interruptable=False,
@@ -427,7 +428,7 @@ def signal_side_effects(dbv, side_effects):
 
     if side_effects & dbview.SideEffects.ExtensionChanges:
         server.create_task(
-            server._signal_sysevent(
+            tenant.signal_sysevent(
                 'extension-changes',
             ),
             interruptable=False,

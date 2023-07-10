@@ -141,5 +141,8 @@ class PGConnection:
     def finish_pg_cancellation(self) -> None:
         ...
 
+    async def signal_sysevent(self, event: str, **kwargs) -> None:
+        ...
+
 
 SETUP_TEMP_TABLE_SCRIPT: str
