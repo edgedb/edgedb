@@ -79,6 +79,7 @@ class Tenant(ha_base.ClusterProtocol):
     _suggested_client_pool_size: int
     _pg_pool: connpool.Pool
     _pg_unavailable_msg: str | None
+    _stmt_cache_size: int | None
 
     _ha_master_serial: int
     _backend_adaptive_ha: adaptive_ha.AdaptiveHASupport | None
@@ -127,6 +128,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._pg_unavailable_msg = None
         self._block_new_connections = set()
         self._report_config_data = {}
+        self._stmt_cache_size = None
 
         # DB state will be initialized in Server.init().
         self._dbindex = None
@@ -275,6 +277,10 @@ class Tenant(ha_base.ClusterProtocol):
 
         self._populate_sys_auth()
 
+        self._stmt_cache_size = config.lookup(
+            '_pg_prepared_statement_cache_size', sys_config
+        )
+
     def stop(self) -> None:
         if self.__sys_pgcon is not None:
             self.__sys_pgcon.terminate()
@@ -292,8 +298,8 @@ class Tenant(ha_base.ClusterProtocol):
             rv = await pgcon.connect(
                 self.get_pgaddr(), pg_dbname, self.get_backend_runtime_params()
             )
-            if self._server._stmt_cache_size is not None:
-                rv.set_stmt_cache_size(self._server._stmt_cache_size)
+            if self._stmt_cache_size is not None:
+                rv.set_stmt_cache_size(self._stmt_cache_size)
         except Exception:
             metrics.backend_connection_establishment_errors.inc()
             raise
@@ -878,3 +884,12 @@ class Tenant(ha_base.ClusterProtocol):
     def remove_dbview(self, dbview_: dbview.DatabaseConnectionView) -> None:
         assert self._dbindex is not None
         return self._dbindex.remove_view(dbview_)
+
+    def _reload_stmt_cache_size(self) -> None:
+        assert self._dbindex is not None
+        size = config.lookup(
+            '_pg_prepared_statement_cache_size', self._dbindex.get_sys_config()
+        )
+        self._stmt_cache_size = size
+        for conn in self._pg_pool.iterate_connections():
+            conn.set_stmt_cache_size(size)
