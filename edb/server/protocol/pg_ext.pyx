@@ -437,7 +437,7 @@ cdef class PgConnection(frontend.FrontendConnection):
 
         self.write(buf.end_message())
 
-    async def authenticate(self):
+    async def _handshake(self):
         cdef int16_t proto_ver_major, proto_ver_minor
 
         for first in (True, False):
@@ -506,7 +506,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                         severity="FATAL",
                     )
 
-                await self._handle_startup_message()
+                await super()._handshake()
                 break
 
             else:
@@ -519,9 +519,9 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.secret == secret and
             self._pinned_pgcon is not None and
             not self._pinned_pgcon.idle and
-            self.server._accept_new_tasks
+            self.tenant.accept_new_tasks
         ):
-            self.server.create_task(
+            self.tenant.create_task(
                 self.server._cancel_pgcon_operation(self._pinned_pgcon),
                 interruptable=False,
             )
@@ -595,13 +595,11 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.debug_print("SASLResponse", len(client_final))
         return client_final
 
-    async def _handle_startup_message(self):
+    async def authenticate(self):
         cdef:
             WriteBuffer msg_buf
             WriteBuffer buf
 
-        if self.tenant is None:
-            self.tenant = self.server.get_default_tenant()
         params = {}
         while True:
             name = self.buffer.read_null_str()

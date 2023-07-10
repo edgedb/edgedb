@@ -82,3 +82,4 @@ cdef class HttpProtocol:
     cdef resume(self)
     cdef close(self)
     cdef inline _ensure_tenant(self)
+    cdef inline _close_with_error(self, bytes status, bytes message)
