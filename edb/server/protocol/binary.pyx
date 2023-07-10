@@ -469,7 +469,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
     def _check_jwt_authz(self, claims, token_version, user):
         # Check general key validity (e.g. whether it's a revoked key)
-        self.server.check_jwt(claims)
+        self.tenant.check_jwt(claims)
 
         token_instances = None
         token_roles = None

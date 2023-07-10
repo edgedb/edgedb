@@ -198,8 +198,6 @@ class Server:
 
         self._jws_key: jwk.JWK | None = None
         self._jws_keys_newly_generated = False
-        self._jwt_sub_allowlist: frozenset[str] | None = None
-        self._jwt_revocation_list: frozenset[str] | None = None
 
         self._default_auth_method = default_auth_method
         self._binary_endpoint_security = binary_endpoint_security
@@ -1544,78 +1542,24 @@ class Server:
                 self.__loop._monitor_fs(str(tls_key_file), reload_tls)
             )
 
-    def load_jwcrypto(
-        self,
-        jws_key_file: pathlib.Path,
-        jwt_sub_allowlist_file: Optional[pathlib.Path],
-        jwt_revocation_list_file: Optional[pathlib.Path],
-    ) -> None:
+    def load_jwcrypto(self, jws_key_file: pathlib.Path) -> None:
         try:
             self._jws_key = secretkey.load_secret_key(jws_key_file)
         except secretkey.SecretKeyReadError as e:
             raise StartupError(e.args[0]) from e
 
-        if jwt_sub_allowlist_file is not None:
-            logger.info("(re-)loading JWT subject allowlist from "
-                        f"\"{jwt_sub_allowlist_file}\"")
-            try:
-                self._jwt_sub_allowlist = frozenset(
-                    jwt_sub_allowlist_file.read_text().splitlines(),
-                )
-            except Exception as e:
-                raise StartupError(
-                    f"cannot load JWT sub allowlist: {e}") from e
-
-        if jwt_revocation_list_file is not None:
-            logger.info("(re-)loading JWT revocation list from "
-                        f"\"{jwt_revocation_list_file}\"")
-            try:
-                self._jwt_revocation_list = frozenset(
-                    jwt_revocation_list_file.read_text().splitlines(),
-                )
-            except Exception as e:
-                raise StartupError(
-                    f"cannot load JWT revocation list: {e}") from e
+        self._tenant.load_jwcrypto()
 
     def init_jwcrypto(
         self,
         jws_key_file: pathlib.Path,
-        jwt_sub_allowlist_file: Optional[pathlib.Path],
-        jwt_revocation_list_file: Optional[pathlib.Path],
         jws_keys_newly_generated: bool,
     ) -> None:
-        self.load_jwcrypto(
-            jws_key_file,
-            jwt_sub_allowlist_file,
-            jwt_revocation_list_file,
-        )
+        self.load_jwcrypto(jws_key_file)
         self._jws_keys_newly_generated = jws_keys_newly_generated
 
     def get_jws_key(self) -> jwk.JWK | None:
         return self._jws_key
-
-    def check_jwt(self, claims: dict[str, Any]) -> None:
-        """Check JWT for validity"""
-
-        if self._jwt_sub_allowlist is not None:
-            subject = claims.get("sub")
-            if not subject:
-                raise errors.AuthenticationError(
-                    "authentication failed: "
-                    "JWT does not contain a valid subject claim")
-            if subject not in self._jwt_sub_allowlist:
-                raise errors.AuthenticationError(
-                    "authentication failed: unauthorized subject")
-
-        if self._jwt_revocation_list is not None:
-            key_id = claims.get("jti")
-            if not key_id:
-                raise errors.AuthenticationError(
-                    "authentication failed: "
-                    "JWT does not contain a valid key id")
-            if key_id in self._jwt_revocation_list:
-                raise errors.AuthenticationError(
-                    "authentication failed: revoked key")
 
     async def _stop_servers(self, servers):
         async with taskgroup.TaskGroup() as g:
