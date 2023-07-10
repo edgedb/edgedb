@@ -148,7 +148,7 @@ async def execute(
                 await tenant.introspect_db(query_unit.create_db)
 
             if query_unit.drop_db:
-                server._on_after_drop_db(query_unit.drop_db)
+                tenant.on_after_drop_db(query_unit.drop_db)
 
             if config_ops:
                 await dbv.apply_config_ops(be_conn, config_ops)
