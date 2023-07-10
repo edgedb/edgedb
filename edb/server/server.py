@@ -457,9 +457,6 @@ class Server:
     def get_compiler_pool(self):
         return self._compiler_pool
 
-    def release_pgcon(self, dbname, conn, *, discard=False):
-        self._tenant.release_pgcon(dbname, conn, discard=discard)
-
     async def load_sys_config(self, query_name='sysconfig'):
         return await self._tenant._load_sys_config(query_name)
 
@@ -966,38 +963,6 @@ class Server:
     async def _after_system_config_reset(self, setting_name):
         # CONFIGURE INSTANCE RESET setting_name;
         pass
-
-    async def _cancel_pgcon_operation(self, pgcon) -> bool:
-        async with self._tenant.use_sys_pgcon() as syscon:
-            if pgcon.idle:
-                # pgcon could have received the query results while we
-                # were acquiring a system connection to cancel it.
-                return False
-
-            if pgcon.is_cancelling():
-                # Somehow the connection is already being cancelled and
-                # we don't want to have to cancellations go in parallel.
-                return False
-
-            pgcon.start_pg_cancellation()
-            try:
-                # Returns True if the `pid` exists and it was able to send it a
-                # SIGINT.  Will throw an exception if the privileges aren't
-                # sufficient.
-                result = await syscon.sql_fetch_val(
-                    f'SELECT pg_cancel_backend({pgcon.backend_pid});'.encode(),
-                )
-            finally:
-                pgcon.finish_pg_cancellation()
-
-            return result == b'\x01'
-
-    async def _cancel_and_discard_pgcon(self, pgcon, dbname) -> None:
-        try:
-            if self._serving:
-                await self._cancel_pgcon_operation(pgcon)
-        finally:
-            self.release_pgcon(dbname, pgcon, discard=True)
 
     async def _signal_sysevent(self, event, **kwargs):
         try:
