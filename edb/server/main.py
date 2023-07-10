@@ -185,6 +185,7 @@ async def _run_server(
             instance_name=args.instance_name,
             max_backend_connections=args.max_backend_connections,
             backend_adaptive_ha=args.backend_adaptive_ha,
+            readiness_state_file=args.readiness_state_file,
             jwt_sub_allowlist_file=args.jwt_sub_allowlist_file,
             jwt_revocation_list_file=args.jwt_revocation_list_file,
         )
@@ -236,9 +237,6 @@ async def _run_server(
                 await sc.wait_for(ss.run_startup_script_and_exit())
             return
 
-        if args.readiness_state_file:
-            ss.init_readiness_state(args.readiness_state_file)
-
         ss.init_tls(
             args.tls_cert_file, args.tls_key_file, tls_cert_newly_generated)
 
@@ -248,7 +246,7 @@ async def _run_server(
             logger.info("reloading configuration")
             try:
                 if args.readiness_state_file:
-                    ss.reload_readiness_state(args.readiness_state_file)
+                    tenant.reload_readiness_state()
                 ss.reload_tls(args.tls_cert_file, args.tls_key_file)
                 ss.load_jwcrypto(args.jws_key_file)
             except Exception:
