@@ -217,10 +217,6 @@ class Server:
         return self._tenant.accept_new_tasks
 
     @property
-    def _serving(self):
-        return self._tenant._running
-
-    @property
     def _pg_pool(self):
         return self._tenant._pg_pool
 
@@ -963,21 +959,6 @@ class Server:
     async def _after_system_config_reset(self, setting_name):
         # CONFIGURE INSTANCE RESET setting_name;
         pass
-
-    async def _signal_sysevent(self, event, **kwargs):
-        try:
-            if not self._initing and not self._serving:
-                # This is very likely if we are doing
-                # "run_startup_script_and_exit()", but is also possible if the
-                # server was shut down with this coroutine as a background task
-                # in flight.
-                return
-
-            async with self._tenant.use_sys_pgcon() as pgcon:
-                await pgcon.signal_sysevent(event, **kwargs)
-        except Exception:
-            metrics.background_errors.inc(1.0, 'signal_sysevent')
-            raise
 
     def _on_remote_database_quarantine(self, dbname):
         if not self._accept_new_tasks:

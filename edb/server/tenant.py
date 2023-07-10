@@ -673,9 +673,8 @@ class Tenant(ha_base.ClusterProtocol):
 
             # Signal adjacent servers to prune their connections to this
             # database.
-            await self._server._signal_sysevent(
-                "ensure-database-not-used",
-                dbname=dbname,
+            await self.signal_sysevent(
+                "ensure-database-not-used", dbname=dbname
             )
 
             rloop = retryloop.RetryLoop(
@@ -1161,6 +1160,21 @@ class Tenant(ha_base.ClusterProtocol):
                 await self.cancel_pgcon_operation(con)
         finally:
             self.release_pgcon(dbname, con, discard=True)
+
+    async def signal_sysevent(self, event: str, **kwargs) -> None:
+        try:
+            if not self._server._initing and not self._running:
+                # This is very likely if we are doing
+                # "run_startup_script_and_exit()", but is also possible if the
+                # tenant was shut down with this coroutine as a background task
+                # in flight.
+                return
+
+            async with self.use_sys_pgcon() as con:
+                await con.signal_sysevent(event, **kwargs)
+        except Exception:
+            metrics.background_errors.inc(1.0, "signal_sysevent")
+            raise
 
     def get_debug_info(self) -> dict[str, Any]:
         obj = dict(
