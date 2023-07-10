@@ -70,7 +70,6 @@ async def execute(
         orig_state = state = dbv.serialize_state()
 
     new_types = None
-    server = dbv.server
     tenant = dbv.tenant
 
     data = None
@@ -123,7 +122,7 @@ async def execute(
                     if query_unit.is_explain:
                         # Go back to the compiler pool to analyze
                         # the explain output.
-                        compiler_pool = server.get_compiler_pool()
+                        compiler_pool = dbv.server.get_compiler_pool()
                         r = await compiler_pool.analyze_explain_output(
                             query_unit.query_asts, data
                         )
@@ -148,7 +147,7 @@ async def execute(
                 await tenant.introspect_db(query_unit.create_db)
 
             if query_unit.drop_db:
-                server._on_after_drop_db(query_unit.drop_db)
+                tenant.on_after_drop_db(query_unit.drop_db)
 
             if config_ops:
                 await dbv.apply_config_ops(be_conn, config_ops)

@@ -801,16 +801,6 @@ class Server:
 
         await self._stop_servers(servers_to_stop)
 
-    def _on_after_drop_db(self, dbname: str):
-        try:
-            assert self._dbindex is not None
-            if self._dbindex.has_db(dbname):
-                self._dbindex.unregister_db(dbname)
-            self._tenant._block_new_connections.discard(dbname)
-        except Exception:
-            metrics.background_errors.inc(1.0, 'on_after_drop_db')
-            raise
-
     async def _on_system_config_add(self, setting_name, value):
         # CONFIGURE INSTANCE INSERT ConfigObject;
         pass
@@ -1013,7 +1003,7 @@ class Server:
                 if db.name not in dbnames:
                     dropped.append(db.name)
             for dbname in dropped:
-                self._on_after_drop_db(dbname)
+                self._tenant.on_after_drop_db(dbname)
 
         self.create_task(task(), interruptable=True)
 
