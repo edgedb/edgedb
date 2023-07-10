@@ -24,6 +24,7 @@ import contextlib
 import functools
 import json
 import logging
+import pathlib
 import struct
 import sys
 import time
@@ -96,6 +97,10 @@ class Tenant(ha_base.ClusterProtocol):
 
     _roles: Mapping[str, RoleDescriptor]
     _sys_auth: Tuple[Any, ...]
+    _jwt_sub_allowlist_file: pathlib.Path | None
+    _jwt_sub_allowlist: frozenset[str] | None
+    _jwt_revocation_list_file: pathlib.Path | None
+    _jwt_revocation_list: frozenset[str] | None
 
     def __init__(
         self,
@@ -104,6 +109,8 @@ class Tenant(ha_base.ClusterProtocol):
         instance_name: str,
         max_backend_connections: int,
         backend_adaptive_ha: bool = False,
+        jwt_sub_allowlist_file: pathlib.Path | None = None,
+        jwt_revocation_list_file: pathlib.Path | None = None,
     ):
         self._cluster = cluster
         self._tenant_id = self.get_backend_runtime_params().tenant_id
@@ -149,6 +156,10 @@ class Tenant(ha_base.ClusterProtocol):
 
         self._roles = immutables.Map()
         self._sys_auth = tuple()
+        self._jwt_sub_allowlist_file = jwt_sub_allowlist_file
+        self._jwt_sub_allowlist = None
+        self._jwt_revocation_list_file = jwt_revocation_list_file
+        self._jwt_revocation_list = None
 
     def set_server(self, server: edbserver.Server) -> None:
         self._server = server
@@ -942,3 +953,59 @@ class Tenant(ha_base.ClusterProtocol):
         setting = config.get_settings()[setting_name]
         if setting.report and self._accept_new_tasks:
             self.create_task(self._load_reported_config(), interruptable=True)
+
+    def load_jwcrypto(self) -> None:
+        if self._jwt_sub_allowlist_file is not None:
+            logger.info(
+                "(re-)loading JWT subject allowlist from "
+                f'"{self._jwt_sub_allowlist_file}"'
+            )
+            try:
+                self._jwt_sub_allowlist = frozenset(
+                    self._jwt_sub_allowlist_file.read_text().splitlines(),
+                )
+            except Exception as e:
+                raise edbserver.StartupError(
+                    f"cannot load JWT sub allowlist: {e}"
+                ) from e
+
+        if self._jwt_revocation_list_file is not None:
+            logger.info(
+                "(re-)loading JWT revocation list from "
+                f'"{self._jwt_revocation_list_file}"'
+            )
+            try:
+                self._jwt_revocation_list = frozenset(
+                    self._jwt_revocation_list_file.read_text().splitlines(),
+                )
+            except Exception as e:
+                raise edbserver.StartupError(
+                    f"cannot load JWT revocation list: {e}"
+                ) from e
+
+    def check_jwt(self, claims: dict[str, Any]) -> None:
+        """Check JWT for validity"""
+
+        if self._jwt_sub_allowlist is not None:
+            subject = claims.get("sub")
+            if not subject:
+                raise errors.AuthenticationError(
+                    "authentication failed: "
+                    "JWT does not contain a valid subject claim"
+                )
+            if subject not in self._jwt_sub_allowlist:
+                raise errors.AuthenticationError(
+                    "authentication failed: unauthorized subject"
+                )
+
+        if self._jwt_revocation_list is not None:
+            key_id = claims.get("jti")
+            if not key_id:
+                raise errors.AuthenticationError(
+                    "authentication failed: "
+                    "JWT does not contain a valid key id"
+                )
+            if key_id in self._jwt_revocation_list:
+                raise errors.AuthenticationError(
+                    "authentication failed: revoked key"
+                )
