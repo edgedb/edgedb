@@ -158,10 +158,8 @@ cdef class HttpProtocol:
             if is_tls:
                 # Most clients should arrive here to continue with TLS
                 self.transport.pause_reading()
-                self.server.create_task(
-                    self._forward_first_data(data), interruptable=True
-                )
-                self.server.create_task(self._start_tls(), interruptable=True)
+                self.loop.create_task(self._forward_first_data(data))
+                self.loop.create_task(self._start_tls())
                 return
 
             # In case when we're talking to a non-TLS client, keep using the
@@ -249,9 +247,16 @@ cdef class HttpProtocol:
             self.unprocessed.append(req)
         else:
             self.in_response = True
-            self.server.create_task(
-                self._handle_request(req), interruptable=False
-            )
+            tenant = self._ensure_tenant()
+            if tenant.accept_new_tasks:
+                tenant.create_task(
+                    self._handle_request(req), interruptable=False
+                )
+            else:
+                self._close_with_error(
+                    b'503 Service Unavailable',
+                    b'The server is closing.',
+                )
 
         self.server._http_last_minute_requests += 1
 
@@ -265,12 +270,18 @@ cdef class HttpProtocol:
         if debug.flags.server:
             markup.dump(ex)
 
+        self._close_with_error(
+            b'400 Bad Request',
+            f'{type(ex).__name__}: {ex}'.encode(),
+        )
+
+    cdef inline _close_with_error(self, bytes status, bytes message):
         self._write(
             b'1.0',
-            b'400 Bad Request',
+            status,
             b'text/plain',
             {},
-            f'{type(ex).__name__}: {ex}'.encode(),
+            message,
             True)
 
         self.close()
@@ -281,9 +292,16 @@ cdef class HttpProtocol:
 
         if self.unprocessed:
             req = self.unprocessed.popleft()
-            self.server.create_task(
-                self._handle_request(req), interruptable=False
-            )
+            tenant = self._ensure_tenant()
+            if tenant.accept_new_tasks:
+                tenant.create_task(
+                    self._handle_request(req), interruptable=False
+                )
+            else:
+                self._close_with_error(
+                    b'503 Service Unavailable',
+                    b'The server is closing.',
+                )
         else:
             self.transport.resume_reading()
 
@@ -464,9 +482,8 @@ cdef class HttpProtocol:
             if path_parts_len < 2:
                 return self._not_found(request, response)
 
-            tenant = self._ensure_tenant()
             dbname = path_parts[1]
-            db = tenant.maybe_get_db(dbname=dbname)
+            db = self.tenant.maybe_get_db(dbname=dbname)
             if db is None:
                 return self._not_found(request, response)
 
@@ -517,7 +534,7 @@ cdef class HttpProtocol:
 
                     response.body = await binary.eval_buffer(
                         self.server,
-                        tenant,
+                        self.tenant,
                         database=dbname,
                         data=self.current_request.body,
                         conn_params=conn_params,
@@ -541,11 +558,11 @@ cdef class HttpProtocol:
 
                 if extname == 'graphql':
                     await graphql_ext.handle_request(
-                        request, response, db, args, tenant
+                        request, response, db, args, self.tenant
                     )
                 elif extname == 'notebook':
                     await notebook_ext.handle_request(
-                        request, response, db, args, tenant
+                        request, response, db, args, self.tenant
                     )
                 elif extname == 'edgeql_http':
                     await edgeql_ext.handle_request(
@@ -567,7 +584,7 @@ cdef class HttpProtocol:
                 request,
                 response,
                 path_parts[1:],
-                self._ensure_tenant(),
+                self.tenant,
             )
         elif route == 'server':
             # System API request
@@ -575,7 +592,7 @@ cdef class HttpProtocol:
                 request,
                 response,
                 path_parts[1:],
-                self._ensure_tenant(),
+                self.tenant,
             )
         elif path_parts == ['metrics'] and request.method == b'GET':
             # Quoting the Open Metrics spec:

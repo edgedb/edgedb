@@ -26,6 +26,7 @@ import json
 import logging
 import pathlib
 import struct
+import sys
 import time
 
 import immutables
@@ -73,6 +74,11 @@ class Tenant(ha_base.ClusterProtocol):
     _instance_data: Mapping[str, str]
     _dbindex: dbview.DatabaseIndex | None
 
+    __loop: asyncio.AbstractEventLoop
+    _task_group: taskgroup.TaskGroup | None
+    _tasks: Set[asyncio.Task]
+    _accept_new_tasks: bool
+
     __sys_pgcon: pgcon.PGConnection | None
     _sys_pgcon_waiter: asyncio.Lock
     _sys_pgcon_ready_evt: asyncio.Event
@@ -114,6 +120,10 @@ class Tenant(ha_base.ClusterProtocol):
         self._tenant_id = self.get_backend_runtime_params().tenant_id
         self._instance_name = instance_name
         self._instance_data = immutables.Map()
+
+        self._task_group = None
+        self._tasks = set()
+        self._accept_new_tasks = False
 
         # Never use `self.__sys_pgcon` directly; get it via
         # `async with self._use_sys_pgcon()`.
@@ -157,14 +167,15 @@ class Tenant(ha_base.ClusterProtocol):
 
     def set_server(self, server: edbserver.Server) -> None:
         self._server = server
+        self.__loop = server.get_loop()
 
     def on_switch_over(self):
         # Bumping this serial counter will "cancel" all pending connections
         # to the old master.
         self._ha_master_serial += 1
 
-        if self._server._accept_new_tasks:
-            self._server.create_task(
+        if self._accept_new_tasks:
+            self.create_task(
                 self._pg_pool.prune_all_connections(),
                 interruptable=True,
             )
@@ -274,12 +285,13 @@ class Tenant(ha_base.ClusterProtocol):
 
         self._roles = immutables.Map(roles)
 
-    async def init(self) -> None:
+    async def init_sys_pgcon(self) -> None:
         self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
         self._sys_pgcon_waiter = asyncio.Lock()
         self._sys_pgcon_ready_evt = asyncio.Event()
         self._sys_pgcon_reconnect_evt = asyncio.Event()
 
+    async def init(self) -> None:
         async with self._use_sys_pgcon() as syscon:
             result = await syscon.sql_fetch_val(b'''\
                 SELECT json::json FROM edgedbinstdata.instdata
@@ -287,7 +299,6 @@ class Tenant(ha_base.ClusterProtocol):
             ''')
             self._instance_data = immutables.Map(json.loads(result))
 
-    async def start(self) -> None:
         global_schema = await self.introspect_global_schema()
         sys_config = await self._load_sys_config()
         default_sysconfig = await self._load_sys_config('sysconfig_default')
@@ -323,7 +334,50 @@ class Tenant(ha_base.ClusterProtocol):
                 self._readiness_state_file, reload_state_file
             )
 
-    def stop(self) -> None:
+    async def start(self) -> None:
+        assert self._task_group is None
+        self._task_group = taskgroup.TaskGroup()
+        await self._task_group.__aenter__()
+        self._accept_new_tasks = True
+
+    @property
+    def accept_new_tasks(self):
+        return self._accept_new_tasks
+
+    def create_task(
+        self, coro: Coroutine, *, interruptable: bool
+    ) -> asyncio.Task:
+        # Interruptable tasks are regular asyncio tasks that may be interrupted
+        # randomly in the middle when the event loop stops; while tasks with
+        # interruptable=False are always awaited before the server stops, so
+        # that e.g. all finally blocks get a chance to execute in those tasks.
+        # Therefore, it is an error trying to create a task while the server is
+        # not expecting one, so always couple the call with an additional check
+        if self._accept_new_tasks and self._task_group is not None:
+            if interruptable:
+                rv = self.__loop.create_task(coro)
+            else:
+                rv = self._task_group.create_task(coro)
+
+            # Keep a strong reference of the created Task
+            self._tasks.add(rv)
+            rv.add_done_callback(self._tasks.discard)
+
+            return rv
+        else:
+            # Hint: add `if tenant.accept_new_tasks` before `.create_task()`
+            raise RuntimeError("task cannot be created at this time")
+
+    def stop_accepting_new_tasks(self) -> None:
+        self._accept_new_tasks = False
+
+    async def stop(self) -> None:
+        if self._task_group is not None:
+            tg = self._task_group
+            self._task_group = None
+            await tg.__aexit__(*sys.exc_info())
+
+    def terminate_sys_pgcon(self) -> None:
         if self.__sys_pgcon is not None:
             self.__sys_pgcon.terminate()
             self.__sys_pgcon = None
@@ -457,8 +511,8 @@ class Tenant(ha_base.ClusterProtocol):
             )
             self.__sys_pgcon = None
             self._sys_pgcon_ready_evt.clear()
-            if self._server._accept_new_tasks:
-                self._server.create_task(
+            if self._accept_new_tasks:
+                self.create_task(
                     self._reconnect_sys_pgcon(), interruptable=True
                 )
             self.on_pgcon_broken(True)
@@ -941,8 +995,8 @@ class Tenant(ha_base.ClusterProtocol):
 
     def _schedule_reported_config_if_needed(self, setting_name: str) -> None:
         setting = config.get_settings()[setting_name]
-        if setting.report and self._server._accept_new_tasks:
-            self._server.create_task(
+        if setting.report and self._accept_new_tasks:
+            self.create_task(
                 self._load_reported_config(), interruptable=True)
 
     def load_jwcrypto(self) -> None:
@@ -1120,7 +1174,7 @@ class Tenant(ha_base.ClusterProtocol):
             raise
 
     def on_remote_database_quarantine(self, dbname: str) -> None:
-        if not self._server._accept_new_tasks:
+        if not self._accept_new_tasks:
             return
 
         # Block new connections to the database.
@@ -1133,10 +1187,10 @@ class Tenant(ha_base.ClusterProtocol):
                 metrics.background_errors.inc(1.0, 'remote_db_quarantine')
                 raise
 
-        self._server.create_task(task(), interruptable=True)
+        self.create_task(task(), interruptable=True)
 
     def on_remote_ddl(self, dbname: str) -> None:
-        if not self._server._accept_new_tasks:
+        if not self._accept_new_tasks:
             return
 
         # Triggered by a postgres notification event 'schema-changes'
@@ -1148,10 +1202,10 @@ class Tenant(ha_base.ClusterProtocol):
                 metrics.background_errors.inc(1.0, 'on_remote_ddl')
                 raise
 
-        self._server.create_task(task(), interruptable=True)
+        self.create_task(task(), interruptable=True)
 
     def on_remote_database_changes(self) -> None:
-        if not self._server._accept_new_tasks:
+        if not self._accept_new_tasks:
             return
 
         # Triggered by a postgres notification event 'database-changes'
@@ -1173,10 +1227,10 @@ class Tenant(ha_base.ClusterProtocol):
             for dbname in dropped:
                 self.on_after_drop_db(dbname)
 
-        self._server.create_task(task(), interruptable=True)
+        self.create_task(task(), interruptable=True)
 
     def on_remote_database_config_change(self, dbname: str) -> None:
-        if not self._server._accept_new_tasks:
+        if not self._accept_new_tasks:
             return
 
         # Triggered by a postgres notification event 'database-config-changes'
@@ -1189,10 +1243,10 @@ class Tenant(ha_base.ClusterProtocol):
                     1.0, 'on_remote_database_config_change')
                 raise
 
-        self._server.create_task(task(), interruptable=True)
+        self.create_task(task(), interruptable=True)
 
     def on_database_extensions_changes(self, dbname: str) -> None:
-        if not self._server._accept_new_tasks:
+        if not self._accept_new_tasks:
             return
 
         async def task():
@@ -1203,10 +1257,10 @@ class Tenant(ha_base.ClusterProtocol):
                     1.0, 'on_database_extensions_change')
                 raise
 
-        self._server.create_task(task(), interruptable=True)
+        self.create_task(task(), interruptable=True)
 
     def on_local_database_config_change(self, dbname: str) -> None:
-        if not self._server._accept_new_tasks:
+        if not self._accept_new_tasks:
             return
 
         # Triggered by DB Index.
@@ -1220,10 +1274,10 @@ class Tenant(ha_base.ClusterProtocol):
                     1.0, 'on_local_database_config_change')
                 raise
 
-        self._server.create_task(task(), interruptable=True)
+        self.create_task(task(), interruptable=True)
 
     def on_remote_system_config_change(self) -> None:
-        if not self._server._accept_new_tasks:
+        if not self._accept_new_tasks:
             return
 
         # Triggered by a postgres notification event 'system-config-changes'
@@ -1239,10 +1293,10 @@ class Tenant(ha_base.ClusterProtocol):
                     1.0, 'on_remote_system_config_change')
                 raise
 
-        self._server.create_task(task(), interruptable=True)
+        self.create_task(task(), interruptable=True)
 
     def on_global_schema_change(self) -> None:
-        if not self._server._accept_new_tasks:
+        if not self._accept_new_tasks:
             return
 
         async def task():
@@ -1253,4 +1307,4 @@ class Tenant(ha_base.ClusterProtocol):
                     1.0, 'on_global_schema_change')
                 raise
 
-        self._server.create_task(task(), interruptable=True)
+        self.create_task(task(), interruptable=True)

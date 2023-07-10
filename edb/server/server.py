@@ -31,7 +31,6 @@ import pickle
 import socket
 import ssl
 import stat
-import sys
 import time
 import uuid
 import weakref
@@ -96,9 +95,6 @@ class Server:
 
     _servers: Mapping[str, asyncio.AbstractServer]
 
-    _task_group: Optional[taskgroup.TaskGroup]
-    _tasks: Set[asyncio.Task]
-
     _testmode: bool
 
     # We maintain an OrderedDict of all active client connections.
@@ -141,17 +137,16 @@ class Server:
         disable_dynamic_system_config: bool = False,
         tenant: edbtenant.Tenant,
     ):
+        self.__loop = asyncio.get_running_loop()
+
         self._tenant = tenant
         tenant.set_server(self)
-        self.__loop = asyncio.get_running_loop()
 
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
 
         self._serving = False
         self._initing = False
-        self._accept_new_tasks = False
-        self._tasks = set()
 
         self._runstate_dir = runstate_dir
         self._internal_runstate_dir = internal_runstate_dir
@@ -198,7 +193,6 @@ class Server:
         self._http_last_minute_requests = windowedsum.WindowedSum()
         self._http_request_logger = None
 
-        self._task_group = None
         self._stop_evt = asyncio.Event()
         self._tls_cert_file = None
         self._tls_cert_newly_generated = False
@@ -324,12 +318,12 @@ class Server:
     async def init(self):
         self._initing = True
         try:
-            await self._tenant.init()
+            await self._tenant.init_sys_pgcon()
 
             await self._load_instance_data()
             await self._maybe_patch()
 
-            await self._tenant.start()
+            await self._tenant.init()
 
             sys_config = self._dbindex.get_sys_config()
             if not self._listen_hosts:
@@ -1204,13 +1198,11 @@ class Server:
 
     async def start(self):
         self._stop_evt.clear()
-        assert self._task_group is None
-        self._task_group = taskgroup.TaskGroup()
-        await self._task_group.__aenter__()
-        self._accept_new_tasks = True
 
-        self._http_request_logger = self.create_task(
-            self._request_stats_logger(), interruptable=True
+        await self._tenant.start()
+
+        self._http_request_logger = self.__loop.create_task(
+            self._request_stats_logger()
         )
 
         await self._tenant._cluster.start_watching(self._tenant.on_switch_over)
@@ -1278,7 +1270,7 @@ class Server:
     async def stop(self):
         try:
             self._serving = False
-            self._accept_new_tasks = False
+            self._tenant.stop_accepting_new_tasks()
 
             if self._idle_gc_handler is not None:
                 self._idle_gc_handler.cancel()
@@ -1303,37 +1295,12 @@ class Server:
                 conn.stop()
             self._pgext_conns.clear()
 
-            if self._task_group is not None:
-                tg = self._task_group
-                self._task_group = None
-                await tg.__aexit__(*sys.exc_info())
+            await self._tenant.stop()
 
             await self._destroy_compiler_pool()
 
         finally:
-            self._tenant.stop()
-
-    def create_task(self, coro, *, interruptable):
-        # Interruptable tasks are regular asyncio tasks that may be interrupted
-        # randomly in the middle when the event loop stops; while tasks with
-        # interruptable=False are always awaited before the server stops, so
-        # that e.g. all finally blocks get a chance to execute in those tasks.
-        # Therefore, it is an error trying to create a task while the server is
-        # not expecting one, so always couple the call with an additional check
-        if self._accept_new_tasks:
-            if interruptable:
-                rv = self.__loop.create_task(coro)
-            else:
-                rv = self._task_group.create_task(coro)
-
-            # Keep a strong reference of the created Task
-            self._tasks.add(rv)
-            rv.add_done_callback(self._tasks.discard)
-
-            return rv
-        else:
-            # Hint: add `if server._accept_new_tasks` before `.create_task()`
-            raise RuntimeError("task cannot be created at this time")
+            self._tenant.terminate_sys_pgcon()
 
     async def serve_forever(self):
         await self._stop_evt.wait()

@@ -379,13 +379,12 @@ async def execute_system_config(
 
 
 def signal_side_effects(dbv, side_effects):
-    server = dbv.server
     tenant = dbv.tenant
-    if not server._accept_new_tasks:
+    if not tenant.accept_new_tasks:
         return
 
     if side_effects & dbview.SideEffects.SchemaChanges:
-        server.create_task(
+        tenant.create_task(
             tenant.signal_sysevent(
                 'schema-changes',
                 dbname=dbv.dbname,
@@ -394,7 +393,7 @@ def signal_side_effects(dbv, side_effects):
         )
 
     if side_effects & dbview.SideEffects.GlobalSchemaChanges:
-        server.create_task(
+        tenant.create_task(
             tenant.signal_sysevent(
                 'global-schema-changes',
             ),
@@ -402,7 +401,7 @@ def signal_side_effects(dbv, side_effects):
         )
 
     if side_effects & dbview.SideEffects.DatabaseConfigChanges:
-        server.create_task(
+        tenant.create_task(
             tenant.signal_sysevent(
                 'database-config-changes',
                 dbname=dbv.dbname,
@@ -411,7 +410,7 @@ def signal_side_effects(dbv, side_effects):
         )
 
     if side_effects & dbview.SideEffects.DatabaseChanges:
-        server.create_task(
+        tenant.create_task(
             tenant.signal_sysevent(
                 'database-changes',
             ),
@@ -419,7 +418,7 @@ def signal_side_effects(dbv, side_effects):
         )
 
     if side_effects & dbview.SideEffects.InstanceConfigChanges:
-        server.create_task(
+        tenant.create_task(
             tenant.signal_sysevent(
                 'system-config-changes',
             ),
@@ -427,7 +426,7 @@ def signal_side_effects(dbv, side_effects):
         )
 
     if side_effects & dbview.SideEffects.ExtensionChanges:
-        server.create_task(
+        tenant.create_task(
             tenant.signal_sysevent(
                 'extension-changes',
             ),
