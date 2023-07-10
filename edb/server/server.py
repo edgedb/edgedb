@@ -887,38 +887,6 @@ class Server:
         # CONFIGURE INSTANCE RESET setting_name;
         pass
 
-    async def _cancel_pgcon_operation(self, pgcon) -> bool:
-        async with self._tenant._use_sys_pgcon() as syscon:
-            if pgcon.idle:
-                # pgcon could have received the query results while we
-                # were acquiring a system connection to cancel it.
-                return False
-
-            if pgcon.is_cancelling():
-                # Somehow the connection is already being cancelled and
-                # we don't want to have to cancellations go in parallel.
-                return False
-
-            pgcon.start_pg_cancellation()
-            try:
-                # Returns True if the `pid` exists and it was able to send it a
-                # SIGINT.  Will throw an exception if the privileges aren't
-                # sufficient.
-                result = await syscon.sql_fetch_val(
-                    f'SELECT pg_cancel_backend({pgcon.backend_pid});'.encode(),
-                )
-            finally:
-                pgcon.finish_pg_cancellation()
-
-            return result == b'\x01'
-
-    async def _cancel_and_discard_pgcon(self, pgcon, dbname) -> None:
-        try:
-            if self._serving:
-                await self._cancel_pgcon_operation(pgcon)
-        finally:
-            self._tenant.release_pgcon(dbname, pgcon, discard=True)
-
     async def _signal_sysevent(self, event, **kwargs):
         try:
             if not self._initing and not self._serving:

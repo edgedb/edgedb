@@ -482,7 +482,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                     # TODO(fantix): hold server shutdown to complete this task
                     if self.server._accept_new_tasks:
                         self.server.create_task(
-                            self.server._cancel_and_discard_pgcon(
+                            self.tenant.cancel_and_discard_pgcon(
                                 self._pinned_pgcon, self.dbname
                             ),
                             interruptable=False,

@@ -522,7 +522,7 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.server._accept_new_tasks
         ):
             self.server.create_task(
-                self.server._cancel_pgcon_operation(self._pinned_pgcon),
+                self.tenant.cancel_pgcon_operation(self._pinned_pgcon),
                 interruptable=False,
             )
 

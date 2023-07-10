@@ -1083,3 +1083,39 @@ class Tenant(ha_base.ClusterProtocol):
         except Exception:
             metrics.background_errors.inc(1.0, 'on_after_drop_db')
             raise
+
+    async def cancel_pgcon_operation(self, con: pgcon.PGConnection) -> bool:
+        async with self._use_sys_pgcon() as syscon:
+            if con.idle:
+                # con could have received the query results while we
+                # were acquiring a system connection to cancel it.
+                return False
+
+            if con.is_cancelling():
+                # Somehow the connection is already being cancelled and
+                # we don't want to have to cancellations go in parallel.
+                return False
+
+            con.start_pg_cancellation()
+            try:
+                # Returns True if the `pid` exists and it was able to send it a
+                # SIGINT.  Will throw an exception if the privileges aren't
+                # sufficient.
+                result = await syscon.sql_fetch_val(
+                    f'SELECT pg_cancel_backend({con.backend_pid});'.encode(),
+                )
+            finally:
+                con.finish_pg_cancellation()
+
+            return result == b'\x01'
+
+    async def cancel_and_discard_pgcon(
+        self,
+        con: pgcon.PGConnection,
+        dbname: str,
+    ) -> None:
+        try:
+            if self._server._serving:
+                await self.cancel_pgcon_operation(con)
+        finally:
+            self.release_pgcon(dbname, con, discard=True)

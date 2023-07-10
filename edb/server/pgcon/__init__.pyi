@@ -66,6 +66,9 @@ def set_init_con_script_data(cfg: list[dict[str, Any]]):
 
 class PGConnection:
 
+    idle: bool
+    backend_pid: int
+
     async def sql_execute(self, sql: bytes | tuple[bytes, ...]) -> None:
         ...
 
@@ -127,6 +130,15 @@ class PGConnection:
         ...
 
     def mark_as_system_db(self) -> None:
+        ...
+
+    def is_cancelling(self) -> bool:
+        ...
+
+    def start_pg_cancellation(self) -> None:
+        ...
+
+    def finish_pg_cancellation(self) -> None:
         ...
 
 
