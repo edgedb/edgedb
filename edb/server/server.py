@@ -34,7 +34,6 @@ import socket
 import ssl
 import stat
 import struct
-import sys
 import time
 import uuid
 
@@ -115,8 +114,6 @@ class Server(ha_base.ClusterProtocol):
     _sys_pgcon_waiter: asyncio.Lock
     _servers: Mapping[str, asyncio.AbstractServer]
 
-    _task_group: Optional[taskgroup.TaskGroup]
-    _tasks: Set[asyncio.Task]
     _backend_adaptive_ha: Optional[adaptive_ha.AdaptiveHASupport]
 
     _testmode: bool
@@ -180,8 +177,6 @@ class Server(ha_base.ClusterProtocol):
 
         self._serving = False
         self._initing = False
-        self._accept_new_tasks = False
-        self._tasks = set()
 
         self._cluster = cluster
         self._pg_addr = self._get_pgaddr()
@@ -261,7 +256,6 @@ class Server(ha_base.ClusterProtocol):
         self._http_last_minute_requests = windowedsum.WindowedSum()
         self._http_request_logger = None
 
-        self._task_group = None
         self._stop_evt = asyncio.Event()
         self._tls_cert_file = None
         self._tls_cert_newly_generated = False
@@ -298,6 +292,10 @@ class Server(ha_base.ClusterProtocol):
         self._disable_dynamic_system_config = disable_dynamic_system_config
         self._report_config_typedesc = {}
         self._report_config_data = {}
+
+    @property
+    def _accept_new_tasks(self):
+        return self._tenant.accept_new_tasks
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -2252,13 +2250,10 @@ class Server(ha_base.ClusterProtocol):
 
     async def start(self):
         self._stop_evt.clear()
-        assert self._task_group is None
-        self._task_group = taskgroup.TaskGroup()
-        await self._task_group.__aenter__()
-        self._accept_new_tasks = True
+        await self._tenant.start_accepting_new_tasks()
 
-        self._http_request_logger = self.create_task(
-            self._request_stats_logger(), interruptable=True
+        self._http_request_logger = self.__loop.create_task(
+            self._request_stats_logger()
         )
 
         await self._cluster.start_watching(self.on_switch_over)
@@ -2326,7 +2321,7 @@ class Server(ha_base.ClusterProtocol):
     async def stop(self):
         try:
             self._serving = False
-            self._accept_new_tasks = False
+            self._tenant.stop()
 
             if self._idle_gc_handler is not None:
                 self._idle_gc_handler.cancel()
@@ -2351,10 +2346,7 @@ class Server(ha_base.ClusterProtocol):
                 conn.stop()
             self._pgext_conns.clear()
 
-            if self._task_group is not None:
-                tg = self._task_group
-                self._task_group = None
-                await tg.__aexit__(*sys.exc_info())
+            await self._tenant.wait_stopped()
 
             await self._destroy_compiler_pool()
 
@@ -2365,26 +2357,7 @@ class Server(ha_base.ClusterProtocol):
             self._sys_pgcon_waiter = None
 
     def create_task(self, coro, *, interruptable):
-        # Interruptable tasks are regular asyncio tasks that may be interrupted
-        # randomly in the middle when the event loop stops; while tasks with
-        # interruptable=False are always awaited before the server stops, so
-        # that e.g. all finally blocks get a chance to execute in those tasks.
-        # Therefore, it is an error trying to create a task while the server is
-        # not expecting one, so always couple the call with an additional check
-        if self._accept_new_tasks:
-            if interruptable:
-                rv = self.__loop.create_task(coro)
-            else:
-                rv = self._task_group.create_task(coro)
-
-            # Keep a strong reference of the created Task
-            self._tasks.add(rv)
-            rv.add_done_callback(self._tasks.discard)
-
-            return rv
-        else:
-            # Hint: add `if server._accept_new_tasks` before `.create_task()`
-            raise RuntimeError("task cannot be created at this time")
+        return self._tenant.create_task(coro, interruptable=interruptable)
 
     async def serve_forever(self):
         await self._stop_evt.wait()
