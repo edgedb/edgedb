@@ -801,18 +801,6 @@ class Server:
 
         await self._stop_servers(servers_to_stop)
 
-    async def _on_before_create_db_from_template(
-        self,
-        dbname: str,
-        current_dbname: str
-    ):
-        if current_dbname == dbname:
-            raise errors.ExecutionError(
-                f'cannot create database using currently open database '
-                f'{dbname!r} as a template database')
-
-        await self._tenant.ensure_database_not_connected(dbname)
-
     def _on_after_drop_db(self, dbname: str):
         try:
             assert self._dbindex is not None

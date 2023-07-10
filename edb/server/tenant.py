@@ -1048,3 +1048,15 @@ class Tenant(ha_base.ClusterProtocol):
                 f'cannot drop the currently open database {dbname!r}')
 
         await self.ensure_database_not_connected(dbname)
+
+    async def on_before_create_db_from_template(
+        self,
+        dbname: str,
+        current_dbname: str
+    ) -> None:
+        if current_dbname == dbname:
+            raise errors.ExecutionError(
+                f'cannot create database using currently open database '
+                f'{dbname!r} as a template database')
+
+        await self.ensure_database_not_connected(dbname)

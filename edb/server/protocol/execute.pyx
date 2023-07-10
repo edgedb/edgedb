@@ -83,7 +83,7 @@ async def execute(
         if not skip_start:
             dbv.start(query_unit)
         if query_unit.create_db_template:
-            await server._on_before_create_db_from_template(
+            await tenant.on_before_create_db_from_template(
                 query_unit.create_db_template,
                 dbv.dbname,
             )
