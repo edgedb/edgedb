@@ -109,13 +109,26 @@ Save the file and exit, then restart the service.
 
 Set a password
 ==============
-There is no default password. Set a password by connecting from localhost.
+There is no default password. To set one, you will first need to get the Unix
+socket directory. You can find this by looking at your system.d unit file.
+
+.. code-block:: bash
+
+    $ sudo systemctl cat edgedb-server-3
+
+Look for a line starting with ``ExecStart=``. Get the value being passed for
+``--runstate-dir``. If that value contains ``%t``, replace that with ``/run``.
+So, ``%t/edgedb`` would become ``/run/edgedb``. Use that value in the next
+series of commands as shown.
+
+Set a password by connecting from localhost.
 
 .. code-block:: bash
 
    $ echo -n "> " && read -s PASSWORD
-   $ sudo edgedb --port 5656 --tls-security insecure --admin query \
-      "ALTER ROLE edgedb SET password := '$PASSWORD'"
+   $ sudo edgedb --port 5656 --tls-security insecure --admin \
+      --unix-path <your-runstate-dir-value> \
+      query "ALTER ROLE edgedb SET password := '$PASSWORD'"
 
 The server listens on localhost by default. Changing this looks like this.
 
