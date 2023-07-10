@@ -135,7 +135,6 @@ class Server:
         default_auth_method: srvargs.ServerAuthMethods = (
             srvargs.DEFAULT_AUTH_METHODS),
         admin_ui: bool = False,
-        instance_name: str,
         disable_dynamic_system_config: bool = False,
         tenant: edbtenant.Tenant,
     ):
@@ -175,8 +174,6 @@ class Server:
 
         self._startup_script = startup_script
         self._new_instance = new_instance
-
-        self._instance_name = instance_name
 
         self._sys_queries = immutables.Map()
 
@@ -256,9 +253,6 @@ class Server:
 
     def get_loop(self):
         return self.__loop
-
-    def get_instance_name(self):
-        return self._instance_name
 
     def in_dev_mode(self):
         return self._devmode
