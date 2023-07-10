@@ -363,8 +363,8 @@ class Tenant(ha_base.ClusterProtocol):
             rv = await pgcon.connect(
                 self.get_pgaddr(), pg_dbname, self.get_backend_runtime_params()
             )
-            if self._server._stmt_cache_size is not None:
-                rv.set_stmt_cache_size(self._server._stmt_cache_size)
+            if self._server.stmt_cache_size is not None:
+                rv.set_stmt_cache_size(self._server.stmt_cache_size)
         except Exception:
             metrics.backend_connection_establishment_errors.inc()
             raise
