@@ -107,7 +107,6 @@ class Server:
     _binary_conns: collections.OrderedDict[binary.EdgeConnection, bool]
     _pgext_conns: dict[str, pg_ext.PgConnection]
     _idle_gc_handler: asyncio.TimerHandle | None = None
-    _session_idle_timeout: int | None = None
     _stmt_cache_size: int | None = None
 
     def __init__(
@@ -211,7 +210,6 @@ class Server:
         self._http_endpoint_security = http_endpoint_security
 
         self._idle_gc_handler = None
-        self._session_idle_timeout = None
 
         self._admin_ui = admin_ui
 
@@ -414,6 +412,10 @@ class Server:
                 timeout, self._idle_gc_collector)
 
         return timeout
+
+    @property
+    def stmt_cache_size(self) -> int | None:
+        return self._stmt_cache_size
 
     def _reload_stmt_cache_size(self):
         size = config.lookup(
