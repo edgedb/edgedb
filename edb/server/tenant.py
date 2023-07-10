@@ -90,6 +90,9 @@ class Tenant(ha_base.ClusterProtocol):
 
     _ha_master_serial: int
     _backend_adaptive_ha: adaptive_ha.AdaptiveHASupport | None
+    _readiness_state_file: str | None
+    _readiness: srvargs.ReadinessState
+    _readiness_reason: str
 
     # A set of databases that should not accept new connections.
     _block_new_connections: set[str]
@@ -109,6 +112,7 @@ class Tenant(ha_base.ClusterProtocol):
         instance_name: str,
         max_backend_connections: int,
         backend_adaptive_ha: bool = False,
+        readiness_state_file: str | None = None,
         jwt_sub_allowlist_file: pathlib.Path | None = None,
         jwt_revocation_list_file: pathlib.Path | None = None,
     ):
@@ -133,6 +137,9 @@ class Tenant(ha_base.ClusterProtocol):
             self._backend_adaptive_ha = adaptive_ha.AdaptiveHASupport(self)
         else:
             self._backend_adaptive_ha = None
+        self._readiness_state_file = readiness_state_file
+        self._readiness = srvargs.ReadinessState.Default
+        self._readiness_reason = ""
 
         self._max_backend_connections = max_backend_connections
         self._suggested_client_pool_size = max(
@@ -224,6 +231,21 @@ class Tenant(ha_base.ClusterProtocol):
     def get_instance_data(self, key: str) -> str:
         return self._instance_data[key]
 
+    def is_online(self) -> bool:
+        return self._readiness is not srvargs.ReadinessState.Offline
+
+    def is_ready(self) -> bool:
+        return (
+            self._readiness is srvargs.ReadinessState.Default
+            or self._readiness is srvargs.ReadinessState.ReadOnly
+        )
+
+    def is_readonly(self) -> bool:
+        return self._readiness is srvargs.ReadinessState.ReadOnly
+
+    def get_readiness_reason(self) -> str:
+        return self._readiness_reason
+
     def get_report_config_data(
         self,
         protocol_version: defines.ProtocolVersion,
@@ -305,6 +327,16 @@ class Tenant(ha_base.ClusterProtocol):
         self._sys_pgcon_ready_evt.set()
 
         self.populate_sys_auth()
+
+        if self._readiness_state_file is not None:
+
+            def reload_state_file(_file_modified, _event):
+                self.reload_readiness_state()
+
+            self.reload_readiness_state()
+            self._server.monitor_fs(
+                self._readiness_state_file, reload_state_file
+            )
 
     async def start_accepting_new_tasks(self) -> None:
         assert self._task_group is None
@@ -1005,6 +1037,50 @@ class Tenant(ha_base.ClusterProtocol):
                 raise errors.AuthenticationError(
                     "authentication failed: revoked key"
                 )
+
+    def reload_readiness_state(self) -> None:
+        if self._readiness_state_file is None:
+            return
+        try:
+            with open(self._readiness_state_file, "rt") as rt:
+                line = rt.readline().strip()
+                try:
+                    state, _, reason = line.partition(":")
+                    self._readiness = srvargs.ReadinessState(state)
+                    self._readiness_reason = reason
+                    logger.info(
+                        "readiness state file changed, "
+                        "setting server readiness to %r%s",
+                        state,
+                        f" ({reason})" if reason else "",
+                    )
+                except ValueError:
+                    logger.warning(
+                        "invalid state in readiness state file (%r): %r, "
+                        "resetting server readiness to 'default'",
+                        self._readiness_state_file,
+                        state,
+                    )
+                    self._readiness = srvargs.ReadinessState.Default
+
+        except FileNotFoundError:
+            logger.info(
+                "readiness state file (%s) removed, resetting "
+                "server readiness to 'default'",
+                self._readiness_state_file,
+            )
+            self._readiness = srvargs.ReadinessState.Default
+
+        except Exception as e:
+            logger.warning(
+                "cannot read readiness state file (%s): %s, "
+                "resetting server readiness to 'default'",
+                self._readiness_state_file,
+                e,
+            )
+            self._readiness = srvargs.ReadinessState.Default
+
+        self._accepting_connections = self.is_online()
 
     def get_debug_info(self) -> dict[str, Any]:
         obj = dict(
