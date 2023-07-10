@@ -84,6 +84,7 @@ class P_COMPARE_OP(
 ):
     pass
 
+
 class P_IS(Precedence, assoc='nonassoc', tokens=('IS',)):
     pass
 
