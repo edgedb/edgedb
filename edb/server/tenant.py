@@ -644,9 +644,7 @@ class Tenant(ha_base.ClusterProtocol):
         )
 
     async def ensure_database_not_connected(self, dbname: str) -> None:
-        if self._server._dbindex and self._server._dbindex.count_connections(
-            dbname
-        ):
+        if self._dbindex and self._dbindex.count_connections(dbname):
             # If there are open EdgeDB connections to the `dbname` DB
             # just raise the error Postgres would have raised itself.
             raise errors.ExecutionError(
@@ -1287,7 +1285,7 @@ class Tenant(ha_base.ClusterProtocol):
             try:
                 cfg = await self._load_sys_config()
                 self._dbindex.update_sys_config(cfg)
-                self._server._reinit_idle_gc_collector()
+                self._server.reinit_idle_gc_collector()
             except Exception:
                 metrics.background_errors.inc(
                     1.0, 'on_remote_system_config_change')
