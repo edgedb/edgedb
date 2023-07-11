@@ -341,12 +341,12 @@ class Server:
                 '_pg_prepared_statement_cache_size', sys_config
             )
 
-            self._reinit_idle_gc_collector()
+            self.reinit_idle_gc_collector()
 
         finally:
             self._initing = False
 
-    def _reinit_idle_gc_collector(self) -> float:
+    def reinit_idle_gc_collector(self) -> float:
         if self._auto_shutdown_after >= 0:
             return -1
 
@@ -382,7 +382,7 @@ class Server:
     def _idle_gc_collector(self):
         try:
             self._idle_gc_handler = None
-            idle_timeout = self._reinit_idle_gc_collector()
+            idle_timeout = self.reinit_idle_gc_collector()
 
             if idle_timeout <= 0:
                 return
@@ -859,7 +859,7 @@ class Server:
                 await self._restart_servers_new_addr(self._listen_hosts, value)
 
             elif setting_name == 'session_idle_timeout':
-                self._reinit_idle_gc_collector()
+                self.reinit_idle_gc_collector()
 
             elif setting_name == '_pg_prepared_statement_cache_size':
                 self._reload_stmt_cache_size()
@@ -887,7 +887,7 @@ class Server:
                 )
 
             elif setting_name == 'session_idle_timeout':
-                self._reinit_idle_gc_collector()
+                self.reinit_idle_gc_collector()
 
             elif setting_name == '_pg_prepared_statement_cache_size':
                 self._reload_stmt_cache_size()
