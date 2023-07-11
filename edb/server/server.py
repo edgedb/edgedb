@@ -1401,6 +1401,9 @@ class Server:
     ) -> srvargs.ServerAuthMethod:
         return self._default_auth_method.get(transport)
 
+    def get_std_schema(self) -> s_schema.Schema:
+        return self._std_schema
+
     def retrieve_tenant(self, sslobj) -> edbtenant.Tenant | None:
         return self.get_default_tenant()
 
