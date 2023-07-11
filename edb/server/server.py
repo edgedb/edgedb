@@ -146,8 +146,6 @@ class Server:
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
 
-        self._serving = False
-
         self._runstate_dir = runstate_dir
         self._internal_runstate_dir = internal_runstate_dir
         self._compiler_pool = None
@@ -1226,7 +1224,7 @@ class Server:
     async def start(self):
         self._stop_evt.clear()
 
-        await self._tenant.start()
+        await self._tenant.start_accepting_new_tasks()
 
         self._http_request_logger = self.__loop.create_task(
             self._request_stats_logger()
@@ -1253,7 +1251,7 @@ class Server:
         self._listen_port = actual_port
 
         self._accepting_connections = True
-        self._serving = True
+        self._tenant.set_running()
 
         if self._echo_runtime_info:
             ri = {
@@ -1296,8 +1294,7 @@ class Server:
 
     async def stop(self):
         try:
-            self._serving = False
-            self._tenant.stop_accepting_new_tasks()
+            self._tenant.stop()
 
             if self._idle_gc_handler is not None:
                 self._idle_gc_handler.cancel()
@@ -1322,7 +1319,7 @@ class Server:
                 conn.stop()
             self._pgext_conns.clear()
 
-            await self._tenant.stop()
+            await self._tenant.wait_stopped()
 
             await self._destroy_compiler_pool()
 

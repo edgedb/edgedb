@@ -73,6 +73,7 @@ class Tenant(ha_base.ClusterProtocol):
     _instance_data: Mapping[str, str]
     _dbindex: dbview.DatabaseIndex | None
     _initing: bool
+    _running: bool
 
     __loop: asyncio.AbstractEventLoop
     _task_group: taskgroup.TaskGroup | None
@@ -121,6 +122,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._instance_name = instance_name
         self._instance_data = immutables.Map()
         self._initing = False
+        self._running = False
 
         self._task_group = None
         self._tasks = set()
@@ -340,11 +342,14 @@ class Tenant(ha_base.ClusterProtocol):
         finally:
             self._initing = False
 
-    async def start(self) -> None:
+    async def start_accepting_new_tasks(self) -> None:
         assert self._task_group is None
         self._task_group = taskgroup.TaskGroup()
         await self._task_group.__aenter__()
         self._accept_new_tasks = True
+
+    def set_running(self) -> None:
+        self._running = True
 
     @property
     def accept_new_tasks(self):
@@ -374,10 +379,11 @@ class Tenant(ha_base.ClusterProtocol):
             # Hint: add `if tenant.accept_new_tasks` before `.create_task()`
             raise RuntimeError("task cannot be created at this time")
 
-    def stop_accepting_new_tasks(self) -> None:
+    def stop(self) -> None:
+        self._running = False
         self._accept_new_tasks = False
 
-    async def stop(self) -> None:
+    async def wait_stopped(self) -> None:
         if self._task_group is not None:
             tg = self._task_group
             self._task_group = None
@@ -440,14 +446,14 @@ class Tenant(ha_base.ClusterProtocol):
 
     @contextlib.asynccontextmanager
     async def _use_sys_pgcon(self) -> AsyncGenerator[pgcon.PGConnection, None]:
-        if not self._initing and not self._server._serving:
-            raise RuntimeError("EdgeDB server is not serving.")
+        if not self._initing and not self._running:
+            raise RuntimeError("EdgeDB server is not running.")
 
         await self._sys_pgcon_waiter.acquire()
 
-        if not self._initing and not self._server._serving:
+        if not self._initing and not self._running:
             self._sys_pgcon_waiter.release()
-            raise RuntimeError("EdgeDB server is not serving.")
+            raise RuntimeError("EdgeDB server is not running.")
 
         if self.__sys_pgcon is None or not self.__sys_pgcon.is_healthy():
             conn, self.__sys_pgcon = self.__sys_pgcon, None
@@ -481,7 +487,7 @@ class Tenant(ha_base.ClusterProtocol):
             raise
 
     def on_sys_pgcon_failover_signal(self) -> None:
-        if not self._server._serving:
+        if not self._running:
             return
         try:
             if self._backend_adaptive_ha is not None:
@@ -500,8 +506,8 @@ class Tenant(ha_base.ClusterProtocol):
 
     def on_sys_pgcon_connection_lost(self, exc: Exception | None) -> None:
         try:
-            if not self._server._serving:
-                # The server is shutting down, release all events so that
+            if not self._running:
+                # The tenant is shutting down, release all events so that
                 # the waiters if any could continue and exit
                 self._sys_pgcon_ready_evt.set()
                 self._sys_pgcon_reconnect_evt.set()
@@ -528,7 +534,7 @@ class Tenant(ha_base.ClusterProtocol):
     async def _reconnect_sys_pgcon(self) -> None:
         try:
             conn = None
-            while self._server._serving:
+            while self._running:
                 try:
                     conn = await self._pg_connect(
                         defines.EDGEDB_SYSTEM_DB
@@ -536,7 +542,7 @@ class Tenant(ha_base.ClusterProtocol):
                     break
                 except OSError:
                     # Keep retrying as far as:
-                    #   1. The EdgeDB server is still serving,
+                    #   1. This tenant is still running,
                     #   2. We still cannot connect to the Postgres cluster, or
                     pass
                 except pgcon_errors.BackendError as e:
@@ -551,7 +557,7 @@ class Tenant(ha_base.ClusterProtocol):
                         # once PostgreSQL supports SERIALIZABLE in hot standbys
                         raise
 
-                if self._server._serving:
+                if self._running:
                     try:
                         # Retry after INTERVAL seconds, unless the event is set
                         # and we can retry immediately after the event.
@@ -564,7 +570,7 @@ class Tenant(ha_base.ClusterProtocol):
                     except asyncio.TimeoutError:
                         pass
 
-            if not self._server._serving:
+            if not self._running:
                 if conn is not None:
                     conn.abort()
                 return
@@ -917,7 +923,7 @@ class Tenant(ha_base.ClusterProtocol):
                 return await self._server.introspect_global_schema(syscon)
 
     async def _reintrospect_global_schema(self) -> None:
-        if not self._initing and not self._server._serving:
+        if not self._initing and not self._running:
             logger.warning(
                 "global-schema-changes event received during shutdown; "
                 "ignoring."
@@ -1137,17 +1143,17 @@ class Tenant(ha_base.ClusterProtocol):
         dbname: str,
     ) -> None:
         try:
-            if self._server._serving:
+            if self._running:
                 await self.cancel_pgcon_operation(con)
         finally:
             self.release_pgcon(dbname, con, discard=True)
 
     async def signal_sysevent(self, event: str, **kwargs) -> None:
         try:
-            if not self._initing and not self._server._serving:
+            if not self._initing and not self._running:
                 # This is very likely if we are doing
                 # "run_startup_script_and_exit()", but is also possible if the
-                # server was shut down with this coroutine as a background task
+                # tenant was shut down with this coroutine as a background task
                 # in flight.
                 return
 
