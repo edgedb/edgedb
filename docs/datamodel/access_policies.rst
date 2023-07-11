@@ -145,6 +145,27 @@ queries. The exact API depends on which client library you're using:
       fmt.Println(result)
     }
 
+  .. code-tab:: rust
+
+    use uuid::Uuid;
+
+    let client = edgedb_tokio::create_client()
+        .await
+        .expect("Client should init")
+        .with_globals_fn(|c| {
+            c.set(
+                "current_user",
+                Value::Uuid(
+                    Uuid::parse_str("2141a5b4-5634-4ccc-b835-437863534c51")
+                        .expect("Uuid should have parsed"),
+                ),
+            )
+        });
+    client
+        .query_required_single::<Uuid, _>("select global current_user;", &())
+        .await
+        .expect("Returning value");
+
 
 Defining a policy
 ^^^^^^^^^^^^^^^^^
