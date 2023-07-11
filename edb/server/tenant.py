@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 
 class Tenant:
     _server: edbserver.Server
+    _running: bool
 
     __loop: asyncio.AbstractEventLoop
     _task_group: taskgroup.TaskGroup | None
@@ -39,6 +40,7 @@ class Tenant:
     def __init__(
         self,
     ):
+        self._running = False
         self._task_group = None
         self._tasks = set()
         self._accept_new_tasks = False
@@ -56,6 +58,9 @@ class Tenant:
         self._task_group = taskgroup.TaskGroup()
         await self._task_group.__aenter__()
         self._accept_new_tasks = True
+
+    def start_running(self) -> None:
+        self._running = True
 
     @property
     def accept_new_tasks(self):
@@ -86,6 +91,7 @@ class Tenant:
             raise RuntimeError("task cannot be created at this time")
 
     def stop(self) -> None:
+        self._running = False
         self._accept_new_tasks = False
 
     async def wait_stopped(self) -> None:
