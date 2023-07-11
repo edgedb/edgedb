@@ -879,7 +879,7 @@ class Tenant(ha_base.ClusterProtocol):
                 for (
                     protocol_ver,
                     typedesc,
-                ) in self._server._report_config_typedesc.items():
+                ) in self._server.get_report_config_typedesc().items():
                     self._report_config_data[protocol_ver] = (
                         struct.pack('!L', len(typedesc)) +
                         typedesc +

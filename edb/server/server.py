@@ -1398,6 +1398,11 @@ class Server:
 
         return obj
 
+    def get_report_config_typedesc(
+        self
+    ) -> dict[defines.ProtocolVersion, bytes]:
+        return self._report_config_typedesc
+
     def get_tenant(self, server_name: Optional[str]) -> edbtenant.Tenant:
         # Given a server name, return a corresponding tenant. Raise an error
         # if the server name doesn't match any registered tenant.
