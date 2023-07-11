@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 class Tenant:
     _server: edbserver.Server
     _running: bool
+    _accepting_connections: bool
 
     __loop: asyncio.AbstractEventLoop
     _task_group: taskgroup.TaskGroup | None
@@ -41,6 +42,8 @@ class Tenant:
         self,
     ):
         self._running = False
+        self._accepting_connections = False
+
         self._task_group = None
         self._tasks = set()
         self._accept_new_tasks = False
@@ -61,6 +64,10 @@ class Tenant:
 
     def start_running(self) -> None:
         self._running = True
+        self._accepting_connections = True
+
+    def stop_accepting_connections(self) -> None:
+        self._accepting_connections = False
 
     @property
     def accept_new_tasks(self):

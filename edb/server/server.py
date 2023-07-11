@@ -245,7 +245,6 @@ class Server(ha_base.ClusterProtocol):
         self._binary_proto_id_counter = 0
         self._binary_conns = collections.OrderedDict()
         self._pgext_conns = {}
-        self._accepting_connections = False
 
         self._servers = {}
 
@@ -2049,7 +2048,7 @@ class Server(ha_base.ClusterProtocol):
             )
             self._readiness = srvargs.ReadinessState.Default
 
-        self._accepting_connections = self.is_online()
+        self._tenant._accepting_connections = self.is_online()
 
     def _sni_callback(self, sslobj, server_name, sslctx):
         # Match the given SNI for a pre-registered Tenant instance,
@@ -2279,7 +2278,6 @@ class Server(ha_base.ClusterProtocol):
         self._listen_hosts = [addr[0] for addr in listen_addrs]
         self._listen_port = actual_port
 
-        self._accepting_connections = True
         self._tenant.start_running()
 
         if self._echo_runtime_info:
@@ -2318,7 +2316,7 @@ class Server(ha_base.ClusterProtocol):
         self.request_shutdown()
 
     def request_shutdown(self):
-        self._accepting_connections = False
+        self._tenant.stop_accepting_connections()
         self._stop_evt.set()
 
     async def stop(self):
