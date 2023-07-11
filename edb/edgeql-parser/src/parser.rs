@@ -1,3 +1,4 @@
+use append_only_vec::AppendOnlyVec;
 use indexmap::IndexMap;
 
 use crate::helpers::quote_name;
@@ -8,12 +9,16 @@ use crate::tokenizer::{Error, Kind, Token, Value};
 pub struct Context<'s> {
     spec: &'s Spec,
     arena: bumpalo::Bump,
+    terminal_arena: AppendOnlyVec<Terminal>,
 }
 
 impl<'s> Context<'s> {
     pub fn new(spec: &'s Spec) -> Self {
-        let arena = bumpalo::Bump::new();
-        Context { spec, arena }
+        Context {
+            spec,
+            arena: bumpalo::Bump::new(),
+            terminal_arena: AppendOnlyVec::new(),
+        }
     }
 }
 
@@ -33,7 +38,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
 
     // append EIO
     let end = input.last().map(|t| t.span.end).unwrap_or_default();
-    let eoi: &Terminal = ctx.new_boxed(Terminal {
+    let eoi = ctx.alloc_terminal(Terminal {
         kind: Kind::EOI,
         span: Span { start: end, end },
         text: "".to_string(),
@@ -141,15 +146,15 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
     (node, parser.errors)
 }
 
-impl<'a> Context<'a> {
-    fn new_boxed<T>(&self, t: T) -> &'a mut bumpalo::boxed::Box<T> {
-        let boxed = bumpalo::boxed::Box::new_in(t, &self.arena);
-        self.arena.alloc(boxed)
+impl<'s> Context<'s> {
+    fn alloc_terminal(&self, t: Terminal) -> &'_ Terminal {
+        let idx = self.terminal_arena.push(t);
+        &self.terminal_arena[idx]
     }
 }
 
 fn new_token_for_injection<'a>(kind: &Kind, ctx: &'a Context) -> &'a Terminal {
-    ctx.new_boxed(Terminal {
+    ctx.alloc_terminal(Terminal {
         kind: kind.clone(),
         text: kind.text().unwrap_or_default().to_string(),
         value: match kind {
@@ -188,7 +193,13 @@ pub struct Reduce {
     pub cnt: usize,
 }
 
-#[derive(Clone, Copy)]
+/// A node of the CST tree.
+///
+/// Warning: allocated in the bumpalo arena, which does not Drop.
+/// Any types that do allocation with global allocator (such as String or Vec),
+/// must manually drop. This is why Terminal has a special vec arena that does
+/// Drop.
+#[derive(Debug, Clone, Copy)]
 pub enum CSTNode<'a> {
     Empty,
     Terminal(&'a Terminal),
@@ -202,7 +213,7 @@ pub struct Terminal {
     pub span: Span,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Production<'a> {
     pub id: usize,
     pub args: &'a [CSTNode<'a>],
@@ -324,13 +335,11 @@ impl<'s> Parser<'s> {
         #[cfg(debug_assertions)]
         {
             let first = self.stack_top.parent.unwrap();
-            assert!(matches!(
-                &first.value,
-                CSTNode::Terminal(Terminal {
-                    kind: Kind::Epsilon,
-                    ..
-                })
-            ));
+            assert!(
+                matches!(&first.value, CSTNode::Empty),
+                "expected 'Empty' found {:?}",
+                first.value
+            );
         }
     }
 
@@ -403,7 +412,7 @@ fn extend_span<'a>(value: &mut CSTNode<'a>, span: Option<Span>, ctx: &'a Context
         return
     };
 
-    let new_term = ctx.new_boxed(terminal.clone());
+    let mut new_term = terminal.clone();
 
     if span.start < new_term.span.start {
         new_term.span.start = span.start;
@@ -411,7 +420,7 @@ fn extend_span<'a>(value: &mut CSTNode<'a>, span: Option<Span>, ctx: &'a Context
     if span.end > new_term.span.end {
         new_term.span.end = span.end;
     }
-    *terminal = new_term;
+    *terminal = ctx.alloc_terminal(new_term);
 }
 
 const PARSER_COUNT_MAX: usize = 10;
