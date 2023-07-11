@@ -1380,6 +1380,9 @@ class Server:
     ) -> srvargs.ServerAuthMethod:
         return self._default_auth_method.get(transport)
 
+    def get_std_schema(self) -> s_schema.Schema:
+        return self._std_schema
+
     def retrieve_tenant(self, sslobj) -> edbtenant.Tenant | None:
         # After TLS handshake, the client connection would use this method to
         # retrieve the Tenant instance associated with the given SSLObject.

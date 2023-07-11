@@ -188,7 +188,7 @@ async def handle_request(
             if static_exc is errormech.SchemaRequired:
                 ex = errormech.interpret_backend_error(
                     s_schema.ChainedSchema(
-                        tenant.server._std_schema,
+                        tenant.server.get_std_schema(),
                         db.user_schema,
                         tenant.get_global_schema(),
                     ),
