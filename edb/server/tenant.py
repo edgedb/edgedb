@@ -304,7 +304,6 @@ class Tenant(ha_base.ClusterProtocol):
         await self._load_reported_config()
 
         self._dbindex = dbview.DatabaseIndex(
-            self._server,
             self,
             std_schema=self._server.get_std_schema(),
             global_schema=global_schema,
