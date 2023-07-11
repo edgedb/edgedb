@@ -267,16 +267,12 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         pass
 
     def connection_made(self, transport):
-        if not self.server._accepting_connections:
-            transport.abort()
-            return
-
-        self._transport = transport
-
         if self.tenant is None:
+            self._transport = transport
             self._main_task = self.loop.create_task(self.handshake())
             self._main_task_created()
-        elif self.tenant.accept_new_tasks:
+        elif self.tenant.is_accepting_connections():
+            self._transport = transport
             self._main_task = self.tenant.create_task(
                 self.main(), interruptable=False
             )
@@ -311,7 +307,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
     async def _handshake(self):
         if self.tenant is None:
             self.tenant = self.server.get_default_tenant()
-        if self.tenant.accept_new_tasks:
+        if self.tenant.is_accepting_connections():
             self._main_task = self.tenant.create_task(
                 self.main(), interruptable=False
             )
