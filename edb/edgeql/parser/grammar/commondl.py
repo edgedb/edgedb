@@ -23,6 +23,7 @@ import sys
 import types
 import typing
 
+
 from edb.errors import EdgeQLSyntaxError
 
 from edb.edgeql import ast as qlast
@@ -111,42 +112,49 @@ class NewNontermHelper:
 
 class Semicolons(Nonterm):
     # one or more semicolons
+    @parsing.inline(0)
     def reduce_SEMICOLON(self, tok):
-        self.val = tok
+        pass
 
-    def reduce_Semicolons_SEMICOLON(self, semicolons, _):
-        self.val = semicolons.val
+    @parsing.inline(0)
+    def reduce_Semicolons_SEMICOLON(self, semicolons, semicolon):
+        pass
 
 
 class OptSemicolons(Nonterm):
+    @parsing.inline(0)
     def reduce_Semicolons(self, semicolons):
-        self.val = semicolons.val
+        pass
 
     def reduce_empty(self):
         self.val = None
 
 
 class ExtendingSimple(Nonterm):
+    @parsing.inline(1)
     def reduce_EXTENDING_SimpleTypeNameList(self, _, list):
-        self.val = list.val
+        pass
 
 
 class OptExtendingSimple(Nonterm):
+    @parsing.inline(0)
     def reduce_ExtendingSimple(self, extending):
-        self.val = extending.val
+        pass
 
     def reduce_empty(self):
         self.val = []
 
 
 class Extending(Nonterm):
+    @parsing.inline(1)
     def reduce_EXTENDING_TypeNameList(self, _, list):
-        self.val = list.val
+        pass
 
 
 class OptExtending(Nonterm):
+    @parsing.inline(0)
     def reduce_Extending(self, extending):
-        self.val = extending.val
+        pass
 
     def reduce_empty(self):
         self.val = []
@@ -161,37 +169,42 @@ class OnExpr(Nonterm):
     # NOTE: the reason why we need parentheses around the expression
     # is to disambiguate whether the '{' following the expression is
     # meant to be a shape or a nested DDL/SDL block.
+    @parsing.inline(1)
     def reduce_ON_ParenExpr(self, _, expr):
-        self.val = expr.val
+        pass
 
 
 class OptOnExpr(Nonterm):
     def reduce_empty(self):
         self.val = None
 
+    @parsing.inline(0)
     def reduce_OnExpr(self, expr):
-        self.val = expr.val
+        pass
 
 
 class OptOnTypeExpr(Nonterm):
     def reduce_empty(self):
         self.val = None
 
+    @parsing.inline(1)
     def reduce_ON_FullTypeExpr(self, _, expr):
-        self.val = expr.val
+        pass
 
 
 class OptExceptExpr(Nonterm):
     def reduce_empty(self):
         self.val = None
 
+    @parsing.inline(1)
     def reduce_EXCEPT_ParenExpr(self, _, expr):
-        self.val = expr.val
+        pass
 
 
 class OptConcreteConstraintArgList(Nonterm):
+    @parsing.inline(1)
     def reduce_LPAREN_OptPosCallArgList_RPAREN(self, _lparen, list, _rparen):
-        self.val = list.val
+        pass
 
     def reduce_empty(self):
         self.val = []
@@ -201,8 +214,9 @@ class OptDefault(Nonterm):
     def reduce_empty(self):
         self.val = None
 
+    @parsing.inline(1)
     def reduce_EQUALS_Expr(self, _, expr):
-        self.val = expr.val
+        pass
 
 
 class ParameterKind(Nonterm):
@@ -217,8 +231,9 @@ class OptParameterKind(Nonterm):
     def reduce_empty(self):
         self.val = qltypes.ParameterKind.PositionalParam
 
+    @parsing.inline(0)
     def reduce_ParameterKind(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 class FuncDeclArgName(Nonterm):
@@ -266,11 +281,13 @@ class FuncDeclArgList(parsing.ListNonterm, element=FuncDeclArg,
 
 
 class FuncDeclArgs(Nonterm):
+    @parsing.inline(0)
     def reduce_FuncDeclArgList_COMMA(self, list, _):
-        self.val = list.val
+        pass
 
+    @parsing.inline(0)
     def reduce_FuncDeclArgList(self, list):
-        self.val = list.val
+        pass
 
 
 class ProcessFunctionParamsMixin:
@@ -362,8 +379,9 @@ class OptTypeQualifier(Nonterm):
 
 
 class FunctionType(Nonterm):
+    @parsing.inline(0)
     def reduce_FullTypeExpr(self, expr):
-        self.val = expr.val
+        pass
 
 
 class FromFunction(Nonterm):
@@ -515,16 +533,18 @@ class OnSourceDeleteStmt(Nonterm):
 
 
 class OptWhenBlock(Nonterm):
+    @parsing.inline(1)
     def reduce_WHEN_ParenExpr(self, _, expr):
-        self.val = expr.val
+        pass
 
     def reduce_empty(self):
         self.val = None
 
 
 class OptUsingBlock(Nonterm):
+    @parsing.inline(1)
     def reduce_USING_ParenExpr(self, _, expr):
-        self.val = expr.val
+        pass
 
     def reduce_empty(self):
         self.val = None
@@ -633,8 +653,9 @@ class ExtensionVersion(Nonterm):
 
 class OptExtensionVersion(Nonterm):
 
+    @parsing.inline(0)
     def reduce_ExtensionVersion(self, version):
-        self.val = version.val
+        pass
 
     def reduce_empty(self):
         self.val = None
@@ -685,11 +706,13 @@ class IndexArgList(parsing.ListNonterm, element=IndexArg,
 
 
 class OptIndexArgList(Nonterm):
+    @parsing.inline(0)
     def reduce_IndexArgList_COMMA(self, list, _):
-        self.val = list.val
+        pass
 
+    @parsing.inline(0)
     def reduce_IndexArgList(self, list):
-        self.val = list.val
+        pass
 
     def reduce_empty(self):
         self.val = []
@@ -697,14 +720,16 @@ class OptIndexArgList(Nonterm):
 
 class IndexExtArgList(Nonterm):
 
-    def reduce_LPAREN_OptIndexArgList_RPAREN(self, _l, list, _r):
-        self.val = list.val
+    @parsing.inline(1)
+    def reduce_LPAREN_OptIndexArgList_RPAREN(self, *_):
+        pass
 
 
 class OptIndexExtArgList(Nonterm):
 
+    @parsing.inline(0)
     def reduce_IndexExtArgList(self, list):
-        self.val = list.val
+        pass
 
     def reduce_empty(self):
         self.val = []
@@ -784,8 +809,9 @@ class IndexTypeList(parsing.ListNonterm, element=IndexType,
 
 class OptIndexTypeList(Nonterm):
 
+    @parsing.inline(1)
     def reduce_USING_IndexTypeList(self, _, list):
-        self.val = list.val
+        pass
 
     def reduce_empty(self):
         self.val = []

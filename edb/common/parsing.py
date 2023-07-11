@@ -114,6 +114,30 @@ class Token(parsing.Token, metaclass=TokenMeta):
         return '<Token %s "%s">' % (self.__class__._token, self.val)
 
 
+def inline(argument_index: int):
+    """
+    When added to grammar productions, it makes the method equivalent to:
+
+    self.val = kids[argument_index].val
+    """
+
+    def decorator(func: Any):
+        func.inline_index = argument_index
+        return func
+    return decorator
+
+
+def make_inlining_func(arg_index: int):
+    """Makes a parser production handler which simply inlines an argument."""
+    # TODO: remove this when Rust parser is merged
+
+    def wrapper(obj, *args, **kwargs):
+        obj.val = args[arg_index].val
+        return obj
+
+    return wrapper
+
+
 class NontermMeta(type):
     def __new__(mcls, name, bases, dct):
         result = super().__new__(mcls, name, bases, dct)
@@ -127,6 +151,8 @@ class NontermMeta(type):
         for name, attr in result.__dict__.items():
             if (name.startswith('reduce_') and
                     isinstance(attr, types.FunctionType)):
+                inline_index = getattr(attr, 'inline_index', None)
+
                 if attr.__doc__ is None:
                     tokens = name.split('_')
                     if name == 'reduce_empty':
@@ -141,8 +167,16 @@ class NontermMeta(type):
                     attr = lambda self, *args, meth=attr: meth(self, *args)
                     attr.__doc__ = doc
 
-                a = pctx.has_context(attr)
+                if inline_index is not None:
+                    # TODO: remove this when Rust parser is merged
+                    a = make_inlining_func(inline_index)
+                else:
+                    a = attr
+
+                a = pctx.has_context(a)
+
                 a.__doc__ = attr.__doc__
+                a.inline_index = inline_index
                 setattr(result, name, a)
 
         return result

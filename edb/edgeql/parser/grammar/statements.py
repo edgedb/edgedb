@@ -21,6 +21,7 @@ from __future__ import annotations
 import typing
 
 from edb import errors
+from edb.common import parsing
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -35,22 +36,27 @@ from . import tokens
 
 class Stmt(Nonterm):
 
+    @parsing.inline(0)
     def reduce_TransactionStmt(self, stmt):
-        self.val = stmt.val
+        pass
 
+    @parsing.inline(0)
     def reduce_DescribeStmt(self, stmt):
         # DESCRIBE
-        self.val = stmt.val
+        pass
 
+    @parsing.inline(0)
     def reduce_AnalyzeStmt(self, stmt):
         # ANALYZE
-        self.val = stmt.val
+        pass
 
+    @parsing.inline(0)
     def reduce_AdministerStmt(self, stmt):
-        self.val = stmt.val
+        pass
 
+    @parsing.inline(0)
     def reduce_ExprStmt(self, stmt):
-        self.val = stmt.val
+        pass
 
 
 class TransactionMode(Nonterm):
@@ -83,8 +89,9 @@ class TransactionModeList(ListNonterm, element=TransactionMode,
 
 class OptTransactionModeList(Nonterm):
 
+    @parsing.inline(0)
     def reduce_TransactionModeList(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_empty(self, *kids):
         self.val = []
