@@ -310,7 +310,7 @@ class Tenant(ha_base.ClusterProtocol):
 
         self._dbindex = dbview.DatabaseIndex(
             self,
-            std_schema=self._server._std_schema,
+            std_schema=self._server.get_std_schema(),
             global_schema=global_schema,
             sys_config=sys_config,
             default_sysconfig=default_sysconfig,
