@@ -361,8 +361,7 @@ class Server:
             '_pg_prepared_statement_cache_size', self._tenant.get_sys_config()
         )
         self._stmt_cache_size = size
-        for conn in self._tenant._pg_pool.iterate_connections():
-            conn.set_stmt_cache_size(size)
+        self._tenant.set_stmt_cache_size(size)
 
     def _idle_gc_collector(self):
         try:
