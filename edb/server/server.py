@@ -175,7 +175,6 @@ class Server(ha_base.ClusterProtocol):
         # Increase-only counter to reject outdated attempts to connect
         self._ha_master_serial = 0
 
-        self._serving = False
         self._initing = False
 
         self._cluster = cluster
@@ -296,6 +295,10 @@ class Server(ha_base.ClusterProtocol):
     @property
     def _accept_new_tasks(self):
         return self._tenant.accept_new_tasks
+
+    @property
+    def _serving(self):
+        return self._tenant._running
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -2277,7 +2280,7 @@ class Server(ha_base.ClusterProtocol):
         self._listen_port = actual_port
 
         self._accepting_connections = True
-        self._serving = True
+        self._tenant.start_running()
 
         if self._echo_runtime_info:
             ri = {
@@ -2320,7 +2323,6 @@ class Server(ha_base.ClusterProtocol):
 
     async def stop(self):
         try:
-            self._serving = False
             self._tenant.stop()
 
             if self._idle_gc_handler is not None:
