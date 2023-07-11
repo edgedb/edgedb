@@ -34,7 +34,6 @@ import immutables
 from edb import errors
 from edb.common import retryloop
 from edb.common import taskgroup
-from edb.schema import reflection as s_refl
 from edb.schema import roles as s_role
 from edb.schema import schema as s_schema
 
@@ -711,22 +710,11 @@ class Tenant(ha_base.ClusterProtocol):
     async def introspect_user_schema(
         self,
         conn: pgcon.PGConnection,
-        global_schema: s_schema.FlatSchema | None = None,
-    ) -> s_schema.FlatSchema:
-        json_data = await conn.sql_fetch_val(self._server._local_intro_query)
-
-        base_schema = s_schema.ChainedSchema(
-            self._server._std_schema,
-            s_schema.FlatSchema(),
-            global_schema or self.get_global_schema(),
-        )
-
-        return s_refl.parse_into(
-            base_schema=base_schema,
-            schema=s_schema.FlatSchema(),
-            data=json_data,
-            schema_class_layout=self._server._schema_class_layout,
-        )
+        global_schema: s_schema.Schema | None = None,
+    ) -> s_schema.Schema:
+        if global_schema is None:
+            global_schema = self.get_global_schema()
+        return await self._server.introspect_user_schema(conn, global_schema)
 
     async def introspect_db_config(
         self, conn: pgcon.PGConnection
@@ -915,20 +903,12 @@ class Tenant(ha_base.ClusterProtocol):
     async def introspect_global_schema(
         self,
         conn: pgcon.PGConnection | None = None,
-    ) -> s_schema.FlatSchema:
-        intro_query = self._server._global_intro_query
+    ) -> s_schema.Schema:
         if conn is not None:
-            json_data = await conn.sql_fetch_val(intro_query)
+            return await self._server.introspect_global_schema(conn)
         else:
             async with self._use_sys_pgcon() as syscon:
-                json_data = await syscon.sql_fetch_val(intro_query)
-
-        return s_refl.parse_into(
-            base_schema=self._server._std_schema,
-            schema=s_schema.FlatSchema(),
-            data=json_data,
-            schema_class_layout=self._server._schema_class_layout,
-        )
+                return await self._server.introspect_global_schema(syscon)
 
     async def _reintrospect_global_schema(self) -> None:
         if not self._server._initing and not self._server._serving:

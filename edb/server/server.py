@@ -59,6 +59,7 @@ from edb.server import tenant as edbtenant
 from edb.server.protocol import binary  # type: ignore
 from edb.server.protocol import pg_ext  # type: ignore
 from edb.server import metrics
+from edb.server import pgcon
 
 from edb.pgsql import patches as pg_patches
 
@@ -445,6 +446,38 @@ class Server:
 
     def get_compiler_pool(self):
         return self._compiler_pool
+
+    async def introspect_global_schema(
+        self, conn: pgcon.PGConnection
+    ) -> s_schema.Schema:
+        intro_query = self._global_intro_query
+        json_data = await conn.sql_fetch_val(intro_query)
+        return s_refl.parse_into(
+            base_schema=self._std_schema,
+            schema=s_schema.FlatSchema(),
+            data=json_data,
+            schema_class_layout=self._schema_class_layout,
+        )
+
+    async def introspect_user_schema(
+        self,
+        conn: pgcon.PGConnection,
+        global_schema: s_schema.Schema,
+    ) -> s_schema.Schema:
+        json_data = await conn.sql_fetch_val(self._local_intro_query)
+
+        base_schema = s_schema.ChainedSchema(
+            self._std_schema,
+            s_schema.FlatSchema(),
+            global_schema,
+        )
+
+        return s_refl.parse_into(
+            base_schema=base_schema,
+            schema=s_schema.FlatSchema(),
+            data=json_data,
+            schema_class_layout=self._schema_class_layout,
+        )
 
     async def get_dbnames(self, syscon):
         dbs_query = self.get_sys_query('listdbs')
