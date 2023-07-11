@@ -948,7 +948,7 @@ class Tenant(ha_base.ClusterProtocol):
                 if match:
                     return auth.method
 
-        default_method = self._server._default_auth_method.get(transport)
+        default_method = self._server.get_default_auth_method(transport)
         auth_type = config.get_settings().get_type_by_name(
             default_method.value)
         return auth_type()
