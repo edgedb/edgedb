@@ -25,17 +25,14 @@ import logging
 import os
 import sys
 import types
-import re
 
 import parsing
 
-from edb.common.exceptions import add_context, get_context
 from edb.common import context as pctx, debug
 
 ParserContext = pctx.ParserContext
 
 logger = logging.getLogger('edb.common.parsing')
-TRAILING_WS_IN_CONTINUATION = re.compile(r'\\ \s+\n')
 
 
 class ParserSpecIncompatibleError(Exception):
@@ -285,53 +282,14 @@ class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
     pass
 
 
-class ParserError(Exception):
-    def __init__(
-            self, msg=None, *, hint=None, details=None, token=None, line=None,
-            col=None, expr=None, context=None):
-        if msg is None:
-            msg = 'syntax error at or near "%s"' % token
-        super().__init__(msg, hint=hint, details=details)
-
-        self.token = token
-        if line is not None:
-            self.line = line
-        if col is not None:
-            self.col = col
-        self.expr = expr
-        if context:
-            add_context(self, context)
-            if line is None and col is None:
-                self.line = context.start.line
-                self.col = context.start.column
-
-    @property
-    def context(self):
-        try:
-            return get_context(self, pctx.ParserContext)
-        except LookupError:
-            return None
-
-
 class ParserSpec:
     parser_spec: ClassVar[parsing.Spec | None]
 
     def __init__(self, **parser_data):
         self.parser_data = parser_data
 
-    def cleanup(self):
-        self.__class__.parser_spec = None
-        self.__class__.lexer_spec = None
-
     def get_debug(self):
         return debug.flags.edgeql_parser
-
-    def get_exception(self, native_err, context, token=None):
-        if not isinstance(native_err, ParserError):
-            return ParserError(native_err.args[0],
-                               context=context, token=token)
-        else:
-            return native_err
 
     def get_parser_spec_module(self) -> types.ModuleType:
         raise NotImplementedError
@@ -381,10 +339,3 @@ class ParserSpec:
         return os.path.join(
             os.path.dirname(mod.__file__),
             mod.__name__.rpartition('.')[2] + '.' + type)
-
-
-def line_col_from_char_offset(source, position):
-    line = source[:position].count('\n') + 1
-    col = source.rfind('\n', 0, position)
-    col = position if col == -1 else position - col
-    return line, col
