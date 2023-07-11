@@ -106,7 +106,7 @@ which client library you're using.
 
     use uuid::Uuid;
 
-    let client = edgedb_tokio::create_client().await?;
+    let client = edgedb_tokio::create_client().await.expect("Client should init");
 
     let client_with_globals = client.with_globals_fn(|c| {
         c.set(
