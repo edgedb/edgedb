@@ -71,6 +71,7 @@ class Tenant(ha_base.ClusterProtocol):
     _instance_name: str
     _instance_data: Mapping[str, str]
     _dbindex: dbview.DatabaseIndex | None
+    _initing: bool
     _running: bool
     _accepting_connections: bool
 
@@ -120,6 +121,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._tenant_id = self.get_backend_runtime_params().tenant_id
         self._instance_name = instance_name
         self._instance_data = immutables.Map()
+        self._initing = True
         self._running = False
         self._accepting_connections = False
 
@@ -338,6 +340,8 @@ class Tenant(ha_base.ClusterProtocol):
                 self._readiness_state_file, reload_state_file
             )
 
+        self._initing = False
+
     async def start_accepting_new_tasks(self) -> None:
         assert self._task_group is None
         self._task_group = taskgroup.TaskGroup()
@@ -449,12 +453,12 @@ class Tenant(ha_base.ClusterProtocol):
 
     @contextlib.asynccontextmanager
     async def use_sys_pgcon(self) -> AsyncGenerator[pgcon.PGConnection, None]:
-        if not self._server._initing and not self._running:
+        if not self._initing and not self._running:
             raise RuntimeError("EdgeDB server is not running.")
 
         await self._sys_pgcon_waiter.acquire()
 
-        if not self._server._initing and not self._running:
+        if not self._initing and not self._running:
             self._sys_pgcon_waiter.release()
             raise RuntimeError("EdgeDB server is not running.")
 
@@ -931,7 +935,7 @@ class Tenant(ha_base.ClusterProtocol):
                 return await self._server.introspect_global_schema(syscon)
 
     async def _reintrospect_global_schema(self) -> None:
-        if not self._server._initing and not self._running:
+        if not self._initing and not self._running:
             logger.warning(
                 "global-schema-changes event received during shutdown; "
                 "ignoring."
@@ -1163,7 +1167,7 @@ class Tenant(ha_base.ClusterProtocol):
 
     async def signal_sysevent(self, event: str, **kwargs) -> None:
         try:
-            if not self._server._initing and not self._running:
+            if not self._initing and not self._running:
                 # This is very likely if we are doing
                 # "run_startup_script_and_exit()", but is also possible if the
                 # tenant was shut down with this coroutine as a background task
