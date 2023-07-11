@@ -71,6 +71,7 @@ class Tenant(ha_base.ClusterProtocol):
     _instance_name: str
     _instance_data: Mapping[str, str]
     _dbindex: dbview.DatabaseIndex | None
+    _initing: bool
     _running: bool
     _accepting_connections: bool
 
@@ -120,6 +121,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._tenant_id = self.get_backend_runtime_params().tenant_id
         self._instance_name = instance_name
         self._instance_data = immutables.Map()
+        self._initing = False
         self._running = False
         self._accepting_connections = False
 
@@ -292,55 +294,61 @@ class Tenant(ha_base.ClusterProtocol):
         self._roles = immutables.Map(roles)
 
     async def init_sys_pgcon(self) -> None:
+        self._initing = True
         self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
         self._sys_pgcon_waiter = asyncio.Lock()
         self._sys_pgcon_ready_evt = asyncio.Event()
         self._sys_pgcon_reconnect_evt = asyncio.Event()
 
     async def init(self) -> None:
-        async with self.use_sys_pgcon() as syscon:
-            result = await syscon.sql_fetch_val(
-                b"""\
-                    SELECT json::json FROM edgedbinstdata.instdata
-                    WHERE key = 'instancedata';
-                """
+        try:
+            async with self.use_sys_pgcon() as syscon:
+                result = await syscon.sql_fetch_val(
+                    b"""\
+                        SELECT json::json FROM edgedbinstdata.instdata
+                        WHERE key = 'instancedata';
+                    """
+                )
+                self._instance_data = immutables.Map(json.loads(result))
+
+            global_schema = await self.introspect_global_schema()
+            sys_config = await self._load_sys_config()
+            default_sysconfig = await self._load_sys_config(
+                "sysconfig_default"
             )
-            self._instance_data = immutables.Map(json.loads(result))
+            await self._load_reported_config()
 
-        global_schema = await self.introspect_global_schema()
-        sys_config = await self._load_sys_config()
-        default_sysconfig = await self._load_sys_config("sysconfig_default")
-        await self._load_reported_config()
+            self._dbindex = dbview.DatabaseIndex(
+                self,
+                std_schema=self._server.get_std_schema(),
+                global_schema=global_schema,
+                sys_config=sys_config,
+                default_sysconfig=default_sysconfig,
+            )
 
-        self._dbindex = dbview.DatabaseIndex(
-            self,
-            std_schema=self._server.get_std_schema(),
-            global_schema=global_schema,
-            sys_config=sys_config,
-            default_sysconfig=default_sysconfig,
-        )
+            self.fetch_roles()
+            await self._introspect_dbs()
 
-        self.fetch_roles()
-        await self._introspect_dbs()
+            # Now, once all DBs have been introspected, start listening on
+            # any notifications about schema/roles/etc changes.
+            assert self.__sys_pgcon is not None
+            await self.__sys_pgcon.listen_for_sysevent()
+            self.__sys_pgcon.mark_as_system_db()
+            self._sys_pgcon_ready_evt.set()
 
-        # Now, once all DBs have been introspected, start listening on
-        # any notifications about schema/roles/etc changes.
-        assert self.__sys_pgcon is not None
-        await self.__sys_pgcon.listen_for_sysevent()
-        self.__sys_pgcon.mark_as_system_db()
-        self._sys_pgcon_ready_evt.set()
+            self.populate_sys_auth()
 
-        self.populate_sys_auth()
+            if self._readiness_state_file is not None:
 
-        if self._readiness_state_file is not None:
+                def reload_state_file(_file_modified, _event):
+                    self.reload_readiness_state()
 
-            def reload_state_file(_file_modified, _event):
                 self.reload_readiness_state()
-
-            self.reload_readiness_state()
-            self._server.monitor_fs(
-                self._readiness_state_file, reload_state_file
-            )
+                self._server.monitor_fs(
+                    self._readiness_state_file, reload_state_file
+                )
+        finally:
+            self._initing = False
 
     async def start_accepting_new_tasks(self) -> None:
         assert self._task_group is None
@@ -453,12 +461,12 @@ class Tenant(ha_base.ClusterProtocol):
 
     @contextlib.asynccontextmanager
     async def use_sys_pgcon(self) -> AsyncGenerator[pgcon.PGConnection, None]:
-        if not self._server._initing and not self._running:
+        if not self._initing and not self._running:
             raise RuntimeError("EdgeDB server is not running.")
 
         await self._sys_pgcon_waiter.acquire()
 
-        if not self._server._initing and not self._running:
+        if not self._initing and not self._running:
             self._sys_pgcon_waiter.release()
             raise RuntimeError("EdgeDB server is not running.")
 
@@ -935,7 +943,7 @@ class Tenant(ha_base.ClusterProtocol):
                 return await self._server.introspect_global_schema(syscon)
 
     async def _reintrospect_global_schema(self) -> None:
-        if not self._server._initing and not self._running:
+        if not self._initing and not self._running:
             logger.warning(
                 "global-schema-changes event received during shutdown; "
                 "ignoring."
@@ -1167,7 +1175,7 @@ class Tenant(ha_base.ClusterProtocol):
 
     async def signal_sysevent(self, event: str, **kwargs) -> None:
         try:
-            if not self._server._initing and not self._running:
+            if not self._initing and not self._running:
                 # This is very likely if we are doing
                 # "run_startup_script_and_exit()", but is also possible if the
                 # tenant was shut down with this coroutine as a background task
