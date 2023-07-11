@@ -620,7 +620,7 @@ class Server:
     async def _maybe_patch(self):
         """Apply patches to all the databases"""
 
-        async with self._tenant._use_sys_pgcon() as syscon:
+        async with self._tenant.use_sys_pgcon() as syscon:
             patches = await self._prepare_patches(syscon)
             if not patches:
                 return
@@ -649,7 +649,7 @@ class Server:
         #
         # Driving everything from the system db like this lets us
         # always use the correct schema when compiling patches.
-        async with self._tenant._use_sys_pgcon() as syscon:
+        async with self._tenant.use_sys_pgcon() as syscon:
             await self._maybe_apply_patches(
                 defines.EDGEDB_SYSTEM_DB, syscon, patches, sys=True)
 
@@ -660,7 +660,7 @@ class Server:
         return res
 
     async def _load_instance_data(self):
-        async with self._tenant._use_sys_pgcon() as syscon:
+        async with self._tenant.use_sys_pgcon() as syscon:
             patch_count = await self.get_patch_count(syscon)
             version_key = pg_patches.get_version_key(patch_count)
 
@@ -849,7 +849,7 @@ class Server:
             elif setting_name == '_pg_prepared_statement_cache_size':
                 self._reload_stmt_cache_size()
 
-            self._tenant._schedule_reported_config_if_needed(setting_name)
+            self._tenant.schedule_reported_config_if_needed(setting_name)
         except Exception:
             metrics.background_errors.inc(1.0, 'on_system_config_set')
             raise
@@ -877,7 +877,7 @@ class Server:
             elif setting_name == '_pg_prepared_statement_cache_size':
                 self._reload_stmt_cache_size()
 
-            self._tenant._schedule_reported_config_if_needed(setting_name)
+            self._tenant.schedule_reported_config_if_needed(setting_name)
         except Exception:
             metrics.background_errors.inc(1.0, 'on_system_config_reset')
             raise
@@ -892,7 +892,7 @@ class Server:
         # CONFIGURE INSTANCE INSERT ConfigObject;
         try:
             if setting_name == 'auth':
-                self._tenant._populate_sys_auth()
+                self._tenant.populate_sys_auth()
         except Exception:
             metrics.background_errors.inc(1.0, 'after_system_config_add')
             raise
@@ -901,7 +901,7 @@ class Server:
         # CONFIGURE INSTANCE RESET ConfigObject;
         try:
             if setting_name == 'auth':
-                self._tenant._populate_sys_auth()
+                self._tenant.populate_sys_auth()
         except Exception:
             metrics.background_errors.inc(1.0, 'after_system_config_rem')
             raise
@@ -1221,7 +1221,6 @@ class Server:
             self._request_stats_logger()
         )
 
-        await self._tenant._cluster.start_watching(self._tenant.on_switch_over)
         await self._create_compiler_pool()
 
         if self._startup_script and self._new_instance:
@@ -1290,7 +1289,6 @@ class Server:
                 self._idle_gc_handler.cancel()
                 self._idle_gc_handler = None
 
-            self._tenant._cluster.stop_watching()
             if self._http_request_logger is not None:
                 self._http_request_logger.cancel()
 
@@ -1344,7 +1342,7 @@ class Server:
                 listen_port=self._listen_port,
             ),
             instance_config=serialize_config(self._tenant.get_sys_config()),
-            user_roles=self._tenant._roles,
+            user_roles=self._tenant.get_roles(),
             pg_addr=tenant.get_pgaddr(),
             pg_pool=tenant._pg_pool._build_snapshot(now=time.monotonic()),
             compiler_pool=dict(

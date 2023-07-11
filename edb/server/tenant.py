@@ -131,7 +131,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._accept_new_tasks = False
 
         # Never use `self.__sys_pgcon` directly; get it via
-        # `async with self._use_sys_pgcon()`.
+        # `async with self.use_sys_pgcon()`.
         self.__sys_pgcon = None
 
         # Increase-only counter to reject outdated attempts to connect
@@ -310,7 +310,7 @@ class Tenant(ha_base.ClusterProtocol):
 
     async def init(self) -> None:
         try:
-            async with self._use_sys_pgcon() as syscon:
+            async with self.use_sys_pgcon() as syscon:
                 result = await syscon.sql_fetch_val(b'''\
                     SELECT json::json FROM edgedbinstdata.instdata
                     WHERE key = 'instancedata';
@@ -342,7 +342,7 @@ class Tenant(ha_base.ClusterProtocol):
             self.__sys_pgcon.mark_as_system_db()
             self._sys_pgcon_ready_evt.set()
 
-            self._populate_sys_auth()
+            self.populate_sys_auth()
 
             if self._readiness_state_file is not None:
                 def reload_state_file(_file_modified, _event):
@@ -360,6 +360,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._task_group = taskgroup.TaskGroup()
         await self._task_group.__aenter__()
         self._accept_new_tasks = True
+        await self._cluster.start_watching(self.on_switch_over)
 
     def start_running(self) -> None:
         self._running = True
@@ -399,6 +400,7 @@ class Tenant(ha_base.ClusterProtocol):
     def stop(self) -> None:
         self._running = False
         self._accept_new_tasks = False
+        self._cluster.stop_watching()
 
     async def wait_stopped(self) -> None:
         if self._task_group is not None:
@@ -462,7 +464,7 @@ class Tenant(ha_base.ClusterProtocol):
                 await self._pg_disconnect(conn)
 
     @contextlib.asynccontextmanager
-    async def _use_sys_pgcon(self) -> AsyncGenerator[pgcon.PGConnection, None]:
+    async def use_sys_pgcon(self) -> AsyncGenerator[pgcon.PGConnection, None]:
         if not self._initing and not self._running:
             raise RuntimeError("EdgeDB server is not running.")
 
@@ -704,7 +706,7 @@ class Tenant(ha_base.ClusterProtocol):
                     await self._pg_ensure_database_not_connected(dbname)
 
     async def _pg_ensure_database_not_connected(self, dbname: str) -> None:
-        async with self._use_sys_pgcon() as pgcon:
+        async with self.use_sys_pgcon() as pgcon:
             conns = await pgcon.sql_fetch_col(
                 b"""
                 SELECT
@@ -891,7 +893,7 @@ class Tenant(ha_base.ClusterProtocol):
             self.release_pgcon(dbname, conn)
 
     async def _introspect_dbs(self) -> None:
-        async with self._use_sys_pgcon() as syscon:
+        async with self.use_sys_pgcon() as syscon:
             dbnames = await self._server.get_dbnames(syscon)
 
         async with taskgroup.TaskGroup(name='introspect DB extensions') as g:
@@ -902,7 +904,7 @@ class Tenant(ha_base.ClusterProtocol):
                 g.create_task(self._early_introspect_db(dbname))
 
     async def _load_reported_config(self) -> None:
-        async with self._use_sys_pgcon() as syscon:
+        async with self.use_sys_pgcon() as syscon:
             try:
                 data = await syscon.sql_fetch_val(
                     self._server.get_sys_query('report_configs'),
@@ -927,7 +929,7 @@ class Tenant(ha_base.ClusterProtocol):
         self,
         query_name: str = "sysconfig",
     ) -> SettingsMap:
-        async with self._use_sys_pgcon() as syscon:
+        async with self.use_sys_pgcon() as syscon:
             query = self._server.get_sys_query(query_name)
             sys_config_json = await syscon.sql_fetch_val(query)
 
@@ -940,7 +942,7 @@ class Tenant(ha_base.ClusterProtocol):
         if conn is not None:
             return await self._server.introspect_global_schema(conn)
         else:
-            async with self._use_sys_pgcon() as syscon:
+            async with self.use_sys_pgcon() as syscon:
                 return await self._server.introspect_global_schema(syscon)
 
     async def _reintrospect_global_schema(self) -> None:
@@ -955,7 +957,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._dbindex.update_global_schema(new_global_schema)
         self.fetch_roles()
 
-    def _populate_sys_auth(self) -> None:
+    def populate_sys_auth(self) -> None:
         assert self._dbindex is not None
         cfg = self._dbindex.get_sys_config()
         auth = config.lookup('auth', cfg) or ()
@@ -1004,7 +1006,7 @@ class Tenant(ha_base.ClusterProtocol):
         assert self._dbindex is not None
         return self._dbindex.remove_view(dbview_)
 
-    def _schedule_reported_config_if_needed(self, setting_name: str) -> None:
+    def schedule_reported_config_if_needed(self, setting_name: str) -> None:
         setting = config.get_settings()[setting_name]
         if setting.report and self._accept_new_tasks:
             self.create_task(
@@ -1134,7 +1136,7 @@ class Tenant(ha_base.ClusterProtocol):
             raise
 
     async def cancel_pgcon_operation(self, con: pgcon.PGConnection) -> bool:
-        async with self._use_sys_pgcon() as syscon:
+        async with self.use_sys_pgcon() as syscon:
             if con.idle:
                 # con could have received the query results while we
                 # were acquiring a system connection to cancel it.
@@ -1178,7 +1180,7 @@ class Tenant(ha_base.ClusterProtocol):
                 # in flight.
                 return
 
-            async with self._use_sys_pgcon() as con:
+            async with self.use_sys_pgcon() as con:
                 await con.signal_sysevent(event, **kwargs)
         except Exception:
             metrics.background_errors.inc(1.0, 'signal_sysevent')
@@ -1222,7 +1224,7 @@ class Tenant(ha_base.ClusterProtocol):
         # Triggered by a postgres notification event 'database-changes'
         # on the __edgedb_sysevent__ channel
         async def task():
-            async with self._use_sys_pgcon() as syscon:
+            async with self.use_sys_pgcon() as syscon:
                 dbnames = set(await self._server.get_dbnames(syscon))
 
             tg = taskgroup.TaskGroup(name='new database introspection')
