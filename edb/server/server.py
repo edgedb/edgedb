@@ -1408,6 +1408,9 @@ class Server:
     ) -> srvargs.ServerAuthMethod:
         return self._default_auth_method.get(transport)
 
+    def get_std_schema(self) -> s_schema.Schema:
+        return self._std_schema
+
     def get_tenant(self, server_name: Optional[str]) -> edbtenant.Tenant:
         # Given a server name, return a corresponding tenant. Raise an error
         # if the server name doesn't match any registered tenant.
