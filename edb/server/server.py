@@ -143,8 +143,6 @@ class Server:
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
 
-        self._initing = False
-
         self._runstate_dir = runstate_dir
         self._internal_runstate_dir = internal_runstate_dir
         self._compiler_pool = None
@@ -315,36 +313,31 @@ class Server:
         return self._tenant._dbindex
 
     async def init(self):
-        self._initing = True
-        try:
-            await self._tenant.init_sys_pgcon()
+        await self._tenant.init_sys_pgcon()
 
-            await self._load_instance_data()
-            await self._maybe_patch()
+        await self._load_instance_data()
+        await self._maybe_patch()
 
-            await self._tenant.init()
+        await self._tenant.init()
 
-            sys_config = self._dbindex.get_sys_config()
-            if not self._listen_hosts:
-                self._listen_hosts = (
-                    config.lookup('listen_addresses', sys_config)
-                    or ('localhost',)
-                )
-
-            if self._listen_port is None:
-                self._listen_port = (
-                    config.lookup('listen_port', sys_config)
-                    or defines.EDGEDB_PORT
-                )
-
-            self._stmt_cache_size = config.lookup(
-                '_pg_prepared_statement_cache_size', sys_config
+        sys_config = self._dbindex.get_sys_config()
+        if not self._listen_hosts:
+            self._listen_hosts = (
+                config.lookup('listen_addresses', sys_config)
+                or ('localhost',)
             )
 
-            self.reinit_idle_gc_collector()
+        if self._listen_port is None:
+            self._listen_port = (
+                config.lookup('listen_port', sys_config)
+                or defines.EDGEDB_PORT
+            )
 
-        finally:
-            self._initing = False
+        self._stmt_cache_size = config.lookup(
+            '_pg_prepared_statement_cache_size', sys_config
+        )
+
+        self.reinit_idle_gc_collector()
 
     def reinit_idle_gc_collector(self) -> float:
         if self._auto_shutdown_after >= 0:
