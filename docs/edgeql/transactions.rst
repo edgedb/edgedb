@@ -89,3 +89,56 @@ Golang
 	})
 
 Full documentation at `Client Libraries > Go </docs/clients/02_go/index>`_.
+
+Rust
+^^^^
+
+.. code-block:: rust
+
+  #[derive(Debug, Deserialize, Queryable)]
+  pub struct BankCustomer {
+      pub name: String,
+      pub bank_balance: i32,
+  }
+  // Customer1 has an account with 110 cents in it.
+  // Customer2 has an account with 90 cents in it.
+  // Customer1 is going to send 10 cents to Customer 2. This will be a transaction
+  // because we don't want the case to ever occur - even for a split second -
+  // where one account has sent money while the other has not received it yet.
+
+  // After the transaction is over, each customer should have 100 cents.
+
+  fn main() {
+      let client = edgedb_tokio::create_client().await.expect("Client should initialize");
+
+      let sender_name = "Customer1";
+      let receiver_name = "Customer2";
+      let balance_check_query = "select BankCustomer { name, bank_balance } 
+          filter .name = <str>$0";
+      let balance_change_query = "update BankCustomer 
+              filter .name = <str>$0
+              set { bank_balance := .bank_balance + <int32>$1 }";
+      let send_amount = 10;
+
+      client
+          .transaction(|mut conn| async move {
+              let sender: BankCustomer = conn
+                  .query_required_single(balance_check_query, &(sender_name,))
+                  .await?;
+              if sender.bank_balance < send_amount {
+                  println!("Not enough money to send, bailing from transaction");
+                  return Ok(());
+              };
+              conn.execute(balance_change_query, &(sender_name, send_amount.neg()))
+                  .await
+                  .expect("Execute should work");
+              conn.execute(balance_change_query, &(receiver_name, send_amount))
+                  .await
+                  .expect("Execute should work");
+              Ok(())
+          })
+          .await
+          .expect("Transaction should succeed");
+  }
+
+Full documentation at `Client Libraries > Rust </docs/clients/03_rust/index>`_.
