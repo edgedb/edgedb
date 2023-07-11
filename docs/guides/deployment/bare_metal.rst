@@ -126,8 +126,11 @@ Set a password by connecting from localhost.
 .. code-block:: bash
 
    $ echo -n "> " && read -s PASSWORD
+   $ RUNSTATE_DIR=$(systemctl show edgedb-server-3 -P ExecStart | \
+      grep -o -m 1 -- "--runstate-dir=[^ ]\+" | \
+      awk -F "=" '{print $2}')
    $ sudo edgedb --port 5656 --tls-security insecure --admin \
-      --unix-path <your-runstate-dir-value> \
+      --unix-path $RUNSTATE_DIR \
       query "ALTER ROLE edgedb SET password := '$PASSWORD'"
 
 The server listens on localhost by default. Changing this looks like this.
