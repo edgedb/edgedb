@@ -568,7 +568,9 @@ def _get_ptrref_storage_info(
 
     target = ptrref.out_target
 
-    if isinstance(ptrref, irast.TupleIndirectionPointerRef):
+    if isinstance(
+        ptrref, (irast.TupleIndirectionPointerRef, irast.SpecialPointerRef)
+    ):
         table = None
         table_type = 'ObjectType'
         col_name = ptrref.shortname.name
