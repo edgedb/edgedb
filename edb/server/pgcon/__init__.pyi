@@ -120,9 +120,6 @@ class PGConnection:
     def set_stmt_cache_size(self, maxsize: int) -> None:
         ...
 
-    def set_server(self, server: Any) -> None:
-        ...
-
     def set_tenant(self, tenant: Any) -> None:
         ...
 

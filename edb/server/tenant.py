@@ -401,7 +401,6 @@ class Tenant(ha_base.ClusterProtocol):
             metrics.backend_connection_establishment_latency.observe(
                 time.monotonic() - started_at)
         if ha_serial == self._ha_master_serial:
-            rv.set_server(self._server)
             rv.set_tenant(self)
             if self._backend_adaptive_ha is not None:
                 self._backend_adaptive_ha.on_pgcon_made(
