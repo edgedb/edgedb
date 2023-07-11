@@ -3107,6 +3107,11 @@ class CompositeMetaCommand(MetaCommand):
                     # determined by the type, we directly insert it
                     # into the views instead of storing it (to save space)
                     cols.append((f"'{obj.id}'::uuid", alias, False))
+                elif ptrname == sn.UnqualName('__fts_document__'):
+                    # __fts_document__ is special cased: it does not
+                    # have an associated pointer, but it does have a
+                    # data column.
+                    cols.append(('__fts_document__', alias, True))
                 elif ptr is not None:
                     ptr_stor_info = types.get_pointer_storage_info(
                         ptr,
@@ -3194,6 +3199,17 @@ class CompositeMetaCommand(MetaCommand):
                         ptr_stor_info.column_name,
                         ptr_stor_info.column_type,
                     )
+
+            # HACK: is this the best place for adding __fts_document__ to the
+            # view?
+            has_fts_index = False
+            for index in obj.get_indexes(schema).objects(schema):
+                if index.has_base_with_name(schema, 'fts::textsearch'):
+                    has_fts_index = True
+            if has_fts_index:
+                ptrs[sn.UnqualName('__fts_document__')] = (
+                    '__fts_document__', ('tsvector',),
+                )
 
         else:
             # MULTI PROPERTY
@@ -3548,15 +3564,9 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         ops = dbops.CommandGroup()
 
         # FTS
-        # XXX: hacky lookup
-        fts_base = None
-        for b in index.get_bases(schema).objects(schema):
-            base_name = b.get_name(schema)
-            if str(base_name) == 'fts::textsearch':
-                fts_base = base_name
+        if index.has_base_with_name(schema, 'fts::textsearch'):
 
-        if fts_base:
-
+            # create a generated column __fts_document__
             documents = []
             for sql_expr in sql_exprs:
                 language = "'english'"
@@ -3583,6 +3593,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 dbops.AlterTableAddColumn(fts_document))
             ops.add_command(alter_table)
 
+            # use a reference to the new column in the index instead
             sql_exprs = ['__fts_document__']
 
         pg_index = dbops.Index(

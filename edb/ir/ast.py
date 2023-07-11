@@ -357,6 +357,11 @@ class TupleIndirectionPointerRef(BasePointerRef):
     pass
 
 
+class SpecialPointerRef(BasePointerRef):
+    """Pointer ref used for internal columns, such as __fts_document__"""
+    pass
+
+
 class TypeIntersectionLink(s_pointers.PseudoPointer):
     """A Link-alike that can be used in type intersection path ids."""
 
