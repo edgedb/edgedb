@@ -252,6 +252,10 @@ class Tenant(ha_base.ClusterProtocol):
     def get_readiness_reason(self) -> str:
         return self._readiness_reason
 
+    def get_sys_config(self) -> SettingsMap:
+        assert self._dbindex is not None
+        return self._dbindex.get_sys_config()
+
     def get_report_config_data(
         self,
         protocol_version: defines.ProtocolVersion,
