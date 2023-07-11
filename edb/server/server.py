@@ -320,7 +320,7 @@ class Server:
 
         await self._tenant.init()
 
-        sys_config = self._dbindex.get_sys_config()
+        sys_config = self._tenant.get_sys_config()
         if not self._listen_hosts:
             self._listen_hosts = (
                 config.lookup('listen_addresses', sys_config)
@@ -347,9 +347,8 @@ class Server:
             self._idle_gc_handler.cancel()
             self._idle_gc_handler = None
 
-        assert self._dbindex is not None
         session_idle_timeout = config.lookup(
-            'session_idle_timeout', self._dbindex.get_sys_config())
+            'session_idle_timeout', self._tenant.get_sys_config())
 
         timeout = session_idle_timeout.to_microseconds()
         timeout /= 1_000_000.0  # convert to seconds
@@ -366,7 +365,7 @@ class Server:
 
     def _reload_stmt_cache_size(self):
         size = config.lookup(
-            '_pg_prepared_statement_cache_size', self._dbindex.get_sys_config()
+            '_pg_prepared_statement_cache_size', self._tenant.get_sys_config()
         )
         self._stmt_cache_size = size
         for conn in self._pg_pool.iterate_connections():
@@ -866,14 +865,14 @@ class Server:
         # CONFIGURE INSTANCE RESET setting_name;
         try:
             if setting_name == 'listen_addresses':
-                cfg = self._dbindex.get_sys_config()
+                cfg = self._tenant.get_sys_config()
                 await self._restart_servers_new_addr(
                     config.lookup('listen_addresses', cfg) or ('localhost',),
                     self._listen_port,
                 )
 
             elif setting_name == 'listen_port':
-                cfg = self._dbindex.get_sys_config()
+                cfg = self._tenant.get_sys_config()
                 await self._restart_servers_new_addr(
                     self._listen_hosts,
                     config.lookup('listen_port', cfg) or defines.EDGEDB_PORT,
@@ -1350,7 +1349,7 @@ class Server:
                 listen_hosts=self._listen_hosts,
                 listen_port=self._listen_port,
             ),
-            instance_config=serialize_config(self._dbindex.get_sys_config()),
+            instance_config=serialize_config(self._tenant.get_sys_config()),
             compiler_pool=dict(
                 worker_pids=list(self._compiler_pool._workers.keys()),
                 template_pid=self._compiler_pool.get_template_pid(),
