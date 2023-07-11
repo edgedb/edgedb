@@ -74,6 +74,7 @@ class Tenant(ha_base.ClusterProtocol):
     _dbindex: dbview.DatabaseIndex | None
     _initing: bool
     _running: bool
+    _accepting_connections: bool
 
     __loop: asyncio.AbstractEventLoop
     _task_group: taskgroup.TaskGroup | None
@@ -123,6 +124,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._instance_data = immutables.Map()
         self._initing = False
         self._running = False
+        self._accepting_connections = False
 
         self._task_group = None
         self._tasks = set()
@@ -271,6 +273,9 @@ class Tenant(ha_base.ClusterProtocol):
         assert self._dbindex is not None
         return self._dbindex.maybe_get_db(dbname)
 
+    def is_accepting_connections(self) -> bool:
+        return self._accepting_connections and self._accept_new_tasks
+
     def get_roles(self) -> Mapping[str, RoleDescriptor]:
         return self._roles
 
@@ -348,8 +353,12 @@ class Tenant(ha_base.ClusterProtocol):
         await self._task_group.__aenter__()
         self._accept_new_tasks = True
 
-    def set_running(self) -> None:
+    def start_running(self) -> None:
         self._running = True
+        self._accepting_connections = True
+
+    def stop_accepting_connections(self) -> None:
+        self._accepting_connections = False
 
     @property
     def accept_new_tasks(self):
@@ -1077,7 +1086,7 @@ class Tenant(ha_base.ClusterProtocol):
             )
             self._readiness = srvargs.ReadinessState.Default
 
-        self._server._accepting_connections = self.is_online()
+        self._accepting_connections = self.is_online()
 
     async def on_before_drop_db(
         self,

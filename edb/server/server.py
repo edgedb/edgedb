@@ -181,7 +181,6 @@ class Server:
         self._binary_proto_id_counter = 0
         self._binary_conns = collections.OrderedDict()
         self._pgext_conns = {}
-        self._accepting_connections = False
 
         self._servers = {}
 
@@ -1250,8 +1249,7 @@ class Server:
         self._listen_hosts = [addr[0] for addr in listen_addrs]
         self._listen_port = actual_port
 
-        self._accepting_connections = True
-        self._tenant.set_running()
+        self._tenant.start_running()
 
         if self._echo_runtime_info:
             ri = {
@@ -1289,7 +1287,7 @@ class Server:
         self.request_shutdown()
 
     def request_shutdown(self):
-        self._accepting_connections = False
+        self._tenant.stop_accepting_connections()
         self._stop_evt.set()
 
     async def stop(self):
