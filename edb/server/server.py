@@ -62,8 +62,6 @@ from edb.server import pgcon
 
 from edb.pgsql import patches as pg_patches
 
-from . import dbview
-
 if TYPE_CHECKING:
     import asyncio.base_events
     import pathlib
@@ -307,10 +305,6 @@ class Server:
         if conn is not None:
             conn.cancel(secret)
 
-    @property
-    def _dbindex(self) -> dbview.DatabaseIndex | None:
-        return self._tenant._dbindex
-
     async def init(self):
         await self._tenant.init_sys_pgcon()
 
@@ -417,7 +411,7 @@ class Server:
         args = dict(
             pool_size=self._compiler_pool_size,
             pool_class=self._compiler_pool_mode.pool_class,
-            dbindex=self._dbindex,
+            dbindex=self._tenant.dbindex,
             runstate_dir=self._internal_runstate_dir,
             backend_runtime_params=runtime_params,
             std_schema=self._std_schema,
@@ -1358,7 +1352,7 @@ class Server:
         )
 
         dbs = {}
-        for db in self._dbindex.iter_dbs():
+        for db in self._tenant.dbindex.iter_dbs():
             if db.name in defines.EDGEDB_SPECIAL_DBS:
                 continue
 

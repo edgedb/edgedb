@@ -221,6 +221,10 @@ class Tenant(ha_base.ClusterProtocol):
     def suggested_client_pool_size(self) -> int:
         return self._suggested_client_pool_size
 
+    @property
+    def dbindex(self) -> dbview.DatabaseIndex | None:
+        return self._dbindex
+
     def get_pg_dbname(self, dbname: str) -> str:
         return self._cluster.get_db_name(dbname)
 
