@@ -116,11 +116,6 @@ socket directory. You can find this by looking at your system.d unit file.
 
     $ sudo systemctl cat edgedb-server-3
 
-Look for a line starting with ``ExecStart=``. Get the value being passed for
-``--runstate-dir``. If that value contains ``%t``, replace that with ``/run``.
-So, ``%t/edgedb`` would become ``/run/edgedb``. Use that value in the next
-series of commands as shown.
-
 Set a password by connecting from localhost.
 
 .. code-block:: bash
