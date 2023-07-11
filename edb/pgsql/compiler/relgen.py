@@ -30,6 +30,7 @@ from edb import errors
 from edb.edgeql import qltypes
 
 from edb.schema import objects as s_obj
+from edb.schema import name as sn
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
@@ -3823,3 +3824,64 @@ def process_encoded_param(
             sctx.rel.nullable = True
 
     return sctx.rel
+
+
+@_special_case('fts::test')
+def process_set_as_fts_test(
+    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+) -> SetRVars:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
+    with ctx.subrel() as newctx:
+        newctx.expr_exposed = False
+
+        obj = expr.args.pop()
+
+        # compile query arg
+        args = _compile_call_args(ir_set, ctx=newctx)
+
+        # compile object arg
+        ensure_source_rvar(obj.expr, newctx.rel, ctx=newctx)
+
+        assert obj.expr_type_path_id
+        obj_id = obj.expr_type_path_id.src_path()
+        assert obj_id
+
+        # HACK: get proper reference to fts::tsvector / pgfts::tsvector
+        import uuid
+        tsvector_type_ref = irast.TypeRef(
+            id=uuid.uuid4(),
+            name_hint=sn.QualName('fts', 'tsvector'),
+            is_scalar=True,
+            sql_type='pg_catalog.tsvector'
+        )
+
+        el_name = sn.QualName('__object__', '__fts_document__')
+        fts_document_ptrref = irast.SpecialPointerRef(
+            name=el_name, shortname=el_name,
+            out_source=obj_id.target,
+            out_target=tsvector_type_ref,
+            out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
+        )
+        fts_document_id = obj_id.extend(ptrref=fts_document_ptrref)
+        fts_document = relctx.get_path_var(
+            newctx.rel,
+            fts_document_id,
+            aspect='value',
+            ctx=newctx,
+        )
+
+        set_expr = pgast.Expr(
+            name='@@',
+            lexpr=pgast.FuncCall(
+                name=('pg_catalog', 'to_tsquery'),
+                args=[args[0]]
+            ),
+            rexpr=fts_document
+        )
+        func_rel = newctx.rel
+
+    return _compile_func_epilogue(
+        ir_set, set_expr=set_expr, func_rel=func_rel, ctx=ctx
+    )

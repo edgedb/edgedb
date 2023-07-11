@@ -306,6 +306,14 @@ class Index(
 
         return kwargs
 
+    def has_base_with_name(self, schema: s_schema.Schema, name: str) -> bool:
+        # XXX: hacky lookup
+        for b in self.get_bases(schema).objects(schema):
+            base_name = b.get_name(schema)
+            if str(base_name) == name:
+                return True
+        return False
+
 
 IndexableSubject_T = TypeVar('IndexableSubject_T', bound='IndexableSubject')
 
