@@ -210,10 +210,6 @@ class Server:
         self._disable_dynamic_system_config = disable_dynamic_system_config
         self._report_config_typedesc = {}
 
-    @property
-    def _pg_pool(self):
-        return self._tenant._pg_pool
-
     async def _request_stats_logger(self):
         last_seen = -1
         while True:
@@ -368,8 +364,7 @@ class Server:
             '_pg_prepared_statement_cache_size', self._tenant.get_sys_config()
         )
         self._stmt_cache_size = size
-        for conn in self._pg_pool.iterate_connections():
-            conn.set_stmt_cache_size(size)
+        self._tenant.set_stmt_cache_size(size)
 
     def _idle_gc_collector(self):
         try:

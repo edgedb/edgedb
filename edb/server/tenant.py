@@ -482,6 +482,10 @@ class Tenant(ha_base.ClusterProtocol):
         finally:
             self._sys_pgcon_waiter.release()
 
+    def set_stmt_cache_size(self, size: int) -> None:
+        for conn in self._pg_pool.iterate_connections():
+            conn.set_stmt_cache_size(size)
+
     def on_sys_pgcon_parameter_status_updated(
         self,
         name: str,
