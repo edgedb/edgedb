@@ -154,6 +154,26 @@ class Source(
             schema, 'pointers', pointer, replace=replace)
         return schema
 
+    def get_addon_columns(
+        self, schema: s_schema.Schema
+    ) -> Sequence[Tuple[str, Tuple[str, str]]]:
+        """
+        Returns a list of columns that are present in the backing table of
+        this source, apart from the columns for pointers.
+        """
+        fts_textsearch = sn.QualName('fts', 'textsearch')
+        has_fts_index = False
+        for index in self.get_indexes(schema).objects(schema):
+            if index.has_base_with_name(schema, fts_textsearch):
+                has_fts_index = True
+
+        res = []
+        if has_fts_index:
+            res.append(
+                ('__fts_document__', ('pg_catalog', 'tsvector',),)
+            )
+        return res
+
 
 def populate_pointer_set_for_source_union(
     schema: s_schema.Schema,

@@ -3872,32 +3872,22 @@ def process_set_as_fts_test(
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
 
-        obj = expr.args.pop()
+        [query_ir, obj_ir] = expr.args
 
         # compile query arg
-        args = _compile_call_args(ir_set, ctx=newctx)
+        query_ref = set_as_subquery(query_ir.expr, as_value=True, ctx=newctx)
+        query_ref.nullable = query_ir.cardinality.can_be_zero()
+        query_pg = astutils.collapse_query(query_ref)
 
         # compile object arg
-        ensure_source_rvar(obj.expr, newctx.rel, ctx=newctx)
-
-        assert obj.expr_type_path_id
-        obj_id = obj.expr_type_path_id.src_path()
-        assert obj_id
-
-        # HACK: get proper reference to fts::tsvector / pgfts::tsvector
-        import uuid
-        tsvector_type_ref = irast.TypeRef(
-            id=uuid.uuid4(),
-            name_hint=sn.QualName('fts', 'tsvector'),
-            is_scalar=True,
-            sql_type='pg_catalog.tsvector'
-        )
+        ensure_source_rvar(obj_ir.expr, newctx.rel, ctx=newctx)
+        obj_id = obj_ir.expr.path_id
 
         el_name = sn.QualName('__object__', '__fts_document__')
         fts_document_ptrref = irast.SpecialPointerRef(
             name=el_name, shortname=el_name,
             out_source=obj_id.target,
-            out_target=tsvector_type_ref,
+            out_target=pg_types.pg_tsvector_typeref,
             out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
         )
         fts_document_id = obj_id.extend(ptrref=fts_document_ptrref)
@@ -3912,7 +3902,7 @@ def process_set_as_fts_test(
             name='@@',
             lexpr=pgast.FuncCall(
                 name=('pg_catalog', 'to_tsquery'),
-                args=[args[0]]
+                args=[query_pg]
             ),
             rexpr=fts_document
         )
