@@ -3139,9 +3139,11 @@ class CompositeMetaCommand(MetaCommand):
                     cols.append((col_name, alias, True))
                 elif ptrname == sn.UnqualName('source'):
                     cols.append(('NULL::uuid', alias, False))
-                else:
-                    # no associated pointer: this is an addon column
+                elif ptrname == sn.UnqualName('__fts_document__'):
+                    # an addon column
                     cols.append((ptrname.name, alias, True))
+                else:
+                    return None
 
         else:
             cols.extend(
@@ -3651,7 +3653,12 @@ class AlterIndex(IndexCommand, adapts=s_indexes.AlterIndex):
 
 class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
     @classmethod
-    def delete_index(cls, index, schema, context):
+    def delete_index(
+        cls,
+        index: s_indexes.Index,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ):
         ops = dbops.CommandGroup()
 
         subject = index.get_subject(schema)
@@ -3660,15 +3667,19 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
         module_name = index.get_name(schema).module
         orig_idx_name = common.get_index_backend_name(
             index.id, module_name, catenate=False)
-        index = dbops.Index(
+        pg_index = dbops.Index(
             name=orig_idx_name[1], table_name=table_name, inherit=True)
         index_exists = dbops.IndexExists(
-            (table_name[0], index.name_in_catalog))
-        ops.add_command(dbops.DropIndex(index, conditions=(index_exists,)))
+            (table_name[0], pg_index.name_in_catalog)
+        )
+        ops.add_command(dbops.DropIndex(pg_index, conditions=(index_exists,)))
 
         # FTS
         if index.has_base_with_name(schema, sn.QualName('fts', 'textsearch')):
-            fts_document = dbops.Column(name=f'__fts_document__')
+            fts_document = dbops.Column(
+                name=f'__fts_document__',
+                type=('pg_catalog', 'tsvector'),
+            )
             alter_table = dbops.AlterTable(table_name)
             alter_table.add_operation(dbops.AlterTableDropColumn(fts_document))
             ops.add_command(alter_table)
