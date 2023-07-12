@@ -787,8 +787,6 @@ class BaseServer:
         except secretkey.SecretKeyReadError as e:
             raise StartupError(e.args[0]) from e
 
-        self._tenant.load_jwcrypto()
-
     def init_jwcrypto(
         self,
         jws_key_file: pathlib.Path,
@@ -868,40 +866,30 @@ class BaseServer:
         self.request_shutdown()
 
     def request_shutdown(self):
-        self._tenant.stop_accepting_connections()
         self._stop_evt.set()
 
     async def stop(self):
-        try:
-            self._tenant.stop()
+        if self._idle_gc_handler is not None:
+            self._idle_gc_handler.cancel()
+            self._idle_gc_handler = None
 
-            if self._idle_gc_handler is not None:
-                self._idle_gc_handler.cancel()
-                self._idle_gc_handler = None
+        if self._http_request_logger is not None:
+            self._http_request_logger.cancel()
 
-            if self._http_request_logger is not None:
-                self._http_request_logger.cancel()
+        for handle in self._file_watch_handles:
+            handle.cancel()
+        self._file_watch_handles.clear()
 
-            for handle in self._file_watch_handles:
-                handle.cancel()
-            self._file_watch_handles.clear()
+        await self._stop_servers(self._servers.values())
+        self._servers = {}
 
-            await self._stop_servers(self._servers.values())
-            self._servers = {}
+        for conn in self._binary_conns:
+            conn.stop()
+        self._binary_conns.clear()
 
-            for conn in self._binary_conns:
-                conn.stop()
-            self._binary_conns.clear()
-
-            for conn in self._pgext_conns.values():
-                conn.stop()
-            self._pgext_conns.clear()
-
-            await self._tenant.wait_stopped()
-            await self._tenant.destroy_compiler_pool()
-
-        finally:
-            self._tenant.terminate_sys_pgcon()
+        for conn in self._pgext_conns.values():
+            conn.stop()
+        self._pgext_conns.clear()
 
     async def serve_forever(self):
         await self._stop_evt.wait()
@@ -1360,6 +1348,25 @@ class Server(BaseServer):
         status = super()._get_status()
         status["tenant_id"] = self._tenant.tenant_id
         return status
+
+    def load_jwcrypto(self, jws_key_file: pathlib.Path) -> None:
+        super().load_jwcrypto(jws_key_file)
+        self._tenant.load_jwcrypto()
+
+    def request_shutdown(self):
+        self._tenant.stop_accepting_connections()
+        super().request_shutdown()
+
+    async def stop(self):
+        try:
+            self._tenant.stop()
+
+            await super().stop()
+
+            await self._tenant.wait_stopped()
+            await self._tenant.destroy_compiler_pool()
+        finally:
+            self._tenant.terminate_sys_pgcon()
 
     def get_debug_info(self):
         parent = super().get_debug_info()
