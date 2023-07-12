@@ -228,8 +228,8 @@ class AbstractPool:
     async def stop(self):
         raise NotImplementedError
 
-    def get_template_pid(self):
-        return None
+    def get_debug_info(self):
+        return dict(worker_pids=[], template_pid=None)
 
     async def _compute_compile_preargs(
         self,
@@ -805,6 +805,12 @@ class BaseLocalPool(
         if worker.get_pid() in self._workers:
             self._workers_queue.release(worker, put_in_front=put_in_front)
 
+    def get_debug_info(self):
+        return dict(
+            worker_pids=list(self._workers.keys()),
+            template_pid=None,
+        )
+
 
 @srvargs.CompilerPoolMode.Fixed.assign_implementation
 class FixedPool(BaseLocalPool):
@@ -835,11 +841,11 @@ class FixedPool(BaseLocalPool):
             logger.error("Template compiler process exited; recreating now.")
             self._schedule_template_proc(0)
 
-    def get_template_pid(self):
-        if self._template_transport is None:
-            return None
-        else:
-            return self._template_transport.get_pid()
+    def get_debug_info(self):
+        rv = super().get_debug_info()
+        if self._template_transport is not None:
+            rv["template_pid"] = self._template_transport.get_pid()
+        return rv
 
     async def _start(self):
         await self._create_template_proc(retry=False)

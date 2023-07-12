@@ -937,10 +937,7 @@ class BaseServer:
             user_roles=self._tenant.get_roles(),
             pg_addr=tenant.get_pgaddr(),
             pg_pool=tenant._pg_pool._build_snapshot(now=time.monotonic()),
-            compiler_pool=dict(
-                worker_pids=list(self._tenant._compiler_pool._workers.keys()),
-                template_pid=self._tenant._compiler_pool.get_template_pid(),
-            ),
+            compiler_pool=tenant._compiler_pool.get_debug_info(),
         )
 
         dbs = {}
