@@ -117,7 +117,6 @@ class BaseServer:
         compiler_pool_tenant_cache_size,
         nethosts,
         netport,
-        new_instance: bool,
         listen_sockets: tuple[socket.socket, ...] = (),
         testmode: bool = False,
         binary_endpoint_security: srvargs.ServerEndpointSecurityMode = (
@@ -127,7 +126,6 @@ class BaseServer:
         auto_shutdown_after: float = -1,
         echo_runtime_info: bool = False,
         status_sinks: Sequence[Callable[[str], None]] = (),
-        startup_script: Optional[srvargs.StartupScript] = None,
         default_auth_method: srvargs.ServerAuthMethods = (
             srvargs.DEFAULT_AUTH_METHODS),
         admin_ui: bool = False,
@@ -166,9 +164,6 @@ class BaseServer:
 
         self._echo_runtime_info = echo_runtime_info
         self._status_sinks = status_sinks
-
-        self._startup_script = startup_script
-        self._new_instance = new_instance
 
         self._sys_queries = immutables.Map()
 
@@ -506,22 +501,6 @@ class BaseServer:
         # CONFIGURE INSTANCE RESET setting_name;
         pass
 
-    async def run_startup_script_and_exit(self):
-        """Run the script specified in *startup_script* and exit immediately"""
-        if self._startup_script is None:
-            raise AssertionError('startup script is not defined')
-        await self._create_compiler_pool()
-        try:
-            await binary.run_script(
-                server=self,
-                tenant=self._tenant,
-                database=self._startup_script.database,
-                user=self._startup_script.user,
-                script=self._startup_script.text,
-            )
-        finally:
-            await self._destroy_compiler_pool()
-
     async def _start_server(
         self,
         host: str,
@@ -810,6 +789,9 @@ class BaseServer:
                 srv.close()
                 g.create_task(srv.wait_closed())
 
+    async def _before_start_servers(self) -> None:
+        pass
+
     async def start(self):
         self._stop_evt.clear()
         await self._tenant.start_accepting_new_tasks()
@@ -820,15 +802,7 @@ class BaseServer:
 
         await self._create_compiler_pool()
 
-        if self._startup_script and self._new_instance:
-            await binary.run_script(
-                server=self,
-                tenant=self._tenant,
-                database=self._startup_script.database,
-                user=self._startup_script.user,
-                script=self._startup_script.text,
-            )
-
+        await self._before_start_servers()
         self._servers, actual_port, listen_addrs = await self._start_servers(
             (await _resolve_interfaces(self._listen_hosts))[0],
             self._listen_port,
@@ -980,6 +954,20 @@ class BaseServer:
 
 
 class Server(BaseServer):
+    _startup_script: srvargs.StartupScript | None
+    _new_instance: bool
+
+    def __init__(
+        self,
+        *,
+        startup_script: srvargs.StartupScript | None = None,
+        new_instance: bool,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self._startup_script = startup_script
+        self._new_instance = new_instance
+
     def _get_sys_config(self) -> Mapping[str, config.SettingValue]:
         return self._tenant.get_sys_config()
 
@@ -1406,6 +1394,32 @@ class Server(BaseServer):
         except Exception:
             metrics.background_errors.inc(1.0, 'after_system_config_rem')
             raise
+
+    async def run_startup_script_and_exit(self):
+        """Run the script specified in *startup_script* and exit immediately"""
+        if self._startup_script is None:
+            raise AssertionError('startup script is not defined')
+        await self._create_compiler_pool()
+        try:
+            await binary.run_script(
+                server=self,
+                tenant=self._tenant,
+                database=self._startup_script.database,
+                user=self._startup_script.user,
+                script=self._startup_script.text,
+            )
+        finally:
+            await self._destroy_compiler_pool()
+
+    async def _before_start_servers(self) -> None:
+        if self._startup_script and self._new_instance:
+            await binary.run_script(
+                server=self,
+                tenant=self._tenant,
+                database=self._startup_script.database,
+                user=self._startup_script.user,
+                script=self._startup_script.text,
+            )
 
 
 def _cleanup_wildcard_addrs(
