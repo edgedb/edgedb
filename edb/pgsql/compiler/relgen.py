@@ -3807,7 +3807,8 @@ def process_set_as_fts_test(
 
         el_name = sn.QualName('__object__', '__fts_document__')
         fts_document_ptrref = irast.SpecialPointerRef(
-            name=el_name, shortname=el_name,
+            name=el_name,
+            shortname=el_name,
             out_source=obj_id.target,
             out_target=pg_types.pg_tsvector_typeref,
             out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
@@ -3823,10 +3824,9 @@ def process_set_as_fts_test(
         set_expr = pgast.Expr(
             name='@@',
             lexpr=pgast.FuncCall(
-                name=('pg_catalog', 'to_tsquery'),
-                args=[query_pg]
+                name=('pg_catalog', 'to_tsquery'), args=[query_pg]
             ),
-            rexpr=fts_document
+            rexpr=fts_document,
         )
         func_rel = newctx.rel
 

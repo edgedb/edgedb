@@ -169,7 +169,13 @@ class Source(
         res = []
         if has_fts_index:
             res.append(
-                ('__fts_document__', ('pg_catalog', 'tsvector',),)
+                (
+                    '__fts_document__',
+                    (
+                        'pg_catalog',
+                        'tsvector',
+                    ),
+                )
             )
         return res
 
