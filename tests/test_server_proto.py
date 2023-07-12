@@ -109,11 +109,11 @@ class TestServerProto(tb.QueryTestCase):
                 await self.con.query('select syntax error')
 
             with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
-                                        'Unexpected end of line'):
+                                        r"Missing '\)'"):
                 await self.con.query('select (')
 
             with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
-                                        'Unexpected end of line'):
+                                        r"Missing '\)'"):
                 await self.con.query_json('select (')
 
             for _ in range(10):

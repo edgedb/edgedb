@@ -174,23 +174,23 @@ class T_PIPE(Token, lextoken='|'):
     pass
 
 
-class T_NAMEDONLY(Token):
+class T_NAMEDONLY(Token, lextoken='named only'):
     pass
 
 
-class T_SETANNOTATION(Token):
+class T_SETANNOTATION(Token, lextoken='set annotation'):
     pass
 
 
-class T_SETTYPE(Token):
+class T_SETTYPE(Token, lextoken='set type'):
     pass
 
 
-class T_EXTENSIONPACKAGE(Token):
+class T_EXTENSIONPACKAGE(Token, lextoken='extension package'):
     pass
 
 
-class T_ORDERBY(Token):
+class T_ORDERBY(Token, lextoken='order by'):
     pass
 
 

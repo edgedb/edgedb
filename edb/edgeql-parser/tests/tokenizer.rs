@@ -39,6 +39,10 @@ fn tok_err(s: &str) -> String {
     panic!("No error, where error expected");
 }
 
+fn keyword(kw: &'static str) -> Kind {
+    Keyword(edgeql_parser::keywords::Keyword(kw))
+}
+
 #[test]
 fn whitespace_and_comments() {
     assert_eq!(tok_str("# hello { world }"), &[] as &[&str]);
@@ -64,9 +68,9 @@ fn idents() {
 #[test]
 fn keywords() {
     assert_eq!(tok_str("SELECT a"), ["SELECT", "a"]);
-    assert_eq!(tok_typ("SELECT a"), [Keyword, Ident]);
+    assert_eq!(tok_typ("SELECT a"), [keyword("select"), Ident]);
     assert_eq!(tok_str("with Select"), ["with", "Select"]);
-    assert_eq!(tok_typ("with Select"), [Keyword, Keyword]);
+    assert_eq!(tok_typ("with Select"), [keyword("with"), keyword("select")]);
 }
 
 #[test]
@@ -375,92 +379,98 @@ fn decimal() {
 
 #[test]
 fn numbers_from_py() {
-    assert_eq!(tok_str("SELECT 3.5432;"), ["SELECT", "3.5432", ";"]);
-    assert_eq!(tok_typ("SELECT 3.5432;"), [Keyword, FloatConst, Semicolon]);
-    assert_eq!(tok_str("SELECT +3.5432;"), ["SELECT", "+", "3.5432", ";"]);
+    assert_eq!(tok_str("SELECT 3.5432;"),
+        ["SELECT", "3.5432", ";"]);
+    assert_eq!(tok_typ("SELECT 3.5432;"),
+        [keyword("select"), FloatConst, Semicolon]);
+    assert_eq!(tok_str("SELECT +3.5432;"),
+        ["SELECT", "+", "3.5432", ";"]);
     assert_eq!(tok_typ("SELECT +3.5432;"),
-        [Keyword, Add, FloatConst, Semicolon]);
-    assert_eq!(tok_str("SELECT -3.5432;"), ["SELECT", "-", "3.5432", ";"]);
+        [keyword("select"), Add, FloatConst, Semicolon]);
+    assert_eq!(tok_str("SELECT -3.5432;"),
+        ["SELECT", "-", "3.5432", ";"]);
     assert_eq!(tok_typ("SELECT -3.5432;"),
-        [Keyword, Sub, FloatConst, Semicolon]);
-    assert_eq!(tok_str("SELECT 354.32;"), ["SELECT", "354.32", ";"]);
-    assert_eq!(tok_typ("SELECT 354.32;"), [Keyword, FloatConst, Semicolon]);
+        [keyword("select"), Sub, FloatConst, Semicolon]);
+    assert_eq!(tok_str("SELECT 354.32;"),
+        ["SELECT", "354.32", ";"]);
+    assert_eq!(tok_typ("SELECT 354.32;"),
+        [keyword("select"), FloatConst, Semicolon]);
     assert_eq!(tok_str("SELECT 35400000000000.32;"),
         ["SELECT", "35400000000000.32", ";"]);
     assert_eq!(tok_typ("SELECT 35400000000000.32;"),
-        [Keyword, FloatConst, Semicolon]);
+        [keyword("select"), FloatConst, Semicolon]);
     assert_eq!(tok_str("SELECT 35400000000000000000.32;"),
         ["SELECT", "35400000000000000000.32", ";"]);
     assert_eq!(tok_typ("SELECT 35400000000000000000.32;"),
-        [Keyword, FloatConst, Semicolon]);
+        [keyword("select"), FloatConst, Semicolon]);
     assert_eq!(tok_str("SELECT 3.5432e20;"),
         ["SELECT", "3.5432e20", ";"]);
     assert_eq!(tok_typ("SELECT 3.5432e20;"),
-        [Keyword, FloatConst, Semicolon]);
+        [keyword("select"), FloatConst, Semicolon]);
     assert_eq!(tok_str("SELECT 3.5432e+20;"),
         ["SELECT", "3.5432e+20", ";"]);
     assert_eq!(tok_typ("SELECT 3.5432e+20;"),
-        [Keyword, FloatConst, Semicolon]);
+        [keyword("select"), FloatConst, Semicolon]);
     assert_eq!(tok_str("SELECT 3.5432e-20;"),
         ["SELECT", "3.5432e-20", ";"]);
     assert_eq!(tok_typ("SELECT 3.5432e-20;"),
-        [Keyword, FloatConst, Semicolon]);
+        [keyword("select"), FloatConst, Semicolon]);
     assert_eq!(tok_str("SELECT 354.32e-20;"),
         ["SELECT", "354.32e-20", ";"]);
     assert_eq!(tok_typ("SELECT 354.32e-20;"),
-        [Keyword, FloatConst, Semicolon]);
+        [keyword("select"), FloatConst, Semicolon]);
     assert_eq!(tok_str("SELECT -0n;"),
         ["SELECT", "-", "0n", ";"]);
     assert_eq!(tok_typ("SELECT -0n;"),
-        [Keyword, Sub, BigIntConst, Semicolon]);
+        [keyword("select"), Sub, BigIntConst, Semicolon]);
     assert_eq!(tok_str("SELECT 0n;"),
         ["SELECT", "0n", ";"]);
     assert_eq!(tok_typ("SELECT 0n;"),
-        [Keyword, BigIntConst, Semicolon]);
+        [keyword("select"), BigIntConst, Semicolon]);
     assert_eq!(tok_str("SELECT 1n;"),
         ["SELECT", "1n", ";"]);
     assert_eq!(tok_typ("SELECT 1n;"),
-        [Keyword, BigIntConst, Semicolon]);
+        [keyword("select"), BigIntConst, Semicolon]);
     assert_eq!(tok_str("SELECT -1n;"),
         ["SELECT", "-", "1n", ";"]);
     assert_eq!(tok_typ("SELECT -1n;"),
-        [Keyword, Sub, BigIntConst, Semicolon]);
+        [keyword("select"), Sub, BigIntConst, Semicolon]);
     assert_eq!(tok_str("SELECT 100000n;"),
         ["SELECT", "100000n", ";"]);
     assert_eq!(tok_typ("SELECT 100000n;"),
-        [Keyword, BigIntConst, Semicolon]);
+        [keyword("select"), BigIntConst, Semicolon]);
     assert_eq!(tok_str("SELECT -100000n;"),
         ["SELECT", "-", "100000n", ";"]);
     assert_eq!(tok_typ("SELECT -100000n;"),
-        [Keyword, Sub, BigIntConst, Semicolon]);
+        [keyword("select"), Sub, BigIntConst, Semicolon]);
     assert_eq!(tok_str("SELECT -354.32n;"),
         ["SELECT", "-", "354.32n", ";"]);
     assert_eq!(tok_typ("SELECT -354.32n;"),
-        [Keyword, Sub, DecimalConst, Semicolon]);
+        [keyword("select"), Sub, DecimalConst, Semicolon]);
     assert_eq!(tok_str("SELECT 35400000000000.32n;"),
         ["SELECT", "35400000000000.32n", ";"]);
     assert_eq!(tok_typ("SELECT 35400000000000.32n;"),
-        [Keyword, DecimalConst, Semicolon]);
+        [keyword("select"), DecimalConst, Semicolon]);
     assert_eq!(tok_str("SELECT -35400000000000000000.32n;"),
         ["SELECT", "-", "35400000000000000000.32n", ";"]);
     assert_eq!(tok_typ("SELECT -35400000000000000000.32n;"),
-        [Keyword, Sub, DecimalConst, Semicolon]);
+        [keyword("select"), Sub, DecimalConst, Semicolon]);
     assert_eq!(tok_str("SELECT 3.5432e20n;"),
         ["SELECT", "3.5432e20n", ";"]);
     assert_eq!(tok_typ("SELECT 3.5432e20n;"),
-        [Keyword, DecimalConst, Semicolon]);
+        [keyword("select"), DecimalConst, Semicolon]);
     assert_eq!(tok_str("SELECT -3.5432e+20n;"),
         ["SELECT", "-", "3.5432e+20n", ";"]);
     assert_eq!(tok_typ("SELECT -3.5432e+20n;"),
-        [Keyword, Sub, DecimalConst, Semicolon]);
+        [keyword("select"), Sub, DecimalConst, Semicolon]);
     assert_eq!(tok_str("SELECT 3.5432e-20n;"),
         ["SELECT", "3.5432e-20n", ";"]);
     assert_eq!(tok_typ("SELECT 3.5432e-20n;"),
-        [Keyword, DecimalConst, Semicolon]);
+        [keyword("select"), DecimalConst, Semicolon]);
     assert_eq!(tok_str("SELECT 354.32e-20n;"),
         ["SELECT", "354.32e-20n", ";"]);
     assert_eq!(tok_typ("SELECT 354.32e-20n;"),
-        [Keyword, DecimalConst, Semicolon]);
+        [keyword("select"), DecimalConst, Semicolon]);
 }
 
 #[test]
@@ -598,7 +608,7 @@ fn strings() {
     assert_eq!(tok_str(r#" rb'hello'  "#), [r#"rb'hello'"#]);
     assert_eq!(tok_typ(r#" rb'hello'  "#), [BinStr]);
     assert_eq!(tok_str(r#" `hello`  "#), [r#"`hello`"#]);
-    assert_eq!(tok_typ(r#" `hello`  "#), [BacktickName]);
+    assert_eq!(tok_typ(r#" `hello`  "#), [Ident]);
 
     assert_eq!(tok_str(r#" "hello""#), [r#""hello""#]);
     assert_eq!(tok_typ(r#" "hello""#), [Str]);
@@ -617,7 +627,7 @@ fn strings() {
     assert_eq!(tok_str(r#" rb'hello'"#), [r#"rb'hello'"#]);
     assert_eq!(tok_typ(r#" rb'hello'"#), [BinStr]);
     assert_eq!(tok_str(r#" `hello`"#), [r#"`hello`"#]);
-    assert_eq!(tok_typ(r#" `hello`"#), [BacktickName]);
+    assert_eq!(tok_typ(r#" `hello`"#), [Ident]);
 
     assert_eq!(tok_str(r#" "h\"ello" "#), [r#""h\"ello""#]);
     assert_eq!(tok_typ(r#" "h\"ello" "#), [Str]);
@@ -636,9 +646,9 @@ fn strings() {
     assert_eq!(tok_str(r#" rb'hello\' "#), [r#"rb'hello\'"#]);
     assert_eq!(tok_typ(r#" rb'hello\' "#), [BinStr]);
     assert_eq!(tok_str(r#" `hello\` "#), [r#"`hello\`"#]);
-    assert_eq!(tok_typ(r#" `hello\` "#), [BacktickName]);
+    assert_eq!(tok_typ(r#" `hello\` "#), [Ident]);
     assert_eq!(tok_str(r#" `hel``lo` "#), [r#"`hel``lo`"#]);
-    assert_eq!(tok_typ(r#" `hel``lo` "#), [BacktickName]);
+    assert_eq!(tok_typ(r#" `hel``lo` "#), [Ident]);
 
     assert_eq!(tok_str(r#" "h'el`lo" "#), [r#""h'el`lo""#]);
     assert_eq!(tok_typ(r#" "h'el`lo" "#), [Str]);
@@ -657,7 +667,7 @@ fn strings() {
     assert_eq!(tok_str(r#" rb'h"el`lo' "#), [r#"rb'h"el`lo'"#]);
     assert_eq!(tok_typ(r#" rb'h"el`lo' "#), [BinStr]);
     assert_eq!(tok_str(r#" `h'el"lo` "#), [r#"`h'el"lo`"#]);
-    assert_eq!(tok_typ(r#" `h'el"lo\` "#), [BacktickName]);
+    assert_eq!(tok_typ(r#" `h'el"lo\` "#), [Ident]);
 
     assert_eq!(tok_str(" \"hel\nlo\" "), ["\"hel\nlo\""]);
     assert_eq!(tok_typ(" \"hel\nlo\" "), [Str]);
@@ -676,7 +686,7 @@ fn strings() {
     assert_eq!(tok_str(" rb'hel\nlo' "), ["rb'hel\nlo'"]);
     assert_eq!(tok_str(" br'hel\nlo' "), ["br'hel\nlo'"]);
     assert_eq!(tok_str(" `hel\nlo` "), ["`hel\nlo`"]);
-    assert_eq!(tok_typ(" `hel\nlo` "), [BacktickName]);
+    assert_eq!(tok_typ(" `hel\nlo` "), [Ident]);
 
     assert_eq!(tok_err(r#""hello"#),
         "unterminated string, quoted by `\"`");
@@ -762,15 +772,15 @@ fn test_dollar() {
     assert_eq!(tok_str("select $$ something $$; x"),
                        ["select", "$$ something $$", ";", "x"]);
     assert_eq!(tok_typ("select $$ something $$; x"),
-                       [Keyword, Str, Semicolon, Ident]);
+                       [keyword("select"), Str, Semicolon, Ident]);
     assert_eq!(tok_str("select $a$ ; $b$ ; $b$ ; $a$; x"),
                        ["select", "$a$ ; $b$ ; $b$ ; $a$", ";", "x"]);
     assert_eq!(tok_typ("select $a$ ; $b$ ; $b$ ; $a$; x"),
-                       [Keyword, Str, Semicolon, Ident]);
+                       [keyword("select"), Str, Semicolon, Ident]);
     assert_eq!(tok_str("select $a$ ; $b$ ; $a$; x"),
                        ["select", "$a$ ; $b$ ; $a$", ";", "x"]);
     assert_eq!(tok_typ("select $a$ ; $b$ ; $a$; x"),
-                       [Keyword, Str, Semicolon, Ident]);
+                       [keyword("select"), Str, Semicolon, Ident]);
     assert_eq!(tok_err("select $$ ; $ab$ test;"),
         "unterminated string started with $$");
     assert_eq!(tok_err("select $a$ ; $$ test;"),
@@ -782,24 +792,24 @@ fn test_dollar() {
     assert_eq!(tok_str("select $a$a$ ; $a$ test;"),
         ["select", "$a$a$ ; $a$", "test", ";"]);
     assert_eq!(tok_typ("select $a$a$ ; $a$ test;"),
-        [Keyword, Str, Ident, Semicolon]);
+        [keyword("select"), Str, Ident, Semicolon]);
     assert_eq!(tok_str("select $a+b; $b test; $a+b; $b ;"),
         ["select", "$a", "+", "b", ";", "$b", "test",
          ";", "$a", "+", "b", ";", "$b", ";"]);
     assert_eq!(tok_typ("select $a+b; $b test; $a+b; $b ;"),
-        [Keyword, Argument, Add, Ident, Semicolon, Argument, Ident,
+        [keyword("select"), Argument, Add, Ident, Semicolon, Argument, Ident,
          Semicolon, Argument, Add, Ident, Semicolon, Argument, Semicolon]);
     assert_eq!(tok_str("select $def x$y test; $def x$y"),
         ["select", "$def", "x", "$y", "test",
          ";", "$def", "x", "$y"]);
     assert_eq!(tok_typ("select $def x$y test; $def x$y"),
-        [Keyword, Argument, Ident, Argument, Ident,
+        [keyword("select"), Argument, Ident, Argument, Ident,
          Semicolon, Argument, Ident, Argument]);
     assert_eq!(tok_str("select $`x``y` + $0 + $`zz` + $1.2 + $фыва"),
         ["select", "$`x``y`", "+", "$0", "+", "$`zz`", "+", "$1", ".", "2",
          "+", "$фыва"]);
     assert_eq!(tok_typ("select $`x``y` + $0 + $`zz` + $1.2 + $фыва"),
-        [Keyword, Argument, Add, Argument, Add, Argument,
+        [keyword("select"), Argument, Add, Argument, Add, Argument,
          Add, Argument, Dot, IntConst, Add, Argument]);
     assert_eq!(tok_err(r#"$-"#),
         "bare $ is not allowed");
@@ -831,11 +841,11 @@ fn test_substitution() {
     assert_eq!(tok_str("SELECT \\(expr);"),
                        ["SELECT", "\\(expr)", ";"]);
     assert_eq!(tok_typ("SELECT \\(expr);"),
-                       [Keyword, Substitution, Semicolon]);
+                       [keyword("select"), Substitution, Semicolon]);
     assert_eq!(tok_str("SELECT \\(other_Name1);"),
                        ["SELECT", "\\(other_Name1)", ";"]);
     assert_eq!(tok_typ("SELECT \\(other_Name1);"),
-                       [Keyword, Substitution, Semicolon]);
+                       [keyword("select"), Substitution, Semicolon]);
     assert_eq!(tok_err("SELECT \\(some-name);"),
         "only alphanumerics are allowed in \\(name) token");
     assert_eq!(tok_err("SELECT \\(some_name"),
