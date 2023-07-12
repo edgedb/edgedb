@@ -122,7 +122,7 @@ async def execute(
                     if query_unit.is_explain:
                         # Go back to the compiler pool to analyze
                         # the explain output.
-                        compiler_pool = dbv.server.get_compiler_pool()
+                        compiler_pool = dbv.tenant.get_compiler_pool()
                         r = await compiler_pool.analyze_explain_output(
                             query_unit.query_asts, data
                         )

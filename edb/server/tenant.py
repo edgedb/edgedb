@@ -32,12 +32,14 @@ import time
 import immutables
 
 from edb import errors
+from edb import buildmeta
 from edb.common import retryloop
 from edb.common import taskgroup
 from edb.schema import roles as s_role
 from edb.schema import schema as s_schema
 
 from . import args as srvargs
+from . import compiler_pool
 from . import config
 from . import connpool
 from . import dbview
@@ -107,6 +109,12 @@ class Tenant(ha_base.ClusterProtocol):
     _jwt_revocation_list_file: pathlib.Path | None
     _jwt_revocation_list: frozenset[str] | None
 
+    _internal_runstate_dir: str
+    _compiler_pool: compiler_pool.AbstractPool
+    _compiler_pool_size: int
+    _compiler_pool_mode: srvargs.CompilerPoolMode
+    _compiler_pool_addr: tuple[str, int]
+
     def __init__(
         self,
         cluster: pgcluster.BaseCluster,
@@ -117,6 +125,10 @@ class Tenant(ha_base.ClusterProtocol):
         readiness_state_file: str | None = None,
         jwt_sub_allowlist_file: pathlib.Path | None = None,
         jwt_revocation_list_file: pathlib.Path | None = None,
+        internal_runstate_dir: str,
+        compiler_pool_size: int,
+        compiler_pool_mode: srvargs.CompilerPoolMode,
+        compiler_pool_addr: tuple[str, int],
     ):
         self._cluster = cluster
         self._tenant_id = self.get_backend_runtime_params().tenant_id
@@ -170,6 +182,11 @@ class Tenant(ha_base.ClusterProtocol):
         self._jwt_sub_allowlist = None
         self._jwt_revocation_list_file = jwt_revocation_list_file
         self._jwt_revocation_list = None
+
+        self._internal_runstate_dir = internal_runstate_dir
+        self._compiler_pool_size = compiler_pool_size
+        self._compiler_pool_mode = compiler_pool_mode
+        self._compiler_pool_addr = compiler_pool_addr
 
     def set_server(self, server: edbserver.BaseServer) -> None:
         self._server = server
@@ -1339,3 +1356,39 @@ class Tenant(ha_base.ClusterProtocol):
                 raise
 
         self.create_task(task(), interruptable=True)
+
+    async def create_compiler_pool(self) -> None:
+        # Force Postgres version in BackendRuntimeParams to be the
+        # minimal supported, because the compiler does not rely on
+        # the version, and not pinning it would make the remote compiler
+        # pool refuse connections from clients that have differing versions
+        # of Postgres backing them.
+        runtime_params = self.get_backend_runtime_params()
+        min_ver = '.'.join(str(v) for v in defines.MIN_POSTGRES_VERSION)
+        runtime_params = runtime_params._replace(
+            instance_params=runtime_params.instance_params._replace(
+                version=buildmeta.parse_pg_version(min_ver),
+            ),
+        )
+
+        args = dict(
+            pool_size=self._compiler_pool_size,
+            pool_class=self._compiler_pool_mode.pool_class,
+            dbindex=self._dbindex,
+            runstate_dir=self._internal_runstate_dir,
+            backend_runtime_params=runtime_params,
+            std_schema=self._server.get_std_schema(),
+            refl_schema=self._server.get_refl_schema(),
+            schema_class_layout=self._server.get_schema_class_layout(),
+        )
+        if self._compiler_pool_mode == srvargs.CompilerPoolMode.Remote:
+            args['address'] = self._compiler_pool_addr
+        self._compiler_pool = await compiler_pool.create_compiler_pool(**args)
+
+    async def destroy_compiler_pool(self):
+        if self._compiler_pool is not None:
+            await self._compiler_pool.stop()
+            del self._compiler_pool
+
+    def get_compiler_pool(self):
+        return self._compiler_pool

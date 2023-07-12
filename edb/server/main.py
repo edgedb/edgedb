@@ -188,13 +188,13 @@ async def _run_server(
             readiness_state_file=args.readiness_state_file,
             jwt_sub_allowlist_file=args.jwt_sub_allowlist_file,
             jwt_revocation_list_file=args.jwt_revocation_list_file,
-        )
-        ss = server.Server(
-            runstate_dir=runstate_dir,
             internal_runstate_dir=internal_runstate_dir,
             compiler_pool_size=args.compiler_pool_size,
             compiler_pool_mode=args.compiler_pool_mode,
             compiler_pool_addr=args.compiler_pool_addr,
+        )
+        ss = server.Server(
+            runstate_dir=runstate_dir,
             nethosts=args.bind_addresses,
             netport=args.port,
             listen_sockets=tuple(s for ss in sockets.values() for s in ss),

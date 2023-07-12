@@ -1400,7 +1400,7 @@ cdef class PgConnection(frontend.FrontendConnection):
             result = self.database.lookup_compiled_sql(key)
             if result is not None:
                 return result
-        compiler_pool = self.server.get_compiler_pool()
+        compiler_pool = self.tenant.get_compiler_pool()
         result = await compiler_pool.compile_sql(
             self.dbname,
             self.database.user_schema,
