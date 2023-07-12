@@ -56,7 +56,7 @@ if TYPE_CHECKING:
     from .config.ops import SettingsMap
 
 
-logger = logging.getLogger('edb.server')
+logger = logging.getLogger("edb.server")
 
 
 class RoleDescriptor(TypedDict):
@@ -146,9 +146,10 @@ class Tenant(ha_base.ClusterProtocol):
 
         self._max_backend_connections = max_backend_connections
         self._suggested_client_pool_size = max(
-            min(max_backend_connections,
-                defines.MAX_SUGGESTED_CLIENT_POOL_SIZE),
-            defines.MIN_SUGGESTED_CLIENT_POOL_SIZE
+            min(
+                max_backend_connections, defines.MAX_SUGGESTED_CLIENT_POOL_SIZE
+            ),
+            defines.MIN_SUGGESTED_CLIENT_POOL_SIZE,
         )
         self._pg_pool = connpool.Pool(
             connect=self._pg_connect,
@@ -311,16 +312,18 @@ class Tenant(ha_base.ClusterProtocol):
     async def init(self) -> None:
         try:
             async with self.use_sys_pgcon() as syscon:
-                result = await syscon.sql_fetch_val(b'''\
-                    SELECT json::json FROM edgedbinstdata.instdata
-                    WHERE key = 'instancedata';
-                ''')
+                result = await syscon.sql_fetch_val(
+                    b"""\
+                        SELECT json::json FROM edgedbinstdata.instdata
+                        WHERE key = 'instancedata';
+                    """
+                )
                 self._instance_data = immutables.Map(json.loads(result))
 
             global_schema = await self.introspect_global_schema()
             sys_config = await self._load_sys_config()
             default_sysconfig = await self._load_sys_config(
-                'sysconfig_default'
+                "sysconfig_default"
             )
             await self._load_reported_config()
 
@@ -345,6 +348,7 @@ class Tenant(ha_base.ClusterProtocol):
             self.populate_sys_auth()
 
             if self._readiness_state_file is not None:
+
                 def reload_state_file(_file_modified, _event):
                     self.reload_readiness_state()
 
@@ -432,7 +436,8 @@ class Tenant(ha_base.ClusterProtocol):
             raise
         finally:
             metrics.backend_connection_establishment_latency.observe(
-                time.monotonic() - started_at)
+                time.monotonic() - started_at
+            )
         if ha_serial == self._ha_master_serial:
             rv.set_tenant(self)
             if self._backend_adaptive_ha is not None:
@@ -500,13 +505,14 @@ class Tenant(ha_base.ClusterProtocol):
         value: str,
     ) -> None:
         try:
-            if name == 'in_hot_standby' and value == 'on':
+            if name == "in_hot_standby" and value == "on":
                 # It is a strong evidence of failover if the sys_pgcon receives
                 # a notification that in_hot_standby is turned on.
                 self.on_sys_pgcon_failover_signal()
         except Exception:
             metrics.background_errors.inc(
-                1.0, 'on_sys_pgcon_parameter_status_updated')
+                1.0, "on_sys_pgcon_parameter_status_updated"
+            )
             raise
 
     def on_sys_pgcon_failover_signal(self) -> None:
@@ -516,7 +522,7 @@ class Tenant(ha_base.ClusterProtocol):
             if self._backend_adaptive_ha is not None:
                 # Switch to FAILOVER if adaptive HA is enabled
                 self._backend_adaptive_ha.set_state_failover()
-            elif getattr(self._cluster, '_ha_backend', None) is None:
+            elif getattr(self._cluster, "_ha_backend", None) is None:
                 # If the server is not using an HA backend, nor has enabled the
                 # adaptive HA monitoring, we still try to "switch over" by
                 # disconnecting all pgcons if failover signal is received,
@@ -524,7 +530,7 @@ class Tenant(ha_base.ClusterProtocol):
                 self.on_switch_over()
             # Else, the HA backend should take care of calling on_switch_over()
         except Exception:
-            metrics.background_errors.inc(1.0, 'on_sys_pgcon_failover_signal')
+            metrics.background_errors.inc(1.0, "on_sys_pgcon_failover_signal")
             raise
 
     def on_sys_pgcon_connection_lost(self, exc: Exception | None) -> None:
@@ -537,8 +543,8 @@ class Tenant(ha_base.ClusterProtocol):
                 return
 
             logger.error(
-                "Connection to the system database is " +
-                ("closed." if exc is None else f"broken! Reason: {exc}")
+                "Connection to the system database is "
+                + ("closed." if exc is None else f"broken! Reason: {exc}")
             )
             self.set_pg_unavailable_msg(
                 "Connection is lost, please check server log for the reason."
@@ -551,7 +557,7 @@ class Tenant(ha_base.ClusterProtocol):
                 )
             self.on_pgcon_broken(True)
         except Exception:
-            metrics.background_errors.inc(1.0, 'on_sys_pgcon_connection_lost')
+            metrics.background_errors.inc(1.0, "on_sys_pgcon_connection_lost")
             raise
 
     async def _reconnect_sys_pgcon(self) -> None:
@@ -559,9 +565,7 @@ class Tenant(ha_base.ClusterProtocol):
             conn = None
             while self._running:
                 try:
-                    conn = await self._pg_connect(
-                        defines.EDGEDB_SYSTEM_DB
-                    )
+                    conn = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
                     break
                 except OSError:
                     # Keep retrying as far as:
@@ -572,9 +576,11 @@ class Tenant(ha_base.ClusterProtocol):
                     #   3. The Postgres cluster is still starting up, or the
                     #      HA failover is still in progress
                     if not (
-                        e.code_is(pgcon_errors.ERROR_FEATURE_NOT_SUPPORTED) or
-                        e.code_is(pgcon_errors.ERROR_CANNOT_CONNECT_NOW) or
-                        e.code_is(pgcon_errors.ERROR_READ_ONLY_SQL_TRANSACTION)
+                        e.code_is(pgcon_errors.ERROR_FEATURE_NOT_SUPPORTED)
+                        or e.code_is(pgcon_errors.ERROR_CANNOT_CONNECT_NOW)
+                        or e.code_is(
+                            pgcon_errors.ERROR_READ_ONLY_SQL_TRANSACTION
+                        )
                     ):
                         # TODO: ERROR_FEATURE_NOT_SUPPORTED should be removed
                         # once PostgreSQL supports SERIALIZABLE in hot standbys
@@ -615,7 +621,7 @@ class Tenant(ha_base.ClusterProtocol):
             if self._backend_adaptive_ha:
                 self._backend_adaptive_ha.on_pgcon_broken(is_sys_pgcon)
         except Exception:
-            metrics.background_errors.inc(1.0, 'on_pgcon_broken')
+            metrics.background_errors.inc(1.0, "on_pgcon_broken")
             raise
 
     def on_pgcon_lost(self) -> None:
@@ -623,7 +629,7 @@ class Tenant(ha_base.ClusterProtocol):
             if self._backend_adaptive_ha:
                 self._backend_adaptive_ha.on_pgcon_lost()
         except Exception:
-            metrics.background_errors.inc(1.0, 'on_pgcon_lost')
+            metrics.background_errors.inc(1.0, "on_pgcon_lost")
             raise
 
     def set_pg_unavailable_msg(self, msg: str | None) -> None:
@@ -633,7 +639,7 @@ class Tenant(ha_base.ClusterProtocol):
     async def acquire_pgcon(self, dbname: str) -> pgcon.PGConnection:
         if self._pg_unavailable_msg is not None:
             raise errors.BackendUnavailableError(
-                'Postgres is not available: ' + self._pg_unavailable_msg
+                "Postgres is not available: " + self._pg_unavailable_msg
             )
 
         for _ in range(self._pg_pool.max_capacity):
@@ -641,14 +647,14 @@ class Tenant(ha_base.ClusterProtocol):
             if conn.is_healthy():
                 return conn
             else:
-                logger.warning('Acquired an unhealthy pgcon; discard now.')
+                logger.warning("Acquired an unhealthy pgcon; discard now.")
                 self._pg_pool.release(dbname, conn, discard=True)
         else:
             # This is unlikely to happen, but we defer to the caller to retry
             # when it does happen
             raise errors.BackendUnavailableError(
-                'No healthy backend connection available at the moment, '
-                'please try again.'
+                "No healthy backend connection available at the moment, "
+                "please try again."
             )
 
     def release_pgcon(
@@ -660,12 +666,12 @@ class Tenant(ha_base.ClusterProtocol):
     ) -> None:
         if not conn.is_healthy():
             if not discard:
-                logger.warning('Released an unhealthy pgcon; discard now.')
+                logger.warning("Released an unhealthy pgcon; discard now.")
             discard = True
         try:
             self._pg_pool.release(dbname, conn, discard=discard)
         except Exception:
-            metrics.background_errors.inc(1.0, 'release_pgcon')
+            metrics.background_errors.inc(1.0, "release_pgcon")
             raise
 
     def allow_database_connections(self, dbname: str) -> None:
@@ -682,7 +688,8 @@ class Tenant(ha_base.ClusterProtocol):
             # If there are open EdgeDB connections to the `dbname` DB
             # just raise the error Postgres would have raised itself.
             raise errors.ExecutionError(
-                f'database {dbname!r} is being accessed by other users')
+                f"database {dbname!r} is being accessed by other users"
+            )
         else:
             self._block_new_connections.add(dbname)
 
@@ -692,7 +699,7 @@ class Tenant(ha_base.ClusterProtocol):
             # Signal adjacent servers to prune their connections to this
             # database.
             await self.signal_sysevent(
-                'ensure-database-not-used', dbname=dbname
+                "ensure-database-not-used", dbname=dbname
             )
 
             rloop = retryloop.RetryLoop(
@@ -721,7 +728,8 @@ class Tenant(ha_base.ClusterProtocol):
 
         if conns:
             raise errors.ExecutionError(
-                f'database {dbname!r} is being accessed by other users')
+                f"database {dbname!r} is being accessed by other users"
+            )
 
     async def _acquire_intro_pgcon(
         self, dbname: str
@@ -755,7 +763,7 @@ class Tenant(ha_base.ClusterProtocol):
         self, conn: pgcon.PGConnection
     ) -> SettingsMap:
         result = await conn.sql_fetch_val(
-            self._server.get_sys_query('dbconfig')
+            self._server.get_sys_query("dbconfig")
         )
         return config.from_json(config.get_settings(), result)
 
@@ -779,9 +787,9 @@ class Tenant(ha_base.ClusterProtocol):
         self, conn: pgcon.PGConnection
     ) -> set[str]:
         extension_names_json = await conn.sql_fetch_val(
-            b'''
+            b"""
                 SELECT json_agg(name) FROM edgedb."_SchemaExtension";
-            ''',
+            """,
         )
         if extension_names_json:
             extensions = set(json.loads(extension_names_json))
@@ -815,7 +823,7 @@ class Tenant(ha_base.ClusterProtocol):
             user_schema = await self.introspect_user_schema(conn)
 
             reflection_cache_json = await conn.sql_fetch_val(
-                b'''
+                b"""
                     SELECT json_agg(o.c)
                     FROM (
                         SELECT
@@ -827,16 +835,18 @@ class Tenant(ha_base.ClusterProtocol):
                             ROWS FROM(edgedb._get_cached_reflection())
                                 AS t(eql_hash text, argnames text[])
                     ) AS o;
-                ''',
+                """,
             )
 
-            reflection_cache = immutables.Map({
-                r['eql_hash']: tuple(r['argnames'])
-                for r in json.loads(reflection_cache_json)
-            })
+            reflection_cache = immutables.Map(
+                {
+                    r["eql_hash"]: tuple(r["argnames"])
+                    for r in json.loads(reflection_cache_json)
+                }
+            )
 
             backend_ids_json = await conn.sql_fetch_val(
-                b'''
+                b"""
                 SELECT
                     json_object_agg(
                         "id"::text,
@@ -844,7 +854,7 @@ class Tenant(ha_base.ClusterProtocol):
                     )::text
                 FROM
                     edgedb."_SchemaType"
-                ''',
+                """,
             )
             backend_ids = json.loads(backend_ids_json)
 
@@ -896,7 +906,7 @@ class Tenant(ha_base.ClusterProtocol):
         async with self.use_sys_pgcon() as syscon:
             dbnames = await self._server.get_dbnames(syscon)
 
-        async with taskgroup.TaskGroup(name='introspect DB extensions') as g:
+        async with taskgroup.TaskGroup(name="introspect DB extensions") as g:
             for dbname in dbnames:
                 # There's a risk of the DB being dropped by another server
                 # between us building the list of databases and loading
@@ -907,7 +917,7 @@ class Tenant(ha_base.ClusterProtocol):
         async with self.use_sys_pgcon() as syscon:
             try:
                 data = await syscon.sql_fetch_val(
-                    self._server.get_sys_query('report_configs'),
+                    self._server.get_sys_query("report_configs"),
                     use_prep_stmt=True,
                 )
 
@@ -916,13 +926,13 @@ class Tenant(ha_base.ClusterProtocol):
                     typedesc,
                 ) in self._server.get_report_config_typedesc().items():
                     self._report_config_data[protocol_ver] = (
-                        struct.pack('!L', len(typedesc)) +
-                        typedesc +
-                        struct.pack('!L', len(data)) +
-                        data
+                        struct.pack("!L", len(typedesc))
+                        + typedesc
+                        + struct.pack("!L", len(data))
+                        + data
                     )
             except Exception:
-                metrics.background_errors.inc(1.0, 'load_reported_config')
+                metrics.background_errors.inc(1.0, "load_reported_config")
                 raise
 
     async def _load_sys_config(
@@ -960,7 +970,7 @@ class Tenant(ha_base.ClusterProtocol):
     def populate_sys_auth(self) -> None:
         assert self._dbindex is not None
         cfg = self._dbindex.get_sys_config()
-        auth = config.lookup('auth', cfg) or ()
+        auth = config.lookup("auth", cfg) or ()
         self._sys_auth = tuple(sorted(auth, key=lambda a: a.priority))
 
     async def get_auth_method(
@@ -972,12 +982,9 @@ class Tenant(ha_base.ClusterProtocol):
 
         if authlist:
             for auth in authlist:
-                match = (
-                    (user in auth.user or '*' in auth.user)
-                    and (
-                        not auth.method.transports
-                        or transport in auth.method.transports
-                    )
+                match = (user in auth.user or "*" in auth.user) and (
+                    not auth.method.transports
+                    or transport in auth.method.transports
                 )
 
                 if match:
@@ -985,7 +992,8 @@ class Tenant(ha_base.ClusterProtocol):
 
         default_method = self._server.get_default_auth_method(transport)
         auth_type = config.get_settings().get_type_by_name(
-            default_method.value)
+            default_method.value
+        )
         return auth_type()
 
     async def new_dbview(
@@ -1009,31 +1017,36 @@ class Tenant(ha_base.ClusterProtocol):
     def schedule_reported_config_if_needed(self, setting_name: str) -> None:
         setting = config.get_settings()[setting_name]
         if setting.report and self._accept_new_tasks:
-            self.create_task(
-                self._load_reported_config(), interruptable=True)
+            self.create_task(self._load_reported_config(), interruptable=True)
 
     def load_jwcrypto(self) -> None:
         if self._jwt_sub_allowlist_file is not None:
-            logger.info("(re-)loading JWT subject allowlist from "
-                        f"\"{self._jwt_sub_allowlist_file}\"")
+            logger.info(
+                "(re-)loading JWT subject allowlist from "
+                f'"{self._jwt_sub_allowlist_file}"'
+            )
             try:
                 self._jwt_sub_allowlist = frozenset(
                     self._jwt_sub_allowlist_file.read_text().splitlines(),
                 )
             except Exception as e:
                 raise edbserver.StartupError(
-                    f"cannot load JWT sub allowlist: {e}") from e
+                    f"cannot load JWT sub allowlist: {e}"
+                ) from e
 
         if self._jwt_revocation_list_file is not None:
-            logger.info("(re-)loading JWT revocation list from "
-                        f"\"{self._jwt_revocation_list_file}\"")
+            logger.info(
+                "(re-)loading JWT revocation list from "
+                f'"{self._jwt_revocation_list_file}"'
+            )
             try:
                 self._jwt_revocation_list = frozenset(
                     self._jwt_revocation_list_file.read_text().splitlines(),
                 )
             except Exception as e:
                 raise edbserver.StartupError(
-                    f"cannot load JWT revocation list: {e}") from e
+                    f"cannot load JWT revocation list: {e}"
+                ) from e
 
     def check_jwt(self, claims: dict[str, Any]) -> None:
         """Check JWT for validity"""
@@ -1043,26 +1056,30 @@ class Tenant(ha_base.ClusterProtocol):
             if not subject:
                 raise errors.AuthenticationError(
                     "authentication failed: "
-                    "JWT does not contain a valid subject claim")
+                    "JWT does not contain a valid subject claim"
+                )
             if subject not in self._jwt_sub_allowlist:
                 raise errors.AuthenticationError(
-                    "authentication failed: unauthorized subject")
+                    "authentication failed: unauthorized subject"
+                )
 
         if self._jwt_revocation_list is not None:
             key_id = claims.get("jti")
             if not key_id:
                 raise errors.AuthenticationError(
                     "authentication failed: "
-                    "JWT does not contain a valid key id")
+                    "JWT does not contain a valid key id"
+                )
             if key_id in self._jwt_revocation_list:
                 raise errors.AuthenticationError(
-                    "authentication failed: revoked key")
+                    "authentication failed: revoked key"
+                )
 
     def reload_readiness_state(self) -> None:
         if self._readiness_state_file is None:
             return
         try:
-            with open(self._readiness_state_file, 'rt') as rt:
+            with open(self._readiness_state_file, "rt") as rt:
                 line = rt.readline().strip()
                 try:
                     state, _, reason = line.partition(":")
@@ -1103,25 +1120,23 @@ class Tenant(ha_base.ClusterProtocol):
         self._accepting_connections = self.is_online()
 
     async def on_before_drop_db(
-        self,
-        dbname: str,
-        current_dbname: str
+        self, dbname: str, current_dbname: str
     ) -> None:
         if current_dbname == dbname:
             raise errors.ExecutionError(
-                f'cannot drop the currently open database {dbname!r}')
+                f"cannot drop the currently open database {dbname!r}"
+            )
 
         await self.ensure_database_not_connected(dbname)
 
     async def on_before_create_db_from_template(
-        self,
-        dbname: str,
-        current_dbname: str
+        self, dbname: str, current_dbname: str
     ) -> None:
         if current_dbname == dbname:
             raise errors.ExecutionError(
-                f'cannot create database using currently open database '
-                f'{dbname!r} as a template database')
+                f"cannot create database using currently open database "
+                f"{dbname!r} as a template database"
+            )
 
         await self.ensure_database_not_connected(dbname)
 
@@ -1132,7 +1147,7 @@ class Tenant(ha_base.ClusterProtocol):
                 self._dbindex.unregister_db(dbname)
             self._block_new_connections.discard(dbname)
         except Exception:
-            metrics.background_errors.inc(1.0, 'on_after_drop_db')
+            metrics.background_errors.inc(1.0, "on_after_drop_db")
             raise
 
     async def cancel_pgcon_operation(self, con: pgcon.PGConnection) -> bool:
@@ -1153,12 +1168,12 @@ class Tenant(ha_base.ClusterProtocol):
                 # SIGINT.  Will throw an exception if the privileges aren't
                 # sufficient.
                 result = await syscon.sql_fetch_val(
-                    f'SELECT pg_cancel_backend({con.backend_pid});'.encode(),
+                    f"SELECT pg_cancel_backend({con.backend_pid});".encode(),
                 )
             finally:
                 con.finish_pg_cancellation()
 
-            return result == b'\x01'
+            return result == b"\x01"
 
     async def cancel_and_discard_pgcon(
         self,
@@ -1183,7 +1198,7 @@ class Tenant(ha_base.ClusterProtocol):
             async with self.use_sys_pgcon() as con:
                 await con.signal_sysevent(event, **kwargs)
         except Exception:
-            metrics.background_errors.inc(1.0, 'signal_sysevent')
+            metrics.background_errors.inc(1.0, "signal_sysevent")
             raise
 
     def on_remote_database_quarantine(self, dbname: str) -> None:
@@ -1197,7 +1212,7 @@ class Tenant(ha_base.ClusterProtocol):
             try:
                 await self._pg_pool.prune_inactive_connections(dbname)
             except Exception:
-                metrics.background_errors.inc(1.0, 'remote_db_quarantine')
+                metrics.background_errors.inc(1.0, "remote_db_quarantine")
                 raise
 
         self.create_task(task(), interruptable=True)
@@ -1212,7 +1227,7 @@ class Tenant(ha_base.ClusterProtocol):
             try:
                 await self.introspect_db(dbname)
             except Exception:
-                metrics.background_errors.inc(1.0, 'on_remote_ddl')
+                metrics.background_errors.inc(1.0, "on_remote_ddl")
                 raise
 
         self.create_task(task(), interruptable=True)
@@ -1227,7 +1242,7 @@ class Tenant(ha_base.ClusterProtocol):
             async with self.use_sys_pgcon() as syscon:
                 dbnames = set(await self._server.get_dbnames(syscon))
 
-            tg = taskgroup.TaskGroup(name='new database introspection')
+            tg = taskgroup.TaskGroup(name="new database introspection")
             async with tg as g:
                 for dbname in dbnames:
                     if not self._dbindex.has_db(dbname):
@@ -1253,7 +1268,8 @@ class Tenant(ha_base.ClusterProtocol):
                 await self.introspect_db(dbname)
             except Exception:
                 metrics.background_errors.inc(
-                    1.0, 'on_remote_database_config_change')
+                    1.0, "on_remote_database_config_change"
+                )
                 raise
 
         self.create_task(task(), interruptable=True)
@@ -1267,7 +1283,8 @@ class Tenant(ha_base.ClusterProtocol):
                 await self.introspect_extensions(dbname)
             except Exception:
                 metrics.background_errors.inc(
-                    1.0, 'on_database_extensions_change')
+                    1.0, "on_database_extensions_change"
+                )
                 raise
 
         self.create_task(task(), interruptable=True)
@@ -1284,7 +1301,8 @@ class Tenant(ha_base.ClusterProtocol):
                 await self.introspect_db(dbname)
             except Exception:
                 metrics.background_errors.inc(
-                    1.0, 'on_local_database_config_change')
+                    1.0, "on_local_database_config_change"
+                )
                 raise
 
         self.create_task(task(), interruptable=True)
@@ -1303,7 +1321,8 @@ class Tenant(ha_base.ClusterProtocol):
                 self._server.reinit_idle_gc_collector()
             except Exception:
                 metrics.background_errors.inc(
-                    1.0, 'on_remote_system_config_change')
+                    1.0, "on_remote_system_config_change"
+                )
                 raise
 
         self.create_task(task(), interruptable=True)
@@ -1316,8 +1335,7 @@ class Tenant(ha_base.ClusterProtocol):
             try:
                 await self._reintrospect_global_schema()
             except Exception:
-                metrics.background_errors.inc(
-                    1.0, 'on_global_schema_change')
+                metrics.background_errors.inc(1.0, "on_global_schema_change")
                 raise
 
         self.create_task(task(), interruptable=True)
