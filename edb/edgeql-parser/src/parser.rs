@@ -465,7 +465,7 @@ fn error_cost(kind: &Kind) -> u16 {
 
 impl std::fmt::Display for Terminal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.is_placeholder || self.text.is_empty() {
+        if (self.is_placeholder && self.kind == Kind::Ident) || self.text.is_empty() {
             return write!(f, "{}", self.kind.user_friendly_text().unwrap_or_default());
         }
 
