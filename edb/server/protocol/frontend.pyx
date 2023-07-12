@@ -306,7 +306,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
 
     async def _handshake(self):
         if self.tenant is None:
-            self.tenant = self.server.get_tenant(None)
+            self.tenant = self.server.get_default_tenant()
         if self.tenant.is_accepting_connections():
             self._main_task = self.tenant.create_task(
                 self.main(), interruptable=False

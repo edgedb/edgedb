@@ -347,7 +347,7 @@ cdef class HttpProtocol:
 
     cdef inline _ensure_tenant(self):
         if self.tenant is None:
-            self.tenant = self.server.get_tenant(None)
+            self.tenant = self.server.get_default_tenant()
         return self.tenant
 
     def _switch_to_binary_protocol(self, data=None):

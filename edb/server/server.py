@@ -567,7 +567,7 @@ class BaseServer:
         ), "admin Unix socket length exceeds maximum allowed"
         admin_unix_srv = await self.__loop.create_unix_server(
             lambda: binary.new_edge_connection(
-                self, self.get_tenant(None), external_auth=True
+                self, self.get_default_tenant(), external_auth=True
             ),
             admin_unix_sock_path
         )
@@ -733,7 +733,7 @@ class BaseServer:
             raise StartupError(f"Cannot load TLS certificates - {e}") from e
 
         def sni_callback(sslobj, server_name, _sslctx):
-            self._tenants_by_sslobj[sslobj] = self.get_tenant(server_name)
+            self._tenants_by_sslobj[sslobj] = self._get_tenant(server_name)
 
         sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
         sslctx.sni_callback = sni_callback
@@ -988,14 +988,12 @@ class BaseServer:
     def get_schema_class_layout(self) -> s_refl.SchemaClassLayout:
         return self._schema_class_layout
 
-    def get_tenant(self, server_name: Optional[str]) -> edbtenant.Tenant:
+    def _get_tenant(self, server_name: str) -> edbtenant.Tenant:
         # Given a server name, return a corresponding tenant. Raise an error
         # if the server name doesn't match any registered tenant.
-        #
-        # server_name=None means the caller doesn't have enough information
-        # about the tenant (like HTTP or missing SNI). Depending on the server
-        # implementation (e.g. single or multi-tenant), this method will either
-        # return the default tenant, or raise an error.
+        return self._tenant
+
+    def get_default_tenant(self) -> edbtenant.Tenant:
         return self._tenant
 
     def retrieve_sni_tenant(self, sslobj) -> Optional[edbtenant.Tenant]:
