@@ -75,7 +75,7 @@ class StartupError(Exception):
     pass
 
 
-class Server:
+class BaseServer:
 
     _tenant: edbtenant.Tenant
 
@@ -304,6 +304,9 @@ class Server:
         if conn is not None:
             conn.cancel(secret)
 
+    def _get_sys_config(self) -> Mapping[str, config.SettingValue]:
+        raise NotImplementedError
+
     async def init(self):
         await self._tenant.init_sys_pgcon()
 
@@ -312,7 +315,7 @@ class Server:
 
         await self._tenant.init()
 
-        sys_config = self._tenant.get_sys_config()
+        sys_config = self._get_sys_config()
         if not self._listen_hosts:
             self._listen_hosts = (
                 config.lookup('listen_addresses', sys_config)
@@ -340,7 +343,7 @@ class Server:
             self._idle_gc_handler = None
 
         session_idle_timeout = config.lookup(
-            'session_idle_timeout', self._tenant.get_sys_config())
+            'session_idle_timeout', self._get_sys_config())
 
         timeout = session_idle_timeout.to_microseconds()
         timeout /= 1_000_000.0  # convert to seconds
@@ -357,7 +360,7 @@ class Server:
 
     def _reload_stmt_cache_size(self):
         size = config.lookup(
-            '_pg_prepared_statement_cache_size', self._tenant.get_sys_config()
+            '_pg_prepared_statement_cache_size', self._get_sys_config()
         )
         self._stmt_cache_size = size
         self._tenant.set_stmt_cache_size(size)
@@ -859,14 +862,14 @@ class Server:
         # CONFIGURE INSTANCE RESET setting_name;
         try:
             if setting_name == 'listen_addresses':
-                cfg = self._tenant.get_sys_config()
+                cfg = self._get_sys_config()
                 await self._restart_servers_new_addr(
                     config.lookup('listen_addresses', cfg) or ('localhost',),
                     self._listen_port,
                 )
 
             elif setting_name == 'listen_port':
-                cfg = self._tenant.get_sys_config()
+                cfg = self._get_sys_config()
                 await self._restart_servers_new_addr(
                     self._listen_hosts,
                     config.lookup('listen_port', cfg) or defines.EDGEDB_PORT,
@@ -1343,7 +1346,7 @@ class Server:
                 listen_hosts=self._listen_hosts,
                 listen_port=self._listen_port,
             ),
-            instance_config=serialize_config(self._tenant.get_sys_config()),
+            instance_config=serialize_config(self._get_sys_config()),
             compiler_pool=dict(
                 worker_pids=list(self._compiler_pool._workers.keys()),
                 template_pid=self._compiler_pool.get_template_pid(),
@@ -1386,6 +1389,11 @@ class Server:
         # The caller must be ready to handle errors raised in this method, and
         # provide a decent error.
         return self._tenant
+
+
+class Server(BaseServer):
+    def _get_sys_config(self) -> Mapping[str, config.SettingValue]:
+        return self._tenant.get_sys_config()
 
 
 def _cleanup_wildcard_addrs(
