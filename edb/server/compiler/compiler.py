@@ -572,6 +572,13 @@ class Compiler:
         sql_units = []
         for stmt in stmts:
             orig_text = pg_gen_source(stmt)
+
+            if debug.flags.sql_input:
+                debug.header('SQL Input')
+                debug.dump_code(
+                    pg_codegen.generate_source(stmt, pretty=True), lexer='sql'
+                )
+
             unit_ctor = functools.partial(
                 dbstate.SQLQueryUnit,
                 orig_query=orig_text,
@@ -759,6 +766,10 @@ class Compiler:
                     query=source.text,
                     translation_data=source.translation_data,
                 )
+
+            if debug.flags.sql_output:
+                debug.header('SQL Output')
+                debug.dump_code(unit.query, lexer='sql')
 
             unit.stmt_name = compute_stmt_name(unit.query).encode("utf-8")
 
