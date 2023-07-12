@@ -43,6 +43,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
         span: Span { start: end, end },
         text: "".to_string(),
         value: None,
+        is_placeholder: false,
     });
     let input = input.iter().chain(Some(eoi));
 
@@ -75,7 +76,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
                 for token_kind in possible_actions.keys() {
                     let mut inject = parser.clone();
 
-                    let injection = new_token_for_injection(token_kind, ctx);
+                    let injection = new_token_for_injection(*token_kind, ctx);
 
                     let cost = error_cost(token_kind);
                     let error = Error::new(format!("Missing {injection}")).with_span(gap_span);
@@ -153,16 +154,22 @@ impl<'s> Context<'s> {
     }
 }
 
-fn new_token_for_injection<'a>(kind: &Kind, ctx: &'a Context) -> &'a Terminal {
+fn new_token_for_injection<'a>(kind: Kind, ctx: &'a Context) -> &'a Terminal {
+    let (text, value) = match kind {
+        Kind::Keyword(Keyword(kw)) => (kind.text(), Some(Value::String(kw.to_string()))),
+        Kind::Ident => {
+            let ident = "`ident_placeholder`";
+            (Some(ident), Some(Value::String(ident.into())))
+        }
+        _ => (kind.text(), None),
+    };
+
     ctx.alloc_terminal(Terminal {
-        kind: kind.clone(),
-        text: kind.text().unwrap_or_default().to_string(),
-        value: match kind {
-            Kind::Keyword(Keyword(kw)) => Some(Value::String(kw.to_string())),
-            Kind::Ident => Some(Value::String("my_name".to_string())),
-            _ => None,
-        },
+        kind,
+        text: text.unwrap_or_default().to_string(),
+        value,
         span: Span::default(),
+        is_placeholder: true,
     })
 }
 
@@ -211,6 +218,7 @@ pub struct Terminal {
     pub text: String,
     pub value: Option<Value>,
     pub span: Span,
+    is_placeholder: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -457,7 +465,7 @@ fn error_cost(kind: &Kind) -> u16 {
 
 impl std::fmt::Display for Terminal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.text.is_empty() {
+        if (self.is_placeholder && self.kind == Kind::Ident) || self.text.is_empty() {
             return write!(f, "{}", self.kind.user_friendly_text().unwrap_or_default());
         }
 
@@ -482,6 +490,7 @@ impl Terminal {
             text: token.text.into(),
             value: token.value,
             span: token.span,
+            is_placeholder: false,
         }
     }
 }
