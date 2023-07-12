@@ -767,7 +767,11 @@ class Compiler:
 
         if not sql_units:
             # Cluvio will try to execute an empty query
-            sql_units.append(dbstate.SQLQueryUnit(query=""))
+            sql_units.append(dbstate.SQLQueryUnit(
+                orig_query='',
+                query='',
+                fe_settings=tx_state.current_fe_settings()
+            ))
 
         return sql_units
 

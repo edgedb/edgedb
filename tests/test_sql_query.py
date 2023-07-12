@@ -1043,3 +1043,6 @@ class TestSQL(tb.SQLQueryTestCase):
             position=str(len(query) - 3),
         ):
             await self.scon.execute(query)
+
+    async def test_sql_query_empty(self):
+        await self.scon.executemany('', args=[])
