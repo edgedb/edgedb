@@ -355,13 +355,6 @@ class BaseServer:
     def stmt_cache_size(self) -> int | None:
         return self._stmt_cache_size
 
-    def _reload_stmt_cache_size(self):
-        size = config.lookup(
-            '_pg_prepared_statement_cache_size', self._get_sys_config()
-        )
-        self._stmt_cache_size = size
-        self._tenant.set_stmt_cache_size(size)
-
     def _idle_gc_collector(self):
         try:
             self._idle_gc_handler = None
@@ -548,106 +541,6 @@ class BaseServer:
             '''.encode('utf-8'),
         )
 
-    async def _restart_servers_new_addr(self, nethosts, netport):
-        if not netport:
-            raise RuntimeError('cannot restart without network port specified')
-        nethosts, has_ipv4_wc, has_ipv6_wc = await _resolve_interfaces(
-            nethosts
-        )
-        servers_to_stop = []
-        servers_to_stop_early = []
-        servers = {}
-        if self._listen_port == netport:
-            hosts_to_start = [
-                host for host in nethosts if host not in self._servers
-            ]
-            for host, srv in self._servers.items():
-                if host == ADMIN_PLACEHOLDER or host in nethosts:
-                    servers[host] = srv
-                elif host in ['::', '0.0.0.0']:
-                    servers_to_stop_early.append(srv)
-                else:
-                    if has_ipv4_wc:
-                        try:
-                            ipaddress.IPv4Address(host)
-                        except ValueError:
-                            pass
-                        else:
-                            servers_to_stop_early.append(srv)
-                            continue
-                    if has_ipv6_wc:
-                        try:
-                            ipaddress.IPv6Address(host)
-                        except ValueError:
-                            pass
-                        else:
-                            servers_to_stop_early.append(srv)
-                            continue
-                    servers_to_stop.append(srv)
-            admin = False
-        else:
-            hosts_to_start = nethosts
-            servers_to_stop = self._servers.values()
-            admin = True
-
-        if servers_to_stop_early:
-            await self._stop_servers_with_logging(servers_to_stop_early)
-
-        if hosts_to_start:
-            try:
-                new_servers, *_ = await self._start_servers(
-                    hosts_to_start,
-                    netport,
-                    admin=admin,
-                )
-                servers.update(new_servers)
-            except StartupError:
-                raise errors.ConfigurationError(
-                    'Server updated its config but cannot serve on requested '
-                    'address/port, please see server log for more information.'
-                )
-        self._servers = servers
-        self._listen_hosts = [
-            s.getsockname()[0]
-            for host, tcp_srv in servers.items()
-            if host != ADMIN_PLACEHOLDER
-            for s in tcp_srv.sockets
-        ]
-        self._listen_port = netport
-
-        await self._stop_servers_with_logging(servers_to_stop)
-
-    async def _stop_servers_with_logging(self, servers_to_stop):
-        addrs = []
-        unix_addr = None
-        port = None
-        for srv in servers_to_stop:
-            for s in srv.sockets:
-                addr = s.getsockname()
-                if isinstance(addr, tuple):
-                    addrs.append(addr[:2])
-                    if port is None:
-                        port = addr[1]
-                    elif port != addr[1]:
-                        port = 0
-                else:
-                    unix_addr = addr
-        if len(addrs) > 1:
-            if port:
-                addr_str = f"{{{', '.join(addr[0] for addr in addrs)}}}:{port}"
-            else:
-                addr_str = f"{{{', '.join('%s:%d' % addr for addr in addrs)}}}"
-        elif addrs:
-            addr_str = "%s:%d" % addrs[0]
-        else:
-            addr_str = None
-        if addr_str:
-            logger.info('Stopping to serve on %s', addr_str)
-        if unix_addr:
-            logger.info('Stopping to serve admin on %s', unix_addr)
-
-        await self._stop_servers(servers_to_stop)
-
     async def _on_system_config_add(self, setting_name, value):
         # CONFIGURE INSTANCE INSERT ConfigObject;
         pass
@@ -658,51 +551,11 @@ class BaseServer:
 
     async def _on_system_config_set(self, setting_name, value):
         # CONFIGURE INSTANCE SET setting_name := value;
-        try:
-            if setting_name == 'listen_addresses':
-                await self._restart_servers_new_addr(value, self._listen_port)
-
-            elif setting_name == 'listen_port':
-                await self._restart_servers_new_addr(self._listen_hosts, value)
-
-            elif setting_name == 'session_idle_timeout':
-                self.reinit_idle_gc_collector()
-
-            elif setting_name == '_pg_prepared_statement_cache_size':
-                self._reload_stmt_cache_size()
-
-            self._tenant.schedule_reported_config_if_needed(setting_name)
-        except Exception:
-            metrics.background_errors.inc(1.0, 'on_system_config_set')
-            raise
+        pass
 
     async def _on_system_config_reset(self, setting_name):
         # CONFIGURE INSTANCE RESET setting_name;
-        try:
-            if setting_name == 'listen_addresses':
-                cfg = self._get_sys_config()
-                await self._restart_servers_new_addr(
-                    config.lookup('listen_addresses', cfg) or ('localhost',),
-                    self._listen_port,
-                )
-
-            elif setting_name == 'listen_port':
-                cfg = self._get_sys_config()
-                await self._restart_servers_new_addr(
-                    self._listen_hosts,
-                    config.lookup('listen_port', cfg) or defines.EDGEDB_PORT,
-                )
-
-            elif setting_name == 'session_idle_timeout':
-                self.reinit_idle_gc_collector()
-
-            elif setting_name == '_pg_prepared_statement_cache_size':
-                self._reload_stmt_cache_size()
-
-            self._tenant.schedule_reported_config_if_needed(setting_name)
-        except Exception:
-            metrics.background_errors.inc(1.0, 'on_system_config_reset')
-            raise
+        pass
 
     def before_alter_system_config(self):
         if self._disable_dynamic_system_config:
@@ -712,21 +565,11 @@ class BaseServer:
 
     async def _after_system_config_add(self, setting_name, value):
         # CONFIGURE INSTANCE INSERT ConfigObject;
-        try:
-            if setting_name == 'auth':
-                self._tenant.populate_sys_auth()
-        except Exception:
-            metrics.background_errors.inc(1.0, 'after_system_config_add')
-            raise
+        pass
 
     async def _after_system_config_rem(self, setting_name, value):
         # CONFIGURE INSTANCE RESET ConfigObject;
-        try:
-            if setting_name == 'auth':
-                self._tenant.populate_sys_auth()
-        except Exception:
-            metrics.background_errors.inc(1.0, 'after_system_config_rem')
-            raise
+        pass
 
     async def _after_system_config_set(self, setting_name, value):
         # CONFIGURE INSTANCE SET setting_name := value;
@@ -1412,6 +1255,175 @@ class Server(BaseServer):
         async with self._tenant.use_sys_pgcon() as syscon:
             await self._maybe_apply_patches(
                 defines.EDGEDB_SYSTEM_DB, syscon, patches, sys=True)
+
+    def _reload_stmt_cache_size(self):
+        size = config.lookup(
+            '_pg_prepared_statement_cache_size', self._get_sys_config()
+        )
+        self._stmt_cache_size = size
+        self._tenant.set_stmt_cache_size(size)
+
+    async def _stop_servers_with_logging(self, servers_to_stop):
+        addrs = []
+        unix_addr = None
+        port = None
+        for srv in servers_to_stop:
+            for s in srv.sockets:
+                addr = s.getsockname()
+                if isinstance(addr, tuple):
+                    addrs.append(addr[:2])
+                    if port is None:
+                        port = addr[1]
+                    elif port != addr[1]:
+                        port = 0
+                else:
+                    unix_addr = addr
+        if len(addrs) > 1:
+            if port:
+                addr_str = f"{{{', '.join(addr[0] for addr in addrs)}}}:{port}"
+            else:
+                addr_str = f"{{{', '.join('%s:%d' % addr for addr in addrs)}}}"
+        elif addrs:
+            addr_str = "%s:%d" % addrs[0]
+        else:
+            addr_str = None
+        if addr_str:
+            logger.info('Stopping to serve on %s', addr_str)
+        if unix_addr:
+            logger.info('Stopping to serve admin on %s', unix_addr)
+
+        await self._stop_servers(servers_to_stop)
+
+    async def _restart_servers_new_addr(self, nethosts, netport):
+        if not netport:
+            raise RuntimeError('cannot restart without network port specified')
+        nethosts, has_ipv4_wc, has_ipv6_wc = await _resolve_interfaces(
+            nethosts
+        )
+        servers_to_stop = []
+        servers_to_stop_early = []
+        servers = {}
+        if self._listen_port == netport:
+            hosts_to_start = [
+                host for host in nethosts if host not in self._servers
+            ]
+            for host, srv in self._servers.items():
+                if host == ADMIN_PLACEHOLDER or host in nethosts:
+                    servers[host] = srv
+                elif host in ['::', '0.0.0.0']:
+                    servers_to_stop_early.append(srv)
+                else:
+                    if has_ipv4_wc:
+                        try:
+                            ipaddress.IPv4Address(host)
+                        except ValueError:
+                            pass
+                        else:
+                            servers_to_stop_early.append(srv)
+                            continue
+                    if has_ipv6_wc:
+                        try:
+                            ipaddress.IPv6Address(host)
+                        except ValueError:
+                            pass
+                        else:
+                            servers_to_stop_early.append(srv)
+                            continue
+                    servers_to_stop.append(srv)
+            admin = False
+        else:
+            hosts_to_start = nethosts
+            servers_to_stop = self._servers.values()
+            admin = True
+
+        if servers_to_stop_early:
+            await self._stop_servers_with_logging(servers_to_stop_early)
+
+        if hosts_to_start:
+            try:
+                new_servers, *_ = await self._start_servers(
+                    hosts_to_start,
+                    netport,
+                    admin=admin,
+                )
+                servers.update(new_servers)
+            except StartupError:
+                raise errors.ConfigurationError(
+                    'Server updated its config but cannot serve on requested '
+                    'address/port, please see server log for more information.'
+                )
+        self._servers = servers
+        self._listen_hosts = [
+            s.getsockname()[0]
+            for host, tcp_srv in servers.items()
+            if host != ADMIN_PLACEHOLDER
+            for s in tcp_srv.sockets
+        ]
+        self._listen_port = netport
+
+        await self._stop_servers_with_logging(servers_to_stop)
+
+    async def _on_system_config_set(self, setting_name, value):
+        try:
+            if setting_name == 'listen_addresses':
+                await self._restart_servers_new_addr(value, self._listen_port)
+
+            elif setting_name == 'listen_port':
+                await self._restart_servers_new_addr(self._listen_hosts, value)
+
+            elif setting_name == 'session_idle_timeout':
+                self.reinit_idle_gc_collector()
+
+            elif setting_name == '_pg_prepared_statement_cache_size':
+                self._reload_stmt_cache_size()
+
+            self._tenant.schedule_reported_config_if_needed(setting_name)
+        except Exception:
+            metrics.background_errors.inc(1.0, 'on_system_config_set')
+            raise
+
+    async def _on_system_config_reset(self, setting_name):
+        try:
+            if setting_name == 'listen_addresses':
+                cfg = self._get_sys_config()
+                await self._restart_servers_new_addr(
+                    config.lookup('listen_addresses', cfg) or ('localhost',),
+                    self._listen_port,
+                )
+
+            elif setting_name == 'listen_port':
+                cfg = self._get_sys_config()
+                await self._restart_servers_new_addr(
+                    self._listen_hosts,
+                    config.lookup('listen_port', cfg) or defines.EDGEDB_PORT,
+                )
+
+            elif setting_name == 'session_idle_timeout':
+                self.reinit_idle_gc_collector()
+
+            elif setting_name == '_pg_prepared_statement_cache_size':
+                self._reload_stmt_cache_size()
+
+            self._tenant.schedule_reported_config_if_needed(setting_name)
+        except Exception:
+            metrics.background_errors.inc(1.0, 'on_system_config_reset')
+            raise
+
+    async def _after_system_config_add(self, setting_name, value):
+        try:
+            if setting_name == 'auth':
+                self._tenant.populate_sys_auth()
+        except Exception:
+            metrics.background_errors.inc(1.0, 'after_system_config_add')
+            raise
+
+    async def _after_system_config_rem(self, setting_name, value):
+        try:
+            if setting_name == 'auth':
+                self._tenant.populate_sys_auth()
+        except Exception:
+            metrics.background_errors.inc(1.0, 'after_system_config_rem')
+            raise
 
 
 def _cleanup_wildcard_addrs(
