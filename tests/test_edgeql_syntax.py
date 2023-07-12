@@ -1921,7 +1921,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Missing identifier", line=4, col=19)
+                  "Unexpected ':='", line=4, col=20)
     def test_edgeql_syntax_struct_09(self):
         """
         SELECT (
@@ -3415,7 +3415,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '\+\+'",
+                  r"Missing keyword 'UNION'",
                   hint=None, line=2, col=50)
     def test_edgeql_syntax_selectfor_20(self):
         """
@@ -3640,7 +3640,7 @@ aa';
         # XXX: error recovery quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing '\)'",
+                  r"Missing '\('",
                   line=2, col=29)
     def test_edgeql_syntax_function_20(self):
         """
@@ -3881,7 +3881,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing '\{'",
+                  r"Missing '\('",
                   line=2, col=39)
     def test_edgeql_syntax_introspect_05(self):
         """

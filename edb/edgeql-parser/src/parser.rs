@@ -437,7 +437,8 @@ fn error_cost(kind: &Kind) -> u16 {
         Keyword(_) => 10,
 
         Dot => 5,
-        OpenBrace | OpenBracket | OpenParen => 5,
+        OpenBrace | OpenBracket => 5,
+        OpenParen => 4,
 
         CloseBrace | CloseBracket | CloseParen => 1,
 
