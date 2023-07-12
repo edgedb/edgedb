@@ -76,7 +76,6 @@ class StartupError(Exception):
 
 class BaseServer:
 
-    _tenant: edbtenant.Tenant
     _tenants_by_sslobj: MutableMapping
 
     _sys_queries: Mapping[str, str]
@@ -125,12 +124,8 @@ class BaseServer:
             srvargs.DEFAULT_AUTH_METHODS),
         admin_ui: bool = False,
         disable_dynamic_system_config: bool = False,
-        tenant: edbtenant.Tenant,
     ):
         self.__loop = asyncio.get_running_loop()
-
-        self._tenant = tenant
-        tenant.set_server(self)
 
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
@@ -940,23 +935,28 @@ class BaseServer:
         return self.get_default_tenant()
 
     def get_default_tenant(self) -> edbtenant.Tenant:
-        return self._tenant
+        raise NotImplementedError
 
 
 class Server(BaseServer):
+    _tenant: edbtenant.Tenant
     _startup_script: srvargs.StartupScript | None
     _new_instance: bool
 
     def __init__(
         self,
         *,
+        tenant: edbtenant.Tenant,
         startup_script: srvargs.StartupScript | None = None,
         new_instance: bool,
         **kwargs,
     ):
         super().__init__(**kwargs)
+        self._tenant = tenant
         self._startup_script = startup_script
         self._new_instance = new_instance
+
+        tenant.set_server(self)
 
     def _get_sys_config(self) -> Mapping[str, config.SettingValue]:
         return self._tenant.get_sys_config()
@@ -968,6 +968,9 @@ class Server(BaseServer):
         await self._maybe_patch()
         await self._tenant.init()
         await super().init()
+
+    def get_default_tenant(self) -> edbtenant.Tenant:
+        return self._tenant
 
     async def _get_patch_log(self, conn, idx):
         # We need to maintain a log in the system database of
