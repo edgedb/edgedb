@@ -3150,11 +3150,6 @@ class CompositeMetaCommand(MetaCommand):
                     # determined by the type, we directly insert it
                     # into the views instead of storing it (to save space)
                     cols.append((f"'{obj.id}'::uuid", alias, False))
-                elif ptrname == sn.UnqualName('__fts_document__'):
-                    # __fts_document__ is special cased: it does not
-                    # have an associated pointer, but it does have a
-                    # data column.
-                    cols.append(('__fts_document__', alias, True))
                 elif ptr is not None:
                     ptr_stor_info = types.get_pointer_storage_info(
                         ptr,
@@ -3168,7 +3163,9 @@ class CompositeMetaCommand(MetaCommand):
                 elif ptrname == sn.UnqualName('source'):
                     cols.append(('NULL::uuid', alias, False))
                 else:
-                    return None
+                    # no associated pointer: this is an addon column
+                    cols.append((ptrname.name, alias, True))
+
         else:
             cols.extend(
                 (str(ptrname), alias, True)
@@ -3243,16 +3240,8 @@ class CompositeMetaCommand(MetaCommand):
                         ptr_stor_info.column_type,
                     )
 
-            # HACK: is this the best place for adding __fts_document__ to the
-            # view?
-            has_fts_index = False
-            for index in obj.get_indexes(schema).objects(schema):
-                if index.has_base_with_name(schema, 'fts::textsearch'):
-                    has_fts_index = True
-            if has_fts_index:
-                ptrs[sn.UnqualName('__fts_document__')] = (
-                    '__fts_document__', ('tsvector',),
-                )
+            for name, type in obj.get_addon_columns(schema):
+                ptrs[sn.UnqualName(name)] = (name, type)
 
         else:
             # MULTI PROPERTY
@@ -3612,8 +3601,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         ops = dbops.CommandGroup()
 
         # FTS
-        if index.has_base_with_name(schema, 'fts::textsearch'):
-
+        if index.has_base_with_name(schema, sn.QualName('fts', 'textsearch')):
             # create a generated column __fts_document__
             documents = []
             for sql_expr in sql_exprs:
@@ -3699,6 +3687,8 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ):
+        ops = dbops.CommandGroup()
+
         subject = index.get_subject(schema)
         assert subject
         table_name = common.get_backend_name(
@@ -3709,9 +3699,17 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
         pg_index = dbops.Index(
             name=orig_idx_name[1], table_name=table_name, inherit=True)
         index_exists = dbops.IndexExists(
-            (table_name[0], pg_index.name_in_catalog)
-        )
-        return dbops.DropIndex(pg_index, conditions=(index_exists,))
+            (table_name[0], pg_index.name_in_catalog))
+        ops.add_command(dbops.DropIndex(pg_index, conditions=(index_exists,)))
+
+        # FTS
+        if index.has_base_with_name(schema, sn.QualName('fts', 'textsearch')):
+            fts_document = dbops.Column(name=f'__fts_document__')
+            alter_table = dbops.AlterTable(table_name)
+            alter_table.add_operation(dbops.AlterTableDropColumn(fts_document))
+            ops.add_command(alter_table)
+
+        return ops
 
     def apply(
         self,
