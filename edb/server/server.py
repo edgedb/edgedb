@@ -308,13 +308,6 @@ class BaseServer:
         raise NotImplementedError
 
     async def init(self):
-        await self._tenant.init_sys_pgcon()
-
-        await self._load_instance_data()
-        await self._maybe_patch()
-
-        await self._tenant.init()
-
         sys_config = self._get_sys_config()
         if not self._listen_hosts:
             self._listen_hosts = (
@@ -481,254 +474,6 @@ class BaseServer:
         )
         num_patches = json.loads(num_patches) if num_patches else 0
         return num_patches
-
-    async def _get_patch_log(self, conn, idx):
-        # We need to maintain a log in the system database of
-        # patches that have been applied. This is so that if a
-        # patch creates a new object, and then we succesfully
-        # apply the patch to a user db but crash *before* applying
-        # it to the system db, when we start up again and try
-        # applying it to the system db, it is important that we
-        # apply the same compiled version of the patch. If we
-        # instead recompiled it, and it created new objects, those
-        # objects might have a different id in the std schema and
-        # in the actual user db.
-        result = await conn.sql_fetch_val(f'''\
-            SELECT bin FROM edgedbinstdata.instdata
-            WHERE key = 'patch_log_{idx}';
-        '''.encode('utf-8'))
-        if result:
-            return pickle.loads(result)
-        else:
-            return None
-
-    async def _prepare_patches(self, conn):
-        """Prepare all the patches"""
-        num_patches = await self.get_patch_count(conn)
-
-        if num_patches < len(pg_patches.PATCHES):
-            logger.info("preparing patches for database upgrade")
-
-        patches = {}
-        patch_list = list(enumerate(pg_patches.PATCHES))
-        for num, (kind, patch) in patch_list[num_patches:]:
-            from . import bootstrap
-
-            idx = num_patches + num
-            if not (entry := await self._get_patch_log(conn, idx)):
-                entry = bootstrap.prepare_patch(
-                    num, kind, patch, self._std_schema, self._refl_schema,
-                    self._schema_class_layout,
-                    self._tenant.get_backend_runtime_params())
-
-                await bootstrap._store_static_bin_cache_conn(
-                    conn, f'patch_log_{idx}', pickle.dumps(entry))
-
-            patches[num] = entry
-            _, _, updates, _ = entry
-            if 'stdschema' in updates:
-                self._std_schema = updates['stdschema']
-                # +config patches might modify config_spec, which requires
-                # a reload of it from the schema.
-                if '+config' in kind:
-                    config_spec = config.load_spec_from_schema(self._std_schema)
-                    config.set_settings(config_spec)
-
-            if 'reflschema' in updates:
-                self._refl_schema = updates['reflschema']
-            if 'local_intro_query' in updates:
-                self._local_intro_query = updates['local_intro_query']
-            if 'global_intro_query' in updates:
-                self._global_intro_query = updates['global_intro_query']
-            if 'classlayout' in updates:
-                self._schema_class_layout = updates['classlayout']
-            if 'sysqueries' in updates:
-                queries = json.loads(updates['sysqueries'])
-                self._sys_queries = immutables.Map(
-                    {k: q.encode() for k, q in queries.items()})
-            if 'report_configs_typedesc' in updates:
-                self._report_config_typedesc = (
-                    updates['report_configs_typedesc'])
-
-        return patches
-
-    async def _maybe_apply_patches(self, dbname, conn, patches, sys=False):
-        """Apply any un-applied patches to the database."""
-        num_patches = await self.get_patch_count(conn)
-        for num, (sql, syssql, _, repair) in patches.items():
-            if num_patches <= num:
-                if sys:
-                    sql += syssql
-                logger.info("applying patch %d to database '%s'", num, dbname)
-                sql = tuple(x.encode('utf-8') for x in sql)
-
-                # Only do repairs when they are the *last* pending
-                # repair in the patch queue. We make sure that every
-                # patch that changes the user schema is followed by a
-                # repair, so this allows us to only ever have to do
-                # repairs on up-to-date std schemas.
-                last_repair = repair and not any(
-                    patches[i][3] for i in range(num + 1, len(patches))
-                )
-                if last_repair:
-                    from . import bootstrap
-
-                    global_schema = (
-                        await self._tenant.introspect_global_schema(conn)
-                    )
-                    user_schema = await self._tenant.introspect_user_schema(
-                        conn, global_schema)
-                    config = await self._tenant.introspect_db_config(conn)
-                    try:
-                        logger.info("repairing database '%s'", dbname)
-                        sql += bootstrap.prepare_repair_patch(
-                            self._std_schema,
-                            self._refl_schema,
-                            user_schema,
-                            global_schema,
-                            self._schema_class_layout,
-                            self._tenant.get_backend_runtime_params(),
-                            config,
-                        )
-                    except errors.EdgeDBError as e:
-                        if isinstance(e, errors.InternalServerError):
-                            raise
-                        raise errors.SchemaError(
-                            f'Could not repair schema inconsistencies in '
-                            f'database "{dbname}". Probably the schema is '
-                            f'no longer valid due to a bug fix.\n'
-                            f'Downgrade to the last working version, fix '
-                            f'the schema issue, and try again.'
-                        ) from e
-
-                if sql:
-                    await conn.sql_fetch(sql)
-
-    async def _maybe_patch_db(self, dbname, patches):
-        logger.info("applying patches to database '%s'", dbname)
-
-        try:
-            async with self._tenant.direct_pgcon(dbname) as conn:
-                await self._maybe_apply_patches(dbname, conn, patches)
-        except Exception as e:
-            if (
-                isinstance(e, errors.EdgeDBError)
-                and not isinstance(e, errors.InternalServerError)
-            ):
-                raise
-            raise errors.InternalServerError(
-                f'Could not apply patches for minor version upgrade to '
-                f'database {dbname}'
-            ) from e
-
-    async def _maybe_patch(self):
-        """Apply patches to all the databases"""
-
-        async with self._tenant.use_sys_pgcon() as syscon:
-            patches = await self._prepare_patches(syscon)
-            if not patches:
-                return
-
-            dbnames = await self.get_dbnames(syscon)
-
-        async with taskgroup.TaskGroup(name='apply patches') as g:
-            # Patch all the databases
-            for dbname in dbnames:
-                if dbname != defines.EDGEDB_SYSTEM_DB:
-                    g.create_task(self._maybe_patch_db(dbname, patches))
-
-            # Patch the template db, so that any newly created databases
-            # will have the patches.
-            g.create_task(self._maybe_patch_db(
-                defines.EDGEDB_TEMPLATE_DB, patches))
-
-        await self._tenant.ensure_database_not_connected(
-            defines.EDGEDB_TEMPLATE_DB
-        )
-
-        # Patch the system db last. The system db needs to go last so
-        # that it only gets updated if all of the other databases have
-        # been succesfully patched. This is important, since we don't check
-        # other databases for patches unless the system db is patched.
-        #
-        # Driving everything from the system db like this lets us
-        # always use the correct schema when compiling patches.
-        async with self._tenant.use_sys_pgcon() as syscon:
-            await self._maybe_apply_patches(
-                defines.EDGEDB_SYSTEM_DB, syscon, patches, sys=True)
-
-    def _load_schema(self, result, version_key):
-        res = pickle.loads(result[2:])
-        if version_key != pg_patches.get_version_key(len(pg_patches.PATCHES)):
-            res = s_schema.upgrade_schema(res)
-        return res
-
-    async def _load_instance_data(self):
-        async with self._tenant.use_sys_pgcon() as syscon:
-            patch_count = await self.get_patch_count(syscon)
-            version_key = pg_patches.get_version_key(patch_count)
-
-            result = await syscon.sql_fetch_val(f'''\
-                SELECT json::json FROM edgedbinstdata.instdata
-                WHERE key = 'sysqueries{version_key}';
-            '''.encode('utf-8'))
-            queries = json.loads(result)
-            self._sys_queries = immutables.Map(
-                {k: q.encode() for k, q in queries.items()})
-
-            self._local_intro_query = await syscon.sql_fetch_val(f'''\
-                SELECT text FROM edgedbinstdata.instdata
-                WHERE key = 'local_intro_query{version_key}';
-            '''.encode('utf-8'))
-
-            self._global_intro_query = await syscon.sql_fetch_val(f'''\
-                SELECT text FROM edgedbinstdata.instdata
-                WHERE key = 'global_intro_query{version_key}';
-            '''.encode('utf-8'))
-
-            result = await syscon.sql_fetch_val(f'''\
-                SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'stdschema{version_key}';
-            '''.encode('utf-8'))
-            try:
-                self._std_schema = self._load_schema(result, version_key)
-            except Exception as e:
-                raise RuntimeError(
-                    'could not load std schema pickle') from e
-
-            result = await syscon.sql_fetch_val(f'''\
-                SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'reflschema{version_key}';
-            '''.encode('utf-8'))
-            try:
-                self._refl_schema = self._load_schema(result, version_key)
-            except Exception as e:
-                raise RuntimeError(
-                    'could not load refl schema pickle') from e
-
-            result = await syscon.sql_fetch_val(f'''\
-                SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'classlayout{version_key}';
-            '''.encode('utf-8'))
-            try:
-                self._schema_class_layout = pickle.loads(result[2:])
-            except Exception as e:
-                raise RuntimeError(
-                    'could not load schema class layout pickle') from e
-
-            self._report_config_typedesc[(1, 0)] = await syscon.sql_fetch_val(
-                f'''
-                    SELECT bin FROM edgedbinstdata.instdata
-                    WHERE key = 'report_configs_typedesc_1_0{version_key}';
-                '''.encode('utf-8'),
-            )
-
-            self._report_config_typedesc[(2, 0)] = await syscon.sql_fetch_val(
-                f'''
-                    SELECT bin FROM edgedbinstdata.instdata
-                    WHERE key = 'report_configs_typedesc_2_0{version_key}';
-                '''.encode('utf-8'),
-            )
 
     async def _restart_servers_new_addr(self, nethosts, netport):
         if not netport:
@@ -1394,6 +1139,261 @@ class BaseServer:
 class Server(BaseServer):
     def _get_sys_config(self) -> Mapping[str, config.SettingValue]:
         return self._tenant.get_sys_config()
+
+    async def init(self) -> None:
+        await self._tenant.init_sys_pgcon()
+        await self._load_instance_data()
+        await self._maybe_patch()
+        await self._tenant.init()
+        await super().init()
+
+    async def _get_patch_log(self, conn, idx):
+        # We need to maintain a log in the system database of
+        # patches that have been applied. This is so that if a
+        # patch creates a new object, and then we succesfully
+        # apply the patch to a user db but crash *before* applying
+        # it to the system db, when we start up again and try
+        # applying it to the system db, it is important that we
+        # apply the same compiled version of the patch. If we
+        # instead recompiled it, and it created new objects, those
+        # objects might have a different id in the std schema and
+        # in the actual user db.
+        result = await conn.sql_fetch_val(f'''\
+            SELECT bin FROM edgedbinstdata.instdata
+            WHERE key = 'patch_log_{idx}';
+        '''.encode('utf-8'))
+        if result:
+            return pickle.loads(result)
+        else:
+            return None
+
+    async def _prepare_patches(self, conn):
+        """Prepare all the patches"""
+        num_patches = await self.get_patch_count(conn)
+
+        if num_patches < len(pg_patches.PATCHES):
+            logger.info("preparing patches for database upgrade")
+
+        patches = {}
+        patch_list = list(enumerate(pg_patches.PATCHES))
+        for num, (kind, patch) in patch_list[num_patches:]:
+            from . import bootstrap
+
+            idx = num_patches + num
+            if not (entry := await self._get_patch_log(conn, idx)):
+                entry = bootstrap.prepare_patch(
+                    num, kind, patch, self._std_schema, self._refl_schema,
+                    self._schema_class_layout,
+                    self._tenant.get_backend_runtime_params())
+
+                await bootstrap._store_static_bin_cache_conn(
+                    conn, f'patch_log_{idx}', pickle.dumps(entry))
+
+            patches[num] = entry
+            _, _, updates, _ = entry
+            if 'stdschema' in updates:
+                self._std_schema = updates['stdschema']
+                # +config patches might modify config_spec, which requires
+                # a reload of it from the schema.
+                if '+config' in kind:
+                    config_spec = config.load_spec_from_schema(self._std_schema)
+                    config.set_settings(config_spec)
+
+            if 'reflschema' in updates:
+                self._refl_schema = updates['reflschema']
+            if 'local_intro_query' in updates:
+                self._local_intro_query = updates['local_intro_query']
+            if 'global_intro_query' in updates:
+                self._global_intro_query = updates['global_intro_query']
+            if 'classlayout' in updates:
+                self._schema_class_layout = updates['classlayout']
+            if 'sysqueries' in updates:
+                queries = json.loads(updates['sysqueries'])
+                self._sys_queries = immutables.Map(
+                    {k: q.encode() for k, q in queries.items()})
+            if 'report_configs_typedesc' in updates:
+                self._report_config_typedesc = (
+                    updates['report_configs_typedesc'])
+
+        return patches
+
+    async def _maybe_apply_patches(self, dbname, conn, patches, sys=False):
+        """Apply any un-applied patches to the database."""
+        num_patches = await self.get_patch_count(conn)
+        for num, (sql, syssql, _, repair) in patches.items():
+            if num_patches <= num:
+                if sys:
+                    sql += syssql
+                logger.info("applying patch %d to database '%s'", num, dbname)
+                sql = tuple(x.encode('utf-8') for x in sql)
+
+                # Only do repairs when they are the *last* pending
+                # repair in the patch queue. We make sure that every
+                # patch that changes the user schema is followed by a
+                # repair, so this allows us to only ever have to do
+                # repairs on up-to-date std schemas.
+                last_repair = repair and not any(
+                    patches[i][3] for i in range(num + 1, len(patches))
+                )
+                if last_repair:
+                    from . import bootstrap
+
+                    global_schema = (
+                        await self._tenant.introspect_global_schema(conn)
+                    )
+                    user_schema = await self._tenant.introspect_user_schema(
+                        conn, global_schema)
+                    config = await self._tenant.introspect_db_config(conn)
+                    try:
+                        logger.info("repairing database '%s'", dbname)
+                        sql += bootstrap.prepare_repair_patch(
+                            self._std_schema,
+                            self._refl_schema,
+                            user_schema,
+                            global_schema,
+                            self._schema_class_layout,
+                            self._tenant.get_backend_runtime_params(),
+                            config,
+                        )
+                    except errors.EdgeDBError as e:
+                        if isinstance(e, errors.InternalServerError):
+                            raise
+                        raise errors.SchemaError(
+                            f'Could not repair schema inconsistencies in '
+                            f'database "{dbname}". Probably the schema is '
+                            f'no longer valid due to a bug fix.\n'
+                            f'Downgrade to the last working version, fix '
+                            f'the schema issue, and try again.'
+                        ) from e
+
+                if sql:
+                    await conn.sql_fetch(sql)
+
+    async def _maybe_patch_db(self, dbname, patches):
+        logger.info("applying patches to database '%s'", dbname)
+
+        try:
+            async with self._tenant.direct_pgcon(dbname) as conn:
+                await self._maybe_apply_patches(dbname, conn, patches)
+        except Exception as e:
+            if (
+                isinstance(e, errors.EdgeDBError)
+                and not isinstance(e, errors.InternalServerError)
+            ):
+                raise
+            raise errors.InternalServerError(
+                f'Could not apply patches for minor version upgrade to '
+                f'database {dbname}'
+            ) from e
+
+    async def _maybe_patch(self):
+        """Apply patches to all the databases"""
+
+        async with self._tenant.use_sys_pgcon() as syscon:
+            patches = await self._prepare_patches(syscon)
+            if not patches:
+                return
+
+            dbnames = await self.get_dbnames(syscon)
+
+        async with taskgroup.TaskGroup(name='apply patches') as g:
+            # Patch all the databases
+            for dbname in dbnames:
+                if dbname != defines.EDGEDB_SYSTEM_DB:
+                    g.create_task(self._maybe_patch_db(dbname, patches))
+
+            # Patch the template db, so that any newly created databases
+            # will have the patches.
+            g.create_task(self._maybe_patch_db(
+                defines.EDGEDB_TEMPLATE_DB, patches))
+
+        await self._tenant.ensure_database_not_connected(
+            defines.EDGEDB_TEMPLATE_DB
+        )
+
+        # Patch the system db last. The system db needs to go last so
+        # that it only gets updated if all of the other databases have
+        # been succesfully patched. This is important, since we don't check
+        # other databases for patches unless the system db is patched.
+        #
+        # Driving everything from the system db like this lets us
+        # always use the correct schema when compiling patches.
+        async with self._tenant.use_sys_pgcon() as syscon:
+            await self._maybe_apply_patches(
+                defines.EDGEDB_SYSTEM_DB, syscon, patches, sys=True)
+
+    def _load_schema(self, result, version_key):
+        res = pickle.loads(result[2:])
+        if version_key != pg_patches.get_version_key(len(pg_patches.PATCHES)):
+            res = s_schema.upgrade_schema(res)
+        return res
+
+    async def _load_instance_data(self):
+        async with self._tenant.use_sys_pgcon() as syscon:
+            patch_count = await self.get_patch_count(syscon)
+            version_key = pg_patches.get_version_key(patch_count)
+
+            result = await syscon.sql_fetch_val(f'''\
+                SELECT json::json FROM edgedbinstdata.instdata
+                WHERE key = 'sysqueries{version_key}';
+            '''.encode('utf-8'))
+            queries = json.loads(result)
+            self._sys_queries = immutables.Map(
+                {k: q.encode() for k, q in queries.items()})
+
+            self._local_intro_query = await syscon.sql_fetch_val(f'''\
+                SELECT text FROM edgedbinstdata.instdata
+                WHERE key = 'local_intro_query{version_key}';
+            '''.encode('utf-8'))
+
+            self._global_intro_query = await syscon.sql_fetch_val(f'''\
+                SELECT text FROM edgedbinstdata.instdata
+                WHERE key = 'global_intro_query{version_key}';
+            '''.encode('utf-8'))
+
+            result = await syscon.sql_fetch_val(f'''\
+                SELECT bin FROM edgedbinstdata.instdata
+                WHERE key = 'stdschema{version_key}';
+            '''.encode('utf-8'))
+            try:
+                self._std_schema = self._load_schema(result, version_key)
+            except Exception as e:
+                raise RuntimeError(
+                    'could not load std schema pickle') from e
+
+            result = await syscon.sql_fetch_val(f'''\
+                SELECT bin FROM edgedbinstdata.instdata
+                WHERE key = 'reflschema{version_key}';
+            '''.encode('utf-8'))
+            try:
+                self._refl_schema = self._load_schema(result, version_key)
+            except Exception as e:
+                raise RuntimeError(
+                    'could not load refl schema pickle') from e
+
+            result = await syscon.sql_fetch_val(f'''\
+                SELECT bin FROM edgedbinstdata.instdata
+                WHERE key = 'classlayout{version_key}';
+            '''.encode('utf-8'))
+            try:
+                self._schema_class_layout = pickle.loads(result[2:])
+            except Exception as e:
+                raise RuntimeError(
+                    'could not load schema class layout pickle') from e
+
+            self._report_config_typedesc[(1, 0)] = await syscon.sql_fetch_val(
+                f'''
+                    SELECT bin FROM edgedbinstdata.instdata
+                    WHERE key = 'report_configs_typedesc_1_0{version_key}';
+                '''.encode('utf-8'),
+            )
+
+            self._report_config_typedesc[(2, 0)] = await syscon.sql_fetch_val(
+                f'''
+                    SELECT bin FROM edgedbinstdata.instdata
+                    WHERE key = 'report_configs_typedesc_2_0{version_key}';
+                '''.encode('utf-8'),
+            )
 
 
 def _cleanup_wildcard_addrs(
