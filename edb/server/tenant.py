@@ -1364,7 +1364,7 @@ class Tenant(ha_base.ClusterProtocol):
         # pool refuse connections from clients that have differing versions
         # of Postgres backing them.
         runtime_params = self.get_backend_runtime_params()
-        min_ver = '.'.join(str(v) for v in defines.MIN_POSTGRES_VERSION)
+        min_ver = ".".join(str(v) for v in defines.MIN_POSTGRES_VERSION)
         runtime_params = runtime_params._replace(
             instance_params=runtime_params.instance_params._replace(
                 version=buildmeta.parse_pg_version(min_ver),
@@ -1382,7 +1382,7 @@ class Tenant(ha_base.ClusterProtocol):
             schema_class_layout=self._server.get_schema_class_layout(),
         )
         if self._compiler_pool_mode == srvargs.CompilerPoolMode.Remote:
-            args['address'] = self._compiler_pool_addr
+            args["address"] = self._compiler_pool_addr
         self._compiler_pool = await compiler_pool.create_compiler_pool(**args)
 
     async def destroy_compiler_pool(self):
@@ -1392,3 +1392,46 @@ class Tenant(ha_base.ClusterProtocol):
 
     def get_compiler_pool(self):
         return self._compiler_pool
+
+    def get_debug_info(self) -> dict[str, Any]:
+        obj = dict(
+            params=dict(
+                max_backend_connections=self._max_backend_connections,
+                suggested_client_pool_size=self._suggested_client_pool_size,
+                tenant_id=self._tenant_id,
+            ),
+            user_roles=self._roles,
+            pg_addr=self.get_pgaddr(),
+            pg_pool=self._pg_pool._build_snapshot(now=time.monotonic()),
+            compiler_pool=self._compiler_pool.get_debug_info(),
+        )
+
+        def serialize_config(cfg):
+            return {name: value.value for name, value in cfg.items()}
+
+        dbs = {}
+        if self._dbindex is not None:
+            for db in self._dbindex.iter_dbs():
+                if db.name in defines.EDGEDB_SPECIAL_DBS:
+                    continue
+
+                dbs[db.name] = dict(
+                    name=db.name,
+                    dbver=db.dbver,
+                    config=serialize_config(db.db_config),
+                    extensions=sorted(db.extensions),
+                    query_cache_size=db.get_query_cache_size(),
+                    connections=[
+                        dict(
+                            in_tx=view.in_tx(),
+                            in_tx_error=view.in_tx_error(),
+                            config=serialize_config(view.get_session_config()),
+                            module_aliases=view.get_modaliases(),
+                        )
+                        for view in db.iter_views()
+                    ],
+                )
+
+        obj["databases"] = dbs
+
+        return obj

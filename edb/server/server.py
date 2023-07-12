@@ -921,12 +921,8 @@ class BaseServer:
         def serialize_config(cfg):
             return {name: value.value for name, value in cfg.items()}
 
-        tenant = self._tenant
-        obj = dict(
+        return dict(
             params=dict(
-                max_backend_connections=tenant.max_backend_connections,
-                suggested_client_pool_size=tenant.suggested_client_pool_size,
-                tenant_id=tenant.tenant_id,
                 dev_mode=self._devmode,
                 test_mode=self._testmode,
                 default_auth_method=str(self._default_auth_method),
@@ -934,37 +930,7 @@ class BaseServer:
                 listen_port=self._listen_port,
             ),
             instance_config=serialize_config(self._get_sys_config()),
-            user_roles=self._tenant.get_roles(),
-            pg_addr=tenant.get_pgaddr(),
-            pg_pool=tenant._pg_pool._build_snapshot(now=time.monotonic()),
-            compiler_pool=tenant._compiler_pool.get_debug_info(),
         )
-
-        dbs = {}
-        for db in self._tenant.dbindex.iter_dbs():
-            if db.name in defines.EDGEDB_SPECIAL_DBS:
-                continue
-
-            dbs[db.name] = dict(
-                name=db.name,
-                dbver=db.dbver,
-                config=serialize_config(db.db_config),
-                extensions=sorted(db.extensions),
-                query_cache_size=db.get_query_cache_size(),
-                connections=[
-                    dict(
-                        in_tx=view.in_tx(),
-                        in_tx_error=view.in_tx_error(),
-                        config=serialize_config(view.get_session_config()),
-                        module_aliases=view.get_modaliases(),
-                    )
-                    for view in db.iter_views()
-                ],
-            )
-
-        obj['databases'] = dbs
-
-        return obj
 
     def get_report_config_typedesc(
         self
@@ -1402,6 +1368,14 @@ class Server(BaseServer):
         status = super()._get_status()
         status["tenant_id"] = self._tenant.tenant_id
         return status
+
+    def get_debug_info(self):
+        parent = super().get_debug_info()
+        child = self._tenant.get_debug_info()
+        parent["params"].update(child["params"])
+        child["params"] = parent["params"]
+        parent.update(child)
+        return parent
 
 
 def _cleanup_wildcard_addrs(
