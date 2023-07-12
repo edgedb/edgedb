@@ -3161,9 +3161,11 @@ class CompositeMetaCommand(MetaCommand):
                     cols.append((col_name, alias, True))
                 elif ptrname == sn.UnqualName('source'):
                     cols.append(('NULL::uuid', alias, False))
-                else:
-                    # no associated pointer: this is an addon column
+                elif ptrname == sn.UnqualName('__fts_document__'):
+                    # an addon column
                     cols.append((ptrname.name, alias, True))
+                else:
+                    return None
 
         else:
             cols.extend(
@@ -3704,7 +3706,10 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
 
         # FTS
         if index.has_base_with_name(schema, sn.QualName('fts', 'textsearch')):
-            fts_document = dbops.Column(name=f'__fts_document__')
+            fts_document = dbops.Column(
+                name=f'__fts_document__',
+                type=('pg_catalog', 'tsvector'),
+            )
             alter_table = dbops.AlterTable(table_name)
             alter_table.add_operation(dbops.AlterTableDropColumn(fts_document))
             ops.add_command(alter_table)
