@@ -2444,7 +2444,7 @@ class Server(ha_base.ClusterProtocol):
         def serialize_config(cfg):
             return {name: value.value for name, value in cfg.items()}
 
-        obj = dict(
+        parent = dict(
             params=dict(
                 max_backend_connections=self._max_backend_connections,
                 suggested_client_pool_size=self._suggested_client_pool_size,
@@ -2487,9 +2487,13 @@ class Server(ha_base.ClusterProtocol):
                 ],
             )
 
-        obj['databases'] = dbs
+        parent['databases'] = dbs
 
-        return obj
+        child = self._tenant.get_debug_info()
+        parent["params"].update(child["params"])
+        child["params"] = parent["params"]
+        parent.update(child)
+        return parent
 
     def retrieve_tenant(self, sslobj) -> edbtenant.Tenant | None:
         # After TLS handshake, the client connection would use this method to
