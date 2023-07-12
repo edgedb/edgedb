@@ -58,8 +58,8 @@ type system*.
 Object types
 ------------
 
-Object types are analogous to tables in SQL. The can contain
-**properties**—which can correspond to any scalar type— and **links**—which
+Object types are analogous to tables in SQL. They can contain
+**properties**—which can correspond to any scalar types and **links**—which
 correspond to other object types.
 
 Properties
@@ -73,6 +73,8 @@ The ``property`` keyword is used to declare a property.
     type Movie {
       property title -> str;
     }
+
+The ``property`` keyword can be ommited for non-computed properties since EdgeDB v3.
 
 .. code-block:: sdl
 
@@ -175,6 +177,8 @@ Object types can have links to other object types.
     type Person {
       required property name -> str;
     }
+
+The ``link`` keyword can be ommited for non-computed links since EdgeDB v3.
 
 .. code-block:: sdl
 
