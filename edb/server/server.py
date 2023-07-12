@@ -792,9 +792,11 @@ class BaseServer:
     async def _before_start_servers(self) -> None:
         pass
 
+    async def _after_start_servers(self) -> None:
+        pass
+
     async def start(self):
         self._stop_evt.clear()
-        await self._tenant.start_accepting_new_tasks()
 
         self._http_request_logger = self.__loop.create_task(
             self._request_stats_logger()
@@ -810,8 +812,7 @@ class BaseServer:
         )
         self._listen_hosts = [addr[0] for addr in listen_addrs]
         self._listen_port = actual_port
-
-        self._tenant.start_running()
+        await self._after_start_servers()
 
         if self._echo_runtime_info:
             ri = {
@@ -821,22 +822,25 @@ class BaseServer:
             }
             print(f'\nEDGEDB_SERVER_DATA:{json.dumps(ri)}\n', flush=True)
 
+        status = self._get_status()
+        status["listen_addrs"] = listen_addrs
+        status_str = f'READY={json.dumps(status)}'
         for status_sink in self._status_sinks:
-            status = {
-                "listen_addrs": listen_addrs,
-                "port": self._listen_port,
-                "socket_dir": str(self._runstate_dir),
-                "main_pid": os.getpid(),
-                "tenant_id": self._tenant.tenant_id,
-                "tls_cert_file": self._tls_cert_file,
-                "tls_cert_newly_generated": self._tls_cert_newly_generated,
-                "jws_keys_newly_generated": self._jws_keys_newly_generated,
-            }
-            status_sink(f'READY={json.dumps(status)}')
+            status_sink(status_str)
 
         if self._auto_shutdown_after > 0:
             self._auto_shutdown_handler = self.__loop.call_later(
                 self._auto_shutdown_after, self.request_auto_shutdown)
+
+    def _get_status(self) -> dict[str, Any]:
+        return {
+            "port": self._listen_port,
+            "socket_dir": str(self._runstate_dir),
+            "main_pid": os.getpid(),
+            "tls_cert_file": self._tls_cert_file,
+            "tls_cert_newly_generated": self._tls_cert_newly_generated,
+            "jws_keys_newly_generated": self._jws_keys_newly_generated,
+        }
 
     def request_auto_shutdown(self):
         if self._auto_shutdown_after == 0:
@@ -1412,6 +1416,7 @@ class Server(BaseServer):
             await self._destroy_compiler_pool()
 
     async def _before_start_servers(self) -> None:
+        await self._tenant.start_accepting_new_tasks()
         if self._startup_script and self._new_instance:
             await binary.run_script(
                 server=self,
@@ -1420,6 +1425,14 @@ class Server(BaseServer):
                 user=self._startup_script.user,
                 script=self._startup_script.text,
             )
+
+    async def _after_start_servers(self) -> None:
+        self._tenant.start_running()
+
+    def _get_status(self) -> dict[str, Any]:
+        status = super()._get_status()
+        status["tenant_id"] = self._tenant.tenant_id
+        return status
 
 
 def _cleanup_wildcard_addrs(
