@@ -115,3 +115,11 @@ class Tenant:
             tg = self._task_group
             self._task_group = None
             await tg.__aexit__(*sys.exc_info())
+
+    def get_debug_info(self) -> dict[str, Any]:
+        obj = dict(
+            params=dict(
+            ),
+        )
+
+        return obj
