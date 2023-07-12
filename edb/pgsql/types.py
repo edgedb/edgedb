@@ -145,7 +145,7 @@ pg_tsvector_typeref = irast.TypeRef(
     id=uuid.UUID('44d73839-8882-419f-80e5-84f7a3402919'),
     name_hint=sn.QualName('pg_catalog', 'tsvector'),
     is_scalar=True,
-    sql_type='pg_catalog.tsvector'
+    sql_type='pg_catalog.tsvector',
 )
 
 def is_builtin_scalar(

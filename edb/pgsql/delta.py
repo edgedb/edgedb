@@ -3579,7 +3579,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             for sql_expr in sql_exprs:
                 language = "'english'"
                 weight = "'A'"
-                documents.append(f'''
+                documents.append(
+                    f'''
                     setweight(
                         to_tsvector(
                             {language}::pg_catalog.regconfig,
@@ -3587,18 +3588,18 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                         ),
                         {weight}
                     )
-                ''')
+                '''
+                )
             document = ' || '.join(documents)
 
             fts_document = dbops.Column(
                 name=f'__fts_document__',
                 type='pg_catalog.tsvector',
-                generated=f'ALWAYS AS ({document}) STORED'
+                generated=f'ALWAYS AS ({document}) STORED',
             )
 
             alter_table = dbops.AlterTable(table_name)
-            alter_table.add_operation(
-                dbops.AlterTableAddColumn(fts_document))
+            alter_table.add_operation(dbops.AlterTableAddColumn(fts_document))
             ops.add_command(alter_table)
 
             # use a reference to the new column in the index instead
