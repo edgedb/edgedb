@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import functools
 import dataclasses
+import uuid
 from typing import *
 
 from edb.ir import ast as irast
@@ -140,6 +141,12 @@ base_type_name_map_r = {
     'memory_t': sn.QualName('cfg', 'memory'),
 }
 
+pg_tsvector_typeref = irast.TypeRef(
+    id=uuid.UUID('44d73839-8882-419f-80e5-84f7a3402919'),
+    name_hint=sn.QualName('pg_catalog', 'tsvector'),
+    is_scalar=True,
+    sql_type='pg_catalog.tsvector'
+)
 
 def is_builtin_scalar(
     schema: s_schema.Schema, scalar: s_scalars.ScalarType
