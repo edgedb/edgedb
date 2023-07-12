@@ -1319,11 +1319,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 'DUMP must not be executed while in transaction'
             )
 
-        server = self.server
-        compiler_pool = server.get_compiler_pool()
+        tenant = self.tenant
+        compiler_pool = tenant.get_compiler_pool()
 
         dbname = _dbview.dbname
-        tenant = self.tenant
         pgcon = await tenant.acquire_pgcon(dbname)
         self._in_dump_restore = True
         try:
@@ -1518,8 +1517,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         # Now parse the embedded dump header message:
 
-        server = self.server
-        compiler_pool = server.get_compiler_pool()
+        tenant = self.tenant
+        compiler_pool = tenant.get_compiler_pool()
 
         global_schema = _dbview.get_global_schema()
         user_schema = _dbview.get_user_schema()
@@ -1567,7 +1566,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.buffer.finish_message()
         dbname = _dbview.dbname
-        tenant = self.tenant
         pgcon = await tenant.acquire_pgcon(dbname)
 
         self._in_dump_restore = True

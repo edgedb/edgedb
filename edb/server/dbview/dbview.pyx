@@ -1041,7 +1041,7 @@ cdef class DatabaseConnectionView:
         query_req: QueryRequestInfo,
         skip_first: bool = False,
     ) -> dbstate.QueryUnitGroup:
-        compiler_pool = self._db._index._server.get_compiler_pool()
+        compiler_pool = self._db._index._tenant.get_compiler_pool()
 
         started_at = time.monotonic()
         try:
@@ -1097,7 +1097,7 @@ cdef class DatabaseConnectionView:
     ) -> tuple[dbstate.QueryUnitGroup, int]:
         assert self.in_tx_error()
         try:
-            compiler_pool = self._db._index._server.get_compiler_pool()
+            compiler_pool = self._db._index._tenant.get_compiler_pool()
             return await compiler_pool.try_compile_rollback(eql)
         except Exception:
             self.raise_in_tx_error()

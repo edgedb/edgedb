@@ -194,7 +194,7 @@ class ServerConfig(NamedTuple):
     max_backend_connections: Optional[int]
     compiler_pool_size: int
     compiler_pool_mode: CompilerPoolMode
-    compiler_pool_addr: str
+    compiler_pool_addr: tuple[str, int]
     echo_runtime_info: bool
     emit_server_status: str
     temp_dir: bool

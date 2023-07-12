@@ -37,7 +37,6 @@ import weakref
 import immutables
 from jwcrypto import jwk
 
-from edb import buildmeta
 from edb import errors
 
 from edb.common import devmode
@@ -51,7 +50,6 @@ from edb.schema import schema as s_schema
 from edb.server import args as srvargs
 from edb.server import cache
 from edb.server import config
-from edb.server import compiler_pool
 from edb.server import defines
 from edb.server import protocol
 from edb.server import tenant as edbtenant
@@ -112,10 +110,6 @@ class BaseServer:
         self,
         *,
         runstate_dir,
-        internal_runstate_dir,
-        compiler_pool_size,
-        compiler_pool_mode: srvargs.CompilerPoolMode,
-        compiler_pool_addr,
         nethosts,
         netport,
         listen_sockets: tuple[socket.socket, ...] = (),
@@ -142,11 +136,6 @@ class BaseServer:
         self._server_id = str(uuid.uuid4())
 
         self._runstate_dir = runstate_dir
-        self._internal_runstate_dir = internal_runstate_dir
-        self._compiler_pool = None
-        self._compiler_pool_size = compiler_pool_size
-        self._compiler_pool_mode = compiler_pool_mode
-        self._compiler_pool_addr = compiler_pool_addr
 
         self._listen_sockets = listen_sockets
         if listen_sockets:
@@ -376,42 +365,6 @@ class BaseServer:
         except Exception:
             metrics.background_errors.inc(1.0, 'idle_clients_collector')
             raise
-
-    async def _create_compiler_pool(self):
-        # Force Postgres version in BackendRuntimeParams to be the
-        # minimal supported, because the compiler does not rely on
-        # the version, and not pinning it would make the remote compiler
-        # pool refuse connections from clients that have differing versions
-        # of Postgres backing them.
-        runtime_params = self._tenant.get_backend_runtime_params()
-        min_ver = '.'.join(str(v) for v in defines.MIN_POSTGRES_VERSION)
-        runtime_params = runtime_params._replace(
-            instance_params=runtime_params.instance_params._replace(
-                version=buildmeta.parse_pg_version(min_ver),
-            ),
-        )
-
-        args = dict(
-            pool_size=self._compiler_pool_size,
-            pool_class=self._compiler_pool_mode.pool_class,
-            dbindex=self._tenant.dbindex,
-            runstate_dir=self._internal_runstate_dir,
-            backend_runtime_params=runtime_params,
-            std_schema=self._std_schema,
-            refl_schema=self._refl_schema,
-            schema_class_layout=self._schema_class_layout,
-        )
-        if self._compiler_pool_mode == srvargs.CompilerPoolMode.Remote:
-            args['address'] = self._compiler_pool_addr
-        self._compiler_pool = await compiler_pool.create_compiler_pool(**args)
-
-    async def _destroy_compiler_pool(self):
-        if self._compiler_pool is not None:
-            await self._compiler_pool.stop()
-            self._compiler_pool = None
-
-    def get_compiler_pool(self):
-        return self._compiler_pool
 
     async def introspect_global_schema(
         self, conn: pgcon.PGConnection
@@ -866,8 +819,6 @@ class BaseServer:
             self._request_stats_logger()
         )
 
-        await self._create_compiler_pool()
-
         await self._before_start_servers()
         self._servers, actual_port, listen_addrs = await self._start_servers(
             (await _resolve_interfaces(self._listen_hosts))[0],
@@ -947,8 +898,7 @@ class BaseServer:
             self._pgext_conns.clear()
 
             await self._tenant.wait_stopped()
-
-            await self._destroy_compiler_pool()
+            await self._tenant.destroy_compiler_pool()
 
         finally:
             self._tenant.terminate_sys_pgcon()
@@ -985,8 +935,8 @@ class BaseServer:
             pg_addr=tenant.get_pgaddr(),
             pg_pool=tenant._pg_pool._build_snapshot(now=time.monotonic()),
             compiler_pool=dict(
-                worker_pids=list(self._compiler_pool._workers.keys()),
-                template_pid=self._compiler_pool.get_template_pid(),
+                worker_pids=list(self._tenant._compiler_pool._workers.keys()),
+                template_pid=self._tenant._compiler_pool.get_template_pid(),
             ),
         )
 
@@ -1028,6 +978,12 @@ class BaseServer:
 
     def get_std_schema(self) -> s_schema.Schema:
         return self._std_schema
+
+    def get_refl_schema(self) -> s_schema.Schema:
+        return self._refl_schema
+
+    def get_schema_class_layout(self) -> s_refl.SchemaClassLayout:
+        return self._schema_class_layout
 
     def retrieve_tenant(self, sslobj) -> edbtenant.Tenant | None:
         return self.get_default_tenant()
@@ -1410,7 +1366,7 @@ class Server(BaseServer):
         """Run the script specified in *startup_script* and exit immediately"""
         if self._startup_script is None:
             raise AssertionError('startup script is not defined')
-        await self._create_compiler_pool()
+        await self._tenant.create_compiler_pool()
         try:
             await binary.run_script(
                 server=self,
@@ -1420,9 +1376,10 @@ class Server(BaseServer):
                 script=self._startup_script.text,
             )
         finally:
-            await self._destroy_compiler_pool()
+            await self._tenant.destroy_compiler_pool()
 
     async def _before_start_servers(self):
+        await self._tenant.create_compiler_pool()
         await self._tenant.start_accepting_new_tasks()
         if self._startup_script and self._new_instance:
             await binary.run_script(
