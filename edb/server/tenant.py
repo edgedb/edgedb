@@ -65,7 +65,7 @@ class RoleDescriptor(TypedDict):
 
 
 class Tenant(ha_base.ClusterProtocol):
-    _server: edbserver.Server
+    _server: edbserver.BaseServer
     _cluster: pgcluster.BaseCluster
     _tenant_id: str
     _instance_name: str
@@ -170,7 +170,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._jwt_revocation_list_file = jwt_revocation_list_file
         self._jwt_revocation_list = None
 
-    def set_server(self, server: edbserver.Server) -> None:
+    def set_server(self, server: edbserver.BaseServer) -> None:
         self._server = server
         self.__loop = server.get_loop()
 
@@ -206,7 +206,7 @@ class Tenant(ha_base.ClusterProtocol):
         )
 
     @property
-    def server(self) -> edbserver.Server:
+    def server(self) -> edbserver.BaseServer:
         return self._server
 
     @property
