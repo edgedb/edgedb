@@ -296,4 +296,16 @@ QUERIES = [
     '''
     CREATE MODULE `__std__`;
     ''',
+    '''
+    SELECT ((((count(foo 1)))));
+    ''',
+    '''
+    SELECT count(foo 1);
+    ''',
+    '''
+    SELECT ((count(foo 1)));
+    ''',
+    '''
+    SELECT ((((count(foo, 1)))));
+    ''',
 ]
