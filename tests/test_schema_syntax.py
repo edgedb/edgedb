@@ -24,7 +24,7 @@ from edb import errors
 
 from edb.testbase import lang as tb
 from edb.edgeql import generate_source
-from edb.edgeql.parser import parser as eql_parser
+from edb.edgeql.parser import parser as ql_parser
 from edb.tools import test
 
 
@@ -36,7 +36,7 @@ class SchemaSyntaxTest(tb.BaseSyntaxTest):
 
     @classmethod
     def get_parser(cls):
-        return eql_parser.EdgeSDLParser()
+        return ql_parser.EdgeSDLParser()
 
 
 class TestEdgeSchemaParser(SchemaSyntaxTest):

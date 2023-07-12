@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from edb.schema import pointers as s_pointers
     from edb.ir import pathid
 
-    SourceOrPathId = Union[s_types.Type, s_pointers.Pointer, pathid.PathId]
+    SourceOrPathId = s_types.Type | s_pointers.Pointer | pathid.PathId
 
 
 @dataclass
@@ -135,7 +135,7 @@ class CompilerOptions(GlobalCompilerOptions):
     #: as singletons in the context of this compilation.
     #: If a tuple is provided, the boolean argument indicates it is optional.
     singletons: Collection[
-        Union[SourceOrPathId, tuple[SourceOrPathId, bool]]
+        SourceOrPathId | tuple[SourceOrPathId, bool]
     ] = frozenset()
 
     #: Type references that should be remaped to another type.  This

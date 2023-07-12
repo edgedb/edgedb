@@ -31,21 +31,25 @@ from .config import *  # NOQA
 
 
 class SingleStatement(Nonterm):
-    def reduce_Stmt(self, stmt):
+    @parsing.inline(0)
+    def reduce_Stmt(self, _):
         # Expressions
-        self.val = stmt.val
+        pass
 
-    def reduce_DDLStmt(self, stmt):
+    @parsing.inline(0)
+    def reduce_DDLStmt(self, _):
         # Data definition commands
-        self.val = stmt.val
+        pass
 
-    def reduce_SessionStmt(self, stmt):
+    @parsing.inline(0)
+    def reduce_SessionStmt(self, _):
         # Session-local utility commands
-        self.val = stmt.val
+        pass
 
-    def reduce_ConfigStmt(self, stmt):
+    @parsing.inline(0)
+    def reduce_ConfigStmt(self, _):
         # Configuration commands
-        self.val = stmt.val
+        pass
 
 
 class StatementBlock(parsing.ListNonterm, element=SingleStatement,
@@ -56,8 +60,9 @@ class StatementBlock(parsing.ListNonterm, element=SingleStatement,
 class EdgeQLBlock(Nonterm):
     "%start"
 
-    def reduce_StatementBlock_OptSemicolons_EOF(self, block, _semicolon, _eof):
-        self.val = block.val
+    @parsing.inline(0)
+    def reduce_StatementBlock_OptSemicolons_EOF(self, _, _semicolon, _eof):
+        pass
 
     def reduce_OptSemicolons_EOF(self, _semicolon, _eof):
         self.val = []

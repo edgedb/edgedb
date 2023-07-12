@@ -3955,8 +3955,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '>'",
-                  line=2, col=38)
+                  r"Unexpected ';'",
+                  line=2, col=39)
     def test_edgeql_syntax_introspect_05(self):
         """
         SELECT INTROSPECT tuple<int64>;

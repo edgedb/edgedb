@@ -75,7 +75,13 @@ class P_IDENT(Precedence, assoc='nonassoc', tokens=('IDENT', 'PARTITION')):
     pass
 
 
-class P_OP(Precedence, assoc='left', tokens=('OP',)):
+class P_COMPARE_OP(
+    Precedence,
+    assoc='left',
+    tokens=(
+        'DISTINCTFROM', 'GREATEREQ', 'LESSEQ', 'NOTDISTINCTFROM', 'NOTEQ'
+    )
+):
     pass
 
 

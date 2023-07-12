@@ -850,6 +850,12 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 using (assert_exists(bar));
         """
 
+    def test_schema_global_01(self):
+        """
+          global two_things: TwoThings;
+          scalar type TwoThings extending enum<One, Two>;
+       """
+
     def test_schema_hard_sorting_01(self):
         # This is hard to sort properly because we don't understand the types.
         # From #4683.

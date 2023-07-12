@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from typing import *
+
 import textwrap
 
 from edb.common import ordered
@@ -29,10 +31,11 @@ from ..common import quote_literal as ql
 from . import base
 from . import composites
 from . import ddl
+from . import tables
 
 
 class CompositeType(composites.CompositeDBObject):
-    def __init__(self, name, columns=()):
+    def __init__(self, name, columns: Collection[tables.Column] = ()):
         super().__init__(name)
         self._columns = ordered.OrderedSet(columns)
 

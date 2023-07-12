@@ -19,10 +19,13 @@
 
 from __future__ import annotations
 
+from typing import *
+
 from edb.common import ordered
 
 from .. import common
 from . import base
+from . import tables
 
 
 class Record(type):
@@ -88,13 +91,13 @@ class RecordBase:
 
 
 class CompositeDBObject(base.DBObject):
-    def __init__(self, name, columns=None):
+    def __init__(self, name, columns: Iterable[tables.Column] | None = None):
         super().__init__()
         self.name = name
-        self._columns = ordered.OrderedSet()
+        self._columns: ordered.OrderedSet[tables.Column] = ordered.OrderedSet()
         self.add_columns(columns or [])
 
-    def add_columns(self, iterable):
+    def add_columns(self, iterable: Iterable[tables.Column]):
         self._columns.update(iterable)
 
     @property

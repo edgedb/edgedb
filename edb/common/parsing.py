@@ -31,8 +31,12 @@ import parsing
 
 from edb.common.exceptions import add_context, get_context
 from edb.common import context as pctx
-from edb._edgeql_parser import TokenizerError
+from edb.edgeql import tokenizer
 from edb.errors import EdgeQLSyntaxError
+from edb import _edgeql_parser as ql_parser
+
+if TYPE_CHECKING:
+    from edb.edgeql.parser.grammar import rust_lexer
 
 ParserContext = pctx.ParserContext
 
@@ -104,7 +108,7 @@ class TokenMeta(type):
 
 
 class Token(parsing.Token, metaclass=TokenMeta):
-    def __init__(self, parser, val, clean_value, context=None):
+    def __init__(self, val, clean_value, context=None):
         super().__init__()
         self.val = val
         self.clean_value = clean_value
@@ -112,6 +116,30 @@ class Token(parsing.Token, metaclass=TokenMeta):
 
     def __repr__(self):
         return '<Token %s "%s">' % (self.__class__._token, self.val)
+
+
+def inline(argument_index: int):
+    """
+    When added to grammar productions, it makes the method equivalent to:
+
+    self.val = kids[argument_index].val
+    """
+
+    def decorator(func: Any):
+        func.inline_index = argument_index
+        return func
+    return decorator
+
+
+def make_inlining_func(arg_index: int):
+    """Makes a parser production handler which simply inlines an argument."""
+    # TODO: remove this when Rust parser is merged
+
+    def wrapper(obj, *args, **kwargs):
+        obj.val = args[arg_index].val
+        return obj
+
+    return wrapper
 
 
 class NontermMeta(type):
@@ -127,6 +155,8 @@ class NontermMeta(type):
         for name, attr in result.__dict__.items():
             if (name.startswith('reduce_') and
                     isinstance(attr, types.FunctionType)):
+                inline_index = getattr(attr, 'inline_index', None)
+
                 if attr.__doc__ is None:
                     tokens = name.split('_')
                     if name == 'reduce_empty':
@@ -141,8 +171,16 @@ class NontermMeta(type):
                     attr = lambda self, *args, meth=attr: meth(self, *args)
                     attr.__doc__ = doc
 
-                a = pctx.has_context(attr)
+                if inline_index is not None:
+                    # TODO: remove this when Rust parser is merged
+                    a = make_inlining_func(inline_index)
+                else:
+                    a = attr
+
+                a = pctx.has_context(a)
+
                 a.__doc__ = attr.__doc__
+                a.inline_index = inline_index
                 setattr(result, name, a)
 
         return result
@@ -312,6 +350,7 @@ def _derive_hint(
 
 class Parser:
     parser_spec: ClassVar[parsing.Spec | None]
+    lexer: Optional[rust_lexer.EdgeQLLexer]
 
     def __init__(self, **parser_data):
         self.lexer = None
@@ -337,7 +376,7 @@ class Parser:
     def get_parser_spec_module(self) -> types.ModuleType:
         raise NotImplementedError
 
-    def get_parser_spec(self, allow_rebuild: bool = True) -> None:
+    def get_parser_spec(self, allow_rebuild: bool = True) -> parsing.Spec:
         cls = self.__class__
 
         try:
@@ -392,7 +431,11 @@ class Parser:
         """
         raise NotImplementedError
 
-    def reset_parser(self, input, filename=None):
+    def reset_parser(
+        self,
+        input: Union[str, tokenizer.Source],
+        filename: Optional[str]=None
+    ):
         if not self.parser:
             self.lexer = self.get_lexer()
             self.parser = parsing.Lr(self.get_parser_spec())
@@ -400,37 +443,46 @@ class Parser:
             self.parser.verbose = self.get_debug()
 
         self.parser.reset()
+        assert self.lexer
         self.lexer.setinputstr(input, filename=filename)
 
-    def process_lex_token(self, mod, tok):
-        return mod.TokenMeta.for_lex_token(tok.kind())(
-            self.parser, tok.text(), tok.value(), self.context(tok))
+    def convert_lex_token(self, mod: Any, tok: ql_parser.Token) -> Token:
+        token_cls = mod.TokenMeta.for_lex_token(tok.kind())
+        return token_cls(tok.text(), tok.value(), self.context(tok))
 
-    def parse(self, input, filename=None):
+    def parse(
+        self,
+        input: Union[str, tokenizer.Source],
+        filename: Optional[str] = None
+    ):
         try:
             self.reset_parser(input, filename=filename)
+            assert self.lexer
             mod = self.get_parser_spec_module()
 
-            tok = self.lexer.token()
+            while tok := self.lexer.token():
+                token = self.convert_lex_token(mod, tok)
+                if token is None:
+                    continue
 
-            while tok:
-                token = self.process_lex_token(mod, tok)
-                if token is not None:
-                    self.parser.token(token)
-
-                tok = self.lexer.token()
+                self.parser.token(token)
 
             self.parser.eoi()
 
-        except TokenizerError as e:
+        except ql_parser.TokenizerError as e:
             message, position = e.args
-            hint = _derive_hint(input, message, position)
+
+            assert self.lexer
+            hint = _derive_hint(self.lexer.inputstr, message, position)
+
             raise EdgeQLSyntaxError(
-                message, context=self.context(pos=position), hint=hint) from e
+                message, context=self.context(pos=position), hint=hint
+            ) from e
 
         except parsing.UnexpectedToken as e:
             raise self.get_exception(
-                e, context=self.context(tok), token=tok) from e
+                e, context=self.context(tok), token=tok
+            ) from e
 
         except ParserError as e:
             raise self.get_exception(e, context=e.context) from e
@@ -439,6 +491,7 @@ class Parser:
 
     def context(self, tok=None, pos: Optional[Tuple[int, int, int]] = None):
         lex = self.lexer
+        assert lex
         name = lex.filename if lex.filename else '<string>'
 
         if tok is None:

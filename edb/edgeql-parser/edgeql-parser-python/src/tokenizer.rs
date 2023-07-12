@@ -122,7 +122,6 @@ pub struct Tokens {
     nfconst: PyString,
     bconst: PyString,
     sconst: PyString,
-    op: PyString,
 
     greater_eq: PyString,
     less_eq: PyString,
@@ -131,13 +130,9 @@ pub struct Tokens {
     not_distinct_from: PyString,
 
     assign: PyString,
-    assign_op: PyString,
     add_assign: PyString,
-    add_assign_op: PyString,
     sub_assign: PyString,
-    sub_assign_op: PyString,
     arrow: PyString,
-    arrow_op: PyString,
 
     keywords: HashMap<String, TokenInfo>,
     unpickle_token: PyObject,
@@ -277,7 +272,6 @@ impl Tokens {
             nfconst: PyString::new(py, "NFCONST"),
             bconst: PyString::new(py, "BCONST"),
             sconst: PyString::new(py, "SCONST"),
-            op: PyString::new(py, "OP"),
 
             // as OP
             greater_eq: PyString::new(py, ">="),
@@ -286,14 +280,10 @@ impl Tokens {
             distinct_from: PyString::new(py, "?!="),
             not_distinct_from: PyString::new(py, "?="),
 
-            assign: PyString::new(py, "ASSIGN"),
-            assign_op: PyString::new(py, ":="),
-            add_assign: PyString::new(py, "ADDASSIGN"),
-            add_assign_op: PyString::new(py, "+="),
-            sub_assign: PyString::new(py, "REMASSIGN"),
-            sub_assign_op: PyString::new(py, "-="),
-            arrow: PyString::new(py, "ARROW"),
-            arrow_op: PyString::new(py, "->"),
+            assign: PyString::new(py, ":="),
+            add_assign: PyString::new(py, "+="),
+            sub_assign: PyString::new(py, "-="),
+            arrow: PyString::new(py, "->"),
 
             keywords: HashMap::new(),
             unpickle_token: py_fn!(py, _unpickle_token(
@@ -342,19 +332,19 @@ fn get_token_kind_and_name(
     match token.kind {
         Assign => (
             tokens.assign.clone_ref(py),
-            tokens.assign_op.clone_ref(py),
+            tokens.assign.clone_ref(py),
         ),
         SubAssign => (
             tokens.sub_assign.clone_ref(py),
-            tokens.sub_assign_op.clone_ref(py),
+            tokens.sub_assign.clone_ref(py),
         ),
         AddAssign => (
             tokens.add_assign.clone_ref(py),
-            tokens.add_assign_op.clone_ref(py),
+            tokens.add_assign.clone_ref(py),
         ),
         Arrow => (
             tokens.arrow.clone_ref(py),
-            tokens.arrow_op.clone_ref(py),
+            tokens.arrow.clone_ref(py),
         ),
         Coalesce => (
             tokens.coalesce.clone_ref(py),
@@ -381,23 +371,23 @@ fn get_token_kind_and_name(
             tokens.concat.clone_ref(py),
         ),
         GreaterEq => (
-            tokens.op.clone_ref(py),
+            tokens.greater_eq.clone_ref(py),
             tokens.greater_eq.clone_ref(py),
         ),
         LessEq => (
-            tokens.op.clone_ref(py),
+            tokens.less_eq.clone_ref(py),
             tokens.less_eq.clone_ref(py),
         ),
         NotEq => (
-            tokens.op.clone_ref(py),
+            tokens.not_eq.clone_ref(py),
             tokens.not_eq.clone_ref(py),
         ),
         NotDistinctFrom => (
-            tokens.op.clone_ref(py),
+            tokens.not_distinct_from.clone_ref(py),
             tokens.not_distinct_from.clone_ref(py),
         ),
         DistinctFrom => (
-            tokens.op.clone_ref(py),
+            tokens.distinct_from.clone_ref(py),
             tokens.distinct_from.clone_ref(py),
         ),
         Comma => (

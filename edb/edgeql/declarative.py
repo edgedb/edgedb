@@ -996,12 +996,14 @@ def trace_Global(
     *,
     ctx: DepTraceContext,
 ) -> None:
-    hard_dep_exprs = []
+    deps: List[Dependency] = []
 
-    if isinstance(node.target, qlast.Expr):
-        hard_dep_exprs.append(ExprDependency(expr=node.target))
+    if isinstance(node.target, qlast.TypeExpr):
+        deps.append(TypeDependency(texpr=node.target))
+    elif isinstance(node.target, qlast.Expr):
+        deps.append(ExprDependency(expr=node.target))
 
-    _register_item(node, hard_dep_exprs=hard_dep_exprs, ctx=ctx)
+    _register_item(node, hard_dep_exprs=deps, ctx=ctx)
 
 
 @trace_dependencies.register
