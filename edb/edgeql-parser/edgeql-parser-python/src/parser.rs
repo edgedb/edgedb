@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 use cpython::{
     ObjectProtocol, PyClone, PyInt, PyList, PyObject, PyResult, PyString, PyTuple, Python,
@@ -6,13 +7,17 @@ use cpython::{
 };
 
 use edgeql_parser::parser;
+use once_cell::sync::Lazy;
 
 use crate::errors::{parser_error_into_tuple, ParserResult};
 use crate::pynormalize::value_to_py_object;
 use crate::tokenizer::OpaqueToken;
 
 pub fn parse(py: Python, parser_name: &PyString, tokens: PyObject) -> PyResult<PyTuple> {
-    let (spec, productions) = load_spec(py, parser_name.to_string(py)?.as_ref())?;
+    let mut parser_specs = PARSER_SPECS.lock().unwrap();
+
+    let (spec, productions) =
+        load_spec(py, &mut parser_specs, parser_name.to_string(py)?.as_ref())?;
 
     let tokens = downcast_tokens(py, tokens)?;
 
@@ -76,13 +81,9 @@ py_class!(pub class Terminal |py| {
     }
 });
 
-static mut PARSER_SPECS: Option<HashMap<String, (parser::Spec, PyObject)>> = None;
+type ParserSpecs = HashMap<String, (parser::Spec, PyObject)>;
 
-pub fn init_module() {
-    unsafe {
-        PARSER_SPECS = Some(HashMap::new());
-    }
-}
+static PARSER_SPECS: Lazy<Mutex<ParserSpecs>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 fn downcast_tokens<'a>(py: Python, token_list: PyObject) -> PyResult<Vec<parser::Terminal>> {
     let tokens = PyList::downcast_from(py, token_list)?;
@@ -97,9 +98,12 @@ fn downcast_tokens<'a>(py: Python, token_list: PyObject) -> PyResult<Vec<parser:
     Ok(buf)
 }
 
-fn load_spec(py: Python, parser_name: &str) -> PyResult<&'static (parser::Spec, PyObject)> {
-    let parser_specs = unsafe { PARSER_SPECS.as_mut().unwrap() };
-    if !parser_specs.contains_key(parser_name) {
+fn load_spec<'a>(
+    py: Python,
+    specs: &'a mut ParserSpecs,
+    parser_name: &str,
+) -> PyResult<&'a (parser::Spec, PyObject)> {
+    if !specs.contains_key(parser_name) {
         let parser_mod = py.import("edb.edgeql.parser.parser")?;
 
         let process_spec = py.import("edb.edgeql.parser")?.get(py, "process_spec")?;
@@ -117,10 +121,10 @@ fn load_spec(py: Python, parser_name: &str) -> PyResult<&'static (parser::Spec, 
 
         let spec = parser::Spec::from_json(&spec_json).unwrap();
 
-        parser_specs.insert(parser_name.to_string(), (spec, productions));
+        specs.insert(parser_name.to_string(), (spec, productions));
     }
 
-    Ok(unsafe { PARSER_SPECS.as_ref().unwrap().get(parser_name).unwrap() })
+    Ok(specs.get(parser_name).unwrap())
 }
 
 fn to_py_cst<'a>(cst: &'a parser::CSTNode<'a>, py: Python) -> PyResult<CSTNode> {

@@ -24,7 +24,6 @@ py_module_initializer!(
     PyInit__edgeql_parser,
     |py, m| {
         tokenizer::init_module(py);
-        parser::init_module();
         let keywords = keywords::get_keywords(py)?;
         m.add(
             py,

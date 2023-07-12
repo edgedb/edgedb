@@ -2,6 +2,7 @@ use cpython::{PyBytes, PyClone, PyResult, PyString, Python, PythonObject};
 use cpython::{PyList, PyObject, PyTuple, ToPyObject};
 
 use edgeql_parser::tokenizer::{Token, Tokenizer};
+use once_cell::sync::OnceCell;
 
 use crate::errors::{parser_error_into_tuple, ParserResult};
 
@@ -69,12 +70,12 @@ pub fn tokens_to_py(py: Python, rust_tokens: Vec<Token>) -> PyResult<PyList> {
 /// (`_unpickle_token`) and save reference to is in the `FN_UNPICKLE_TOKEN`.
 ///
 /// A bit hackly, but it works.
-static mut FN_UNPICKLE_TOKEN: Option<PyObject> = None;
+static FN_UNPICKLE_TOKEN: OnceCell<PyObject> = OnceCell::new();
 
 pub fn init_module(py: Python) {
-    unsafe {
-        FN_UNPICKLE_TOKEN = Some(py_fn!(py, _unpickle_token(bytes: &PyBytes)));
-    }
+    FN_UNPICKLE_TOKEN
+        .set(py_fn!(py, _unpickle_token(bytes: &PyBytes)))
+        .expect("module is already initialized");
 }
 
 pub fn _unpickle_token(py: Python, bytes: &PyBytes) -> PyResult<OpaqueToken> {
@@ -83,7 +84,7 @@ pub fn _unpickle_token(py: Python, bytes: &PyBytes) -> PyResult<OpaqueToken> {
 }
 
 pub fn get_fn_unpickle_token(py: Python) -> PyObject {
-    let py_function = unsafe { FN_UNPICKLE_TOKEN.as_ref().expect("module initialized") };
+    let py_function = FN_UNPICKLE_TOKEN.get().expect("module initialized");
     return py_function.clone_ref(py);
 }
 

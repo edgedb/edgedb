@@ -290,7 +290,7 @@ impl<'s> Parser<'s> {
             if let Some(inline_position) = ctx.spec.inlines.get(&production.id) {
                 // inline rule found
                 let args = production.args;
-                let span = get_span_of_nodes(&args);
+                let span = get_span_of_nodes(args);
 
                 value = args[*inline_position as usize];
 
