@@ -3282,9 +3282,8 @@ class InheritingObject(SubclassableObject):
         self, schema: s_schema.Schema, name: sn.Name | str
     ) -> bool:
         base = schema.get(name, None)
-        return (
-            isinstance(base, SubclassableObject)
-            and self.issubclass(schema, base)
+        return isinstance(base, SubclassableObject) and self.issubclass(
+            schema, base
         )
 
 
