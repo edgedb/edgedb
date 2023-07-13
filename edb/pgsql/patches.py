@@ -189,4 +189,5 @@ ALTER TYPE cfg::AbstractConfig {
     };
 }
 '''),
+    ('edgeql+schema', ''), # function pg_table_is_visible
 ])

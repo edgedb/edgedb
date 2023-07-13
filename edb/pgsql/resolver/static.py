@@ -246,6 +246,22 @@ def eval_FuncCall(
 
         return pgast.FuncCall(name=('pg_catalog', fn_name), args=fn_args)
 
+    if fn_name == 'pg_table_is_visible':
+        arg_0 = dispatch.resolve(expr.args[0], ctx=ctx)
+
+        # our *_is_visible functions need search_path, passed in as an array
+        arg_1 = pgast.ArrayExpr(
+            elements=[
+                pgast.StringConstant(val=v)
+                for v in ctx.options.search_path
+            ]
+        )
+
+        return pgast.FuncCall(
+            name=('edgedbsql', fn_name),
+            args=[arg_0, arg_1]
+        )
+
     return None
 
 
