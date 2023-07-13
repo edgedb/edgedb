@@ -1,3 +1,5 @@
+.. _ref_rust_queryable:
+
 Using the ``Queryable`` macro
 -----------------------------
 

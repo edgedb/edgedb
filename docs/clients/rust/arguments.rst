@@ -1,3 +1,5 @@
+.. _ref_rust_arguments:
+
 Passing in arguments
 --------------------
 

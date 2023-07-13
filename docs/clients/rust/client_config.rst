@@ -1,3 +1,5 @@
+.. _ref_rust_client_config:
+
 Client configuration
 --------------------
 

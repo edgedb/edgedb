@@ -1,3 +1,5 @@
+.. _ref_rust_client:
+
 Using the client
 ----------------
 
@@ -57,7 +59,7 @@ are present so ``&()`` is a pretty common sight when using the Rust client.
       .query_required_single("select 'Just' ++ <str>$0 ++ <str>$1", &(first, second))
       .await?;
 
-For more information, see the "Passing in arguments" section below.
+For more information, see the section on :ref:`passing in arguments <ref_rust_arguments>`.
 
 These methods take two generic parameters which can be specified with the
 turbofish syntax:

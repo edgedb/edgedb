@@ -1,3 +1,5 @@
+.. _ref_rust_queryable_alternatives:
+
 Alternatives to the Queryable macro
 -----------------------------------
 
