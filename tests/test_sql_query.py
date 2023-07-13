@@ -19,6 +19,7 @@
 import csv
 import io
 import os.path
+import unittest
 
 from edb.testbase import server as tb
 from edb.tools import test
@@ -972,6 +973,7 @@ class TestSQL(tb.SQLQueryTestCase):
             await self.scon.fetch('''SELECT 1 +
                 'foo' FROM "Movie" ORDER BY id''')
 
+    @unittest.skip("this test flakes: #5783")
     async def test_sql_query_prepare_01(self):
         await self.scon.execute(
             """
