@@ -82,14 +82,15 @@ into a struct using ``serde`` and ``serde_json``, etc.
       id
       } filter .username = <str>$0;";
 
-  // Assuming we know there will only be one result we can use query_single_json;
+  // If we know there will only be one result we can use query_single_json;
   // otherwise query_json which returns a map of json
   let json_res = client
       .query_single_json(query, &("SomeUserName",))
       .await?
       .unwrap();
 
-  // Format: {"username" : "SomeUser1", "id" : "7093944a-fd3a-11ed-a013-c7de12ffe7a9"}
+  // Format:
+  // {"username" : "SomeUser1", "id" : "7093944a-fd3a-11ed-a013-c7de12ffe7a9"}
   let as_string = json_res.to_string();
   let as_account: Account = serde_json::from_str(&json_res)?;
 

@@ -50,13 +50,14 @@ are present so ``&()`` is a pretty common sight when using the Rust client.
 .. code-block:: rust
 
   // Without arguments: just add &() after the query
-  let query_res: String = client.query_required_single("select 'Just a string'", &()).await?;
+  let query_res: String = 
+      client.query_required_single("select 'Just a string'", &()).await?;
 
   // With arguments, same output
-  let one = " a ";
-  let two = "string";
+  let a = " a ";
+  let b = "string";
   let query_res: String = client
-      .query_required_single("select 'Just' ++ <str>$0 ++ <str>$1", &(first, second))
+      .query_required_single("select 'Just' ++ <str>$0 ++ <str>$1", &(a, b))
       .await?;
 
 For more information, see the section on :ref:`passing in arguments <ref_rust_arguments>`.

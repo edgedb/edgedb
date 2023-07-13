@@ -5,7 +5,8 @@ Transactions
 
 The client also has a ``.transaction()`` method that allows for atomic `transactions`_.
 
-Wikipedia has a good example of a scenario requiring a transaction which we can then implement:
+Wikipedia has a good example of a scenario requiring a transaction which we can 
+then implement:
 
     An example of an atomic transaction is a monetary transfer from bank account A
     to account B. It consists of two operations, withdrawing the money from 
@@ -25,17 +26,18 @@ another's would look like this:
   }
   // Customer1 has an account with 110 cents in it.
   // Customer2 has an account with 90 cents in it.
-  // Customer1 is going to send 10 cents to Customer 2. This will be a transaction
-  // because we don't want the case to ever occur - even for a split second -
-  // where one account has sent money while the other has not received it yet.
+  // Customer1 is going to send 10 cents to Customer 2. This will be a 
+  // transaction as we don't want the case to ever occur - even for a 
+  // split second - where one account has sent money while the other 
+  // has not received it yet.
 
   // After the transaction is over, each customer should have 100 cents.
 
   let sender_name = "Customer1";
   let receiver_name = "Customer2";
-  let balance_check_query = "select BankCustomer { name, bank_balance } 
+  let balance_check = "select BankCustomer { name, bank_balance } 
       filter .name = <str>$0";
-  let balance_change_query = "update BankCustomer 
+  let balance_change = "update BankCustomer 
           filter .name = <str>$0
           set { bank_balance := .bank_balance + <int32>$1 }";
   let send_amount = 10;
@@ -43,15 +45,16 @@ another's would look like this:
   client
       .transaction(|mut conn| async move {
           let sender: BankCustomer = conn
-              .query_required_single(balance_check_query, &(sender_name,))
+              .query_required_single(balance_check, &(sender_name,))
               .await?;
           if sender.bank_balance < send_amount {
               println!("Not enough money to send, bailing from transaction");
               return Ok(());
           };
-          conn.execute(balance_change_query, &(sender_name, send_amount.neg()))
-              .await?;
-          conn.execute(balance_change_query, &(receiver_name, send_amount)).await?;
+          conn.execute(balance_change, &(sender_name, send_amount.neg()))
+            .await?;
+          conn.execute(balance_change, &(receiver_name, send_amount))
+            .await?;
           Ok(())
       })
       .await?;

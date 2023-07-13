@@ -13,13 +13,13 @@ shallow copy of the client with adjusted options.
   //
   // module default {
   //   type User {
-  //     required property name -> str;
+  //     required name: str;
   //   }
   // }
 
   // module test {
   //   type User {
-  //     required property name -> str;
+  //     required name: str;
   //   }
   // };
 

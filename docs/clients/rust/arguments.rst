@@ -40,7 +40,7 @@ the REPL they can be named (e.g. ``$message`` and ``$person`` instead of
 
 .. code-block:: rust
 
-  let arguments = ("Nice movie", 2023);
+  let args = ("Nice movie", 2023);
   let query = "with
   movie := (insert Movie {
   title := <str>$0,
@@ -51,7 +51,7 @@ the REPL they can be named (e.g. ``$message`` and ``$person`` instead of
       release_year,
       id
   }";
-  let query_res: Value = client.query_required_single(query, &(arguments)).await?;
+  let query_res: Value = client.query_required_single(query, &(args)).await?;
 
 A note on the casting syntax: EdgeDB requires arguments to have a cast in the
 same way that Rust requires a type declaration in function signatures.
@@ -71,8 +71,9 @@ As such, this will return an error:
 .. code-block:: rust
 
   let query = "select <int32>$0";
-  let argument = 9i16; // Rust client will expect an int16
-  let query_res: Result<Value, _> = client.query_required_single(query, &(argument,)).await;
+  let arg = 9i16; // Rust client will expect an int16
+  let query_res: Result<Value, _> = 
+    client.query_required_single(query, &(arg,)).await;
   assert!(query_res
       .unwrap_err()
       .to_string()

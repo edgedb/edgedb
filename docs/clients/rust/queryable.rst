@@ -63,7 +63,7 @@ contains a somewhat cleaned up version of the generated Queryable code:
   pub struct IsAStruct {
       pub name: String,
       pub number: i16,
-      pub is_cool: bool,
+      pub is_ok: bool,
   }
 
   impl Queryable for IsAStruct {
@@ -84,11 +84,11 @@ contains a somewhat cleaned up version of the generated Queryable code:
           }
           let name = Queryable::decode_optional(decoder, elements.read()?)?;
           let number = Queryable::decode_optional(decoder, elements.read()?)?;
-          let is_cool = Queryable::decode_optional(decoder, elements.read()?)?;
+          let is_ok = Queryable::decode_optional(decoder, elements.read()?)?;
           Ok(IsAStruct {
               name,
               number,
-              is_cool,
+              is_ok,
           })
       }
 
@@ -133,8 +133,8 @@ contains a somewhat cleaned up version of the generated Queryable code:
           idx += 1;
           <i16 as Queryable>::check_descriptor(ctx, el.type_pos)?;
           let el = &shape.elements[idx];
-          if el.name != "is_cool" {
-              return Err(ctx.wrong_field("is_cool", &el.name));
+          if el.name != "is_ok" {
+              return Err(ctx.wrong_field("is_ok", &el.name));
           }
           idx += 1;
           <bool as Queryable>::check_descriptor(ctx, el.type_pos)?;

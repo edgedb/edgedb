@@ -60,7 +60,7 @@ the runtime's ``.block_on()`` method:
       .enable_all()
       .build()?;
   let just_a_string: String =
-      rt.block_on(client.query_required_single("select 'Just a string'", &()))?;
+      rt.block_on(client.query_required_single("select 'A string'", &()))?;
 
 Edgedb project setup
 --------------------
