@@ -31,7 +31,7 @@ CREATE ABSTRACT INDEX fts::textsearch(named only language: std::str) {
 CREATE FUNCTION
 fts::test(
     query: std::str,
-    variadic object: optional std::Object,
+    object: std::Object,
 ) -> std::bool
 {
     CREATE ANNOTATION std::description :=
