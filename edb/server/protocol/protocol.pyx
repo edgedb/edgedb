@@ -524,6 +524,8 @@ cdef class HttpProtocol:
                 # Check if this is a request to a registered extension
                 if extname == 'edgeql':
                     extname = 'edgeql_http'
+                if extname == 'ext':
+                    extname = path_parts[3]
 
                 if extname not in db.extensions:
                     return self._not_found(request, response)
@@ -542,11 +544,10 @@ cdef class HttpProtocol:
                     await edgeql_ext.handle_request(
                         request, response, db, args, self.server
                     )
-                elif extname == 'ext':
-                    if args[0] == 'auth':
-                        await auth_ext.handle_request(
-                            request, response, db, args[1:], self.server
-                        )
+                elif extname == 'auth':
+                    await auth_ext.handle_request(
+                        request, response, self.server
+                    )
 
         elif route == 'auth':
             if (

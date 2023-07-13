@@ -25,9 +25,9 @@ from edb.common import debug
 from edb.common import markup
 
 
-async def handle_request(request, response, path_parts, server):
+async def handle_request(request, response, server):
     try:
-        response.status = http.HTTPStatus.SUCCESS
+        response.status = http.HTTPStatus.OK
         response.body = b"Hello world"
     except Exception as ex:
         if debug.flags.server:
