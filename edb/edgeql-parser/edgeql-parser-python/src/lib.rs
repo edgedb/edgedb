@@ -1,20 +1,22 @@
 #[macro_use]
 extern crate cpython;
 
-use cpython::PyString;
+use cpython::{PyObject, PyString};
 
 mod errors;
 mod hash;
 mod keywords;
 pub mod normalize;
+mod parser;
 mod position;
 mod pynormalize;
 mod tokenizer;
 
-use errors::TokenizerError;
+use errors::{SyntaxError, ParserResult};
+use parser::{parse, CSTNode, Production};
 use position::{offset_of_line, SourcePoint};
 use pynormalize::normalize;
-use tokenizer::{get_unpickle_fn, tokenize, Token};
+use tokenizer::{get_fn_unpickle_token, tokenize, OpaqueToken};
 
 py_module_initializer!(
     _edgeql_parser,
@@ -30,9 +32,10 @@ py_module_initializer!(
         )?;
 
         m.add(py, "tokenize", py_fn!(py, tokenize(data: &PyString)))?;
-        m.add(py, "_unpickle_token", get_unpickle_fn(py))?;
-        m.add(py, "Token", py.get_type::<Token>())?;
-        m.add(py, "TokenizerError", py.get_type::<TokenizerError>())?;
+        m.add(py, "_unpickle_token", get_fn_unpickle_token(py))?;
+        m.add(py, "Token", py.get_type::<OpaqueToken>())?;
+        m.add(py, "SyntaxError", py.get_type::<SyntaxError>())?;
+        m.add(py, "ParserResult", py.get_type::<ParserResult>())?;
         m.add(py, "Entry", py.get_type::<pynormalize::Entry>())?;
         m.add(py, "SourcePoint", py.get_type::<SourcePoint>())?;
         m.add(py, "normalize", py_fn!(py, normalize(query: &PyString)))?;
@@ -46,6 +49,13 @@ py_module_initializer!(
         m.add(py, "partial_reserved_keywords", keywords.partial)?;
         m.add(py, "future_reserved_keywords", keywords.future)?;
         m.add(py, "current_reserved_keywords", keywords.current)?;
+        m.add(
+            py,
+            "parse",
+            py_fn!(py, parse(parser_name: &PyString, data: PyObject)),
+        )?;
+        m.add(py, "CSTNode", py.get_type::<CSTNode>())?;
+        m.add(py, "Production", py.get_type::<Production>())?;
         Ok(())
     }
 );

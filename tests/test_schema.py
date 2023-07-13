@@ -396,7 +396,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "invalid property type: expected a scalar type, "
                   "or a scalar collection, got object type 'test::Object'",
-                  position=73)
+                  position=74)
     def test_schema_bad_prop_02(self):
         """
             type Object {
@@ -1433,7 +1433,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "missing value for required property",
-                  line=9, col=42)
+                  line=10, col=25)
     def test_schema_rewrite_missing_required_01(self):
         """
             type Project {

@@ -7238,7 +7238,7 @@ aa \
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                _position=29):
+                _position=35):
 
             await self.con.execute('''\
                 SELECT Issue LIMIT LogEntry.spent_time;
@@ -7249,7 +7249,7 @@ aa \
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                _position=29):
+                _position=36):
 
             await self.con.execute('''\
                 SELECT Issue OFFSET LogEntry.spent_time;
@@ -7695,7 +7695,7 @@ aa \
     async def test_edgeql_expr_error_after_extraction_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                "Unexpected \"'1'\""):
+                "Unexpected ''1''"):
 
             await self.con.query("""
                 SELECT '''1''';

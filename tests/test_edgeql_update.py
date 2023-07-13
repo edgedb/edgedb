@@ -2228,7 +2228,7 @@ class TestUpdate(tb.QueryTestCase):
             edgedb.QueryError,
             "cannot update link 'readonly_tag': "
             "it is declared as read-only",
-            _position=147,
+            _position=148,
         ):
             await self.con.execute(r'''
                 UPDATE UpdateTest

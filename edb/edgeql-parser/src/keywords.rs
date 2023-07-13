@@ -1,4 +1,6 @@
-pub const UNRESERVED_KEYWORDS: &[&str] = &[
+use phf::phf_set;
+
+pub const UNRESERVED_KEYWORDS: phf::Set<&str> = phf_set!(
     "abort",
     "abstract",
     "access",
@@ -103,20 +105,11 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "version",
     "view",
     "write",
-];
+);
 
+pub const PARTIAL_RESERVED_KEYWORDS: phf::Set<&str> = phf_set!("except", "intersect", "union",);
 
-pub const PARTIAL_RESERVED_KEYWORDS: &[&str] = &[
-    // Keep in sync with `tokenizer::is_keyword`
-    "except",
-    "intersect",
-    "union",
-    // Keep in sync with `tokenizer::is_keyword`
-];
-
-
-pub const FUTURE_RESERVED_KEYWORDS: &[&str] = &[
-    // Keep in sync with `tokenizer::is_keyword`
+pub const FUTURE_RESERVED_KEYWORDS: phf::Set<&str> = phf_set!(
     "anyarray",
     "begin",
     "case",
@@ -147,18 +140,15 @@ pub const FUTURE_RESERVED_KEYWORDS: &[&str] = &[
     "when",
     "window",
     "never",
-    // Keep in sync with `tokenizer::is_keyword`
-];
+);
 
-pub const CURRENT_RESERVED_KEYWORDS: &[&str] = &[
-    // Keep in sync with `tokenizer::is_keyword`
+pub const CURRENT_RESERVED_KEYWORDS: phf::Set<&str> = phf_set!(
     "__source__",
     "__subject__",
     "__type__",
     "__std__",
     "__edgedbsys__",
     "__edgedbtpl__",
-    "__std__",
     "__new__",
     "__old__",
     "__specified__",
@@ -207,5 +197,38 @@ pub const CURRENT_RESERVED_KEYWORDS: &[&str] = &[
     "update",
     "variadic",
     "with",
-    // Keep in sync with `tokenizer::is_keyword`
-];
+);
+
+pub const COMBINED_KEYWORDS: phf::Set<&str> = phf_set!(
+    "named only",
+    "set annotation",
+    "set type",
+    "extension package",
+    "order by",
+);
+
+pub fn lookup(s: &str) -> Option<Keyword> {
+    None.or_else(|| PARTIAL_RESERVED_KEYWORDS.get_key(s))
+        .or_else(|| FUTURE_RESERVED_KEYWORDS.get_key(s))
+        .or_else(|| CURRENT_RESERVED_KEYWORDS.get_key(s))
+        .map(|x| Keyword(x))
+}
+
+pub fn lookup_all(s: &str) -> Option<Keyword> {
+    lookup(s).or_else(|| {
+        None.or_else(|| COMBINED_KEYWORDS.get_key(s))
+            .or_else(|| UNRESERVED_KEYWORDS.get_key(s))
+            .map(|x| Keyword(x))
+    })
+}
+
+/// This is required for serde deserializer for Token to work correctly.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Keyword(pub &'static str);
+
+impl From<Keyword> for &'static str {
+    fn from(value: Keyword) -> Self {
+        value.0
+    }
+}
