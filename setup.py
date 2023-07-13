@@ -1057,6 +1057,14 @@ setuptools.setup(
         ),
 
         setuptools_extension.Extension(
+            "edb.server.protocol.ext.auth",
+            ["edb/server/protocol/ext/auth.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
+
+        setuptools_extension.Extension(
             "edb.server.protocol.frontend",
             ["edb/server/protocol/frontend.pyx"],
             extra_compile_args=EXT_CFLAGS,
