@@ -3805,29 +3805,52 @@ def process_set_as_fts_test(
         ensure_source_rvar(obj_ir.expr, newctx.rel, ctx=newctx)
         obj_id = obj_ir.expr.path_id
 
-        el_name = sn.QualName('__object__', '__fts_document__')
-        fts_document_ptrref = irast.SpecialPointerRef(
-            name=el_name,
-            shortname=el_name,
-            out_source=obj_id.target,
-            out_target=pg_types.pg_tsvector_typeref,
-            out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
-        )
-        fts_document_id = obj_id.extend(ptrref=fts_document_ptrref)
-        fts_document = relctx.get_path_var(
-            newctx.rel,
-            fts_document_id,
-            aspect='value',
-            ctx=newctx,
-        )
+        from edb.common import debug
+        if debug.flags.zombodb:
+            el_name = sn.QualName('__object__', 'ctid')
+            ctid_ptrref = irast.SpecialPointerRef(
+                name=el_name,
+                shortname=el_name,
+                out_source=obj_id.target,
+                out_target=pg_types.pg_oid_typeref,
+                out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
+            )
+            ctid_id = obj_id.extend(ptrref=ctid_ptrref)
+            ctid = relctx.get_path_var(
+                newctx.rel,
+                ctid_id,
+                aspect='value',
+                ctx=newctx,
+            )
+            set_expr = pgast.Expr(
+                name='==>',
+                lexpr=ctid,
+                rexpr=query_pg,
+            )
+        else:
+            el_name = sn.QualName('__object__', '__fts_document__')
+            fts_document_ptrref = irast.SpecialPointerRef(
+                name=el_name,
+                shortname=el_name,
+                out_source=obj_id.target,
+                out_target=pg_types.pg_tsvector_typeref,
+                out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
+            )
+            fts_document_id = obj_id.extend(ptrref=fts_document_ptrref)
+            fts_document = relctx.get_path_var(
+                newctx.rel,
+                fts_document_id,
+                aspect='value',
+                ctx=newctx,
+            )
 
-        set_expr = pgast.Expr(
-            name='@@',
-            lexpr=pgast.FuncCall(
-                name=('pg_catalog', 'to_tsquery'), args=[query_pg]
-            ),
-            rexpr=fts_document,
-        )
+            set_expr = pgast.Expr(
+                name='@@',
+                lexpr=pgast.FuncCall(
+                    name=('pg_catalog', 'to_tsquery'), args=[query_pg]
+                ),
+                rexpr=fts_document,
+            )
         func_rel = newctx.rel
 
     return _compile_func_epilogue(

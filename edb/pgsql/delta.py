@@ -3553,43 +3553,60 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             raise AssertionError(f'index {root_name} is missing the code')
 
         ops = dbops.CommandGroup()
+        with_clause: Dict[str, str] | None = None
 
         # FTS
         if index.has_base_with_name(schema, sn.QualName('fts', 'textsearch')):
-            # create a generated column __fts_document__
-            documents = []
-            for sql_expr in sql_exprs:
-                language = "'english'"
-                weight = "'A'"
-                documents.append(
-                    f'''
-                    setweight(
-                        to_tsvector(
-                            {language}::pg_catalog.regconfig,
-                            COALESCE({sql_expr}, '')
-                        ),
-                        {weight}
+            from edb.common import debug
+            if debug.flags.zombodb:
+
+                # TODO: create a function for specifing which columns to index
+                #       (see zombo docs on creating indexes)
+
+                sql_exprs = [f'{qi(table_name[1])}.*']
+                root_code = 'zombodb ((__col__))'
+                with_clause = {
+                    'url': ql('http://localhost:9200/')
+                }
+
+            else:
+                # create a generated column __fts_document__
+                documents = []
+                for sql_expr in sql_exprs:
+                    language = "'english'"
+                    weight = "'A'"
+                    documents.append(
+                        f'''
+                        setweight(
+                            to_tsvector(
+                                {language}::pg_catalog.regconfig,
+                                COALESCE({sql_expr}, '')
+                            ),
+                            {weight}
+                        )
+                    '''
                     )
-                '''
+                document = ' || '.join(documents)
+
+                fts_document = dbops.Column(
+                    name=f'__fts_document__',
+                    type='pg_catalog.tsvector',
+                    generated=f'ALWAYS AS ({document}) STORED',
                 )
-            document = ' || '.join(documents)
 
-            fts_document = dbops.Column(
-                name=f'__fts_document__',
-                type='pg_catalog.tsvector',
-                generated=f'ALWAYS AS ({document}) STORED',
-            )
+                alter_table = dbops.AlterTable(table_name)
+                alter_table.add_operation(dbops.AlterTableAddColumn(fts_document))
+                ops.add_command(alter_table)
 
-            alter_table = dbops.AlterTable(table_name)
-            alter_table.add_operation(dbops.AlterTableAddColumn(fts_document))
-            ops.add_command(alter_table)
-
-            # use a reference to the new column in the index instead
-            sql_exprs = ['__fts_document__']
+                # use a reference to the new column in the index instead
+                sql_exprs = ['__fts_document__']
 
         pg_index = dbops.Index(
-            name=index_name[1], table_name=table_name, exprs=sql_exprs,
+            name=index_name[1],
+            table_name=table_name,
+            exprs=sql_exprs,
             unique=False, inherit=True,
+            with_clause=with_clause,
             predicate=predicate_src,
             metadata={
                 'schemaname': str(index.get_name(schema)),

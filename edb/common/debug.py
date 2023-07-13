@@ -165,6 +165,10 @@ class flags(metaclass=FlagsMeta):
             "Requires pydebug to be installed."
     )
 
+    zombodb = Flag(
+        doc="Enabled zombodb and disables postgres FTS"
+    )
+
 
 @contextlib.contextmanager
 def timeit(title='block'):
