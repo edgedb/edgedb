@@ -415,7 +415,7 @@ def _compile_zombodb(build_base, build_temp):
             'cargo', 'install',
             '--verbose', '--verbose',
             '--root', str(pgrx_dir),
-            'cargo-pgrx',
+            'cargo-pgrx@0.9.6',
         ],
         env=env,
         check=True,
