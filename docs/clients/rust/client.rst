@@ -44,7 +44,7 @@ Note the difference between the ``_single`` and the
 These methods all take a *query* (a ``&str``) and *arguments* (something
 that implements the `QueryArgs`_ trait).
 
-The ``()`` unit type implements ``QueryArgs``` and is used when no arguments
+The ``()`` unit type implements ``QueryArgs`` and is used when no arguments
 are present so ``&()`` is a pretty common sight when using the Rust client.
 
 .. code-block:: rust

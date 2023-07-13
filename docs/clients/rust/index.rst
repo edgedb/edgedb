@@ -8,7 +8,7 @@ Rust
 
 EdgeDB maintains a client library for Rust. View the `full documentation`_.
 
-The hello world of the Rust EdgeDB client:
+The hello world of the Rust EdgeDB client is as follows:
 
 .. code-block:: rust
 
