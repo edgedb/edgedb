@@ -6424,6 +6424,24 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 END
             """
         ),
+        dbops.Function(
+            name=('edgedbsql', 'pg_table_is_visible'),
+            args=[
+                ('id', ('oid',)),
+                ('search_path', ('text[]',)),
+            ],
+            returns=('bool',),
+            volatility='stable',
+            text=r'''
+                SELECT pc.relnamespace IN (
+                    SELECT oid
+                    FROM edgedbsql.pg_namespace pn
+                    WHERE pn.nspname IN (select * from unnest(search_path))
+                )
+                FROM edgedbsql.pg_class pc
+                WHERE id = pc.oid
+            '''
+        )
     ]
 
     return (
