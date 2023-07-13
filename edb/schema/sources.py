@@ -161,23 +161,25 @@ class Source(
         Returns a list of columns that are present in the backing table of
         this source, apart from the columns for pointers.
         """
-        fts_textsearch = sn.QualName('fts', 'textsearch')
-        has_fts_index = False
-        for index in self.get_indexes(schema).objects(schema):
-            if index.has_base_with_name(schema, fts_textsearch):
-                has_fts_index = True
-
         res = []
-        if has_fts_index:
-            res.append(
-                (
-                    '__fts_document__',
+        from edb.common import debug
+        if not debug.flags.zombodb:
+            fts_textsearch = sn.QualName('fts', 'textsearch')
+            has_fts_index = False
+            for index in self.get_indexes(schema).objects(schema):
+                if index.has_base_with_name(schema, fts_textsearch):
+                    has_fts_index = True
+
+            if has_fts_index:
+                res.append(
                     (
-                        'pg_catalog',
-                        'tsvector',
-                    ),
+                        '__fts_document__',
+                        (
+                            'pg_catalog',
+                            'tsvector',
+                        ),
+                    )
                 )
-            )
         return res
 
 

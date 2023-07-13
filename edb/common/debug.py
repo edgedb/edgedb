@@ -174,6 +174,10 @@ class flags(metaclass=FlagsMeta):
             "(pg compiler output)."
     )
 
+    zombodb = Flag(
+        doc="Enabled zombodb and disables postgres FTS"
+    )
+
 
 @contextlib.contextmanager
 def timeit(title='block'):
