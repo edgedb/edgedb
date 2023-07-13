@@ -533,16 +533,27 @@ async def execute_json(
         return None
 
 
+class DecimalEncoder(json.JSONEncoder):
+    def encode(self, obj):
+        if isinstance(obj, dict):
+            return '{' + ', '.join(
+                    f'{self.encode(k)}: {self.encode(v)}'
+                    for (k, v) in obj.items()
+                ) + '}'
+        if isinstance(obj, list):
+            return '[' + ', '.join(map(self.encode, obj)) + ']'
+        if isinstance(obj, decimal.Decimal):
+            return f'{obj:f}'
+        return super().encode(obj)
+
+
 cdef bytes _encode_json_value(object val):
-    if isinstance(val, decimal.Decimal):
-        jarg = str(val)
-    else:
-        jarg = json.dumps(val)
+    jarg = json.dumps(val, cls=DecimalEncoder)
 
     return b'\x01' + jarg.encode('utf-8')
 
 
-cdef bytes _encode_args(list args):
+def _encode_args(list args) -> bytes:
     cdef:
         WriteBuffer out_buf = WriteBuffer.new()
 

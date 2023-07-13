@@ -21,6 +21,7 @@ import base64
 import http
 import json
 import urllib.parse
+import decimal
 
 import immutables
 
@@ -46,7 +47,7 @@ from edb.server.pgproto.pgproto cimport (
 
 include "./consts.pxi"
 
-cdef tuple CURRENT_PROTOCOL = edbdef.CURRENT_PROTOCOL
+cdef tuple CURRENT_PROTOCOL = (1, 0)
 
 ALLOWED_CAPABILITIES = (
     enums.Capability.MODIFICATIONS |
@@ -101,14 +102,17 @@ async def handle_request(
         return handle_error(request, response, ex)
 
     queries = None
+    params = None
 
     try:
         if request.method == b'POST':
-            body = json.loads(request.body)
+            body = json.loads(request.body, parse_float=decimal.Decimal)
             if not isinstance(body, dict):
                 raise TypeError(
                     'the body of the request must be a JSON object')
             queries = body.get('queries')
+            allow_params = body.get('allow_params')
+            params = body.get('params')
 
         else:
             raise TypeError('expected a POST request')
@@ -122,7 +126,7 @@ async def handle_request(
 
     response.status = http.HTTPStatus.OK
     try:
-        result = await execute(db, server, queries)
+        result = await execute(db, server, queries, allow_params, params or {})
     except Exception as ex:
         return handle_error(request, response, ex)
     else:
@@ -153,11 +157,11 @@ cdef class NotebookConnection(frontend.AbstractFrontendConnection):
         pass
 
 
-async def execute(db, server, queries: list):
+async def execute(db, server, queries: list, allow_params, params):
     dbv: dbview.DatabaseConnectionView = await server.new_dbview(
         dbname=db.name,
         query_cache=False,
-        protocol_version=edbdef.CURRENT_PROTOCOL,
+        protocol_version=CURRENT_PROTOCOL,
     )
     compiler_pool = server.get_compiler_pool()
     units = await compiler_pool.compile_notebook(
@@ -195,9 +199,17 @@ async def execute(db, server, queries: list):
                     "disallowed in notebook",
                 )
                 try:
-                    if query_unit.in_type_args:
+                    if not allow_params and query_unit.in_type_args:
                         raise errors.QueryError(
                             'cannot use query parameters in tutorial')
+
+                    args = []
+                    if query_unit.in_type_args:
+                        for param in query_unit.in_type_args:
+                            value = params.get(param.name)
+                            args.append(value)
+
+                    bind_args = p_execute._encode_args(args)
 
                     fe_conn = NotebookConnection()
 
@@ -206,7 +218,7 @@ async def execute(db, server, queries: list):
                     compiled = dbview.CompiledQuery(
                         query_unit_group=query_unit_group)
                     await p_execute.execute(
-                        pgcon, dbv, compiled, b'', fe_conn=fe_conn,
+                        pgcon, dbv, compiled, bind_args, fe_conn=fe_conn,
                         skip_start=True,
                     )
 

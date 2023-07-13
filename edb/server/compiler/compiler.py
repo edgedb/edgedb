@@ -481,7 +481,7 @@ class Compiler:
                     implicit_limit=implicit_limit,
                     inline_typeids=False,
                     inline_typenames=True,
-                    json_parameters=False,
+                    json_parameters=True,
                     source=source,
                     protocol_version=protocol_version,
                     notebook=True,
