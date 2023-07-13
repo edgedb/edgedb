@@ -18,28 +18,38 @@ From scratch
 
 The minimum to add to your Cargo.toml to use the client is `edgedb-tokio`_:
 
-    edgedb-tokio = "0.5.0"
+.. code-block::
+
+  edgedb-tokio = "0.5.0"
 
 The next most common dependency is `edgedb-protocol`_, which includes the
 EdgeDB types used for data modeling:
 
-    edgedb-protocol = "0.6.0"
+.. code-block::
+
+  edgedb-protocol = "0.6.0"
 
 A third crate called `edgedb-derive`_ contains the ``#[derive(Queryable)]``
 derive macro which is the main way to unpack EdgeDB output into Rust types:
 
-    edgedb-derive = "0.5.1"
+.. code-block::
+
+  edgedb-derive = "0.5.1"
     
 The Rust client uses tokio so add this to Cargo.toml as well:
 
-    tokio = { version = "1.29.1", features = ["macros", "rt-multi-thread"] }`
+.. code-block::
+    
+  tokio = { version = "1.29.1", features = ["macros", "rt-multi-thread"] }`
 
 If you are avoiding async code and want to emulate a blocking client, you will
 still need to use tokio as a dependency but can bridge with async using one of
 the `bridging methods`_ recommended by tokio. This won't require any
 added features:
 
-    tokio = "1.29.1"
+.. code-block::
+  
+  tokio = "1.29.1"
 
 Then you can start a runtime. Block and wait for futures to resolve by calling
 the runtime's ``.block_on()`` method:
