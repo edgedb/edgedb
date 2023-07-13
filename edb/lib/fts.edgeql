@@ -35,7 +35,7 @@ CREATE SCALAR TYPE fts::searchable_str {
 CREATE FUNCTION
 fts::test(
     query: std::str,
-    variadic object: optional std::Object,
+    object: std::Object,
 ) -> std::bool
 {
     CREATE ANNOTATION std::description :=
