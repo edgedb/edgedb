@@ -19,7 +19,9 @@ Queries with the client
 
 Here are the simplified signatures of the client methods used for querying:
 
-Note: ``R`` here means a type that implements `QueryResult`_.
+Note: ``R`` here means a type that implements ``QueryResult``.
+(See more on ``QueryResult`` and ``QueryArgs`` on the 
+`edgedb-protocol documentation`_.)
 
 .. code-block::
 
@@ -41,8 +43,8 @@ Note the difference between the ``_single`` and the
   which allows propagating errors normally through an application.
 - The ``_single`` methods will simply give you an ``Ok(None)`` in this case.
 
-These methods all take a *query* (a ``&str``) and *arguments* (something
-that implements the `QueryArgs`_ trait).
+These methods all take a *query* (a ``&str``) and *arguments*, meaning 
+something that implements the ``QueryArgs`` trait.
 
 The ``()`` unit type implements ``QueryArgs`` and is used when no arguments
 are present so ``&()`` is a pretty common sight when using the Rust client.
@@ -60,7 +62,7 @@ are present so ``&()`` is a pretty common sight when using the Rust client.
       .query_required_single("select 'Just' ++ <str>$0 ++ <str>$1", &(a, b))
       .await?;
 
-For more information, see the section on :ref:`passing in arguments <ref_rust_arguments>`.
+For more, see the section on :ref:`passing in arguments <ref_rust_arguments>`.
 
 These methods take two generic parameters which can be specified with the
 turbofish syntax:
@@ -105,5 +107,4 @@ But if you know that only a single result will be returned, using
   let query_res: String = client.query_required_single(query, &()).await?;
   let query_res_opt: Option<String> = client.query_single(query, &()).await?;
 
-.. _`QueryArgs`: https://docs.rs/edgedb-protocol/latest/edgedb_protocol/query_arg/trait.QueryArgs.html
-.. _`QueryResult`: https://docs.rs/edgedb-protocol/0.4.0/edgedb_protocol/trait.QueryResult.html
+.. _`edgedb-protocol documentation`: https://docs.rs/edgedb-protocol/
