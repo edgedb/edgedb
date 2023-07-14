@@ -46,7 +46,7 @@ jobs:
             remote-compiler: ''
     services:
       postgres:
-        image: postgres:${{ matrix.postgres-version }}-alpine
+        image: fantix/pgvector:${{ matrix.postgres-version }}
         env:
           POSTGRES_PASSWORD: postgres
         options: >-
