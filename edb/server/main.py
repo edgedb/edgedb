@@ -446,7 +446,10 @@ async def run_server(
     server = server_mod
 
     logger.info(f"starting EdgeDB server {buildmeta.get_version_line()}")
-    logger.info(f'instance name: {args.instance_name!r}')
+    if args.multitenant_config_file:
+        logger.info("configured as a multitenant instance")
+    else:
+        logger.info(f'instance name: {args.instance_name!r}')
     if devmode.is_in_dev_mode():
         logger.info(f'development mode active')
 
@@ -517,6 +520,25 @@ async def run_server(
                 f'bytes: {runstate_dir_str!r} ({runstate_dir_str_len} bytes)',
                 exit_code=11,
             )
+
+        if args.multitenant_config_file:
+            from . import multitenant
+
+            try:
+                sys_config, backend_settings = initialize_static_cfg(
+                    args, is_remote_cluster=True
+                )
+                with _internal_state_dir(runstate_dir) as int_runstate_dir:
+                    return await multitenant.run_server(
+                        args,
+                        sys_config=sys_config,
+                        backend_settings=backend_settings,
+                        runstate_dir=runstate_dir,
+                        internal_runstate_dir=int_runstate_dir,
+                        do_setproctitle=do_setproctitle,
+                    )
+            except server.StartupError as e:
+                abort(str(e))
 
         try:
             if args.data_dir:
