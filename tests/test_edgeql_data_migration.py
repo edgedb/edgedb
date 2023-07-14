@@ -11229,6 +11229,13 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
         """)
 
+        await self.migrate(r"""
+            abstract type Parent {
+                access policy asdf allow all;
+            }
+            type Test2 extending Parent;
+        """)
+
     async def test_edgeql_migration_access_policy_02(self):
         # Make sure policies don't interfere with constraints or indexes
         await self.migrate(r"""

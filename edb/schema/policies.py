@@ -88,6 +88,17 @@ class AccessPolicy(
         str, default=None, compcoef=0.971, allow_ddl_set=True
     )
 
+    # We don't support SET/DROP OWNED owned on policies so we set its
+    # compcoef to 0.0
+    owned = so.SchemaField(
+        bool,
+        default=False,
+        inheritable=False,
+        compcoef=0.0,
+        reflection_method=so.ReflectionMethod.AS_LINK,
+        special_ddl_syntax=True,
+    )
+
     @classmethod
     def get_schema_class_displayname(cls) -> str:
         return 'access policy'
