@@ -65,8 +65,6 @@ if TYPE_CHECKING:
     import asyncio.base_events
     import pathlib
 
-    from .config.ops import SettingsMap
-
 
 ADMIN_PLACEHOLDER = "<edgedb:admin>"
 logger = logging.getLogger('edb.server')
@@ -81,7 +79,7 @@ class BaseServer:
 
     _tenants_by_sslobj: MutableMapping
 
-    _sys_queries: Mapping[str, str]
+    _sys_queries: Mapping[str, bytes]
     _local_intro_query: bytes
     _global_intro_query: bytes
     _report_config_typedesc: dict[defines.ProtocolVersion, bytes]
@@ -287,7 +285,7 @@ class BaseServer:
         if conn is not None:
             conn.cancel(secret)
 
-    def _get_sys_config(self) -> SettingsMap:
+    def _get_sys_config(self) -> Mapping[str, config.SettingValue]:
         raise NotImplementedError
 
     async def init(self):
@@ -728,7 +726,10 @@ class BaseServer:
             raise StartupError(f"Cannot load TLS certificates - {e}") from e
 
         def sni_callback(sslobj, server_name, _sslctx):
-            self._tenants_by_sslobj[sslobj] = self._get_tenant(server_name)
+            try:
+                self._tenants_by_sslobj[sslobj] = self._get_tenant(server_name)
+            except Exception:
+                pass
 
         sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
         sslctx.sni_callback = sni_callback
@@ -966,7 +967,7 @@ class Server(BaseServer):
 
         tenant.set_server(self)
 
-    def _get_sys_config(self) -> SettingsMap:
+    def _get_sys_config(self) -> Mapping[str, config.SettingValue]:
         return self._tenant.get_sys_config()
 
     async def init(self) -> None:

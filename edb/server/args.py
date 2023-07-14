@@ -175,6 +175,7 @@ class ServerConfig(NamedTuple):
     backend_adaptive_ha: bool
     tenant_id: Optional[str]
     ignore_other_tenants: bool
+    multitenant_config_file: Optional[pathlib.Path]
     log_level: str
     log_to: str
     bootstrap_only: bool
@@ -573,6 +574,11 @@ _server_options = [
         help='If set, the server will ignore the presence of another tenant '
              'in the database instance in single-tenant mode instead of '
              'exiting with a catalog incompatibility error.'
+    ),
+    click.option(
+        '--multitenant-config-file', type=PathPath(), metavar="PATH",
+        envvar="EDGEDB_SERVER_MULTITENANT_CONFIG_FILE",
+        hidden=True,
     ),
     click.option(
         '-l', '--log-level',
@@ -1146,11 +1152,13 @@ def parse_args(**kwargs: Any):
             abort('--temp-dir is incompatible with --runstate-dir')
         if kwargs['backend_dsn']:
             abort('--temp-dir is incompatible with --backend-dsn')
+        if kwargs['multitenant_config_file']:
+            abort('--temp-dir is incompatible with --multitenant-config-file')
         kwargs['data_dir'] = kwargs['runstate_dir'] = pathlib.Path(
             tempfile.mkdtemp())
     else:
         if not kwargs['data_dir']:
-            if kwargs['backend_dsn']:
+            if kwargs['backend_dsn'] or kwargs['multitenant_config_file']:
                 pass
             elif devmode.is_in_dev_mode():
                 data_dir = devmode.get_dev_mode_data_dir()
@@ -1164,6 +1172,9 @@ def parse_args(**kwargs: Any):
                       'backend cluster using the --backend-dsn argument')
         elif kwargs['backend_dsn']:
             abort('The -D and --backend-dsn options are mutually exclusive.')
+        elif kwargs['multitenant_config_file']:
+            abort('The -D and --multitenant-config-file options '
+                  'are mutually exclusive.')
 
     if kwargs['tls_key_file'] and not kwargs['tls_cert_file']:
         abort('When --tls-key-file is set, --tls-cert-file must also be set.')
@@ -1246,6 +1257,38 @@ def parse_args(**kwargs: Any):
             f"JWT key file \"{kwargs['jws_key_file']}\""
             " is not a regular file"
         )
+
+    if kwargs['multitenant_config_file']:
+        for name in (
+            "tenant_id",
+            "backend_dsn",
+            "startup_script",
+            "instance_name",
+            "max_backend_connections",
+            "readiness_state_file",
+            "jwt_sub_allowlist_file",
+            "jwt_revocation_list_file",
+        ):
+            if kwargs.get(name):
+                opt = "--" + name.replace("_", "-")
+                abort(f"The {opt} and --multitenant-config-file options "
+                      f"are mutually exclusive.")
+        if (
+            kwargs["tls_cert_file"]
+            and "<runstate>" in str(kwargs["tls_cert_file"])
+        ):
+            abort("must specify --tls-cert-file in multi-tenant mode")
+        if kwargs['tls_cert_mode'] is not ServerTlsCertMode.RequireFile:
+            abort("must use --tls-cert-mode=require_file in multi-tenant mode")
+        if (
+            kwargs['jws_key_file']
+            and "<runstate>" in str(kwargs['jws_key_file'])
+        ):
+            abort("must specify --jws-key-file in multi-tenant mode")
+        if kwargs['jose_key_mode'] is not JOSEKeyMode.RequireFile:
+            abort("must use --jose-key-mode=require_file in multi-tenant mode")
+        if kwargs['compiler_pool_mode'] is not CompilerPoolMode.Remote:
+            abort("must use --compiler-pool-mode=remote in multi-tenant mode")
 
     if kwargs['log_level']:
         kwargs['log_level'] = kwargs['log_level'].lower()[0]

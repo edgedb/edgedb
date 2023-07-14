@@ -55,7 +55,6 @@ if TYPE_CHECKING:
 
     from . import pgcluster
     from . import server as edbserver
-    from .config.ops import SettingsMap
 
 
 logger = logging.getLogger("edb.server")
@@ -109,7 +108,7 @@ class Tenant(ha_base.ClusterProtocol):
     _jwt_revocation_list_file: pathlib.Path | None
     _jwt_revocation_list: frozenset[str] | None
 
-    _internal_runstate_dir: str
+    _internal_runstate_dir: str | None
     _compiler_pool: compiler_pool.AbstractPool
     _compiler_pool_size: int
     _compiler_pool_mode: srvargs.CompilerPoolMode
@@ -125,7 +124,7 @@ class Tenant(ha_base.ClusterProtocol):
         readiness_state_file: str | None = None,
         jwt_sub_allowlist_file: pathlib.Path | None = None,
         jwt_revocation_list_file: pathlib.Path | None = None,
-        internal_runstate_dir: str,
+        internal_runstate_dir: str | None = None,
         compiler_pool_size: int,
         compiler_pool_mode: srvargs.CompilerPoolMode,
         compiler_pool_addr: tuple[str, int],
@@ -274,7 +273,7 @@ class Tenant(ha_base.ClusterProtocol):
     def get_readiness_reason(self) -> str:
         return self._readiness_reason
 
-    def get_sys_config(self) -> SettingsMap:
+    def get_sys_config(self) -> Mapping[str, config.SettingValue]:
         assert self._dbindex is not None
         return self._dbindex.get_sys_config()
 
@@ -321,8 +320,8 @@ class Tenant(ha_base.ClusterProtocol):
 
     async def init_sys_pgcon(self) -> None:
         self._initing = True
-        self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
         self._sys_pgcon_waiter = asyncio.Lock()
+        self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
         self._sys_pgcon_ready_evt = asyncio.Event()
         self._sys_pgcon_reconnect_evt = asyncio.Event()
 
@@ -778,7 +777,7 @@ class Tenant(ha_base.ClusterProtocol):
 
     async def introspect_db_config(
         self, conn: pgcon.PGConnection
-    ) -> SettingsMap:
+    ) -> Mapping[str, config.SettingValue]:
         result = await conn.sql_fetch_val(
             self._server.get_sys_query("dbconfig")
         )
@@ -955,7 +954,7 @@ class Tenant(ha_base.ClusterProtocol):
     async def _load_sys_config(
         self,
         query_name: str = "sysconfig",
-    ) -> SettingsMap:
+    ) -> Mapping[str, config.SettingValue]:
         async with self.use_sys_pgcon() as syscon:
             query = self._server.get_sys_query(query_name)
             sys_config_json = await syscon.sql_fetch_val(query)
@@ -1386,7 +1385,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._compiler_pool = await compiler_pool.create_compiler_pool(**args)
 
     async def destroy_compiler_pool(self):
-        if self._compiler_pool is not None:
+        if hasattr(self, "_compiler_pool"):
             await self._compiler_pool.stop()
             del self._compiler_pool
 
