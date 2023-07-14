@@ -78,8 +78,7 @@ class StartupError(Exception):
 
 
 class BaseServer:
-
-    _sys_queries: Mapping[str, str]
+    _sys_queries: Mapping[str, bytes]
     _local_intro_query: bytes
     _global_intro_query: bytes
     _report_config_typedesc: dict[defines.ProtocolVersion, bytes]
