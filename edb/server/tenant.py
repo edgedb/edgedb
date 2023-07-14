@@ -299,8 +299,8 @@ class Tenant(ha_base.ClusterProtocol):
         self._roles = immutables.Map(roles)
 
     async def init_sys_pgcon(self) -> None:
-        self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
         self._sys_pgcon_waiter = asyncio.Lock()
+        self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
         self._sys_pgcon_ready_evt = asyncio.Event()
         self._sys_pgcon_reconnect_evt = asyncio.Event()
 
