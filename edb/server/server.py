@@ -32,7 +32,6 @@ import ssl
 import stat
 import time
 import uuid
-import weakref
 
 import immutables
 from jwcrypto import jwk
@@ -75,10 +74,7 @@ class StartupError(Exception):
 
 
 class BaseServer:
-
-    _tenants_by_sslobj: MutableMapping
-
-    _sys_queries: Mapping[str, str]
+    _sys_queries: Mapping[str, bytes]
     _local_intro_query: bytes
     _global_intro_query: bytes
     _report_config_typedesc: dict[defines.ProtocolVersion, bytes]
@@ -171,7 +167,6 @@ class BaseServer:
         self._tls_cert_newly_generated = False
         self._sslctx = None
         self._sslctx_pgext = None
-        self._tenants_by_sslobj = weakref.WeakKeyDictionary()
 
         self._jws_key: jwk.JWK | None = None
         self._jws_keys_newly_generated = False

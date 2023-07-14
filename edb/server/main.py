@@ -28,6 +28,8 @@ import logging
 import os
 import os.path
 import pathlib
+
+import immutables
 import resource
 import signal
 import sys
@@ -441,7 +443,10 @@ async def run_server(
     server = server_mod
 
     logger.info(f"starting EdgeDB server {buildmeta.get_version_line()}")
-    logger.info(f'instance name: {args.instance_name!r}')
+    if args.multitenant_config_file:
+        logger.info("configured as a multitenant instance")
+    else:
+        logger.info(f'instance name: {args.instance_name!r}')
     if devmode.is_in_dev_mode():
         logger.info(f'development mode active')
 
@@ -513,6 +518,25 @@ async def run_server(
                 exit_code=11,
             )
 
+        if args.multitenant_config_file:
+            from . import multitenant
+
+            try:
+                sys_config, backend_settings = initialize_static_cfg(
+                    args, is_remote_cluster=True
+                )
+                return await multitenant.run_server(
+                    args,
+                    sys_config=sys_config,
+                    backend_settings=backend_settings,
+                    runstate_dir=runstate_dir,
+                    compiler_pool_size=args.compiler_pool_size,
+                    compiler_pool_addr=args.compiler_pool_addr,
+                    do_setproctitle=do_setproctitle,
+                )
+            except server.StartupError as e:
+                abort(str(e))
+
         try:
             if args.data_dir:
                 cluster, args = await _get_local_pgcluster(
@@ -556,12 +580,9 @@ async def run_server(
 
             new_instance = await _init_cluster(cluster, args)
 
-            cfg, backend_settings = initialize_static_cfg(
+            _, backend_settings = initialize_static_cfg(
                 args, is_remote_cluster=not is_local_cluster
             )
-            if cfg:
-                from . import pgcon
-                pgcon.set_init_con_script_data(cfg)
 
             if is_local_cluster and (new_instance or backend_settings):
                 logger.info('Restarting server to reload configuration...')
@@ -750,12 +771,17 @@ def _coerce_cfg_value(setting: config.Setting, value):
 def initialize_static_cfg(
     args: srvargs.ServerConfig,
     is_remote_cluster: bool,
-) -> Tuple[List[Dict[str, Any]], Dict[str, str]]:
-    result = []
+) -> Tuple[Mapping[str, config.SettingValue], Dict[str, str]]:
+    result = {}
+    init_con_script_data = []
     backend_settings = {}
     command_line_argument = "A"
     environment_variable = "E"
     spec = config.get_settings()
+    sources = {
+        command_line_argument: "command line argument",
+        environment_variable: "environment variable",
+    }
 
     def add_config(name, value, type_):
         setting = spec[name]
@@ -770,11 +796,17 @@ def initialize_static_cfg(
                     f"a remote Postgres cluster"
                 )
         value = _coerce_cfg_value(setting, value)
-        result.append({
+        init_con_script_data.append({
             "name": name,
             "value": config.value_to_json_value(setting, value),
             "type": type_,
         })
+        result[name] = config.SettingValue(
+            name=name,
+            value=value,
+            source=sources[type_],
+            scope=config.ConfigScope.INSTANCE,
+        )
         if setting.backend_setting:
             if isinstance(value, statypes.ScalarType):
                 value = value.to_backend_str()
@@ -822,7 +854,11 @@ def initialize_static_cfg(
     if args.port:
         add_config("listen_port", args.port, command_line_argument)
 
-    return result, backend_settings
+    if init_con_script_data:
+        from . import pgcon
+        pgcon.set_init_con_script_data(init_con_script_data)
+
+    return immutables.Map(result), backend_settings
 
 
 if __name__ == '__main__':

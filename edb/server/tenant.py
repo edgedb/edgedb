@@ -108,7 +108,7 @@ class Tenant(ha_base.ClusterProtocol):
     _jwt_revocation_list_file: pathlib.Path | None
     _jwt_revocation_list: frozenset[str] | None
 
-    _internal_runstate_dir: str
+    _internal_runstate_dir: str | None
     _compiler_pool: compiler_pool.AbstractPool
     _compiler_pool_size: int
     _compiler_pool_mode: srvargs.CompilerPoolMode
@@ -124,7 +124,7 @@ class Tenant(ha_base.ClusterProtocol):
         readiness_state_file: str | None = None,
         jwt_sub_allowlist_file: pathlib.Path | None = None,
         jwt_revocation_list_file: pathlib.Path | None = None,
-        internal_runstate_dir: str,
+        internal_runstate_dir: str | None = None,
         compiler_pool_size: int,
         compiler_pool_mode: srvargs.CompilerPoolMode,
         compiler_pool_addr: tuple[str, int],
@@ -320,8 +320,8 @@ class Tenant(ha_base.ClusterProtocol):
 
     async def init_sys_pgcon(self) -> None:
         self._initing = True
-        self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
         self._sys_pgcon_waiter = asyncio.Lock()
+        self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
         self._sys_pgcon_ready_evt = asyncio.Event()
         self._sys_pgcon_reconnect_evt = asyncio.Event()
 
