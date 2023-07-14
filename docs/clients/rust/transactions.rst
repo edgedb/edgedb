@@ -3,18 +3,20 @@
 Transactions
 ------------
 
-The client also has a ``.transaction()`` method that allows for atomic `transactions`_.
+The client also has a ``.transaction()`` method that
+allows for atomic `transactions`_.
 
-Wikipedia has a good example of a scenario requiring a transaction which we can 
-then implement:
+Wikipedia has a good example of a scenario requiring a transaction which we
+can then implement:
 
 .. pull-quote::
 
-  An example of an atomic transaction is a monetary transfer from bank account A
-  to account B. It consists of two operations, withdrawing the money from 
-  account A and saving it to account B. Performing these operations in an atomic
-  transaction ensures that the database remains in a consistent state, that is,
-  money is neither lost nor created if either of those two operations fails.
+  An example of an atomic transaction is a monetary transfer from bank account
+  A to account B. It consists of two operations, withdrawing the money from 
+  account A and saving it to account B. Performing these operations in
+  an atomic transaction ensures that the database remains in a consistent
+  state, that is, money is neither lost nor created if either of those two
+  operations fails.
 
 A transaction removing 10 cents from one customer's account and placing it in
 another's would look like this:

@@ -6,8 +6,8 @@ Getting started
 From examples repo
 ------------------
 
-If you just want a working repo to get started, clone the 
-`Rust client examples repo`_, type ``edgedb project init`` to start an EdgeDB
+If you just want a working repo to get started, clone the Rust client 
+`examples repo`_, type ``edgedb project init`` to start an EdgeDB
 project, and then ``cargo run`` to run the samples.
 
 This tutorial contains a lot of similar examples to those found in the
@@ -81,7 +81,8 @@ It will look something like this:
   No `edgedb.toml` found in `\\?\C:\rust\my_db` or above
   Do you want to initialize a new project? [Y/n]
   > Y
-  Specify the name of EdgeDB instance to use with this project [default: my_db]:
+  Specify the name of EdgeDB instance to use 
+  with this project [default: my_db]:
   > my_db
   Checking EdgeDB versions...
   Specify the version of EdgeDB to use with this project [default: 3.0]:
@@ -134,4 +135,4 @@ you can create a client.
 .. _`edgedb-protocol`: https://docs.rs/edgedb-protocol/latest/edgedb_protocol
 .. _`edgedb-tokio`: https://docs.rs/edgedb-tokio/latest/edgedb_tokio
 .. _`edgedb watch`: https://www.edgedb.com/docs/cli/edgedb_watch
-.. _`Rust client examples repo`: https://github.com/Dhghomon/edgedb_rust_client_examples
+.. _`examples repo`: https://github.com/Dhghomon/edgedb_rust_client_examples

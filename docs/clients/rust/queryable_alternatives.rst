@@ -9,7 +9,7 @@ Rust, but some alternatives exist.
 The ``Value`` enum
 ------------------
 
-The `Value`_ enum can be found in the edgedb-protocol crate. A ``Value``
+The ``Value`` enum can be found in the `edgedb-protocol`_ crate. A ``Value``
 represents anything returned from EdgeDB. This means you can always return
 a ``Value`` from any of the query methods without needing to deserialize
 into a Rust type, and the enum can be instructive in getting to know
@@ -42,7 +42,8 @@ return an error as it receives a ``20``, which is an ``i32``:
 
   let query = "select <bigint>$0";
   let arg = 20;
-  let query_res: Result<Value, _> = client.query_required_single(query, &(arg,)).await;
+  let query_res: Result<Value, _> = 
+      client.query_required_single(query, &(arg,)).await;
   assert!(format!("{query_res:?}").contains("expected std::int32"));
 
 Instead, first construct a ``BigInt`` from the ``i32`` and pass that in
@@ -54,7 +55,8 @@ as an argument:
 
   let query = "select <bigint>$0";
   let arg = BigInt::from(20);
-  let query_res: Result<Value, _> = client.query_required_single(query, &(arg,)).await;
+  let query_res: Result<Value, _> = 
+      client.query_required_single(query, &(arg,)).await;
   assert_eq!(
       format!("{query_res:?}"),
       "Ok(BigInt(BigInt { negative: false, weight: 0, digits: [20] }))"
@@ -95,4 +97,4 @@ into a struct using ``serde`` and ``serde_json``, etc.
   let as_account: Account = serde_json::from_str(&json_res)?;
 
 
-.. _`Value`: https://docs.rs/edgedb-protocol/latest/edgedb_protocol/value/enum.Value.html
+.. _`edgedb-protocol`: https://docs.rs/edgedb-protocol
