@@ -119,10 +119,10 @@ def compile_cast(
         return _cast_tuple(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
-    if isinstance(orig_stype, s_types.Array) and not s_types.is_type_compatible(
-        orig_stype, new_stype, schema=ctx.env.schema
-    ):
-        if (
+    if isinstance(orig_stype, s_types.Array):
+        if not s_types.is_type_compatible(
+            orig_stype, new_stype, schema=ctx.env.schema
+        ) and (
             not isinstance(new_stype, s_types.Array)
             and isinstance(
                 (el_type := orig_stype.get_subtypes(ctx.env.schema)[0]),
@@ -133,16 +133,23 @@ def compile_cast(
             # the right cast we want to reduce orig_stype to an array of the
             # built-in base type as that's what the cast will actually
             # expect.
-            ir_set = _cast_to_base_array(ir_set, el_type, orig_stype, ctx=ctx)
+            ir_set = _cast_to_base_array(
+                ir_set, el_type, orig_stype, ctx=ctx)
 
         return _cast_array(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
-    if orig_stype.is_range() and not s_types.is_type_compatible(
-        orig_stype, new_stype, schema=ctx.env.schema
-    ):
-        return _cast_range(
-            ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
+    if orig_stype.is_range():
+        if s_types.is_type_compatible(
+            orig_stype, new_stype, schema=ctx.env.schema
+        ):
+            # Casting between compatible types is unnecessary. It is important
+            # to catch things like RangeExprAlias and Range being of the same
+            # type and not neding a cast.
+            return ir_set
+        else:
+            return _cast_range(
+                ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
     if orig_stype.issubclass(ctx.env.schema, new_stype):
         # The new type is a supertype of the old type,
