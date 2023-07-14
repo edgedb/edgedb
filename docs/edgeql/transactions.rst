@@ -28,8 +28,8 @@ of several commands:
   discarded.
 
 :eql:stmt:`commit`
-  Commit the transaction. All changes made by the transaction become visible to
-  others and will persist if a crash occurs.
+  Commit the transaction. All changes made by the transaction become visible 
+  to others and will persist if a crash occurs.
 
 
 Client libraries

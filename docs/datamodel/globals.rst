@@ -106,7 +106,7 @@ which client library you're using.
 
     use uuid::Uuid;
 
-    let client = edgedb_tokio::create_client().await.expect("Client should init");
+    let client = edgedb_tokio::create_client().await.expect("Client init");
 
     let client_with_globals = client.with_globals_fn(|c| {
         c.set(
@@ -125,7 +125,8 @@ which client library you're using.
 
   .. code-tab:: edgeql
 
-    set global current_user_id := <uuid>'2141a5b4-5634-4ccc-b835-437863534c51';
+    set global current_user_id := 
+      <uuid>'2141a5b4-5634-4ccc-b835-437863534c51';
 
 
 Cardinality
