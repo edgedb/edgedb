@@ -78,19 +78,18 @@ Using the querybuilder:
 
 .. code-block:: typescript
 
-  const query1 = e.update(e.BankCustomer, {
+  const query1 = e.update(e.BankCustomer, () => ({
     filter_single: { name: "Customer1" },
     set: {
       bank_balance: { "-=":  10 }
     },
-  });
-
-  const query2 = e.update(e.BankCustomer, {
+  }));
+  const query2 = e.update(e.BankCustomer, () => ({
     filter_single: { name: "Customer2" },
     set: {
       bank_balance: { "+=":  10 }
     },
-  });
+  }));
 
   client.transaction(async (tx) => {
     await query1.run(tx);
