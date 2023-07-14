@@ -18,29 +18,15 @@ interface.
 
 .. edb:youtube-embed:: IG1MggUzzH4
 
-Usage
-=====
 
+CLI Cloud Interface
+===================
 
-1. Log in
----------
-
-To use the CLI with EdgeDB Cloud, start by running
-:ref:`ref_cli_edgedb_cloud_login`. This will open a browser and allow you to
-log in to EdgeDB Cloud.
-
-.. note::
-
-    During the Cloud beta, you will only be able to successfully complete
-    authentication if you have been invited to the beta.
-
-
-2. Create an instance
----------------------
-
-Once your login is complete, you may use the other CLI commands to create and
-interact with Cloud instances. To create an Cloud instance, you can use one of
-these commands:
+To use Cloud via the CLI, first log in using :ref:`ref_cli_edgedb_cloud_login`.
+Once your login is successful, you will be able to create an instance using
+either :ref:`ref_cli_edgedb_instance_create` or
+:ref:`ref_cli_edgedb_project_init`, depending on whether you also want to
+create a local project linked to your instance.
 
 * :ref:`ref_cli_edgedb_instance_create` with an instance name of
   ``<github-username>/<instance-name>``.
@@ -60,43 +46,6 @@ these commands:
   Alternatively, you can run ``edgedb project init`` *without* the
   ``--server-instance`` option and enter an instance name in the
   ``<github-username>/<instance-name>`` format when prompted interactively.
-
-.. note::
-
-    Please be aware of the following restrictions on EdgeDB Cloud instance
-    names:
-
-    * can contain only Latin alpha-numeric characters or ``-``
-    * cannot start with a dash (``-``) or contain double dashes (``--``)
-    * maximum instance name length is 61 characters minus the length of your
-      GitHub username (i.e., length of GitHub username + length of instance
-      name must be fewer than 62 characters)
-
-
-
-3. Configure your application
------------------------------
-
-For your production deployment, generate a dedicated secret key for your
-instance with :ref:`ref_cli_edgedb_cloud_secretkey_create`. Create two
-environment variables accessible to your production application:
-
-* ``EDGEDB_SECRET_KEY``- contains the secret key you generated
-* ``EDGEDB_INSTANCE``- the name of your EdgeDB Cloud instance
-  (``<github-username>/<instance-name>``)
-
-
-CLI Cloud Interface
-===================
-
-To use Cloud via the CLI, first log in using :ref:`ref_cli_edgedb_cloud_login`.
-Once your login is successful, you will be able to create an instance using
-either :ref:`ref_cli_edgedb_instance_create` or
-:ref:`ref_cli_edgedb_project_init`, depending on whether you also want to
-create a local project linked to your instance.
-
-In either case, you will pass an instance name matching the EdgeDB Cloud
-instance name format: ``<github-username>/<instance-name>``
 
 .. note::
 
@@ -159,6 +108,19 @@ UI.
 
 You'll be able to access a REPL, edit complex queries or build them
 graphically, inspect your schema, and browse your data.
+
+
+Deploying your application
+==========================
+
+For your production deployment, generate a dedicated secret key for your
+instance with :ref:`ref_cli_edgedb_cloud_secretkey_create` or via the web UI's
+"Secret Keys" pane in your instance dashboard. Create two environment variables
+accessible to your production application:
+
+* ``EDGEDB_SECRET_KEY``- contains the secret key you generated
+* ``EDGEDB_INSTANCE``- the name of your EdgeDB Cloud instance
+  (``<github-username>/<instance-name>``)
 
 
 Questions? Problems? Bugs?
