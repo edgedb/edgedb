@@ -312,6 +312,7 @@ std::__range_validate_json(v: std::json) -> std::json
     USING SQL $$
     SELECT
         CASE
+        WHEN v = 'null'::jsonb THEN NULL
         WHEN
             empty
             AND (lower IS DISTINCT FROM upper
