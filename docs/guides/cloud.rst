@@ -16,6 +16,8 @@ EdgeDB Cloud is the easiest way to host your EdgeDB instance. We offer two ways
 to interact with EdgeDB Cloud: via our CLI or through a graphical web
 interface.
 
+.. edb:youtube-embed:: IG1MggUzzH4
+
 Usage
 =====
 
