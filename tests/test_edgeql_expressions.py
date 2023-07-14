@@ -3543,6 +3543,15 @@ class TestExpressions(tb.QueryTestCase):
             [[{"bar": 2, "foo": 1}]],
         )
 
+    async def test_edgeql_expr_array_26(self):
+        await self.assert_query_result(
+            r'''
+            with x := [1]
+            select <array<int64>>x;
+            ''',
+            [[1]],
+        )
+
     async def test_edgeql_expr_coalesce_01(self):
         await self.assert_query_result(
             r'''SELECT <int64>{} ?? 4 ?? 5;''',
@@ -6686,6 +6695,22 @@ aa \
                 ]
             ],
             json_only=True,
+        )
+
+    async def test_edgeql_expr_range_40(self):
+        # test casting aliased range expr into range
+        await self.assert_query_result(
+            '''
+            with x := range(1, 2)
+            select <range<int64>>x
+            ''',
+            [{
+                "lower": 1,
+                "inc_lower": True,
+                "upper": 2,
+                "inc_upper": False,
+            }],
+            json_only=True
         )
 
     async def test_edgeql_expr_cannot_assign_id_01(self):
