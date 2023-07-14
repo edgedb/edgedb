@@ -90,14 +90,14 @@ def _rewrite_names_in_sql(text: str, schema: s_schema.Schema) -> str:
     }
 
     # Find all the uuids and try to rewrite them.
-    for m in uuidgen.UUID_RE.findall(text):
+    for m in set(uuidgen.UUID_RE.findall(text)):
         uid = uuid.UUID(m)
         sobj = schema.get_by_id(uid, default=None)
         if not sobj:
             sobj = func_map.get(uid)
         if sobj:
             s = _obj_to_name(sobj, schema)
-            text = uuidgen.UUID_RE.sub(s, text, count=1)
+            text = text.replace(m, s)
 
     return text
 
