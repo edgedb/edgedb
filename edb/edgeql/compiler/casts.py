@@ -742,17 +742,18 @@ def _cast_json_to_range(
 
     with ctx.new() as subctx:
         subctx.anchors = subctx.anchors.copy()
-        source_anchor = subctx.create_anchor(ir_set, 'a')
+        source_path = subctx.create_anchor(ir_set, 'a')
+        check = qlast.FunctionCall(
+            func=('__std__', '__range_validate_json'), args=[source_path]
+        )
+        check_ir = dispatch.compile(check, ctx=subctx)
+        source_path = subctx.create_anchor(check_ir, 'b')
 
         range_el_t = new_stype.get_element_type(ctx.env.schema)
         ql_range_el_t = typegen.type_to_ql_typeref(range_el_t, ctx=subctx)
         bool_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'bool'))
         ql_bool_t = typegen.type_to_ql_typeref(bool_t, ctx=subctx)
 
-        check = qlast.FunctionCall(
-            func=('__std__', '__range_validate_json'), args=[source_anchor]
-        )
-        source_path = qlast.Path(steps=[qlast.ObjectRef(name='__range__')])
         cast = qlast.FunctionCall(
             func=('__std__', 'range'),
             args=[
@@ -835,11 +836,7 @@ def _cast_json_to_range(
             }
         )
 
-        for_query = qlast.ForQuery(
-            iterator=check, iterator_alias='__range__', result=cast
-        )
-
-        return dispatch.compile(for_query, ctx=subctx)
+        return dispatch.compile(cast, ctx=subctx)
 
 
 def _cast_to_base_array(
