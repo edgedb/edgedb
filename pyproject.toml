@@ -36,7 +36,7 @@ test = [
     # For rebuilding GHA workflows
     'Jinja2~=2.11',
     'MarkupSafe~=1.1',
-    'PyYAML~=5.4',
+    'PyYAML~=6.0',
 
     'mypy==1.0.0',
     # mypy stub packages; when updating, you can use mypy --install-types
