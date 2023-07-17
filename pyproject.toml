@@ -19,6 +19,7 @@ dependencies = [
     'setproctitle~=1.2',
 
     'httpx~=0.24.1',
+    'respx~=0.20.1',
 ]
 
 [project.optional-dependencies]

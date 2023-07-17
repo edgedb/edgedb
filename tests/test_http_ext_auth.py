@@ -18,6 +18,7 @@
 
 
 import os
+import respx
 
 import edgedb
 
@@ -25,10 +26,18 @@ from edb.testbase import http as tb
 
 
 class TestHttpExtAuth(tb.ExtAuthTestCase):
-    def test_http_ext_auth_hello_01(self):
-        with self.http_con() as con:
+    @respx.mock
+    async def test_http_ext_auth_hello_01(self):
+        with self.http_con() as http_con:
+            await self.con.query(
+                """
+                CONFIGURE SESSION SET xxx_auth_signing_key := <str>$key;
+                """,
+                key=('a' * 32),
+            )
             data, headers, status = self.http_con_request(
-                con, {}, path='')
+                http_con, {}, path='/authorize?provider=github'
+            )
 
             self.assertEqual(status, 200)
             self.assertIn(b'Hello world', data)

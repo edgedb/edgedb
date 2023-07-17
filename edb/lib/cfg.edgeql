@@ -220,6 +220,14 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
         CREATE CONSTRAINT std::min_value(1);
         SET default := 100;
     };
+
+    CREATE PROPERTY xxx_auth_signing_key -> std::str {
+        CREATE ANNOTATION cfg::system := 'true';
+        CREATE ANNOTATION std::description :=
+            'The signing key used for auth extension. Must be at \
+            least 32 characters long.';
+        CREATE CONSTRAINT std::min_len_value(32);
+    };
 };
 
 

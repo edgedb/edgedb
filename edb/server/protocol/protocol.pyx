@@ -546,7 +546,7 @@ cdef class HttpProtocol:
                     )
                 elif extname == 'auth':
                     await auth_ext.handle_request(
-                        request, response, db, args[1:], self.server
+                        request, response, db, args[1:]
                     )
 
         elif route == 'auth':

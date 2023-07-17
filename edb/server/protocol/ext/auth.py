@@ -16,7 +16,6 @@
 # limitations under the License.
 #
 
-
 import http
 import json
 import urllib.parse
@@ -28,9 +27,7 @@ from jwcrypto import jwt, jwk
 from edb import errors
 from edb.common import debug
 from edb.common import markup
-from edb.server.server import Server
 from edb.server.protocol import execute
-
 
 # Base class for OAuth 2 Providers
 class BaseProvider:
@@ -59,21 +56,18 @@ async def redirect_to_auth_provider(request, response, secretkey: jwk.JWK):
         "", # TODO: Get client_id from server config
         "", # TODO: Get client_secret from server config
     )
-    redirect_url = request.query.get("referrer")
     expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
     state_claims = {
         "iss": request.headers.get("host"),
         "provider": provider_name,
-        "referrer": redirect_url,
         "exp": expires_at.astimezone().timestamp(),
     }
     state_token = jwt.JWT(
-        key=secretkey,
         algs=["HS256"],
         claims=state_claims,
     )
     state_token.make_signed_token(secretkey)
-    auth_url = provider.get_code_url(state=state_token.serialize())
+    auth_url = await provider.get_code_url(state=state_token.serialize())
     response.status = http.HTTPStatus.FOUND
     response.headers["Location"] = auth_url
     response.close_connection = True
@@ -83,7 +77,7 @@ async def handle_auth_callback(request, response):
     return
 
 
-async def handle_request(request, response, db, args, server: Server):
+async def handle_request(request, response, db, args):
     try:
         # Set up routing to the appropriate handler
         if args[0] == "authorize":
@@ -176,7 +170,7 @@ async def _get_auth_signing_key(db):
         "SELECT cfg::Config.xxx_auth_signing_key"
     )
     if key_json is None:
-        raise errors.InternalServerError("no JWS key configured")
+        raise errors.InternalServerError("No auth signing key configured: Please set `cfg::Config.xxx_auth_signing_key`")
     auth_signing_key = json.loads(key_json)
     key_bytes = base64.urlsafe_b64encode(auth_signing_key).rstrip(b'=')
     return jwk.JWK(kty="oct", k=key_bytes)
