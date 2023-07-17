@@ -22,11 +22,14 @@ import json
 import urllib.parse
 import httpx
 import datetime
+import base64
 
 from jwcrypto import jwt, jwk
 from edb import errors
 from edb.common import debug
 from edb.common import markup
+from edb.server.server import Server
+from edb.server.protocol import execute
 
 
 # Base class for OAuth 2 Providers
@@ -80,12 +83,12 @@ async def handle_auth_callback(request, response):
     return
 
 
-async def handle_request(request, response, db, args, server):
+async def handle_request(request, response, db, args, server: Server):
     try:
         # Set up routing to the appropriate handler
         if args[0] == "authorize":
-            # Get provider name from request parameters
-            await redirect_to_auth_provider(request, response)
+            signing_key = await _get_auth_signing_key(db)
+            await redirect_to_auth_provider(request, response, signing_key)
         elif args[0] == "callback":
             await handle_auth_callback(request, response)
         else:
@@ -166,3 +169,14 @@ def _get_provider(name, client_id, client_secret):
     if provider_class is None:
         raise errors.InternalServerError(f"unknown provider: {name}")
     return provider_class(client_id, client_secret)
+
+async def _get_auth_signing_key(db):
+    key_json = await execute.parse_execute_json(
+        db,
+        "SELECT cfg::Config.xxx_auth_signing_key"
+    )
+    if key_json is None:
+        raise errors.InternalServerError("no JWS key configured")
+    auth_signing_key = json.loads(key_json)
+    key_bytes = base64.urlsafe_b64encode(auth_signing_key).rstrip(b'=')
+    return jwk.JWK(kty="oct", k=key_bytes)
