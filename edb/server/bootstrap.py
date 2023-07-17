@@ -801,21 +801,23 @@ def prepare_patch(
 
         # Similarly, only do config system updates if requested.
         if '+config' in kind:
-            config_spec = config.load_spec_from_schema(schema)
-            sysqueries, report_configs_typedesc = _compile_sys_queries(
-                reflschema,
-                compiler,
-                config_spec,
-            )
-
-            updates.update(dict(
-                sysqueries=sysqueries.encode('utf-8'),
-                report_configs_typedesc=report_configs_typedesc,
-                configspec=config.spec_to_json(config_spec).encode('utf-8'),
-            ))
-
             support_view_commands.add_command(
                 metaschema.get_config_views(schema))
+
+        # Though we always update the instdata for the config system,
+        # because it is currently the most convenient way to make sure
+        # all the versioned fields get updated.
+        config_spec = config.load_spec_from_schema(schema)
+        sysqueries, report_configs_typedesc = _compile_sys_queries(
+            reflschema,
+            compiler,
+            config_spec,
+        )
+        updates.update(dict(
+            sysqueries=sysqueries.encode('utf-8'),
+            report_configs_typedesc=report_configs_typedesc,
+            configspec=config.spec_to_json(config_spec).encode('utf-8'),
+        ))
 
         support_view_commands.generate(subblock)
 
