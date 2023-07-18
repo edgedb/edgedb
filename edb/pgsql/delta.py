@@ -3699,7 +3699,11 @@ class CreateObjectType(ObjectTypeMetaCommand,
             object=objtype_table,
             text=str(objtype.get_verbosename(schema)),
         ))
-        self.create_inhview(schema, context, objtype)
+        # Don't update ancestors yet: no pointers have been added to
+        # the type yet, so this type won't actually be added to any
+        # ancestor views. We'll fix up the ancestors in
+        # _create_finalize.
+        self.create_inhview(schema, context, objtype, alter_ancestors=False)
         return schema
 
     def _create_finalize(self, schema, context):
