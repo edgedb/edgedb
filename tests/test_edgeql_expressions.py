@@ -6538,15 +6538,6 @@ aa \
             r' boolean property'
         ):
             await self.con.execute(r"""
-                select <range<int64>>to_json('null');
-            """)
-
-        async with self.assertRaisesRegexTx(
-            edgedb.InvalidValueError,
-            r'JSON object representing a range must include an "inc_lower"'
-            r' boolean property'
-        ):
-            await self.con.execute(r"""
                 select <range<int64>>to_json('1312');
             """)
 

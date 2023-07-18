@@ -305,13 +305,15 @@ CREATE CAST FROM std::json TO array<anytype> {
 
 
 CREATE FUNCTION
-std::__range_validate_json(v: std::json) -> std::json
+std::__range_validate_json(v: std::json) -> OPTIONAL std::json
 {
     SET volatility := 'Immutable';
     SET internal := true;
     USING SQL $$
     SELECT
         CASE
+        WHEN v = 'null'::jsonb THEN
+            NULL
         WHEN
             empty
             AND (lower IS DISTINCT FROM upper

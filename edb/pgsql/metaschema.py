@@ -359,6 +359,8 @@ class RangeToJsonFunction(dbops.Function):
     text = r'''
         SELECT
             CASE
+            WHEN val IS NULL THEN
+                NULL
             WHEN isempty(val) THEN
                 jsonb_build_object('empty', true)
             ELSE
