@@ -154,6 +154,14 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
             'Whether inserts are allowed to set the \'id\' property.';
     };
 
+    CREATE PROPERTY xxx_auth_signing_key -> std::str {
+        CREATE ANNOTATION std::description :=
+            'The signing key used for auth extension. Must be at \
+            least 32 characters long.';
+        #CREATE CONSTRAINT std::min_len_value(32);
+        SET default := '00000000000000000000000000000000';
+    };
+
     # Exposed backend settings follow.
     # When exposing a new setting, remember to modify
     # the _read_sys_config function to select the value
@@ -219,14 +227,6 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
             connection could hold at the same time.';
         CREATE CONSTRAINT std::min_value(1);
         SET default := 100;
-    };
-
-    CREATE PROPERTY xxx_auth_signing_key -> std::str {
-        CREATE ANNOTATION cfg::system := 'true';
-        CREATE ANNOTATION std::description :=
-            'The signing key used for auth extension. Must be at \
-            least 32 characters long.';
-        CREATE CONSTRAINT std::min_len_value(32);
     };
 };
 

@@ -78,6 +78,7 @@ async def handle_auth_callback(request, response):
 
 
 async def handle_request(request, response, db, args):
+    print("Handling request")
     try:
         # Set up routing to the appropriate handler
         if args[0] == "authorize":

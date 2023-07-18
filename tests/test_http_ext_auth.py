@@ -29,15 +29,20 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     @respx.mock
     async def test_http_ext_auth_hello_01(self):
         with self.http_con() as http_con:
-            await self.con.query(
+            await self.con.execute(
                 """
-                CONFIGURE SESSION SET xxx_auth_signing_key := <str>$key;
-                """,
-                key=('a' * 32),
-            )
-            data, headers, status = self.http_con_request(
-                http_con, {}, path='/authorize?provider=github'
+                CONFIGURE SESSION SET xxx_auth_signing_key := <str>'{0}';
+                """.format("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
             )
 
-            self.assertEqual(status, 200)
+            respx.get("https://github.com/login/oauth/authorize").respond(
+                status_code=200,
+                content=b'Hello world',
+            )
+
+            data, headers, status = self.http_con_request(
+                http_con, {}, path='authorize?provider=github'
+            )
+
             self.assertIn(b'Hello world', data)
+            self.assertEqual(status, 200)
