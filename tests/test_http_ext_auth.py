@@ -19,6 +19,8 @@
 
 import os
 import respx
+import urllib.parse
+import uuid
 
 import edgedb
 
@@ -26,25 +28,33 @@ from edb.common import markup
 from edb.testbase import http as tb
 
 class TestHttpExtAuth(tb.ExtAuthTestCase):
-    @respx.mock
     async def test_http_ext_auth_hello_01(self):
         with self.http_con() as http_con:
+            signing_key = "a" * 32
+            client_id = uuid.uuid4()
+
             await self.con.execute(
                 """
                 CONFIGURE SESSION SET xxx_auth_signing_key := <str>'{0}';
-                """.format("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-            )
-
-            respx.get("https://github.com/login/oauth/authorize").respond(
-                status_code=200,
-                content=b'Hello world',
+                """.format(signing_key)
             )
 
             data, headers, status = self.http_con_request(
-                http_con, { "provider": "github" }, path='authorize'
+                http_con, { "provider": "github" }, path="authorize"
             )
 
-            markup.dump({ "data": data, "headers": headers })
             self.assertEqual(status, 302)
+
             location = headers.get("location")
-            self.assertIn("github.com/login/oauth/authorize", location)
+            assert location is not None
+            url = urllib.parse.urlparse(location)
+            qs = urllib.parse.parse_qs(url.query, keep_blank_values=True)
+            markup.dump({ "url": url, "qs": qs })
+            self.assertEqual(url.scheme, "https")
+            self.assertEqual(url.hostname, "github.com")
+            self.assertEqual(url.path, "/login/oauth/authorize")
+            self.assertEqual(qs.get("scope"), ["read:user"])
+            self.assertIsNotNone(qs.get("state"))
+
+            self.assertEqual(qs.get("redirect_uri"), [f"{self.http_addr}/auth/callback"])
+            self.assertEqual(qs.get("client_id"), [client_id])
