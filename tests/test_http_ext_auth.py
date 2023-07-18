@@ -41,7 +41,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             data, headers, status = self.http_con_request(
-                http_con, {}, path='authorize?provider=github'
+                http_con, { "provider": "github" }, path='authorize'
             )
 
             self.assertIn(b'Hello world', data)
