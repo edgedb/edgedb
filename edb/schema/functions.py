@@ -1666,12 +1666,16 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         if not context.canonical:
             fullname = self.classname
             shortname = sn.shortname_from_fullname(fullname)
-            if others := schema.get_functions(
+            if backend_name := self.get_prespecified_id(
+                    context, id_field='backend_name'):
+                pass
+            elif others := schema.get_functions(
                     sn.QualName(fullname.module, shortname.name), ()):
                 backend_name = others[0].get_backend_name(schema)
             else:
                 backend_name = uuidgen.uuid1mc()
-            self.set_attribute_value('backend_name', backend_name)
+            if not self.has_attribute_value('backend_name'):
+                self.set_attribute_value('backend_name', backend_name)
 
             if (
                 self.has_attribute_value("code")
