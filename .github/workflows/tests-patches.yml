@@ -27,23 +27,35 @@ jobs:
         submodules: true
 
     - name: Set up Python
+      id: python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
 
-    # Build virtualenv
+    - name: Set VIRTUAL_ENV environment
+      run: |
+        VIRTUAL_ENV=~/.virtualenvs
+        mkdir -p $VIRTUAL_ENV
+        echo $VIRTUAL_ENV
+        echo VIRTUAL_ENV=$VIRTUAL_ENV >> $GITHUB_ENV
 
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1
+    - name: Cache python environment
       id: venv-cache
+      uses: actions/cache@v3
       with:
-        requirement_files: |
-          setup.py
-          pyproject.toml
-        custom_cache_key_element: v2
+        path: ${{ env.VIRTUAL_ENV }}
+        key: virtualenv-${{ runner.os }}-${{ env.VIRTUAL_ENV }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
+
+    - name: Create virtualenv if none exists
+      if: steps.venv-cache.outputs.cache-hit != 'true'
+      run: python -m venv $VIRTUAL_ENV
+
+    - name: Activate virtualenv
+      run: |
+        source $VIRTUAL_ENV/bin/activate
+        pip list
 
     - name: Install Python dependencies
-      if: steps.venv-cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
         set -e
@@ -52,6 +64,7 @@ jobs:
         readarray -t build_deps < <(python -c "${bdeps_script}")
         python -m pip download --dest=$VIRTUAL_ENV/deps "${build_deps[@]}" .[test]
         python -m pip install -U --no-index --find-links=$VIRTUAL_ENV/deps $VIRTUAL_ENV/deps/*
+        pip list
 
     # Prepare environment variables and shared artifacts
 
@@ -284,8 +297,9 @@ jobs:
     # Install edgedb-server and populate egg-info
 
     - name: Install edgedb-server and populate egg-info
+      if: steps.venv-cache.outputs.cache-hit != 'true'
       env:
-        CACHE_HIT: ${{ steps.venv-cache.outputs.cache-hit }}
+        CACHE_HIT: ${{ steps.py-cache.outputs.cache-hit }}
         BUILD_EXT_MODE: skip
       run: |
         if [[ "$CACHE_HIT" == "true" ]]; then
@@ -381,18 +395,33 @@ jobs:
         submodules: true
 
     - name: Set up Python
+      id: python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
 
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1
+    - name: Set VIRTUAL_ENV environment
+      run: |
+        VIRTUAL_ENV=~/.virtualenvs
+        mkdir -p $VIRTUAL_ENV
+        echo $VIRTUAL_ENV
+        echo VIRTUAL_ENV=$VIRTUAL_ENV >> $GITHUB_ENV
+
+    - name: Cache python environment
       id: venv-cache
+      uses: actions/cache@v3
       with:
-        requirement_files: |
-          setup.py
-          pyproject.toml
-        custom_cache_key_element: v2
+        path: ${{ env.VIRTUAL_ENV }}
+        key: virtualenv-${{ runner.os }}-${{ env.VIRTUAL_ENV }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
+
+    - name: Create virtualenv if none exists
+      if: steps.venv-cache.outputs.cache-hit != 'true'
+      run: python -m venv $VIRTUAL_ENV
+
+    - name: Activate virtualenv
+      run: |
+        source $VIRTUAL_ENV/bin/activate
+        pip list
 
     # Restore the artifacts and environment variables
 
@@ -482,7 +511,6 @@ jobs:
         rsync -av ./build/extensions/edb/ ./edb/
         rsync -av ./build/lib/edb/ ./edb/
         cp build/postgres/install/stamp build/postgres/
-        rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
 
     # Run the test
 
