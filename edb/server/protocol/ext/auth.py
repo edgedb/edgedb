@@ -172,6 +172,7 @@ async def _get_auth_signing_key(db):
     )
     if key_json is None:
         raise errors.InternalServerError("No auth signing key configured: Please set `cfg::Config.xxx_auth_signing_key`")
-    auth_signing_key = json.loads(key_json)
-    key_bytes = base64.urlsafe_b64encode(auth_signing_key).rstrip(b'=')
-    return jwk.JWK(kty="oct", k=key_bytes)
+    auth_signing_key: str = json.loads(key_json)[0]
+    key_bytes = base64.urlsafe_b64encode(auth_signing_key.encode())
+
+    return jwk.JWK(kty="oct", k=key_bytes.decode())
