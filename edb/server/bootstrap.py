@@ -45,6 +45,7 @@ from edb.common import uuidgen
 
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as sd
+from edb.schema import functions as s_func
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
@@ -617,6 +618,14 @@ def _get_schema_object_ids(delta: sd.Command) -> Mapping[
 
         id = cmd.get_attribute_value('id')
         schema_object_ids[cmd.classname, qlclass] = id
+
+        # backend_name in callables is a lot *like* an id, in that it gets
+        # randomly generated and needs to match between things.
+        if isinstance(cmd, s_func.CreateCallableObject):
+            backend_name = cmd.get_attribute_value('backend_name')
+            if backend_name:
+                schema_object_ids[
+                    cmd.classname, f'{qlclass}-backend_name'] = backend_name
 
     return schema_object_ids
 
