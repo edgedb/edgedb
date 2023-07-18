@@ -50,7 +50,12 @@ class BaseProvider:
 
 
 async def redirect_to_auth_provider(request, response, secretkey: jwk.JWK):
-    provider_name = request.query.get("provider")
+    url_query = request.url.query.decode('ascii')
+    qs = urllib.parse.parse_qs(url_query)
+
+    provider_name = qs.get("provider")
+    if provider_name is not None:
+        provider_name = provider_name[0]
     provider = _get_provider(
         provider_name,
         "", # TODO: Get client_id from server config
