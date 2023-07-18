@@ -63,18 +63,18 @@ async def redirect_to_auth_provider(request, response, secretkey: jwk.JWK):
     )
     expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
     state_claims = {
-        "iss": request.headers.get("host"),
+        "iss": request.host.decode(),
         "provider": provider_name,
         "exp": expires_at.astimezone().timestamp(),
     }
     state_token = jwt.JWT(
-        algs=["HS256"],
+        header={"alg": "HS256"},
         claims=state_claims,
     )
     state_token.make_signed_token(secretkey)
     auth_url = await provider.get_code_url(state=state_token.serialize())
     response.status = http.HTTPStatus.FOUND
-    response.headers["Location"] = auth_url
+    response.custom_headers["Location"] = auth_url
     response.close_connection = True
 
 
@@ -83,7 +83,6 @@ async def handle_auth_callback(request, response):
 
 
 async def handle_request(request, response, db, args):
-    print("Handling request")
     try:
         # Set up routing to the appropriate handler
         if args[0] == "authorize":

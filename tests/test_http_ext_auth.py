@@ -22,8 +22,8 @@ import respx
 
 import edgedb
 
+from edb.common import markup
 from edb.testbase import http as tb
-
 
 class TestHttpExtAuth(tb.ExtAuthTestCase):
     @respx.mock
@@ -44,5 +44,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 http_con, { "provider": "github" }, path='authorize'
             )
 
-            self.assertIn(b'Hello world', data)
-            self.assertEqual(status, 200)
+            markup.dump({ "data": data, "headers": headers })
+            self.assertEqual(status, 302)
+            location = headers.get("location")
+            self.assertIn("github.com/login/oauth/authorize", location)
