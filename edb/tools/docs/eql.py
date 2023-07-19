@@ -723,7 +723,7 @@ class EQLFunctionDirective(BaseEQLDirective):
         from edb.edgeql import codegen as ql_gen
         from edb.edgeql import qltypes
 
-        parser = edgeql_parser.EdgeQLBlockParser()
+        parser = edgeql_parser.EdgeQLBlockSpec().get_parser()
         try:
             astnode = parser.parse(
                 f'create function {sig} using SQL function "xxx";')[0]
@@ -796,7 +796,7 @@ class EQLConstraintDirective(BaseEQLDirective):
         from edb.edgeql import ast as ql_ast
         from edb.edgeql import codegen as ql_gen
 
-        parser = edgeql_parser.EdgeQLBlockParser()
+        parser = edgeql_parser.EdgeQLBlockSpec().get_parser()
         try:
             astnode = parser.parse(
                 f'create abstract constraint {sig};')[0]

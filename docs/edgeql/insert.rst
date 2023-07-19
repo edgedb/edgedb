@@ -106,6 +106,7 @@ EdgeQL's composable syntax makes link insertion painless. Below, we insert
 
   db> insert Movie {
   ...   title := "Spider-Man: No Way Home",
+  ...   release_year := 2021,
   ...   characters := (
   ...     select Person
   ...     filter .name in {
@@ -177,6 +178,7 @@ Now let's write a nested insert for a ``multi`` link.
 
   db> insert Movie {
   ...   title := "Black Widow",
+  ...   release_year := 2021,
   ...   characters := {
   ...     (select Hero filter .name = "Black Widow"),
   ...     (insert Hero { name := "Yelena Belova"}),
@@ -221,6 +223,7 @@ duplication.
   db> with black_widow := (select Hero filter .name = "Black Widow")
   ... insert Movie {
   ...   title := "Black Widow",
+  ...   release_year := 2021,
   ...   characters := {
   ...     black_widow,
   ...     (insert Hero { name := "Yelena Belova"}),
@@ -244,6 +247,7 @@ can reference earlier ones.
   ...  dreykov := (insert Villain {name := "Dreykov", nemesis := black_widow})
   ... insert Movie {
   ...   title := "Black Widow",
+  ...   release_year := 2021,
   ...   characters := { black_widow, yelena, dreykov }
   ... };
   {default::Movie {id: af706c7c-3e98-11ec-abb3-4bbf3f18a61a}}
@@ -262,7 +266,8 @@ in the database.
 .. code-block:: edgeql-repl
 
   db> insert Movie {
-  ...   title := "Eternals"
+  ...   title := "Eternals",
+  ...   release_year := 2021
   ... }
   ... unless conflict on .title
   ... else (select Movie);

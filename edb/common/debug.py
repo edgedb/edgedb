@@ -165,6 +165,15 @@ class flags(metaclass=FlagsMeta):
             "Requires pydebug to be installed."
     )
 
+    sql_input = Flag(
+        doc="Enable logging of SQL incoming requests (pg compiler input)."
+    )
+
+    sql_output = Flag(
+        doc="Enable logging of SQL requests, compiled to the internal SQL"
+            "(pg compiler output)."
+    )
+
 
 @contextlib.contextmanager
 def timeit(title='block'):

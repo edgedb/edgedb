@@ -4,13 +4,24 @@ use std::str::{from_utf8, Utf8Error};
 use unicode_width::UnicodeWidthStr;
 
 /// Span of an element in source code
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Span {
-    pub start: Pos,
-    pub end: Pos,
+    /// Byte offset in the original file
+    ///
+    /// Technically you can read > 4Gb file on 32bit machine so it may
+    /// not fit in usize
+    pub start: u64,
+
+    /// Byte offset in the original file
+    ///
+    /// Technically you can read > 4Gb file on 32bit machine so it may
+    /// not fit in usize
+    pub end: u64,
 }
 /// Original position of element in source code
 #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Default, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Pos {
     /// One-based line number
     pub line: usize,
@@ -88,6 +99,11 @@ fn new_lines_in_fragment(data: &[u8]) -> u64 {
 
 impl InflatedPos {
 
+    pub fn from_offset(data: &[u8], offset: u64) -> Result<InflatedPos, InflatingError> {
+        let res = Self::from_offsets(data, &[offset as usize])?;
+        Ok(res.into_iter().next().unwrap())
+    }
+
     pub fn from_offsets(data: &[u8], offsets: &[usize])
         -> Result<Vec<InflatedPos>, InflatingError>
     {
@@ -124,6 +140,14 @@ impl InflatedPos {
             });
         }
         return Ok(result);
+    }
+
+    pub fn deflate(self) -> Pos {
+        Pos {
+            line: self.line as usize + 1,
+            column: self.column as usize + 1,
+            offset: self.offset,
+        }
     }
 }
 

@@ -195,7 +195,6 @@ class BaseSyntaxTest(BaseDocTest):
             markup.dump(inast)
 
         # make sure that the AST has context
-        #
         context.ContextValidator().visit(inast)
 
         processed_src = self.ast_to_source(inast)

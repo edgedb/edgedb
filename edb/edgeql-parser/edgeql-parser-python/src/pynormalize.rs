@@ -1,19 +1,19 @@
 use std::convert::TryFrom;
 
+use bigdecimal::Num;
 use cpython::exc::AssertionError;
-use cpython::{PyBytes, PyErr, PyInt, PyTuple, PythonObject, ToPyObject};
+use cpython::{PyBytes, PyErr, PyInt, PythonObject, ToPyObject};
 use cpython::{PyClone, PyDict, PyList, PyResult, PyString, Python};
 use cpython::{PyFloat, PyObject};
 
 use bytes::{BufMut, Bytes, BytesMut};
 use edgedb_protocol::codec;
 use edgedb_protocol::model::{BigInt, Decimal};
-use edgeql_parser::position::Pos;
 use edgeql_parser::tokenizer::Value;
 
-use crate::errors::TokenizerError;
+use crate::errors::SyntaxError;
 use crate::normalize::{normalize as _normalize, Error, Variable};
-use crate::tokenizer::convert_tokens;
+use crate::tokenizer::tokens_to_py;
 
 py_class!(pub class Entry |py| {
     data _key: PyBytes;
@@ -60,10 +60,6 @@ py_class!(pub class Entry |py| {
     }
 });
 
-pub fn py_pos(py: Python, pos: &Pos) -> PyTuple {
-    (pos.line, pos.column, pos.offset).to_py_object(py)
-}
-
 pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
     use edgedb_protocol::codec::Codec;
     use edgedb_protocol::value::Value as P;
@@ -91,8 +87,15 @@ pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
                     .map_err(|e| format!("float cannot be encoded: {}", e))?;
             }
             Value::BigInt(ref v) => {
-                let val = BigInt::try_from(v.clone())
-                    .map_err(|e| format!("bigint cannot be encoded: {}", e))?;
+                // We have two different versions of BigInt implementations here.
+                // We have to use bigdecimal::num_bigint::BigInt because it can parse with radix 16.
+
+                let val = bigdecimal::num_bigint::BigInt::from_str_radix(v, 16)
+                    .map_err(|e| format!("bigint cannot be encoded: {}", e))
+                    .and_then(|x| {
+                        BigInt::try_from(x).map_err(|e| format!("bigint cannot be encoded: {}", e))
+                    })?;
+
                 codec::BigInt
                     .encode(&mut buf, &P::BigInt(val))
                     .map_err(|e| format!("bigint cannot be encoded: {}", e))?;
@@ -145,7 +148,7 @@ pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
                 py,
                 /* key: */ PyBytes::new(py, &entry.hash[..]),
                 /* processed_source: */ entry.processed_source,
-                /* tokens: */ convert_tokens(py, entry.tokens, entry.end_pos)?,
+                /* tokens: */ tokens_to_py(py, entry.tokens)?,
                 /* extra_blobs: */ blobs,
                 /* extra_named: */ entry.named_args,
                 /* first_extra: */ entry.first_arg,
@@ -154,7 +157,7 @@ pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
             )?)
         }
         Err(Error::Tokenizer(msg, pos)) => {
-            return Err(TokenizerError::new(py, (msg, py_pos(py, &pos))))
+            return Err(SyntaxError::new(py, (msg, (pos, py.None()))))
         }
         Err(Error::Assertion(msg, pos)) => {
             return Err(PyErr::new::<AssertionError, _>(
@@ -170,10 +173,9 @@ pub fn value_to_py_object(py: Python, val: &Value) -> PyResult<PyObject> {
         Value::Int(v) => v.to_py_object(py).into_object(),
         Value::String(v) => v.to_py_object(py).into_object(),
         Value::Float(v) => v.to_py_object(py).into_object(),
-        Value::BigInt(v) => {
-            py.get_type::<PyInt>()
-                .call(py, (v.to_str_radix(16), 16.to_py_object(py)), None)?
-        }
+        Value::BigInt(v) => py
+            .get_type::<PyInt>()
+            .call(py, (v, 16.to_py_object(py)), None)?,
         Value::Decimal(v) => py.get_type::<PyFloat>().call(py, (v.to_string(),), None)?,
         Value::Bytes(v) => PyBytes::new(py, v).into_object(),
     })

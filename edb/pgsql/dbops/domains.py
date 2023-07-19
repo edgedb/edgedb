@@ -138,6 +138,7 @@ class DomainCheckConstraint(DomainConstraint):
 
     def constraint_code(self, block: base.PLBlock) -> str:
         if isinstance(self.expr, base.Query):
+            assert self.expr.type
             var = block.declare_var(self.expr.type)
             indent = len(var) + 5
             expr_text = textwrap.indent(self.expr.text, ' ' * indent).strip()

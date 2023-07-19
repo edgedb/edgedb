@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *
 
 import multiprocessing
+import json
 
 from edb import errors
 from edb.common import parsing
@@ -29,7 +30,7 @@ from . import parser as qlparser
 from .. import ast as qlast
 from .. import tokenizer as qltokenizer
 
-EdgeQLParserBase = qlparser.EdgeQLParserBase
+EdgeQLParserBase = qlparser.EdgeQLParserSpec
 
 
 def append_module_aliases(tree, aliases):
@@ -48,11 +49,9 @@ def append_module_aliases(tree, aliases):
 
 def parse_fragment(
     source: Union[qltokenizer.Source, str],
-    filename: Optional[str]=None,
+    filename: Optional[str] = None,
 ) -> qlast.Expr:
-    if isinstance(source, str):
-        source = qltokenizer.Source.from_string(source)
-    parser = qlparser.EdgeQLExpressionParser()
+    parser = qlparser.EdgeQLExpressionSpec().get_parser()
     res = parser.parse(source, filename=filename)
     assert isinstance(res, qlast.Expr)
     return res
@@ -60,11 +59,9 @@ def parse_fragment(
 
 def parse_single(
     source: Union[qltokenizer.Source, str],
-    filename: Optional[str]=None,
+    filename: Optional[str] = None,
 ) -> qlast.Statement:
-    if isinstance(source, str):
-        source = qltokenizer.Source.from_string(source)
-    parser = qlparser.EdgeQLSingleParser()
+    parser = qlparser.EdgeQLSingleSpec().get_parser()
     res = parser.parse(source, filename=filename)
     assert isinstance(res, (qlast.Query | qlast.Command))
     return res
@@ -106,9 +103,7 @@ def parse_command(
 
 
 def parse_block(source: Union[qltokenizer.Source, str]) -> List[qlast.Base]:
-    if isinstance(source, str):
-        source = qltokenizer.Source.from_string(source)
-    parser = qlparser.EdgeQLBlockParser()
+    parser = qlparser.EdgeQLBlockSpec().get_parser()
     return parser.parse(source)
 
 
@@ -122,9 +117,8 @@ def parse_migration_body_block(
     # where the source contexts don't matter anyway.
     source = '{' + source + '}'
 
-    tsource = qltokenizer.Source.from_string(source)
-    parser = qlparser.EdgeQLMigrationBodyParser()
-    return parser.parse(tsource)
+    parser = qlparser.EdgeQLMigrationBodySpec().get_parser()
+    return parser.parse(source)
 
 
 def parse_extension_package_body_block(
@@ -137,31 +131,30 @@ def parse_extension_package_body_block(
     # where the source contexts don't matter anyway.
     source = '{' + source + '}'
 
-    tsource = qltokenizer.Source.from_string(source)
-    parser = qlparser.EdgeQLExtensionPackageBodyParser()
-    return parser.parse(tsource)
+    parser = qlparser.EdgeQLExtensionPackageBodySpec().get_parser()
+    return parser.parse(source)
 
 
 def parse_sdl(expr: str):
-    parser = qlparser.EdgeSDLParser()
+    parser = qlparser.EdgeSDLSpec().get_parser()
     return parser.parse(expr)
 
 
-def _load_parser(parser: qlparser.EdgeQLParserBase) -> None:
+def _load_parser(parser: qlparser.EdgeQLParserSpec) -> None:
     parser.get_parser_spec(allow_rebuild=True)
 
 
 def preload(
     allow_rebuild: bool = True,
     paralellize: bool = False,
-    parsers: Optional[List[qlparser.EdgeQLParserBase]] = None,
+    parsers: Optional[List[qlparser.EdgeQLParserSpec]] = None,
 ) -> None:
     if parsers is None:
         parsers = [
-            qlparser.EdgeQLBlockParser(),
-            qlparser.EdgeQLSingleParser(),
-            qlparser.EdgeQLExpressionParser(),
-            qlparser.EdgeSDLParser(),
+            qlparser.EdgeQLBlockSpec(),
+            qlparser.EdgeQLSingleSpec(),
+            qlparser.EdgeQLExpressionSpec(),
+            qlparser.EdgeSDLSpec(),
         ]
 
     if not paralellize:
@@ -188,3 +181,73 @@ def preload(
                 pool.map(_load_parser, parsers_to_rebuild)
 
             preload(parsers=parsers, allow_rebuild=False)
+
+
+def process_spec(parser: parsing.ParserSpec) -> Tuple[str, List[Any]]:
+    # Converts a ParserSpec into JSON. Called from edgeql-parser Rust crate.
+
+    spec = parser.get_parser_spec()
+    assert spec.pureLR
+
+    token_map: Dict[str, str] = {
+        v._token: c for (_, c), v in parsing.TokenMeta.token_map.items()
+    }
+
+    # productions
+    productions: List[Any] = []
+    production_ids: Dict[Any, int] = {}
+    inlines: List[Tuple[int, int]] = []
+
+    def get_production_id(prod: Any) -> int:
+        if prod in production_ids:
+            return production_ids[prod]
+
+        id = len(productions)
+        productions.append(prod)
+        production_ids[prod] = id
+
+        inline = getattr(prod.method, 'inline_index', None)
+        if inline is not None:
+            assert isinstance(inline, int)
+            inlines.append((id, inline))
+
+        return id
+
+    actions = []
+    for st_actions in spec.actions():
+        out_st_actions = []
+        for tok, acts in st_actions.items():
+            act = cast(Any, acts[0])
+
+            str_tok = token_map.get(str(tok), str(tok))
+            if 'ShiftAction' in str(type(act)):
+                action_obj: Any = int(act.nextState)
+            else:
+                prod = act.production
+                action_obj = {
+                    'production_id': get_production_id(prod),
+                    'non_term': str(prod.lhs),
+                    'cnt': len(prod.rhs),
+                }
+
+            out_st_actions.append((str_tok, action_obj))
+
+        actions.append(out_st_actions)
+
+    # goto
+    goto = []
+    for st_goto in spec.goto():
+        out_goto = []
+        for nterm, action in st_goto.items():
+            out_goto.append((str(nterm), action))
+
+        goto.append(out_goto)
+
+    res = {
+        'actions': actions,
+        'goto': goto,
+        'start': str(spec.start_sym()),
+        'inlines': inlines,
+    }
+    res_json = json.dumps(res)
+    return (res_json, productions)

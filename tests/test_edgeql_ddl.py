@@ -4336,7 +4336,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_function_20(self):
         with self.assertRaisesRegex(
                 edgedb.EdgeQLSyntaxError,
-                r"Unexpected ';'"):
+                "Unexpected ';'"):
 
             await self.con.execute(r'''
                 CREATE FUNCTION ddlf_20(f: int64) -> int64
@@ -12337,7 +12337,7 @@ type default::Foo {
         with self.assertRaisesRegex(
             edgedb.SchemaDefinitionError,
             r"possibly more than one element returned by the index expression",
-            _line=4, _col=34
+            _line=4, _col=38
         ):
             await self.con.execute(r"""
                 CREATE TYPE Foo {
@@ -12350,7 +12350,7 @@ type default::Foo {
         with self.assertRaisesRegex(
             edgedb.SchemaDefinitionError,
             r"possibly more than one element returned by the index expression",
-            _line=5, _col=34
+            _line=5, _col=38
         ):
             await self.con.execute(r"""
                 CREATE TYPE Foo {
@@ -12364,7 +12364,7 @@ type default::Foo {
         with self.assertRaisesRegex(
             edgedb.SchemaDefinitionError,
             r"possibly more than one element returned by the index expression",
-            _line=5, _col=34
+            _line=5, _col=38
         ):
             await self.con.execute(r"""
                 CREATE TYPE Foo {
@@ -12770,7 +12770,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
         # work, and there is a commented bit below to test that.
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
-                "Unexpected keyword 'global'"):
+                "Unexpected keyword 'GLOBAL'"):
             await self.con.execute('''
                 CREATE MIGRATION
                 {

@@ -640,7 +640,11 @@ class ClusterTestCase(BaseHTTPTestCase):
         )
         cls.has_create_database = cls.cluster.has_create_database()
         cls.has_create_role = cls.cluster.has_create_role()
+        cls.is_superuser = cls.has_create_database and cls.has_create_role
         cls.backend_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
+        if getattr(cls, 'BACKEND_SUPERUSER', False):
+            if not cls.is_superuser:
+                raise unittest.SkipTest('skipped due to lack of superuser')
 
     @classmethod
     async def tearDownSingleDB(cls):
@@ -1154,6 +1158,11 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         # allow the setup script to also run in test mode
         if cls.INTERNAL_TESTMODE:
             script += '\nCONFIGURE SESSION SET __internal_testmode := true;'
+
+        if getattr(cls, 'BACKEND_SUPERUSER', False):
+            is_superuser = getattr(cls, 'is_superuser', True)
+            if not is_superuser:
+                raise unittest.SkipTest('skipped due to lack of superuser')
 
         schema = []
         # Incude the extensions before adding schemas.
@@ -1704,7 +1713,11 @@ def get_test_cases_setup(
         if not hasattr(case, 'get_setup_script'):
             continue
 
-        setup_script = case.get_setup_script()
+        try:
+            setup_script = case.get_setup_script()
+        except unittest.SkipTest:
+            continue
+
         if not setup_script:
             continue
 

@@ -2227,7 +2227,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             edgedb.QueryError,
             "cannot redefine the cardinality of link 'related_to': it is "
             "defined as 'multi' in the base object type 'default::Issue'",
-            _position=73,
+            _position=74,
         ):
             await self.con.execute("""
                 SELECT Issue {
@@ -2253,7 +2253,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             edgedb.QueryError,
             "cannot redefine link 'status' as optional: it is "
             "defined as required in the base object type 'default::Issue'",
-            _position=71,
+            _position=72,
         ):
             await self.con.execute("""
                 SELECT Issue {

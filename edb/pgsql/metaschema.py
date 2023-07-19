@@ -25,7 +25,7 @@ from typing import *
 import re
 import textwrap
 
-from edb import _edgeql_parser
+import edb._edgeql_parser as ql_parser
 
 from edb.common import context as parser_context
 from edb.common import debug
@@ -360,6 +360,8 @@ class RangeToJsonFunction(dbops.Function):
     text = r'''
         SELECT
             CASE
+            WHEN val IS NULL THEN
+                NULL
             WHEN isempty(val) THEN
                 jsonb_build_object('empty', true)
             ELSE
@@ -6424,6 +6426,24 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 END
             """
         ),
+        dbops.Function(
+            name=('edgedbsql', 'pg_table_is_visible'),
+            args=[
+                ('id', ('oid',)),
+                ('search_path', ('text[]',)),
+            ],
+            returns=('bool',),
+            volatility='stable',
+            text=r'''
+                SELECT pc.relnamespace IN (
+                    SELECT oid
+                    FROM edgedbsql.pg_namespace pn
+                    WHERE pn.nspname IN (select * from unnest(search_path))
+                )
+                FROM edgedbsql.pg_class pc
+                WHERE id = pc.oid
+            '''
+        )
     ]
 
     return (
@@ -7404,7 +7424,7 @@ async def execute_sql_script(
             text = e.get_field('q')
 
         elif pl_func_line:
-            point = _edgeql_parser.offset_of_line(sql_text, pl_func_line)
+            point = ql_parser.offset_of_line(sql_text, pl_func_line)
             text = sql_text
 
         if point is not None:

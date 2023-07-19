@@ -18,6 +18,8 @@
 
 from __future__ import annotations
 
+from edb.common import parsing
+
 from edb.edgeql import ast as qlast
 
 from .expressions import Nonterm
@@ -26,11 +28,13 @@ from .expressions import *  # NOQA
 
 
 class SessionStmt(Nonterm):
+    @parsing.inline(0)
     def reduce_SetStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_ResetStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 class SetStmt(Nonterm):

@@ -1,5 +1,6 @@
 use edgeql_rust::normalize::{normalize, Variable};
-use edgeql_parser::tokenizer::{Value as Value};
+use edgeql_parser::tokenizer::Value;
+use num_bigint::BigInt;
 
 
 #[test]
@@ -80,10 +81,10 @@ fn test_bigint() {
         "SELECT(<__std__::bigint>$0)+(<__std__::bigint>$1)");
     assert_eq!(entry.variables, vec![vec![
         Variable {
-            value: Value::BigInt(1.into()),
+            value: Value::BigInt("1".into()),
         },
         Variable {
-            value: Value::BigInt(23.into()),
+            value: Value::BigInt(BigInt::from(23).to_str_radix(16)),
         }
     ]]);
 }
@@ -97,10 +98,10 @@ fn test_bigint_exponent() {
         "SELECT(<__std__::bigint>$0)+(<__std__::bigint>$1)");
     assert_eq!(entry.variables, vec![vec![
         Variable {
-            value: Value::BigInt(10000000000u64.into()),
+            value: Value::BigInt(BigInt::from(10000000000u64).to_str_radix(16)),
         },
         Variable {
-            value: Value::BigInt(230000000000000u64.into()),
+            value: Value::BigInt(BigInt::from(230000000000000u64).to_str_radix(16)),
         }
     ]]);
 }
@@ -203,6 +204,7 @@ fn test_script() {
                 value: Value::Int(2),
             }
         ],
+        vec![]
     ]);
 }
 
@@ -227,5 +229,6 @@ fn test_script_with_args() {
                 value: Value::Int(2),
             }
         ],
+        vec![]
     ]);
 }
