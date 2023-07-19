@@ -31,8 +31,8 @@ from edb.common import markup
 from edb.testbase import http as tb
 
 class TestHttpExtAuth(tb.ExtAuthTestCase):
-    SETUP_COMMANDS = [f"""
-        CONFIGURE CURRENT DATABASE SET xxx_auth_signing_key := <str>'{"a" * 32}'
+    SETUP = [f"""
+        CONFIGURE CURRENT DATABASE SET xxx_auth_signing_key := <str>'{"a" * 32}';
     """]
 
     async def test_http_ext_auth_hello_01(self):
