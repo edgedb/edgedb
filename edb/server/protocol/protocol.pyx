@@ -247,18 +247,17 @@ cdef class HttpProtocol:
             self.unprocessed.append(req)
         else:
             self.in_response = True
-            tenant = self._ensure_tenant()
-            if tenant.accept_new_tasks:
-                tenant.create_task(
-                    self._handle_request(req), interruptable=False
-                )
-            else:
-                self._close_with_error(
-                    b'503 Service Unavailable',
-                    b'The server is closing.',
-                )
+            self._schedule_handle_request()
 
         self.server._http_last_minute_requests += 1
+
+    cdef _schedule_handle_request(self, request):
+        if self.tenant is None:
+            self.loop.create_task(self._handle_request(request))
+        else:
+            self._ensure_tenant().create_task(
+                self._handle_request(request), interruptable=False
+            )
 
     cdef close(self):
         if self.transport is not None:
@@ -292,16 +291,7 @@ cdef class HttpProtocol:
 
         if self.unprocessed:
             req = self.unprocessed.popleft()
-            tenant = self._ensure_tenant()
-            if tenant.accept_new_tasks:
-                tenant.create_task(
-                    self._handle_request(req), interruptable=False
-                )
-            else:
-                self._close_with_error(
-                    b'503 Service Unavailable',
-                    b'The server is closing.',
-                )
+            self._schedule_handle_request(req)
         else:
             self.transport.resume_reading()
 
@@ -348,6 +338,11 @@ cdef class HttpProtocol:
     cdef inline _ensure_tenant(self):
         if self.tenant is None:
             self.tenant = self.server.get_default_tenant()
+        if not self.tenant.is_accepting_connections():
+            return self._close_with_error(
+                b'503 Service Unavailable',
+                b'The server is closing.',
+            )
         return self.tenant
 
     def _switch_to_binary_protocol(self, data=None):
@@ -482,8 +477,9 @@ cdef class HttpProtocol:
             if path_parts_len < 2:
                 return self._not_found(request, response)
 
+            tenant = self._ensure_tenant()
             dbname = path_parts[1]
-            db = self.tenant.maybe_get_db(dbname=dbname)
+            db = tenant.maybe_get_db(dbname=dbname)
             if db is None:
                 return self._not_found(request, response)
 
@@ -532,15 +528,18 @@ cdef class HttpProtocol:
 
                     conn_params["database"] = dbname
 
-                    response.body = await binary.eval_buffer(
-                        self.server,
-                        self.tenant,
-                        database=dbname,
-                        data=self.current_request.body,
-                        conn_params=conn_params,
-                        protocol_version=proto_ver,
-                        auth_data=self.current_request.authorization,
-                        transport=srvargs.ServerConnTransport.HTTP,
+                    response.body = await tenant.create_task(
+                        binary.eval_buffer(
+                            self.server,
+                            tenant,
+                            database=dbname,
+                            data=self.current_request.body,
+                            conn_params=conn_params,
+                            protocol_version=proto_ver,
+                            auth_data=self.current_request.authorization,
+                            transport=srvargs.ServerConnTransport.HTTP,
+                        ),
+                        interruptable=False,
                     )
                     response.status = http.HTTPStatus.OK
                     response.content_type = PROTO_MIME
@@ -557,16 +556,25 @@ cdef class HttpProtocol:
                 args = path_parts[3:]
 
                 if extname == 'graphql':
-                    await graphql_ext.handle_request(
-                        request, response, db, args, self.tenant
+                    await tenant.create_task(
+                        graphql_ext.handle_request(
+                            request, response, db, args, tenant
+                        ),
+                        interruptable=False,
                     )
                 elif extname == 'notebook':
-                    await notebook_ext.handle_request(
-                        request, response, db, args, self.tenant
+                    await tenant.create_task(
+                        notebook_ext.handle_request(
+                            request, response, db, args, tenant
+                        ),
+                        interruptable=False,
                     )
                 elif extname == 'edgeql_http':
-                    await edgeql_ext.handle_request(
-                        request, response, db, args, self.server
+                    await tenant.create_task(
+                        edgeql_ext.handle_request(
+                            request, response, db, args, self.server
+                        ),
+                        interruptable=False,
                     )
 
         elif route == 'auth':
@@ -580,11 +588,15 @@ cdef class HttpProtocol:
                     return
 
             # Authentication request
-            await auth.handle_request(
-                request,
-                response,
-                path_parts[1:],
-                self.tenant,
+            tenant = self._ensure_tenant()
+            await tenant.create_task(
+                auth.handle_request(
+                    request,
+                    response,
+                    path_parts[1:],
+                    tenant,
+                ),
+                interruptable=False,
             )
         elif route == 'server':
             # System API request
@@ -592,6 +604,7 @@ cdef class HttpProtocol:
                 request,
                 response,
                 path_parts[1:],
+                self.server,
                 self.tenant,
             )
         elif path_parts == ['metrics'] and request.method == b'GET':
