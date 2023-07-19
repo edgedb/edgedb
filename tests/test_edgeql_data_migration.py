@@ -12230,9 +12230,11 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
 
 
 class TestEdgeQLMigrationRewriteNonisolated(TestEdgeQLMigrationRewrite):
+    # N.B: This test suite duplicates all the tests in the above
+    # TestEdgeQLMigrationRewrite, but not in transactions.
     TRANSACTION_ISOLATION = False
 
-    TEARDOWN_COMMANDS = [
+    PER_TEST_TEARDOWN = [
         'rollback;',  # just in case, avoid extra errors
         '''
             start migration to { module default {}; };
