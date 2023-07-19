@@ -21,9 +21,12 @@ import os
 import respx
 import urllib.parse
 import uuid
+import json
+import base64
 
 import edgedb
 
+from jwcrypto import jwt, jwk
 from edb.common import markup
 from edb.testbase import http as tb
 
@@ -49,12 +52,19 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             assert location is not None
             url = urllib.parse.urlparse(location)
             qs = urllib.parse.parse_qs(url.query, keep_blank_values=True)
-            markup.dump({ "url": url, "qs": qs })
             self.assertEqual(url.scheme, "https")
             self.assertEqual(url.hostname, "github.com")
             self.assertEqual(url.path, "/login/oauth/authorize")
             self.assertEqual(qs.get("scope"), ["read:user"])
-            self.assertIsNotNone(qs.get("state"))
+            
+            state = qs.get("state")
+            assert state is not None
+            key_bytes = base64.urlsafe_b64encode(signing_key.encode())
+            key = jwk.JWK(k=key_bytes.decode(), kty="oct")
+            print(f"#####\nkey: {key}\njwt: {state[0]}\n#####")
+            signed_token = jwt.JWT(key=key, algs=["HS256"], jwt=state[0])
+            claims = json.loads(signed_token.claims)
+            self.assertEqual(claims.get("provider"), "github")
 
             self.assertEqual(qs.get("redirect_uri"), [f"{self.http_addr}/auth/callback"])
             self.assertEqual(qs.get("client_id"), [client_id])

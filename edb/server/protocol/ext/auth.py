@@ -72,7 +72,7 @@ async def redirect_to_auth_provider(request, response, secretkey: jwk.JWK):
         claims=state_claims,
     )
     state_token.make_signed_token(secretkey)
-    auth_url = await provider.get_code_url(state=state_token.serialize())
+    auth_url = provider.get_code_url(state=state_token.serialize())
     response.status = http.HTTPStatus.FOUND
     response.custom_headers["Location"] = auth_url
     response.close_connection = True
@@ -121,14 +121,15 @@ class GitHubProvider(BaseProvider):
     def __init__(self, client_id, client_secret):
         super().__init__("github", client_id, client_secret)
 
-    async def get_code_url(self, state: str, scope: str = "read:user") -> str:
+    def get_code_url(self, state: str, scope: str = "read:user") -> str:
         params = {
             "client_id": self.client_id,
             "scope": "read:user",
             "state": state,
             "redirect_uri": "http://localhost:8080/auth/callback",  # TODO: Get correct db-namespaced URL
         }
-        return f"https://github.com/login/oauth/authorize?{urllib.parse.urlencode(params)}"
+        encoded = urllib.parse.urlencode(params)
+        return f"https://github.com/login/oauth/authorize?{encoded}"
 
     async def exchange_access_token(self, code, state):
         # Check state value
