@@ -183,38 +183,9 @@ def get_test_items(**flags):
     return tuple(res)
 
 
-class TestExpressionsWithoutConstantFolding(tb.QueryTestCase):
-
-    SETUP_COMMANDS = ["""
-        CONFIGURE SESSION SET __internal_no_const_folding := true;
-    """]
-
-    async def test_edgeql_no_const_folding_str_concat_01(self):
-        await self.assert_query_result(
-            r"""
-                SELECT 'aaaa' ++ 'bbbb';
-            """,
-            ['aaaabbbb'],
-        )
-
-    async def test_edgeql_no_const_folding_str_concat_02(self):
-        await self.assert_query_result(
-            r"""
-                SELECT 'aaaa' ++ r'\q' ++ $$\n$$;
-            """,
-            [R'aaaa\q\n'],
-        )
-
-
 class TestExpressions(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'issues.esdl')
-
-    SETUP = """
-    """
-
-    TEARDOWN = """
-    """
 
     async def test_edgeql_expr_emptyset_01(self):
         await self.assert_query_result(
@@ -8386,3 +8357,22 @@ aa \
         await self.con._fetchall("""
             FOR Z IN {(Object,)} UNION Z;
         """, __typenames__=True)
+
+    async def test_edgeql_no_const_folding_str_concat(self):
+        await self.con.execute("""
+            CONFIGURE SESSION SET __internal_no_const_folding := true;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT 'aaaa' ++ 'bbbb';
+            """,
+            ['aaaabbbb'],
+        )
+
+        await self.assert_query_result(
+            r"""
+                SELECT 'aaaa' ++ r'\q' ++ $$\n$$;
+            """,
+            [R'aaaa\q\n'],
+        )
