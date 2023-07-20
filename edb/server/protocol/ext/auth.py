@@ -23,6 +23,7 @@ import httpx
 import datetime
 import base64
 import immutables
+import httptools
 
 from typing import Any, Type, TypeVar, TYPE_CHECKING
 from jwcrypto import jwt, jwk
@@ -58,7 +59,7 @@ class BaseProvider:
 
 
 def redirect_to_auth_provider(
-    response, iss: str, provider_name: str, db_config: SettingsMap
+    response, redirect_uri: str, iss: str, provider_name: str, db_config: SettingsMap
 ):
     client_id, client_secret = _get_client_credentials(provider_name, db_config)
     provider = _get_provider(
@@ -71,7 +72,8 @@ def redirect_to_auth_provider(
     state_token = _make_signed_token(
         iss=iss, provider=provider_name, key=signing_key
     )
-    auth_url = provider.get_code_url(state=state_token.serialize())
+
+    auth_url = provider.get_code_url(state=state_token.serialize(), redirect_uri=redirect_uri)
 
     response.status = http.HTTPStatus.FOUND
     response.custom_headers["Location"] = auth_url
@@ -92,8 +94,11 @@ async def handle_request(request, response, db, args):
             if provider_name is None:
                 raise errors.InternalServerError("No provider specified")
 
+            redirect_uri = f"{_get_extension_path(request.url)}/callback"
+
             return redirect_to_auth_provider(
                 response=response,
+                redirect_uri=redirect_uri,
                 iss=request.host.decode(),
                 provider_name=provider_name,
                 db_config=db.db_config,
@@ -131,12 +136,12 @@ class GitHubProvider(BaseProvider):
     def __init__(self, client_id, client_secret):
         super().__init__("github", client_id, client_secret)
 
-    def get_code_url(self, state: str, scope: str = "read:user") -> str:
+    def get_code_url(self, state: str, redirect_uri: str, scope: str = "read:user") -> str:
         params = {
             "client_id": self.client_id,
-            "scope": "read:user",
+            "scope": scope,
             "state": state,
-            "redirect_uri": "http://localhost:8080/auth/callback",  # TODO: Get correct db-namespaced URL
+            "redirect_uri": redirect_uri,
         }
         encoded = urllib.parse.urlencode(params)
         return f"https://github.com/login/oauth/authorize?{encoded}"
@@ -245,3 +250,23 @@ def _make_signed_token(iss: str, provider: str, key: jwk.JWK) -> jwt.JWT:
 
 def _get_search_param(query: str, key: str) -> str | None:
     return urllib.parse.parse_qs(query).get(key, [None])[0]
+
+def _get_extension_path(url: httptools.parser.url_parser.URL) -> str:
+
+  path_parts = url.path.decode().split('/')
+
+  path_seg_parts = ["ext", "auth"]
+  
+  try:
+    index = path_parts.index(path_seg_parts[0])
+    if path_parts[index:index+len(path_seg_parts)] == path_seg_parts: 
+      index += len(path_seg_parts)-1
+  except ValueError:
+    print(f"ext/auth not found in path")
+  else:
+    path_parts = path_parts[:index+1]
+  
+  new_path = '/'.join(path_parts)
+
+  netloc = f"{url.host.decode()}:{url.port}" if url.port else url.host.decode()
+  return f"{url.schema.decode()}://{netloc}{new_path}"
