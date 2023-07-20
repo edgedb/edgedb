@@ -453,6 +453,12 @@ SessionCommand = (
     | SessionResetModule
     | SessionResetAllAliases
 )
+SessionCommand_tuple = (
+    SessionSetAliasDecl,
+    SessionResetAliasDecl,
+    SessionResetModule,
+    SessionResetAllAliases
+)
 
 
 class ShapeOp(s_enum.StrEnum):

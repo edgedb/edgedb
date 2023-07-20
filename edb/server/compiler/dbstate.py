@@ -80,6 +80,10 @@ class BaseQuery:
 
     sql: Tuple[bytes, ...]
 
+    # XXX
+    @property
+    def is_transactional(self) -> bool:
+        return True
 
 @dataclasses.dataclass(frozen=True)
 class NullQuery(BaseQuery):
@@ -102,7 +106,7 @@ class Query(BaseQuery):
     in_type_id: bytes
     in_type_args: Optional[List[Param]] = None
 
-    globals: Optional[List[str]] = None
+    globals: Optional[list[tuple[str, bool]]] = None
 
     is_transactional: bool = True
     has_dml: bool = False
@@ -134,7 +138,7 @@ class SessionStateQuery(BaseQuery):
     config_op: Optional[config.Operation] = None
     is_transactional: bool = True
     single_unit: bool = False
-    globals: Optional[List[str]] = None
+    globals: Optional[list[tuple[str, bool]]] = None
 
     in_type_data: Optional[bytes] = None
     in_type_id: Optional[bytes] = None
@@ -170,8 +174,8 @@ class TxControlQuery(BaseQuery):
     is_transactional: bool = True
     single_unit: bool = False
 
-    user_schema: Optional[s_schema.FlatSchema] = None
-    global_schema: Optional[s_schema.FlatSchema] = None
+    user_schema: Optional[s_schema.Schema] = None
+    global_schema: Optional[s_schema.Schema] = None
     cached_reflection: Any = None
 
     sp_name: Optional[str] = None
@@ -205,7 +209,7 @@ class Param:
     name: str
     required: bool
     array_type_id: Optional[uuid.UUID]
-    outer_idx: int
+    outer_idx: Optional[int]
     sub_params: Optional[tuple[list[Optional[uuid.UUID]], tuple]]
 
 
@@ -283,9 +287,9 @@ class QueryUnit:
     # close all inactive unused pooled connections to the template db.
     create_db_template: Optional[str] = None
 
-    # If non-None, contains names of created/deleted extensions.
-    create_ext: Optional[Set[str]] = None
-    drop_ext: Optional[Set[str]] = None
+    # If non-None, contains name of created/deleted extension.
+    create_ext: Optional[str] = None
+    drop_ext: Optional[str] = None
 
     # If non-None, the DDL statement will emit data packets marked
     # with the indicated ID.
@@ -302,7 +306,7 @@ class QueryUnit:
     in_type_id: bytes = sertypes.NULL_TYPE_ID.bytes
     in_type_args: Optional[List[Param]] = None
     in_type_args_real_count: int = 0
-    globals: Optional[List[str]] = None
+    globals: Optional[list[tuple[str, bool]]] = None
 
     # Set only when this unit contains a CONFIGURE INSTANCE command.
     system_config: bool = False
@@ -373,7 +377,7 @@ class QueryUnitGroup:
     in_type_id: bytes = sertypes.NULL_TYPE_ID.bytes
     in_type_args: Optional[List[Param]] = None
     in_type_args_real_count: int = 0
-    globals: Optional[List[str]] = None
+    globals: Optional[list[tuple[str, bool]]] = None
 
     units: List[QueryUnit] = dataclasses.field(default_factory=list)
 
@@ -592,7 +596,7 @@ class MigrationState(NamedTuple):
     initial_savepoint: Optional[str]
     target_schema: s_schema.Schema
     guidance: s_obj.DeltaGuidance
-    accepted_cmds: Tuple[qlast.Command, ...]
+    accepted_cmds: Tuple[qlast.Base, ...]
     last_proposed: Optional[Tuple[ProposedMigrationStep, ...]]
 
 
@@ -845,9 +849,9 @@ class CompilerConnectionState:
         global_schema: s_schema.Schema,
         modaliases: immutables.Map,
         session_config: immutables.Map,
-        database_config: immutables.Map,
-        system_config: immutables.Map,
-        cached_reflection: FrozenSet[str]
+        database_config: immutables.Map[str, config.SettingValue],
+        system_config: immutables.Map[str, config.SettingValue],
+        cached_reflection: immutables.Map[str, Tuple[str, ...]],
     ):
         self._tx_count = time.monotonic_ns()
         self._init_current_tx(
