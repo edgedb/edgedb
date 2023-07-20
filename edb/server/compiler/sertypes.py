@@ -448,9 +448,9 @@ def _describe_range(t: s_types.Range, *, ctx: Context) -> uuid.UUID:
     return _finish_typedesc(type_id, buf, ctx=ctx)
 
 
-# Multirange -> MultirangeTypeDescriptor
+# MultiRange -> MultiRangeTypeDescriptor
 @_describe_type.register
-def _describe_multirange(t: s_types.Multirange, *, ctx: Context) -> uuid.UUID:
+def _describe_multirange(t: s_types.MultiRange, *, ctx: Context) -> uuid.UUID:
     subtypes = [
         _describe_type(st, ctx=ctx)
         for st in t.get_subtypes(ctx.schema)
@@ -1556,7 +1556,7 @@ def _parse_multirange_descriptor(
     _tag: DescriptorTag,
     desc: binwrapper.BinWrapper,
     ctx: ParseContext,
-) -> MultirangeDesc:
+) -> MultiRangeDesc:
     # .id
     tid = _parse_type_id(desc)
 
@@ -1575,7 +1575,7 @@ def _parse_multirange_descriptor(
     # .type
     subtype = _parse_type_ref(desc, ctx=ctx)
 
-    return MultirangeDesc(
+    return MultiRangeDesc(
         tid=tid,
         name=name,
         schema_defined=schema_defined,
@@ -1960,7 +1960,7 @@ class RangeDesc(SchemaTypeDesc):
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
-class MultirangeDesc(SchemaTypeDesc):
+class MultiRangeDesc(SchemaTypeDesc):
     ancestors: Optional[list[TypeDesc]]
     inner: TypeDesc
 

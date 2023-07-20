@@ -798,10 +798,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('(')
         if node.name is not None:
             self.write(ident_to_str(node.name), ': ')
-        if isinstance(node.maintype, qlast.Path):
-            self.visit(node.maintype)
-        else:
-            self.visit(node.maintype)
+
+        self.visit(node.maintype)
         if node.subtypes is not None:
             self.write('<')
             self.visit_list(node.subtypes, newlines=False)

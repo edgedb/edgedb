@@ -108,7 +108,7 @@ class Range(Collection):
     pass
 
 
-class Multirange(Collection):
+class MultiRange(Collection):
     pass
 
 

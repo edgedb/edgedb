@@ -148,7 +148,7 @@ def compile_cast(
             # type and not neding a cast.
             return ir_set
         else:
-            if isinstance(new_stype, s_types.Multirange):
+            if isinstance(new_stype, s_types.MultiRange):
                 # For multirange target type we might need to first upcast the
                 # range into corresponding multirange and then do a separate
                 # cast for the subtype.
@@ -157,7 +157,7 @@ def compile_cast(
                         new_stype.get_subtypes(schema=ctx.env.schema)
                 ):
                     ctx.env.schema, mr_stype = \
-                        s_types.Multirange.from_subtypes(ctx.env.schema, ost)
+                        s_types.MultiRange.from_subtypes(ctx.env.schema, ost)
                     ir_set = _inheritance_cast_to_ir(
                         ir_set, orig_stype, mr_stype,
                         cardinality_mod=cardinality_mod, ctx=ctx)
@@ -179,7 +179,7 @@ def compile_cast(
             orig_stype, new_stype, schema=ctx.env.schema
         ):
             # Casting between compatible types is unnecessary. It is important
-            # to catch things like MultirangeExprAlias and Multirange being of
+            # to catch things like MultiRangeExprAlias and MultiRange being of
             # the same type and not neding a cast.
             return ir_set
         else:
@@ -268,7 +268,7 @@ def compile_cast(
                 ctx=ctx,
             )
 
-        elif isinstance(new_stype, s_types.Multirange):
+        elif isinstance(new_stype, s_types.MultiRange):
             return _cast_json_to_multirange(
                 ir_set,
                 orig_stype,
@@ -790,7 +790,7 @@ def _cast_multirange(
         srcctx: Optional[parsing.ParserContext],
         ctx: context.ContextLevel) -> irast.Set:
 
-    assert isinstance(orig_stype, s_types.Multirange)
+    assert isinstance(orig_stype, s_types.MultiRange)
 
     direct_cast = _find_cast(orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
     if direct_cast is not None:
@@ -803,7 +803,7 @@ def _cast_multirange(
             f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
             f'to {new_stype.get_displayname(ctx.env.schema)!r}',
             context=srcctx)
-    assert isinstance(new_stype, s_types.Multirange)
+    assert isinstance(new_stype, s_types.MultiRange)
     el_type = new_stype.get_subtypes(ctx.env.schema)[0]
     orig_el_type = orig_stype.get_subtypes(ctx.env.schema)[0]
 
@@ -961,7 +961,7 @@ def _cast_json_to_range(
 def _cast_json_to_multirange(
         ir_set: irast.Set,
         orig_stype: s_types.Type,
-        new_stype: s_types.Multirange,
+        new_stype: s_types.MultiRange,
         cardinality_mod: Optional[qlast.CardinalityModifier],
         *,
         srcctx: Optional[parsing.ParserContext],

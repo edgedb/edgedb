@@ -2911,8 +2911,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     async def test_edgeql_casts_all_null(self):
         # For *every* cast, try casting a value we know
         # will be represented as NULL.
-        #
-        # FIXME: eventually multirange casts should be included.
         casts = await self.con.query('''
             select schema::Cast { from_type: {name}, to_type: {name} }
             filter not .from_type is schema::ObjectType
@@ -2947,9 +2945,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         # Do each cast
         for cast in casts:
-            # FIXME: multiranges aren't supported yet in bindingsshould have
-            # python drivers
-            json_only = cast.to_type.name.startswith('multirange')
             prop = type_keys[_t(cast.from_type.name)]
 
             await self.assert_query_result(
@@ -2960,7 +2955,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 ''',
                 [{"res": None}],
                 msg=f'{cast.from_type.name} to {cast.to_type.name}',
-                json_only=json_only,
             )
 
             # For casts from JSON, also do the related operation of
@@ -2973,7 +2967,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     ''',
                     [],
                     msg=f'json null cast to {cast.to_type.name}',
-                    json_only=json_only,
                 )
 
     async def test_edgeql_casts_uuid_to_object(self):

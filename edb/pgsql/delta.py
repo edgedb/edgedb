@@ -1008,23 +1008,23 @@ class DeleteRangeExprAlias(
     pass
 
 
-class MultirangeCommand(MetaCommand):
+class MultiRangeCommand(MetaCommand):
     pass
 
 
-class CreateMultirange(MultirangeCommand, adapts=s_types.CreateMultirange):
+class CreateMultiRange(MultiRangeCommand, adapts=s_types.CreateMultiRange):
     pass
 
 
-class AlterMultirange(MultirangeCommand, adapts=s_types.AlterMultirange):
+class AlterMultiRange(MultiRangeCommand, adapts=s_types.AlterMultiRange):
     pass
 
 
-class RenameMultirange(MultirangeCommand, adapts=s_types.RenameMultirange):
+class RenameMultiRange(MultiRangeCommand, adapts=s_types.RenameMultiRange):
     pass
 
 
-class DeleteMultirange(MultirangeCommand, adapts=s_types.DeleteMultirange):
+class DeleteMultiRange(MultiRangeCommand, adapts=s_types.DeleteMultiRange):
     pass
 
 

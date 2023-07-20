@@ -380,7 +380,7 @@ class RangeToJsonFunction(dbops.Function):
         )
 
 
-class MultirangeToJsonFunction(dbops.Function):
+class MultiRangeToJsonFunction(dbops.Function):
     """Convert anymultirange to a jsonb object."""
     text = r'''
         SELECT
@@ -3749,7 +3749,7 @@ class GetTypeToRangeNameMap(dbops.Function):
         )
 
 
-class GetTypeToMultirangeNameMap(dbops.Function):
+class GetTypeToMultiRangeNameMap(dbops.Function):
     "Return a map of type names to the name of the associated multirange type"
 
     text = f'''
@@ -3856,7 +3856,7 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
                     FROM
                         pg_catalog.pg_range rng
                     WHERE
-                        "kind" = 'schema::Multirange'
+                        "kind" = 'schema::MultiRange'
                         -- For multiranges, we need to do the lookup based on
                         -- our internal map of elem names to range names,
                         -- because we use the builtin daterange as the range
@@ -4305,7 +4305,7 @@ async def bootstrap(
         dbops.CreateFunction(GetCachedReflection()),
         dbops.CreateFunction(GetBaseScalarTypeMap()),
         dbops.CreateFunction(GetTypeToRangeNameMap()),
-        dbops.CreateFunction(GetTypeToMultirangeNameMap()),
+        dbops.CreateFunction(GetTypeToMultiRangeNameMap()),
         dbops.CreateFunction(GetPgTypeForEdgeDBTypeFunction()),
         dbops.CreateFunction(DescribeInstanceConfigAsDDLFunctionForwardDecl()),
         dbops.CreateFunction(DescribeDatabaseConfigAsDDLFunctionForwardDecl()),
@@ -4315,7 +4315,7 @@ async def bootstrap(
         dbops.CreateRange(DatetimeRange()),
         dbops.CreateRange(LocalDatetimeRange()),
         dbops.CreateFunction(RangeToJsonFunction()),
-        dbops.CreateFunction(MultirangeToJsonFunction()),
+        dbops.CreateFunction(MultiRangeToJsonFunction()),
         dbops.CreateFunction(RangeValidateFunction()),
         dbops.CreateFunction(RangeUnpackLowerValidateFunction()),
         dbops.CreateFunction(RangeUnpackUpperValidateFunction()),

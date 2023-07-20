@@ -183,7 +183,7 @@ def __infer_type_introspection(
                     env.schema.get('schema::Range'))
     elif irtyputils.is_multirange(ir.typeref):
         return cast(s_objtypes.ObjectType,
-                    env.schema.get('schema::Multirange'))
+                    env.schema.get('schema::MultiRange'))
     else:
         raise errors.QueryError(
             'unexpected type in INTROSPECT', context=ir.context)

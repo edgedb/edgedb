@@ -717,7 +717,7 @@ std::`*` (l: range<anypoint>, r: range<anypoint>) -> range<anypoint> {
 };
 
 
-## Multirange operators
+## MultiRange operators
 
 
 CREATE INFIX OPERATOR

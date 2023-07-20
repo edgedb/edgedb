@@ -17,6 +17,7 @@
 #
 
 
+import datetime
 import functools
 import json
 import os.path
@@ -154,7 +155,7 @@ VALUES = {
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=True, anynumeric=False),
 
-    # Much like integer and flaot values are all setup to be 1 and equal to
+    # Much like integer and float values are all setup to be 1 and equal to
     # each other, so are relative_duration and date_duration equal.
     '<cal::date_duration>"P1Y2M3D"':
         value(typename='cal::date_duration',
@@ -6908,27 +6909,98 @@ aa \
         )
 
     async def test_edgeql_expr_range_38(self):
-        # Test array of range as argument
-        await self.con.query(
-            '''
-            select <array<range<int64>>>$0
-            ''',
-            [edgedb.Range(0, 10)],
-        )
+        # Test array of range as argument. We want to test all possible range
+        # subtypes here.
+        for typedval, desc in get_test_items():
+            if desc.typename not in {
+                'int32', 'int64', 'float32', 'float64', 'decimal',
+                'datetime', 'cal::local_datetime', 'cal::local_date',
+            }:
+                continue
+
+            if '>' in typedval:
+                val = typedval.split('>')[1]
+            else:
+                val = typedval
+
+            query = f'select <array<range<{desc.typename}>>>$0'
+            ranges = [edgedb.Range(empty=True)]
+            if desc.datetime:
+                val = val.strip('"')
+                if desc.typename == 'cal::local_date':
+                    ranges.append(edgedb.Range(
+                        datetime.date.fromisoformat(val)))
+                else:
+                    ranges.append(edgedb.Range(
+                        datetime.datetime.fromisoformat(val)))
+            else:
+                val = 1
+                ranges.append(edgedb.Range(val))
+
+            await self.assert_query_result(
+                query,
+                [
+                    [
+                        {
+                            "empty": True,
+                        },
+                        {
+                            "lower": val,
+                            "inc_lower": True,
+                            "upper": None,
+                            "inc_upper": False,
+                        },
+                    ]
+                ],
+                variables=(ranges,),
+                msg=query
+            )
 
     async def test_edgeql_expr_range_39(self):
-        await self.assert_query_result(
-            r'''
-                select [range(1, 10)];
-            ''',
-            [
+        # Test array of multirange as argument. We want to test all possible
+        # range subtypes here.
+        for typedval, desc in get_test_items():
+            if desc.typename not in {
+                'int32', 'int64', 'float32', 'float64', 'decimal',
+                'datetime', 'cal::local_datetime', 'cal::local_date',
+            }:
+                continue
+
+            if '>' in typedval:
+                val = typedval.split('>')[1]
+            else:
+                val = typedval
+
+            query = f'select <array<multirange<{desc.typename}>>>$0'
+            if desc.datetime:
+                val = val.strip('"')
+                if desc.typename == 'cal::local_date':
+                    ranges = [edgedb.Range(
+                                datetime.date.fromisoformat(val))]
+                else:
+                    ranges = [edgedb.Range(
+                                datetime.datetime.fromisoformat(val))]
+            else:
+                val = 1
+                ranges = [edgedb.Range(val)]
+
+            await self.assert_query_result(
+                query,
                 [
-                    {"lower": 1, "upper": 10,
-                     "inc_lower": True, "inc_upper": False},
-                ]
-            ],
-            json_only=True,
-        )
+                    [
+                        [
+                            {
+                                "lower": val,
+                                "inc_lower": True,
+                                "upper": None,
+                                "inc_upper": False,
+                            },
+                        ]
+                    ]
+                ],
+                variables=([edgedb.MultiRange(ranges)],),
+                msg=query
+            )
 
     async def test_edgeql_expr_range_40(self):
         # test casting aliased range expr into range
@@ -7640,6 +7712,214 @@ aa \
                     multirange([r0, r1]) - r2 - r3
             ''',
             [True],
+        )
+
+    async def test_edgeql_expr_range_50(self):
+        # Test range values bindings.
+        await self.assert_query_result(
+            '''select (
+                range(<int64>{}, empty := true),
+                range(1, 4),
+                range(<int64>{}, 4),
+                range(1),
+            );''',
+            [
+                [
+                    {
+                        "empty": True,
+                    },
+                    {
+                        "lower": 1,
+                        "inc_lower": True,
+                        "upper": 4,
+                        "inc_upper": False,
+                    },
+                    {
+                        "lower": None,
+                        "inc_lower": False,
+                        "upper": 4,
+                        "inc_upper": False,
+                    },
+                    {
+                        "lower": 1,
+                        "inc_lower": True,
+                        "upper": None,
+                        "inc_upper": False,
+                    },
+                ]
+            ]
+        )
+
+    async def test_edgeql_expr_range_51(self):
+        # Test range values bindings.
+        await self.assert_query_result(
+            '''select (
+                range(<float64>{}, empty := true),
+                range(1.1, 4.2),
+                range(<float64>{}, 4.2, inc_upper := true),
+                range(1.1, inc_lower := false),
+            );''',
+            [
+                [
+                    {
+                        "empty": True,
+                    },
+                    {
+                        "lower": 1.1,
+                        "inc_lower": True,
+                        "upper": 4.2,
+                        "inc_upper": False,
+                    },
+                    {
+                        "lower": None,
+                        "inc_lower": False,
+                        "upper": 4.2,
+                        "inc_upper": True,
+                    },
+                    {
+                        "lower": 1.1,
+                        "inc_lower": False,
+                        "upper": None,
+                        "inc_upper": False,
+                    },
+                ]
+            ]
+        )
+
+    async def test_edgeql_expr_range_52(self):
+        # Test range values bindings.
+        await self.assert_query_result(
+            '''select (
+                range(<datetime>{}, empty := true),
+                range(<cal::local_date>'2022-06-06',
+                      <cal::local_date>'2022-06-10'),
+                range(<cal::local_datetime>{},
+                      <cal::local_datetime>'2022-06-08T00:00:00',
+                      inc_upper := true),
+                range(<datetime>'2022-06-10T00:00:00Z',
+                      inc_lower := false),
+            );''',
+            [
+                [
+                    {"empty": True},
+                    {
+                        "lower": "2022-06-06",
+                        "inc_lower": True,
+                        "upper": "2022-06-10",
+                        "inc_upper": False
+                    },
+                    {
+                        "lower": None,
+                        "inc_lower": False,
+                        "upper": "2022-06-08T00:00:00",
+                        "inc_upper": True
+                    },
+                    {
+                        "lower": "2022-06-10T00:00:00+00:00",
+                        "inc_lower": False,
+                        "upper": None,
+                        "inc_upper": False
+                    }
+                ]
+            ]
+        )
+
+    async def test_edgeql_expr_range_53(self):
+        # Test multirange values bindings.
+        await self.assert_query_result(
+            '''select multirange([
+                range(<int64>{}, 0),
+                range(2, 5),
+                range(10),
+            ]);''',
+            [
+                [
+                    {
+                        "lower": None,
+                        "inc_lower": False,
+                        "upper": 0,
+                        "inc_upper": False
+                    },
+                    {
+                        "lower": 2,
+                        "inc_lower": True,
+                        "upper": 5,
+                        "inc_upper": False
+                    },
+                    {
+                        "lower": 10,
+                        "inc_lower": True,
+                        "upper": None,
+                        "inc_upper": False
+                    }
+                ]
+            ]
+        )
+
+    async def test_edgeql_expr_range_54(self):
+        # Test range values bindings.
+        await self.assert_query_result(
+            '''select multirange([
+                range(<float64>{}, 0, inc_upper := true),
+                range(2.1, 5),
+                range(10.5, inc_lower := false),
+            ]);''',
+            [
+                [
+                    {
+                        "lower": None,
+                        "inc_lower": False,
+                        "upper": 0,
+                        "inc_upper": True
+                    },
+                    {
+                        "lower": 2.1,
+                        "inc_lower": True,
+                        "upper": 5,
+                        "inc_upper": False
+                    },
+                    {
+                        "lower": 10.5,
+                        "inc_lower": False,
+                        "upper": None,
+                        "inc_upper": False
+                    }
+                ]
+            ]
+        )
+
+    async def test_edgeql_expr_range_55(self):
+        # Test range values bindings.
+        await self.assert_query_result(
+            '''select multirange([
+                range(<cal::local_date>{},
+                      <cal::local_date>'2022-06-01'),
+                range(<cal::local_date>'2022-06-02',
+                      <cal::local_date>'2022-06-05'),
+                range(<cal::local_date>'2022-06-10'),
+            ]);''',
+            [
+                [
+                    {
+                        "lower": None,
+                        "inc_lower": False,
+                        "upper": "2022-06-01",
+                        "inc_upper": False
+                    },
+                    {
+                        "lower": "2022-06-02",
+                        "inc_lower": True,
+                        "upper": "2022-06-05",
+                        "inc_upper": False
+                    },
+                    {
+                        "lower": "2022-06-10",
+                        "inc_lower": True,
+                        "upper": None,
+                        "inc_upper": False
+                    }
+                ]
+            ]
         )
 
     async def test_edgeql_expr_cannot_assign_id_01(self):
