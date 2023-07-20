@@ -1,5 +1,3 @@
-# mypy: disallow_any_generics
-
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -46,14 +44,6 @@ from edb.pgsql import codegen as pgcodegen
 
 from . import enums
 from . import sertypes
-
-
-DEFAULT_SQL_SETTINGS: immutables.Map[str, str] = immutables.Map()
-DEFAULT_SQL_FE_SETTINGS = immutables.Map({
-    "search_path": "public",
-    "server_version": defines.PGEXT_POSTGRES_VERSION,
-    "server_version_num": str(defines.PGEXT_POSTGRES_VERSION_NUM),
-})
 
 
 class TxAction(enum.IntEnum):
@@ -181,7 +171,7 @@ class TxControlQuery(BaseQuery):
     cached_reflection: Any = None
 
     sp_name: Optional[str] = None
-    sp_id: Optional[str] = None
+    sp_id: Optional[int] = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -272,7 +262,7 @@ class QueryUnit:
 
     # For SAVEPOINT commands, the name and sp_id
     sp_name: Optional[str] = None
-    sp_id: Optional[str] = None
+    sp_id: Optional[int] = None
 
     # True if it is safe to cache this unit.
     cacheable: bool = False
@@ -383,16 +373,16 @@ class QueryUnitGroup:
 
     units: List[QueryUnit] = dataclasses.field(default_factory=list)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[QueryUnit]:
         return iter(self.units)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.units)
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: int) -> QueryUnit:
         return self.units[item]
 
-    def append(self, query_unit: QueryUnit):
+    def append(self, query_unit: QueryUnit) -> None:
         self.capabilities |= query_unit.capabilities
 
         if not query_unit.cacheable:
@@ -457,7 +447,7 @@ class SQLQueryUnit:
     """Original query text before translation."""
     translation_data: Optional[pgcodegen.TranslationData] = None
     """Translation source map."""
-    fe_settings: immutables.Map[str, str]
+    fe_settings: SQLSettings
     """Frontend-only settings effective during translation of this unit."""
 
     tx_action: Optional[TxAction] = None
@@ -468,7 +458,7 @@ class SQLQueryUnit:
     execute: Optional[ExecuteData] = None
     deallocate: Optional[DeallocateData] = None
 
-    set_vars: Optional[dict[str, Optional[str | list[str]]]] = None
+    set_vars: Optional[dict[Optional[str], Optional[str | list[str]]]] = None
     get_var: Optional[str] = None
     is_local: bool = False
 
@@ -483,28 +473,38 @@ class SQLQueryUnit:
     """If frontend_only is True, only issue CommandComplete with this tag."""
 
 
+SQLSettings = immutables.Map[Optional[str], Optional[str | list[str]]]
+DEFAULT_SQL_SETTINGS: SQLSettings = immutables.Map()
+DEFAULT_SQL_FE_SETTINGS: SQLSettings = immutables.Map({
+    "search_path": "public",
+    "server_version": defines.PGEXT_POSTGRES_VERSION,
+    "server_version_num": str(defines.PGEXT_POSTGRES_VERSION_NUM),
+})
+
+
 @dataclasses.dataclass
 class SQLTransactionState:
     in_tx: bool
-    settings: immutables.Map[str, str]
-    in_tx_settings: Optional[immutables.Map[str, str]]
-    in_tx_local_settings: Optional[immutables.Map[str, str]]
-    savepoints: list[
-        tuple[str, immutables.Map[str, str], immutables.Map[str, str]]]
+    # XXX: ARE THESE TYPES RIGHT? IS IT REALLY str??
+    settings: SQLSettings
+    in_tx_settings: Optional[SQLSettings]
+    in_tx_local_settings: Optional[SQLSettings]
+    savepoints: list[tuple[str, SQLSettings, SQLSettings]]
 
-    def current_fe_settings(self) -> immutables.Map[str, str]:
+    def current_fe_settings(self) -> SQLSettings:
         if self.in_tx:
             return self.in_tx_settings or DEFAULT_SQL_FE_SETTINGS
         else:
             return self.in_tx_local_settings or DEFAULT_SQL_FE_SETTINGS
 
-    def get(self, name):
+    def get(self, name: str) -> Optional[str | list[str]]:
         if self.in_tx:
+            assert self.in_tx_local_settings
             return self.in_tx_local_settings[name]
         else:
             return self.settings[name]
 
-    def apply(self, query_unit: SQLQueryUnit):
+    def apply(self, query_unit: SQLQueryUnit) -> None:
         if query_unit.tx_action == TxAction.COMMIT:
             self.in_tx = False
             self.settings = self.in_tx_settings  # type: ignore
@@ -548,8 +548,11 @@ class SQLTransactionState:
             for name, value in query_unit.set_vars.items():
                 self.set(name, value, query_unit.is_local)
 
-    def set(self, name: str, value, is_local: bool):
-        def _set(attr_name):
+    def set(
+        self, name: Optional[str], value: str | list[str] | None,
+        is_local: bool
+    ) -> None:
+        def _set(attr_name: str) -> None:
             settings = getattr(self, attr_name)
             if value is None:
                 if name in settings:
@@ -633,7 +636,7 @@ class Transaction:
 
     def __init__(
         self,
-        constate,
+        constate: CompilerConnectionState,
         *,
         user_schema: s_schema.FlatSchema,
         global_schema: s_schema.FlatSchema,
@@ -669,19 +672,19 @@ class Transaction:
         self._savepoints = {}
 
     @property
-    def id(self):
+    def id(self) -> int:
         return self._id
 
-    def is_implicit(self):
+    def is_implicit(self) -> bool:
         return self._implicit
 
-    def make_explicit(self):
+    def make_explicit(self) -> None:
         if self._implicit:
             self._implicit = False
         else:
             raise errors.TransactionError('already in explicit transaction')
 
-    def declare_savepoint(self, name: str):
+    def declare_savepoint(self, name: str) -> int:
         if self.is_implicit():
             raise errors.TransactionError(
                 'savepoints can only be used in transaction blocks')
@@ -693,7 +696,7 @@ class Transaction:
         self._declare_savepoint(name)
         return name
 
-    def _declare_savepoint(self, name: str):
+    def _declare_savepoint(self, name: str) -> int:
         sp_id = self._constate._new_txid()
         sp_state = self._current._replace(id=sp_id, name=name)
         self._savepoints[sp_id] = sp_state
@@ -707,10 +710,10 @@ class Transaction:
 
         return self._rollback_to_savepoint(name)
 
-    def abort_migration(self, name: str):
+    def abort_migration(self, name: str) -> None:
         self._rollback_to_savepoint(name)
 
-    def _rollback_to_savepoint(self, name) -> TransactionState:
+    def _rollback_to_savepoint(self, name: str) -> TransactionState:
         sp_ids_to_erase = []
         for sp in reversed(self._savepoints.values()):
             if sp.name == name:
@@ -726,17 +729,17 @@ class Transaction:
 
         return sp
 
-    def release_savepoint(self, name: str):
+    def release_savepoint(self, name: str) -> None:
         if self.is_implicit():
             raise errors.TransactionError(
                 'savepoints can only be used in transaction blocks')
 
         self._release_savepoint(name)
 
-    def commit_migration(self, name: str):
+    def commit_migration(self, name: str) -> None:
         self._release_savepoint(name)
 
-    def _release_savepoint(self, name: str):
+    def _release_savepoint(self, name: str) -> None:
         sp_ids_to_erase = []
         for sp in reversed(self._savepoints.values()):
             sp_ids_to_erase.append(sp.id)
@@ -787,7 +790,9 @@ class Transaction:
     def get_system_config(self) -> immutables.Map[str, config.SettingValue]:
         return self._current.system_config
 
-    def get_cached_reflection_if_updated(self):
+    def get_cached_reflection_if_updated(self) -> Optional[
+        immutables.Map[str, Tuple[str, ...]]
+    ]:
         if self._current.cached_reflection == self._state0.cached_reflection:
             return None
         else:
@@ -802,7 +807,7 @@ class Transaction:
     def get_migration_rewrite_state(self) -> Optional[MigrationRewriteState]:
         return self._current.migration_rewrite_state
 
-    def update_schema(self, new_schema: s_schema.Schema):
+    def update_schema(self, new_schema: s_schema.Schema) -> None:
         assert isinstance(new_schema, s_schema.ChainedSchema)
         user_schema = new_schema.get_top_schema()
         assert isinstance(user_schema, s_schema.FlatSchema)
@@ -813,17 +818,19 @@ class Transaction:
             global_schema=global_schema,
         )
 
-    def update_modaliases(self, new_modaliases: immutables.Map[Optional[str], str]):
+    def update_modaliases(
+        self, new_modaliases: immutables.Map[Optional[str], str]
+    ) -> None:
         self._current = self._current._replace(modaliases=new_modaliases)
 
     def update_session_config(
         self, new_config: immutables.Map[str, config.SettingValue]
-    ):
+    ) -> None:
         self._current = self._current._replace(session_config=new_config)
 
     def update_database_config(
         self, new_config: immutables.Map[str, config.SettingValue]
-    ):
+    ) -> None:
         self._current = self._current._replace(database_config=new_config)
 
     def update_cached_reflection(
@@ -872,22 +879,23 @@ class CompilerConnectionState:
         )
         self._savepoints_log = {}
 
-    def _new_txid(self):
+    def _new_txid(self) -> int:
         self._tx_count += 1
         return self._tx_count
 
     def _init_current_tx(
         self,
         *,
-        user_schema,
-        global_schema,
-        modaliases,
-        session_config,
-        database_config,
-        system_config,
-        cached_reflection
-    ):
+        user_schema: s_schema.Schema,
+        global_schema: s_schema.Schema,
+        modaliases: immutables.Map[Optional[str], str],
+        session_config: immutables.Map[str, config.SettingValue],
+        database_config: immutables.Map[str, config.SettingValue],
+        system_config: immutables.Map[str, config.SettingValue],
+        cached_reflection: immutables.Map[str, Tuple[str, ...]],
+    ) -> None:
         assert isinstance(user_schema, s_schema.FlatSchema)
+        assert isinstance(global_schema, s_schema.FlatSchema)
         self._current_tx = Transaction(
             self,
             user_schema=user_schema,
@@ -899,7 +907,7 @@ class CompilerConnectionState:
             cached_reflection=cached_reflection,
         )
 
-    def can_sync_to_savepoint(self, spid):
+    def can_sync_to_savepoint(self, spid: int) -> bool:
         return spid in self._savepoints_log
 
     def sync_to_savepoint(self, spid: int) -> None:
@@ -928,13 +936,13 @@ class CompilerConnectionState:
     def current_tx(self) -> Transaction:
         return self._current_tx
 
-    def start_tx(self):
+    def start_tx(self) -> None:
         if self._current_tx.is_implicit():
             self._current_tx.make_explicit()
         else:
             raise errors.TransactionError('already in transaction')
 
-    def rollback_tx(self):
+    def rollback_tx(self) -> TransactionState:
         # Note that we might not be in a transaction as we allow
         # ROLLBACKs outside of transaction blocks (just like Postgres).
 

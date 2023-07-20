@@ -136,6 +136,7 @@ module = [
     "edb.server.compiler.sertypes",
     "edb.server.compiler.compiler",
     "edb.server.compiler.ddl",
+    "edb.server.compiler.dbstate",
 ]
 # Equivalent of --strict on the command line,
 # but without disallow_untyped_calls:

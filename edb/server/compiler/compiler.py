@@ -546,8 +546,8 @@ class Compiler:
             try:
                 search_path = tx_state.get("search_path")
             except KeyError:
-                pass
-            else:
+                search_path = None
+            if isinstance(search_path, str):
                 args['search_path'] = parse_search_path(search_path)
             options = pg_resolver.Options(
                 current_user=current_user,
@@ -1305,7 +1305,7 @@ def compile_schema_storage_in_delta(
 def _compile_schema_storage_stmt(
     ctx: CompileContext,
     eql: str,
-) -> tuple[str, tuple[dbstate.Param, ...]]:
+) -> tuple[str, Sequence[dbstate.Param]]:
 
     schema = ctx.state.current_tx().get_schema(ctx.compiler_state.std_schema)
 
@@ -1352,7 +1352,7 @@ def _compile_schema_storage_stmt(
             )
 
         sql = sql_stmts[0].strip(b';').decode()
-        argmap = unit_group[0].in_type_args
+        argmap: Optional[Sequence[dbstate.Param]] = unit_group[0].in_type_args
         if argmap is None:
             argmap = ()
 
