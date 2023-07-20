@@ -59,7 +59,11 @@ class BaseProvider:
 
 
 def redirect_to_auth_provider(
-    response, redirect_uri: str, iss: str, provider_name: str, db_config: SettingsMap
+    response,
+    redirect_uri: str,
+    iss: str,
+    provider_name: str,
+    db_config: SettingsMap,
 ):
     client_id, client_secret = _get_client_credentials(provider_name, db_config)
     provider = _get_provider(
@@ -73,7 +77,9 @@ def redirect_to_auth_provider(
         iss=iss, provider=provider_name, key=signing_key
     )
 
-    auth_url = provider.get_code_url(state=state_token.serialize(), redirect_uri=redirect_uri)
+    auth_url = provider.get_code_url(
+        state=state_token.serialize(), redirect_uri=redirect_uri
+    )
 
     response.status = http.HTTPStatus.FOUND
     response.custom_headers["Location"] = auth_url
@@ -136,7 +142,9 @@ class GitHubProvider(BaseProvider):
     def __init__(self, client_id, client_secret):
         super().__init__("github", client_id, client_secret)
 
-    def get_code_url(self, state: str, redirect_uri: str, scope: str = "read:user") -> str:
+    def get_code_url(
+        self, state: str, redirect_uri: str, scope: str = "read:user"
+    ) -> str:
         params = {
             "client_id": self.client_id,
             "scope": scope,
@@ -251,22 +259,24 @@ def _make_signed_token(iss: str, provider: str, key: jwk.JWK) -> jwt.JWT:
 def _get_search_param(query: str, key: str) -> str | None:
     return urllib.parse.parse_qs(query).get(key, [None])[0]
 
+
 def _get_extension_path(url: httptools.parser.url_parser.URL) -> str:
+    path_parts = url.path.decode().split('/')
 
-  path_parts = url.path.decode().split('/')
+    path_seg_parts = ["ext", "auth"]
 
-  path_seg_parts = ["ext", "auth"]
-  
-  try:
-    index = path_parts.index(path_seg_parts[0])
-    if path_parts[index:index+len(path_seg_parts)] == path_seg_parts: 
-      index += len(path_seg_parts)-1
-  except ValueError:
-    print(f"ext/auth not found in path")
-  else:
-    path_parts = path_parts[:index+1]
-  
-  new_path = '/'.join(path_parts)
+    try:
+        index = path_parts.index(path_seg_parts[0])
+        if path_parts[index : index + len(path_seg_parts)] == path_seg_parts:
+            index += len(path_seg_parts) - 1
+    except ValueError:
+        print(f"ext/auth not found in path")
+    else:
+        path_parts = path_parts[: index + 1]
 
-  netloc = f"{url.host.decode()}:{url.port}" if url.port else url.host.decode()
-  return f"{url.schema.decode()}://{netloc}{new_path}"
+    new_path = '/'.join(path_parts)
+
+    netloc = (
+        f"{url.host.decode()}:{url.port}" if url.port else url.host.decode()
+    )
+    return f"{url.schema.decode()}://{netloc}{new_path}"
