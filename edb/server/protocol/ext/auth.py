@@ -98,7 +98,7 @@ async def handle_request(request, response, db, args):
                 request.url.query.decode("ascii"), "provider"
             )
             if provider_name is None:
-                raise errors.InternalServerError("No provider specified")
+                raise errors.BackendError("No provider specified in URL search parameters.")
 
             redirect_uri = f"{_get_extension_path(request.url)}/callback"
 
@@ -190,15 +190,16 @@ providers = {
 def _get_provider(name, client_id, client_secret):
     provider_class = providers.get(name)
     if provider_class is None:
-        raise errors.InternalServerError(f"unknown provider: {name}")
+        raise errors.BackendError(f"Unknown provider: {name}")
     return provider_class(client_id, client_secret)
 
 
 def _get_auth_signing_key(db_config: SettingsMap):
     auth_signing_key = _maybe_get_config(db_config, "xxx_auth_signing_key")
     if auth_signing_key is None:
-        raise errors.InternalServerError(
-            "No auth signing key configured: Please set `cfg::Config.xxx_auth_signing_key`"
+        raise errors.BackendError(
+            "No auth signing key configured: "
+            "Please set `cfg::Config.xxx_auth_signing_key`"
         )
     key_bytes = base64.b64encode(auth_signing_key.encode())
 
@@ -213,7 +214,7 @@ def _get_client_credentials(
         db_config, f"xxx_{provider_name}_client_secret"
     )
     if client_id is None or client_secret is None:
-        raise errors.InternalServerError(
+        raise errors.BackendError(
             f"No client credentials configured for provider `{provider_name}`: "
             f"Please set `cfg::Config.{provider_name}_client_id` and "
             f"`cfg::Config.{provider_name}_client_secret`"
@@ -234,7 +235,8 @@ def _maybe_get_config(
 
     if not isinstance(value, expected_type):
         raise TypeError(
-            f"Config value `{key}` must be {expected_type.__name__}, got {type(value).__name__}"
+            f"Config value `{key}` must be {expected_type.__name__}, got "
+            f"{type(value).__name__}"
         )
 
     return value
