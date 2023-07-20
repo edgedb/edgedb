@@ -116,7 +116,7 @@ async def handle_request(
         elif args[0] == "callback":
             await handle_auth_callback(request, response)
         else:
-            raise errors.BackendError
+            raise errors.BackendError("Unknown OAuth endpoint.")
     except Exception as ex:
         if debug.flags.server:
             markup.dump(ex)
