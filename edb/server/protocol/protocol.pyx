@@ -545,8 +545,15 @@ cdef class HttpProtocol:
                         request, response, db, args, self.server
                     )
                 elif extname == 'auth':
+                    netloc = (
+                        f"{request.url.host.decode()}:{request.url.port}"
+                            if request.url.port
+                            else request.url.host.decode()
+                    )
+                    extension_base_path = f"{request.url.schema.decode()}://" \
+                                          f"{netloc}/db/{dbname}/ext/auth"
                     await auth_ext.handle_request(
-                        request, response, db, args[1:]
+                        request, response, db, extension_base_path, args[1:]
                     )
 
         elif route == 'auth':

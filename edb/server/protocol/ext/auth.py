@@ -90,7 +90,9 @@ async def handle_auth_callback(request, response):
     return
 
 
-async def handle_request(request, response, db, args):
+async def handle_request(
+    request, response, db, extension_base_path: str, args: list[str]
+):
     try:
         # Set up routing to the appropriate handler
         if args[0] == "authorize":
@@ -98,9 +100,11 @@ async def handle_request(request, response, db, args):
                 request.url.query.decode("ascii"), "provider"
             )
             if provider_name is None:
-                raise errors.BackendError("No provider specified in URL search parameters.")
+                raise errors.BackendError(
+                    "No provider specified in URL search parameters."
+                )
 
-            redirect_uri = f"{_get_extension_path(request.url)}/callback"
+            redirect_uri = f"{extension_base_path}/callback"
 
             return redirect_to_auth_provider(
                 response=response,
@@ -154,7 +158,9 @@ class GitHubProvider(BaseProvider):
         encoded = urllib.parse.urlencode(params)
         return f"https://github.com/login/oauth/authorize?{encoded}"
 
-    async def exchange_access_token(self, code, state):
+    async def exchange_access_token(
+        self, code: str, state: str, redirect_uri: str
+    ):
         # Check state value
         # TODO: Look up state value from FlowState object
         # flow_state = await db.get_flow_state(state, "github")
@@ -164,7 +170,7 @@ class GitHubProvider(BaseProvider):
             'grant_type': 'authorization_code',
             'code': code,
             'state': state,
-            "redirect_uri": "http://localhost:8080/auth/callback",  # TODO: Get correct db-namespaced URL
+            "redirect_uri": redirect_uri,
             'client_id': self.client_id,
             'client_secret': self.client_secret,
         }
@@ -260,25 +266,3 @@ def _make_signed_token(iss: str, provider: str, key: jwk.JWK) -> jwt.JWT:
 
 def _get_search_param(query: str, key: str) -> str | None:
     return urllib.parse.parse_qs(query).get(key, [None])[0]
-
-
-def _get_extension_path(url: httptools.parser.url_parser.URL) -> str:
-    path_parts = url.path.decode().split('/')
-
-    path_seg_parts = ["ext", "auth"]
-
-    try:
-        index = path_parts.index(path_seg_parts[0])
-        if path_parts[index : index + len(path_seg_parts)] == path_seg_parts:
-            index += len(path_seg_parts) - 1
-    except ValueError:
-        print(f"ext/auth not found in path")
-    else:
-        path_parts = path_parts[: index + 1]
-
-    new_path = '/'.join(path_parts)
-
-    netloc = (
-        f"{url.host.decode()}:{url.port}" if url.port else url.host.decode()
-    )
-    return f"{url.schema.decode()}://{netloc}{new_path}"
