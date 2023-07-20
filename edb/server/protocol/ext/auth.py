@@ -139,8 +139,8 @@ def _response_error(response, status, message, ex_type):
 
 # OAuth 2 Provider for GitHub
 class GitHubProvider(BaseProvider):
-    def __init__(self, client_id, client_secret):
-        super().__init__("github", client_id, client_secret)
+    def __init__(self, *args, **kwargs):
+        super().__init__("github", *args, **kwargs)
 
     def get_code_url(
         self, state: str, redirect_uri: str, scope: str = "read:user"
