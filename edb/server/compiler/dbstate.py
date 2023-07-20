@@ -80,10 +80,10 @@ class BaseQuery:
 
     sql: Tuple[bytes, ...]
 
-    # XXX
     @property
     def is_transactional(self) -> bool:
         return True
+
 
 @dataclasses.dataclass(frozen=True)
 class NullQuery(BaseQuery):

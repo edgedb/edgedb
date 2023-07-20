@@ -350,7 +350,7 @@ async def load_schema_intro_query(
         WHERE key = $1::text;
         """,
         args=[kind.encode("utf-8")],
-    )).decode('utf-8')  # ???
+    )).decode('utf-8')
 
 
 async def load_schema_class_layout(
@@ -1462,7 +1462,7 @@ def _compile_ql_explain(
                     modaliases=current_tx.get_modaliases(),
                 ),
             )
-            exp_typ = schema.get(EXPLAIN_PARAMS[name][0])
+            exp_typ = schema.get(EXPLAIN_PARAMS[name][0], type=s_types.Type)
             if not arg_ir.stype.issubclass(schema, exp_typ):
                 raise errors.QueryError(
                     f"incorrect type for ANALYZE argument '{name}': "
@@ -1492,7 +1492,13 @@ def _compile_ql_explain(
     query = _compile_ql_query(
         ctx, ql.query, script_info=script_info,
         explain_data=explain_data, cacheable=False)
-    assert len(query.sql) == 1
+    if isinstance(query, dbstate.NullQuery):
+        raise errors.QueryError(
+            f"cannot ANALYZE inside of a migration",
+            context=ql.context,
+        )
+
+    assert len(query.sql) == 1, query.sql
 
     out_type_data, out_type_id = sertypes.describe(
         schema,
@@ -1501,7 +1507,6 @@ def _compile_ql_explain(
     )
 
     sql_bytes = exp_command.encode('utf-8') + query.sql[0]
-    assert isinstance(query, dbstate.Query)  # XXX???
     sql_hash = _hash_sql(
         sql_bytes,
         mode=str(ctx.output_format).encode(),
@@ -1553,20 +1558,19 @@ def _compile_ql_administer(
 
 def _compile_ql_query(
     ctx: CompileContext,
-    ql: qlast.Base,
+    ql: qlast.Query,
     *,
     script_info: Optional[irast.ScriptInfo] = None,
     cacheable: bool = True,
     migration_block_query: bool = False,
     explain_data: object = None,
-) -> dbstate.BaseQuery:
+) -> dbstate.Query | dbstate.NullQuery:
 
     is_explain = explain_data is not None
     current_tx = ctx.state.current_tx()
 
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
     options = _get_compile_options(ctx, is_explain=is_explain)
-    # XXX: WHY IS THIS NOT TYPING????
     ir = qlcompiler.compile_ast_to_ir(
         ql,
         schema=schema,
@@ -1622,7 +1626,7 @@ def _compile_ql_query(
     else:
         out_type_data, out_type_id = sertypes.describe(
             ir.schema,
-            ir.schema.get("std::str"),
+            ir.schema.get("std::str", type=s_types.Type),
             protocol_version=ctx.protocol_version,
         )
 
@@ -1659,7 +1663,7 @@ def _compile_ql_query(
         out_type_id=out_type_id.bytes,
         out_type_data=out_type_data,
         cacheable=cacheable,
-        has_dml=ir.dml_exprs,
+        has_dml=bool(ir.dml_exprs),
         query_asts=query_asts,
     )
 
@@ -2019,6 +2023,7 @@ def _compile_dispatch_ql(
         return (query, caps)
 
     else:
+        assert isinstance(ql, qlast.Query)  # XXX: ???
         query = _compile_ql_query(ctx, ql, script_info=script_info)
         caps = enums.Capability(0)
         if (
@@ -2678,7 +2683,7 @@ def _check_force_database_error(
             hint=err.get('hint'),
             details=err.get('details'),
             filename=filename,
-            position=position, # type: ignore
+            position=position,  # type: ignore
         )
     except Exception:
         raise errors.ConfigurationError(
@@ -2709,7 +2714,7 @@ def _get_config_val(
 
 
 def _get_compilation_config_vals(ctx: CompileContext) -> Any:
-    assert ctx.compiler_state.config_spec is not None  # ???
+    assert ctx.compiler_state.config_spec is not None
     return {
         k: _get_config_val(ctx, k)
         for k in ctx.compiler_state.config_spec

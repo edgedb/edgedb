@@ -1479,7 +1479,7 @@ class _Optional(Expr):
 #
 
 
-class ConfigOp(Expr):
+class ConfigOp(Base):
     __abstract_node__ = True
     name: ObjectRef
     scope: qltypes.ConfigScope

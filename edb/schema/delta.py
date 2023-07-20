@@ -3973,6 +3973,7 @@ class AlterObjectProperty(Command):
             if astnode.value is None:
                 new_value = None
             else:
+                assert isinstance(astnode.value, qlast.Expr)
                 orig_text = cls.get_orig_expr_text(
                     schema, parent_op.qlast, field.name)
 
