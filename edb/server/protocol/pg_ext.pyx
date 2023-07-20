@@ -480,7 +480,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                         self.sslctx,
                         server_side=True,
                     )
-                    self.tenant = self.server.retrieve_sni_tenant(
+                    self.tenant = self.server.retrieve_tenant(
                         self._transport.get_extra_info("ssl_object")
                     )
                     self.is_tls = True

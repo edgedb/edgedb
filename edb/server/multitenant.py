@@ -27,6 +27,7 @@ import logging
 import pathlib
 import signal
 import sys
+import weakref
 
 import setproctitle
 
@@ -64,6 +65,7 @@ class MultiTenantServer(server.BaseServer):
     _sys_config: Mapping[str, config.SettingValue]
     _backend_settings: Mapping[str, str]
 
+    _tenants_by_sslobj: MutableMapping
     _tenants_conf: dict[str, dict[str, str]]
     _tenants_lock: MutableMapping[str, asyncio.Lock]
     _tenants_serial: dict[str, int]
@@ -88,6 +90,7 @@ class MultiTenantServer(server.BaseServer):
         self._sys_config = sys_config
         self._backend_settings = backend_settings
 
+        self._tenants_by_sslobj = weakref.WeakKeyDictionary()
         self._tenants_conf = {}
         self._tenants_lock = collections.defaultdict(asyncio.Lock)
         self._tenants_serial = {}
@@ -144,11 +147,15 @@ class MultiTenantServer(server.BaseServer):
 
         await super().init()
 
-    def _get_tenant(self, server_name: str) -> edbtenant.Tenant:
-        return self._tenants[server_name]
+    def _sni_callback(self, sslobj, server_name, _sslctx):
+        if tenant := self._tenants.get(server_name):
+            self._tenants_by_sslobj[sslobj] = tenant
 
     def get_default_tenant(self) -> edbtenant.Tenant:
         raise errors.AuthenticationError("Illegal tenant")
+
+    def retrieve_tenant(self, sslobj) -> edbtenant.Tenant | None:
+        return self._tenants_by_sslobj.pop(sslobj, None)
 
     async def _before_start_servers(self):
         await self._task_group.__aenter__()

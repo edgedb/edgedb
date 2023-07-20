@@ -33,7 +33,6 @@ import ssl
 import stat
 import time
 import uuid
-import weakref
 
 import immutables
 from jwcrypto import jwk
@@ -76,9 +75,6 @@ class StartupError(Exception):
 
 
 class BaseServer:
-
-    _tenants_by_sslobj: MutableMapping
-
     _sys_queries: Mapping[str, bytes]
     _local_intro_query: bytes
     _global_intro_query: bytes
@@ -172,7 +168,6 @@ class BaseServer:
         self._tls_cert_newly_generated = False
         self._sslctx = None
         self._sslctx_pgext = None
-        self._tenants_by_sslobj = weakref.WeakKeyDictionary()
 
         self._jws_key: jwk.JWK | None = None
         self._jws_keys_newly_generated = False
@@ -665,6 +660,9 @@ class BaseServer:
             self.__loop._monitor_fs(str(path), cb)  # type: ignore
         )
 
+    def _sni_callback(self, sslobj, server_name, sslctx):
+        pass
+
     def reload_tls(self, tls_cert_file, tls_key_file):
         logger.info("loading TLS certificates")
         tls_password_needed = False
@@ -725,15 +723,9 @@ class BaseServer:
 
             raise StartupError(f"Cannot load TLS certificates - {e}") from e
 
-        def sni_callback(sslobj, server_name, _sslctx):
-            try:
-                self._tenants_by_sslobj[sslobj] = self._get_tenant(server_name)
-            except Exception:
-                pass
-
         sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
-        sslctx.sni_callback = sni_callback
-        sslctx_pgext.sni_callback = sni_callback
+        sslctx.sni_callback = self._sni_callback
+        sslctx_pgext.sni_callback = self._sni_callback
         self._sslctx = sslctx
         self._sslctx_pgext = sslctx_pgext
 
@@ -935,16 +927,11 @@ class BaseServer:
     def get_schema_class_layout(self) -> s_refl.SchemaClassLayout:
         return self._schema_class_layout
 
-    def _get_tenant(self, server_name: str) -> edbtenant.Tenant:
-        # Given a server name, return a corresponding tenant. Raise an error
-        # if the server name doesn't match any registered tenant.
+    def retrieve_tenant(self, sslobj) -> edbtenant.Tenant | None:
         return self.get_default_tenant()
 
     def get_default_tenant(self) -> edbtenant.Tenant:
         raise NotImplementedError
-
-    def retrieve_sni_tenant(self, sslobj) -> Optional[edbtenant.Tenant]:
-        return self._tenants_by_sslobj.pop(sslobj, None)
 
 
 class Server(BaseServer):
