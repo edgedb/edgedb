@@ -318,7 +318,7 @@ def ast_to_type_shell(
                 e.set_source_context(node.context)
                 raise e
 
-        elif issubclass(coll, (s_types.Range, s_types.Multirange)):
+        elif issubclass(coll, (s_types.Range, s_types.MultiRange)):
             for st in node.subtypes:
                 subtypes_list.append(
                     ast_to_type_shell(
@@ -515,7 +515,7 @@ def typeref_to_ast(
             ]
         )
     elif isinstance(t, (s_types.Array, s_types.Tuple,
-                        s_types.Range, s_types.Multirange)):
+                        s_types.Range, s_types.MultiRange)):
         # Here the concrete type Array is used because t.get_schema_name()
         # is used, which is not defined for more generic collections and abcs
         result = qlast.TypeName(
@@ -630,7 +630,7 @@ def shell_to_ast(
                 for st in t.get_subtypes(schema)
             ]
         )
-    elif isinstance(t, s_types.MultirangeTypeShell):
+    elif isinstance(t, s_types.MultiRangeTypeShell):
         result = qlast.TypeName(
             name=_name,
             maintype=qlast.ObjectRef(

@@ -252,7 +252,7 @@ def pg_type_from_object(
                 persistent_tuples=persistent_tuples)
             return pg_type_range(tp)
 
-    elif isinstance(obj, s_types.Multirange):
+    elif isinstance(obj, s_types.MultiRange):
         if obj.is_polymorphic(schema):
             return ('anymultirange',)
         else:
