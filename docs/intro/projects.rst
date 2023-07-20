@@ -66,8 +66,9 @@ This command does a couple important things.
 
 1. It spins up a new EdgeDB instance called ``my_instance``.
 2. If no ``edgedb.toml`` file exists, it will create one. This is a
-   configuration file that indicates that a given directory is an EdgeDB
-   project. Currently it only supports a single setting: ``server-version``.
+   configuration file that marks a given directory as an EdgeDB project. Learn
+   more about it in :ref:`our edgedb.toml reference
+   <ref_reference_edgedb_toml>`.
 
    .. code-block:: toml
 
