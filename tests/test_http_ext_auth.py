@@ -30,21 +30,24 @@ from jwcrypto import jwt, jwk
 from edb.common import markup
 from edb.testbase import http as tb
 
+
 class TestHttpExtAuth(tb.ExtAuthTestCase):
-    SETUP = [f"""
-        CONFIGURE CURRENT DATABASE SET xxx_auth_signing_key := <str>'{"a" * 32}';
-    """]
+    SETUP = [
+        f"""CONFIGURE CURRENT DATABASE SET xxx_auth_signing_key := <str>'{"a" * 32}';""",
+        f"""CONFIGURE CURRENT DATABASE SET xxx_github_client_secret := <str>'{"b" * 32}';""",
+        f"""CONFIGURE CURRENT DATABASE SET xxx_github_client_id := <str>'{"c" * 32}';""",
+    ]
 
     async def test_http_ext_auth_hello_01(self):
         with self.http_con() as http_con:
             client_id = uuid.uuid4()
 
-            auth_signing_key = await self.con.query_single( """
-                SELECT assert_single(cfg::Config.xxx_auth_signing_key)
-            """)
+            auth_signing_key = await self.con.query_single(
+                """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
+            )
 
             data, headers, status = self.http_con_request(
-                http_con, { "provider": "github" }, path="authorize"
+                http_con, {"provider": "github"}, path="authorize"
             )
 
             self.assertEqual(status, 302)
@@ -57,15 +60,17 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.hostname, "github.com")
             self.assertEqual(url.path, "/login/oauth/authorize")
             self.assertEqual(qs.get("scope"), ["read:user"])
-            
+
             state = qs.get("state")
             assert state is not None
+
             key_bytes = base64.b64encode(auth_signing_key.encode())
             key = jwk.JWK(k=key_bytes.decode(), kty="oct")
-            print(f"#####\nauth_signing_key: {auth_signing_key}\nkey: {key_bytes.decode()}\njwt: {state[0]}\n#####")
             signed_token = jwt.JWT(key=key, algs=["HS256"], jwt=state[0])
             claims = json.loads(signed_token.claims)
             self.assertEqual(claims.get("provider"), "github")
 
-            self.assertEqual(qs.get("redirect_uri"), [f"{self.http_addr}/auth/callback"])
+            self.assertEqual(
+                qs.get("redirect_uri"), [f"{self.http_addr}/auth/callback"]
+            )
             self.assertEqual(qs.get("client_id"), [client_id])

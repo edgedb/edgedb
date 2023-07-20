@@ -22,12 +22,19 @@ import urllib.parse
 import httpx
 import datetime
 import base64
+import immutables
 
+from typing import Any, Type, TypeVar, TYPE_CHECKING
 from jwcrypto import jwt, jwk
+
 from edb import errors
 from edb.common import debug
 from edb.common import markup
-from edb.server.protocol import execute
+from edb.server.config import ops
+
+
+# TODO get this from edb.server.config.ops directly?
+SettingsMap = immutables.Map[str, ops.SettingValue]
 
 
 # Base class for OAuth 2 Providers
@@ -50,30 +57,22 @@ class BaseProvider:
 # OAuth 2 Client HTTP Endpoints
 
 
-async def redirect_to_auth_provider(request, response, secretkey: jwk.JWK):
-    url_query = request.url.query.decode('ascii')
-    qs = urllib.parse.parse_qs(url_query)
-
-    provider_name = qs.get("provider")
-    if provider_name is not None:
-        provider_name = provider_name[0]
+def redirect_to_auth_provider(
+    response, iss: str, provider_name: str, db_config: SettingsMap
+):
+    client_id, client_secret = _get_client_credentials(provider_name, db_config)
     provider = _get_provider(
-        provider_name,
-        "",  # TODO: Get client_id from server config
-        "",  # TODO: Get client_secret from server config
+        name=provider_name,
+        client_id=client_id,
+        client_secret=client_secret,
     )
-    expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
-    state_claims = {
-        "iss": request.host.decode(),
-        "provider": provider_name,
-        "exp": expires_at.astimezone().timestamp(),
-    }
-    state_token = jwt.JWT(
-        header={"alg": "HS256"},
-        claims=state_claims,
+
+    signing_key = _get_auth_signing_key(db_config)
+    state_token = _make_signed_token(
+        iss=iss, provider=provider_name, key=signing_key
     )
-    state_token.make_signed_token(secretkey)
     auth_url = provider.get_code_url(state=state_token.serialize())
+
     response.status = http.HTTPStatus.FOUND
     response.custom_headers["Location"] = auth_url
     response.close_connection = True
@@ -87,8 +86,18 @@ async def handle_request(request, response, db, args):
     try:
         # Set up routing to the appropriate handler
         if args[0] == "authorize":
-            signing_key = await _get_auth_signing_key(db)
-            await redirect_to_auth_provider(request, response, signing_key)
+            provider_name: str | None = _get_search_param(
+                request.url.query.decode("ascii"), "provider"
+            )
+            if provider_name is None:
+                raise errors.InternalServerError("No provider specified")
+
+            return redirect_to_auth_provider(
+                response=response,
+                iss=request.host.decode(),
+                provider_name=provider_name,
+                db_config=db.db_config,
+            )
         elif args[0] == "callback":
             await handle_auth_callback(request, response)
         else:
@@ -172,10 +181,8 @@ def _get_provider(name, client_id, client_secret):
     return provider_class(client_id, client_secret)
 
 
-async def _get_auth_signing_key(db):
-    auth_signing_key = db.db_config.get(
-        "xxx_auth_signing_key", (None, None, None, None)
-    )[1]
+def _get_auth_signing_key(db_config: SettingsMap):
+    auth_signing_key = _maybe_get_config(db_config, "xxx_auth_signing_key")
     if auth_signing_key is None:
         raise errors.InternalServerError(
             "No auth signing key configured: Please set `cfg::Config.xxx_auth_signing_key`"
@@ -183,3 +190,58 @@ async def _get_auth_signing_key(db):
     key_bytes = base64.b64encode(auth_signing_key.encode())
 
     return jwk.JWK(kty="oct", k=key_bytes.decode())
+
+
+def _get_client_credentials(
+    provider_name: str, db_config: SettingsMap
+) -> tuple[str, str]:
+    client_id = _maybe_get_config(db_config, f"xxx_{provider_name}_client_id")
+    client_secret = _maybe_get_config(
+        db_config, f"xxx_{provider_name}_client_secret"
+    )
+    if client_id is None or client_secret is None:
+        raise errors.InternalServerError(
+            f"No client credentials configured for provider `{provider_name}`: "
+            f"Please set `cfg::Config.{provider_name}_client_id` and "
+            f"`cfg::Config.{provider_name}_client_secret`"
+        )
+    return (client_id, client_secret)
+
+
+T = TypeVar("T")
+
+
+def _maybe_get_config(
+    db_config: SettingsMap, key: str, expected_type: Type[T] = str
+) -> T | None:
+    value = db_config.get(key, (None, None, None, None))[1]
+
+    if value is None:
+        return None
+
+    if not isinstance(value, expected_type):
+        raise TypeError(
+            f"Config value `{key}` must be {expected_type.__name__}, got {type(value).__name__}"
+        )
+
+    return value
+
+
+def _make_signed_token(iss: str, provider: str, key: jwk.JWK) -> jwt.JWT:
+    expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
+
+    state_claims = {
+        "iss": iss,
+        "provider": provider,
+        "exp": expires_at.astimezone().timestamp(),
+    }
+    state_token = jwt.JWT(
+        header={"alg": "HS256"},
+        claims=state_claims,
+    )
+    state_token.make_signed_token(key)
+    return state_token
+
+
+def _get_search_param(query: str, key: str) -> str | None:
+    return urllib.parse.parse_qs(query).get(key, [None])[0]
