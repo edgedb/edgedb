@@ -29,6 +29,7 @@ from edb.common import debug
 from edb.common import markup
 from edb.server.protocol import execute
 
+
 # Base class for OAuth 2 Providers
 class BaseProvider:
     def __init__(self, name: str, client_id: str, client_secret: str):
@@ -58,8 +59,8 @@ async def redirect_to_auth_provider(request, response, secretkey: jwk.JWK):
         provider_name = provider_name[0]
     provider = _get_provider(
         provider_name,
-        "", # TODO: Get client_id from server config
-        "", # TODO: Get client_secret from server config
+        "",  # TODO: Get client_id from server config
+        "",  # TODO: Get client_secret from server config
     )
     expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
     state_claims = {
@@ -170,15 +171,15 @@ def _get_provider(name, client_id, client_secret):
         raise errors.InternalServerError(f"unknown provider: {name}")
     return provider_class(client_id, client_secret)
 
+
 async def _get_auth_signing_key(db):
-    key_json = await execute.parse_execute_json(
-        db,
-        "SELECT cfg::Config.xxx_auth_signing_key"
-    )
-    if key_json is None:
-        raise errors.InternalServerError("No auth signing key configured: Please set `cfg::Config.xxx_auth_signing_key`")
-    auth_signing_key: str = json.loads(key_json)[0]
+    auth_signing_key = db.db_config.get(
+        "xxx_auth_signing_key", (None, None, None, None)
+    )[1]
+    if auth_signing_key is None:
+        raise errors.InternalServerError(
+            "No auth signing key configured: Please set `cfg::Config.xxx_auth_signing_key`"
+        )
     key_bytes = base64.b64encode(auth_signing_key.encode())
 
-    print(f"#####\nauth_signing_key: {auth_signing_key}\nkey: {key_bytes.decode()}\n#####")
     return jwk.JWK(kty="oct", k=key_bytes.decode())
