@@ -626,8 +626,9 @@ class ClusterTestCase(BaseHTTPTestCase):
     # library (e.g. declaring casts).
     INTERNAL_TESTMODE = True
 
-    SETUP_COMMANDS: Sequence[str] = ()
-    TEARDOWN_COMMANDS: Sequence[str] = ()
+    # Setup and teardown commands that run per test
+    PER_TEST_SETUP: Sequence[str] = ()
+    PER_TEST_TEARDOWN: Sequence[str] = ()
 
     @classmethod
     def setUpClass(cls):
@@ -722,7 +723,7 @@ class ClusterTestCase(BaseHTTPTestCase):
             self.xact = self.con.transaction()
             self.loop.run_until_complete(self.xact.start())
 
-        for cmd in self.SETUP_COMMANDS:
+        for cmd in self.PER_TEST_SETUP:
             self.loop.run_until_complete(self.con.execute(cmd))
 
         super().setUp()
@@ -731,7 +732,7 @@ class ClusterTestCase(BaseHTTPTestCase):
         try:
             self.ensure_no_background_server_errors()
 
-            for cmd in self.TEARDOWN_COMMANDS:
+            for cmd in self.PER_TEST_TEARDOWN:
                 self.loop.run_until_complete(self.con.execute(cmd))
         finally:
             try:
