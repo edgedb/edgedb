@@ -3640,7 +3640,7 @@ aa';
         # XXX: error recovery quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing '\('",
+                  r"Missing ','",
                   line=2, col=29)
     def test_edgeql_syntax_function_20(self):
         """
