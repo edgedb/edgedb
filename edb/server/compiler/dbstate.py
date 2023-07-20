@@ -1,3 +1,5 @@
+# mypy: disallow_any_generics
+
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -170,7 +172,7 @@ class TxControlQuery(BaseQuery):
     action: TxAction
     cacheable: bool
 
-    modaliases: Optional[immutables.Map]
+    modaliases: Optional[immutables.Map[Optional[str], str]]
     is_transactional: bool = True
     single_unit: bool = False
 
@@ -189,7 +191,7 @@ class MigrationControlQuery(BaseQuery):
     tx_action: Optional[TxAction]
     cacheable: bool
 
-    modaliases: Optional[immutables.Map]
+    modaliases: Optional[immutables.Map[Optional[str], str]]
     is_transactional: bool = True
     single_unit: bool = False
 
@@ -210,7 +212,7 @@ class Param:
     required: bool
     array_type_id: Optional[uuid.UUID]
     outer_idx: Optional[int]
-    sub_params: Optional[tuple[list[Optional[uuid.UUID]], tuple]]
+    sub_params: Optional[tuple[list[Optional[uuid.UUID]], tuple[Any, ...]]]
 
 
 #############################
@@ -324,7 +326,7 @@ class QueryUnit:
     is_system_config: bool = False
     config_ops: List[config.Operation] = (
         dataclasses.field(default_factory=list))
-    modaliases: Optional[immutables.Map] = None
+    modaliases: Optional[immutables.Map[Optional[str], str]] = None
 
     # If present, represents the future schema state after
     # the command is run. The schema is pickled.
@@ -484,10 +486,11 @@ class SQLQueryUnit:
 @dataclasses.dataclass
 class SQLTransactionState:
     in_tx: bool
-    settings: immutables.Map
-    in_tx_settings: Optional[immutables.Map]
-    in_tx_local_settings: Optional[immutables.Map]
-    savepoints: list[tuple[str, immutables.Map, immutables.Map]]
+    settings: immutables.Map[str, str]
+    in_tx_settings: Optional[immutables.Map[str, str]]
+    in_tx_local_settings: Optional[immutables.Map[str, str]]
+    savepoints: list[
+        tuple[str, immutables.Map[str, str], immutables.Map[str, str]]]
 
     def current_fe_settings(self) -> immutables.Map[str, str]:
         if self.in_tx:
@@ -613,10 +616,10 @@ class TransactionState(NamedTuple):
     name: Optional[str]
     user_schema: s_schema.FlatSchema
     global_schema: s_schema.FlatSchema
-    modaliases: immutables.Map
-    session_config: immutables.Map
-    database_config: immutables.Map
-    system_config: immutables.Map
+    modaliases: immutables.Map[Optional[str], str]
+    session_config: immutables.Map[str, config.SettingValue]
+    database_config: immutables.Map[str, config.SettingValue]
+    system_config: immutables.Map[str, config.SettingValue]
     cached_reflection: immutables.Map[str, Tuple[str, ...]]
     tx: Transaction
     migration_state: Optional[MigrationState] = None
@@ -634,10 +637,10 @@ class Transaction:
         *,
         user_schema: s_schema.FlatSchema,
         global_schema: s_schema.FlatSchema,
-        modaliases: immutables.Map,
-        session_config: immutables.Map,
-        database_config: immutables.Map,
-        system_config: immutables.Map,
+        modaliases: immutables.Map[Optional[str], str],
+        session_config: immutables.Map[str, config.SettingValue],
+        database_config: immutables.Map[str, config.SettingValue],
+        system_config: immutables.Map[str, config.SettingValue],
         cached_reflection: immutables.Map[str, Tuple[str, ...]],
         implicit: bool = True,
     ) -> None:
@@ -772,16 +775,16 @@ class Transaction:
         else:
             return self._current.global_schema
 
-    def get_modaliases(self) -> immutables.Map:
+    def get_modaliases(self) -> immutables.Map[Optional[str], str]:
         return self._current.modaliases
 
-    def get_session_config(self) -> immutables.Map:
+    def get_session_config(self) -> immutables.Map[str, config.SettingValue]:
         return self._current.session_config
 
-    def get_database_config(self) -> immutables.Map:
+    def get_database_config(self) -> immutables.Map[str, config.SettingValue]:
         return self._current.database_config
 
-    def get_system_config(self) -> immutables.Map:
+    def get_system_config(self) -> immutables.Map[str, config.SettingValue]:
         return self._current.system_config
 
     def get_cached_reflection_if_updated(self):
@@ -810,13 +813,17 @@ class Transaction:
             global_schema=global_schema,
         )
 
-    def update_modaliases(self, new_modaliases: immutables.Map):
+    def update_modaliases(self, new_modaliases: immutables.Map[Optional[str], str]):
         self._current = self._current._replace(modaliases=new_modaliases)
 
-    def update_session_config(self, new_config: immutables.Map):
+    def update_session_config(
+        self, new_config: immutables.Map[str, config.SettingValue]
+    ):
         self._current = self._current._replace(session_config=new_config)
 
-    def update_database_config(self, new_config: immutables.Map):
+    def update_database_config(
+        self, new_config: immutables.Map[str, config.SettingValue]
+    ):
         self._current = self._current._replace(database_config=new_config)
 
     def update_cached_reflection(
@@ -847,8 +854,8 @@ class CompilerConnectionState:
         *,
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema,
-        modaliases: immutables.Map,
-        session_config: immutables.Map,
+        modaliases: immutables.Map[Optional[str], str],
+        session_config: immutables.Map[str, config.SettingValue],
         database_config: immutables.Map[str, config.SettingValue],
         system_config: immutables.Map[str, config.SettingValue],
         cached_reflection: immutables.Map[str, Tuple[str, ...]],

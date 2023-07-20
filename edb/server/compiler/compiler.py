@@ -83,7 +83,7 @@ if TYPE_CHECKING:
     from edb.pgsql import metaschema
 
 
-EMPTY_MAP: immutables.Map = immutables.Map()  # TODO: better type?
+EMPTY_MAP: immutables.Map[Any, Any] = immutables.Map()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -180,8 +180,8 @@ class CompileContext:
         return mstate
 
 
-DEFAULT_MODULE_ALIASES_MAP = immutables.Map(
-    {None: defines.DEFAULT_MODULE_ALIAS})
+DEFAULT_MODULE_ALIASES_MAP: immutables.Map[Optional[str], str] = (
+    immutables.Map({None: defines.DEFAULT_MODULE_ALIAS}))
 
 
 def compile_edgeql_script(
@@ -304,7 +304,8 @@ async def get_patch_count(backend_conn: metaschema.PGConnection) -> int:
             WHERE key = 'num_patches';
         ''',
     )
-    return json.loads(num_patches) if num_patches else 0
+    res: int = json.loads(num_patches) if num_patches else 0
+    return res
 
 
 async def load_cached_schema(
@@ -322,7 +323,7 @@ async def load_cached_schema(
         args=[key.encode("utf-8")],
     )
     try:
-        res = pickle.loads(data)
+        res: s_schema.FlatSchema = pickle.loads(data)
         if vkey != pg_patches.get_version_key(len(pg_patches.PATCHES)):
             res = s_schema.upgrade_schema(res)
         return res
@@ -366,7 +367,7 @@ async def load_schema_class_layout(
         args=[key.encode("utf-8")],
     )
     try:
-        return pickle.loads(data)
+        return cast(s_refl.SchemaClassLayout, pickle.loads(data))
     except Exception as e:
         raise RuntimeError(
             'could not load schema class layout pickle') from e
@@ -394,7 +395,9 @@ class Compiler:
         self.state = state
 
     @staticmethod
-    def try_compile_rollback(eql: Union[edgeql.Source, bytes]):
+    def try_compile_rollback(eql: Union[edgeql.Source, bytes]) -> tuple[
+        dbstate.QueryUnitGroup, int
+    ]:
         source: Union[str, edgeql.Source]
         if isinstance(eql, edgeql.Source):
             source = eql
@@ -805,8 +808,8 @@ class Compiler:
         database_config: Optional[immutables.Map[str, config.SettingValue]],
         system_config: Optional[immutables.Map[str, config.SettingValue]],
         source: edgeql.Source,
-        sess_modaliases: Optional[immutables.Map],
-        sess_config: Optional[immutables.Map],
+        sess_modaliases: Optional[immutables.Map[Optional[str], str]],
+        sess_config: Optional[immutables.Map[str, config.SettingValue]],
         output_format: enums.OutputFormat,
         expect_one: bool,
         implicit_limit: int,
@@ -830,9 +833,6 @@ class Compiler:
 
         if sess_modaliases is None:
             sess_modaliases = DEFAULT_MODULE_ALIASES_MAP
-
-        assert isinstance(sess_modaliases, immutables.Map)
-        assert isinstance(sess_config, immutables.Map)
 
         state = dbstate.CompilerConnectionState(
             user_schema=user_schema,
@@ -1232,7 +1232,7 @@ def compile_schema_storage_in_delta(
     delta: s_delta.Command,
     block: pg_dbops.SQLBlock,
     context: Optional[s_delta.CommandContext] = None,
-):
+) -> None:
 
     current_tx = ctx.state.current_tx()
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
@@ -1803,7 +1803,9 @@ def _compile_ql_transaction(
     )
 
 
-def _compile_ql_sess_state(ctx: CompileContext, ql: qlast.SessionCommand):
+def _compile_ql_sess_state(
+    ctx: CompileContext, ql: qlast.SessionCommand
+) -> dbstate.SessionStateQuery:
     current_tx = ctx.state.current_tx()
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
 
@@ -1839,7 +1841,9 @@ def _compile_ql_sess_state(ctx: CompileContext, ql: qlast.SessionCommand):
     )
 
 
-def _compile_ql_config_op(ctx: CompileContext, ql: qlast.ConfigOp):
+def _compile_ql_config_op(
+    ctx: CompileContext, ql: qlast.ConfigOp
+) -> dbstate.SessionStateQuery:
 
     current_tx = ctx.state.current_tx()
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
@@ -2412,7 +2416,8 @@ def _extract_params(
     else:
         outer_mapping = None
 
-    oparams: list[Optional[tuple]] = [None] * user_params
+    oparams: list[Optional[tuple[str, s_obj.Object, bool]]] = (
+        [None] * user_params)
     in_type_args: list[Optional[dbstate.Param]] = [None] * user_params
     for idx, param in enumerate(params):
         if param.is_sub_param:
@@ -2737,7 +2742,7 @@ def _convert_format(inp: enums.OutputFormat) -> pg_compiler.OutputFormat:
         raise RuntimeError(f"Output format {inp!r} is not supported")
 
 
-def _hash_sql(sql: bytes, **kwargs: bytes):
+def _hash_sql(sql: bytes, **kwargs: bytes) -> bytes:
     h = hashlib.sha1(sql)
     for param, val in kwargs.items():
         h.update(param.encode('latin1'))
