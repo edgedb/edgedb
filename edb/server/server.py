@@ -2050,6 +2050,9 @@ class Server(ha_base.ClusterProtocol):
 
         self._accepting_connections = self.is_online()
 
+    def _sni_callback(self, sslobj, server_name, sslctx):
+        pass
+
     def reload_tls(self, tls_cert_file, tls_key_file):
         logger.info("loading TLS certificates")
         tls_password_needed = False
@@ -2110,15 +2113,9 @@ class Server(ha_base.ClusterProtocol):
 
             raise StartupError(f"Cannot load TLS certificates - {e}") from e
 
-        def sni_callback(sslobj, server_name, _sslctx):
-            try:
-                self._tenants_by_sslobj[sslobj] = self._get_tenant(server_name)
-            except Exception:
-                pass
-
         sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
-        sslctx.sni_callback = sni_callback
-        sslctx_pgext.sni_callback = sni_callback
+        sslctx.sni_callback = self._sni_callback
+        sslctx_pgext.sni_callback = self._sni_callback
         self._sslctx = sslctx
         self._sslctx_pgext = sslctx_pgext
 
@@ -2493,16 +2490,11 @@ class Server(ha_base.ClusterProtocol):
 
         return obj
 
-    def _get_tenant(self, server_name: str) -> edbtenant.Tenant:
-        # Given a server name, return a corresponding tenant. Raise an error
-        # if the server name doesn't match any registered tenant.
-        return self._tenant
+    def retrieve_tenant(self, sslobj) -> edbtenant.Tenant | None:
+        return self.get_default_tenant()
 
     def get_default_tenant(self) -> edbtenant.Tenant:
         return self._tenant
-
-    def retrieve_sni_tenant(self, sslobj) -> Optional[edbtenant.Tenant]:
-        return self._tenants_by_sslobj.pop(sslobj, None)
 
 
 def _cleanup_wildcard_addrs(
