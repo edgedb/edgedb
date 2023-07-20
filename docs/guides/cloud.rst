@@ -16,6 +16,9 @@ EdgeDB Cloud is the easiest way to host your EdgeDB instance. We offer two ways
 to interact with EdgeDB Cloud: via our CLI or through a graphical web
 interface.
 
+.. edb:youtube-embed:: IG1MggUzzH4
+
+
 CLI Cloud Interface
 ===================
 
@@ -25,8 +28,24 @@ either :ref:`ref_cli_edgedb_instance_create` or
 :ref:`ref_cli_edgedb_project_init`, depending on whether you also want to
 create a local project linked to your instance.
 
-In either case, you will pass an instance name matching the EdgeDB Cloud
-instance name format: ``<github-username>/<instance-name>``
+* :ref:`ref_cli_edgedb_instance_create` with an instance name of
+  ``<github-username>/<instance-name>``.
+
+  .. code-block:: bash
+
+      $ edgedb instance create <github-username>/<instance-name>
+
+* :ref:`ref_cli_edgedb_project_init` with the ``--server-instance`` option. Set
+  the server instance name to ``<github-username>/<instance-name>``.
+
+  .. code-block:: bash
+
+      $ edgedb project init \
+        --server-instance <github-username>/<instance-name>
+
+  Alternatively, you can run ``edgedb project init`` *without* the
+  ``--server-instance`` option and enter an instance name in the
+  ``<github-username>/<instance-name>`` format when prompted interactively.
 
 .. note::
 
@@ -89,6 +108,19 @@ UI.
 
 You'll be able to access a REPL, edit complex queries or build them
 graphically, inspect your schema, and browse your data.
+
+
+Deploying your application
+==========================
+
+For your production deployment, generate a dedicated secret key for your
+instance with :ref:`ref_cli_edgedb_cloud_secretkey_create` or via the web UI's
+"Secret Keys" pane in your instance dashboard. Create two environment variables
+accessible to your production application:
+
+* ``EDGEDB_SECRET_KEY``- contains the secret key you generated
+* ``EDGEDB_INSTANCE``- the name of your EdgeDB Cloud instance
+  (``<github-username>/<instance-name>``)
 
 
 Questions? Problems? Bugs?
