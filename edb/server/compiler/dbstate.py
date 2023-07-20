@@ -485,7 +485,6 @@ DEFAULT_SQL_FE_SETTINGS: SQLSettings = immutables.Map({
 @dataclasses.dataclass
 class SQLTransactionState:
     in_tx: bool
-    # XXX: ARE THESE TYPES RIGHT? IS IT REALLY str??
     settings: SQLSettings
     in_tx_settings: Optional[SQLSettings]
     in_tx_local_settings: Optional[SQLSettings]

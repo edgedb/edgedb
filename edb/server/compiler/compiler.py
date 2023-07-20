@@ -627,9 +627,11 @@ class Compiler:
                     args["set_vars"] = {stmt.name: value}
                 unit = unit_ctor(**args)
             elif isinstance(stmt, pgast.VariableResetStmt):
-                assert stmt.name is not None
                 fe_only = stmt.name in fe_settings_mutable
-                if fe_only and not fe_settings_mutable[stmt.name]:
+                if (
+                    fe_only and stmt.name
+                    and not fe_settings_mutable[stmt.name]
+                ):
                     raise errors.QueryError(
                         f'parameter "{stmt.name}" cannot be changed',
                         pgext_code='55P02',  # cant_change_runtime_param
@@ -1558,7 +1560,7 @@ def _compile_ql_administer(
 
 def _compile_ql_query(
     ctx: CompileContext,
-    ql: qlast.Query,
+    ql: qlast.Query | qlast.Command,
     *,
     script_info: Optional[irast.ScriptInfo] = None,
     cacheable: bool = True,
@@ -2027,7 +2029,7 @@ def _compile_dispatch_ql(
         return (query, caps)
 
     else:
-        assert isinstance(ql, qlast.Query)  # XXX: ???
+        assert isinstance(ql, (qlast.Query, qlast.Command))
         query = _compile_ql_query(ctx, ql, script_info=script_info)
         caps = enums.Capability(0)
         if (

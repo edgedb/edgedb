@@ -185,7 +185,7 @@ def compiler_entrypoint(func: Tf) -> Tf:
 
 @overload
 def compile_ast_to_ir(
-    tree: qlast.Expr,
+    tree: qlast.Expr | qlast.Command,
     schema: s_schema.Schema,
     *,
     script_info: Optional[irast.ScriptInfo] = None,
