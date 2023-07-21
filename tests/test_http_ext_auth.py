@@ -31,17 +31,20 @@ from edb.common import markup
 from edb.testbase import http as tb
 
 
-client_id = uuid.uuid4()
-
 class TestHttpExtAuth(tb.ExtAuthTestCase):
+    client_id = uuid.uuid4()
+
     SETUP = [
         f"""CONFIGURE CURRENT DATABASE SET xxx_auth_signing_key := <str>'{"a" * 32}';""",
         f"""CONFIGURE CURRENT DATABASE SET xxx_github_client_secret := <str>'{"b" * 32}';""",
         f"""CONFIGURE CURRENT DATABASE SET xxx_github_client_id := <str>'{client_id}';""",
     ]
 
-    async def test_http_ext_auth_hello_01(self):
+    async def test_http_auth_ext_github_authorize_01(self):
         with self.http_con() as http_con:
+            client_id = await self.con.query_single(
+                """SELECT assert_single(cfg::Config.xxx_github_client_id);"""
+            )
             auth_signing_key = await self.con.query_single(
                 """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
             )
