@@ -15,11 +15,11 @@ Setup a new project.
 Description
 ===========
 
-This command sets up a new project, creating an instance and a schema
-directory for it. It can also be used to convert an existing directory
-to a project directory, connecting the existing instance to the
-project. Typically this tool will prompt for specific details about
-how the project should be setup.
+This command sets up a new project, creating an instance, a schema directory,
+and an :ref:`edgedb.toml <ref_reference_edgedb_toml>` file. It can also be used
+to convert an existing directory to a project directory, connecting the
+existing instance to the project. Typically this tool will prompt for specific
+details about how the project should be setup.
 
 
 EdgeDB Cloud
