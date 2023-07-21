@@ -341,7 +341,7 @@ cdef class ConnectionView:
 
 cdef class PgConnection(frontend.FrontendConnection):
     def __init__(self, server, sslctx, endpoint_security, **kwargs):
-        super().__init__(server, **kwargs)
+        super().__init__(server, None, **kwargs)
         self._dbview = ConnectionView()
         self._id = str(<int32_t><uint32_t>(int(self._id) % (2 ** 32)))
         self.prepared_stmts = {}  # via extended query Parse
@@ -479,6 +479,9 @@ cdef class PgConnection(frontend.FrontendConnection):
                         self,
                         self.sslctx,
                         server_side=True,
+                    )
+                    self.tenant = self.server.retrieve_tenant(
+                        self._transport.get_extra_info("ssl_object")
                     )
                     self.is_tls = True
 

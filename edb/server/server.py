@@ -1853,6 +1853,7 @@ class Server(ha_base.ClusterProtocol):
         try:
             await binary.run_script(
                 server=self,
+                tenant=self._tenant,
                 database=self._startup_script.database,
                 user=self._startup_script.user,
                 script=self._startup_script.text,
@@ -1898,8 +1899,11 @@ class Server(ha_base.ClusterProtocol):
             + defines.MAX_UNIX_SOCKET_PATH_LENGTH
             + 1
         ), "admin Unix socket length exceeds maximum allowed"
+        # TODO(fantix): run multiple UNIX domain sockets in multi-tenant server
         admin_unix_srv = await self.__loop.create_unix_server(
-            lambda: binary.new_edge_connection(self, external_auth=True),
+            lambda: binary.new_edge_connection(
+                self, self.get_default_tenant(), external_auth=True
+            ),
             admin_unix_sock_path
         )
         os.chmod(admin_unix_sock_path, stat.S_IRUSR | stat.S_IWUSR)
@@ -2263,6 +2267,7 @@ class Server(ha_base.ClusterProtocol):
         if self._startup_script and self._new_instance:
             await binary.run_script(
                 server=self,
+                tenant=self._tenant,
                 database=self._startup_script.database,
                 user=self._startup_script.user,
                 script=self._startup_script.text,
