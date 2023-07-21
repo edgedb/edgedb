@@ -37,8 +37,8 @@ Let's unpack that.
 4. Then it **links** the current directory to that instance. A "link" is
    represented as some metadata stored in EdgeDB's :ref:`config directory
    <ref_cli_edgedb_paths>`—feel free to peek inside to see how it's stored.
-5. Then it creates an ``edgedb.toml`` file, which marks this directory as an
-   EdgeDB project.
+5. Then it creates an :ref:`ref_reference_edgedb_toml` file, which marks this
+   directory as an EdgeDB project.
 6. Finally, it creates a ``dbschema`` directory and a ``dbschema/default.esdl``
    schema file (if they don't already exist).
 
@@ -92,21 +92,21 @@ more information.
 What's the ``edgedb.toml`` file?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The contents of this file aren't terribly important; this most important thing
-is simply that the file exists, since it's how the CLI knows that a directory
-is an instance-linked EdgeDB project.
+The most important role of ``edgedb.toml`` is to mark a directory as an
+instance-linked project, but it can also specify the server version and the
+schema directory for a project. The server version value in the generated
+``edgedb.toml`` is determined by the EdgeDB version you selected when you ran
+:ref:`ref_cli_edgedb_project_init`.
 
-But since we're talking about it, ``edgedb.toml`` currently supports just one
-configuration setting: ``server-version``, This lets you specify the EdgeDB
-version expected by this project. The value in the created ``edgedb.toml`` is
-determined by the EdgeDB version you selected during the setup process.
+Read :ref:`our reference documentation on edgedb.toml
+<ref_reference_edgedb_toml>` to learn more.
 
 .. note::
-    :class: aside
 
-    If you're not familiar with the TOML file format, it's a very cool,
-    minimal language for config files designed to be simpler than JSON
-    or YAML—check out a short cheatsheet `here <https://toml.io/en/>`_.
+    If you're not familiar with the TOML file format, it's a very cool, minimal
+    language for config files designed to be simpler than JSON or YAML. Check
+    out `the TOML documentation <https://toml.io/en/v1.0.0>`_.
+
 
 How do I use ``edgedb project`` for existing codebases?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

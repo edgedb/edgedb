@@ -100,9 +100,10 @@ up your first EdgeDB instance. You should see something like this:
 
 This did a couple things.
 
-1. First, it scaffolded your project by creating an ``edgedb.toml`` config
-   file and a schema file ``dbschema/default.esdl``. In the next section,
-   you'll define a schema in ``default.esdl``.
+1. First, it scaffolded your project by creating an
+   :ref:`ref_reference_edgedb_toml` config file and a schema file
+   ``dbschema/default.esdl``. In the next section, you'll define a schema in
+   ``default.esdl``.
 
 2. Second, it spun up an EdgeDB instance called ``quickstart`` and "linked" it
    to the current directory. As long as you're inside the project

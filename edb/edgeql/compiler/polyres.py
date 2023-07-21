@@ -138,9 +138,11 @@ def find_callable(
     implicit_cast_distance = None
     matched = []
 
+    candidates = list(candidates)
     for candidate in candidates:
         call = try_bind_call_args(
             args, kwargs, candidate, basic_matching_only, ctx=ctx)
+
         if call is None:
             continue
 
@@ -156,7 +158,7 @@ def find_callable(
             matched = [call]
 
     if len(matched) <= 1:
-        # Unabiguios resolution
+        # Unambiguios resolution
         return matched
 
     else:
@@ -238,7 +240,15 @@ def try_bind_call_args(
                 resolved_poly_base_type = resolved
 
             if resolved_poly_base_type == resolved:
-                return s_types.MAX_TYPE_DISTANCE if is_abstract else 0
+                if is_abstract:
+                    return s_types.MAX_TYPE_DISTANCE
+                elif arg_type.is_range() and param_type.is_multirange():
+                    # Ranges are implicitly cast into multiranges of the same
+                    # type, so they are compatible as far as polymorphic
+                    # resolution goes, but it's still 1 cast.
+                    return 1
+                else:
+                    return 0
 
             ctx.env.schema, ct = (
                 resolved_poly_base_type.find_common_implicitly_castable_type(

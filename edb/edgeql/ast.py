@@ -453,6 +453,12 @@ SessionCommand = (
     | SessionResetModule
     | SessionResetAllAliases
 )
+SessionCommand_tuple = (
+    SessionSetAliasDecl,
+    SessionResetAliasDecl,
+    SessionResetModule,
+    SessionResetAllAliases
+)
 
 
 class ShapeOp(s_enum.StrEnum):
@@ -1473,7 +1479,7 @@ class _Optional(Expr):
 #
 
 
-class ConfigOp(Expr):
+class ConfigOp(Base):
     __abstract_node__ = True
     name: ObjectRef
     scope: qltypes.ConfigScope

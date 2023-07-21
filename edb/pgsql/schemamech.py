@@ -347,8 +347,9 @@ def compile_constraint(
             options=origin_options,
         )
 
+        assert origin_ir.expr.expr
         origin_terminal_refs = ir_utils.get_longest_paths(
-            origin_ir.expr.expr.result
+            origin_ir.expr.expr
         )
         origin_ref_tables = get_ref_storage_info(
             origin_ir.schema, origin_terminal_refs

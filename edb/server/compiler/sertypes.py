@@ -88,6 +88,7 @@ class DescriptorTag(bytes, enum.Enum):
     RANGE = b'\x09'
     OBJECT = b'\x0a'
     COMPOUND = b'\x0b'
+    MULTIRANGE = b'\x0c'
 
     ANNO_TYPENAME = b'\xff'
 
@@ -429,6 +430,41 @@ def _describe_range(t: s_types.Range, *, ctx: Context) -> uuid.UUID:
 
     # .tag
     buf.append(DescriptorTag.RANGE._value_)
+    # .id
+    buf.append(type_id.bytes)
+
+    if ctx.protocol_version >= (2, 0):
+        # .name
+        buf.append(_name_packer(t.get_name(ctx.schema)))
+        # .schema_defined
+        buf.append(_bool_packer(True))
+        # .ancestors
+        buf.append(_type_ref_seq_packer([], ctx=ctx))
+
+    # .type
+    buf.append(_type_ref_id_packer(subtypes[0], ctx=ctx))
+
+    return _finish_typedesc(type_id, buf, ctx=ctx)
+
+
+# Multirange -> MultirangeTypeDescriptor
+@_describe_type.register
+def _describe_multirange(t: s_types.Multirange, *, ctx: Context) -> uuid.UUID:
+    subtypes = [
+        _describe_type(st, ctx=ctx)
+        for st in t.get_subtypes(ctx.schema)
+    ]
+
+    assert len(subtypes) == 1
+    type_id = _get_collection_type_id(t.get_schema_name(), subtypes)
+
+    if type_id in ctx.uuid_to_pos:
+        return type_id
+
+    buf = []
+
+    # .tag
+    buf.append(DescriptorTag.MULTIRANGE._value_)
     # .id
     buf.append(type_id.bytes)
 
@@ -1514,6 +1550,39 @@ def _parse_range_descriptor(
     )
 
 
+@_parse_descriptor.register(DescriptorTag.MULTIRANGE)
+def _parse_multirange_descriptor(
+    _tag: DescriptorTag,
+    desc: binwrapper.BinWrapper,
+    ctx: ParseContext,
+) -> MultirangeDesc:
+    # .id
+    tid = _parse_type_id(desc)
+
+    if ctx.protocol_version >= (2, 0):
+        # .name
+        name = _parse_string(desc)
+        # .schema_defined
+        schema_defined = _parse_bool(desc)
+        # .ancestors
+        ancestors = _parse_type_refs(desc, ctx=ctx)
+    else:
+        name = None
+        schema_defined = None
+        ancestors = None
+
+    # .type
+    subtype = _parse_type_ref(desc, ctx=ctx)
+
+    return MultirangeDesc(
+        tid=tid,
+        name=name,
+        schema_defined=schema_defined,
+        ancestors=ancestors,
+        inner=subtype,
+    )
+
+
 def _make_global_rep(typ: s_types.Type, ctx: Context) -> object:
     if isinstance(typ, s_types.Tuple):
         subtyps = typ.get_subtypes(ctx.schema)
@@ -1884,6 +1953,12 @@ class ArrayDesc(SequenceDesc, SchemaTypeDesc):
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class RangeDesc(SchemaTypeDesc):
+    ancestors: Optional[list[TypeDesc]]
+    inner: TypeDesc
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class MultirangeDesc(SchemaTypeDesc):
     ancestors: Optional[list[TypeDesc]]
     inner: TypeDesc
 
