@@ -267,19 +267,53 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         pass
 
     def connection_made(self, transport):
-        if not self.server._accepting_connections:
-            transport.abort()
-            return
-
-        self._transport = transport
-
-        if self.server._accept_new_tasks:
-            self._main_task = self.server.create_task(
+        if self.tenant is None:
+            self._transport = transport
+            self._main_task = self.loop.create_task(self.handshake())
+            self._main_task_created()
+        elif self.tenant.is_accepting_connections():
+            self._transport = transport
+            self._main_task = self.tenant.create_task(
                 self.main(), interruptable=False
             )
             self._main_task_created()
         else:
             transport.abort()
+
+    async def handshake(self):
+        try:
+            await self._handshake()
+        except Exception as ex:
+            if self._transport is not None:
+                # If there's no transport it means that the connection
+                # was aborted, in which case we don't really care about
+                # reporting the exception.
+                self.write_error(ex)
+                self.close()
+
+            if not isinstance(ex, (errors.ProtocolError,
+                                   errors.AuthenticationError)):
+                self.loop.call_exception_handler({
+                    'message': (
+                        f'unhandled error in {self.__class__.__name__} while '
+                        'accepting new connection'
+                    ),
+                    'exception': ex,
+                    'protocol': self,
+                    'transport': self._transport,
+                    'task': self._main_task,
+                })
+
+    async def _handshake(self):
+        if self.tenant is None:
+            self.tenant = self.server.get_default_tenant()
+        if self.tenant.is_accepting_connections():
+            self._main_task = self.tenant.create_task(
+                self.main(), interruptable=False
+            )
+        else:
+            if self._transport is not None:
+                self._transport.abort()
 
     # main skeleton
 
@@ -480,8 +514,8 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                     # _next_ query that is unlucky enough to pick up this
                     # Postgres backend from the connection pool.
                     # TODO(fantix): hold server shutdown to complete this task
-                    if self.server._accept_new_tasks:
-                        self.server.create_task(
+                    if self.tenant.accept_new_tasks:
+                        self.tenant.create_task(
                             self.server._cancel_and_discard_pgcon(
                                 self._pinned_pgcon, self.dbname
                             ),
