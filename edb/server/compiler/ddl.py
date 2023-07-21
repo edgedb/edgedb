@@ -270,7 +270,7 @@ def compile_and_apply_ddl_stmt(
     return dbstate.DDLQuery(
         sql=sql,
         is_transactional=is_transactional,
-        single_unit=(
+        single_unit=bool(
             (not is_transactional)
             or (drop_db is not None)
             or (create_db is not None)
@@ -290,7 +290,9 @@ def compile_and_apply_ddl_stmt(
     )
 
 
-def _new_delta_context(ctx: compiler.CompileContext, args: Any=None):
+def _new_delta_context(
+    ctx: compiler.CompileContext, args: Any=None
+) -> s_delta.CommandContext:
     return s_delta.CommandContext(
         backend_runtime_params=ctx.compiler_state.backend_runtime_params,
         stdmode=ctx.bootstrap_mode,
@@ -299,7 +301,7 @@ def _new_delta_context(ctx: compiler.CompileContext, args: Any=None):
     )
 
 
-def _get_delta_context_args(ctx: compiler.CompileContext):
+def _get_delta_context_args(ctx: compiler.CompileContext) -> dict[str, Any]:
     """Get the args need from delta_from_ddl"""
     return dict(
         testmode=compiler._get_config_val(ctx, '__internal_testmode'),
@@ -311,7 +313,9 @@ def _get_delta_context_args(ctx: compiler.CompileContext):
     )
 
 
-def _process_delta(ctx: compiler.CompileContext, delta):
+def _process_delta(
+    ctx: compiler.CompileContext, delta: s_delta.DeltaRoot
+) -> tuple[pg_dbops.SQLBlock, FrozenSet[str], Any]:
     """Adapt and process the delta command."""
 
     current_tx = ctx.state.current_tx()
@@ -322,6 +326,7 @@ def _process_delta(ctx: compiler.CompileContext, delta):
         debug.dump(delta, schema=schema)
 
     pgdelta = pg_delta.CommandMeta.adapt(delta)
+    assert isinstance(pgdelta, pg_delta.DeltaRoot)
     context = _new_delta_context(ctx)
     schema = pgdelta.apply(schema, context)
     current_tx.update_schema(schema)
@@ -342,7 +347,7 @@ def _process_delta(ctx: compiler.CompileContext, delta):
         new_types = frozenset(str(tid) for tid in pgdelta.new_types)
 
     # Generate SQL DDL for the delta.
-    pgdelta.generate(block)
+    pgdelta.generate(block)  # type: ignore
 
     # Generate schema storage SQL (DML into schema storage tables).
     subblock = block.add_block()
@@ -358,7 +363,7 @@ def compile_dispatch_ql_migration(
     ql: qlast.MigrationCommand,
     *,
     in_script: bool,
-):
+) -> dbstate.BaseQuery:
     if ctx.expect_rollback and not isinstance(
         ql, (qlast.AbortMigration, qlast.AbortMigrationRewrite)
     ):

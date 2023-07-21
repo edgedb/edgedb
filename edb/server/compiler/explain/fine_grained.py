@@ -28,10 +28,13 @@ from edb.server.compiler.explain import ir_analyze
 from edb.server.compiler import explain
 
 
+PropValue = str | int | float | list[str | int | float]
+
+
 @dataclasses.dataclass
 class Prop(to_json.ToJson):
     title: str
-    value: str | int | float | list[str | int | float]
+    value: PropValue
     type: Optional[pg_tree.PropType]
     important: bool
 
@@ -45,10 +48,10 @@ class Properties(to_json.ToJson):
     def __init__(self, props: Iterable[Prop]):
         self._props = {p.attribute_name: p for p in props}
 
-    def to_json(self):
+    def to_json(self) -> Any:
         return list(self._props.values())
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr({k: v.value for k, v in self._props.items()})
 
 
@@ -58,7 +61,7 @@ class Stage(to_json.ToJson, pg_tree.CostMixin):
     plan_id: uuid.UUID
     properties: Properties
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> PropValue:
         try:
             return self.properties._props[name].value
         except KeyError:
@@ -228,7 +231,7 @@ class TreeBuilder:
             return None
         return ainfo.contexts
 
-    def _make_stage(self, plan: pg_tree.Plan):
+    def _make_stage(self, plan: pg_tree.Plan) -> Stage:
         properties = []
         for name, prop in plan.get_props().items():
             if (value := getattr(plan, name, None)) is not None:
@@ -265,7 +268,9 @@ class TreeBuilder:
         )
 
 
-def _filter_plans(node: pg_tree.Plan, args: explain.Arguments):
+def _filter_plans(
+    node: pg_tree.Plan, args: explain.Arguments
+) -> list[pg_tree.Plan]:
     min_cost = node.total_cost * 0.01
     # TODO(tailhook) maybe we should scan inner plans to figure out that
     # there are no inner contexts in the children
