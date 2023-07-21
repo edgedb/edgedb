@@ -17,14 +17,10 @@
 #
 
 
-import os
-import respx
 import urllib.parse
 import uuid
 import json
 import base64
-
-import edgedb
 
 from jwcrypto import jwt, jwk
 from edb.common import markup

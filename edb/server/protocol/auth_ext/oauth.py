@@ -3,7 +3,7 @@ import datetime
 import base64
 import immutables
 
-from typing import Any, Type, TypeVar, TYPE_CHECKING
+from typing import Type, TypeVar
 from jwcrypto import jwt, jwk
 
 from edb import errors
