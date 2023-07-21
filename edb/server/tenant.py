@@ -56,6 +56,9 @@ class Tenant:
     def server(self) -> edbserver.Server:
         return self._server
 
+    def is_accepting_connections(self) -> bool:
+        return self._accepting_connections and self._accept_new_tasks
+
     async def start_accepting_new_tasks(self) -> None:
         assert self._task_group is None
         self._task_group = taskgroup.TaskGroup()
