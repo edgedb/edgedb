@@ -996,6 +996,9 @@ more predictable cadence will be worth it. Every third release starting with
 3.0 will be a long-term support (LTS) release. These releases will continue to
 receive support for a year and a half after their initial release.
 
+.. _v3anno:
+    https://www.edgedb.com/blog/edgedb-3-0
+
 3.1
 ===
 
@@ -1034,5 +1037,26 @@ receive support for a year and a half after their initial release.
 * Avoid leaking database existence information to unauthenticated users
   (:eql:gh:`#5744`)
 
-.. _v3anno:
-    https://www.edgedb.com/blog/edgedb-3-0
+
+3.2
+===
+* Fix empty queries in the SQL layer
+  (:eql:gh:`#5776`)
+
+* Expand list of supported SQL range functions
+  (:eql:gh:`#5777`)
+
+* Fix psql ``\dt``
+  (:eql:gh:`#5779`)
+
+* Fix bugs in casting between ranges and json on empty set inputs
+  (:eql:gh:`#5792`)
+
+* Fix globals of scalar types defined later in the schema
+  (:eql:gh:`#5764`)
+
+* Fix moving access policy from child to parent
+  (:eql:gh:`#5786`)
+
+* Modestly speed up type creation in large schemas
+  (:eql:gh:`#5814`)
