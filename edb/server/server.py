@@ -2046,6 +2046,14 @@ class Server(ha_base.ClusterProtocol):
 
         self._accepting_connections = self.is_online()
 
+    def _sni_callback(self, sslobj, server_name, sslctx):
+        # Match the given SNI for a pre-registered Tenant instance,
+        # and temporarily store in memory indexed by sslobj for future
+        # retrieval, see also retrieve_tenant() below.
+        #
+        # Used in multi-tenant server only. This method must not fail.
+        pass
+
     def reload_tls(self, tls_cert_file, tls_key_file):
         logger.info("loading TLS certificates")
         tls_password_needed = False
@@ -2107,6 +2115,8 @@ class Server(ha_base.ClusterProtocol):
             raise StartupError(f"Cannot load TLS certificates - {e}") from e
 
         sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
+        sslctx.sni_callback = self._sni_callback
+        sslctx_pgext.sni_callback = self._sni_callback
         self._sslctx = sslctx
         self._sslctx_pgext = sslctx_pgext
 
@@ -2503,6 +2513,24 @@ class Server(ha_base.ClusterProtocol):
         obj['databases'] = dbs
 
         return obj
+
+    def retrieve_tenant(self, sslobj) -> edbtenant.Tenant | None:
+        # After TLS handshake, the client connection would use this method to
+        # retrieve the Tenant instance associated with the given SSLObject.
+        #
+        # This method must not fail. See also _sni_callback() above.
+        return self.get_default_tenant()
+
+    def get_default_tenant(self) -> edbtenant.Tenant:
+        # The client connection must proceed on a Tenant instance. In cases:
+        #   1. plain-text connection without TLS handshake
+        #   2. TLS handshake didn't provide SNI
+        #   3. SNI didn't match any Tenant (retrieve_tenant() returned None)
+        # this method will be called for a "default" tenant to use.
+        #
+        # The caller must be ready to handle errors raised in this method, and
+        # provide a decent error.
+        return self._tenant
 
 
 def _cleanup_wildcard_addrs(

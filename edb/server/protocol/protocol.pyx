@@ -96,6 +96,7 @@ cdef class HttpProtocol:
     ):
         self.loop = server.get_loop()
         self.server = server
+        self.tenant = None
         self.transport = None
         self.external_auth = external_auth
         self.sslctx = sslctx
@@ -367,6 +368,7 @@ cdef class HttpProtocol:
             self.transport, self, self.sslctx, server_side=True
         )
         sslobj = self.transport.get_extra_info('ssl_object')
+        self.tenant = self.server.retrieve_tenant(sslobj)
         if sslobj.selected_alpn_protocol() == 'edgedb-binary':
             self._switch_to_binary_protocol()
         else:
