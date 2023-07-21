@@ -61,12 +61,15 @@ async def handle_request(
         # XXX Fix this when LSP "location" objects are implemented
         ex_type = errors.InternalServerError
 
-        _response_error(
-            response, http.HTTPStatus.INTERNAL_SERVER_ERROR, str(ex), ex_type
+        _fail_with_error(
+            response=response,
+            status=http.HTTPStatus.INTERNAL_SERVER_ERROR,
+            message=str(ex),
+            ex_type=ex_type,
         )
 
 
-def _response_error(response, status, message, ex_type):
+def _fail_with_error(*, response, status, message, ex_type):
     err_dct = {
         "message": message,
         "type": str(ex_type.__name__),
