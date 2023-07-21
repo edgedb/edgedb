@@ -330,6 +330,7 @@ cdef class HttpProtocol:
     def _switch_to_binary_protocol(self, data=None):
         binproto = binary.new_edge_connection(
             self.server,
+            self.tenant,
             external_auth=self.external_auth,
         )
         self.transport.set_protocol(binproto)
@@ -510,6 +511,7 @@ cdef class HttpProtocol:
 
                     response.body = await binary.eval_buffer(
                         self.server,
+                        self.tenant,
                         database=dbname,
                         data=self.current_request.body,
                         conn_params=conn_params,

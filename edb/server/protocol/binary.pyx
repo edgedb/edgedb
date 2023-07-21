@@ -151,13 +151,14 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     def __init__(
         self,
         server,
+        tenant,
         *,
         auth_data: bytes,
         conn_params: dict[str, str] | None,
         protocol_version: edbdef.ProtocolVersion = CURRENT_PROTOCOL,
         **kwargs,
     ):
-        super().__init__(server, **kwargs)
+        super().__init__(server, tenant, **kwargs)
         self._con_status = EDGECON_NEW
 
         self._dbview = None
@@ -1773,6 +1774,7 @@ cdef class VirtualTransport:
 
 async def eval_buffer(
     server,
+    tenant,
     database: str,
     data: bytes,
     conn_params: dict[str, str],
@@ -1788,6 +1790,7 @@ async def eval_buffer(
 
     proto = new_edge_connection(
         server,
+        tenant,
         passive=True,
         auth_data=auth_data,
         transport=transport,
@@ -1815,6 +1818,7 @@ async def eval_buffer(
 
 def new_edge_connection(
     server,
+    tenant,
     *,
     external_auth: bool = False,
     passive: bool = False,
@@ -1826,6 +1830,7 @@ def new_edge_connection(
 ):
     return EdgeConnection(
         server,
+        tenant,
         external_auth=external_auth,
         passive=passive,
         transport=transport,
@@ -1837,6 +1842,7 @@ def new_edge_connection(
 
 async def run_script(
     server,
+    tenant,
     database: str,
     user: str,
     script: str,
@@ -1844,7 +1850,7 @@ async def run_script(
     cdef:
         EdgeConnection conn
         dbview.CompiledQuery compiled
-    conn = new_edge_connection(server)
+    conn = new_edge_connection(server, tenant)
     await conn._start_connection(database)
     try:
         compiled = await conn.get_dbview().parse(

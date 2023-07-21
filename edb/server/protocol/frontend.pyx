@@ -47,6 +47,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
     def __init__(
         self,
         server,
+        tenant,
         *,
         passive: bool,
         transport: srvargs.ServerConnTransport,
@@ -54,6 +55,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
     ):
         self._id = server.on_binary_client_created()
         self.server = server
+        self.tenant = tenant
         self.loop = server.get_loop()
         self.dbname = None
 
@@ -304,7 +306,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                                    errors.AuthenticationError)):
                 self.loop.call_exception_handler({
                     'message': (
-                        'unhandled error in edgedb protocol while '
+                        f'unhandled error in {self.__class__.__name__} while '
                         'accepting new connection'
                     ),
                     'exception': ex,
