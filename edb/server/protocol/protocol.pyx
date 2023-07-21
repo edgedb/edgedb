@@ -43,7 +43,6 @@ from edb.server import defines as edbdef
 # Without an explicit cimport of `pgproto.debug`, we
 # can't cimport `protocol.binary` for some reason.
 from edb.server.pgproto.debug cimport PG_DEBUG
-from edb.server.protocol.ext import auth as auth_ext
 
 from . import auth
 from . import edgeql_ext
@@ -52,6 +51,7 @@ from . import server_info
 from . import notebook_ext
 from . import system_api
 from . import ui_ext
+from . import auth_ext
 
 
 HTTPStatus = http.HTTPStatus
