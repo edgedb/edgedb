@@ -27,8 +27,6 @@ from edb.testbase import http as tb
 
 
 class TestHttpExtAuth(tb.ExtAuthTestCase):
-    client_id = uuid.uuid4()
-
     SETUP = [
         f"""
         CONFIGURE CURRENT DATABASE
@@ -40,7 +38,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         """,
         f"""
         CONFIGURE CURRENT DATABASE
-        SET xxx_github_client_id := <str>'{client_id}';
+        SET xxx_github_client_id := <str>'{uuid.uuid4()}';
         """,
     ]
 
@@ -49,6 +47,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             client_id = await self.con.query_single(
                 """SELECT assert_single(cfg::Config.xxx_github_client_id);"""
             )
+
             auth_signing_key = await self.con.query_single(
                 """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
             )
@@ -80,4 +79,4 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(
                 qs.get("redirect_uri"), [f"{self.http_addr}/callback"]
             )
-            self.assertEqual(qs.get("client_id"), [str(client_id)])
+            self.assertEqual(qs.get("client_id"), [client_id])
