@@ -3,7 +3,7 @@ import datetime
 import base64
 import immutables
 
-from typing import Type, TypeVar
+from typing import Type, TypeVar, overload
 from jwcrypto import jwt, jwk
 
 from edb import errors
@@ -91,9 +91,21 @@ def _get_client_credentials(
 T = TypeVar("T")
 
 
+@overload
 def _maybe_get_config(
-    db_config: SettingsMap, key: str, expected_type: Type[T] = str
+    db_config: SettingsMap, key: str, expected_type: Type[T]
 ) -> T | None:
+    ...
+
+
+@overload
+def _maybe_get_config(db_config: SettingsMap, key: str) -> str | None:
+    ...
+
+
+def _maybe_get_config(
+    db_config: SettingsMap, key: str, expected_type: Type[object] = str
+) -> object:
     value = db_config.get(key, (None, None, None, None))[1]
 
     if value is None:
