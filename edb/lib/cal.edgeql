@@ -1958,6 +1958,27 @@ std::max(vals: SET OF array<cal::date_duration>) -> OPTIONAL array<cal::date_dur
 ## Range functions
 
 
+# FIXME: These functions introduce the concrete multirange types into the
+# schema. That's why they exist for each concrete type explicitly and aren't
+# defined generically for anytype.
+CREATE FUNCTION std::multirange_unpack(
+    val: multirange<cal::local_datetime>,
+) -> set of range<cal::local_datetime>
+{
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'unnest';
+};
+
+
+CREATE FUNCTION std::multirange_unpack(
+    val: multirange<cal::local_date>,
+) -> set of range<cal::local_date>
+{
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'unnest';
+};
+
+
 CREATE FUNCTION
 std::range_unpack(
     val: range<cal::local_datetime>,

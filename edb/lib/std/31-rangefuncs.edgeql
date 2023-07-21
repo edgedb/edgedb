@@ -409,9 +409,57 @@ CREATE FUNCTION std::overlaps(
 };
 
 
+# FIXME: These functions introduce the concrete multirange types into the
+# schema. That's why they exist for each concrete type explicitly and aren't
+# defined generically for anytype.
 CREATE FUNCTION std::multirange_unpack(
-    val: multirange<anypoint>,
-) -> set of range<anypoint>
+    val: multirange<std::int32>,
+) -> set of range<std::int32>
+{
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'unnest';
+};
+
+
+CREATE FUNCTION std::multirange_unpack(
+    val: multirange<std::int64>,
+) -> set of range<std::int64>
+{
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'unnest';
+};
+
+
+CREATE FUNCTION std::multirange_unpack(
+    val: multirange<std::float32>,
+) -> set of range<std::float32>
+{
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'unnest';
+};
+
+
+CREATE FUNCTION std::multirange_unpack(
+    val: multirange<std::float64>,
+) -> set of range<std::float64>
+{
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'unnest';
+};
+
+
+CREATE FUNCTION std::multirange_unpack(
+    val: multirange<std::decimal>,
+) -> set of range<std::decimal>
+{
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'unnest';
+};
+
+
+CREATE FUNCTION std::multirange_unpack(
+    val: multirange<std::datetime>,
+) -> set of range<std::datetime>
 {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'unnest';
