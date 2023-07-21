@@ -23,7 +23,6 @@ import json
 import base64
 
 from jwcrypto import jwt, jwk
-from edb.common import markup
 from edb.testbase import http as tb
 
 
@@ -31,9 +30,18 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     client_id = uuid.uuid4()
 
     SETUP = [
-        f"""CONFIGURE CURRENT DATABASE SET xxx_auth_signing_key := <str>'{"a" * 32}';""",
-        f"""CONFIGURE CURRENT DATABASE SET xxx_github_client_secret := <str>'{"b" * 32}';""",
-        f"""CONFIGURE CURRENT DATABASE SET xxx_github_client_id := <str>'{client_id}';""",
+        f"""
+        CONFIGURE CURRENT DATABASE
+        SET xxx_auth_signing_key := <str>'{"a" * 32}';
+        """,
+        f"""
+        CONFIGURE CURRENT DATABASE
+        SET xxx_github_client_secret := <str>'{"b" * 32}';
+        """,
+        f"""
+        CONFIGURE CURRENT DATABASE
+        SET xxx_github_client_id := <str>'{client_id}';
+        """,
     ]
 
     async def test_http_auth_ext_github_authorize_01(self):

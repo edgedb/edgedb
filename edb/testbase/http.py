@@ -37,7 +37,6 @@ bag = assert_data_shape.bag
 
 
 class BaseHttpExtensionTest(server.QueryTestCase):
-
     @classmethod
     def get_extension_name(cls):
         raise NotImplementedError
@@ -69,8 +68,8 @@ class BaseHttpExtensionTest(server.QueryTestCase):
         )
         super().tearDownClass()
 
-class ExtAuthTestCase(BaseHttpExtensionTest):
 
+class ExtAuthTestCase(BaseHttpExtensionTest):
     @classmethod
     def get_extension_name(cls):
         return 'auth'
@@ -81,7 +80,6 @@ class ExtAuthTestCase(BaseHttpExtensionTest):
 
 
 class EdgeQLTestCase(BaseHttpExtensionTest):
-
     @classmethod
     def get_extension_name(cls):
         return 'edgeql_http'
@@ -91,10 +89,9 @@ class EdgeQLTestCase(BaseHttpExtensionTest):
         return 'edgeql'
 
     def edgeql_query(
-            self, query, *, use_http_post=True, variables=None, globals=None):
-        req_data = {
-            'query': query
-        }
+        self, query, *, use_http_post=True, variables=None, globals=None
+    ):
+        req_data = {'query': query}
 
         if use_http_post:
             if variables is not None:
@@ -128,16 +125,23 @@ class EdgeQLTestCase(BaseHttpExtensionTest):
 
         raise edgedb.EdgeDBError._from_code(ex_code, ex_msg)
 
-    def assert_edgeql_query_result(self, query, result, *,
-                                   msg=None, sort=None,
-                                   use_http_post=True,
-                                   variables=None,
-                                   globals=None):
+    def assert_edgeql_query_result(
+        self,
+        query,
+        result,
+        *,
+        msg=None,
+        sort=None,
+        use_http_post=True,
+        variables=None,
+        globals=None,
+    ):
         res = self.edgeql_query(
             query,
             use_http_post=use_http_post,
             variables=variables,
-            globals=globals)
+            globals=globals,
+        )
 
         if sort is not None:
             # GQL will always have a single object returned. The data is
@@ -145,24 +149,25 @@ class EdgeQLTestCase(BaseHttpExtensionTest):
             for r in res.values():
                 assert_data_shape.sort_results(r, sort)
 
-        assert_data_shape.assert_data_shape(
-            res, result, self.fail, message=msg)
+        assert_data_shape.assert_data_shape(res, result, self.fail, message=msg)
         return res
 
 
 class GraphQLTestCase(BaseHttpExtensionTest):
-
     @classmethod
     def get_extension_name(cls):
         return 'graphql'
 
-    def graphql_query(self, query, *, operation_name=None,
-                      use_http_post=True,
-                      variables=None,
-                      globals=None):
-        req_data = {
-            'query': query
-        }
+    def graphql_query(
+        self,
+        query,
+        *,
+        operation_name=None,
+        use_http_post=True,
+        variables=None,
+        globals=None,
+    ):
+        req_data = {'query': query}
 
         if operation_name is not None:
             req_data['operationName'] = operation_name
@@ -202,31 +207,41 @@ class GraphQLTestCase(BaseHttpExtensionTest):
         except AttributeError:
             raise AssertionError(
                 f'server returned an invalid exception typename: {typename!r}'
-                f'\n  Message: {msg}')
+                f'\n  Message: {msg}'
+            )
 
         ex = ex_type(msg)
 
         if 'locations' in err:
             # XXX Fix this when LSP "location" objects are implemented
             ex._attrs[base_errors.FIELD_LINE_START] = str(
-                err['locations'][0]['line']).encode()
+                err['locations'][0]['line']
+            ).encode()
             ex._attrs[base_errors.FIELD_COLUMN_START] = str(
-                err['locations'][0]['column']).encode()
+                err['locations'][0]['column']
+            ).encode()
 
         raise ex
 
-    def assert_graphql_query_result(self, query, result, *,
-                                    msg=None, sort=None,
-                                    operation_name=None,
-                                    use_http_post=True,
-                                    variables=None,
-                                    globals=None):
+    def assert_graphql_query_result(
+        self,
+        query,
+        result,
+        *,
+        msg=None,
+        sort=None,
+        operation_name=None,
+        use_http_post=True,
+        variables=None,
+        globals=None,
+    ):
         res = self.graphql_query(
             query,
             operation_name=operation_name,
             use_http_post=use_http_post,
             variables=variables,
-            globals=globals)
+            globals=globals,
+        )
 
         if sort is not None:
             # GQL will always have a single object returned. The data is
@@ -234,6 +249,5 @@ class GraphQLTestCase(BaseHttpExtensionTest):
             for r in res.values():
                 assert_data_shape.sort_results(r, sort)
 
-        assert_data_shape.assert_data_shape(
-            res, result, self.fail, message=msg)
+        assert_data_shape.assert_data_shape(res, result, self.fail, message=msg)
         return res
