@@ -443,13 +443,14 @@ class Compiler:
         queries: List[str],
         protocol_version: defines.ProtocolVersion,
         implicit_limit: int = 0,
+        inject_implicit_typenames: bool = True,
+        output_format: enums.OutputFormat = enums.OutputFormat.BINARY,
     ) -> List[
         Tuple[
             bool,
             Union[dbstate.QueryUnit, Tuple[str, str, Dict[int, str]]]
         ]
     ]:
-
         state = dbstate.CompilerConnectionState(
             user_schema=user_schema,
             global_schema=global_schema,
@@ -476,12 +477,13 @@ class Compiler:
                 ctx = CompileContext(
                     compiler_state=self.state,
                     state=state,
-                    output_format=enums.OutputFormat.BINARY,
+                    output_format=output_format,
                     expected_cardinality_one=False,
                     implicit_limit=implicit_limit,
                     inline_typeids=False,
-                    inline_typenames=True,
-                    json_parameters=True,
+                    inline_typenames=inject_implicit_typenames,
+                    inline_objectids=inject_implicit_typenames,
+                    json_parameters=False,
                     source=source,
                     protocol_version=protocol_version,
                     notebook=True,

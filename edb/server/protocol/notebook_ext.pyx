@@ -21,7 +21,6 @@ import base64
 import http
 import json
 import urllib.parse
-import decimal
 
 import immutables
 
@@ -97,6 +96,57 @@ async def handle_request(
             response.body = b'{"kind": "status", "status": "OK"}'
             return
 
+    if args == ['parse'] and request.method == b'POST':
+        try:
+            body = json.loads(request.body)
+            if not isinstance(body, dict):
+                raise TypeError(
+                    'the body of the request must be a JSON object')
+            query = body.get('query')
+            inject_typenames = body.get('inject_typenames')
+            json_output = body.get('json_output')
+
+            if not query:
+                raise TypeError(
+                    'invalid notebook parse request: "query" is missing')
+
+            _dbv, units = await parse(
+                db, server, [query], inject_typenames, json_output)
+            dbv: dbview.DatabaseConnectionView = _dbv
+            is_error, unit_or_error = units[0]
+            if is_error:
+                response.status = http.HTTPStatus.OK
+                response.body = json.dumps({
+                    'kind': 'error',
+                    'error': {
+                        'message': unit_or_error[1],
+                        'type': unit_or_error[0],
+                    }
+                }).encode()
+                return
+            else:
+                query_unit = unit_or_error
+                dbv.check_capabilities(
+                    query_unit.capabilities,
+                    ALLOWED_CAPABILITIES,
+                    errors.UnsupportedCapabilityError,
+                    "disallowed in notebook",
+                )
+                in_type_id = base64.b64encode(query_unit.in_type_id)
+                in_type = base64.b64encode(query_unit.in_type_data)
+
+        except Exception as ex:
+            return handle_error(request, response, ex)
+        else:
+            response.status = http.HTTPStatus.OK
+            response.custom_headers['EdgeDB-Protocol-Version'] = \
+                f'{CURRENT_PROTOCOL[0]}.{CURRENT_PROTOCOL[1]}'
+            response.body = (
+                b'{"kind": "parse_result", "in_type_id": "' + in_type_id +
+                b'", "in_type": "' + in_type + b'"}')
+            return
+
+
     if args != []:
         ex = Exception(f'Unknown path')
         return handle_error(request, response, ex)
@@ -106,13 +156,14 @@ async def handle_request(
 
     try:
         if request.method == b'POST':
-            body = json.loads(request.body, parse_float=decimal.Decimal)
+            body = json.loads(request.body)
             if not isinstance(body, dict):
                 raise TypeError(
                     'the body of the request must be a JSON object')
             queries = body.get('queries')
-            allow_params = body.get('allow_params')
             params = body.get('params')
+            inject_typenames = body.get('inject_typenames')
+            json_output = body.get('json_output')
 
         else:
             raise TypeError('expected a POST request')
@@ -126,7 +177,10 @@ async def handle_request(
 
     response.status = http.HTTPStatus.OK
     try:
-        result = await execute(db, server, queries, allow_params, params or {})
+        result = await execute(
+            db, server, queries,
+            base64.b64decode(params) if params else None,
+            inject_typenames, json_output)
     except Exception as ex:
         return handle_error(request, response, ex)
     else:
@@ -157,7 +211,7 @@ cdef class NotebookConnection(frontend.AbstractFrontendConnection):
         pass
 
 
-async def execute(db, server, queries: list, allow_params, params):
+async def parse(db, server, queries, inject_typenames, json_output):
     dbv: dbview.DatabaseConnectionView = await server.new_dbview(
         dbname=db.name,
         query_cache=False,
@@ -174,9 +228,19 @@ async def execute(db, server, queries: list, allow_params, params):
         queries,
         CURRENT_PROTOCOL,
         50,  # implicit limit
+        inject_typenames,
+        enums.OutputFormat.JSON if json_output else enums.OutputFormat.BINARY,
     )
+    return dbv, units
+
+
+async def execute(
+    db, server, queries: list, params, inject_typenames, json_output
+):
+    _dbv, units = await parse(
+        db, server, queries, inject_typenames, json_output)
+    dbv: dbview.DatabaseConnectionView = _dbv
     result = []
-    bind_data = None
     pgcon = await server.acquire_pgcon(db.name)
     try:
         await pgcon.sql_execute(b'START TRANSACTION;')
@@ -199,17 +263,9 @@ async def execute(db, server, queries: list, allow_params, params):
                     "disallowed in notebook",
                 )
                 try:
-                    if not allow_params and query_unit.in_type_args:
+                    if not params and query_unit.in_type_args:
                         raise errors.QueryError(
                             'cannot use query parameters in tutorial')
-
-                    args = []
-                    if query_unit.in_type_args:
-                        for param in query_unit.in_type_args:
-                            value = params.get(param.name)
-                            args.append(value)
-
-                    bind_args = p_execute._encode_args(args)
 
                     fe_conn = NotebookConnection()
 
@@ -218,7 +274,7 @@ async def execute(db, server, queries: list, allow_params, params):
                     compiled = dbview.CompiledQuery(
                         query_unit_group=query_unit_group)
                     await p_execute.execute(
-                        pgcon, dbv, compiled, bind_args, fe_conn=fe_conn,
+                        pgcon, dbv, compiled, params or b'', fe_conn=fe_conn,
                         skip_start=True,
                     )
 
