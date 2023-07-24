@@ -78,7 +78,7 @@ async def handle_request(
     object response,
     object db,
     list args,
-    object server,
+    object tenant,
 ):
     if args == ['explore'] and request.method == b'GET':
         response.body = explore.EXPLORE_HTML
@@ -171,7 +171,7 @@ async def handle_request(
     response.content_type = b'application/json'
     try:
         result = await _execute(
-            db, server, query, operation_name, variables, globals)
+            db, tenant, query, operation_name, variables, globals)
     except Exception as ex:
         if debug.flags.server:
             markup.dump(ex)
@@ -186,6 +186,7 @@ async def handle_request(
 
             # only use the backend if schema is required
             if static_exc is errormech.SchemaRequired:
+                server = tenant.server
                 ex = errormech.interpret_backend_error(
                     s_schema.ChainedSchema(
                         server._std_schema,
@@ -216,13 +217,14 @@ async def handle_request(
 
 async def compile(
     db,
-    server,
+    tenant,
     query: str,
     tokens: Optional[List[Tuple[int, int, int, str]]],
     substitutions: Optional[Dict[str, Tuple[str, int, int]]],
     operation_name: Optional[str],
     variables: Dict[str, Any],
 ):
+    server = tenant.server
     compiler_pool = server.get_compiler_pool()
     return await compiler_pool.compile_graphql(
         db.name,
@@ -239,7 +241,8 @@ async def compile(
     )
 
 
-async def _execute(db, server, query, operation_name, variables, globals):
+async def _execute(db, tenant, query, operation_name, variables, globals):
+    server = tenant.server
     dbver = db.dbver
     query_cache = server._http_query_cache
 
@@ -306,7 +309,7 @@ async def _execute(db, server, query, operation_name, variables, globals):
         if rewritten is not None:
             qug, gql_op = await compile(
                 db,
-                server,
+                tenant,
                 query,
                 rewritten.tokens(gql_lexer.TokenKind),
                 rewritten.substitutions(),
@@ -316,7 +319,7 @@ async def _execute(db, server, query, operation_name, variables, globals):
         else:
             qug, gql_op = await compile(
                 db,
-                server,
+                tenant,
                 query,
                 None,
                 None,
