@@ -82,4 +82,5 @@ def _fail_with_error(*, response, status, message, ex_type):
 
 
 def _get_search_param(query: str, key: str) -> str | None:
-    return urllib.parse.parse_qs(query).get(key, [None])[0]
+    params = urllib.parse.parse_qs(query).get(key)
+    return params[0] if params else None

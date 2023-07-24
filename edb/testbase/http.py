@@ -69,6 +69,7 @@ class BaseHttpExtensionTest(server.QueryTestCase):
         )
         super().tearDownClass()
 
+
 class ExtAuthTestCase(BaseHttpExtensionTest):
 
     @classmethod
