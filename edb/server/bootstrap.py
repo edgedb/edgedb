@@ -658,6 +658,9 @@ def prepare_repair_patch(
     return sql
 
 
+PatchEntry = tuple[tuple[str, ...], tuple[str, ...], dict[str, Any], bool]
+
+
 def prepare_patch(
     num: int,
     kind: str,
@@ -666,7 +669,7 @@ def prepare_patch(
     reflschema: s_schema.Schema,
     schema_class_layout: s_refl.SchemaClassLayout,
     backend_params: params.BackendRuntimeParams,
-) -> tuple[tuple[str, ...], tuple[str, ...], dict[str, Any], bool]:
+) -> PatchEntry:
     val = f'{pg_common.quote_literal(json.dumps(num + 1))}::jsonb'
     # TODO: This is an INSERT because 2.0 shipped without num_patches.
     # We can just make this an UPDATE for 3.0
