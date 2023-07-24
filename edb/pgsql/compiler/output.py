@@ -160,6 +160,7 @@ def array_as_json_object(
     if (
         is_tuple
         or irtyputils.is_range(el_type)
+        or irtyputils.is_multirange(el_type)
         or el_type.real_base_type.needs_custom_json_cast
     ):
         coldeflist = []
@@ -561,6 +562,18 @@ def serialize_expr_to_json(
         val = pgast.FuncCall(
             # Use the actual generic helper for converting anyrange to jsonb
             name=('edgedb', 'range_to_jsonb'),
+            args=[expr], null_safe=True, ser_safe=True)
+        if env.output_format in _JSON_FORMATS:
+            val = pgast.TypeCast(
+                arg=val,
+                type_name=pgast.TypeName(name=('json',))
+            )
+
+    elif irtyputils.is_multirange(styperef) and not expr.ser_safe:
+        val = pgast.FuncCall(
+            # Use the actual generic helper for converting anymultirange to
+            # jsonb
+            name=('edgedb', 'multirange_to_jsonb'),
             args=[expr], null_safe=True, ser_safe=True)
         if env.output_format in _JSON_FORMATS:
             val = pgast.TypeCast(

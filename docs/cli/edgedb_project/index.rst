@@ -8,7 +8,7 @@ edgedb project
 EdgeDB provides a way to quickly setup a project. This way the project
 directory gets associated with a specific EdgeDB instance and thus
 makes it the default instance to connect to. This is done by creating
-an ``edgedb.toml`` file in the project directory.
+an :ref:`ref_reference_edgedb_toml` file in the project directory.
 
 .. toctree::
     :maxdepth: 3

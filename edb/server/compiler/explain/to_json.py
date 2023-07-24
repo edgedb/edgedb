@@ -23,11 +23,11 @@ import uuid
 
 
 class ToJson:
-    def to_json(self):
+    def to_json(self) -> Any:
         return {k: v for k, v in self.__dict__.items() if v is not None}
 
 
-def json_hook(value: Any):
+def json_hook(value: Any) -> Any:
     if isinstance(value, ToJson):
         return value.to_json()
     elif isinstance(value, uuid.UUID):
