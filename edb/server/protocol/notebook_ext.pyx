@@ -82,13 +82,13 @@ async def handle_request(
     object response,
     object db,
     list args,
-    object server,
+    object tenant,
 ):
     response.content_type = b'application/json'
 
     if args == ['status'] and request.method == b'GET':
         try:
-            await heartbeat_check(db, server)
+            await heartbeat_check(db, tenant)
         except Exception as ex:
             return handle_error(request, response, ex)
         else:
@@ -122,7 +122,7 @@ async def handle_request(
 
     response.status = http.HTTPStatus.OK
     try:
-        result = await execute(db, server, queries)
+        result = await execute(db, tenant, queries)
     except Exception as ex:
         return handle_error(request, response, ex)
     else:
@@ -131,7 +131,8 @@ async def handle_request(
         response.body = b'{"kind": "results", "results":' + result + b'}'
 
 
-async def heartbeat_check(db, server):
+async def heartbeat_check(db, tenant):
+    server = tenant.server
     pgcon = await server.acquire_pgcon(db.name)
     try:
         await pgcon.sql_execute(b"SELECT 'OK';")
@@ -153,7 +154,8 @@ cdef class NotebookConnection(frontend.AbstractFrontendConnection):
         pass
 
 
-async def execute(db, server, queries: list):
+async def execute(db, tenant, queries: list):
+    server = tenant.server
     dbv: dbview.DatabaseConnectionView = await server.new_dbview(
         dbname=db.name,
         query_cache=False,
