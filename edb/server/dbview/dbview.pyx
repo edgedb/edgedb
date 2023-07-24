@@ -713,6 +713,10 @@ cdef class DatabaseConnectionView:
     def server(self):
         return self._db._index._server
 
+    @property
+    def tenant(self):
+        return self._db._index._tenant
+
     cpdef in_tx(self):
         return self._in_tx
 
