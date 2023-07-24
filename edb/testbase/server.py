@@ -382,7 +382,7 @@ class BaseHTTPTestCase(TestCase):
     ) -> tuple[bytes, dict[str, str], int]:
         resp = http_con.getresponse()
         resp_body = resp.read()
-        resp_headers = {k.lower(): v.lower() for k, v in resp.getheaders()}
+        resp_headers = {k.lower(): v for k, v in resp.getheaders()}
         return resp_body, resp_headers, resp.status
 
     def http_con_request(
