@@ -596,6 +596,7 @@ cdef class HttpProtocol:
                 response,
                 path_parts[1:],
                 self.server,
+                self.tenant,
             )
         elif path_parts == ['metrics'] and request.method == b'GET':
             # Quoting the Open Metrics spec:
