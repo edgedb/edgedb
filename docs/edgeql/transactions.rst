@@ -121,20 +121,24 @@ Golang
 
 .. code-block:: go
 
-	err := client.Tx(ctx, func(ctx context.Context, tx *Tx) error {
-		query1 := `update BankCustomer 
-              filter .name = 'Customer1'
-              set { bank_balance := .bank_balance -10 };`
-		query2 := `update BankCustomer 
-              filter .name = 'Customer2'
-              set { bank_balance := .bank_balance +10 };`  
+	err = client.Tx(ctx, func(ctx context.Context, tx *edgedb.Tx) error {
+		query1 := `update BankCustomer
+			filter .name = 'Customer1'
+			set { bank_balance := .bank_balance -10 };`
 		if e := tx.Execute(ctx, query1); e != nil {
 			return e
 		}
-    if e := tx.Execute(ctx, query2); e != nil {
+		query2 := `update BankCustomer
+			filter .name = 'Customer2'
+			set { bank_balance := .bank_balance +10 };`
+		if e := tx.Execute(ctx, query2); e != nil {
 			return e
 		}
+		return nil
 	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
 Full documentation at `Client Libraries > Go </docs/clients/02_go/index>`_.
 
