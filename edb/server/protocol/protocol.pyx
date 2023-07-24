@@ -158,10 +158,8 @@ cdef class HttpProtocol:
             if is_tls:
                 # Most clients should arrive here to continue with TLS
                 self.transport.pause_reading()
-                self.server.create_task(
-                    self._forward_first_data(data), interruptable=True
-                )
-                self.server.create_task(self._start_tls(), interruptable=True)
+                self.loop.create_task(self._forward_first_data(data))
+                self.loop.create_task(self._start_tls())
                 return
 
             # In case when we're talking to a non-TLS client, keep using the
@@ -249,11 +247,22 @@ cdef class HttpProtocol:
             self.unprocessed.append(req)
         else:
             self.in_response = True
-            self.server.create_task(
-                self._handle_request(req), interruptable=False
-            )
+            self._schedule_handle_request(req)
 
         self.server._http_last_minute_requests += 1
+
+    cdef inline _schedule_handle_request(self, request):
+        if self.tenant is None:
+            self.loop.create_task(self._handle_request(request))
+        elif self.tenant.is_accepting_connections():
+            self.tenant.create_task(
+                self._handle_request(request), interruptable=False
+            )
+        else:
+            self._close_with_error(
+                b'503 Service Unavailable',
+                b'The server is closing.',
+            )
 
     cdef close(self):
         if self.transport is not None:
@@ -265,12 +274,18 @@ cdef class HttpProtocol:
         if debug.flags.server:
             markup.dump(ex)
 
+        self._close_with_error(
+            b'400 Bad Request',
+            f'{type(ex).__name__}: {ex}'.encode(),
+        )
+
+    cdef inline _close_with_error(self, bytes status, bytes message):
         self._write(
             b'1.0',
-            b'400 Bad Request',
+            status,
             b'text/plain',
             {},
-            f'{type(ex).__name__}: {ex}'.encode(),
+            message,
             True)
 
         self.close()
@@ -281,9 +296,7 @@ cdef class HttpProtocol:
 
         if self.unprocessed:
             req = self.unprocessed.popleft()
-            self.server.create_task(
-                self._handle_request(req), interruptable=False
-            )
+            self._schedule_handle_request(req)
         else:
             self.transport.resume_reading()
 
@@ -454,6 +467,19 @@ cdef class HttpProtocol:
         path_parts = path.split('/')
         path_parts_len = len(path_parts)
         route = path_parts[0]
+
+        if self.tenant is None and route in ['db', 'auth']:
+            self.tenant = self.server.get_default_tenant()
+            if self.tenant.is_accepting_connections():
+                return await self.tenant.create_task(
+                    self.handle_request(request, response),
+                    interruptable=False,
+                )
+            else:
+                return self._close_with_error(
+                    b'503 Service Unavailable',
+                    b'The server is closing.',
+                )
 
         if route == 'db':
             if path_parts_len < 2:
