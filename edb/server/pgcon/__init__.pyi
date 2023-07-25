@@ -108,5 +108,26 @@ class PGConnection:
     def get_server_parameter_status(self, parameter: str) -> Optional[str]:
         ...
 
+    def set_stmt_cache_size(self, size: int) -> None:
+        ...
+
+    def set_server(self, server: object) -> None:
+        ...
+
+    async def signal_sysevent(self, event: str, *, dbname: str) -> None:
+        ...
+
+    def abort(self) -> None:
+        ...
+
+    def is_healthy(self) -> bool:
+        ...
+
+    async def listen_for_sysevent(self) -> None:
+        ...
+
+    def mark_as_system_db(self) -> None:
+        ...
+
 
 SETUP_TEMP_TABLE_SCRIPT: str
