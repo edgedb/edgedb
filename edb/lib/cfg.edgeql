@@ -83,8 +83,11 @@ CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
     };
 };
 
+CREATE ABSTRACT TYPE cfg::ExtensionConfig EXTENDING cfg::ConfigObject;
 
 CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
+    CREATE MULTI LINK exts -> cfg::ExtensionConfig;
+
     CREATE REQUIRED PROPERTY session_idle_timeout -> std::duration {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::report := 'true';
