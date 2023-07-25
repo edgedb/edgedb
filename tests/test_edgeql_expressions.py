@@ -6975,11 +6975,13 @@ aa \
             if desc.datetime:
                 val = val.strip('"')
                 if desc.typename == 'cal::local_date':
-                    ranges = [edgedb.Range(
-                                datetime.date.fromisoformat(val))]
+                    ranges = [
+                        edgedb.Range(datetime.date.fromisoformat(val))
+                    ]
                 else:
-                    ranges = [edgedb.Range(
-                                datetime.datetime.fromisoformat(val))]
+                    ranges = [
+                        edgedb.Range(datetime.datetime.fromisoformat(val))
+                    ]
             else:
                 val = 1
                 ranges = [edgedb.Range(val)]

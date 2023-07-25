@@ -70,7 +70,7 @@ def is_index_valid_for_type(
             return expr_type.issubclass(
                 schema, schema.get('std::str', type=s_scalars.ScalarType))
         case 'pg::gist':
-            return expr_type.is_range()
+            return expr_type.is_range() or expr_type.is_multirange()
         case 'pg::spgist':
             return (
                 expr_type.is_range()

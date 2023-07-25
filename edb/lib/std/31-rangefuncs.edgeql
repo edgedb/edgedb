@@ -334,6 +334,11 @@ CREATE FUNCTION std::contains(
     USING SQL $$
        SELECT "haystack" @> "needle"
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    # Postgres only manages to inline this function if it isn't marked strict,
+    # and we want it to be inlined so that pg::gin indexes work with it.
+    set impl_is_strict := false;
 };
 
 
@@ -346,6 +351,9 @@ CREATE FUNCTION std::contains(
     USING SQL $$
        SELECT "haystack" @> "needle"
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    set impl_is_strict := false;
 };
 
 
@@ -358,6 +366,9 @@ CREATE FUNCTION std::contains(
     USING SQL $$
        SELECT "haystack" @> "needle"
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    set impl_is_strict := false;
 };
 
 
@@ -370,6 +381,9 @@ CREATE FUNCTION std::contains(
     USING SQL $$
        SELECT "haystack" @> "needle"
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    set impl_is_strict := false;
 };
 
 
@@ -382,6 +396,9 @@ CREATE FUNCTION std::contains(
     USING SQL $$
        SELECT "haystack" @> "needle"
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    set impl_is_strict := false;
 };
 
 
@@ -394,6 +411,9 @@ CREATE FUNCTION std::overlaps(
     USING SQL $$
        SELECT "l" && "r"
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    set impl_is_strict := false;
 };
 
 
@@ -406,6 +426,9 @@ CREATE FUNCTION std::overlaps(
     USING SQL $$
        SELECT "l" && "r"
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    set impl_is_strict := false;
 };
 
 
@@ -475,6 +498,9 @@ CREATE FUNCTION std::strictly_below(
     USING SQL $$
        SELECT "l" << "r"
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    set impl_is_strict := false;
 };
 
 
@@ -487,6 +513,9 @@ CREATE FUNCTION std::strictly_below(
     USING SQL $$
        SELECT "l" << "r"
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    set impl_is_strict := false;
 };
 
 
@@ -499,6 +528,9 @@ CREATE FUNCTION std::strictly_above(
     USING SQL $$
        SELECT "l" >> "r"
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    set impl_is_strict := false;
 };
 
 
@@ -511,6 +543,9 @@ CREATE FUNCTION std::strictly_above(
     USING SQL $$
        SELECT "l" >> "r"
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    set impl_is_strict := false;
 };
 
 
@@ -523,6 +558,9 @@ CREATE FUNCTION std::bounded_above(
     USING SQL $$
        SELECT "l" &< "r"
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    set impl_is_strict := false;
 };
 
 
@@ -535,6 +573,9 @@ CREATE FUNCTION std::bounded_above(
     USING SQL $$
        SELECT "l" &< "r"
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    set impl_is_strict := false;
 };
 
 
@@ -547,6 +588,9 @@ CREATE FUNCTION std::bounded_below(
     USING SQL $$
        SELECT "l" &> "r"
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    set impl_is_strict := false;
 };
 
 
@@ -559,6 +603,9 @@ CREATE FUNCTION std::bounded_below(
     USING SQL $$
        SELECT "l" &> "r"
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    set impl_is_strict := false;
 };
 
 
@@ -571,6 +618,9 @@ CREATE FUNCTION std::adjacent(
     USING SQL $$
        SELECT "l" -|- "r"
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    set impl_is_strict := false;
 };
 
 
@@ -583,6 +633,9 @@ CREATE FUNCTION std::adjacent(
     USING SQL $$
        SELECT "l" -|- "r"
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    set impl_is_strict := false;
 };
 
 
