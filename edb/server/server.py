@@ -73,6 +73,7 @@ from edb.server.pgcon import errors as pgcon_errors
 
 from edb.pgsql import patches as pg_patches
 
+from . import compiler as edbcompiler
 from . import dbview
 
 if TYPE_CHECKING:
@@ -166,9 +167,12 @@ class Server(ha_base.ClusterProtocol):
         admin_ui: bool = False,
         instance_name: str,
         disable_dynamic_system_config: bool = False,
+        compiler_state: edbcompiler.CompilerState,
     ):
         self.__loop = asyncio.get_running_loop()
-        self._config_settings = config.get_settings()
+
+        # TODO: We can pull more of the initial state out of here
+        self._config_settings = compiler_state.config_spec
 
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
@@ -459,6 +463,13 @@ class Server(ha_base.ClusterProtocol):
         metrics.current_backend_connections.dec()
         conn.terminate()
 
+    def config_lookup(
+        self,
+        name: str,
+        *configs: Mapping[str, config.SettingValue],
+    ) -> Any:
+        return config.lookup(name, *configs, spec=self._config_settings)
+
     async def init(self):
         self._initing = True
         try:
@@ -481,6 +492,7 @@ class Server(ha_base.ClusterProtocol):
                 global_schema=global_schema,
                 sys_config=sys_config,
                 default_sysconfig=default_sysconfig,
+                sys_config_spec=self._config_settings,
             )
 
             self._fetch_roles()
@@ -496,17 +508,17 @@ class Server(ha_base.ClusterProtocol):
 
             if not self._listen_hosts:
                 self._listen_hosts = (
-                    config.lookup('listen_addresses', sys_config)
+                    self.config_lookup('listen_addresses', sys_config)
                     or ('localhost',)
                 )
 
             if self._listen_port is None:
                 self._listen_port = (
-                    config.lookup('listen_port', sys_config)
+                    self.config_lookup('listen_port', sys_config)
                     or defines.EDGEDB_PORT
                 )
 
-            self._stmt_cache_size = config.lookup(
+            self._stmt_cache_size = self.config_lookup(
                 '_pg_prepared_statement_cache_size', sys_config
             )
 
@@ -524,7 +536,7 @@ class Server(ha_base.ClusterProtocol):
             self._idle_gc_handler = None
 
         assert self._dbindex is not None
-        session_idle_timeout = config.lookup(
+        session_idle_timeout = self.config_lookup(
             'session_idle_timeout', self._dbindex.get_sys_config())
 
         timeout = session_idle_timeout.to_microseconds()
@@ -537,7 +549,7 @@ class Server(ha_base.ClusterProtocol):
         return timeout
 
     def _reload_stmt_cache_size(self):
-        size = config.lookup(
+        size = self.config_lookup(
             '_pg_prepared_statement_cache_size', self._dbindex.get_sys_config()
         )
         self._stmt_cache_size = size
@@ -609,7 +621,7 @@ class Server(ha_base.ClusterProtocol):
 
     def _populate_sys_auth(self):
         cfg = self._dbindex.get_sys_config()
-        auth = config.lookup('auth', cfg) or ()
+        auth = self.config_lookup('auth', cfg) or ()
         self._sys_auth = tuple(sorted(auth, key=lambda a: a.priority))
 
     def _get_pgaddr(self):
@@ -682,7 +694,7 @@ class Server(ha_base.ClusterProtocol):
             query = self.get_sys_query(query_name)
             sys_config_json = await syscon.sql_fetch_val(query)
 
-        return config.from_json(config.get_settings(), sys_config_json)
+        return config.from_json(self._config_settings, sys_config_json)
 
     async def reload_sys_config(self):
         cfg = await self.load_sys_config()
@@ -897,7 +909,7 @@ class Server(ha_base.ClusterProtocol):
 
     async def introspect_db_config(self, conn):
         result = await conn.sql_fetch_val(self.get_sys_query('dbconfig'))
-        return config.from_json(config.get_settings(), result)
+        return config.from_json(self._config_settings, result)
 
     async def _early_introspect_db(self, dbname):
         """We need to always introspect the extensions for each database.
@@ -1009,7 +1021,7 @@ class Server(ha_base.ClusterProtocol):
                 # a reload of it from the schema.
                 if '+config' in kind:
                     config_spec = config.load_spec_from_schema(self._std_schema)
-                    config.set_settings(config_spec)
+                    self._config_settings = config_spec
 
             if 'reflschema' in updates:
                 self._refl_schema = updates['reflschema']
@@ -1451,7 +1463,8 @@ class Server(ha_base.ClusterProtocol):
             if setting_name == 'listen_addresses':
                 cfg = self._dbindex.get_sys_config()
                 await self._restart_servers_new_addr(
-                    config.lookup('listen_addresses', cfg) or ('localhost',),
+                    self.config_lookup('listen_addresses', cfg)
+                    or ('localhost',),
                     self._listen_port,
                 )
 
@@ -1459,7 +1472,8 @@ class Server(ha_base.ClusterProtocol):
                 cfg = self._dbindex.get_sys_config()
                 await self._restart_servers_new_addr(
                     self._listen_hosts,
-                    config.lookup('listen_port', cfg) or defines.EDGEDB_PORT,
+                    self.config_lookup('listen_port', cfg)
+                    or defines.EDGEDB_PORT,
                 )
 
             elif setting_name == 'session_idle_timeout':
@@ -2414,8 +2428,7 @@ class Server(ha_base.ClusterProtocol):
                     return auth.method
 
         default_method = self._default_auth_method.get(transport)
-        auth_type = config.get_settings().get_type_by_name(
-            default_method.value)
+        auth_type = self._config_settings.get_type_by_name(default_method.value)
         return auth_type()
 
     def is_database_connectable(self, dbname: str) -> bool:

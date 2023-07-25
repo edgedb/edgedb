@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from .compiler import Compiler
+from .compiler import Compiler, CompilerState
 from .compiler import CompileContext, CompilerDatabaseState
 from .compiler import compile_edgeql_script
 from .compiler import load_std_schema
@@ -34,6 +34,7 @@ from .ddl import repair_schema
 __all__ = (
     'Cardinality',
     'Compiler',
+    'CompilerState',
     'CompileContext',
     'CompilerDatabaseState',
     'QueryUnit',

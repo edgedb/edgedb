@@ -33,7 +33,6 @@ from .types import ConfigType
 
 
 __all__ = (
-    'get_settings', 'set_settings',
     'lookup',
     'Spec', 'Setting', 'SettingValue',
     'spec_to_json', 'to_json', 'to_edgeql', 'from_json', 'set_value',
@@ -46,27 +45,12 @@ __all__ = (
 )
 
 
-_settings = Spec()
-
-
-def get_settings() -> Spec:
-    return _settings
-
-
-def set_settings(settings: Spec) -> None:
-    global _settings
-    _settings = settings
-
-
 def lookup(
     name: str,
     *configs: Mapping[str, SettingValue],
+    spec: Spec,
     allow_unrecognized: bool = False,
-    spec: Optional[Spec] = None,
 ) -> Any:
-
-    if spec is None:
-        spec = get_settings()
 
     try:
         setting = spec[name]
@@ -91,10 +75,8 @@ def lookup(
 def get_compilation_config(
     config: Mapping[str, SettingValue],
     *,
-    spec: Optional[Spec] = None,
+    spec: Spec,
 ) -> immutables.Map[str, SettingValue]:
-    if spec is None:
-        spec = get_settings()
     return immutables.Map((
         (k, v)
         for k, v in config.items()
