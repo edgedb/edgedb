@@ -52,7 +52,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
             )
 
-            data, headers, status = self.http_con_request(
+            _, headers, status = self.http_con_request(
                 http_con, {"provider": "github"}, path="authorize"
             )
 

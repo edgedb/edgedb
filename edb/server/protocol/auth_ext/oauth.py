@@ -72,7 +72,7 @@ providers = {
 }
 
 
-def _get_provider(name, client_id, client_secret):
+def _get_provider(name: str, client_id: str, client_secret: str):
     provider_class = providers.get(name)
     if provider_class is None:
         raise errors.BackendError(f"Unknown provider: {name}")

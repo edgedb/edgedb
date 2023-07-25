@@ -42,21 +42,17 @@ class GitHubProvider(base.BaseProvider):
     async def exchange_access_token(
         self, code: str, state: str, redirect_uri: str
     ):
-        # Check state value
-        # TODO: Look up state value from FlowState object
-        # flow_state = await db.get_flow_state(state, "github")
-        # if flow_state is None:
-        #    raise errors.UnauthorizedError("invalid state value")
+        # TODO: Check state value
         data = {
-            'grant_type': 'authorization_code',
-            'code': code,
-            'state': state,
+            "grant_type": "authorization_code",
+            "code": code,
+            "state": state,
             "redirect_uri": redirect_uri,
-            'client_id': self.client_id,
-            'client_secret': self.client_secret,
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
         }
 
-        headers = {'Content-Type': 'application/json'}
+        headers = {"Content-Type": "application/json"}
 
         async with httpx.AsyncClient() as client:
             resp = await client.post(
@@ -64,6 +60,6 @@ class GitHubProvider(base.BaseProvider):
                 json=data,
                 headers=headers,
             )
-            token = resp.json()['access_token']
+            token = resp.json()["access_token"]
 
             return token
