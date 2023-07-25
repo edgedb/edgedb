@@ -31,6 +31,7 @@ from edb.common import context as parser_context
 from edb.common import debug
 from edb.common import exceptions
 from edb.common import uuidgen
+from edb.common import xdedent
 from edb.common.typeutils import not_none
 
 from edb.edgeql import ast as qlast
@@ -6320,14 +6321,14 @@ def _build_key_source(
 
         targetlist = ','.join(restargets)
 
-        keysource = textwrap.dedent(f'''\
+        keysource = f'''
             (SELECT
                 ARRAY[{targetlist}] AS key
-            ) AS k{source_idx}''')
+            ) AS k{source_idx}'''
     else:
         assert rptr is not None
         rptr_name = rptr.get_shortname(schema).name
-        keysource = textwrap.dedent(f'''\
+        keysource = f'''
             (SELECT
                 ARRAY[
                     (CASE WHEN q{source_idx}.val = 'null'::jsonb
@@ -6335,14 +6336,14 @@ def _build_key_source(
                      ELSE {ql(rptr_name)}
                      END)
                 ] AS key
-            ) AS k{source_idx}''')
+            ) AS k{source_idx}'''
 
     return keysource
 
 
 def _build_key_expr(key_components: List[str]) -> str:
     key_expr = ' || '.join(key_components)
-    final_keysource = textwrap.dedent(f'''\
+    final_keysource = f'''
         (SELECT
             (CASE WHEN array_position(q.v, NULL) IS NULL
              THEN
@@ -6354,7 +6355,7 @@ def _build_key_expr(key_components: List[str]) -> str:
              END) AS key
          FROM
             (SELECT {key_expr} AS v) AS q
-        )''')
+        )'''
 
     return final_keysource
 
@@ -6377,17 +6378,17 @@ def _build_data_source(
         alias = f'q{alias}'
 
     if rptr_multi:
-        sourceN = textwrap.dedent(f'''\
+        sourceN = f'''
             (SELECT jel.val
                 FROM
                 jsonb_array_elements(
                     (q{source_idx}.val)->{ql(rptr_name)}) AS jel(val)
-            ) AS {alias}''')
+            ) AS {alias}'''
     else:
-        sourceN = textwrap.dedent(f'''\
+        sourceN = f'''
             (SELECT
                 (q{source_idx}.val)->{ql(rptr_name)} AS val
-            ) AS {alias}''')
+            ) AS {alias}'''
 
     return sourceN
 
@@ -6404,6 +6405,8 @@ def _generate_config_type_view(
     List[Tuple[Tuple[str, str], str]],
     List[s_pointers.Pointer],
 ]:
+    X = xdedent.escape
+
     exc = schema.get('std::exclusive', type=s_constr.Constraint)
 
     if scope is not None:
@@ -6428,28 +6431,28 @@ def _generate_config_type_view(
     if not path:
         # This is the root config object.
         if rptr is None:
-            source0 = textwrap.dedent(f'''\
+            source0 = f'''
                 (SELECT jsonb_object_agg(name, value) AS val
-                FROM edgedb._read_sys_config(NULL, {max_source}) cfg) AS q0''')
+                FROM edgedb._read_sys_config(NULL, {max_source}) cfg) AS q0'''
         else:
             rptr_card = rptr.get_cardinality(schema)
             rptr_multi = rptr_card.is_multi()
             rptr_name = rptr.get_shortname(schema).name
 
             if rptr_multi:
-                source0 = textwrap.dedent(f'''\
+                source0 = f'''
                     (SELECT el.val
                      FROM
                         (SELECT (value::jsonb) AS val
                         FROM edgedb._read_sys_config(NULL, {max_source})
                         WHERE name = {ql(rptr_name)}) AS cfg,
                         LATERAL jsonb_array_elements(cfg.val) AS el(val)
-                    ) AS q0''')
+                    ) AS q0'''
             else:
-                source0 = textwrap.dedent(f'''\
+                source0 = f'''
                     (SELECT (value::jsonb) AS val
                     FROM edgedb._read_sys_config(NULL, {max_source}) cfg
-                    WHERE name = {ql(rptr_name)}) AS q0''')
+                    WHERE name = {ql(rptr_name)}) AS q0'''
 
         sources.append(source0)
         key_start = 0
@@ -6463,19 +6466,19 @@ def _generate_config_type_view(
 
             if i == 0:
                 if l_multi:
-                    sourceN = textwrap.dedent(f'''\
+                    sourceN = f'''
                         (SELECT el.val
                         FROM
                             (SELECT (value::jsonb) AS val
                             FROM edgedb._read_sys_config(NULL, {max_source})
                             WHERE name = {ql(l_name)}) AS cfg,
                             LATERAL jsonb_array_elements(cfg.val) AS el(val)
-                        ) AS q{i}''')
+                        ) AS q{i}'''
                 else:
-                    sourceN = textwrap.dedent(f'''\
+                    sourceN = f'''
                         (SELECT (value::jsonb) AS val
                         FROM edgedb._read_sys_config(NULL, {max_source}) cfg
-                        WHERE name = {ql(l_name)}) AS q{i}''')
+                        WHERE name = {ql(l_name)}) AS q{i}'''
             else:
                 sourceN = _build_data_source(schema, l, i - 1)
 
@@ -6533,8 +6536,7 @@ def _generate_config_type_view(
                 multi_props.append((pp, pp_cast))
             else:
                 extract_col = (
-                    f'{pp_cast(f"{sval}->{ql(pn)}")}'
-                    f' AS {qi(pp_col)}')
+                    f'{pp_cast(f"{sval}->{ql(pn)}")} AS {qi(pp_col)}')
 
                 target_cols[pp] = extract_col
 
@@ -6563,7 +6565,7 @@ def _generate_config_type_view(
         key_components = []
 
     id_ptr = stype.getptr(schema, s_name.UnqualName('id'))
-    target_cols[id_ptr] = f'{key_expr} AS id'
+    target_cols[id_ptr] = f'{X(key_expr)} AS id'
 
     for link in single_links:
         link_name = link.get_shortname(schema).name
@@ -6611,7 +6613,7 @@ def _generate_config_type_view(
             target_key_components = key_components + [f'k{link_name}.key']
 
         target_key = _build_key_expr(target_key_components)
-        target_cols[link] = f'({target_key}) AS {qi(link_col)}'
+        target_cols[link] = f'({X(target_key)}) AS {qi(link_col)}'
 
         views.extend(target_views)
 
@@ -6623,13 +6625,13 @@ def _generate_config_type_view(
 
     target_cols_str = ',\n'.join([x for _, x in target_cols_sorted if x])
 
-    fromlist = ',\n'.join(f'LATERAL {s}' for s in sources)
+    fromlist = ',\n'.join(f'LATERAL {X(s)}' for s in sources)
 
-    target_query = textwrap.dedent(f'''\
+    target_query = xdedent.xdedent(f'''
         SELECT
-            {textwrap.indent(target_cols_str, ' ' * 4).strip()}
+            {X(target_cols_str)}
         FROM
-            {fromlist}
+            {X(fromlist)}
     ''')
 
     if where:
@@ -6681,18 +6683,18 @@ def _generate_config_type_view(
         target_key_components = key_components + [f'k{link_name}.key']
         target_key = _build_key_expr(target_key_components)
 
-        target_fromlist = ',\n'.join(f'LATERAL {s}' for s in target_sources)
+        target_fromlist = ',\n'.join(f'LATERAL {X(s)}' for s in target_sources)
 
-        link_query = textwrap.dedent(f'''\
+        link_query = xdedent.xdedent(f'''\
             SELECT
                 q.source,
                 q.target
             FROM
                 (SELECT
-                    {key_expr} AS source,
-                    {target_key} AS target
+                    {X(key_expr)} AS source,
+                    {X(target_key)} AS target
                 FROM
-                    {target_fromlist}
+                    {X(target_fromlist)}
                 ) q
             WHERE
                 q.target IS NOT NULL
@@ -6709,14 +6711,14 @@ def _generate_config_type_view(
             schema, prop, self_idx, alias=pn)
         target_sources.append(target_source)
 
-        target_fromlist = ',\n'.join(f'LATERAL {s}' for s in target_sources)
+        target_fromlist = ',\n'.join(f'LATERAL {X(s)}' for s in target_sources)
 
-        link_query = textwrap.dedent(f'''\
+        link_query = xdedent.xdedent(f'''\
             SELECT
-                {key_expr} AS source,
+                {X(key_expr)} AS source,
                 {pp_cast(f'q{pn}.val')} AS target
             FROM
-                {target_fromlist}
+                {X(target_fromlist)}
         ''')
 
         views.append((tabname(schema, prop), link_query))
