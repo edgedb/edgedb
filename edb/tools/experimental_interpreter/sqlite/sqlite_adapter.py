@@ -465,6 +465,8 @@ def schema_and_db_from_sqlite(sdl_file_content, sqlite_file_name):
     else:
 
         sdl_content = sdl_file_content
+        if sdl_content is None:
+            sdl_content = ""
 
         # Compare content and abort if they differ
         if db_sdl != sdl_content:

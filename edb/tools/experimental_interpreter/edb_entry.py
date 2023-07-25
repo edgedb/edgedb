@@ -16,14 +16,17 @@ from .new_interpreter import repl
               "should not be place")
 @click.option("--trace-to-file", type=str, required=False)
 @click.option("--sqlite-file", type=str, required=False)
+@click.option("--skip-type-checking", default=False, required=False, is_flag=True)
 @click.option("-v", "--verbose", default=False, required=False, is_flag=True)
 def interperter_entry(
         *, init_sdl_file=None, init_ql_file=None, verbose=False,
-        trace_to_file=None, sqlite_file=None) -> None:
+        trace_to_file=None, sqlite_file=None,
+        skip_type_checking=False) -> None:
     """ Run the experimental interpreter for EdgeQL """
     repl(init_sdl_file=init_sdl_file,
          init_ql_file=init_ql_file,
          debug_print=verbose,
          trace_to_file_path=trace_to_file,
          sqlite_file=sqlite_file,
+         skip_type_checking=skip_type_checking,
          )

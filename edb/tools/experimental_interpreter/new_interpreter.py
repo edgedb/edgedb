@@ -15,6 +15,7 @@ from .basis.built_ins import all_builtin_funcs
 from .data import data_ops as e
 from .data import expr_ops as eops
 from .data.data_ops import DB, DBSchema, MultiSetVal, ResultTp
+from .data.data_ops import *
 from .data.expr_to_str import show_expr, show_result_tp, show_schema
 from .data.path_factor import select_hoist
 from .data.val_to_json import (json_like, multi_set_val_to_json_like,
@@ -44,7 +45,8 @@ def empty_dbschema() -> DBSchema:
 def run_statement(db: EdgeDatabaseInterface,
                   stmt: qlast.Expr, dbschema: DBSchema,
                   should_print: bool,
-                  logs: Optional[List[Any]]
+                  logs: Optional[List[Any]],
+                  skip_type_checking: bool = False,
                   ) -> Tuple[MultiSetVal, e.ResultTp]:
     if should_print:
         print("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Starting")
@@ -66,6 +68,19 @@ def run_statement(db: EdgeDatabaseInterface,
         debug.print(show_expr(factored))
         reverse_elabed = reverse_elab(factored)
         debug.dump_edgeql(reverse_elabed)
+
+    if skip_type_checking:
+        if should_print:
+            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Running")
+        result = eval_expr_toplevel(db, factored, logs=logs)
+        if should_print:
+            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")
+            debug.print(result)
+            print(multi_set_val_to_json_like(eops.assume_link_target(result)))
+            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Done ")
+        return (result, ResultTp(VarTp("NOT AVAILABLE"), CardAny))
+
+    else:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Type Checking")
 
     tp, type_checked = tc.synthesize_type(e.TcCtx(dbschema, {}), factored)
@@ -87,7 +102,8 @@ def run_statement(db: EdgeDatabaseInterface,
 
 def run_stmts(db: EdgeDatabaseInterface, stmts: Sequence[qlast.Expr],
               dbschema: DBSchema, debug_print: bool,
-              logs: Optional[List[Any]]
+              logs: Optional[List[Any]],
+              skip_type_checking: bool = False,
               ) -> Sequence[MultiSetVal]:
     match stmts:
         case []:
@@ -95,10 +111,10 @@ def run_stmts(db: EdgeDatabaseInterface, stmts: Sequence[qlast.Expr],
         case current, *rest:
             (cur_val, _) = run_statement(
                 db, current, dbschema, should_print=debug_print,
-                logs=logs)
+                logs=logs, skip_type_checking=skip_type_checking)
             rest_val = run_stmts(
                 db, rest, dbschema, debug_print,
-                logs=logs)
+                logs=logs, skip_type_checking=skip_type_checking)
             return [cur_val, *rest_val]
     raise ValueError("Not Possible")
 
@@ -108,12 +124,13 @@ def run_str(
     dbschema: DBSchema,
     s: str,
     print_asts: bool = False,
-    logs: Optional[List[str]] = None
+    logs: Optional[List[str]] = None,
+    skip_type_checking: bool = False,
 ) -> Sequence[MultiSetVal]:
     q = parse_ql(s)
     # if print_asts:
     #     debug.dump(q)
-    res = run_stmts(db, q, dbschema, print_asts, logs)
+    res = run_stmts(db, q, dbschema, print_asts, logs, skip_type_checking=skip_type_checking)
     # if output_mode == 'pprint':
     #     pprint.pprint(res)
     # elif output_mode == 'json':
@@ -154,6 +171,7 @@ def repl(*, init_sdl_file=None,
          debug_print=False,
          trace_to_file_path=None,
          sqlite_file=None,
+         skip_type_checking=False,
          ) -> None:
     # if init_sdl_file is not None and read_sqlite_file is not None:
     #     raise ValueError("Init SDL file and Read SQLite file cannot"
@@ -192,7 +210,7 @@ def repl(*, init_sdl_file=None,
                 return
         try:
             res = run_str(db, dbschema, s, print_asts=debug_print,
-                                logs=logs)
+                                logs=logs, skip_type_checking=skip_type_checking)
             print("\n".join(json.dumps(multi_set_val_to_json_like(v))
                             for v in res))
         except Exception:
