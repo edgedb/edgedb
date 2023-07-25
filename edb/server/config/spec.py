@@ -134,10 +134,29 @@ class Spec(collections.abc.Mapping):
         return len(self._settings)
 
 
-def load_spec_from_schema(schema: s_schema.Schema) -> Spec:
+def load_spec_from_schema(
+    schema: s_schema.Schema, only_exts: bool=False
+) -> Spec:
     cfg = schema.get('cfg::Config', type=s_objtypes.ObjectType)
     settings = []
+    if not only_exts:
+        settings.extend(_load_spec_from_type(schema, cfg))
 
+    ext_cfg = schema.get('cfg::ExtensionConfig', type=s_objtypes.ObjectType)
+    for ecfg in ext_cfg.descendants(schema):
+        if not ecfg.get_abstract(schema):
+            settings.extend(_load_spec_from_type(schema, ecfg))
+
+    return Spec(*settings)
+
+
+def _load_spec_from_type(
+    schema: s_schema.Schema, cfg: s_objtypes.ObjectType
+) -> list[Setting]:
+    settings = []
+
+    cfg_name = str(cfg.get_name(schema))
+    is_root = cfg_name == 'cfg::Config'
     for ptr_name, p in cfg.get_pointers(schema).items(schema):
         pn = str(ptr_name)
         if pn in ('id', '__type__') or p.get_computable(schema):
@@ -145,6 +164,11 @@ def load_spec_from_schema(schema: s_schema.Schema) -> Spec:
 
         ptype = p.get_target(schema)
         assert ptype
+
+        # Skip backlinks to the base object. The will get plenty of
+        # special treatment.
+        if str(ptype.get_name(schema)) == 'cfg::AbstractConfig':
+            continue
 
         pytype: type | types.ConfigTypeSpec
         if isinstance(ptype, s_objtypes.ObjectType):
@@ -158,6 +182,7 @@ def load_spec_from_schema(schema: s_schema.Schema) -> Spec:
         attributes = {
             a: json.loads(v.get_value(schema))
             for a, v in p.get_annotations(schema).items(schema)
+            if isinstance(a, sn.QualName) and a.module == 'cfg'
         }
 
         ptr_card = p.get_cardinality(schema)
@@ -178,6 +203,9 @@ def load_spec_from_schema(schema: s_schema.Schema) -> Spec:
                 raise RuntimeError(f'cfg::Config.{pn} has no default')
             else:
                 deflt = None
+
+        if not is_root:
+            pn = f'{cfg_name}::{pn}'
 
         setting = Setting(
             pn,
@@ -203,4 +231,4 @@ def load_spec_from_schema(schema: s_schema.Schema) -> Spec:
 
         settings.append(setting)
 
-    return Spec(*settings)
+    return settings

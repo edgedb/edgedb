@@ -147,6 +147,10 @@ class Operation(NamedTuple):
             or self.opcode is OpCode.CONFIG_RESET
         )
 
+        # XXX: For now, just fail to track extension config state
+        if '::' in self.setting_name:
+            return storage
+
         if self.scope != qltypes.ConfigScope.GLOBAL:
             setting = self.get_setting(spec)
             value = self.coerce_value(

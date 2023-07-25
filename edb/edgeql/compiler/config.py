@@ -296,15 +296,24 @@ def _validate_op(
     if expr.scope == qltypes.ConfigScope.GLOBAL:
         return _validate_global_op(expr, ctx=ctx)
 
-    if expr.name.module and expr.name.module != 'cfg':
-        raise errors.QueryError(
-            'invalid configuration parameter name: module must be either '
-            '\'cfg\' or empty', context=expr.name.context,
-        )
+    # if expr.name.module and expr.name.module != 'cfg':
+    #     raise errors.QueryError(
+    #         'invalid configuration parameter name: module must be either '
+    #         '\'cfg\' or empty', context=expr.name.context,
+    #     )
 
-    name = expr.name.name
-    cfg_host_type = ctx.env.get_schema_type_and_track(
-        sn.QualName('cfg', 'AbstractConfig'))
+    if expr.name.module and expr.name.module != 'cfg':
+        cfg_host_name = sn.name_from_string(expr.name.module)
+        ext_config = True
+    else:
+        cfg_host_name = sn.QualName('cfg', 'AbstractConfig')
+        ext_config = False
+
+    name = fullname = expr.name.name
+    cfg_host_type = ctx.env.get_schema_type_and_track(cfg_host_name)
+    if ext_config:
+        fullname = f'{cfg_host_type.get_name(ctx.env.schema)}::{name}'
+
     assert isinstance(cfg_host_type, s_objtypes.ObjectType)
     cfg_type = None
 
@@ -315,7 +324,7 @@ def _validate_op(
             cfg_type = ptr.get_target(ctx.env.schema)
 
     if cfg_type is None:
-        if isinstance(expr, qlast.ConfigSet):
+        if isinstance(expr, (qlast.ConfigSet, qlast.ConfigReset)):
             raise errors.ConfigurationError(
                 f'unrecognized configuration parameter {name!r}',
                 context=expr.context
@@ -356,7 +365,7 @@ def _validate_op(
 
         ptr = ptr_candidate
 
-        name = ptr.get_shortname(ctx.env.schema).name
+        fullname = ptr.get_shortname(ctx.env.schema).name
 
     assert isinstance(ptr, s_pointers.Pointer)
 
@@ -431,7 +440,7 @@ def _validate_op(
             f'{name!r} is a system-level configuration parameter; '
             f'use "CONFIGURE INSTANCE"')
 
-    return SettingInfo(param_name=name,
+    return SettingInfo(param_name=fullname,
                        param_type=cfg_type,
                        cardinality=cardinality,
                        required=False,

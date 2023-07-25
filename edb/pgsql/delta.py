@@ -78,6 +78,7 @@ from edb.pgsql import dbops
 from edb.pgsql import params
 
 from edb.server import defines as edbdef
+from edb.server import config
 from edb.server.config import ops as config_ops
 
 from . import ast as pg_ast
@@ -133,7 +134,22 @@ def is_cfg_view(
 ) -> bool:
     return (
         isinstance(obj, (s_objtypes.ObjectType, s_pointers.Pointer))
-        and obj.get_name(schema).module in VIEW_MODULES
+        and (
+            obj.get_name(schema).module in VIEW_MODULES
+            or bool(
+                (cfg_object := schema.get(
+                    'cfg::ConfigObject',
+                    type=s_objtypes.ObjectType, default=None
+                ))
+                and (
+                    nobj := (
+                        obj if isinstance(obj, s_objtypes.ObjectType)
+                        else obj.get_source(schema)
+                    )
+                )
+                and nobj.issubclass(schema, cfg_object)
+            )
+        )
     )
 
 
@@ -7235,6 +7251,19 @@ class DeltaRoot(MetaCommand, adapts=sd.DeltaRoot):
 
         self.update_endpoint_delete_actions.apply(schema, context)
         self.pgops.add(self.update_endpoint_delete_actions)
+
+        # XXX: We do *not* actually want to do this every time.
+        # XXX: And it shouldn't be *here* either
+        new_local_spec = config.load_spec_from_schema(schema, only_exts=True)
+        spec_json = config.spec_to_json(new_local_spec)
+        self.pgops.add(dbops.Query(textwrap.dedent(f'''\
+            UPDATE
+                edgedbinstdata.instdata
+            SET
+                json = {ql(spec_json)}
+            WHERE
+                key = 'configspec_ext';
+        ''')))
 
         return schema
 
