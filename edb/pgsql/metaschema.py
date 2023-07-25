@@ -4788,30 +4788,26 @@ classref_attr_aliases = {
 
 def tabname(
     schema: s_schema.Schema, obj: s_obj.QualifiedObject
-) -> Tuple[str, str]:
-    return (
-        'edgedbstd',
-        common.get_backend_name(
-            schema,
-            obj,
-            aspect='table',
-            catenate=False,
-        )[1],
+) -> tuple[str, str]:
+    res: tuple[str, str] = common.get_backend_name(
+        schema,
+        obj,
+        aspect='table',
+        catenate=False,
     )
+    return res
 
 
 def inhviewname(
     schema: s_schema.Schema, obj: s_obj.QualifiedObject
 ) -> Tuple[str, str]:
-    return (
-        'edgedbstd',
-        common.get_backend_name(
-            schema,
-            obj,
-            aspect='inhview',
-            catenate=False,
-        )[1],
+    res: tuple[str, str] = common.get_backend_name(
+        schema,
+        obj,
+        aspect='inhview',
+        catenate=False,
     )
+    return res
 
 
 def ptr_col_name(
