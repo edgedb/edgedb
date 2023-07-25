@@ -33,7 +33,7 @@ async def handle_request(
     try:
         # Set up routing to the appropriate handler
         if args[0] == "authorize":
-            provider_name: str | None = _get_search_param(
+            provider_name = _get_search_param(
                 request.url.query.decode("ascii"), "provider"
             )
             if provider_name is None:
