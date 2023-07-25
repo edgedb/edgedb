@@ -2081,6 +2081,9 @@ CREATE FUNCTION std::contains(
     USING SQL $$
        SELECT "haystack" @> ("needle"::date)
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    set impl_is_strict := false;
 };
 
 
@@ -2093,4 +2096,7 @@ CREATE FUNCTION std::contains(
     USING SQL $$
        SELECT "haystack" @> ("needle"::date)
     $$;
+    # Needed to pick up the indexes when used in FILTER.
+    set prefer_subquery_args := true;
+    set impl_is_strict := false;
 };
