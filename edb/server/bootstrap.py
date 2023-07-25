@@ -1512,6 +1512,11 @@ async def _init_stdlib(
         'configspec',
         config.spec_to_json(config_spec),
     )
+    await _store_static_json_cache(
+        ctx,
+        'configspec_ext',
+        json.dumps({}),
+    )
 
     return stdlib, config_spec, compiler
 
