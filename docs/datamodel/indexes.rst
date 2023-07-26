@@ -184,11 +184,11 @@ Indexes can be augmented with annotations.
   **Foreign and primary keys**
 
   In SQL databases, indexes are commonly used to index *primary keys* and
-  *foreign keys*. The EdgeDB equivalents of these are the ``id`` property
-  and links; these are automatically indexed and there is no need to manually
-  declare them. Moreover, any property with an :eql:constraint:`exclusive`
-  constraint is also automatically indexed.
-
+  *foreign keys*. EdgeDB's analog to SQL's primary key is the ``id`` field
+  that gets automatically created for each object, while a link in EdgeDB
+  is the analog to SQL's foreign key. Both of these are automatically indexed.
+  Moreover, any property with an :eql:constraint:`exclusive` constraint
+  is also automatically indexed.
 
 .. list-table::
   :class: seealso
