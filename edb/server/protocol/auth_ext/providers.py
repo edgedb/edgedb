@@ -26,14 +26,9 @@ from . import github
 SettingsMap = immutables.Map[str, ops.SettingValue]
 
 
-_providers = {
-    "github": github.GitHubProvider,
-}
-
-
 def make(db_config: SettingsMap, name: str):
-    provider_class = _providers.get(name)
-    if provider_class is None:
-        raise errors.BackendError(f"Unknown provider: {name}")
-
-    return provider_class(name, db_config)
+    match name:
+        case "github":
+            return github.GitHubProvider(name, db_config)
+        case _:
+            raise errors.BackendError(f"Unknown provider: {name}")
