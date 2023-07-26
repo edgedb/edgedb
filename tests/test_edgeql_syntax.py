@@ -24,7 +24,7 @@ from edb import errors
 
 from edb.testbase import lang as tb
 from edb.edgeql import generate_source as edgeql_to_source
-from edb.edgeql.parser import parser as edgeql_parser
+from edb.edgeql.parser import grammar as edgeql_grammar
 from edb.tools import test
 
 
@@ -35,8 +35,8 @@ class EdgeQLSyntaxTest(tb.BaseSyntaxTest):
     ast_to_source = edgeql_to_source
 
     @classmethod
-    def get_parser(cls):
-        return edgeql_parser.EdgeQLBlockSpec().get_parser()
+    def get_grammar(cls):
+        return edgeql_grammar.block
 
 
 class TestEdgeQLParser(EdgeQLSyntaxTest):

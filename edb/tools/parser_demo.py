@@ -20,9 +20,10 @@ from typing import *
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import tokenizer
-from edb.edgeql.parser import parser as qlparser
+from edb.edgeql import parser as qlparser
+from edb.edgeql.parser import grammar as qlgrammar
 
-import edb._edgeql_parser as ql_parser
+import edb._edgeql_parser as rust_parser
 
 from edb.tools.edb import edbcommands
 
@@ -42,17 +43,9 @@ def main():
             print(e)
             continue
 
-        if sdl:
-            spec = qlparser.EdgeSDLSpec()
-        else:
-            spec = qlparser.EdgeQLBlockSpec()
-        parser = spec.get_parser()
-
-        parser.filename = None
-        parser.source = source
-
-        parser_name = spec.__class__.__name__
-        result, productions = ql_parser.parse(parser_name, source.tokens())
+        grammar = qlgrammar.sdldocument if sdl else qlgrammar.block
+        tokens = source.tokens()
+        result, productions = rust_parser.parse(grammar.__name__, tokens)
 
         print('-' * 30)
         print()
@@ -78,7 +71,7 @@ def main():
 
         if result.out():
             try:
-                ast = parser._cst_to_ast(result.out(), productions).val
+                ast = qlparser._cst_to_ast(result.out(), productions).val
             except BaseException:
                 ast = None
             if ast:

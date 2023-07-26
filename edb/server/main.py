@@ -153,14 +153,17 @@ async def _init_cluster(
 
 
 def _init_parsers():
-    # Initialize all parsers, rebuilding grammars if
-    # necessary.  Do it earlier than later so that we don't
-    # end up in a situation where all our compiler processes
-    # are building parsers in parallel.
-
+    # Initialize parsers that are used in the server process.
     from edb.edgeql import parser as ql_parser
+    from edb.edgeql.parser import grammar as ql_grammar
 
-    ql_parser.preload(allow_rebuild=devmode.is_in_dev_mode(), paralellize=True)
+    ql_parser.preload(
+        allow_rebuild=devmode.is_in_dev_mode(),
+        paralellize=True,
+        grammars=[
+            ql_grammar.fragment,
+        ]
+    )
 
 
 async def _run_server(
