@@ -553,23 +553,32 @@ deletion policy.
 
 .. note::
 
+    The ``if orphan`` qualifier does not apply globally across all links in the
+    database or across any other links even if they're from the same type.
     Deletion policies using ``if orphan`` will result in the target being
-    deleted *unless it is linked by another object via the same link the policy
-    is on*. This qualifier does not apply globally across all links in the
-    database or across different links even if they're on the same type. For
-    example, a ``Message`` might be linked from both a ``MessageThread`` and a
-    ``Channel``. If the ``MessageThread`` linking to it is deleted, the
-    deletion policy would still result in the ``Message`` being deleted as long
-    as no other ``MessageThread`` objects link to it on that same field. It is
-    orphaned with respect to the ``MessageThread`` type's ``link`` field, even
-    though it is not orphaned globally.
+    deleted unless
 
-    Similarly, if the ``MessageThread`` had two links both linking to messages
-    — maybe the existing ``messages`` link and another called ``related`` to
-    link other related ``Message`` objects that are not in the thread — ``if
-    orphan`` could result in linked messages being deleted even if they were
-    also linked from another ``MessageThread`` object's ``related`` link
-    because they were orphaned with respect to the ``messages`` link.
+    1. it is linked by another object via the same link the policy is on, or
+    2. its deletion is restricted by another link's ``on target delete`` policy
+
+    For example, a ``Message`` might be linked from both a ``MessageThread``
+    and a ``Channel``. If the ``MessageThread`` linking to it is deleted, the
+    deletion policy would still result in the ``Message`` being deleted as long
+    as no other ``MessageThread`` objects link to it on that same field and the
+    deletion isn't otherwise restricted (e.g., an ``on target delete allow``
+    policy has been applied to all other links to override the default target
+    deletion restriction). The object is deleted despite not being orphaned
+    with respect to *all* links because it *is* orphaned with respect to the
+    ``MessageThread`` type's ``link`` field, which is the link containing the
+    deletion policy.
+
+    Similarly, if the ``MessageThread`` had two different links both linking to
+    messages — maybe the existing ``messages`` link and another called
+    ``related`` used to link other related ``Message`` objects that are not in
+    the thread — ``if orphan`` on a deletion policy on ``message`` could result
+    in linked messages being deleted even if they were also linked from another
+    ``MessageThread`` object's ``related`` link because they were orphaned with
+    respect to the ``messages`` link.
 
 
 .. _ref_datamodel_link_polymorphic:
