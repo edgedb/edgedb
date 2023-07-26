@@ -17,7 +17,6 @@
 #
 
 
-import http
 import httpx
 import urllib.parse
 
