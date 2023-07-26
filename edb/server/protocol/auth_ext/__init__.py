@@ -46,7 +46,7 @@ async def handle_request(
             return oauth.redirect_to_auth_provider(
                 response=response,
                 redirect_uri=redirect_uri,
-                iss=request.host.decode(),
+                iss=extension_base_path,
                 provider_name=provider_name,
                 db_config=db.db_config,
             )

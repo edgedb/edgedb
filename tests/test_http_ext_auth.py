@@ -75,6 +75,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             signed_token = jwt.JWT(key=key, algs=["HS256"], jwt=state[0])
             claims = json.loads(signed_token.claims)
             self.assertEqual(claims.get("provider"), "github")
+            self.assertEqual(claims.get("iss"), self.http_addr)
 
             self.assertEqual(
                 qs.get("redirect_uri"), [f"{self.http_addr}/callback"]
