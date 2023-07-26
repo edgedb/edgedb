@@ -524,7 +524,6 @@ cdef class HttpProtocol:
                 # Check if this is a request to a registered extension
                 if extname == 'edgeql':
                     extname = 'edgeql_http'
-                    args = path_parts[3:]
                 if extname == 'ext':
                     extname = path_parts[3]
                     args = path_parts[4:]
@@ -533,8 +532,6 @@ cdef class HttpProtocol:
 
                 if extname not in db.extensions:
                     return self._not_found(request, response)
-
-                args = path_parts[3:]
 
                 if extname == 'graphql':
                     await graphql_ext.handle_request(
