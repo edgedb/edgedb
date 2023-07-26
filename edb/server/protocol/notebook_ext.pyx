@@ -228,7 +228,7 @@ async def parse(db, server, queries, inject_typenames, json_output):
         queries,
         CURRENT_PROTOCOL,
         50,  # implicit limit
-        inject_typenames,
+        inject_typenames if inject_typenames is not None else True,
         enums.OutputFormat.JSON if json_output else enums.OutputFormat.BINARY,
     )
     return dbv, units
