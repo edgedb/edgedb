@@ -6426,9 +6426,38 @@ def _generate_config_type_view(
 
     sources = []
 
+    ext_cfg = schema.get('cfg::ExtensionConfig', type=s_objtypes.ObjectType)
+    is_ext_cfg = stype.issubclass(schema, ext_cfg)
+
     if not path:
-        # This is the root config object.
-        if rptr is None:
+        if is_ext_cfg:
+            # Extension configs get one object per scope.
+            # Though we skip instance? Maybe we should include it, just because?
+            cfg_name = str(stype.get_name(schema))
+
+            escaped_name = (
+                cfg_name
+                .replace('%', '\\%').replace('_', '\\_').replace('\\', '\\\\')
+            )
+            source0 = f'''
+                (SELECT
+                    (SELECT jsonb_object_agg(
+                      substr(name, {len(cfg_name)+3}), value) AS val
+                    FROM edgedb._read_sys_config(
+                      NULL, scope::edgedb._sys_config_source_t) cfg
+                    WHERE name LIKE {ql(escaped_name + '%')}
+                    ) AS val, scope::text AS scope, scope_id AS scope_id
+                    FROM (VALUES
+                        (NULL, '{CONFIG_ID[None]}'::uuid),
+                        ('database',
+                         '{CONFIG_ID[qltypes.ConfigScope.DATABASE]}'::uuid),
+                        ('system override',
+                         '{CONFIG_ID[qltypes.ConfigScope.INSTANCE]}'::uuid)
+                    ) AS s(scope, scope_id)
+                ) AS q0
+            '''
+        elif rptr is None:
+            # This is the root config object.
             source0 = f'''
                 (SELECT jsonb_object_agg(name, value) AS val
                 FROM edgedb._read_sys_config(NULL, {max_source}) cfg) AS q0'''
@@ -6544,7 +6573,20 @@ def _generate_config_type_view(
 
     exclusive_props.sort(key=lambda p: p.get_shortname(schema).name)
 
-    if exclusive_props or rptr:
+    if is_ext_cfg:
+        # Extension configs get custom keys based on their type name
+        # and the scope, since we create one object per scope.
+        key_components = [
+            f'ARRAY[{ql(str(stype.get_name(schema)))}]',
+            "ARRAY[coalesce(q0.scope, 'session')]"
+        ]
+        final_keysource = f'{_build_key_expr(key_components)} AS k'
+        sources.append(final_keysource)
+
+        key_expr = 'k.key'
+        where = f"q0.val IS NOT NULL"
+
+    elif exclusive_props or rptr:
         sources.append(
             _build_key_source(schema, exclusive_props, rptr, str(self_idx)))
 
@@ -6572,9 +6614,7 @@ def _generate_config_type_view(
         link_col = link_psi.column_name
 
         if str(link_type.get_name(schema)) == 'cfg::AbstractConfig':
-            # XXX: This isn't right at all
-            config_key = f"'{CONFIG_ID[scope]}'::uuid"
-            target_cols[link] = f'({config_key}) AS {qi(link_col)}'
+            target_cols[link] = f'q0.scope_id AS {qi(link_col)}'
             continue
 
         if rptr is not None:
