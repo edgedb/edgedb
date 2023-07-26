@@ -3032,10 +3032,11 @@ class CompositeMetaCommand(MetaCommand):
 
         tabname = table_name if table_name else self.table_name
 
+        # XXX: should this be arranged to always have been done?
         if not tabname:
             ctx = context.get(self.__class__)
             assert ctx
-            tabname = common.get_backend_name(schema, ctx.scls, catenate=False)
+            tabname = self._get_table_name(ctx.scls, schema)
             if table_name is None:
                 self.table_name = tabname
 
@@ -3096,7 +3097,9 @@ class CompositeMetaCommand(MetaCommand):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> None:
-        self.pgops.add(self._refresh_fake_cfg_view_cmd(obj, schema, context))
+        if not context.is_deleting(obj):
+            self.pgops.add(
+                self._refresh_fake_cfg_view_cmd(obj, schema, context))
 
     @classmethod
     def get_source_and_pointer_ctx(cls, schema, context):
@@ -3692,6 +3695,47 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand,
         changed_targets = endpoint_delete_actions.changed_targets
         changed_targets.add((self, obj))
 
+    def _fixup_configs(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        orig_schema = context.current().original_schema
+        eff_schema = (
+            orig_schema if isinstance(self, sd.DeleteObject) else schema)
+        scls: s_objtypes.ObjectType = self.scls  # type: ignore
+
+        # If we are updating a config object that is *not* in cfg::
+        # (that is, an extension config), we need to update the config
+        # views and specs. We *don't* do that for standard library
+        # configs, since those need to be created after the standard
+        # schema is in place.
+        if not (
+            is_cfg_view(scls, eff_schema)
+            and not scls.get_name(eff_schema).module in VIEW_MODULES
+        ):
+            return
+
+        from edb.pgsql import metaschema
+
+        new_local_spec = config.load_spec_from_schema(schema, only_exts=True)
+        spec_json = config.spec_to_json(new_local_spec)
+        self.pgops.add(dbops.Query(textwrap.dedent(f'''\
+            UPDATE
+                edgedbinstdata.instdata
+            SET
+                json = {ql(spec_json)}
+            WHERE
+                key = 'configspec_ext';
+        ''')))
+
+        views = metaschema.get_config_type_views(eff_schema, scls, scope=None)
+        if isinstance(self, sd.DeleteObject):
+            for cv in views:
+                self.pgops.add(dbops.DropView(cv.view.name))
+        else:
+            self.pgops.update(views)
+
 
 class CreateObjectType(ObjectTypeMetaCommand,
                        adapts=s_objtypes.CreateObjectType):
@@ -3713,6 +3757,8 @@ class CreateObjectType(ObjectTypeMetaCommand,
             self.pgops.add(self.update_search_indexes)
 
         self.schedule_endpoint_delete_action_update(self.scls, schema, context)
+
+        self._fixup_configs(schema, context)
 
         return schema
 
@@ -3806,6 +3852,8 @@ class AlterObjectType(ObjectTypeMetaCommand,
                 schema = self.update_search_indexes.apply(schema, context)
                 self.pgops.add(self.update_search_indexes)
 
+        self._fixup_configs(schema, context)
+
         return schema
 
     def _maybe_do_abstract_test(
@@ -3852,8 +3900,7 @@ class DeleteObjectType(ObjectTypeMetaCommand,
         self.scls = objtype = schema.get(
             self.classname, type=s_objtypes.ObjectType)
 
-        old_table_name = common.get_backend_name(
-            schema, objtype, catenate=False)
+        old_table_name = self._get_table_name(self.scls, schema)
 
         orig_schema = schema
         schema = super().apply(schema, context)
@@ -3864,6 +3911,8 @@ class DeleteObjectType(ObjectTypeMetaCommand,
             self.attach_alter_table(context)
             self.drop_inhview(orig_schema, context, objtype)
             self.pgops.add(dbops.DropTable(name=old_table_name))
+
+        self._fixup_configs(schema, context)
 
         return schema
 
@@ -7251,19 +7300,6 @@ class DeltaRoot(MetaCommand, adapts=sd.DeltaRoot):
 
         self.update_endpoint_delete_actions.apply(schema, context)
         self.pgops.add(self.update_endpoint_delete_actions)
-
-        # XXX: We do *not* actually want to do this every time.
-        # XXX: And it shouldn't be *here* either
-        new_local_spec = config.load_spec_from_schema(schema, only_exts=True)
-        spec_json = config.spec_to_json(new_local_spec)
-        self.pgops.add(dbops.Query(textwrap.dedent(f'''\
-            UPDATE
-                edgedbinstdata.instdata
-            SET
-                json = {ql(spec_json)}
-            WHERE
-                key = 'configspec_ext';
-        ''')))
 
         return schema
 

@@ -6154,49 +6154,47 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
     )
 
 
+def get_config_type_views(
+    schema: s_schema.Schema,
+    conf: s_objtypes.ObjectType,
+    scope: Optional[qltypes.ConfigScope],
+) -> dbops.CommandGroup:
+    commands = dbops.CommandGroup()
+
+    cfg_views, _ = _generate_config_type_view(
+        schema,
+        conf,
+        scope=scope,
+        path=[],
+        rptr=None,
+    )
+    commands.add_commands([
+        dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
+        for tn, q in cfg_views
+    ])
+
+    return commands
+
+
 def get_config_views(
     schema: s_schema.Schema,
 ) -> dbops.CommandGroup:
     commands = dbops.CommandGroup()
 
     conf = schema.get('cfg::Config', type=s_objtypes.ObjectType)
-    cfg_views, _ = _generate_config_type_view(
-        schema,
-        conf,
-        scope=None,
-        path=[],
-        rptr=None,
+    commands.add_command(
+        get_config_type_views(schema, conf, scope=None),
     )
-    commands.add_commands([
-        dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
-        for tn, q in cfg_views
-    ])
 
     conf = schema.get('cfg::InstanceConfig', type=s_objtypes.ObjectType)
-    cfg_views, _ = _generate_config_type_view(
-        schema,
-        conf,
-        scope=qltypes.ConfigScope.INSTANCE,
-        path=[],
-        rptr=None,
+    commands.add_command(
+        get_config_type_views(schema, conf, scope=qltypes.ConfigScope.INSTANCE),
     )
-    commands.add_commands([
-        dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
-        for tn, q in cfg_views
-    ])
 
     conf = schema.get('cfg::DatabaseConfig', type=s_objtypes.ObjectType)
-    cfg_views, _ = _generate_config_type_view(
-        schema,
-        conf,
-        scope=qltypes.ConfigScope.DATABASE,
-        path=[],
-        rptr=None,
+    commands.add_command(
+        get_config_type_views(schema, conf, scope=qltypes.ConfigScope.DATABASE),
     )
-    commands.add_commands([
-        dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
-        for tn, q in cfg_views
-    ])
 
     return commands
 
