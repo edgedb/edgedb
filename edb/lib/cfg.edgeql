@@ -83,10 +83,16 @@ CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
     };
 };
 
-CREATE ABSTRACT TYPE cfg::ExtensionConfig EXTENDING cfg::ConfigObject;
+CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject;
 
-CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
-    CREATE MULTI LINK exts -> cfg::ExtensionConfig;
+CREATE ABSTRACT TYPE cfg::ExtensionConfig EXTENDING cfg::ConfigObject {
+    CREATE REQUIRED SINGLE LINK cfg -> cfg::AbstractConfig {
+        CREATE DELEGATED CONSTRAINT std::exclusive;
+    };
+};
+
+ALTER TYPE cfg::AbstractConfig {
+    CREATE MULTI LINK extensions := .<cfg[IS cfg::ExtensionConfig];
 
     CREATE REQUIRED PROPERTY session_idle_timeout -> std::duration {
         CREATE ANNOTATION cfg::system := 'true';

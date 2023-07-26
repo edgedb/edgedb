@@ -321,6 +321,8 @@ def _describe_config_object(
 
             ptype = p.get_target(schema)
             assert ptype is not None
+            if str(ptype.get_name(schema)) == 'cfg::AbstractConfig':
+                continue
 
             ptr_card = p.get_cardinality(schema)
             mult = ptr_card.is_multi()

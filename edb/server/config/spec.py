@@ -140,7 +140,7 @@ def load_spec_from_schema(schema: s_schema.Schema) -> Spec:
 
     for ptr_name, p in cfg.get_pointers(schema).items(schema):
         pn = str(ptr_name)
-        if pn in ('id', '__type__'):
+        if pn in ('id', '__type__') or p.get_computable(schema):
             continue
 
         ptype = p.get_target(schema)
