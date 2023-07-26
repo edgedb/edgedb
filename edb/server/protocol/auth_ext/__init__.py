@@ -24,7 +24,7 @@ from edb import errors
 from edb.common import debug
 from edb.common import markup
 
-from . import oauth
+from . import providers
 
 
 async def handle_request(
@@ -43,15 +43,14 @@ async def handle_request(
 
             redirect_uri = f"{extension_base_path}/callback"
 
-            return oauth.redirect_to_auth_provider(
+            provider = providers.make(db.db_config, provider_name)
+            return await provider.authorize(
                 response=response,
                 redirect_uri=redirect_uri,
-                iss=extension_base_path,
-                provider_name=provider_name,
-                db_config=db.db_config,
+                issuer=extension_base_path,
             )
         elif args[0] == "callback":
-            await oauth.handle_auth_callback(request, response)
+            raise errors.BackendError("Callback not implemented yet.")
         else:
             raise errors.BackendError("Unknown OAuth endpoint.")
     except Exception as ex:

@@ -17,29 +17,28 @@
 #
 
 
+import http
 import httpx
 import urllib.parse
 
 from . import base
 
 
-class GitHubProvider(base.BaseProvider):
+class GitHubProvider(base.BaseOAuthProvider):
     def __init__(self, *args, **kwargs):
-        super().__init__("github", *args, **kwargs)
+        super().__init__("github", *args[1:], **kwargs)
 
-    def get_code_url(
-        self, state: str, redirect_uri: str, scope: str = "read:user"
-    ) -> str:
+    def _get_code_url(self, state: str, redirect_uri: str) -> str:
         params = {
             "client_id": self.client_id,
-            "scope": scope,
+            "scope": "read:user",
             "state": state,
             "redirect_uri": redirect_uri,
         }
         encoded = urllib.parse.urlencode(params)
         return f"https://github.com/login/oauth/authorize?{encoded}"
 
-    async def exchange_access_token(
+    async def _exchange_access_token(
         self, code: str, state: str, redirect_uri: str
     ):
         # TODO: Check state value
