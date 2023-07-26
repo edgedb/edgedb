@@ -36,13 +36,13 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest):
         return 'notebook'
 
     def run_queries(
-            self,
-            queries: List[str],
-            params: Optional[str] = None,
-            *,
-            inject_typenames: Optional[bool] = None,
-            json_output: Optional[bool] = None
-        ):
+        self,
+        queries: List[str],
+        params: Optional[str] = None,
+        *,
+        inject_typenames: Optional[bool] = None,
+        json_output: Optional[bool] = None
+    ):
         req_data: dict[str, Any] = {
             'queries': queries
         }
@@ -346,7 +346,7 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest):
             'kind': 'parse_result',
             'in_type_id': str,
             'in_type': str
-        });
+        })
 
         error_result = self.parse_query('select $invalid')
 
