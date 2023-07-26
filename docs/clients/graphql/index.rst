@@ -216,7 +216,7 @@ There are also some additional limitations:
   and an object in terms of the GraphQL type system, which means that, for
   every one object type name, two names are needed in reflected
   GraphQL. This potentially results in name clashes if the convention
-  of using camel-case names for user types is not followed in EdgeDB.
+  of using PascalCase names for user types is not followed in EdgeDB.
 
 
 .. __: http://graphql.org/docs/queries/
