@@ -558,27 +558,58 @@ deletion policy.
     Deletion policies using ``if orphan`` will result in the target being
     deleted unless
 
-    1. it is linked by another object via the same link the policy is on, or
+    1. it is linked by another object via **the same link the policy is on**,
+       or
     2. its deletion is restricted by another link's ``on target delete`` policy
+       (which defaults to ``restrict`` unless otherwise specified)
 
     For example, a ``Message`` might be linked from both a ``MessageThread``
-    and a ``Channel``. If the ``MessageThread`` linking to it is deleted, the
-    deletion policy would still result in the ``Message`` being deleted as long
-    as no other ``MessageThread`` objects link to it on that same field and the
-    deletion isn't otherwise restricted (e.g., an ``on target delete allow``
-    policy has been applied to all other links to override the default target
-    deletion restriction). The object is deleted despite not being orphaned
-    with respect to *all* links because it *is* orphaned with respect to the
-    ``MessageThread`` type's ``link`` field, which is the link containing the
-    deletion policy.
+    and a ``Channel``, which is defined like this:
 
-    Similarly, if the ``MessageThread`` had two different links both linking to
-    messages — maybe the existing ``messages`` link and another called
-    ``related`` used to link other related ``Message`` objects that are not in
-    the thread — ``if orphan`` on a deletion policy on ``message`` could result
-    in linked messages being deleted even if they were also linked from another
-    ``MessageThread`` object's ``related`` link because they were orphaned with
-    respect to the ``messages`` link.
+    .. code-block:: sdl
+
+        type Channel {
+          title: str;
+          multi messages: Message {
+            on target delete allow;
+          }
+        }
+
+    If the ``MessageThread`` linking to the ``Message`` is deleted, the source
+    deletion policy would still result in the ``Message`` being deleted as long
+    as no other ``MessageThread`` objects link to it on their ``messages`` link
+    and the deletion isn't otherwise restricted (e.g., the default policy of
+    ``on target delete restrict`` has been overridden, as in the schema above).
+    The object is deleted despite not being orphaned with respect to *all*
+    links because it *is* orphaned with respect to the ``MessageThread`` type's
+    ``messages`` field, which is the link governed by the deletion policy.
+
+    If the ``Channel`` type's ``messages`` link had the default policy, the
+    outcome would change.
+
+    .. code-block:: sdl-diff
+
+        type Channel {
+          title: str;
+          multi messages: Message {
+      -     on target delete allow;
+          }
+        }
+
+    With this schema change, the ``Message`` object would *not* be deleted, but
+    not because the message isn't globally orphaned. Deletion would be
+    prevented because of the default target deletion policy of ``restrict``
+    which would now be in force on the linking ``Channel`` object's
+    ``messages`` link.
+
+    The limited scope of ``if orphan`` holds true even when the two links to an
+    object are from the same type. If ``MessageThread`` had two different links
+    both linking to messages — maybe the existing ``messages`` link and another
+    called ``related`` used to link other related ``Message`` objects that are
+    not in the thread — ``if orphan`` on a deletion policy on ``message`` could
+    result in linked messages being deleted even if they were also linked from
+    another ``MessageThread`` object's ``related`` link because they were
+    orphaned with respect to the ``messages`` link.
 
 
 .. _ref_datamodel_link_polymorphic:
