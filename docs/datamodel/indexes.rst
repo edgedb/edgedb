@@ -14,7 +14,7 @@ any query that references that property in a ``filter``, ``order by``, or
 
   While improving query performance, indexes also increase disk and memory
   usage and slow down insertions and updates. Creating too many indexes may be
-  detrimental; only index properties you often filter, ordero or group by.
+  detrimental; only index properties you often filter, order, or group by.
 
 Index on a property
 -------------------
