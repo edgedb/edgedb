@@ -38,7 +38,7 @@ class BaseTestHttpAuth(tb_server.ConnectedTestCase):
             _, headers, status = self.http_con_request(con, {}, path="token")
             self.assertEqual(status, 401)
             self.assertEqual(
-                headers, headers | {"www-authenticate": "scram-sha-256"}
+                headers, headers | {"www-authenticate": "SCRAM-SHA-256"}
             )
 
         client_nonce = scram.generate_nonce()

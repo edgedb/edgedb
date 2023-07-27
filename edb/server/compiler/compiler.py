@@ -204,7 +204,7 @@ def new_compiler(
     backend_runtime_params: Optional[pg_params.BackendRuntimeParams] = None,
     local_intro_query: Optional[str] = None,
     global_intro_query: Optional[str] = None,
-    load_config: bool = False
+    config_spec: Optional[config.Spec] = None,
 ) -> Compiler:
     """Create and return a compiler instance."""
 
@@ -215,10 +215,8 @@ def new_compiler(
     if not backend_runtime_params:
         backend_runtime_params = pg_params.get_default_runtime_params()
 
-    config_spec = None
-    if load_config:
+    if not config_spec:
         config_spec = config.load_spec_from_schema(std_schema)
-        config.set_settings(config_spec)
 
     return Compiler(CompilerState(
         std_schema=std_schema,
@@ -248,7 +246,7 @@ async def new_compiler_from_pg(con: metaschema.PGConnection) -> Compiler:
         global_intro_query=await load_schema_intro_query(
             con, num_patches, 'global_intro_query'
         ),
-        load_config=True
+        config_spec=None,
     )
 
 
@@ -381,7 +379,7 @@ class CompilerState:
     schema_class_layout: s_refl.SchemaClassLayout
 
     backend_runtime_params: pg_params.BackendRuntimeParams
-    config_spec: Optional[config.Spec]
+    config_spec: config.Spec
 
     local_intro_query: Optional[str]
     global_intro_query: Optional[str]
@@ -933,7 +931,7 @@ class Compiler:
             global_schema
         )
 
-        config_ddl = config.to_edgeql(config.get_settings(), database_config)
+        config_ddl = config.to_edgeql(self.state.config_spec, database_config)
 
         schema_ddl = s_ddl.ddl_text_from_schema(
             schema, include_migrations=True)
@@ -1893,12 +1891,14 @@ def _compile_ql_config_op(
         ir,
         backend_runtime_params=ctx.backend_runtime_params,
     )
+    pretty = bool(
+        debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_text)
     sql_text = pg_codegen.generate_source(
         sql_res.ast,
-        pretty=bool(
-            debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_text
-        ),
+        pretty=pretty,
     )
+    if pretty:
+        debug.dump_code(sql_text, lexer='sql')
 
     sql = (sql_text.encode(),)
 
@@ -1911,7 +1911,7 @@ def _compile_ql_config_op(
         config_op = ireval.evaluate_to_config_op(ir, schema=schema)
 
         session_config = config_op.apply(
-            config.get_settings(),
+            ctx.compiler_state.config_spec,
             session_config,
         )
         current_tx.update_session_config(session_config)
@@ -1920,7 +1920,7 @@ def _compile_ql_config_op(
         config_op = ireval.evaluate_to_config_op(ir, schema=schema)
 
         database_config = config_op.apply(
-            config.get_settings(),
+            ctx.compiler_state.config_spec,
             database_config,
         )
         current_tx.update_database_config(database_config)
@@ -2716,6 +2716,7 @@ def _get_config_val(
         current_tx.get_session_config(),
         current_tx.get_database_config(),
         current_tx.get_system_config(),
+        spec=ctx.compiler_state.config_spec,
         allow_unrecognized=True,
     )
 

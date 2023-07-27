@@ -1600,7 +1600,7 @@ def _make_global_rep(typ: s_types.Type, ctx: Context) -> object:
 
 
 class StateSerializerFactory:
-    def __init__(self, std_schema: s_schema.Schema):
+    def __init__(self, std_schema: s_schema.Schema, config_spec: config.Spec):
         """
         {
             module := 'default',
@@ -1635,7 +1635,8 @@ class StateSerializerFactory:
             schema, free_obj, 'state_config'
         )
         config_shape: list[tuple[str, s_types.Type, enums.Cardinality]] = []
-        for setting in config.get_settings().values():
+
+        for setting in config_spec.values():
             if not setting.system:
                 setting_type_name = setting.schema_type_name
                 setting_type = schema.get(setting_type_name, type=s_types.Type)
