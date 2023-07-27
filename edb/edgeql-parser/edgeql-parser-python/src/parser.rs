@@ -3,7 +3,7 @@ use std::sync::Mutex;
 
 use cpython::{
     ObjectProtocol, PyClone, PyInt, PyList, PyObject, PyResult, PyString, PyTuple, Python,
-    PythonObject, PythonObjectWithCheckedDowncast, ToPyObject,
+    PythonObject, PythonObjectWithCheckedDowncast, ToPyObject, PyNone,
 };
 
 use edgeql_parser::parser;
@@ -13,11 +13,20 @@ use crate::errors::{parser_error_into_tuple, ParserResult};
 use crate::pynormalize::value_to_py_object;
 use crate::tokenizer::OpaqueToken;
 
-pub fn parse(py: Python, parser_name: &PyString, tokens: PyObject) -> PyResult<PyTuple> {
-    let mut parser_specs = PARSER_SPECS.lock().unwrap();
+pub fn parse(py: Python, grammar_name: &PyString, tokens: PyObject) -> PyResult<PyTuple> {
+    let mut spec_cache = PARSER_SPECS.lock().unwrap();
 
-    let (spec, productions) =
-        load_spec(py, &mut parser_specs, parser_name.to_string(py)?.as_ref())?;
+    let grammar_name_str = grammar_name.to_string(py)?;
+    let (spec, productions) = match spec_cache.get(grammar_name_str.as_ref()) {
+        Some(spec) => spec,
+        None => {
+            let parsing_mod = py.import("edb.common.parsing")?;
+            let load_parser_spec = parsing_mod.get(py, "load_parser_spec")?;
+            let grammar_mod = py.import(grammar_name_str.as_ref())?;
+            let py_spec = load_parser_spec.call(py, (grammar_mod,), None)?;
+            _load_spec(py, &mut spec_cache, grammar_name_str.as_ref(), &py_spec)?
+        },
+    };
 
     let tokens = downcast_tokens(py, tokens)?;
 
@@ -98,33 +107,36 @@ fn downcast_tokens<'a>(py: Python, token_list: PyObject) -> PyResult<Vec<parser:
     Ok(buf)
 }
 
-fn load_spec<'a>(
+pub fn cache_spec(
+    py: Python,
+    grammar_name: &PyString,
+    py_spec: &PyObject,
+) -> PyResult<PyNone> {
+    let mut parser_specs = PARSER_SPECS.lock().unwrap();
+    _load_spec(py, &mut parser_specs, grammar_name.to_string(py)?.as_ref(), py_spec)?;
+    Ok(PyNone)
+}
+
+fn _load_spec<'a>(
     py: Python,
     specs: &'a mut ParserSpecs,
-    parser_name: &str,
+    grammar_name: &str,
+    py_spec: &PyObject,
 ) -> PyResult<&'a (parser::Spec, PyObject)> {
-    if !specs.contains_key(parser_name) {
-        let parser_mod = py.import("edb.edgeql.parser.parser")?;
+    let spec_to_json = py.import("edb.common.parsing")?.get(py, "spec_to_json")?;
 
-        let process_spec = py.import("edb.edgeql.parser")?.get(py, "process_spec")?;
+    let res = spec_to_json.call(py, (py_spec,), None)?;
+    let res = PyTuple::downcast_from(py, res)?;
 
-        let parser_cls = parser_mod.get(py, parser_name)?;
-        let parser = parser_cls.call(py, PyTuple::new(py, &[]), None)?;
+    let spec_json = PyString::downcast_from(py, res.get_item(py, 0))?;
+    let spec_json = spec_json.to_string(py).unwrap();
+    let spec = parser::Spec::from_json(&spec_json).unwrap();
+    let productions = res.get_item(py, 1);
+    let result = (spec, productions);
 
-        let res = process_spec.call(py, (parser,), None)?;
-        let res = PyTuple::downcast_from(py, res)?;
+    specs.insert(grammar_name.to_string(), result);
 
-        let spec_json = PyString::downcast_from(py, res.get_item(py, 0))?;
-        let spec_json = spec_json.to_string(py).unwrap();
-
-        let productions = res.get_item(py, 1);
-
-        let spec = parser::Spec::from_json(&spec_json).unwrap();
-
-        specs.insert(parser_name.to_string(), (spec, productions));
-    }
-
-    Ok(specs.get(parser_name).unwrap())
+    Ok(specs.get(grammar_name).unwrap())
 }
 
 fn to_py_cst<'a>(cst: &'a parser::CSTNode<'a>, py: Python) -> PyResult<CSTNode> {

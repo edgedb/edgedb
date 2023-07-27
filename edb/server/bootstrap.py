@@ -836,6 +836,8 @@ def prepare_patch(
             configspec=config.spec_to_json(config_spec).encode('utf-8'),
         ))
 
+        support_view_commands.generate(subblock)
+
     compiler = edbcompiler.new_compiler(
         std_schema=schema,
         reflection_schema=reflschema,
@@ -869,10 +871,10 @@ def prepare_patch(
 
     bins = (
         'stdschema', 'reflschema', 'global_schema', 'classlayout',
-        'report_configs_typedesc',
+        'report_configs_typedesc_1_0', 'report_configs_typedesc_2_0',
     )
     rawbin = (
-        'report_configs_typedesc',
+        'report_configs_typedesc_1_0', 'report_configs_typedesc_2_0',
     )
     jsons = (
         'sysqueries', 'configspec',
@@ -1334,6 +1336,8 @@ async def _init_stdlib(
         std_schema=stdlib.stdschema,
         reflection_schema=stdlib.reflschema,
         schema_class_layout=stdlib.classlayout,
+        global_intro_query=stdlib.global_intro_query,
+        local_intro_query=stdlib.local_intro_query,
     )
     _, sql = compile_bootstrap_script(
         compiler,
@@ -1407,6 +1411,8 @@ async def _init_stdlib(
         std_schema=schema,
         reflection_schema=stdlib.reflschema,
         schema_class_layout=stdlib.classlayout,
+        global_intro_query=stdlib.global_intro_query,
+        local_intro_query=stdlib.local_intro_query,
     )
 
     await metaschema.generate_more_support_functions(
@@ -1427,6 +1433,8 @@ async def _init_stdlib(
             std_schema=stdlib.stdschema,
             reflection_schema=stdlib.reflschema,
             schema_class_layout=stdlib.classlayout,
+            global_intro_query=stdlib.global_intro_query,
+            local_intro_query=stdlib.local_intro_query,
         )
         _, sql = compile_bootstrap_script(
             compiler,
