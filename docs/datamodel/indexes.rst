@@ -4,7 +4,7 @@
 Indexes
 =======
 
-An index is a data structure used internally to speed up filtering, sorting,
+An index is a data structure used internally to speed up filtering, ordering,
 and grouping operations. Most commonly, indexes are declared within object
 type declarations and reference a particular property; this will speed up
 any query that references that property in a ``filter``, ``order by``, or
@@ -39,7 +39,7 @@ notation shorthand <ref_dot_notation>`: ``.name``.
 
 By indexing on ``User.name``, queries that filter, order, or group by the 
 ``name`` property will be faster, as the database can look up a name in 
-the index instead of scanning through all Users sequentially.
+the index instead of scanning through all ``User`` objects sequentially.
 
 To see the difference for yourself, try adding the :ref:`analyze
 <ref_cli_edgedb_analyze>` keyword before a query with an index compared
@@ -77,7 +77,7 @@ Index on multiple properties
 ----------------------------
 
 A *composite index* is an index that references multiple properties. This will
-speed up queries that filter, sort, or group on *both properties*. In EdgeDB,
+speed up queries that filter, order, or group on *both properties*. In EdgeDB,
 this is accomplished by indexing on a ``tuple`` of properties.
 
 .. code-block:: sdl
