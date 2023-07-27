@@ -171,8 +171,16 @@ class Server(ha_base.ClusterProtocol):
     ):
         self.__loop = asyncio.get_running_loop()
 
-        # TODO: We can pull more of the initial state out of here
+        self._schema_class_layout = compiler_state.schema_class_layout
         self._config_settings = compiler_state.config_spec
+        self._refl_schema = compiler_state.refl_schema
+        self._std_schema = compiler_state.std_schema
+        assert compiler_state.global_intro_query is not None
+        self._global_intro_query = (
+            compiler_state.global_intro_query.encode("utf-8"))
+        assert compiler_state.local_intro_query is not None
+        self._local_intro_query = (
+            compiler_state.local_intro_query.encode("utf-8"))
 
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
@@ -1188,46 +1196,6 @@ class Server(ha_base.ClusterProtocol):
             queries = json.loads(result)
             self._sys_queries = immutables.Map(
                 {k: q.encode() for k, q in queries.items()})
-
-            self._local_intro_query = await syscon.sql_fetch_val(f'''\
-                SELECT text FROM edgedbinstdata.instdata
-                WHERE key = 'local_intro_query{version_key}';
-            '''.encode('utf-8'))
-
-            self._global_intro_query = await syscon.sql_fetch_val(f'''\
-                SELECT text FROM edgedbinstdata.instdata
-                WHERE key = 'global_intro_query{version_key}';
-            '''.encode('utf-8'))
-
-            result = await syscon.sql_fetch_val(f'''\
-                SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'stdschema{version_key}';
-            '''.encode('utf-8'))
-            try:
-                self._std_schema = self._load_schema(result, version_key)
-            except Exception as e:
-                raise RuntimeError(
-                    'could not load std schema pickle') from e
-
-            result = await syscon.sql_fetch_val(f'''\
-                SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'reflschema{version_key}';
-            '''.encode('utf-8'))
-            try:
-                self._refl_schema = self._load_schema(result, version_key)
-            except Exception as e:
-                raise RuntimeError(
-                    'could not load refl schema pickle') from e
-
-            result = await syscon.sql_fetch_val(f'''\
-                SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'classlayout{version_key}';
-            '''.encode('utf-8'))
-            try:
-                self._schema_class_layout = pickle.loads(result[2:])
-            except Exception as e:
-                raise RuntimeError(
-                    'could not load schema class layout pickle') from e
 
             self._report_config_typedesc[(1, 0)] = await syscon.sql_fetch_val(
                 f'''

@@ -1334,6 +1334,8 @@ async def _init_stdlib(
         std_schema=stdlib.stdschema,
         reflection_schema=stdlib.reflschema,
         schema_class_layout=stdlib.classlayout,
+        global_intro_query=stdlib.global_intro_query,
+        local_intro_query=stdlib.local_intro_query,
     )
     _, sql = compile_bootstrap_script(
         compiler,
@@ -1407,6 +1409,8 @@ async def _init_stdlib(
         std_schema=schema,
         reflection_schema=stdlib.reflschema,
         schema_class_layout=stdlib.classlayout,
+        global_intro_query=stdlib.global_intro_query,
+        local_intro_query=stdlib.local_intro_query,
     )
 
     await metaschema.generate_more_support_functions(
@@ -1427,6 +1431,8 @@ async def _init_stdlib(
             std_schema=stdlib.stdschema,
             reflection_schema=stdlib.reflschema,
             schema_class_layout=stdlib.classlayout,
+            global_intro_query=stdlib.global_intro_query,
+            local_intro_query=stdlib.local_intro_query,
         )
         _, sql = compile_bootstrap_script(
             compiler,
