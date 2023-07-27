@@ -148,7 +148,7 @@ class Operation(NamedTuple):
         )
 
         # XXX: For now, just fail to track extension config state
-        if '::' in self.setting_name:
+        if self.setting_name not in spec and '::' in self.setting_name:
             return storage
 
         if self.scope != qltypes.ConfigScope.GLOBAL:

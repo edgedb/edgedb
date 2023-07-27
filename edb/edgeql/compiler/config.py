@@ -182,16 +182,17 @@ def compile_ConfigInsert(
             f'CONFIGURE {expr.scope} INSERT is not supported'
         )
 
-    subject = ctx.env.get_schema_object_and_track(
-        sn.QualName('cfg', expr.name.name), expr.name, default=None)
-    if subject is None:
-        raise errors.ConfigurationError(
-            f'{expr.name.name!r} is not a valid configuration item',
-            context=expr.context,
-        )
+    subject = info.param_type
+    # subject = ctx.env.get_schema_object_and_track(
+    #     sn.QualName('cfg', expr.name.name), expr.name, default=None)
+    # if subject is None:
+    #     raise errors.ConfigurationError(
+    #         f'{expr.name.name!r} is not a valid configuration item',
+    #         context=expr.context,
+    #     )
 
     insert_stmt = qlast.InsertQuery(
-        subject=qlast.ObjectRef(name=expr.name.name, module='cfg'),
+        subject=s_utils.name_to_ast_ref(subject.get_name(ctx.env.schema)),
         shape=expr.shape,
     )
 
@@ -302,16 +303,24 @@ def _validate_op(
     #         '\'cfg\' or empty', context=expr.name.context,
     #     )
 
-    if expr.name.module and expr.name.module != 'cfg':
+    cfg_host_type = None
+    is_ext_config = False
+    if expr.name.module:
         cfg_host_name = sn.name_from_string(expr.name.module)
-        ext_config = True
-    else:
-        cfg_host_name = sn.QualName('cfg', 'AbstractConfig')
-        ext_config = False
+        cfg_host_type = ctx.env.get_schema_type_and_track(
+            cfg_host_name, default=None)
+        is_ext_config = bool(cfg_host_type)
+
+    abstract_config = ctx.env.get_schema_type_and_track(
+        sn.QualName('cfg', 'AbstractConfig'))
+    ext_config = ctx.env.get_schema_type_and_track(
+        sn.QualName('cfg', 'ExtensionConfig'))
+
+    if not cfg_host_type:
+        cfg_host_type = abstract_config
 
     name = fullname = expr.name.name
-    cfg_host_type = ctx.env.get_schema_type_and_track(cfg_host_name)
-    if ext_config:
+    if is_ext_config:
         fullname = f'{cfg_host_type.get_name(ctx.env.schema)}::{name}'
 
     assert isinstance(cfg_host_type, s_objtypes.ObjectType)
@@ -324,20 +333,23 @@ def _validate_op(
             cfg_type = ptr.get_target(ctx.env.schema)
 
     if cfg_type is None:
-        if isinstance(expr, (qlast.ConfigSet, qlast.ConfigReset)):
+        if isinstance(expr, qlast.ConfigSet):
             raise errors.ConfigurationError(
                 f'unrecognized configuration parameter {name!r}',
                 context=expr.context
             )
 
-        # expr.name is the name of the configuration type
         cfg_type = ctx.env.get_schema_type_and_track(
-            sn.QualName('cfg', name), default=None)
-        if cfg_type is None:
-            raise errors.ConfigurationError(
-                f'unrecognized configuration object {name!r}',
-                context=expr.context
-            )
+            s_utils.ast_ref_to_name(expr.name), default=None)
+        if not cfg_type:
+            # expr.name is the name of the configuration type
+            cfg_type = ctx.env.get_schema_type_and_track(
+                sn.QualName('cfg', name), default=None)
+            if cfg_type is None:
+                raise errors.ConfigurationError(
+                    f'unrecognized configuration object {name!r}',
+                    context=expr.context
+                )
 
         assert isinstance(cfg_type, s_objtypes.ObjectType)
         ptr_candidate: Optional[s_pointers.Pointer] = None
@@ -357,7 +369,8 @@ def _validate_op(
         if (
             ptr_candidate is None
             or (ptr_source := ptr_candidate.get_source(ctx.env.schema)) is None
-            or not ptr_source.issubclass(ctx.env.schema, cfg_host_type)
+            or not ptr_source.issubclass(
+                ctx.env.schema, (abstract_config, ext_config))
         ):
             raise errors.ConfigurationError(
                 f'{name!r} cannot be configured directly'
@@ -366,6 +379,8 @@ def _validate_op(
         ptr = ptr_candidate
 
         fullname = ptr.get_shortname(ctx.env.schema).name
+        if ptr_source.issubclass(ctx.env.schema, ext_config):
+            fullname = f'{ptr_source.get_name(ctx.env.schema)}::{fullname}'
 
     assert isinstance(ptr, s_pointers.Pointer)
 

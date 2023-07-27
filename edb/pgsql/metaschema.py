@@ -6389,6 +6389,10 @@ def _build_data_source(
     return sourceN
 
 
+def _escape_like(s: str) -> str:
+    return s.replace('%', '\\%').replace('_', '\\_').replace('\\', '\\\\')
+
+
 def _generate_config_type_view(
     schema: s_schema.Schema,
     stype: s_objtypes.ObjectType,
@@ -6426,6 +6430,9 @@ def _generate_config_type_view(
 
     ext_cfg = schema.get('cfg::ExtensionConfig', type=s_objtypes.ObjectType)
     is_ext_cfg = stype.issubclass(schema, ext_cfg)
+    if is_ext_cfg:  # XXX? Sure!!
+        rptr = None
+    is_rptr_ext_cfg = False
 
     if not path:
         if is_ext_cfg:
@@ -6433,10 +6440,7 @@ def _generate_config_type_view(
             # Though we skip instance? Maybe we should include it, just because?
             cfg_name = str(stype.get_name(schema))
 
-            escaped_name = (
-                cfg_name
-                .replace('%', '\\%').replace('_', '\\_').replace('\\', '\\\\')
-            )
+            escaped_name = _escape_like(cfg_name)
             source0 = f'''
                 (SELECT
                     (SELECT jsonb_object_agg(
@@ -6463,8 +6467,37 @@ def _generate_config_type_view(
             rptr_card = rptr.get_cardinality(schema)
             rptr_multi = rptr_card.is_multi()
             rptr_name = rptr.get_shortname(schema).name
+            rptr_source = rptr.get_source(schema)
+            assert rptr_source
+            is_rptr_ext_cfg = rptr_source.issubclass(schema, ext_cfg)
+            if is_rptr_ext_cfg:
+                assert rptr_multi
+                cfg_name = str(rptr_source.get_name(schema)) + '::' + rptr_name
+                escaped_name = _escape_like(cfg_name)
 
-            if rptr_multi:
+                # XXX: MAYBE: Have some level of configurability here,
+                # so we don't always duplicate the objects?
+                source0 = f'''
+                    (SELECT el.val AS val, s.scope::text AS scope,
+                            s.scope_id AS scope_id
+                     FROM (VALUES
+                         (NULL, '{CONFIG_ID[None]}'::uuid),
+                         ('database',
+                          '{CONFIG_ID[qltypes.ConfigScope.DATABASE]}'::uuid),
+                         ('system override',
+                          '{CONFIG_ID[qltypes.ConfigScope.INSTANCE]}'::uuid)
+                     ) AS s(scope, scope_id),
+                     LATERAL (
+                         SELECT (value::jsonb) AS val
+                         FROM edgedb._read_sys_config(
+                           NULL, scope::edgedb._sys_config_source_t) cfg
+                         WHERE name LIKE {ql(escaped_name + '%')}
+                     ) AS cfg,
+                     LATERAL jsonb_array_elements(cfg.val) AS el(val)
+                    ) AS q0
+                '''
+
+            elif rptr_multi:
                 source0 = f'''
                     (SELECT el.val
                      FROM
@@ -6482,6 +6515,8 @@ def _generate_config_type_view(
         sources.append(source0)
         key_start = 0
     else:
+        # XXX: We want to merge this shit in
+        # XXX: The second level is broken
         key_start = 0
 
         for i, (l, exc_props) in enumerate(path):
@@ -6589,6 +6624,13 @@ def _generate_config_type_view(
             _build_key_source(schema, exclusive_props, rptr, str(self_idx)))
 
         key_components = [f'k{i}.key' for i in range(key_start, self_idx + 1)]
+        if is_rptr_ext_cfg:
+            assert rptr_source
+            key_components = [
+                f'ARRAY[{ql(str(rptr_source.get_name(schema)))}]',
+                "ARRAY[coalesce(q0.scope, 'session')]"
+            ] + key_components
+
         final_keysource = f'{_build_key_expr(key_components)} AS k'
         sources.append(final_keysource)
 
@@ -6649,6 +6691,7 @@ def _generate_config_type_view(
             schema, target_exc_props, link, source_idx=link_name)
         sources.append(target_key_source)
 
+        # XXX: that doesn't seem right to *just* use the exc props??
         if target_exc_props:
             target_key_components = [f'k{link_name}.key']
         else:

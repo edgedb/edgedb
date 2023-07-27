@@ -1241,6 +1241,8 @@ def get_config_type_shape(
 
             ptype = p.get_target(schema)
             assert ptype is not None
+            if str(ptype.get_name(schema)) == 'cfg::AbstractConfig':
+                continue
 
             if isinstance(ptype, s_objtypes.ObjectType):
                 subshape = get_config_type_shape(
