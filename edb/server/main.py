@@ -209,6 +209,10 @@ async def _run_server(
             disable_dynamic_system_config=args.disable_dynamic_system_config,
             compiler_state=compiler_state,
         )
+        # This coroutine runs as long as the server,
+        # and compiler_state is *heavy*, so make sure we don't
+        # keep a reference to it.
+        del compiler_state
         await sc.wait_for(ss.init())
 
         tls_cert_newly_generated = False
