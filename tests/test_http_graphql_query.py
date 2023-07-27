@@ -20,6 +20,7 @@
 import json
 import os
 import uuid
+import urllib
 
 import edgedb
 
@@ -4423,6 +4424,50 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                     }],
                 },
                 use_http_post=use_http_post,
+                deprecated_globals={
+                    'default::test_global_str': "WOO",
+                    'default::test_global_id': (
+                        '84ed3d8b-5eb2-4d31-9e1e-efb66180445c'),
+                    'default::test_global_def': None,
+                    'default::test_global_def2': None,
+                    'default::test_global_array': ['x', 'y', 'z'],
+                },
+            )
+
+            self.assert_graphql_query_result(
+                Q,
+                {'GlobalTest': [{'gdef': 'x', 'gdef2': 'x'}]},
+                use_http_post=use_http_post,
+                deprecated_globals={
+                    'default::test_global_def': 'x',
+                    'default::test_global_def2': 'x',
+                },
+            )
+
+            self.assert_graphql_query_result(
+                Q,
+                {'GlobalTest': [
+                    {'gstr': None, 'garray': None, 'gid': None,
+                     'gdef': '', 'gdef2': ''}
+                ]},
+                use_http_post=use_http_post,
+            )
+
+    def test_graphql_globals_02(self):
+        Q = r'''query { GlobalTest { gstr, garray, gid, gdef, gdef2 } }'''
+
+        for use_http_post in [True, False]:
+            self.assert_graphql_query_result(
+                Q,
+                {
+                    "GlobalTest": [{
+                        'gstr': 'WOO',
+                        'gid': '84ed3d8b-5eb2-4d31-9e1e-efb66180445c',
+                        'gdef': '',
+                        'gdef2': None, 'garray': ['x', 'y', 'z']
+                    }],
+                },
+                use_http_post=use_http_post,
                 globals={
                     'default::test_global_str': "WOO",
                     'default::test_global_id': (
@@ -4451,6 +4496,83 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 ]},
                 use_http_post=use_http_post,
             )
+
+    def test_graphql_globals_03(self):
+        Q = r'''query { GlobalTest { gstr, garray, gid, gdef, gdef2 } }'''
+
+        # Test that globals work fine if both the deprecated way and the new
+        # way are used and the values match.
+        for use_http_post in [True, False]:
+            self.assert_graphql_query_result(
+                Q,
+                {'GlobalTest': [{'gdef': 'x', 'gdef2': 'x'}]},
+                use_http_post=use_http_post,
+                globals={
+                    'default::test_global_def': 'x',
+                    'default::test_global_def2': 'x',
+                },
+                deprecated_globals={
+                    'default::test_global_def': 'x',
+                    'default::test_global_def2': 'x',
+                },
+            )
+
+    def test_graphql_globals_04(self):
+        Q = r'''query { GlobalTest { gstr, garray, gid, gdef, gdef2 } }'''
+
+        # Test that globals must match if two ways are used to specify them.
+        for use_http_post in [True, False]:
+            with self.assertRaises(
+                urllib.error.HTTPError,
+            ):
+                self.assert_graphql_query_result(
+                    Q,
+                    {'GlobalTest': [{'gdef': 'x', 'gdef2': 'x'}]},
+                    use_http_post=use_http_post,
+                    globals={
+                        'default::test_global_def': 'x',
+                        'default::test_global_def2': 'x',
+                    },
+                    deprecated_globals={
+                        'default::test_global_def': 'not x',
+                        'default::test_global_def2': 'not x',
+                    },
+                )
+
+    def test_graphql_globals_05(self):
+        Q = r'''query { GlobalTest { gstr, garray, gid, gdef, gdef2 } }'''
+
+        # Test that globals must match if two ways are used to specify them,
+        # even if one of these is an empty dict.
+        for use_http_post in [True, False]:
+            with self.assertRaises(
+                urllib.error.HTTPError,
+            ):
+                self.assert_graphql_query_result(
+                    Q,
+                    {'GlobalTest': [{'gdef': 'x', 'gdef2': 'x'}]},
+                    use_http_post=use_http_post,
+                    globals={
+                        'default::test_global_def': 'x',
+                        'default::test_global_def2': 'x',
+                    },
+                    deprecated_globals={},
+                )
+
+        for use_http_post in [True, False]:
+            with self.assertRaises(
+                urllib.error.HTTPError,
+            ):
+                self.assert_graphql_query_result(
+                    Q,
+                    {'GlobalTest': [{'gdef': 'x', 'gdef2': 'x'}]},
+                    use_http_post=use_http_post,
+                    globals={},
+                    deprecated_globals={
+                        'default::test_global_def': 'x',
+                        'default::test_global_def2': 'x',
+                    },
+                )
 
     def test_graphql_func_01(self):
         Q = r'''query { FuncTest { fstr } }'''
