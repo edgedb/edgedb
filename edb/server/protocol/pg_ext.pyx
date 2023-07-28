@@ -1413,6 +1413,7 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.sql_prepared_stmts_map,
             self.dbname,
             self.username,
+            client_id=self.tenant.client_id,
         )
         self.database.cache_compiled_sql(key, result)
         if self.debug:

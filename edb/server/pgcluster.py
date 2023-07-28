@@ -20,6 +20,8 @@ from __future__ import annotations
 from typing import *
 
 import asyncio
+import functools
+import hashlib
 import json
 import logging
 import os
@@ -28,6 +30,7 @@ import pathlib
 import re
 import shlex
 import shutil
+import struct
 import textwrap
 import urllib.parse
 
@@ -300,6 +303,9 @@ class BaseCluster:
 
     async def lookup_postgres(self) -> None:
         self._pg_bin_dir = await get_pg_bin_dir()
+
+    def get_client_id(self) -> int:
+        return 0
 
 
 class Cluster(BaseCluster):
@@ -788,6 +794,22 @@ class RemoteCluster(BaseCluster):
     def stop_watching(self) -> None:
         if self._ha_backend is not None:
             self._ha_backend.stop_watching()
+
+    @functools.cache
+    def get_client_id(self) -> int:
+        tenant_id = self._instance_params.tenant_id
+        if self._ha_backend is not None:
+            backend_dsn = self._ha_backend.dsn
+        else:
+            assert self._connection_addr is not None
+            assert self._connection_params is not None
+            host, port = self._connection_addr
+            database = self._connection_params.database
+            backend_dsn = f"postgres://{host}:{port}/{database}"
+        data = f"{backend_dsn}|{tenant_id}".encode("utf-8")
+        digest = hashlib.blake2b(data, digest_size=8).digest()
+        rv: int = struct.unpack("q", digest)[0]
+        return rv
 
 
 async def get_pg_bin_dir() -> pathlib.Path:

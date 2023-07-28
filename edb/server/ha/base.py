@@ -46,6 +46,10 @@ class HABackend(asyncwatcher.AsyncWatcher):
     def set_failover_callback(self, cb: Optional[Callable[[], None]]) -> None:
         self._failover_cb = cb
 
+    @property
+    def dsn(self) -> str:
+        raise NotImplementedError
+
 
 def get_backend(parsed_dsn: urllib.parse.ParseResult) -> Optional[HABackend]:
     backend, _, sub_scheme = parsed_dsn.scheme.partition("+")
