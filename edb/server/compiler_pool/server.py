@@ -195,7 +195,6 @@ class MultiSchemaPool(pool_mod.FixedPool):
 
     def __init__(self, cache_size, *, secret, **kwargs):
         super().__init__(
-            dbindex=None,
             backend_runtime_params=None,
             std_schema=None,
             refl_schema=None,

@@ -40,6 +40,7 @@ from edb.common import taskgroup
 from edb.pgsql import params as pgparams
 
 from edb.server import args as srvargs
+from edb.server import dbview
 from edb.server import defines
 from edb.server import metrics
 
@@ -169,11 +170,12 @@ class Worker(BaseWorker):
 
 
 class AbstractPool:
+    _dbindex: dbview.DatabaseIndex
+
     def __init__(
         self,
         *,
         loop,
-        dbindex,
         backend_runtime_params: pgparams.BackendRuntimeParams,
         std_schema,
         refl_schema,
@@ -181,12 +183,18 @@ class AbstractPool:
         **kwargs,
     ):
         self._loop = loop
-        self._dbindex = dbindex
 
         self._backend_runtime_params = backend_runtime_params
         self._std_schema = std_schema
         self._refl_schema = refl_schema
         self._schema_class_layout = schema_class_layout
+
+    def add_dbindex(self, client_id: int, dbindex: dbview.DatabaseIndex):
+        if hasattr(self, "_dbindex"):
+            raise NotImplementedError(
+                f"{self.__class__} doesn't support multi-tenant"
+            )
+        self._dbindex = dbindex
 
     @functools.lru_cache(maxsize=None)
     def _get_init_args(self):
@@ -1181,11 +1189,10 @@ class RemotePool(AbstractPool):
         return preargs, callback
 
 
-async def create_compiler_pool(
+def create_compiler_pool(
     *,
     runstate_dir: str,
     pool_size: int,
-    dbindex,
     backend_runtime_params: pgparams.BackendRuntimeParams,
     std_schema,
     refl_schema,
@@ -1195,7 +1202,7 @@ async def create_compiler_pool(
 ) -> AbstractPool:
     assert issubclass(pool_class, AbstractPool)
     loop = asyncio.get_running_loop()
-    pool = pool_class(
+    return pool_class(
         loop=loop,
         pool_size=pool_size,
         runstate_dir=runstate_dir,
@@ -1203,9 +1210,5 @@ async def create_compiler_pool(
         std_schema=std_schema,
         refl_schema=refl_schema,
         schema_class_layout=schema_class_layout,
-        dbindex=dbindex,
         **kwargs,
     )
-
-    await pool.start()
-    return pool
