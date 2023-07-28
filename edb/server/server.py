@@ -755,7 +755,7 @@ class Server(ha_base.ClusterProtocol):
 
         return s_refl.parse_into(
             base_schema=self._std_schema,
-            schema=s_schema.FlatSchema(),
+            schema=s_schema.EMPTY_SCHEMA,
             data=json_data,
             schema_class_layout=self._schema_class_layout,
         )
@@ -776,13 +776,13 @@ class Server(ha_base.ClusterProtocol):
 
         base_schema = s_schema.ChainedSchema(
             self._std_schema,
-            s_schema.FlatSchema(),
+            s_schema.EMPTY_SCHEMA,
             global_schema or self.get_global_schema(),
         )
 
         return s_refl.parse_into(
             base_schema=base_schema,
-            schema=s_schema.FlatSchema(),
+            schema=s_schema.EMPTY_SCHEMA,
             data=json_data,
             schema_class_layout=self._schema_class_layout,
         )

@@ -953,9 +953,9 @@ async def _make_stdlib(
     global_ids: Mapping[str, uuid.UUID],
 ) -> StdlibBits:
     schema: s_schema.Schema = s_schema.ChainedSchema(
-        s_schema.FlatSchema(),
-        s_schema.FlatSchema(),
-        s_schema.FlatSchema(),
+        s_schema.EMPTY_SCHEMA,
+        s_schema.EMPTY_SCHEMA,
+        s_schema.EMPTY_SCHEMA,
     )
     schema, _ = s_mod.Module.create_in_schema(
         schema,
@@ -1134,7 +1134,7 @@ def _compile_intro_queries_stdlib(
     *,
     compiler: edbcompiler.Compiler,
     user_schema: s_schema.Schema,
-    global_schema: s_schema.Schema=s_schema.FlatSchema(),
+    global_schema: s_schema.Schema=s_schema.EMPTY_SCHEMA,
     reflection: s_refl.SchemaReflectionParts,
 ) -> Tuple[str, str]:
     compilerctx = edbcompiler.new_compiler_context(
@@ -2141,7 +2141,7 @@ async def _bootstrap(ctx: BootstrapContext) -> edbcompiler.CompilerState:
             report_configs_typedesc_2_0,
         )
 
-        schema = s_schema.FlatSchema()
+        schema = s_schema.EMPTY_SCHEMA
         schema = await _init_defaults(schema, compiler, tpl_ctx.conn)
 
         # Run analyze on the template database, so that new dbs start

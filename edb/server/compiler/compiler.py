@@ -254,7 +254,7 @@ def new_compiler_context(
     *,
     compiler_state: CompilerState,
     user_schema: s_schema.Schema,
-    global_schema: s_schema.Schema=s_schema.FlatSchema(),
+    global_schema: s_schema.Schema=s_schema.EMPTY_SCHEMA,
     modaliases: Optional[Mapping[Optional[str], str]] = None,
     expected_cardinality_one: bool = False,
     json_parameters: bool = False,
@@ -1317,7 +1317,7 @@ def _compile_schema_storage_stmt(
             s_schema.ChainedSchema(
                 ctx.compiler_state.std_schema,
                 ctx.compiler_state.refl_schema,
-                s_schema.FlatSchema()
+                s_schema.EMPTY_SCHEMA
             )
         )
 
@@ -1646,7 +1646,7 @@ def _compile_ql_query(
             ir.schema = s_schema.ChainedSchema(
                 top_schema=ir.schema._top_schema,
                 global_schema=ir.schema._global_schema,
-                base_schema=s_schema.FlatSchema(),
+                base_schema=s_schema.EMPTY_SCHEMA,
             )
         query_asts = pickle.dumps((ql, ir, sql_res.ast, explain_data))
     else:

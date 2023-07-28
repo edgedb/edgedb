@@ -1485,6 +1485,9 @@ class FlatSchema(Schema):
             f'<{type(self).__name__} gen:{self._generation} at {id(self):#x}>')
 
 
+EMPTY_SCHEMA = FlatSchema()
+
+
 def upgrade_schema(schema: FlatSchema) -> FlatSchema:
     """Repair a schema object serialized by an older patch version
 
