@@ -116,12 +116,13 @@ See more on edgedb.toml :ref:`here <ref_reference_edgedb_toml>` or on the
 - A ``/dbschema`` folder, inside which you'll see:
 
   - a ``default.esdl`` file which holds your schema. You can change the schema
-  by directly modifying this file followed by ``edgedb migration create`` 
-  and ``edgedb migrate``.
+    by directly modifying this file followed by ``edgedb migration create`` 
+    and ``edgedb migrate``.
 
-  - a ``/migrations`` folder with ``.edgeql`` files named starting at ``00001``.
-  These hold the `ddl`_ commands that were used to migrate your schema.
-  A new file shows up in this directory every time your schema is migrated.
+  - a ``/migrations`` folder with ``.edgeql`` files named starting at 
+    ``00001``. These hold the `ddl`_ commands that were used to migrate your
+    schema. A new file shows up in this directory every time your schema 
+    is migrated.
 
 If you are running EdgeDB 3.0 and above, you also have the option of using 
 the `edgedb watch`_ command. Doing so starts a long-running process that 
