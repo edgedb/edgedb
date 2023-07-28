@@ -110,8 +110,8 @@ Inside your project directory you'll notice some new items:
 The file itself doesn't contain much — just the version of EdgeDB being 
 used — but is used by the CLI to run commands without connection flags. 
 (E.g., ``edgedb -I my_project migrate`` becomes simply ``edgedb migrate``).
-See more on edgedb.toml in the `blog post`_ introducing the 
-EdgeDB projects CLI.
+See more on edgedb.toml :ref:`here <ref_reference_edgedb_toml>` or on the
+`blog post`_ introducing the EdgeDB projects CLI.
 
 - A ``/dbschema`` folder, inside which you'll see:
 - a ``default.esdl`` file which holds your schema. You can change the schema
