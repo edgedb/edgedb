@@ -544,6 +544,258 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             "other__Foo": []
         })
 
+    def test_graphql_mutation_insert_range_01(self):
+        # This tests range and multirange values in insertion.
+        data = {
+            "name": "New RangeTest01",
+            "rval": {
+                "lower": -1.2,
+                "upper": 3.4,
+                "inc_lower": True,
+                "inc_upper": False
+            },
+            "mval": [
+                {
+                    "lower": None,
+                    "upper": -10,
+                    "inc_lower": False,
+                    "inc_upper": False
+                },
+                {
+                    "lower": -3,
+                    "upper": 12,
+                    "inc_lower": True,
+                    "inc_upper": False
+                },
+            ],
+            "rdate": {
+                "lower": "2019-02-13",
+                "upper": "2023-08-29",
+                "inc_lower": True,
+                "inc_upper": False
+            },
+            "mdate": [
+                {
+                    "lower": "2019-02-13",
+                    "upper": "2023-08-29",
+                    "inc_lower": True,
+                    "inc_upper": False
+                },
+                {
+                    "lower": "2026-10-20",
+                    "upper": None,
+                    "inc_lower": True,
+                    "inc_upper": False
+                }
+            ]
+        }
+
+        validation_query = r"""
+            query {
+                RangeTest(filter: {name: {eq: "New RangeTest01"}}) {
+                    name
+                    rval
+                    mval
+                    rdate
+                    mdate
+                }
+            }
+        """
+
+        self.assert_graphql_query_result(r"""
+            mutation insert_RangeTest {
+                insert_RangeTest(
+                    data: [{
+                        name: "New RangeTest01",
+                        rval: {
+                            lower: -1.2,
+                            upper: 3.4,
+                            inc_lower: true,
+                            inc_upper: false
+                        },
+                        mval: [
+                            {
+                                lower: null,
+                                upper: -10,
+                                inc_lower: false,
+                                inc_upper: false
+                            },
+                            {
+                                lower: -3,
+                                upper: 12,
+                                inc_lower: true,
+                                inc_upper: false
+                            },
+                        ],
+                        rdate: {
+                            lower: "2019-02-13",
+                            upper: "2023-08-29",
+                            inc_lower: true,
+                            inc_upper: false
+                        },
+                        mdate: [
+                            {
+                                lower: "2019-02-13",
+                                upper: "2023-08-29",
+                                inc_lower: true,
+                                inc_upper: false
+                            },
+                            {
+                                lower: "2026-10-20",
+                                upper: null,
+                                inc_lower: true,
+                                inc_upper: false
+                            }
+                        ]
+                    }]
+                ) {
+                    name
+                    rval
+                    mval
+                    rdate
+                    mdate
+                }
+            }
+        """, {
+            "insert_RangeTest": [data]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "RangeTest": [data]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation delete_RangeTest {
+                delete_RangeTest(
+                    filter: {name: {eq: "New RangeTest01"}}
+                ) {
+                    name
+                    rval
+                    mval
+                    rdate
+                    mdate
+                }
+            }
+        """, {
+            "delete_RangeTest": [data]
+        })
+
+        # validate that the deletion worked
+        self.assert_graphql_query_result(validation_query, {
+            "RangeTest": []
+        })
+
+    def test_graphql_mutation_insert_range_02(self):
+        # This tests range and multirange values in insertion.
+        data = {
+            "name": "New RangeTest02",
+            "rval": {
+                "lower": -1.2,
+                "upper": 3.4,
+                "inc_lower": True,
+                "inc_upper": False
+            },
+            "mval": [
+                {
+                    "lower": None,
+                    "upper": -10,
+                    "inc_lower": False,
+                    "inc_upper": False
+                },
+                {
+                    "lower": -3,
+                    "upper": 12,
+                    "inc_lower": True,
+                    "inc_upper": False
+                },
+            ],
+            "rdate": {
+                "lower": "2019-02-13",
+                "upper": "2023-08-29",
+                "inc_lower": True,
+                "inc_upper": False
+            },
+            "mdate": [
+                {
+                    "lower": "2019-02-13",
+                    "upper": "2023-08-29",
+                    "inc_lower": True,
+                    "inc_upper": False
+                },
+                {
+                    "lower": "2026-10-20",
+                    "upper": None,
+                    "inc_lower": True,
+                    "inc_upper": False
+                }
+            ]
+        }
+
+        validation_query = r"""
+            query {
+                RangeTest(filter: {name: {eq: "New RangeTest02"}}) {
+                    name
+                    rval
+                    mval
+                    rdate
+                    mdate
+                }
+            }
+        """
+
+        self.assert_graphql_query_result(r"""
+            mutation insert_RangeTest(
+                $name: String!,
+                $rval: RangeOfFloat,
+                $mval: [RangeOfFloat!],
+                $rdate: RangeOfString,
+                $mdate: [RangeOfString!]
+            ) {
+                insert_RangeTest(
+                    data: [{
+                        name: $name,
+                        rval: $rval,
+                        mval: $mval,
+                        rdate: $rdate,
+                        mdate: $mdate
+                    }]
+                ) {
+                    name
+                    rval
+                    mval
+                    rdate
+                    mdate
+                }
+            }
+        """, {
+            "insert_RangeTest": [data]
+        }, variables=data)
+
+        self.assert_graphql_query_result(validation_query, {
+            "RangeTest": [data]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation delete_RangeTest {
+                delete_RangeTest(
+                    filter: {name: {eq: "New RangeTest02"}}
+                ) {
+                    name
+                    rval
+                    mval
+                    rdate
+                    mdate
+                }
+            }
+        """, {
+            "delete_RangeTest": [data]
+        })
+
+        # validate that the deletion worked
+        self.assert_graphql_query_result(validation_query, {
+            "RangeTest": []
+        })
+
     def test_graphql_mutation_insert_nested_01(self):
         # Test nested insert.
         data = {
@@ -2785,6 +3037,430 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                 'select': 'Update EnumTest02',
                 'color': 'RED',
             }]
+        })
+
+    def test_graphql_mutation_update_range_01(self):
+        # This tests range and multirange values in updates.
+        self.assert_graphql_query_result(r"""
+            mutation insert_RangeTest {
+                insert_RangeTest(
+                    data: [{
+                        name: "Update RangeTest01",
+                        rval: {
+                            lower: -1.2,
+                            upper: 3.4,
+                            inc_lower: true,
+                            inc_upper: false
+                        },
+                        mval: [
+                            {
+                                lower: null,
+                                upper: -10,
+                                inc_lower: false,
+                                inc_upper: false
+                            },
+                            {
+                                lower: -3,
+                                upper: 12,
+                                inc_lower: true,
+                                inc_upper: false
+                            },
+                        ],
+                        rdate: {
+                            lower: "2019-02-13",
+                            upper: "2023-08-29",
+                            inc_lower: true,
+                            inc_upper: false
+                        },
+                        mdate: [
+                            {
+                                lower: "2019-02-13",
+                                upper: "2023-08-29",
+                                inc_lower: true,
+                                inc_upper: false
+                            },
+                            {
+                                lower: "2026-10-20",
+                                upper: null,
+                                inc_lower: true,
+                                inc_upper: false
+                            }
+                        ]
+                    }]
+                ) {
+                    name
+                    rval
+                    mval
+                    rdate
+                    mdate
+                }
+            }
+        """, {
+            "insert_RangeTest": [{
+                "name": "Update RangeTest01",
+                "rval": {
+                    "lower": -1.2,
+                    "upper": 3.4,
+                    "inc_lower": True,
+                    "inc_upper": False
+                },
+                "mval": [
+                    {
+                        "lower": None,
+                        "upper": -10,
+                        "inc_lower": False,
+                        "inc_upper": False
+                    },
+                    {
+                        "lower": -3,
+                        "upper": 12,
+                        "inc_lower": True,
+                        "inc_upper": False
+                    },
+                ],
+                "rdate": {
+                    "lower": "2019-02-13",
+                    "upper": "2023-08-29",
+                    "inc_lower": True,
+                    "inc_upper": False
+                },
+                "mdate": [
+                    {
+                        "lower": "2019-02-13",
+                        "upper": "2023-08-29",
+                        "inc_lower": True,
+                        "inc_upper": False
+                    },
+                    {
+                        "lower": "2026-10-20",
+                        "upper": None,
+                        "inc_lower": True,
+                        "inc_upper": False
+                    }
+                ]
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_RangeTest {
+                update_RangeTest(
+                    filter: {name: {eq: "Update RangeTest01"}},
+                    data: {
+                        rval: {
+                            set: {
+                                lower: 5.6,
+                                upper: 7.8,
+                                inc_lower: true,
+                                inc_upper: true
+                            }
+                        },
+                        mval: {
+                            set: [
+                                {
+                                    lower: 0,
+                                    upper: 1.2,
+                                    inc_lower: true,
+                                    inc_upper: false
+                                },
+                            ]
+                        },
+                        rdate: {
+                            set: {
+                                lower: "2018-12-10",
+                                upper: "2022-10-20",
+                                inc_lower: true,
+                                inc_upper: false
+                            }
+                        },
+                        mdate: {
+                            set: [
+                                {
+                                    lower: null,
+                                    upper: "2019-02-13",
+                                    inc_lower: true,
+                                    inc_upper: false
+                                },
+                                {
+                                    lower: "2023-08-29",
+                                    upper: "2026-10-20",
+                                    inc_lower: true,
+                                    inc_upper: false
+                                }
+                            ]
+                        }
+                    }
+                ) {
+                    name
+                    rval
+                    mval
+                    rdate
+                    mdate
+                }
+            }
+        """, {
+            "update_RangeTest": [{
+                "name": "Update RangeTest01",
+                "rval": {
+                    "lower": 5.6,
+                    "upper": 7.8,
+                    "inc_lower": True,
+                    "inc_upper": True
+                },
+                "mval": [
+                    {
+                        "lower": 0,
+                        "upper": 1.2,
+                        "inc_lower": True,
+                        "inc_upper": False
+                    },
+                ],
+                "rdate": {
+                    "lower": "2018-12-10",
+                    "upper": "2022-10-20",
+                    "inc_lower": True,
+                    "inc_upper": False
+                },
+                "mdate": [
+                    {
+                        "lower": None,
+                        "upper": "2019-02-13",
+                        "inc_lower": False,
+                        "inc_upper": False
+                    },
+                    {
+                        "lower": "2023-08-29",
+                        "upper": "2026-10-20",
+                        "inc_lower": True,
+                        "inc_upper": False
+                    }
+                ]
+            }]
+        })
+
+        # Cleanup
+        self.assert_graphql_query_result(r"""
+            mutation delete_RangeTest {
+                delete_RangeTest(
+                    filter: {name: {eq: "Update RangeTest01"}}
+                ) {
+                    name
+                }
+            }
+        """, {
+            "delete_RangeTest": [{"name": "Update RangeTest01"}]
+        })
+
+    def test_graphql_mutation_update_range_02(self):
+        # This tests range and multirange values in insertion.
+        self.assert_graphql_query_result(r"""
+            mutation insert_RangeTest {
+                insert_RangeTest(
+                    data: [{
+                        name: "Update RangeTest02",
+                        rval: {
+                            lower: -1.2,
+                            upper: 3.4,
+                            inc_lower: true,
+                            inc_upper: false
+                        },
+                        mval: [
+                            {
+                                lower: null,
+                                upper: -10,
+                                inc_lower: false,
+                                inc_upper: false
+                            },
+                            {
+                                lower: -3,
+                                upper: 12,
+                                inc_lower: true,
+                                inc_upper: false
+                            },
+                        ],
+                        rdate: {
+                            lower: "2019-02-13",
+                            upper: "2023-08-29",
+                            inc_lower: true,
+                            inc_upper: false
+                        },
+                        mdate: [
+                            {
+                                lower: "2019-02-13",
+                                upper: "2023-08-29",
+                                inc_lower: true,
+                                inc_upper: false
+                            },
+                            {
+                                lower: "2026-10-20",
+                                upper: null,
+                                inc_lower: true,
+                                inc_upper: false
+                            }
+                        ]
+                    }]
+                ) {
+                    name
+                    rval
+                    mval
+                    rdate
+                    mdate
+                }
+            }
+        """, {
+            "insert_RangeTest": [{
+                "name": "Update RangeTest02",
+                "rval": {
+                    "lower": -1.2,
+                    "upper": 3.4,
+                    "inc_lower": True,
+                    "inc_upper": False
+                },
+                "mval": [
+                    {
+                        "lower": None,
+                        "upper": -10,
+                        "inc_lower": False,
+                        "inc_upper": False
+                    },
+                    {
+                        "lower": -3,
+                        "upper": 12,
+                        "inc_lower": True,
+                        "inc_upper": False
+                    },
+                ],
+                "rdate": {
+                    "lower": "2019-02-13",
+                    "upper": "2023-08-29",
+                    "inc_lower": True,
+                    "inc_upper": False
+                },
+                "mdate": [
+                    {
+                        "lower": "2019-02-13",
+                        "upper": "2023-08-29",
+                        "inc_lower": True,
+                        "inc_upper": False
+                    },
+                    {
+                        "lower": "2026-10-20",
+                        "upper": None,
+                        "inc_lower": True,
+                        "inc_upper": False
+                    }
+                ]
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_RangeTest(
+                $rval: RangeOfFloat,
+                $mval: [RangeOfFloat!],
+                $rdate: RangeOfString,
+                $mdate: [RangeOfString!]
+            ) {
+                update_RangeTest(
+                    filter: {name: {eq: "Update RangeTest02"}},
+                    data: {
+                        rval: {set: $rval},
+                        mval: {set: $mval},
+                        rdate: {set: $rdate},
+                        mdate: {set: $mdate}
+                    }
+                ) {
+                    name
+                    rval
+                    mval
+                    rdate
+                    mdate
+                }
+            }
+        """, {
+            "update_RangeTest": [{
+                "name": "Update RangeTest02",
+                "rval": {
+                    "lower": 5.6,
+                    "upper": 7.8,
+                    "inc_lower": True,
+                    "inc_upper": True
+                },
+                "mval": [
+                    {
+                        "lower": 0,
+                        "upper": 1.2,
+                        "inc_lower": True,
+                        "inc_upper": False
+                    },
+                ],
+                "rdate": {
+                    "lower": "2018-12-10",
+                    "upper": "2022-10-20",
+                    "inc_lower": True,
+                    "inc_upper": False
+                },
+                "mdate": [
+                    {
+                        "lower": None,
+                        "upper": "2019-02-13",
+                        "inc_lower": False,
+                        "inc_upper": False
+                    },
+                    {
+                        "lower": "2023-08-29",
+                        "upper": "2026-10-20",
+                        "inc_lower": True,
+                        "inc_upper": False
+                    }
+                ]
+            }]
+        }, variables={
+            "rval": {
+                "lower": 5.6,
+                "upper": 7.8,
+                "inc_lower": True,
+                "inc_upper": True
+            },
+            "mval": [
+                {
+                    "lower": 0,
+                    "upper": 1.2,
+                    "inc_lower": True,
+                    "inc_upper": False
+                },
+            ],
+            "rdate": {
+                "lower": "2018-12-10",
+                "upper": "2022-10-20",
+                "inc_lower": True,
+                "inc_upper": False
+            },
+            "mdate": [
+                {
+                    "lower": None,
+                    "upper": "2019-02-13",
+                    "inc_lower": True,
+                    "inc_upper": False
+                },
+                {
+                    "lower": "2023-08-29",
+                    "upper": "2026-10-20",
+                    "inc_lower": True,
+                    "inc_upper": False
+                }
+            ]
+        })
+
+        # Cleanup
+        self.assert_graphql_query_result(r"""
+            mutation delete_RangeTest {
+                delete_RangeTest(
+                    filter: {name: {eq: "Update RangeTest02"}}
+                ) {
+                    name
+                }
+            }
+        """, {
+            "delete_RangeTest": [{"name": "Update RangeTest02"}]
         })
 
     def test_graphql_mutation_update_link_01(self):
