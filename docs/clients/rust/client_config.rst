@@ -38,7 +38,8 @@ shallow copy of the client with adjusted options.
   // Many other clients can be created with different options,
   // all independent of the main client:
   let transaction_opts = TransactionOptions::default().read_only(true);
-  let _read_only_client = client.with_transaction_options(transaction_opts);
+  let _read_only_client = client
+      .with_transaction_options(transaction_opts);
 
   let retry_opts = RetryOptions::default().with_rule(
       RetryCondition::TransactionConflict,
@@ -47,4 +48,4 @@ shallow copy of the client with adjusted options.
       // Retry immediately, instead of default with increasing backoff
       |_| std::time::Duration::from_millis(0),
   );
-  let _immediate_retry_once_client = client.with_retry_options(retry_opts);
+  let _one_immediate_retry_client = client.with_retry_options(retry_opts);

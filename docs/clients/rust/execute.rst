@@ -13,10 +13,10 @@ we don't care about getting output if it works:
     .await?;
   client.execute("create superuser role project;", &())
     .await?;
-  client.execute("alter role project set password := 'STRONGpassword';", &())
+  client.execute("alter role project set password := 'GOODpassword';", &())
     .await?;
 
-  // Returns Ok(()) upon success but error info will be returned of course
+  // Returns Ok(()) upon success but error info will be returned
   let command = client.execute("create type MyType {};", &()).await;
-  let command_as_string = command.unwrap_err().to_string();
-  assert!(command_as_string.contains("bare DDL statements are not allowed"));
+  let command_string = command.unwrap_err().to_string();
+  assert!(command_string.contains("bare DDL statements are not allowed"));

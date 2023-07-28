@@ -49,7 +49,7 @@ another's would look like this:
               .query_required_single(balance_check, &(sender_name,))
               .await?;
           if sender.bank_balance < send_amount {
-              println!("Not enough money to send, bailing from transaction");
+              println!("Not enough money, bailing from transaction");
               return Ok(());
           };
           conn.execute(balance_change, &(sender_name, send_amount.neg()))

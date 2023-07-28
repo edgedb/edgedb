@@ -41,7 +41,7 @@ the section on the ``Value`` enum), cast to JSON, etc.
       .await;
   assert!(
       format!("{wrong_order:?}")
-      .contains(r#"WrongField { unexpected: "id", expected: "username" }"#);
+      .contains(r#"WrongField { unexpected: "id", expected: "username""#);
   );
 
 You can use `cargo expand`_ with the nightly compiler to see the code

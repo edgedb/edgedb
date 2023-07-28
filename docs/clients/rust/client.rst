@@ -105,7 +105,9 @@ But if you know that only a single result will be returned, using
 .. code-block:: rust
 
   let query = "select 'Just a string'";
-  let query_res: String = client.query_required_single(query, &()).await?;
-  let query_res_opt: Option<String> = client.query_single(query, &()).await?;
+  let query_res: String = client
+      .query_required_single(query, &()).await?;
+  let query_res_opt: Option<String> = client
+      .query_single(query, &()).await?;
 
 .. _`edgedb-protocol documentation`: https://docs.rs/edgedb-protocol/

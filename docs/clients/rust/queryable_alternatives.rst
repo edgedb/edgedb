@@ -84,7 +84,7 @@ into a struct using ``serde`` and ``serde_json``, etc.
       id
       } filter .username = <str>$0;";
 
-  // If we know there will only be one result we can use query_single_json;
+  // Can use query_single_json if we know there will only be one result;
   // otherwise query_json which returns a map of json
   let json_res = client
       .query_single_json(query, &("SomeUserName",))
@@ -92,7 +92,8 @@ into a struct using ``serde`` and ``serde_json``, etc.
       .unwrap();
 
   // Format:
-  // {"username" : "SomeUser1", "id" : "7093944a-fd3a-11ed-a013-c7de12ffe7a9"}
+  // {"username" : "SomeUser1", 
+  // "id" : "7093944a-fd3a-11ed-a013-c7de12ffe7a9"}
   let as_string = json_res.to_string();
   let as_account: Account = serde_json::from_str(&json_res)?;
 
