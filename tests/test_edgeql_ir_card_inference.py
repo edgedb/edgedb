@@ -1105,3 +1105,24 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         x: AT_LEAST_ONE
         """
+
+    def test_edgeql_ir_card_inference_129(self):
+        """
+        select assert(<bool>{})
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_130(self):
+        """
+        select assert(<bool>{}, message := {'uh', 'oh'})
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_131(self):
+        """
+        select assert(true, message := {'uh', 'oh'})
+% OK %
+        AT_LEAST_ONE
+        """

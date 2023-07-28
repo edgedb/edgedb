@@ -715,44 +715,30 @@ def __infer_func_call(
         # have to account for the declared return cardinality, as the
         # function might be OPTIONAL or SET OF in its return type.
         #
-        # If a function is OPTIONAL in its parameters, which includes
-        # aggregate functions, then we compute a Cartesian cardinality
-        # of functions's _non-OPTIONAL_ arguments and its return
-        # cardinality, but only in the upper bound, since we cannot know
-        # how the function behaves in OPTIONAL arguments.
+        # We compute the Cartesian cardinality of the functions's
+        # _non-SET OF_ arguments and its return, but with the lower bound
+        # of any optional arguments set to CB_ONE.
         non_aggregate_args = []
         non_aggregate_arg_cards = []
-        singleton_args = []
-        singleton_arg_cards = []
-        all_singletons = True
 
         for arg, typemod in zip(ir.args, ir.params_typemods):
             card = infer_cardinality(arg.expr, scope_tree=scope_tree, ctx=ctx)
-            if typemod is not qltypes.TypeModifier.SetOfType:
+            if typemod is qltypes.TypeModifier.SingletonType:
                 non_aggregate_args.append(arg.expr)
                 non_aggregate_arg_cards.append(card)
-            if typemod is qltypes.TypeModifier.SingletonType:
-                singleton_args.append(arg.expr)
-                singleton_arg_cards.append(card)
-            else:
-                all_singletons = False
+            elif typemod is qltypes.TypeModifier.OptionalType:
+                non_aggregate_args.append(arg.expr)
+                non_aggregate_arg_cards.append(
+                    _bounds_to_card(CB_ONE, _card_to_bounds(card).upper)
+                )
             if ctx.make_updates:
                 arg.cardinality = card
 
-        if non_aggregate_args:
-            _check_op_volatility(
-                non_aggregate_args, non_aggregate_arg_cards, ctx=ctx)
+        _check_op_volatility(
+            non_aggregate_args, non_aggregate_arg_cards, ctx=ctx)
 
-        if not singleton_args:
-            # Either no arguments at all, or all arguments are non-singletons,
-            # so the declared return cardinality is as specific as we can get.
-            return return_card
-        else:
-            result = cartesian_cardinality(singleton_arg_cards + [return_card])
-            if not all_singletons:
-                result = _bounds_to_card(
-                    ret_lower_bound, _card_to_bounds(result).upper)
-            return result
+        return cartesian_cardinality(
+            non_aggregate_arg_cards + [return_card])
 
 
 @_infer_cardinality.register
