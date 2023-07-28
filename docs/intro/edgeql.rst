@@ -716,6 +716,25 @@ executing a query.
         // ...
     }
 
+  .. code-tab:: rust
+
+    // [dependencies]
+    // edgedb-tokio = "0.5.0"
+    // tokio = { version = "1.28.1", features = ["macros", "rt-multi-thread"] }
+
+    #[tokio::main]
+    async fn main() {
+        let conn = edgedb_tokio::create_client()
+            .await
+            .expect("Client initiation");
+        let param = "Play it, Sam.";
+        let val = conn
+            .query_required_single::<String, _>("select <str>$0", &(param,))
+            .await
+            .expect("Returning value");
+        println!("{val}");
+    }
+
 See :ref:`Docs > EdgeQL > Parameters <ref_eql_params>`.
 
 Subqueries

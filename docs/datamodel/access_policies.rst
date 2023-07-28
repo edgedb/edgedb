@@ -145,6 +145,27 @@ queries. The exact API depends on which client library you're using:
       fmt.Println(result)
     }
 
+  .. code-tab:: rust
+
+    use uuid::Uuid;
+
+    let client = edgedb_tokio::create_client()
+        .await
+        .expect("Client should init")
+        .with_globals_fn(|c| {
+            c.set(
+                "current_user",
+                Value::Uuid(
+                    Uuid::parse_str("2141a5b4-5634-4ccc-b835-437863534c51")
+                        .expect("Uuid should have parsed"),
+                ),
+            )
+        });
+    client
+        .query_required_single::<Uuid, _>("select global current_user;", &())
+        .await
+        .expect("Returning value");
+
 
 Defining a policy
 ^^^^^^^^^^^^^^^^^
@@ -382,8 +403,8 @@ making the current user able to see their own ``User`` record.
     This change is being made to simplify reasoning about access policies and
     to allow certain patterns to be express efficiently. Since those who have
     access to modifying the schema can remove unwanted access policies, no
-    additional security is provided by applying access policies to each other's
-    expressions.
+    additional security is provided by applying access policies to each 
+    other's expressions.
 
     It is possible (and recommended) to enable this :ref:`future
     <ref_eql_sdl_future>` behavior in EdgeDB 2.6 and later by adding the
@@ -404,12 +425,12 @@ policy, you will get a generic error message.
 
 .. note::
 
-    When attempting a ``select`` queries, you simply won't get the data that is
-    being restricted by the access policy.
+    When attempting a ``select`` queries, you simply won't get the data that 
+    is being restricted by the access policy.
 
 If you have multiple access policies, it can be useful to know which policy is
-restricting your query and provide a friendly error message. You can do this by
-adding a custom error message to your policy.
+restricting your query and provide a friendly error message. You can do this 
+by adding a custom error message to your policy.
 
 .. code-block:: sdl-diff
 
