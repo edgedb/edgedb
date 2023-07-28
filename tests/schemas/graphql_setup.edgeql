@@ -17,57 +17,57 @@
 #
 
 
-INSERT Setting {
+insert Setting {
     name := 'template',
     value := 'blue'
 };
 
-INSERT Setting {
+insert Setting {
     name := 'perks',
     value := 'full'
 };
 
-INSERT UserGroup {
+insert UserGroup {
     name := 'basic'
 };
 
-INSERT UserGroup {
+insert UserGroup {
     name := 'upgraded',
-    settings := (SELECT Setting)
+    settings := (select Setting)
 };
 
-INSERT UserGroup {
+insert UserGroup {
     name := 'unused',
     settings := (
-        INSERT Setting {
+        insert Setting {
             name := 'template',
             value := 'none'
         }
     )
 };
 
-INSERT User {
+insert User {
     name := 'John',
     age := 25,
     active := True,
     score := 3.14,
-    groups := (SELECT UserGroup FILTER UserGroup.name = 'basic')
+    groups := (select UserGroup filter UserGroup.name = 'basic')
 };
 
-INSERT User {
+insert User {
     name := 'Jane',
     age := 25,
     active := True,
     score := 1.23,
-    groups := (SELECT UserGroup FILTER UserGroup.name = 'upgraded')
+    groups := (select UserGroup filter UserGroup.name = 'upgraded')
 };
 
-INSERT User {
+insert User {
     name := 'Alice',
     age := 27,
     active := True,
     score := 5.0,
-    profile := (INSERT Profile {
+    profile := (insert Profile {
         name := 'Alice profile',
         value := 'special',
         tags := ['1st', '2nd'],
@@ -75,12 +75,12 @@ INSERT User {
     favorites := {Setting, UserGroup}
 };
 
-INSERT Person {
+insert Person {
     name := 'Bob',
     age := 21,
     active := True,
     score := 4.2,
-    profile := (INSERT Profile {
+    profile := (insert Profile {
         name := 'Bob profile',
         value := 'special',
     }),
@@ -88,25 +88,25 @@ INSERT Person {
 };
 
 WITH MODULE other
-INSERT Foo {
+insert Foo {
     `select` := 'a',
     color := 'RED',
 };
 
 WITH MODULE other
-INSERT Foo {
+insert Foo {
     `select` := 'b',
     after := 'w',
     color := 'GREEN',
 };
 
 WITH MODULE other
-INSERT Foo {
+insert Foo {
     after := 'q',
     color := 'BLUE',
 };
 
-INSERT ScalarTest {
+insert ScalarTest {
     p_bool := True,
     p_str := 'Hello world',
     p_datetime := <datetime>'2018-05-07T20:01:22.306916+00:00',
@@ -137,75 +137,110 @@ INSERT ScalarTest {
 };
 
 # Inheritance tests
-INSERT Bar {
+insert Bar {
     q := 'bar'
 };
 
 
-INSERT Bar2 {
+insert Bar2 {
     q := 'bar2',
     w := 'special'
 };
 
 
-INSERT Rab {
-    blah := (SELECT Bar LIMIT 1)
+insert Rab {
+    blah := (select Bar limit 1)
 };
 
 
-INSERT Rab2 {
-    blah := (SELECT Bar2 LIMIT 1)
+insert Rab2 {
+    blah := (select Bar2 limit 1)
 };
 
 
-INSERT LinkedList {
+insert LinkedList {
     name := '4th',
 };
 
-INSERT LinkedList {
+insert LinkedList {
     name := '3rd',
     next := (
-        SELECT DETACHED LinkedList
-        FILTER .name = '4th'
-        LIMIT 1
+        select DETACHED LinkedList
+        filter .name = '4th'
+        limit 1
     )
 };
 
-INSERT LinkedList {
+insert LinkedList {
     name := '2nd',
     next := (
-        SELECT DETACHED LinkedList
-        FILTER .name = '3rd'
-        LIMIT 1
+        select DETACHED LinkedList
+        filter .name = '3rd'
+        limit 1
     )
 };
 
-INSERT LinkedList {
+insert LinkedList {
     name := '1st',
     next := (
-        SELECT DETACHED LinkedList
-        FILTER .name = '2nd'
-        LIMIT 1
+        select DETACHED LinkedList
+        filter .name = '2nd'
+        limit 1
     )
 };
 
-INSERT Combo {
+insert Combo {
     name := 'combo 0',
 };
 
-INSERT Combo {
+insert Combo {
     name := 'combo 1',
     data := assert_single((
-        SELECT Setting FILTER .name = 'template' AND .value = 'blue'
+        select Setting filter .name = 'template' and .value = 'blue'
     )),
 };
 
-INSERT Combo {
+insert Combo {
     name := 'combo 2',
-    data := assert_single((SELECT Profile FILTER .name = 'Alice profile')),
+    data := assert_single((select Profile filter .name = 'Alice profile')),
 };
 
-INSERT ErrorTest {
+insert ErrorTest {
     text := ')error(',
     val := 0,
+};
+
+insert RangeTest {
+    name := 'test01',
+    rval := range(-1.3, 1.2),
+    mval := multirange([
+        range(<float64>{}, -10.0),
+        range(-1.3, 1.2),
+        range(10.0),
+    ]),
+    rdate := range(
+        <cal::local_date>'2018-01-23',
+        <cal::local_date>'2023-07-25',
+    ),
+    mdate := multirange([
+        range(
+            <cal::local_date>'2018-01-23',
+            <cal::local_date>'2023-07-25',
+        ),
+        range(
+            <cal::local_date>'2025-11-22',
+        ),
+    ]),
+};
+
+insert RangeTest {
+    name := 'missing boundaries',
+    # empty
+    rval := range(<float64>{}, empty := true),
+    # unbounded = everything
+    mval := multirange([range(<float64>{})]),
+    # empty
+    rdate := range(<cal::local_date>{}, empty := true),
+    # unbounded = everything
+    mdate := multirange([range(<cal::local_date>{})]),
 };

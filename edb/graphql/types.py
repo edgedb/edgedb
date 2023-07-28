@@ -272,6 +272,15 @@ GQL_TO_EDB_SCALARS_MAP = {
 }
 
 
+GQL_TO_EDB_RANGES_MAP = {
+    'RangeOfString': 'json',
+    'RangeOfInt': 'json',
+    'RangeOfInt64': 'json',
+    'RangeOfFloat': 'json',
+    'RangeOfDecimal': 'json',
+}
+
+
 GQL_TO_OPS_MAP = {
     'exists': 'EXISTS',
     'in': 'IN',
@@ -459,6 +468,13 @@ class GQLCoreSchema:
                 return el_type
             else:
                 target = GraphQLList(GraphQLNonNull(el_type))
+
+        elif isinstance(edb_target, (s_types.Range, s_types.MultiRange)):
+            # Represent ranges and multiranges as JSON. Same as reason as for
+            # tuples: the values are atomic and cannot be fragmented via
+            # GraphQL specification, so we cannot use objects with fields to
+            # represent them.
+            target = EDB_TO_GQL_SCALARS_MAP['std::json']
 
         elif edb_target.is_view(self.edb_schema):
             tname = edb_target.get_name(self.edb_schema)
@@ -868,6 +884,19 @@ class GQLCoreSchema:
                 if intype:
                     fields[name] = GraphQLInputField(intype)
 
+            elif isinstance(edb_target, s_types.Range):
+                subtype = edb_target.get_subtypes(self.edb_schema)[0]
+                intype = self.get_input_range_type(subtype)
+                intype = self._wrap_input_type(ptr, intype)
+                fields[name] = GraphQLInputField(intype)
+
+            elif isinstance(edb_target, s_types.MultiRange):
+                subtype = edb_target.get_subtypes(self.edb_schema)[0]
+                intype = GraphQLList(GraphQLNonNull(
+                    self.get_input_range_type(subtype)))
+                intype = self._wrap_input_type(ptr, intype)
+                fields[name] = GraphQLInputField(intype)
+
             else:
                 continue
 
@@ -882,6 +911,8 @@ class GQLCoreSchema:
         edb_type = self.edb_schema.get(typename, type=s_objtypes.ObjectType)
         pointers = edb_type.get_pointers(self.edb_schema)
         names = sorted(pointers.keys(self.edb_schema))
+        # This is just a heavily re-used type variable
+        target: Union[GraphQLInputType, Optional[GraphQLOutputType]]
         for unqual_name in names:
             name = str(unqual_name)
             if name == '__type__':
@@ -928,9 +959,12 @@ class GQLCoreSchema:
                 # Can't update array<tuple<...>>
                 continue
 
-            elif (
-                isinstance(edb_target, s_scalars.ScalarType)
-                or isinstance(edb_target, s_types.Array)
+            elif isinstance(
+                edb_target,
+                (
+                    s_scalars.ScalarType,
+                    s_types.Array,
+                )
             ):
                 target = self._convert_edb_type(edb_target)
                 if target is None or ptr.get_readonly(self.edb_schema):
@@ -950,6 +984,36 @@ class GQLCoreSchema:
                             GraphQLWrappingType,
                         ),
                     ), f'got {target!r}, expected GraphQLInputType'
+                    intype = self._make_generic_update_op_type(
+                        ptr,
+                        fname=name,
+                        edb_base=edb_type,
+                        target=self._wrap_input_type(
+                            ptr,
+                            target,
+                            ignore_required=True,
+                        ),
+                    )
+
+                if intype:
+                    fields[name] = GraphQLInputField(intype)
+
+            elif isinstance(
+                edb_target,
+                (
+                    s_types.Range,
+                    s_types.MultiRange,
+                )
+            ):
+                subtype = edb_target.get_subtypes(self.edb_schema)[0]
+                target = self.get_input_range_type(subtype)
+                if isinstance(edb_target, s_types.MultiRange):
+                    target = GraphQLList(GraphQLNonNull(target))
+
+                intype = self._gql_inobjtypes.get(
+                    f'UpdateOp{typename}__{name}')
+                if intype is None:
+                    # construct a nested insert type
                     intype = self._make_generic_update_op_type(
                         ptr,
                         fname=name,
@@ -1244,6 +1308,33 @@ class GQLCoreSchema:
 
         return fields
 
+    def get_input_range_type(
+        self,
+        subtype: s_types.Type
+    ) -> GraphQLInputObjectType:
+        sub_gqltype = self._convert_edb_type(subtype)
+        assert isinstance(sub_gqltype, GraphQLScalarType)
+        r_name = f'RangeOf{sub_gqltype.name}'
+        # Check the type cache...
+        if (res := self._gql_inobjtypes.get(r_name)) is not None:
+            assert isinstance(res, GraphQLInputObjectType)
+            return res
+
+        gqltype = GraphQLInputObjectType(
+            name=r_name,
+            fields=dict(
+                lower=GraphQLInputField(sub_gqltype),
+                inc_lower=GraphQLInputField(GraphQLBoolean),
+                upper=GraphQLInputField(sub_gqltype),
+                inc_upper=GraphQLInputField(GraphQLBoolean),
+                empty=GraphQLInputField(GraphQLBoolean),
+            ),
+            description=f'Range of {sub_gqltype.name} values',
+        )
+        self._gql_inobjtypes[r_name] = gqltype
+
+        return gqltype
+
     def _define_types(self) -> None:
         interface_types = []
         obj_types = []
@@ -1429,19 +1520,18 @@ class GQLCoreSchema:
                                 break
 
                         # XXX: find a better way to do this
-                        if edb_base is None:
-                            edb_base = self.edb_schema.get_global(
-                                s_types.Array, tname, default=None
-                            )
+                        for stype in [s_types.Array, s_types.Tuple,
+                                      s_types.Range, s_types.MultiRange]:
+                            if edb_base is None:
+                                edb_base = self.edb_schema.get_global(
+                                    stype, tname, default=None
+                                )
+                            else:
+                                break
 
-                        if edb_base is None:
-                            edb_base = self.edb_schema.get_global(
-                                s_types.Tuple, tname, default=None
-                            )
-
-                if edb_base is None:
-                    raise AssertionError(
-                        f'unresolved type: {module}::{name}')
+            if edb_base is None:
+                raise AssertionError(
+                    f'unresolved type: {name}')
 
             kwargs['edb_base'] = edb_base
 
@@ -1574,6 +1664,20 @@ class GQLBaseType(metaclass=GQLTypeMeta):
             return self.edb_base.is_array()
 
     @property
+    def is_range(self) -> bool:
+        if self.edb_base is None:
+            return False
+        else:
+            return self.edb_base.is_range()
+
+    @property
+    def is_multirange(self) -> bool:
+        if self.edb_base is None:
+            return False
+        else:
+            return self.edb_base.is_multirange()
+
+    @property
     def is_object_type(self) -> bool:
         if self.edb_base is None:
             return False
@@ -1600,7 +1704,9 @@ class GQLBaseType(metaclass=GQLTypeMeta):
     def edb_base_name_ast(self) -> Optional[qlast.ObjectRef]:
         if self.edb_base is None:
             return None
-        if isinstance(self.edb_base, s_types.Array):
+        if isinstance(self.edb_base, (s_types.Array,
+                                      s_types.Range,
+                                      s_types.MultiRange)):
             el = self.edb_base.get_element_type(self.edb_schema)
             base_name = el.get_name(self.edb_schema)
             assert isinstance(base_name, s_name.QualName)
