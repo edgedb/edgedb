@@ -3,7 +3,7 @@
 Client configuration
 --------------------
 
-The Client can be configured after initialization via the ``with_`` methods
+The client can be configured after initialization via the ``with_*`` methods
 (``with_retry_options``, ``with_transaction_options``, etc.) that create a
 shallow copy of the client with adjusted options.
 

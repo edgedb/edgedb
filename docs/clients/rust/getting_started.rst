@@ -1,10 +1,11 @@
 .. _ref_rust_getting_started:
 
+===============
 Getting started
----------------
+===============
 
 From examples repo
-------------------
+==================
 
 If you just want a working repo to get started, clone the Rust client 
 `examples repo`_, type ``edgedb project init`` to start an EdgeDB
@@ -14,31 +15,31 @@ This tutorial contains a lot of similar examples to those found in the
 ``main.rs`` file inside that repo.
 
 From scratch
-------------
+============
 
 The minimum to add to your Cargo.toml to use the client is `edgedb-tokio`_:
 
-.. code-block::
+.. code-block:: toml
 
   edgedb-tokio = "0.5.0"
 
 The next most common dependency is `edgedb-protocol`_, which includes the
 EdgeDB types used for data modeling:
 
-.. code-block::
+.. code-block:: toml
 
   edgedb-protocol = "0.6.0"
 
 A third crate called `edgedb-derive`_ contains the ``#[derive(Queryable)]``
 derive macro which is the main way to unpack EdgeDB output into Rust types:
 
-.. code-block::
+.. code-block:: toml
 
   edgedb-derive = "0.5.1"
     
 The Rust client uses tokio so add this to Cargo.toml as well:
 
-.. code-block::
+.. code-block:: toml
     
   tokio = { version = "1.29.1", features = ["macros", "rt-multi-thread"] }`
 
@@ -47,7 +48,7 @@ still need to use tokio as a dependency but can bridge with async using one of
 the `bridging methods`_ recommended by tokio. This won't require any
 added features:
 
-.. code-block::
+.. code-block:: toml
   
   tokio = "1.29.1"
 
@@ -63,7 +64,7 @@ the runtime's ``.block_on()`` method:
       rt.block_on(client.query_required_single("select 'A string'", &()))?;
 
 Edgedb project setup
---------------------
+====================
 
 The EdgeDB CLI initializes an EdgeDB project with a single command in the same
 way that Cargo initializes a Rust project, except it does not create a 
@@ -75,9 +76,9 @@ new directory. So to start a project:
 The CLI will prompt you for the instance name and version of EdgeDB to use.
 It will look something like this:
 
-.. code-block::
+.. code-block:: powershell
 
-  PS C:\rust\my_db> edgedb project init
+  PS> edgedb project init
   No `edgedb.toml` found in `\\?\C:\rust\my_db` or above
   Do you want to initialize a new project? [Y/n]
   > Y

@@ -5,7 +5,7 @@ Passing in arguments
 
 A regular EdgeQL query without arguments looks like this:
 
-.. code-block::
+.. code-block:: edgeql
 
   with 
       message1 := 'Hello there', 
@@ -14,7 +14,7 @@ A regular EdgeQL query without arguments looks like this:
 
 And the same query with arguments:
 
-.. code-block:: rust
+.. code-block:: edgeql
 
   with 
       message1 := <str>$0, 
@@ -23,7 +23,7 @@ And the same query with arguments:
 
 In the EdgeQL REPL you are prompted to enter arguments:
 
-.. code-block::
+.. code-block:: edgeql-repl
 
   db> with
   ... message1 := <str>$0,
@@ -34,7 +34,7 @@ In the EdgeQL REPL you are prompted to enter arguments:
   {'Hello there General Kenobi'}
 
 But when using the Rust client, there is no prompt to do so. At present,
-arguments also have to be in the order ``$0``, ``$1``, and so on while in
+arguments also have to be in the order ``$0``, ``$1``, and so on, while in
 the REPL they can be named (e.g. ``$message`` and ``$person`` instead of
 ``$0`` and ``$1``). The arguments in the client are then passed in as a tuple:
 
