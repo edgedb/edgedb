@@ -110,8 +110,8 @@ Inside your project directory you'll notice some new items:
 The file itself doesn't contain much — just the version of EdgeDB being 
 used — but is used by the CLI to run commands without connection flags. 
 (E.g., ``edgedb -I my_project migrate`` becomes simply ``edgedb migrate``).
-See more on edgedb.toml :ref:`here <ref_reference_edgedb_toml>` or on the
-`blog post`_ introducing the EdgeDB projects CLI.
+See more in our :ref:`edgedb.toml reference <ref_reference_edgedb_toml>` or on
+the `blog post introducing the EdgeDB projects CLI`_.
 
 - A ``/dbschema`` folder, inside which you'll see:
 
@@ -132,7 +132,8 @@ changes in real time.
 Now that you have the right dependencies and an EdgeDB instance, 
 you can create a client.
 
-.. _`blog post`: https://www.edgedb.com/blog/introducing-edgedb-projects
+.. _`blog post introducing the EdgeDB projects CLI`:
+    https://www.edgedb.com/blog/introducing-edgedb-projects
 .. _`bridging methods`: https://tokio.rs/tokio/topics/bridging
 .. _`ddl`: https://www.edgedb.com/docs/reference/ddl/index
 .. _`edgedb-derive`: https://docs.rs/edgedb-derive/latest/edgedb_derive/
