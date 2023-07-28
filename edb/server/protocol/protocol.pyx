@@ -553,9 +553,8 @@ cdef class HttpProtocol:
                     )
                     extension_base_path = f"{request.url.schema.decode()}://" \
                                           f"{netloc}/db/{dbname}/ext/auth"
-                    await auth_ext.handle_request(
-                        request, response, db, extension_base_path, args
-                    )
+                    handler = auth_ext.http.Router(db, extension_base_path)
+                    await handler.handle_request(request, response, args)
 
         elif route == 'auth':
             if (

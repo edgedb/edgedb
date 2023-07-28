@@ -21,5 +21,4 @@ from __future__ import annotations
 
 from .dbview import DatabaseIndex, Database
 
-
 __all__ = ('DatabaseIndex', 'Database')
