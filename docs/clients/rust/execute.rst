@@ -3,8 +3,8 @@
 Execute
 -------
 
-The ``execute`` method doesn't return anything (a successful execute returns
-an ``Ok(())``) which is convenient for things like updates or commands where
+The ``execute`` method doesn't return anything — a successful execute returns
+an ``Ok(())`` — which is convenient for things like updates or commands where
 we don't care about getting output if it works:
 
 .. code-block:: rust

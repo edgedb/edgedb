@@ -65,7 +65,7 @@ as an argument:
 Using JSON
 ----------
 
-EdgeDB can cast any type to JSON with ``<json>``, but the ``_json`` methods
+EdgeDB can cast any type to JSON with ``<json>``, but the ``*_json`` methods
 don't require this cast in the query. This result can be turned into a
 ``String`` and used to respond to some JSON API request directly, unpacked 
 into a struct using ``serde`` and ``serde_json``, etc.

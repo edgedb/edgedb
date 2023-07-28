@@ -10,7 +10,7 @@ Creating a new EdgeDB client can be done in a single line:
   let client = edgedb_tokio::create_client().await?;
 
 Under the hood, this will create a ``Builder``, look for environment variables
-and/or an ``edgedb.toml`` file and return an ``Ok(Self)`` if successful.
+and/or an ``edgedb.toml`` file, and return an ``Ok(Self)`` if successful.
 This ``Builder`` can be used on its own instead of ``create_client()``
 if you need a more customized setup.
 
@@ -19,11 +19,12 @@ Queries with the client
 
 Here are the simplified signatures of the client methods used for querying:
 
-Note: ``R`` here means a type that implements ``QueryResult``.
-(See more on ``QueryResult`` and ``QueryArgs`` on the 
-`edgedb-protocol documentation`_.)
+.. note::
+    ``R`` here means a type that implements ``QueryResult``.
+    (See more on ``QueryResult`` and ``QueryArgs`` on the 
+    `edgedb-protocol documentation`_.)
 
-.. code-block::
+.. code-block:: rust
 
   fn query -> Result<Vec<R>, Error>
   fn query_json -> Result<Json, Error>
@@ -43,8 +44,8 @@ Note the difference between the ``_single`` and the
   which allows propagating errors normally through an application.
 - The ``_single`` methods will simply give you an ``Ok(None)`` in this case.
 
-These methods all take a *query* (a ``&str``) and *arguments*, meaning 
-something that implements the ``QueryArgs`` trait.
+These methods all take a *query* (a ``&str``) and *arguments* (something that
+implements the ``QueryArgs`` trait).
 
 The ``()`` unit type implements ``QueryArgs`` and is used when no arguments
 are present so ``&()`` is a pretty common sight when using the Rust client.
@@ -55,7 +56,7 @@ are present so ``&()`` is a pretty common sight when using the Rust client.
   let query_res: String = 
       client.query_required_single("select 'Just a string'", &()).await?;
 
-  // With arguments, same output
+  // With arguments, same output as the previous example
   let a = " a ";
   let b = "string";
   let query_res: String = client
