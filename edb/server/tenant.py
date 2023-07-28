@@ -44,6 +44,7 @@ from . import dbview
 from . import defines
 from . import metrics
 from . import pgcon
+from .compiler_pool import pool as compiler_pool
 from .ha import adaptive as adaptive_ha
 from .ha import base as ha_base
 from .pgcon import errors as pgcon_errors
@@ -1372,3 +1373,7 @@ class Tenant(ha_base.ClusterProtocol):
         obj["databases"] = dbs
 
         return obj
+
+    def attach_to_compiler(self, compiler: compiler_pool.AbstractPool):
+        assert self._dbindex is not None
+        compiler.add_dbindex(self.client_id, self._dbindex)
