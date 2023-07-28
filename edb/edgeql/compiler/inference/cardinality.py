@@ -713,27 +713,34 @@ def __infer_func_call(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
-    ret_lower_bound, ret_upper_bound = _card_to_bounds(
-        _typemod_to_card(ir.typemod))
 
     for glob_arg in (ir.global_args or ()):
         infer_cardinality(glob_arg, scope_tree=scope_tree, ctx=ctx)
 
+    cards = []
+    for arg in ir.args:
+        card = infer_cardinality(arg.expr, scope_tree=scope_tree, ctx=ctx)
+        cards.append(card)
+        if ctx.make_updates:
+            arg.cardinality = card
+
     if ir.preserves_optionality or ir.preserves_upper_cardinality:
+        ret_lower_bound, ret_upper_bound = _card_to_bounds(
+            _typemod_to_card(ir.typemod))
+
         # This is a generic aggregate function which preserves the
         # optionality and/or upper cardinality of its generic
         # argument.  For simplicity we are deliberately not checking
         # the parameters here as that would have been done at the time
         # of declaration.
         arg_cards = []
+        force_multi = False
 
-        for arg, typemod in zip(ir.args, ir.params_typemods):
-            card = infer_cardinality(arg.expr, scope_tree=scope_tree, ctx=ctx)
+        for card, typemod in zip(cards, ir.params_typemods):
             if typemod is not qltypes.TypeModifier.OptionalType:
                 arg_cards.append(card)
-
-            if ctx.make_updates:
-                arg.cardinality = card
+            else:
+                force_multi |= card.is_multi()
 
         arg_card = zip(*(_card_to_bounds(card) for card in arg_cards))
         arg_lower, arg_upper = arg_card
@@ -742,18 +749,12 @@ def __infer_func_call(
             CB_ONE if ir.func_shortname == sn.QualName('std', 'assert_exists')
             else ret_lower_bound
         )
-        upper = (max(arg_upper) if ir.preserves_upper_cardinality
+        upper = (CB_MANY if force_multi
+                 else max(arg_upper) if ir.preserves_upper_cardinality
                  else ret_upper_bound)
         return _bounds_to_card(lower, upper)
 
     else:
-        cards = []
-        for arg in ir.args:
-            card = infer_cardinality(arg.expr, scope_tree=scope_tree, ctx=ctx)
-            cards.append(card)
-            if ctx.make_updates:
-                arg.cardinality = card
-
         return _standard_call_cardinality(ir, cards, ctx=ctx)
 
 

@@ -1168,3 +1168,10 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         ONE
         """
+
+    def test_edgeql_ir_card_inference_138(self):
+        """
+        assert_exists(1, message := {"uh", "oh"})
+% OK %
+        AT_LEAST_ONE
+        """
