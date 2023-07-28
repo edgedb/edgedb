@@ -36,7 +36,8 @@ In the EdgeQL REPL you are prompted to enter arguments:
 But when using the Rust client, there is no prompt to do so. At present,
 arguments also have to be in the order ``$0``, ``$1``, and so on, while in
 the REPL they can be named (e.g. ``$message`` and ``$person`` instead of
-``$0`` and ``$1``). The arguments in the client are then passed in as a tuple:
+``$0`` and ``$1``). The arguments in the client are then passed to the 
+appropriate query method as a tuple:
 
 .. code-block:: rust
 
