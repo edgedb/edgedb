@@ -2851,6 +2851,36 @@ def process_set_as_std_range(
     return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
 
 
+@_special_case('std::multirange', only_as_fallback=True)
+def process_set_as_std_multirange(
+    ir_set: irast.Set,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> SetRVars:
+    # Generic multirange constructor implementation
+    #
+    #   std::multirange(
+    #     ranges: array<range<anypoint>>,
+    #   )
+    #
+    #     into
+    #
+    #   <pg_range_type>(variadic ranges)
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
+    ranges = dispatch.compile(expr.args[0].expr, ctx=ctx)
+    pg_type = pg_types.pg_type_from_ir_typeref(expr.typeref)
+    set_expr = pgast.FuncCall(
+        name=pg_type,
+        args=[pgast.VariadicArgument(expr=ranges)]
+    )
+
+    pathctx.put_path_value_var(ctx.rel, ir_set.path_id, set_expr)
+
+    return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
+
+
 def _process_set_func_with_ordinality(
         ir_set: irast.Set, *,
         outer_func_set: irast.Set,

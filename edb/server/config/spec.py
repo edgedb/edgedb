@@ -28,6 +28,9 @@ from edb.edgeql import compiler as qlcompiler
 from edb.ir import staeval
 from edb.ir import statypes
 from edb.schema import name as sn
+from edb.schema import objtypes as s_objtypes
+from edb.schema import scalars as s_scalars
+from edb.schema import schema as s_schema
 
 from . import types
 
@@ -41,7 +44,7 @@ class Setting:
     name: str
     type: type
     default: Any
-    schema_type_name: Optional[sn.QualName] = None
+    schema_type_name: Optional[sn.Name] = None
     set_of: bool = False
     system: bool = False
     internal: bool = False
@@ -49,7 +52,7 @@ class Setting:
     backend_setting: Optional[str] = None
     report: bool = False
     affects_compilation: bool = False
-    enum_values: Optional[List[str]] = None
+    enum_values: Optional[Sequence[str]] = None
 
     def __post_init__(self):
         if (self.type not in SETTING_TYPES and
@@ -128,8 +131,8 @@ class Spec(collections.abc.Mapping):
         return len(self._settings)
 
 
-def load_spec_from_schema(schema):
-    cfg = schema.get('cfg::Config')
+def load_spec_from_schema(schema: s_schema.Schema) -> Spec:
+    cfg = schema.get('cfg::Config', type=s_objtypes.ObjectType)
     settings = []
 
     for ptr_name, p in cfg.get_pointers(schema).items(schema):
@@ -138,8 +141,9 @@ def load_spec_from_schema(schema):
             continue
 
         ptype = p.get_target(schema)
+        assert ptype
 
-        if ptype.is_object_type():
+        if isinstance(ptype, s_objtypes.ObjectType):
             pytype = staeval.object_type_to_python_type(
                 ptype, schema, base_class=types.CompositeConfigType)
         else:
@@ -152,20 +156,22 @@ def load_spec_from_schema(schema):
 
         ptr_card = p.get_cardinality(schema)
         set_of = ptr_card.is_multi()
-        deflt = p.get_default(schema)
-        if deflt is not None:
-            deflt = qlcompiler.evaluate_to_python_val(
-                deflt.text, schema=schema)
-            if set_of and not isinstance(deflt, frozenset):
-                deflt = frozenset((deflt,))
-
         backend_setting = attributes.get(
             sn.QualName('cfg', 'backend_setting'), None)
-        if deflt is None:
+
+        deflt_expr = p.get_default(schema)
+        if deflt_expr is not None:
+            deflt = qlcompiler.evaluate_to_python_val(
+                deflt_expr.text, schema=schema)
+            if set_of and not isinstance(deflt, frozenset):
+                deflt = frozenset((deflt,))
+        else:
             if set_of:
                 deflt = frozenset()
             elif backend_setting is None:
                 raise RuntimeError(f'cfg::Config.{pn} has no default')
+            else:
+                deflt = None
 
         setting = Setting(
             pn,
@@ -183,8 +189,10 @@ def load_spec_from_schema(schema):
                 sn.QualName('cfg', 'affects_compilation'), False),
             default=deflt,
             enum_values=(
-                ptype.get_enum_values(schema) if ptype.is_enum(schema)
-                else None),
+                ptype.get_enum_values(schema)
+                if isinstance(ptype, s_scalars.ScalarType)
+                else None
+            ),
         )
 
         settings.append(setting)

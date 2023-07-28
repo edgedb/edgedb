@@ -57,6 +57,7 @@ class DumpTestCaseMixin:
 
 class TestDumpV4(tb.StableDumpTestCase, DumpTestCaseMixin):
     EXTENSIONS = ["pgvector"]
+    BACKEND_SUPERUSER = True
 
     SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
                                   'dump_v4_default.esdl')

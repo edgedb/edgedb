@@ -268,6 +268,9 @@ class Type(
     def is_range(self) -> bool:
         return False
 
+    def is_multirange(self) -> bool:
+        return False
+
     def is_enum(self, schema: s_schema.Schema) -> bool:
         return False
 
@@ -414,10 +417,10 @@ class Type(
         return -1
 
     def find_common_implicitly_castable_type(
-        self: TypeT,
+        self,
         other: Type,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[s_schema.Schema, Optional[TypeT]]:
+    ) -> typing.Tuple[s_schema.Schema, Optional[Type]]:
         return schema, None
 
     def get_union_of(
@@ -1359,7 +1362,14 @@ class Array(
         schema: s_schema.Schema,
         concrete_type: Type,
     ) -> typing.Tuple[s_schema.Schema, Array]:
-        return Array.from_subtypes(schema, (concrete_type,))
+        st = self.get_subtypes(schema=schema)[0]
+        # TODO: maybe we should have a generic nested polymorphic algo?
+        if isinstance(st, (Range, Multirange)):
+            schema, newst = st.to_nonpolymorphic(schema, concrete_type)
+        else:
+            newst = concrete_type
+
+        return Array.from_subtypes(schema, (newst,))
 
     def _test_polymorphic(self, schema: s_schema.Schema, other: Type) -> bool:
         if other.is_any(schema):
@@ -2224,27 +2234,35 @@ class Range(
     def implicitly_castable_to(
         self, other: Type, schema: s_schema.Schema
     ) -> bool:
-        if not isinstance(other, Range):
+        if not isinstance(other, (Range, Multirange)):
             return False
 
-        return self.get_element_type(schema).implicitly_castable_to(
-            other.get_element_type(schema), schema)
+        my_el = self.get_element_type(schema)
+        other_el = other.get_element_type(schema)
+
+        if isinstance(other, Multirange):
+            # Only valid implicit cast to multirange is the one that preserves
+            # the element type.
+            return my_el.issubclass(schema, other_el)
+
+        return my_el.implicitly_castable_to(other_el, schema)
 
     def get_implicit_cast_distance(
         self, other: Type, schema: s_schema.Schema
     ) -> int:
-        if not isinstance(other, Range):
+        if not isinstance(other, (Range, Multirange)):
             return -1
 
+        extra = 1 if isinstance(other, Multirange) else 0
         return self.get_element_type(schema).get_implicit_cast_distance(
-            other.get_element_type(schema), schema)
+            other.get_element_type(schema), schema) + extra
 
     def assignment_castable_to(
         self,
         other: Type,
         schema: s_schema.Schema,
     ) -> bool:
-        if not isinstance(other, Range):
+        if not isinstance(other, (Range, Multirange)):
             return False
 
         return self.get_element_type(schema).assignment_castable_to(
@@ -2255,32 +2273,57 @@ class Range(
         other: Type,
         schema: s_schema.Schema,
     ) -> bool:
-        if not isinstance(other, Range):
+        if not isinstance(other, (Range, Multirange)):
             return False
 
         return self.get_element_type(schema).castable_to(
             other.get_element_type(schema), schema)
 
     def find_common_implicitly_castable_type(
-        self: Range_T,
+        self,
         other: Type,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[s_schema.Schema, Optional[Range_T]]:
+    ) -> typing.Tuple[s_schema.Schema, Optional[RangeLike]]:
 
-        if not isinstance(other, Range):
+        if not isinstance(other, (Range, Multirange)):
             return schema, None
 
         if self == other:
             return schema, self
 
         my_el = self.get_element_type(schema)
+        other_el = other.get_element_type(schema)
+
+        if (
+            isinstance(other, Multirange)
+            and not my_el.issubclass(schema, other_el)
+        ):
+            # Only valid implicit cast to multirange is the one that preserves
+            # the element type.
+            return schema, None
+
         schema, subtype = my_el.find_common_implicitly_castable_type(
-            other.get_element_type(schema), schema)
+            other_el, schema)
 
         if subtype is None:
             return schema, None
 
-        return type(self).from_subtypes(schema, [subtype])
+        # Implicitly castable target is based on the `other` subtype because
+        # it may be Range or Multirange. We also need to account for
+        # CollectionExprAlias.
+        if isinstance(other, CollectionExprAlias):
+            other_t = other.get_underlying_schema_class()
+            # Keeps mypy happy, even though these have to be exactly one of
+            # those two types and not merely subclasses.
+            assert issubclass(other_t, (Range, Multirange))
+        else:
+            other_t = type(other)
+
+        # mypy is not happy even if I try issubclass or a cast for the result
+        # of get_underlying_schema_class, so I'm casting the return here
+        # return typing.cast(typing.Tuple[s_schema.Schema, RangeLike],
+        #                    other_t.from_subtypes(schema, [subtype]))
+        return other_t.from_subtypes(schema, [subtype])
 
     def _resolve_polymorphic(
         self,
@@ -2304,7 +2347,7 @@ class Range(
         if other.is_any(schema):
             return True
 
-        if not isinstance(other, Range):
+        if not isinstance(other, (Range, Multirange)):
             return False
 
         return self.get_element_type(schema).test_polymorphic(
@@ -2476,6 +2519,356 @@ class RangeExprAlias(
     @classmethod
     def get_underlying_schema_class(cls) -> typing.Type[Collection]:
         return Range
+
+
+Multirange_T = typing.TypeVar('Multirange_T', bound='Multirange')
+Multirange_T_co = typing.TypeVar(
+    'Multirange_T_co', bound='Multirange', covariant=True)
+
+
+class Multirange(
+    Collection,
+    s_abc.Multirange,
+    qlkind=qltypes.SchemaObjectClass.MULTIRANGE_TYPE,
+    schema_name='multirange',
+):
+
+    element_type = so.SchemaField(
+        Type,
+        # We want a low compcoef so that multirange types are *never* altered.
+        compcoef=0,
+    )
+
+    @classmethod
+    def generate_name(
+        cls,
+        element_name: s_name.Name,
+    ) -> s_name.UnqualName:
+        return s_name.UnqualName(
+            f'multirange<{s_name.mangle_name(str(element_name))}>',
+        )
+
+    @classmethod
+    def create(
+        cls: typing.Type[Multirange_T],
+        schema: s_schema.Schema,
+        *,
+        name: Optional[s_name.Name] = None,
+        id: Optional[uuid.UUID] = None,
+        element_type: Any,
+        **kwargs: Any,
+    ) -> typing.Tuple[s_schema.Schema, Multirange_T]:
+        if name is None:
+            name = cls.generate_name(element_type.get_name(schema))
+
+        if isinstance(name, s_name.QualName):
+            result = schema.get(name, type=cls, default=None)
+        else:
+            result = schema.get_global(cls, name, default=None)
+
+        if result is None:
+            schema, result = super().create_in_schema(
+                schema,
+                id=id,
+                name=name,
+                element_type=element_type,
+                **kwargs,
+            )
+
+        return schema, result
+
+    def get_generated_name(self, schema: s_schema.Schema) -> s_name.UnqualName:
+        return type(self).generate_name(
+            self.get_element_type(schema).get_name(schema),
+        )
+
+    def get_displayname(self, schema: s_schema.Schema) -> str:
+        return f'''multirange<{self.get_element_type(schema)
+                                   .get_displayname(schema)}>'''
+
+    def is_multirange(self) -> bool:
+        return True
+
+    def derive_subtype(
+        self,
+        schema: s_schema.Schema,
+        *,
+        name: s_name.QualName,
+        attrs: Optional[Mapping[str, Any]] = None,
+        **kwargs: Any,
+    ) -> typing.Tuple[s_schema.Schema, MultirangeExprAlias]:
+        assert not kwargs
+        return MultirangeExprAlias.from_subtypes(
+            schema,
+            [self.get_element_type(schema)],
+            self.get_typemods(schema),
+            name=name,
+            **(attrs or {}),
+        )
+
+    def get_subtypes(self, schema: s_schema.Schema) -> typing.Tuple[Type, ...]:
+        return (self.get_element_type(schema),)
+
+    def implicitly_castable_to(
+        self, other: Type, schema: s_schema.Schema
+    ) -> bool:
+        if not isinstance(other, Multirange):
+            return False
+
+        return self.get_element_type(schema).implicitly_castable_to(
+            other.get_element_type(schema), schema)
+
+    def get_implicit_cast_distance(
+        self, other: Type, schema: s_schema.Schema
+    ) -> int:
+        if not isinstance(other, Multirange):
+            return -1
+
+        return self.get_element_type(schema).get_implicit_cast_distance(
+            other.get_element_type(schema), schema)
+
+    def assignment_castable_to(
+        self,
+        other: Type,
+        schema: s_schema.Schema,
+    ) -> bool:
+        if not isinstance(other, Multirange):
+            return False
+
+        return self.get_element_type(schema).assignment_castable_to(
+            other.get_element_type(schema), schema)
+
+    def castable_to(
+        self,
+        other: Type,
+        schema: s_schema.Schema,
+    ) -> bool:
+        if not isinstance(other, Multirange):
+            return False
+
+        return self.get_element_type(schema).castable_to(
+            other.get_element_type(schema), schema)
+
+    def find_common_implicitly_castable_type(
+        self: Multirange,
+        other: Type,
+        schema: s_schema.Schema,
+    ) -> typing.Tuple[s_schema.Schema, Optional[Multirange]]:
+
+        if not isinstance(other, Multirange):
+            return schema, None
+
+        if self == other:
+            return schema, self
+
+        my_el = self.get_element_type(schema)
+        schema, subtype = my_el.find_common_implicitly_castable_type(
+            other.get_element_type(schema), schema)
+
+        if subtype is None:
+            return schema, None
+
+        return Multirange.from_subtypes(schema, [subtype])
+
+    def _resolve_polymorphic(
+        self,
+        schema: s_schema.Schema,
+        concrete_type: Type,
+    ) -> Optional[Type]:
+        # polymorphic multiranges can resolve using concrete multiranges and
+        # ranges because ranges are implicitly castable into multiranges.
+        if not isinstance(concrete_type, (Range, Multirange)):
+            return None
+
+        return self.get_element_type(schema).resolve_polymorphic(
+            schema, concrete_type.get_element_type(schema))
+
+    def _to_nonpolymorphic(
+        self,
+        schema: s_schema.Schema,
+        concrete_type: Type,
+    ) -> typing.Tuple[s_schema.Schema, Multirange]:
+        return Multirange.from_subtypes(schema, (concrete_type,))
+
+    def _test_polymorphic(self, schema: s_schema.Schema, other: Type) -> bool:
+        if other.is_any(schema):
+            return True
+
+        if not isinstance(other, Multirange):
+            return False
+
+        return self.get_element_type(schema).test_polymorphic(
+            schema, other.get_element_type(schema))
+
+    @classmethod
+    def from_subtypes(
+        cls: typing.Type[Multirange_T],
+        schema: s_schema.Schema,
+        subtypes: Sequence[Type],
+        typemods: Any = None,
+        *,
+        name: Optional[s_name.QualName] = None,
+        **kwargs: Any,
+    ) -> typing.Tuple[s_schema.Schema, Multirange_T]:
+        if len(subtypes) != 1:
+            raise errors.SchemaError(
+                f'unexpected number of subtypes, expecting 1: {subtypes!r}')
+        stype = subtypes[0]
+        anypoint = schema.get('std::anypoint', type=Type)
+
+        if not stype.issubclass(schema, anypoint):
+            raise errors.UnsupportedFeatureError(
+                f'unsupported range subtype: {stype.get_displayname(schema)}'
+            )
+
+        return cls.create(
+            schema,
+            element_type=stype,
+            name=name,
+            **kwargs,
+        )
+
+    @classmethod
+    def create_shell(
+        cls: typing.Type[Multirange_T],
+        schema: s_schema.Schema,
+        *,
+        subtypes: Sequence[TypeShell[Type]],
+        typemods: Any = None,
+        name: Optional[s_name.Name] = None,
+    ) -> MultirangeTypeShell[Multirange_T]:
+        st = next(iter(subtypes))
+
+        if name is None:
+            name = s_name.UnqualName('__unresolved__')
+
+        return MultirangeTypeShell(
+            subtype=st,
+            typemods=typemods,
+            name=name,
+            schemaclass=cls,
+        )
+
+    def as_shell(
+        self: Multirange_T,
+        schema: s_schema.Schema,
+    ) -> MultirangeTypeShell[Multirange_T]:
+        return type(self).create_shell(
+            schema,
+            subtypes=[st.as_shell(schema) for st in self.get_subtypes(schema)],
+            typemods=self.get_typemods(schema),
+            name=self.get_name(schema),
+        )
+
+    def material_type(
+        self,
+        schema: s_schema.Schema,
+    ) -> typing.Tuple[s_schema.Schema, Multirange]:
+        # We need to resolve material types based on the subtype recursively.
+
+        st = self.get_element_type(schema)
+        schema, stm = st.material_type(schema)
+        if stm != st or isinstance(self, MultirangeExprAlias):
+            return Multirange.from_subtypes(
+                schema,
+                [stm],
+                typemods=self.get_typemods(schema),
+            )
+        else:
+            return (schema, self)
+
+
+class MultirangeTypeShell(CollectionTypeShell[Multirange_T_co]):
+
+    schemaclass: typing.Type[Multirange_T_co]
+
+    def __init__(
+        self,
+        *,
+        name: s_name.Name,
+        subtype: TypeShell[Type],
+        typemods: typing.Tuple[typing.Any, ...],
+        schemaclass: typing.Type[Multirange_T_co],
+    ) -> None:
+        super().__init__(name=name, schemaclass=schemaclass)
+        self.subtype = subtype
+        self.typemods = typemods
+
+    def get_name(self, schema: s_schema.Schema) -> s_name.Name:
+        if str(self.name) == '__unresolved__':
+            self.name = self.schemaclass.generate_name(
+                self.subtype.get_name(schema),
+            )
+
+        return self.name
+
+    def get_subtypes(
+        self,
+        schema: s_schema.Schema,
+    ) -> typing.Tuple[TypeShell[Type], ...]:
+        return (self.subtype,)
+
+    def get_displayname(self, schema: s_schema.Schema) -> str:
+        return f'multirange<{self.subtype.get_displayname(schema)}>'
+
+    def resolve(self, schema: s_schema.Schema) -> Multirange_T_co:
+        if isinstance(self.name, s_name.QualName):
+            rng = schema.get(self.name, type=Multirange)
+        else:
+            rng = schema.get_global(Multirange, self.get_name(schema))
+        return rng  # type: ignore
+
+    def as_create_delta(
+        self,
+        schema: s_schema.Schema,
+        *,
+        view_name: Optional[s_name.QualName] = None,
+        attrs: Optional[Dict[str, Any]] = None,
+    ) -> sd.CommandGroup:
+        ca: Union[CreateMultirange, CreateMultirangeExprAlias]
+        cmd = sd.CommandGroup()
+        if view_name is None:
+            ca = CreateMultirange(
+                classname=self.get_name(schema),
+                if_not_exists=True,
+            )
+        else:
+            ca = CreateMultirangeExprAlias(
+                classname=view_name,
+            )
+
+        el = self.subtype
+        if isinstance(el, CollectionTypeShell):
+            cmd.add(el.as_create_delta(schema))
+
+        ca.set_attribute_value('name', ca.classname)
+        ca.set_attribute_value('element_type', el)
+        ca.set_attribute_value('is_persistent', True)
+        ca.set_attribute_value('abstract', self.is_polymorphic(schema))
+
+        if attrs:
+            for k, v in attrs.items():
+                ca.set_attribute_value(k, v)
+
+        cmd.add(ca)
+
+        return cmd
+
+
+class MultirangeExprAlias(
+    CollectionExprAlias,
+    Multirange,
+    qlkind=qltypes.SchemaObjectClass.ALIAS,
+):
+    # N.B: Don't add any SchemaFields to this class, they won't be
+    # reflected properly (since this inherits from the concrete Multirange).
+
+    @classmethod
+    def get_underlying_schema_class(cls) -> typing.Type[Collection]:
+        return Multirange
+
+
+RangeLike = typing.Union[Range, Multirange]
 
 
 def get_union_type_name(
@@ -2741,7 +3134,7 @@ class CreateCollectionType(
     ) -> None:
         super().validate_object(schema, context)
 
-        if isinstance(self.scls, Range):
+        if isinstance(self.scls, (Range, Multirange)):
             from . import scalars as s_scalars
 
             st = self.scls.get_subtypes(schema)[0]
@@ -2946,6 +3339,52 @@ class AlterRangeExprAlias(
             raise AssertionError(f'unhandled field {field.name!r}')
 
 
+class CreateMultirange(CreateCollectionType[Multirange]):
+    pass
+
+
+class AlterMultirange(AlterCollectionType[Multirange]):
+    pass
+
+
+class RenameMultirange(RenameCollectionType[Multirange]):
+    pass
+
+
+class CreateMultirangeExprAlias(CreateCollectionExprAlias[MultirangeExprAlias]):
+    def _get_ast_node(
+        self, schema: s_schema.Schema, context: sd.CommandContext
+    ) -> typing.Type[qlast.CreateAlias]:
+        # Can't just use class-level astnode because that creates a
+        # duplicate in ast -> command mapping.
+        return qlast.CreateAlias
+
+
+class RenameMultirangeExprAlias(
+    CollectionExprAliasCommand[MultirangeExprAlias],
+    sd.RenameObject[MultirangeExprAlias],
+):
+    pass
+
+
+class AlterMultirangeExprAlias(
+    CollectionExprAliasCommand[MultirangeExprAlias],
+    sd.AlterObject[MultirangeExprAlias],
+):
+
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name == 'expr':
+            return s_expr.Expression(text='multirange()')
+        else:
+            raise AssertionError(f'unhandled field {field.name!r}')
+
+
 class DeleteTuple(DeleteCollectionType[Tuple]):
     pass
 
@@ -2967,6 +3406,14 @@ class DeleteRange(DeleteCollectionType[Range]):
 
 
 class DeleteRangeExprAlias(DeleteCollectionExprAlias[RangeExprAlias]):
+    pass
+
+
+class DeleteMultirange(DeleteCollectionType[Multirange]):
+    pass
+
+
+class DeleteMultirangeExprAlias(DeleteCollectionExprAlias[MultirangeExprAlias]):
     pass
 
 
@@ -3072,6 +3519,10 @@ def is_type_compatible(
                 not isinstance(t_as, Tuple) and labels_compatible(t_as, t_bs)
             )
         elif isinstance(t_a, Range) and isinstance(t_b, Range):
+            t_as = t_a.get_element_type(schema)
+            t_bs = t_b.get_element_type(schema)
+            return labels_compatible(t_as, t_bs)
+        elif isinstance(t_a, Multirange) and isinstance(t_b, Multirange):
             t_as = t_a.get_element_type(schema)
             t_bs = t_b.get_element_type(schema)
             return labels_compatible(t_as, t_bs)

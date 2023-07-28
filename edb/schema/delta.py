@@ -40,7 +40,6 @@ from edb.common import verutils
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
-from edb.edgeql import qltypes
 
 from . import expr as s_expr
 from . import name as sn
@@ -2953,6 +2952,34 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 
         return schema
 
+    def get_prespecified_id(
+        self,
+        context: CommandContext, *,
+        id_field: str = 'id',
+    ) -> Optional[uuid.UUID]:
+        if context.schema_object_ids is None:
+            return None
+
+        mcls = self.get_schema_metaclass()
+        qlclass: Optional[str]
+        if issubclass(mcls, so.QualifiedObject):
+            qlclass = None
+        else:
+            qlclass = mcls.get_ql_class_or_die()
+
+        objname = self.classname
+        if context.compat_ver_is_before(
+            (1, 0, verutils.VersionStage.ALPHA, 5)
+        ):
+            # Pre alpha.5 used to have a different name mangling scheme.
+            objname = sn.compat_name_remangle(str(objname))
+
+        if id_field != 'id':
+            qlclass = f'{qlclass}-{id_field}'
+
+        key = (objname, qlclass)
+        return context.schema_object_ids.get(key)
+
     def canonicalize_attributes(
         self,
         schema: s_schema.Schema,
@@ -2961,22 +2988,7 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         schema = super().canonicalize_attributes(schema, context)
 
         if context.schema_object_ids is not None:
-            mcls = self.get_schema_metaclass()
-            qlclass: Optional[qltypes.SchemaObjectClass]
-            if issubclass(mcls, so.QualifiedObject):
-                qlclass = None
-            else:
-                qlclass = mcls.get_ql_class_or_die()
-
-            objname = self.classname
-            if context.compat_ver_is_before(
-                (1, 0, verutils.VersionStage.ALPHA, 5)
-            ):
-                # Pre alpha.5 used to have a different name mangling scheme.
-                objname = sn.compat_name_remangle(str(objname))
-
-            key = (objname, qlclass)
-            specified_id = context.schema_object_ids.get(key)
+            specified_id = self.get_prespecified_id(context)
             if specified_id is not None:
                 self.set_attribute_value('id', specified_id)
 
@@ -3961,6 +3973,7 @@ class AlterObjectProperty(Command):
             if astnode.value is None:
                 new_value = None
             else:
+                assert isinstance(astnode.value, qlast.Expr)
                 orig_text = cls.get_orig_expr_text(
                     schema, parent_op.qlast, field.name)
 

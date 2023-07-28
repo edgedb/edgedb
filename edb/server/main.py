@@ -51,6 +51,7 @@ from edb.common import debug
 
 from . import config
 from . import args as srvargs
+from . import compiler as edbcompiler
 from . import daemon
 from . import defines
 from . import pgconnparams
@@ -139,7 +140,9 @@ def _internal_state_dir(runstate_dir):
               f'--runstate-dir to specify the correct location')
 
 
-async def _init_cluster(cluster, args: srvargs.ServerConfig) -> bool:
+async def _init_cluster(
+    cluster, args: srvargs.ServerConfig
+) -> tuple[bool, edbcompiler.CompilerState]:
     from edb.server import bootstrap
 
     new_instance = await bootstrap.ensure_bootstrapped(cluster, args)
@@ -150,14 +153,17 @@ async def _init_cluster(cluster, args: srvargs.ServerConfig) -> bool:
 
 
 def _init_parsers():
-    # Initialize all parsers, rebuilding grammars if
-    # necessary.  Do it earlier than later so that we don't
-    # end up in a situation where all our compiler processes
-    # are building parsers in parallel.
-
+    # Initialize parsers that are used in the server process.
     from edb.edgeql import parser as ql_parser
+    from edb.edgeql.parser import grammar as ql_grammar
 
-    ql_parser.preload(allow_rebuild=devmode.is_in_dev_mode(), paralellize=True)
+    ql_parser.preload(
+        allow_rebuild=devmode.is_in_dev_mode(),
+        paralellize=True,
+        grammars=[
+            ql_grammar.fragment,
+        ]
+    )
 
 
 async def _run_server(
@@ -168,6 +174,7 @@ async def _run_server(
     *,
     do_setproctitle: bool,
     new_instance: bool,
+    compiler_state: edbcompiler.CompilerState,
 ):
 
     sockets = service_manager.get_activation_listen_sockets()
@@ -200,7 +207,12 @@ async def _run_server(
             admin_ui=args.admin_ui,
             instance_name=args.instance_name,
             disable_dynamic_system_config=args.disable_dynamic_system_config,
+            compiler_state=compiler_state,
         )
+        # This coroutine runs as long as the server,
+        # and compiler_state is *heavy*, so make sure we don't
+        # keep a reference to it.
+        del compiler_state
         await sc.wait_for(ss.init())
 
         tls_cert_newly_generated = False
@@ -556,10 +568,12 @@ async def run_server(
                 if cluster_status != "running":
                     abort('specified PostgreSQL instance is not running')
 
-            new_instance = await _init_cluster(cluster, args)
+            new_instance, compiler_state = await _init_cluster(cluster, args)
 
             cfg, backend_settings = initialize_static_cfg(
-                args, is_remote_cluster=not is_local_cluster
+                args,
+                is_remote_cluster=not is_local_cluster,
+                config_spec=compiler_state.config_spec,
             )
             if cfg:
                 from . import pgcon
@@ -637,6 +651,7 @@ async def run_server(
                         int_runstate_dir,
                         do_setproctitle=do_setproctitle,
                         new_instance=new_instance,
+                        compiler_state=compiler_state,
                     )
 
         except server.StartupError as e:
@@ -752,15 +767,15 @@ def _coerce_cfg_value(setting: config.Setting, value):
 def initialize_static_cfg(
     args: srvargs.ServerConfig,
     is_remote_cluster: bool,
+    config_spec: config.Spec
 ) -> Tuple[List[Dict[str, Any]], Dict[str, str]]:
     result = []
     backend_settings = {}
     command_line_argument = "A"
     environment_variable = "E"
-    spec = config.get_settings()
 
     def add_config(name, value, type_):
-        setting = spec[name]
+        setting = config_spec[name]
         if is_remote_cluster:
             if setting.backend_setting and setting.requires_restart:
                 if type_ == command_line_argument:
@@ -799,7 +814,7 @@ def initialize_static_cfg(
     setting: config.Setting
     for env_name, env_value, cfg_name in iter_environ():
         try:
-            setting = spec[cfg_name]
+            setting = config_spec[cfg_name]
         except KeyError:
             continue
         choices = setting.enum_values

@@ -382,7 +382,7 @@ class BaseHTTPTestCase(TestCase):
     ) -> tuple[bytes, dict[str, str], int]:
         resp = http_con.getresponse()
         resp_body = resp.read()
-        resp_headers = {k.lower(): v.lower() for k, v in resp.getheaders()}
+        resp_headers = {k.lower(): v for k, v in resp.getheaders()}
         return resp_body, resp_headers, resp.status
 
     def http_con_request(
@@ -626,8 +626,9 @@ class ClusterTestCase(BaseHTTPTestCase):
     # library (e.g. declaring casts).
     INTERNAL_TESTMODE = True
 
-    SETUP_COMMANDS: Sequence[str] = ()
-    TEARDOWN_COMMANDS: Sequence[str] = ()
+    # Setup and teardown commands that run per test
+    PER_TEST_SETUP: Sequence[str] = ()
+    PER_TEST_TEARDOWN: Sequence[str] = ()
 
     @classmethod
     def setUpClass(cls):
@@ -640,7 +641,11 @@ class ClusterTestCase(BaseHTTPTestCase):
         )
         cls.has_create_database = cls.cluster.has_create_database()
         cls.has_create_role = cls.cluster.has_create_role()
+        cls.is_superuser = cls.has_create_database and cls.has_create_role
         cls.backend_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
+        if getattr(cls, 'BACKEND_SUPERUSER', False):
+            if not cls.is_superuser:
+                raise unittest.SkipTest('skipped due to lack of superuser')
 
     @classmethod
     async def tearDownSingleDB(cls):
@@ -718,7 +723,7 @@ class ClusterTestCase(BaseHTTPTestCase):
             self.xact = self.con.transaction()
             self.loop.run_until_complete(self.xact.start())
 
-        for cmd in self.SETUP_COMMANDS:
+        for cmd in self.PER_TEST_SETUP:
             self.loop.run_until_complete(self.con.execute(cmd))
 
         super().setUp()
@@ -727,7 +732,7 @@ class ClusterTestCase(BaseHTTPTestCase):
         try:
             self.ensure_no_background_server_errors()
 
-            for cmd in self.TEARDOWN_COMMANDS:
+            for cmd in self.PER_TEST_TEARDOWN:
                 self.loop.run_until_complete(self.con.execute(cmd))
         finally:
             try:
@@ -1154,6 +1159,11 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         # allow the setup script to also run in test mode
         if cls.INTERNAL_TESTMODE:
             script += '\nCONFIGURE SESSION SET __internal_testmode := true;'
+
+        if getattr(cls, 'BACKEND_SUPERUSER', False):
+            is_superuser = getattr(cls, 'is_superuser', True)
+            if not is_superuser:
+                raise unittest.SkipTest('skipped due to lack of superuser')
 
         schema = []
         # Incude the extensions before adding schemas.
@@ -1704,7 +1714,11 @@ def get_test_cases_setup(
         if not hasattr(case, 'get_setup_script'):
             continue
 
-        setup_script = case.get_setup_script()
+        try:
+            setup_script = case.get_setup_script()
+        except unittest.SkipTest:
+            continue
+
         if not setup_script:
             continue
 

@@ -17,8 +17,8 @@ Description
 
 This command has two modes of operation.
 
-1) Upgrade instance to a version specified in ``edgedb.toml``. This
-   happens when the command is invoked without any explicit target
+1) Upgrade instance to a version specified in :ref:`ref_reference_edgedb_toml`.
+   This happens when the command is invoked without any explicit target
    version.
 2) Update ``edgedb.toml`` to a new version and upgrade the instance.
    Which happens when one of the options for providing the target

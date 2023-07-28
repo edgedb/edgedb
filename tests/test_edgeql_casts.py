@@ -2909,17 +2909,26 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         )
 
     async def test_edgeql_casts_all_null(self):
-        # For *every* concrete cast, try casting a value we know
+        # For *every* cast, try casting a value we know
         # will be represented as NULL.
-
-        # Grab all concrete casts
+        #
+        # FIXME: eventually multirange casts should be included.
         casts = await self.con.query('''
             select schema::Cast { from_type: {name}, to_type: {name} }
-            filter .from_type.name not like '%any%'
-            and .to_type.name not like '%any%'
-            and not .from_type IS schema::ObjectType
+            filter not .from_type is schema::ObjectType
         ''')
-        from_types = {cast.from_type.name for cast in casts}
+
+        def _t(s):
+            # Instantiate polymorphic types
+            return (
+                s
+                .replace('anytype', 'str')
+                .replace('anytuple', 'tuple<str, int64>')
+                .replace('std::anyenum', 'schema::Cardinality')
+                .replace('std::anypoint', 'int64')
+            )
+
+        from_types = {_t(cast.from_type.name) for cast in casts}
         type_keys = {
             name: f'x{i}' for i, name in enumerate(sorted(from_types))
         }
@@ -2928,7 +2937,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         setup = f'''
             CREATE TYPE Null {{
                 {sep.join(
-                    f'CREATE PROPERTY {n} -> {t};'
+                    f'CREATE PROPERTY {n} -> {_t(t)};'
                     for t, n in type_keys.items()
                  )}
             }};
@@ -2938,20 +2947,34 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         # Do each cast
         for cast in casts:
-            prop = type_keys[cast.from_type.name]
-            # FIXME: date_duration not supported yet in the bindings
-            json_only = cast.to_type.name == 'cal::date_duration'
+            # FIXME: multiranges aren't supported yet in bindingsshould have
+            # python drivers
+            json_only = cast.to_type.name.startswith('multirange')
+            prop = type_keys[_t(cast.from_type.name)]
 
             await self.assert_query_result(
                 f'''
                 SELECT Null {{
-                    res := <{cast.to_type.name}>.{prop}
+                    res := <{_t(cast.to_type.name)}>.{prop}
                 }}
                 ''',
                 [{"res": None}],
                 msg=f'{cast.from_type.name} to {cast.to_type.name}',
                 json_only=json_only,
             )
+
+            # For casts from JSON, also do the related operation of
+            # casting from a JSON null, which should produce an empty
+            # set.
+            if cast.from_type.name == 'std::json':
+                await self.assert_query_result(
+                    f'''
+                    SELECT <{_t(cast.to_type.name)}>to_json('null')
+                    ''',
+                    [],
+                    msg=f'json null cast to {cast.to_type.name}',
+                    json_only=json_only,
+                )
 
     async def test_edgeql_casts_uuid_to_object(self):
         persons = await self.con.query('select Person { id }')

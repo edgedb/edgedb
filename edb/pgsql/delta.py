@@ -1008,6 +1008,26 @@ class DeleteRangeExprAlias(
     pass
 
 
+class MultirangeCommand(MetaCommand):
+    pass
+
+
+class CreateMultirange(MultirangeCommand, adapts=s_types.CreateMultirange):
+    pass
+
+
+class AlterMultirange(MultirangeCommand, adapts=s_types.AlterMultirange):
+    pass
+
+
+class RenameMultirange(MultirangeCommand, adapts=s_types.RenameMultirange):
+    pass
+
+
+class DeleteMultirange(MultirangeCommand, adapts=s_types.DeleteMultirange):
+    pass
+
+
 class ParameterCommand(MetaCommand):
     pass
 
@@ -3699,7 +3719,11 @@ class CreateObjectType(ObjectTypeMetaCommand,
             object=objtype_table,
             text=str(objtype.get_verbosename(schema)),
         ))
-        self.create_inhview(schema, context, objtype)
+        # Don't update ancestors yet: no pointers have been added to
+        # the type yet, so this type won't actually be added to any
+        # ancestor views. We'll fix up the ancestors in
+        # _create_finalize.
+        self.create_inhview(schema, context, objtype, alter_ancestors=False)
         return schema
 
     def _create_finalize(self, schema, context):

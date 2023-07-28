@@ -35,7 +35,7 @@ test = [
     # For rebuilding GHA workflows
     'Jinja2~=2.11',
     'MarkupSafe~=1.1',
-    'PyYAML~=5.4',
+    'PyYAML~=6.0',
 
     'mypy==1.0.0',
     # mypy stub packages; when updating, you can use mypy --install-types
@@ -132,8 +132,7 @@ module = [
     "edb.server.connpool.*",
     "edb.server.pgcluster",
     "edb.server.pgconnparams",
-    "edb.server.compiler.explain",
-    "edb.server.compiler.sertypes",
+    "edb.server.compiler.*",
 ]
 # Equivalent of --strict on the command line,
 # but without disallow_untyped_calls:

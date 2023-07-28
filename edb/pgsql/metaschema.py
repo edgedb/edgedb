@@ -360,6 +360,8 @@ class RangeToJsonFunction(dbops.Function):
     text = r'''
         SELECT
             CASE
+            WHEN val IS NULL THEN
+                NULL
             WHEN isempty(val) THEN
                 jsonb_build_object('empty', true)
             ELSE
@@ -379,6 +381,40 @@ class RangeToJsonFunction(dbops.Function):
             name=('edgedb', 'range_to_jsonb'),
             args=[
                 ('val', ('anyrange',)),
+            ],
+            returns=('jsonb',),
+            volatility='immutable',
+            language='sql',
+            text=self.text,
+        )
+
+
+class MultirangeToJsonFunction(dbops.Function):
+    """Convert anymultirange to a jsonb object."""
+    text = r'''
+        SELECT
+            CASE
+            WHEN val IS NULL THEN
+                NULL
+            WHEN isempty(val) THEN
+                jsonb_build_array()
+            ELSE
+                (
+                    SELECT
+                        jsonb_agg(edgedb.range_to_jsonb(m.el))
+                    FROM
+                        (SELECT
+                            unnest(val) AS el
+                        ) AS m
+                )
+            END
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'multirange_to_jsonb'),
+            args=[
+                ('val', ('anymultirange',)),
             ],
             returns=('jsonb',),
             volatility='immutable',
@@ -4093,6 +4129,36 @@ class GetTypeToRangeNameMap(dbops.Function):
         )
 
 
+class GetTypeToMultirangeNameMap(dbops.Function):
+    "Return a map of type names to the name of the associated multirange type"
+
+    text = f'''
+        VALUES
+            {", ".join(
+                f"""(
+                    {
+                        ql(f'{k[0]}.{k[1]}') if len(k) == 2
+                        else ql(f'pg_catalog.{k[0]}')
+                    },
+                    {
+                        ql(f'{v[0]}.{v[1]}') if len(v) == 2
+                        else ql(f'pg_catalog.{v[0]}')
+                    }
+                )"""
+            for k, v in types.type_to_multirange_name_map.items())}
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_get_type_to_multirange_type_map'),
+            args=[],
+            returns=('record',),
+            set_returning=True,
+            volatility='immutable',
+            text=self.text,
+        )
+
+
 class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
     """Return Postgres OID representing a given EdgeDB type."""
 
@@ -4158,6 +4224,31 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
                                     AS m(tid uuid, tn text)
                             INNER JOIN
                                 edgedb._get_type_to_range_type_map()
+                                    AS m2(tn2 text, rn text)
+                                ON tn = tn2
+                            WHERE
+                                tid = "elemid"
+                        )
+                ),
+                (
+                    SELECT
+                        rng.rngmultitypid
+                    FROM
+                        pg_catalog.pg_range rng
+                    WHERE
+                        "kind" = 'schema::Multirange'
+                        -- For multiranges, we need to do the lookup based on
+                        -- our internal map of elem names to range names,
+                        -- because we use the builtin daterange as the range
+                        -- for edgedb.date_t.
+                        AND rng.rngmultitypid = (
+                            SELECT
+                                rn::regtype::oid
+                            FROM
+                                edgedb._get_base_scalar_type_map()
+                                    AS m(tid uuid, tn text)
+                            INNER JOIN
+                                edgedb._get_type_to_multirange_type_map()
                                     AS m2(tn2 text, rn text)
                                 ON tn = tn2
                             WHERE
@@ -4602,6 +4693,7 @@ async def bootstrap(
         dbops.CreateFunction(GetCachedReflection()),
         dbops.CreateFunction(GetBaseScalarTypeMap()),
         dbops.CreateFunction(GetTypeToRangeNameMap()),
+        dbops.CreateFunction(GetTypeToMultirangeNameMap()),
         dbops.CreateFunction(GetPgTypeForEdgeDBTypeFunction()),
         dbops.CreateFunction(DescribeInstanceConfigAsDDLFunctionForwardDecl()),
         dbops.CreateFunction(DescribeDatabaseConfigAsDDLFunctionForwardDecl()),
@@ -4611,6 +4703,7 @@ async def bootstrap(
         dbops.CreateRange(DatetimeRange()),
         dbops.CreateRange(LocalDatetimeRange()),
         dbops.CreateFunction(RangeToJsonFunction()),
+        dbops.CreateFunction(MultirangeToJsonFunction()),
         dbops.CreateFunction(RangeValidateFunction()),
         dbops.CreateFunction(RangeUnpackLowerValidateFunction()),
         dbops.CreateFunction(RangeUnpackUpperValidateFunction()),

@@ -11229,6 +11229,13 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
         """)
 
+        await self.migrate(r"""
+            abstract type Parent {
+                access policy asdf allow all;
+            }
+            type Test2 extending Parent;
+        """)
+
     async def test_edgeql_migration_access_policy_02(self):
         # Make sure policies don't interfere with constraints or indexes
         await self.migrate(r"""
@@ -11928,6 +11935,8 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
     async def test_edgeql_migration_extension_01(self):
         # Test migrations getting from an array in integers to vector and then
         # revert to an array of floats.
+        if not self.is_superuser:
+            self.skipTest('the backend is not running with superuser')
 
         await self.migrate('''
             module default {
@@ -12221,9 +12230,11 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
 
 
 class TestEdgeQLMigrationRewriteNonisolated(TestEdgeQLMigrationRewrite):
+    # N.B: This test suite duplicates all the tests in the above
+    # TestEdgeQLMigrationRewrite, but not in transactions.
     TRANSACTION_ISOLATION = False
 
-    TEARDOWN_COMMANDS = [
+    PER_TEST_TEARDOWN = [
         'rollback;',  # just in case, avoid extra errors
         '''
             start migration to { module default {}; };
