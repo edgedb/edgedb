@@ -375,7 +375,8 @@ class AbstractPool:
         reflection_cache,
         database_config,
         system_config,
-        *compile_args
+        *compile_args,
+        **compiler_args,
     ):
         worker = await self._acquire_worker()
         try:
@@ -464,7 +465,8 @@ class AbstractPool:
         reflection_cache,
         database_config,
         system_config,
-        *compile_args
+        *compile_args,
+        **compiler_args,
     ):
         worker = await self._acquire_worker()
         try:
@@ -511,7 +513,8 @@ class AbstractPool:
         reflection_cache,
         database_config,
         system_config,
-        *compile_args
+        *compile_args,
+        **compiler_args,
     ):
         worker = await self._acquire_worker()
         try:
@@ -543,7 +546,8 @@ class AbstractPool:
         reflection_cache,
         database_config,
         system_config,
-        *compile_args
+        *compile_args,
+        **compiler_args,
     ):
         worker = await self._acquire_worker()
         try:

@@ -237,6 +237,7 @@ async def compile(
         substitutions,
         operation_name,
         variables,
+        client_id=tenant.client_id,
     )
 
 
