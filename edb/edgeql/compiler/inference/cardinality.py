@@ -664,6 +664,48 @@ def _infer_set_inner(
     return card
 
 
+def _typemod_to_card(typemod: qltypes.TypeModifier) -> qltypes.Cardinality:
+    return (
+        MANY if typemod is qltypes.TypeModifier.SetOfType else
+        AT_MOST_ONE if typemod is qltypes.TypeModifier.OptionalType else
+        ONE
+    )
+
+
+def _standard_call_cardinality(
+    ir: irast.Call,
+    cards: Sequence[qltypes.Cardinality],
+    *,
+    ctx: inference_context.InfCtx,
+) -> qltypes.Cardinality:
+    # For regular functions and operators, the general rule of
+    # Cartesian cardinality of arguments applies, although we still
+    # have to account for the declared return cardinality, as the
+    # function might be OPTIONAL or SET OF in its return type.
+    #
+    # We compute the Cartesian cardinality of the functions's
+    # _non-SET OF_ arguments and its return, but with the lower bound
+    # of any optional arguments set to CB_ONE.
+    non_aggregate_args = []
+    non_aggregate_arg_cards = []
+
+    for arg, card, typemod in zip(ir.args, cards, ir.params_typemods):
+        if typemod is qltypes.TypeModifier.SingletonType:
+            non_aggregate_args.append(arg.expr)
+            non_aggregate_arg_cards.append(card)
+        elif typemod is qltypes.TypeModifier.OptionalType:
+            non_aggregate_args.append(arg.expr)
+            non_aggregate_arg_cards.append(
+                _bounds_to_card(CB_ONE, _card_to_bounds(card).upper)
+            )
+
+    _check_op_volatility(
+        non_aggregate_args, non_aggregate_arg_cards, ctx=ctx)
+
+    return cartesian_cardinality(
+        non_aggregate_arg_cards + [_typemod_to_card(ir.typemod)])
+
+
 @_infer_cardinality.register
 def __infer_func_call(
     ir: irast.FunctionCall,
@@ -671,13 +713,8 @@ def __infer_func_call(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
-    return_card = (
-        MANY if ir.typemod is qltypes.TypeModifier.SetOfType else
-        AT_MOST_ONE if ir.typemod is qltypes.TypeModifier.OptionalType else
-        ONE
-    )
-
-    ret_lower_bound, ret_upper_bound = _card_to_bounds(return_card)
+    ret_lower_bound, ret_upper_bound = _card_to_bounds(
+        _typemod_to_card(ir.typemod))
 
     for glob_arg in (ir.global_args or ()):
         infer_cardinality(glob_arg, scope_tree=scope_tree, ctx=ctx)
@@ -710,35 +747,14 @@ def __infer_func_call(
         return _bounds_to_card(lower, upper)
 
     else:
-        # For regular non-OPTIONAL functions, the general rule of
-        # Cartesian cardinality of arguments applies, although we still
-        # have to account for the declared return cardinality, as the
-        # function might be OPTIONAL or SET OF in its return type.
-        #
-        # We compute the Cartesian cardinality of the functions's
-        # _non-SET OF_ arguments and its return, but with the lower bound
-        # of any optional arguments set to CB_ONE.
-        non_aggregate_args = []
-        non_aggregate_arg_cards = []
-
-        for arg, typemod in zip(ir.args, ir.params_typemods):
+        cards = []
+        for arg in ir.args:
             card = infer_cardinality(arg.expr, scope_tree=scope_tree, ctx=ctx)
-            if typemod is qltypes.TypeModifier.SingletonType:
-                non_aggregate_args.append(arg.expr)
-                non_aggregate_arg_cards.append(card)
-            elif typemod is qltypes.TypeModifier.OptionalType:
-                non_aggregate_args.append(arg.expr)
-                non_aggregate_arg_cards.append(
-                    _bounds_to_card(CB_ONE, _card_to_bounds(card).upper)
-                )
+            cards.append(card)
             if ctx.make_updates:
                 arg.cardinality = card
 
-        _check_op_volatility(
-            non_aggregate_args, non_aggregate_arg_cards, ctx=ctx)
-
-        return cartesian_cardinality(
-            non_aggregate_arg_cards + [return_card])
+        return _standard_call_cardinality(ir, cards, ctx=ctx)
 
 
 @_infer_cardinality.register
@@ -771,39 +787,10 @@ def __infer_oper_call(
     elif str(ir.func_shortname) == 'std::??':
         # Coalescing takes the maximum of both lower and upper bounds.
         return max_cardinality(cards)
+    elif str(ir.func_shortname) in ('std::DISTINCT', 'std::IF'):
+        return cartesian_cardinality(cards)
     else:
-        args: List[irast.Base] = []
-        all_optional = False
-
-        if ir.typemod is qltypes.TypeModifier.SetOfType:
-            # this is DISTINCT and IF..ELSE
-            args = [a.expr for a in ir.args]
-        else:
-            all_optional = True
-            for arg, typemod in zip(ir.args, ir.params_typemods):
-                if typemod is not qltypes.TypeModifier.SetOfType:
-                    all_optional &= (
-                        typemod is qltypes.TypeModifier.OptionalType
-                    )
-                    args.append(arg.expr)
-
-        if args:
-            card = _common_cardinality(
-                args, scope_tree=scope_tree, ctx=ctx,
-            )
-            if all_optional:
-                # An operator that has all optional arguments and
-                # doesn't return a SET OF returns at least ONE result
-                # (we currently don't have operators that return
-                # OPTIONAL). So we upgrade the lower bound.
-                card = _bounds_to_card(CB_ONE, _card_to_bounds(card).upper)
-
-            return card
-        else:
-            if ir.typemod is qltypes.TypeModifier.OptionalType:
-                return AT_MOST_ONE
-            else:
-                return ONE
+        return _standard_call_cardinality(ir, cards, ctx=ctx)
 
 
 @_infer_cardinality.register
