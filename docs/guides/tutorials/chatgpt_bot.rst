@@ -14,7 +14,7 @@ ChatGPT via embeddings <https://www.edgedb.com/blog/chit-chatting-with-edgedb-do
 In this tutorial we're going to build a documentation chatbot with
 `Next.js <https://nextjs.org/>`_, `OpenAI <https://openai.com/>`_ and EdgeDB.
 
-Here is how the final result looks like: // todo provide video.
+Here is what the final result looks like: // todo provide video.
 
 Before we start let's understand how it all works
 -------------------------------------------------
@@ -78,7 +78,7 @@ for simplicity we will not use it in the tutorial.
 
 .. code-block:: bash
 
-  $ npx create-next-app --typescript docs-chatbot
+    $ npx create-next-app --typescript docs-chatbot
 
 After the prompts, ``create-next-app`` will create a folder with your project
 name and install the required dependencies.
@@ -105,7 +105,7 @@ in your terminal and follow the on-screen instructions:
 
 .. code-block:: bash
 
-  $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | sh
+    $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | sh
 
 For installation on Windows machines and more info check `EdgeDB CLI <https://www.edgedb.com/docs/cli/index>`_.
 
@@ -119,18 +119,18 @@ EdgeDB version that you want to use with this project, pick the default one
 
 .. code-block:: bash
 
-  $ edgedb project init
-  No `edgedb.toml` found in `/Users/Documents/projects/edgedb/docs-chatbot` or above
+    $ edgedb project init
+    No `edgedb.toml` found in `/Users/Documents/projects/edgedb/docs-chatbot` or above
 
-  Do you want to initialize a new project? [Y/n]
-  > Y
+    Do you want to initialize a new project? [Y/n]
+    > Y
 
-  Specify the name of EdgeDB instance to use with this project [default: chatgpt_guide]:
-  > docs-chatbot
+    Specify the name of EdgeDB instance to use with this project [default: chatgpt_guide]:
+    > docs-chatbot
 
-  Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [default: 3.2]:
-  > 3.2
+    Checking EdgeDB versions...
+    Specify the version of EdgeDB to use with this project [default: 3.2]:
+    > 3.2
 
 Great, the CLI should have set up an EdgeDB project, and instance, and a
 database within that instance. You can confirm project creation by checking
@@ -180,7 +180,7 @@ is the main script we will run every time we want to re-generate embeddings.
 
 .. code-block:: bash
 
-  $ mkdir gpt && touch gpt/generate-embeddings.ts
+    $ mkdir gpt && touch gpt/generate-embeddings.ts
 
 Schema
 ^^^^^^
@@ -198,8 +198,7 @@ Open the empty schema file generated when you initialized the EdgeDB project
 ``dbschema/default.esdl`` and add this code to it:
 
 .. code-block:: sdl
-
-    # dbschema/default.esdl
+    :caption: dbschema/default.esdl
 
     using extension pgvector;
 
@@ -212,7 +211,6 @@ Open the empty schema file generated when you initialized the EdgeDB project
           constraint exclusive;
         }
         required content: str;
-        required checksum: str;
         required tokens: int16;
         required embedding: OpenAIEmbedding;
 
@@ -249,114 +247,175 @@ We apply this schema by creating and running a migration.
 
 .. code-block:: bash
 
-  $ edgedb migration create
-  $ edgedb migrate
+    $ edgedb migration create
+    $ edgedb migrate
 
 Generate embeddings
 ^^^^^^^^^^^^^^^^^^^
 
-Majority of the work related to embeddings generation, storage and update we
-will do inside ``generate-embeddings.ts`` file. You can copy / paste the next
-code inside your script file and then we will go through it piece by piece.
+We're going to write a script that will generate and store our embeddings, but
+before we can do that, we need to install a few dependencies. The process
+requires the ``openai`` and ``dotenv`` NPM packages.
+
+.. code-block:: bash
+
+    $ npm install openai dotenv --save
+
+We will create a script named ``generate-embeddings.ts`` to handle generating,
+storing, and updating embeddings. Start by creating this file in ???????
+
+.. TODO: Specify where to create the file and provide the command for doing so.
+
+We'll kick off this script by opening the new file and importing all those
+dependencies and the other modules we need.
+
+.. code-block:: typescript
+    :caption: generate-embeddings.ts
+
+    import { Configuration, OpenAIApi } from "openai";
+    import dotenv from "dotenv";
+    import { promises as fs } from "fs";
+    import { inspect } from "util";
+    import { join } from "path";
+    import getTokensLen from "./getTokensLen";
+    import * as edgedb from "edgedb";
+    import e from "../dbschema/edgeql-js";
+
+Next, we use the ``dotenv`` library to import the ``OPENAI_KEY`` we created
+earlier in the ``.env.local`` file. We'll use this later to authenticate with
+the API so we can make calls against it. If the user of our script hasn't set
+it, we won't be able to generate the embeddings, so we can go ahead and throw
+an exception.
+
+.. code-block:: typescript
+    :caption: generate-embeddings.ts
+
+    //…
+    dotenv.config({ path: ".env.local" });
+    if (!process.env.OPENAI_KEY) {
+      throw new Error(
+        "Environment variable OPENAI_KEY is required: skipping embeddings generation."
+        );
+      }
+
+Then we need to define a ``Section`` TypeScript interface that corresponds to
+the ``Section`` type we have defined in schema.
+
+.. TODO: Would it be better to generate this with the interfaces generator and
+   import it? It would allow us to show off the generator and would also
+   slightly reduce the amount of code here.
+
+.. code-block:: typescript
+    :caption: generate-embeddings.ts
+
+    //…
+    interface Section {
+      id?: string;
+      path: string;
+      tokens: number;
+      content: string;
+      embedding: number[];
+    }
+
+
+We need to store the paths of documentation in the database. Since our ``docs``
+folder contains sections at multiple levels of nesting, we need a function that
+loops through all section files, builds an array of all paths relative to the
+project root, and sorts those paths. This is what the ``walk`` function does.
+
+.. code-block:: typescript
+    :caption: generate-embeddings.ts
+
+    //…
+    type WalkEntry = {
+      path: string;
+    };
+
+    async function walk(dir: string): Promise<WalkEntry[]> {
+      const immediateFiles = await fs.readdir(dir);
+
+      const recursiveFiles: { path: string }[][] = await Promise.all(
+        immediateFiles.map(async (file: any) => {
+          const path = join(dir, file);
+          const stats = await fs.stat(path);
+          if (stats.isDirectory()) return walk(path);
+          else if (stats.isFile()) return [{ path }];
+          else return [];
+        })
+      );
+
+      const flattenedFiles: { path: string }[] = recursiveFiles.reduce(
+        (all, folderContents) => all.concat(folderContents),
+        []
+      );
+
+      return flattenedFiles.sort((a, b) => a.path.localeCompare(b.path));
+    }
+
+The output it produces looks like this:
 
 .. code-block:: typescript
 
-  import { Configuration, OpenAIApi } from "openai";
-  import { createHash } from "crypto";
-  import dotenv from "dotenv";
-  import { promises as fs } from "fs";
-  import { inspect } from "util";
-  import { join } from "path";
-  import getTokensLen from "./getTokensLen";
-  import * as edgedb from "edgedb";
-  import e from "../dbschema/edgeql-js";
-
-  dotenv.config({ path: ".env.local" });
-
-  interface Section {
-    id?: string;
-    path: string;
-    tokens: number;
-    checksum: string;
-    content: string;
-    embedding: number[];
-  }
-
-  type WalkEntry = {
-    path: string;
-  };
-
-  async function walk(dir: string): Promise<WalkEntry[]> {
-    const immediateFiles = await fs.readdir(dir);
-
-    const recursiveFiles: { path: string }[][] = await Promise.all(
-      immediateFiles.map(async (file: any) => {
-        const path = join(dir, file);
-        const stats = await fs.stat(path);
-        if (stats.isDirectory()) return walk(path);
-        else if (stats.isFile()) return [{ path }];
-        else return [];
-      })
-    );
-
-    const flattenedFiles: { path: string }[] = recursiveFiles.reduce(
-      (all, folderContents) => all.concat(folderContents),
-      []
-    );
-
-    return flattenedFiles.sort((a, b) => a.path.localeCompare(b.path));
-  }
-
-  class EmbeddingSource {
-    path: string;
-    checksum?: string;
-    content?: string;
-
-    constructor(public filePath: string) {
-      this.path = filePath.replace(/^.docs/, "");
-    }
-
-    async load() {
-      const content = await fs.readFile(this.filePath, "utf8");
-      const checksum = createHash("sha256").update(content).digest("base64");
-
-      this.checksum = checksum;
-      this.content = content;
-
-      return {
-        checksum,
-        content,
-      };
-    }
-  }
-
-  // --refresh: Regenerate all embeddings, otherwise just new changes.
-  async function generateEmbeddings() {
-    const args = process.argv.slice(2);
-    const shouldRefresh = args.includes("--refresh");
-
-    if (!process.env.OPENAI_KEY) {
-      return console.log(
-        "Environment variable OPENAI_KEY is required: skipping embeddings generation."
-      );
-    }
-
-    const configuration = new Configuration({
-      apiKey: process.env.OPENAI_KEY,
-    });
-
-    const openai = new OpenAIApi(configuration);
-
-    const client = edgedb.createClient();
-
-    const embeddingSources: EmbeddingSource[] = [
-      ...(await walk("docs")).map((entry) => new EmbeddingSource(entry.path)),
+    [
+      // ...
+      {path: ".docs/gpt/cli/edgedb_describe/edgedb_describe_schema2.md"},
+      {path: ".docs/gpt/cli/edgedb_describe/index.md"},
+      {path: ".docs/gpt/cli/edgedb_dump.md"},
+      {path: ".docs/gpt/cli/edgedb_info.md"},
+      {path: ".docs/gpt/cli/edgedb_instance/edgedb_instance_create.md"},
+      // ...
     ];
 
-    console.log(`Discovered ${embeddingSources.length} pages`);
+With this list of files and their paths, we're ready to read in the contents so
+we can generate the embeddings. We'll write a class to handle this for us. This
+``EmbeddingSource`` class's constructor takes the relative section path. We can
+call its ``load`` method to get the contents of the file from the file system.
 
-    if (shouldRefresh) {
-      console.log("Refresh flag set, re-generating all pages.");
+.. code-block:: typescript
+    :caption: generate-embeddings.ts
+
+    //…
+    class EmbeddingSource {
+      content?: string;
+
+      constructor(public filePath: string) { }
+
+      async load() {
+        const content = await fs.readFile(this.filePath, "utf8");
+        this.content = content;
+        return content;
+      }
+    }
+
+
+With all this setup out of the way, it's time to generate the actual
+embeddings. We'll write a function called ``generateEmbeddings`` to take care
+of this for us. It will fetch embeddings from OpenAI and store them inside our
+EdgeDB database.
+
+.. code-block:: typescript
+    :caption: generate-embeddings.ts
+
+    //…
+    async function generateEmbeddings() {
+      const args = process.argv.slice(2);
+
+
+      const configuration = new Configuration({
+        apiKey: process.env.OPENAI_KEY,
+      });
+
+      const openai = new OpenAIApi(configuration);
+
+      const client = edgedb.createClient();
+
+      const embeddingSources: EmbeddingSource[] = [
+        ...(await walk("docs")).map((entry) => new EmbeddingSource(entry.path)),
+      ];
+
+      console.log(`Discovered ${embeddingSources.length} pages`);
+
+      console.log("Re-generating pages.");
 
       try {
         // Delete old data from the DB.
@@ -371,12 +430,12 @@ code inside your script file and then we will go through it piece by piece.
 
         for (const embeddingSource of embeddingSources) {
           const { path } = embeddingSource;
-          const { checksum, content } = await embeddingSource.load();
+          const content = await embeddingSource.load();
           // OpenAI recommends replacing newlines with spaces for
-          // best results (specific to embeddings)
+          // best results when generating embeddings
           const contentTrimmed = content.replace(/\n/g, " ");
           contents.push(contentTrimmed);
-          sections.push({ path, checksum, content, tokens: 0, embedding: [] });
+          sections.push({ path, content, tokens: 0, embedding: [] });
         }
 
         const tokens = await getTokensLen(contents);
@@ -400,7 +459,6 @@ code inside your script file and then we will go through it piece by piece.
             return e.insert(e.Section, {
               path: e.cast(e.str, section.path),
               content: e.cast(e.str, section.content),
-              checksum: e.cast(e.str, section.checksum),
               tokens: e.cast(e.int16, section.tokens),
               embedding: e.cast(e.OpenAIEmbedding, section.embedding),
             });
@@ -409,155 +467,10 @@ code inside your script file and then we will go through it piece by piece.
 
         await query.run(client, { sections });
       } catch (err) {
-        console.error("Error while trying to regenerate all embeddings.", err);
+        console.error("Error while trying to regenerate embeddings.", err);
       }
-    } else {
-      console.log("Checking which pages are new or have changed.");
-
-      try {
-        const query = e.select(e.Section, () => ({
-          path: true,
-          checksum: true,
-        }));
-
-        const existingSections = await query.run(client);
-
-        const updatedSections: Section[] = [];
-        const newSections: Section[] = [];
-
-        for (const embeddingSource of embeddingSources) {
-          const { path } = embeddingSource;
-
-          const { checksum, content } = await embeddingSource.load();
-
-          // Check for existing section in DB and compare checksums
-          const existingSection = existingSections.filter(
-            (section) => section.path == path
-          )[0];
-
-          if (existingSection?.checksum === checksum) continue;
-
-          const input = content.replace(/\n/g, " ");
-
-          const embeddingResponse = await openai.createEmbedding({
-            model: "text-embedding-ada-002",
-            input,
-          });
-
-          if (embeddingResponse.status !== 200) {
-            throw new Error(inspect(embeddingResponse.data, false, 2));
-          }
-
-          const [responseData] = embeddingResponse.data.data;
-
-          const tokens = (await getTokensLen([input]))[0];
-
-          if (existingSection) {
-            updatedSections.push({
-              path,
-              content,
-              checksum,
-              tokens,
-              embedding: responseData.embedding,
-            });
-          } else {
-            newSections.push({
-              path,
-              content,
-              checksum,
-              tokens,
-              embedding: responseData.embedding,
-            });
-          }
-        }
-
-        if (updatedSections.length) {
-          console.log(
-            "Update sections at paths",
-            updatedSections.map((section) => section.path)
-          );
-          const query = e.params(
-            {
-              sections: e.array(
-                e.tuple({
-                  path: e.str,
-                  content: e.str,
-                  checksum: e.str,
-                  tokens: e.int16,
-                  embedding: e.OpenAIEmbedding,
-                })
-              ),
-            },
-            ({ sections }) => {
-              return e.for(e.array_unpack(sections), (section) => {
-                return e.update(e.Section, () => ({
-                  filter_single: { path: section.path },
-                  set: {
-                    content: section.content,
-                    checksum: section.checksum,
-                    tokens: section.tokens,
-                    embedding: section.embedding,
-                  },
-                }));
-              });
-            }
-          );
-
-          await query.run(client, {
-            sections: updatedSections,
-          });
-        }
-        // Insert new sections.
-        if (newSections.length) {
-          console.log(
-            "Insert new section at paths",
-            newSections.map((section) => section.path)
-          );
-          const query = e.params({ sections: e.json }, ({ sections }) => {
-            return e.for(e.json_array_unpack(sections), (section) => {
-              return e.insert(e.Section, {
-                path: e.cast(e.str, section.path),
-                content: e.cast(e.str, section.content),
-                checksum: e.cast(e.str, section.checksum),
-                tokens: e.cast(e.int16, section.tokens),
-                embedding: e.cast(e.OpenAIEmbedding, section.embedding),
-              });
-            });
-          });
-
-          await query.run(client, {
-            sections: newSections,
-          });
-        }
-
-        // If some sections are deleted in docs delete them from db too
-        const deletedSectionsPaths: string[] = [];
-
-        for (const existingSection of existingSections) {
-          const docsSection = embeddingSources.filter(
-            (section) => section.path == existingSection.path
-          )[0];
-
-          if (!docsSection) deletedSectionsPaths.push(existingSection.path);
-        }
-
-        if (deletedSectionsPaths.length) {
-          console.log("Delete sections at paths", deletedSectionsPaths);
-
-          const query = e.params({ paths: e.array(e.str) }, ({ paths }) =>
-            e.delete(e.Section, (section) => ({
-              filter: e.op(section.path, "in", e.array_unpack(paths)),
-            }))
-          );
-          await query.run(client, { paths: deletedSectionsPaths });
-        }
-      } catch (err) {
-        console.error("Error while trying to update embeddings.", err);
-      }
+      console.log("Embedding generation complete");
     }
-
-    console.log("Embedding generation complete");
-  }
 
     async function main() {
       await generateEmbeddings();
@@ -567,57 +480,6 @@ code inside your script file and then we will go through it piece by piece.
       console.error("Error has ocurred while generating embeddings.", err)
     );
 
-Let's try to understand this huge pile of code.
-
-- In order for the above script to compile and work we need to install
-  ``openai`` and ``dotenv`` npm packages. You can use ``yarn`` or ``npm``
-  package managers. We will use yarn in this guide.
-
-  .. code-block:: bash
-
-    $ yarn add openai dotenv
-
-  Majority of other imports: ``crypto``, ``fs``, ``util`` and ``path`` are
-  Node modules available to us. We will explain ``getTokensLength`` and
-  ``dbschema/edgeql-js`` a bit later.
-
-- Firstly we use ``dotenv`` to import environment variables we have inside
-  ``.env.local`` file, specifically ``OPENAI_KEY``, we will need it later.
-
-- Then we need to define Section TS interface that corresponds to the Section
-  type we have defined in schema.
-
-- We need to store sections paths to the database. Since our ``docs`` folder
-  contains sections at multiple levels, we should have a function that loops
-  through all section files and outputs an array of all paths relative to the
-  project root, and sort them. This is what ``walk`` does. The output it
-  produces looks like:
-
-  .. code-block:: typescript
-
-    [
-      // ...
-      {path: ".docs/gpt/cli/edgedb_describe/edgedb_describe_schema2.md"},
-      {path: ".docs/gpt/cli/edgedb_describe/index.md"},
-      {path: ".docs/gpt/cli/edgedb_dump.md"},
-      {path: ".docs/gpt/cli/edgedb_info.md"},
-      {path: ".docs/gpt/cli/edgedb_instance/edgedb_instance_create.md"},
-      // ...
-    ];
-
-- We need to read the section content from it's path in the file system,
-  create the checksum for the content and then save both in the database
-  together with the path (we cut off the ``.gpt/`` repeating part from the
-  beginning when storing path). ``EmbeddingSource`` class takes relative
-  section path and generates path, content and checksum for that file.
-
-- The next piece of code is actual ``generateEmbeddings`` function that
-  fetches embeddings from the OpenAI and store them inside EdgeDB database.
-  We don't have a lot of files to generate embeddings for, but in general
-  real projects usually have thousands of files. For example, we at EdgeDB
-  have around 3000, fetching and storing embeddings one by one will take more
-  than half an hour so we try to parallelise and speed things up as much as
-  possible.
 
 - Let's add at this point additional script to ``package.json`` that we will
   use to call the embeddings generation script.
@@ -640,10 +502,6 @@ Let's try to understand this huge pile of code.
   want to wipe the database and fill it again from scratch) we should apply
   additional ``--refresh`` argument, so the commands is
   ``yarn embeddings --refresh``.
-
-  First two lines of generateEmbeddings function store inside ``shouldRefresh``
-  variable how we want to run the script, re-generate all embeddings or perform
-  just an update (the default).
 
 - If for some reason ``OPENAI_KEY`` is not available we should throw an error
   right at the beginning.
@@ -679,8 +537,6 @@ Let's try to understand this huge pile of code.
   This generator gives us a code-first way to write fully-typed EdgeQL
   queries with TypeScript. The ``edgeql-js`` folder should have been created
   inside ``dbschema`` folder.
-
-- Now is the time to check the ``shouldRefresh`` variable and create two paths.
 
 - **Re-generate all embeddings from scratch:**
 
@@ -726,7 +582,6 @@ Let's try to understand this huge pile of code.
                 insert Section {
                   path := <str>section['path'],
                   content:= <str>section['content'],
-                  checksum:= <str>section['checksum'],
                   tokens:= <int16>section['tokens'],
                   embedding:= <OpenAIEmbedding>section['embedding'],
                 }
@@ -740,7 +595,6 @@ Let's try to understand this huge pile of code.
                 return e.insert(e.Section, {
                   path: e.cast(e.str, section.path),
                   content: e.cast(e.str, section.content),
-                  checksum: e.cast(e.str, section.checksum),
                   tokens: e.cast(e.int16, section.tokens),
                   embedding: e.cast(e.OpenAIEmbedding, section.embedding),
                 });
