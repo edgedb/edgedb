@@ -131,10 +131,9 @@ Install the EdgeDB client library.
     # Cargo.toml
 
     [dependencies]
-    edgedb-tokio = "0.3.0"
-    # additional dependencies
-    tokio = { version = "1", features = ["full"] }
-    anyhow = "1.0.63"
+    edgedb-tokio = "0.5.0"
+    # Additional dependency
+    tokio = { version = "1.28.1", features = ["macros", "rt-multi-thread"] }
 
   .. code-tab:: bash
     :caption: Go
@@ -212,13 +211,15 @@ database and provide a set of methods for executing queries.
 
     // src/main.rs
     #[tokio::main]
-    async fn main() -> anyhow::Result<()> {
-        let conn = edgedb_tokio::create_client().await?;
+    async fn main() {
+        let conn = edgedb_tokio::create_client()
+            .await
+            .expect("Client initiation");
         let val = conn
             .query_required_single::<f64, _>("select random()", &())
-            .await?;
+            .await
+            .expect("Returning value");
         println!("Result: {}", val);
-        Ok(())
     }
 
   .. code-tab:: go
