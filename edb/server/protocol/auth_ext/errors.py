@@ -19,10 +19,13 @@
 
 class AuthExtError(Exception):
     """Base class for all exceptions raised by the auth extension."""
+
     pass
+
 
 class NotFound(AuthExtError):
     """Required resource could not be found."""
+
     def __init__(self, description: str):
         self.description = description
 
@@ -36,8 +39,10 @@ class NotFound(AuthExtError):
     def __str__(self) -> str:
         return self.description
 
+
 class MissingConfiguration(AuthExtError):
     """Required configuration is missing."""
+
     def __init__(self, key: str, description: str):
         self.key = key
         self.description = description
@@ -53,8 +58,10 @@ class MissingConfiguration(AuthExtError):
     def __str__(self) -> str:
         return f"{self.description}: {self.key}"
 
+
 class InvalidData(AuthExtError):
     """Data received from the client is invalid."""
+
     def __init__(self, description: str):
         self.description = description
 

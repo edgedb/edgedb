@@ -30,6 +30,7 @@ class Client:
         match provider:
             case "github":
                 from . import github
+
                 self.provider = github.GitHubProvider(
                     *self._get_client_credientials("github")
                 )
@@ -42,7 +43,9 @@ class Client:
         )
 
     def _get_client_credientials(self, client_name: str) -> tuple[str, str]:
-        client_id = util.get_config(self.db_config, f"xxx_{client_name}_client_id")
+        client_id = util.get_config(
+            self.db_config, f"xxx_{client_name}_client_id"
+        )
         client_secret = util.get_config(
             self.db_config, f"xxx_{client_name}_client_secret"
         )

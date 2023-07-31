@@ -17,7 +17,7 @@
 #
 
 
-from typing import *
+from typing import TypeVar, Type, Mapping, overload
 
 from edb.server.config.ops import SettingValue
 from . import errors
@@ -55,10 +55,9 @@ def maybe_get_config(
 
     return value
 
+
 @overload
-def get_config(
-    db_config: SettingsMap, key: str, expected_type: Type[T]
-) -> T:
+def get_config(db_config: SettingsMap, key: str, expected_type: Type[T]) -> T:
     ...
 
 
@@ -68,7 +67,7 @@ def get_config(db_config: SettingsMap, key: str) -> str:
 
 
 def get_config(
-        db_config: SettingsMap, key: str, expected_type: Type[object] = str
+    db_config: SettingsMap, key: str, expected_type: Type[object] = str
 ) -> object:
     value = maybe_get_config(db_config, key, expected_type)
     if value is None:
