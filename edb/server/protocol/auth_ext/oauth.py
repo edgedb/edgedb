@@ -18,13 +18,14 @@
 
 
 from typing import *
+from edb.server import dbview
 
 from . import errors
 from . import util
 
 
 class Client:
-    def __init__(self, db: Any, provider: str):
+    def __init__(self, db: dbview.Database, provider: str):
         self.db = db
         self.db_config = db.db_config
         match provider:
