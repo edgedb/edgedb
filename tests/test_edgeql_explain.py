@@ -1873,6 +1873,53 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             self.get_gist_index_expected_res('mdate', 'IndexScan'),
         )
 
+    async def test_edgeql_explain_json_contains_01(self):
+        res = await self.explain('''
+            select JSONTest {id, val}
+            filter contains(.val, <json>(a := 123))
+        ''')
+        self.assert_plan(
+            res['fine_grained']['subplans'][1],
+            {
+                "pipeline": [
+                    {
+                        "plan_type": "BitmapHeapScan",
+                    },
+                ],
+                "subplans": [
+                    {
+                        "pipeline": [
+                            {
+                                "plan_type": "BitmapIndexScan",
+                                "properties": tb.bag([
+                                    {
+                                        'important': False,
+                                        'title': 'parent_relationship',
+                                        'type': 'text',
+                                        'value': 'Outer',
+                                    },
+                                    {
+                                        'important': True,
+                                        'title': 'index_name',
+                                        'type': 'index',
+                                        'value':
+                                            f"index 'pg::gin' of object"
+                                            f" type 'default::JSONTest'"
+                                            f" on (.val)",
+                                    },
+                                    {
+                                        'important': False,
+                                        'title': 'index_cond',
+                                        'type': 'expr',
+                                    },
+                                ]),
+                            },
+                        ],
+                    },
+                ],
+            },
+        )
+
 
 class NameTranslation(unittest.TestCase):
 

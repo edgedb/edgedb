@@ -181,4 +181,9 @@ for x in range_unpack(range(0, 500_000)) union (
 );
 
 
+for x in range_unpack(range(0, 100_000)) union (
+    insert JSONTest{val := <json>(a:=x, b:=round(random()*1000))}
+);
+
+
 administer statistics_update();

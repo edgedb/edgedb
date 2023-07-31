@@ -65,7 +65,14 @@ def is_index_valid_for_type(
         case 'pg::btree':
             return True
         case 'pg::gin':
-            return expr_type.is_array()
+            return (
+                expr_type.is_array()
+                or
+                expr_type.issubclass(
+                    schema,
+                    schema.get('std::json', type=s_scalars.ScalarType),
+                )
+            )
         case 'fts::textsearch':
             return expr_type.issubclass(
                 schema, schema.get('std::str', type=s_scalars.ScalarType))

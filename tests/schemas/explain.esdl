@@ -108,13 +108,19 @@ type URL extending Named {
 }
 
 type RangeTest {
-    required property rval -> range<int64>;
-    required property mval -> multirange<int64>;
-    required property rdate -> range<cal::local_date>;
-    required property mdate -> multirange<cal::local_date>;
+    required rval: range<int64>;
+    required mval: multirange<int64>;
+    required rdate: range<cal::local_date>;
+    required mdate: multirange<cal::local_date>;
 
     index pg::gist on (.rval);
     index pg::gist on (.mval);
     index pg::gist on (.rdate);
     index pg::gist on (.mdate);
+}
+
+type JSONTest {
+    required val: json;
+
+    index pg::gin on (.val);
 }
