@@ -29,21 +29,18 @@ from jwcrypto import jwk, jwt
 from edb import errors as edb_errors
 from edb.common import debug
 from edb.common import markup
-from edb.server import dbview
 
 from . import errors
 from . import util
 
-from edb.server.protocol.protocol import HttpRequest, HttpResponse
-
 
 class Router:
-    def __init__(self, db: dbview.Database, base_path: str):
+    def __init__(self, db: Any, base_path: str):
         self.db = db
         self.base_path = base_path
 
     async def handle_request(
-        self, request: HttpRequest, response: HttpResponse, args: list[str]
+        self, request: Any, response: Any, args: list[str]
     ):
         try:
             match args:
@@ -142,7 +139,7 @@ class Router:
 
 def _fail_with_error(
     *,
-    response: HttpResponse,
+    response: Any,
     status: http.HTTPStatus,
     message: str,
     ex_type: Any,
