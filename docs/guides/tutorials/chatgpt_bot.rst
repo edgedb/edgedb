@@ -6,7 +6,7 @@ ChatGPT
 
 :edb-alt-title: Build your own docs chatbot with ChatGPT and EdgeDB
 
-*For additional context, check out* `our blog post about why and how we used
+*For additional context, check out* `our blog post about why and how we use
 ChatGPT via embeddings <https://www.edgedb.com/blog/chit-chatting-with-edgedb-docs-via-chatgpt-and-pgvector>`_
 *to create our* `“Ask AI”  <https://www.edgedb.com/blog/chit-chatting-with-edgedb-docs-via-chatgpt-and-pgvector>`_
 *bot which answers questions related to the EdgeDB docs.*
@@ -71,7 +71,7 @@ Let's get started
 -----------------
 
 Let's start by scaffolding our app with Next.js's ``create-next-app`` tool.
-We'll be using TypeScript, ESLint and Tailwind CSS for this tutoria. Choose
+We'll be using TypeScript, ESLint and Tailwind CSS for this tutorial. Choose
 all the defaults for answering prompts except for using src, we will opt out.
 You can choose to use src but will have to update later some configuration, so
 for simplicity we will not use it in the tutorial.
@@ -88,7 +88,7 @@ EdgeDB CLI and create a local EdgeDB instance. (We will use a local instance
 here, but you could use an EdgeDB Cloud instance instead if you prefer).
 We need the API key in order to use OpenAI's APIs for generating embeddings
 and answering questions. We need an EdgeDB instance to store section contents
-and the generated embeddings.
+and embeddings.
 
 Get an OpenAI API key
 ^^^^^^^^^^^^^^^^^^^^^
@@ -134,13 +134,13 @@ EdgeDB version that you want to use with this project, pick the default one
 
 Great, the CLI should have set up an EdgeDB project, and instance, and a
 database within that instance. You can confirm project creation by checking
-for an ``edgedb.toml`` file and a ``dbschema`` directory in your project. You
+for an ``edgedb.toml`` file and a ``dbschema`` directory in your project root. You
 can check if the instance is running with the ``edgedb instance list``
 command. Search for the name of the instance you've just created and check the
-status (it is okay if it is inactive, the status will change into running when
-you connect to the database). You can do that by running ``edgedb`` in the
-terminal to connect to it via REPL or by running ``edgedb ui`` to connect
-using the UI.
+status. It is okay if it is inactive, the status will change into running when
+you connect to the instance. You can connect to the created instance by running
+``edgedb`` in the terminal to connect to it via REPL or by running ``edgedb ui``
+to connect using the UI.
 
 Ok, so now we can start with actual implementation details.
 
@@ -150,25 +150,23 @@ OpenAI language models accept strings as input. So, the most common formats
 are Markdown and plain text files because you can use them straight away
 without any extra steps. It is possible to use HTML (and probably other
 formats too) but they usually introduce a lot of selectors and tags that are
-not relevant to the meaning of the text inside it, so you should either clean
-those files and extract content before using it with OpenAI or you can
-stringify and use the whole thing but then you will pay for all those extra
+not needed nor relevant to the context, so you should either clean those files
+and extract content before using it with OpenAI or you can stringify and use
+the whole thing but then you will pay for all those extra
 tokens (OpenAI pricing models are per number of tokens used). Usually all
 available solutions firstly convert their docs into Markdown or text files.
 There are different libraries and tools available online that can help with
 this. But you maybe still need to write some custom scripts to further clean
 your data, depending on what is your starting point.
 
-We will here use ready Markdown files. Our starting point was ..todo ask james.
+We will use ready Markdown files. Create ``docs`` folder in the root of your
+project. You can copy/paste EdgeDB markdown files that we use or use your
+own markdown or text files (if you use text files you should just be careful to
+later replace ``.md``extension in the code with proper extension).
 
-Create ``docs`` folder in the root of your project. You can copy paste here ..todo
-EdgeDB markdown files that we will use or use your own markdown or text files
-(if you use text files you should just be careful to later replace ``.md``
-extension in the code with proper extension).
-
-Split the converted documentation into sections
------------------------------------------------
-..todo
+Split the documentation into sections
+-------------------------------------
+Our files are already short enough ..todo explain token limits
 
 Create embeddings and store them in the EdgeDB database
 -------------------------------------------------------
@@ -186,7 +184,7 @@ Schema
 ^^^^^^
 To be able to store data in the DB we have to create the schema first. We
 want to make it as simple as possible and store only the relevant data. We
-will need to store the section content and embeddings. We will also save
+need to store the section content and embeddings. We will also save
 each section's relative path and content checksum. The checksum will allow
 us to easily determine which files of the documentation has changed every
 time we run the embeddings generation script. This way, we can re-generate
@@ -211,6 +209,7 @@ Open the empty schema file generated when you initialized the EdgeDB project
           constraint exclusive;
         }
         required content: str;
+        required checksum: str;
         required tokens: int16;
         required embedding: OpenAIEmbedding;
 
@@ -238,10 +237,9 @@ add the index that corresponds to the ``cosine_similarity`` function which is
 ``ivfflat_cosine``. We are using the value ``3`` for the ``lists`` parameter
 because best practice is to use the number of objects divided by 1,000 for up
 to 1,000,000 entries. Our database will have around 3,000 total entries which
-falls well under that threshold. (For more than 1,000,000 entries, you should
-use the square root of the total number for lists.). In our case indexing
-does not have much impact, but if you plan to store and query huge amount of
-entries, an index is recommended.
+falls well under that threshold. In our case indexing does not have much
+impact, but if you plan to store and query huge amount ofentries, an index is
+recommended.
 
 We apply this schema by creating and running a migration.
 
@@ -250,21 +248,15 @@ We apply this schema by creating and running a migration.
     $ edgedb migration create
     $ edgedb migrate
 
-Generate embeddings
-^^^^^^^^^^^^^^^^^^^
+Install required dependencies
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-We're going to write a script that will generate and store our embeddings, but
-before we can do that, we need to install a few dependencies. The process
-requires the ``openai`` and ``dotenv`` NPM packages.
+Let's install few NPM dependencies our script will need.
 
 .. code-block:: bash
 
-    $ npm install openai dotenv --save
-
-We will create a script named ``generate-embeddings.ts`` to handle generating,
-storing, and updating embeddings. Start by creating this file in ???????
-
-.. TODO: Specify where to create the file and provide the command for doing so.
+    $ npm install openai gpt-tokenizer --save
+    $ npm install dotenv tsx --save-dev
 
 We'll kick off this script by opening the new file and importing all those
 dependencies and the other modules we need.
