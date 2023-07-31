@@ -78,7 +78,7 @@ for simplicity we will not use it in the tutorial.
 
 .. code-block:: bash
 
-  $ npx create-next-app --typescript docs-chatbot
+    $ npx create-next-app --typescript docs-chatbot
 
 After the prompts, ``create-next-app`` will create a folder with your project
 name and install the required dependencies.
@@ -105,7 +105,7 @@ in your terminal and follow the on-screen instructions:
 
 .. code-block:: bash
 
-  $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | sh
+    $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | sh
 
 For installation on Windows machines and more info check `EdgeDB CLI <https://www.edgedb.com/docs/cli/index>`_.
 
@@ -119,18 +119,18 @@ EdgeDB version that you want to use with this project, pick the default one
 
 .. code-block:: bash
 
-  $ edgedb project init
-  No `edgedb.toml` found in `/Users/Documents/projects/edgedb/docs-chatbot` or above
+    $ edgedb project init
+    No `edgedb.toml` found in `/Users/Documents/projects/edgedb/docs-chatbot` or above
 
-  Do you want to initialize a new project? [Y/n]
-  > Y
+    Do you want to initialize a new project? [Y/n]
+    > Y
 
-  Specify the name of EdgeDB instance to use with this project [default: chatgpt_guide]:
-  > docs-chatbot
+    Specify the name of EdgeDB instance to use with this project [default: chatgpt_guide]:
+    > docs-chatbot
 
-  Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [default: 3.2]:
-  > 3.2
+    Checking EdgeDB versions...
+    Specify the version of EdgeDB to use with this project [default: 3.2]:
+    > 3.2
 
 Great, the CLI should have set up an EdgeDB project, and instance, and a
 database within that instance. You can confirm project creation by checking
@@ -180,7 +180,7 @@ is the main script we will run every time we want to re-generate embeddings.
 
 .. code-block:: bash
 
-  $ mkdir gpt && touch gpt/generate-embeddings.ts
+    $ mkdir gpt && touch gpt/generate-embeddings.ts
 
 Schema
 ^^^^^^
@@ -247,8 +247,8 @@ We apply this schema by creating and running a migration.
 
 .. code-block:: bash
 
-  $ edgedb migration create
-  $ edgedb migrate
+    $ edgedb migration create
+    $ edgedb migrate
 
 Generate embeddings
 ^^^^^^^^^^^^^^^^^^^
@@ -257,10 +257,9 @@ We're going to write a script that will generate and store our embeddings, but
 before we can do that, we need to install a few dependencies. The process
 requires the ``openai`` and ``dotenv`` NPM packages.
 
-  .. code-block:: bash
+.. code-block:: bash
 
     $ npm install openai dotenv --save
-
 
 We will create a script named ``generate-embeddings.ts`` to handle generating,
 storing, and updating embeddings. Start by creating this file in ???????
