@@ -511,8 +511,17 @@ impl Spec {
         let actions = v
             .actions
             .into_iter()
-            .map(|x| x.into_iter().map(|(k, a)| (get_token_kind(&k), a)))
-            .map(IndexMap::from_iter)
+            .map(|x| {
+                let mut x: Vec<_> = x
+                    .into_iter()
+                    .map(|(k, a)| (get_token_kind(&k), a))
+                    .collect();
+
+                // sort by anything - just to make it deterministic
+                x.sort_by_key(|(k, _)| k.text());
+
+                IndexMap::from_iter(x)
+            })
             .collect();
         let goto = v.goto.into_iter().map(IndexMap::from_iter).collect();
         let inlines = IndexMap::from_iter(v.inlines);
