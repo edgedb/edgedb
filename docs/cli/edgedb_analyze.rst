@@ -9,23 +9,31 @@ edgedb analyze
 
     This CLI feature is compatible with EdgeDB server 3.0 and above.
 
+.. note::
+
+    This feature is also available inside the EdgeDB REPL and UI in which
+    prefacing it with ``edgedb`` is not required.
+
 Run a query performance analysis on the given query.
 
 .. cli:synopsis::
 
 	edgedb analyze [<options>] <query>
 
-Here's example ``analyze`` output from a simple query:
+An example of ``analyze`` output from a simple query:
 
 .. lint-off
 
 .. code-block::
 
-    Contexts
-    analyze select ➊ Hero {name, secret_identity, ➋ villains: {name, nemesis: {name}}}
-    Shape
-    ╰──➊ default::Hero (cost=20430.96)
-       ╰──➋ .villains: default::Villain, default::Hero (cost=35.81)
+    ──────────────────────────────────────── Query ────────────────────────────────────────
+    analyze select ➊  Hero {name, secret_identity, ➋  villains: {name, ➌  nemesis: {name}}};
+
+    ──────────────────────── Coarse-grained Query Plan ────────────────────────
+                       │ Time     Cost Loops Rows Width │ Relations
+    ➊ root            │  0.0 69709.48   1.0  0.0    32 │ Hero
+    ╰──➋ .villains    │  0.0     92.9   0.0  0.0    32 │ Villain, Hero.villains
+    ╰──➌ .nemesis     │  0.0     8.18   0.0  0.0    32 │ Hero
 
 .. lint-on
 
