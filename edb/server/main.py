@@ -195,6 +195,9 @@ async def _run_server(
             compiler_pool_size=args.compiler_pool_size,
             compiler_pool_mode=args.compiler_pool_mode,
             compiler_pool_addr=args.compiler_pool_addr,
+            compiler_pool_tenant_cache_size=(
+                args.compiler_pool_tenant_cache_size
+            ),
             nethosts=args.bind_addresses,
             netport=args.port,
             listen_sockets=tuple(s for ss in sockets.values() for s in ss),
