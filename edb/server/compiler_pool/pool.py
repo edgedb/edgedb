@@ -56,7 +56,6 @@ KILL_TIMEOUT: float = 10.0
 ADAPTIVE_SCALE_UP_WAIT_TIME: float = 3.0
 ADAPTIVE_SCALE_DOWN_WAIT_TIME: float = 60.0
 WORKER_PKG: str = __name__.rpartition('.')[0] + '.'
-METHOD_NAME_PLACEHOLDER = object()
 
 
 logger = logging.getLogger("edb.server")
@@ -247,6 +246,7 @@ class AbstractPool:
 
     async def _compute_compile_preargs(
         self,
+        method_name: str,
         worker,
         dbname,
         user_schema,
@@ -304,17 +304,17 @@ class AbstractPool:
                     worker._system_config = system_config
 
         worker_db = worker._dbs.get(dbname)
-        preargs = (dbname,)
+        preargs = [method_name, dbname]
         to_update = {}
 
         if worker_db is None:
-            preargs += (
+            preargs.extend([
                 _pickle_memoized(user_schema),
                 _pickle_memoized(reflection_cache),
                 _pickle_memoized(global_schema),
                 _pickle_memoized(database_config),
                 _pickle_memoized(system_config),
-            )
+            ])
             to_update = {
                 'user_schema': user_schema,
                 'reflection_cache': reflection_cache,
@@ -324,44 +324,34 @@ class AbstractPool:
             }
         else:
             if worker_db.user_schema is not user_schema:
-                preargs += (
-                    _pickle_memoized(user_schema),
-                )
+                preargs.append(_pickle_memoized(user_schema))
                 to_update['user_schema'] = user_schema
             else:
-                preargs += (None,)
+                preargs.append(None)
 
             if worker_db.reflection_cache is not reflection_cache:
-                preargs += (
-                    _pickle_memoized(reflection_cache),
-                )
+                preargs.append(_pickle_memoized(reflection_cache))
                 to_update['reflection_cache'] = reflection_cache
             else:
-                preargs += (None,)
+                preargs.append(None)
 
             if worker._global_schema is not global_schema:
-                preargs += (
-                    _pickle_memoized(global_schema),
-                )
+                preargs.append(_pickle_memoized(global_schema))
                 to_update['global_schema'] = global_schema
             else:
-                preargs += (None,)
+                preargs.append(None)
 
             if worker_db.database_config is not database_config:
-                preargs += (
-                    _pickle_memoized(database_config),
-                )
+                preargs.append(_pickle_memoized(database_config))
                 to_update['database_config'] = database_config
             else:
-                preargs += (None,)
+                preargs.append(None)
 
             if worker._system_config is not system_config:
-                preargs += (
-                    _pickle_memoized(system_config),
-                )
+                preargs.append(_pickle_memoized(system_config))
                 to_update['system_config'] = system_config
             else:
-                preargs += (None,)
+                preargs.append(None)
 
         if to_update:
             callback = functools.partial(
@@ -373,7 +363,7 @@ class AbstractPool:
         else:
             callback = None
 
-        return preargs, callback
+        return tuple(preargs), callback
 
     async def _acquire_worker(
         self, *, condition=None, weighter=None, **compiler_args
@@ -397,6 +387,7 @@ class AbstractPool:
         worker = await self._acquire_worker(**compiler_args)
         try:
             preargs, sync_state = await self._compute_compile_preargs(
+                "compile",
                 worker,
                 dbname,
                 user_schema,
@@ -407,7 +398,6 @@ class AbstractPool:
             )
 
             result = await worker.call(
-                'compile',
                 *preargs,
                 *compile_args,
                 sync_state=sync_state
@@ -487,6 +477,7 @@ class AbstractPool:
         worker = await self._acquire_worker(**compiler_args)
         try:
             preargs, sync_state = await self._compute_compile_preargs(
+                "compile_notebook",
                 worker,
                 dbname,
                 user_schema,
@@ -497,7 +488,6 @@ class AbstractPool:
             )
 
             return await worker.call(
-                'compile_notebook',
                 *preargs,
                 *compile_args,
                 sync_state=sync_state
@@ -535,6 +525,7 @@ class AbstractPool:
         worker = await self._acquire_worker(**compiler_args)
         try:
             preargs, sync_state = await self._compute_compile_preargs(
+                "compile_graphql",
                 worker,
                 dbname,
                 user_schema,
@@ -545,7 +536,6 @@ class AbstractPool:
             )
 
             return await worker.call(
-                'compile_graphql',
                 *preargs,
                 *compile_args,
                 sync_state=sync_state
@@ -568,6 +558,7 @@ class AbstractPool:
         worker = await self._acquire_worker(**compiler_args)
         try:
             preargs, sync_state = await self._compute_compile_preargs(
+                "compile_sql",
                 worker,
                 dbname,
                 user_schema,
@@ -578,7 +569,6 @@ class AbstractPool:
             )
 
             return await worker.call(
-                'compile_sql',
                 *preargs,
                 *compile_args,
                 sync_state=sync_state
@@ -1291,22 +1281,6 @@ class MultiTenantWorker(Worker):
             self._cache.pop(client_id, None)
             self._last_used_by_client.pop(client_id, None)
 
-    async def call(self, method_name, *args, sync_state=None):
-        if method_name in {
-            "compile",
-            "compile_notebook",
-            "compile_graphql",
-            "compile_sql",
-        }:
-            idx = args.index(METHOD_NAME_PLACEHOLDER)
-            args = (
-                *args[:idx],
-                method_name,
-                *args[idx + 1:],
-            )
-            method_name = "call_for_client"
-        return await super().call(method_name, *args, sync_state=sync_state)
-
 
 @srvargs.CompilerPoolMode.MultiTenant.assign_implementation
 class MultiTenantPool(FixedPool):
@@ -1365,6 +1339,7 @@ class MultiTenantPool(FixedPool):
 
     async def _compute_compile_preargs(
         self,
+        method_name: str,
         worker: MultiTenantWorker,
         dbname,
         user_schema,
@@ -1500,11 +1475,12 @@ class MultiTenantPool(FixedPool):
             callback = None
 
         return (
+            "call_for_client",
             client_id,
             pickled_schema,
             worker.get_invalidation(),
             None,  # forwarded msg is only used in remote compiler server
-            METHOD_NAME_PLACEHOLDER,
+            method_name,
             dbname,
         ), callback
 
