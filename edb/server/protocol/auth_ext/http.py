@@ -30,6 +30,7 @@ from edb import errors as edb_errors
 from edb.common import debug
 from edb.common import markup
 
+from . import oauth
 from . import errors
 from . import util
 
@@ -45,8 +46,6 @@ class Router:
         try:
             match args:
                 case ("authorize",):
-                    from . import oauth
-
                     # TODO: this is ambiguous whether it's a name or ID which
                     # is useful now, but we'll need to pivot to ID sooner than
                     # later and then rename all of this to provider_id
@@ -63,8 +62,6 @@ class Router:
                     response.close_connection = True
 
                 case ("callback",):
-                    from . import oauth
-
                     query = request.url.query.decode("ascii")
                     state = _get_search_param(query, "state")
                     code = _get_search_param(query, "code")
