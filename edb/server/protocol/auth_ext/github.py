@@ -38,7 +38,7 @@ class GitHubProvider(base.BaseProvider):
         encoded = urllib.parse.urlencode(params)
         return f"https://github.com/login/oauth/authorize?{encoded}"
 
-    async def exchange_access_token(self, code: str) -> str:
+    async def exchange_code(self, code: str) -> str:
         data = {
             "grant_type": "authorization_code",
             "code": code,
@@ -51,6 +51,7 @@ class GitHubProvider(base.BaseProvider):
                 "https://github.com/login/oauth/access_token",
                 json=data,
             )
+            print(f"resp: {resp.text!r}")
             token = resp.json()["access_token"]
 
             return token
