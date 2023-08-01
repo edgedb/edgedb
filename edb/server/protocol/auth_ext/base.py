@@ -21,10 +21,18 @@ from datetime import datetime
 from . import data
 
 class BaseProvider:
-    def __init__(self, name: str, client_id: str, client_secret: str):
+    def __init__(
+        self,
+        name: str,
+        client_id: str,
+        client_secret: str,
+        *,
+        http_factory
+    ):
         self.name = name
         self.client_id = client_id
         self.client_secret = client_secret
+        self.http_factory = http_factory
 
     def get_code_url(self, state: str, redirect_uri: str) -> str:
         raise NotImplementedError

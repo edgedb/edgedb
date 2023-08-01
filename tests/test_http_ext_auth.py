@@ -17,16 +17,78 @@
 #
 
 
+import contextvars
 import urllib.parse
 import uuid
 import json
 import base64
 import datetime
+import http.server
+import threading
+
+from jwcrypto import jwt, jwk
 import respx
 import httpx
 
-from jwcrypto import jwt, jwk
 from edb.testbase import http as tb
+
+
+HTTP_TEST_PORT = contextvars.ContextVar('HTTP_TEST_PORT')
+
+
+class MockHttpServerHandler(http.server.BaseHTTPRequestHandler):
+
+    def do_GET(self):
+        self.close_connection = False
+        server, path = self.path.lstrip('/').split('/', 1)
+        server = urllib.parse.unquote(server)
+        self.server.owner.handle_request('GET', server, path, self)
+
+    def do_POST(self):
+        self.close_connection = False
+        server, path = self.path.lstrip('/').split('/', 1)
+        server = urllib.parse.unquote(server)
+        self.server.owner.handle_request('POST', server, path, self)
+
+
+class MockHttpServer:
+
+    def __init__(self):
+        self.has_started = threading.Event()
+
+    def handle_request(
+        self,
+        method: str,
+        server: str,
+        path: str,
+        handler: MockHttpServerHandler
+    ):
+        # `handler` is documented here:
+        # https://docs.python.org/3/library/http.server.html#http.server.BaseHTTPRequestHandler
+        raise NotImplementedError
+
+    def __enter__(self):
+        assert not hasattr(self, '_http_runner')
+        self._http_runner = threading.Thread(target=self._http_worker)
+        self._http_runner.start()
+        self.has_started.wait()
+        HTTP_TEST_PORT.set(f'http://{self._address[0]}:{self._address[1]}/')
+        return self
+
+    def _http_worker(self):
+        self._http_server = http.server.HTTPServer(
+            ('localhost', 0),
+            MockHttpServerHandler
+        )
+        self._http_server.owner = self
+        self._address = self._http_server.server_address
+        self.has_started.set()
+        self._http_server.serve_forever(poll_interval=0.01)
+
+    def __exit__(self, *exc):
+        self._http_server.shutdown()
+        self._http_runner.join()
+        self._http_runner = None
 
 
 class TestHttpExtAuth(tb.ExtAuthTestCase):
@@ -46,6 +108,20 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         SET xxx_github_client_id := <str>'{uuid.uuid4()}';
         """,
     ]
+
+    def http_con_send_request(self, *args, headers=None, **kwargs):
+        """Inject a test header.
+
+        It's ecognized by the server when explicitly run in the test mode.
+
+        http_con_request() calls this method.
+        """
+        test_port = HTTP_TEST_PORT.get()
+        if test_port:
+            if headers is None:
+                headers = {}
+            headers['x-edgedb-ouath-test-server'] = test_port
+        return super().http_con_send_request(*args, headers=headers, **kwargs)
 
     async def test_http_auth_ext_github_authorize_01(self):
         with self.http_con() as http_con:
@@ -178,92 +254,116 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(status, 400)
 
     async def test_http_auth_ext_github_callback_01(self):
-        with self.http_con() as http_con:
-            async with respx.mock() as respx_mock:
-                auth_signing_key = await self.con.query_single(
-                    """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
-                )
+        class MockGithub(MockHttpServer):
 
-                expires_at = datetime.datetime.utcnow() + datetime.timedelta(
-                    minutes=5
-                )
-                state_claims = {
-                    "iss": self.http_addr,
-                    "provider": "github",
-                    "exp": expires_at.astimezone().timestamp(),
-                    "redirect_to": f"{self.http_addr}/some/path",
-                }
-                state_token = jwt.JWT(
-                    header={"alg": "HS256"},
-                    claims=state_claims,
-                )
+            def handle_request(
+                self,
+                method: str,
+                server: str,
+                path: str,
+                handler: MockHttpServerHandler
+            ):
 
-                key_bytes = base64.b64encode(auth_signing_key.encode())
-                key = jwk.JWK(k=key_bytes.decode(), kty="oct")
-                state_token.make_signed_token(key)
-                now = int(datetime.datetime.utcnow().timestamp())
+                if (method == 'POST' and
+                    server == 'https://github.com' and
+                    path == '/login/oauth/access_token'
+                ):
+                    data = json.dumps({
+                        "access_token": "abc123",
+                        "scope": "read:user",
+                        "token_type": "bearer",
+                    }).encode()
 
-                route_auth = respx_mock.post(
-                    "https://github.com/login/oauth/access_token"
-                ).mock(
-                    return_value=httpx.Response(
-                        200,
-                        json={
-                            "access_token": "abc123",
-                            "scope": "read:user",
-                            "token_type": "bearer",
-                        },
-                    )
-                )
-                route_userinfo = respx_mock.get("https://api.github.com/user").mock(
-                    return_value=httpx.Response(
-                        200,
-                        json={
-                            "id": 1,
-                            "login": "octocat",
-                            "name": "monalisa octocat",
+                    handler.send_response(200)
+                    handler.send_header('Content-Type', 'application/json')
+                    handler.send_header('Content-Length', str(len(data)))
+                    handler.end_headers()
+                    handler.wfile.write(data)
+                    return
+
+                if (method == 'GET' and
+                    server == 'https://api.github.com' and
+                    path == '/user'
+                ):
+                    now = datetime.datetime.utcnow().isoformat()
+                    data = json.dumps({
+                        "id": 1,
+                        "login": "octocat",
+                        "name": "monalisa octocat",
+                        "email": "octocat@example.com",
+                        "avatar_url": "http://example.com/example.jpg",
+                        "updated_at": now,
+                    }).encode()
+
+                    handler.send_response(200)
+                    handler.send_header('Content-Type', 'application/json')
+                    handler.send_header('Content-Length', str(len(data)))
+                    handler.end_headers()
+                    handler.wfile.write(data)
+                    return
+
+                if (method == 'GET' and
+                    server == 'https://api.github.com' and
+                    path == '/user/emails'
+                ):
+                    data = json.dumps([
+                        {
                             "email": "octocat@example.com",
-                            "avatar_url": "http://example.com/example.jpg",
-                            "updated_at": now,
+                            "verified": True,
+                            "primary": True,
                         },
-                    )
-                )
-                route_emails = respx_mock.get(
-                    "https://api.github.com/user/emails"
-                ).mock(
-                    return_value=httpx.Response(
-                        200,
-                        json=[
-                            {
-                                "email": "octocat@example.com",
-                                "verified": True,
-                                "primary": True,
-                            },
-                            {
-                                "email": "octocat+2@example.com",
-                                "verified": False,
-                                "primary": False,
-                            },
-                        ],
-                    )
-                )
+                        {
+                            "email": "octocat+2@example.com",
+                            "verified": False,
+                            "primary": False,
+                        },
+                    ]).encode()
 
-                _, headers, status = self.http_con_request(
-                    http_con,
-                    {"state": state_token.serialize(), "code": "abc123"},
-                    path="callback",
-                )
+                    handler.send_response(200)
+                    handler.send_header('Content-Type', 'application/json')
+                    handler.send_header('Content-Length', str(len(data)))
+                    handler.end_headers()
+                    handler.wfile.write(data)
+                    return
 
-                self.assertEqual(status, 302)
+                print('!!!!!', method, server, path)
+                1/0
 
-                location = headers.get("location")
-                assert location is not None
-                server_url = urllib.parse.urlparse(self.http_addr)
-                url = urllib.parse.urlparse(location)
-                self.assertEqual(url.scheme, server_url.scheme)
-                self.assertEqual(url.hostname, server_url.hostname)
-                self.assertEqual(url.path, f"{server_url.path}/some/path")
+        with MockGithub(), self.http_con() as http_con:
+            auth_signing_key = await self.con.query_single(
+                """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
+            )
 
-                self.assertIsNotNone(route_auth.called)
-                self.assertIsNotNone(route_userinfo.called)
-                self.assertIsNotNone(route_emails.called)
+            expires_at = datetime.datetime.utcnow() + datetime.timedelta(
+                minutes=5
+            )
+            state_claims = {
+                "iss": self.http_addr,
+                "provider": "github",
+                "exp": expires_at.astimezone().timestamp(),
+                "redirect_to": f"{self.http_addr}/some/path",
+            }
+            state_token = jwt.JWT(
+                header={"alg": "HS256"},
+                claims=state_claims,
+            )
+
+            key_bytes = base64.b64encode(auth_signing_key.encode())
+            key = jwk.JWK(k=key_bytes.decode(), kty="oct")
+            state_token.make_signed_token(key)
+
+            _data, headers, status = self.http_con_request(
+                http_con,
+                {"state": state_token.serialize(), "code": "abc123"},
+                path="callback",
+            )
+
+            self.assertEqual(status, 302)
+
+            location = headers.get("location")
+            assert location is not None
+            server_url = urllib.parse.urlparse(self.http_addr)
+            url = urllib.parse.urlparse(location)
+            self.assertEqual(url.scheme, server_url.scheme)
+            self.assertEqual(url.hostname, server_url.hostname)
+            self.assertEqual(url.path, f"{server_url.path}/some/path")

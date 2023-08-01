@@ -36,9 +36,10 @@ from . import util
 
 
 class Router:
-    def __init__(self, db: Any, base_path: str):
+    def __init__(self, *, db: Any, base_path: str, test_mode: bool):
         self.db = db
         self.base_path = base_path
+        self.test_mode = test_mode
 
     async def handle_request(
         self, request: Any, response: Any, args: list[str]
@@ -67,7 +68,12 @@ class Router:
                     code = _get_search_param(query, "code")
                     provider = self._get_from_claims(state, "provider")
                     redirect_to = self._get_from_claims(state, "redirect_to")
-                    client = oauth.Client(db=self.db, provider=provider)
+                    client = oauth.Client(
+                        db=self.db,
+                        provider=provider,
+                        request=request,
+                        test_mode=self.test_mode,
+                    )
                     await client.handle_callback(code)
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = redirect_to
@@ -75,6 +81,12 @@ class Router:
 
                 case _:
                     raise errors.NotFound("Unknown OAuth endpoint")
+
+        except Exception as ex:
+            from edb.common import markup
+            markup.dump(ex)
+            raise
+
 
         except errors.NotFound as ex:
             _fail_with_error(

@@ -46,9 +46,10 @@ class GitHubProvider(base.BaseProvider):
             "client_secret": self.client_secret,
         }
 
-        async with httpx.AsyncClient() as client:
+        async with self.http_factory(
+                base_url='https://github.com') as client:
             resp = await client.post(
-                "https://github.com/login/oauth/access_token",
+                "/login/oauth/access_token",
                 json=data,
             )
             print(f"resp: {resp.text!r}")
@@ -56,46 +57,47 @@ class GitHubProvider(base.BaseProvider):
 
             return token
 
-    async def get_user_info(self, token: str) -> data.UserInfo:
-        async with httpx.AsyncClient() as client:
+    async def fetch_user_info(self, token: str) -> data.UserInfo:
+        async with self.http_factory(
+                base_url='https://api.github.com') as client:
             resp = await client.get(
-                "https://api.github.com/user",
+                "/user",
                 headers={
                     "Authorization": f"Bearer {token}",
                     "Accept": "application/vnd.github+json",
                     "X-GitHub-Api-Version": "2022-11-28",
                 },
             )
-            data = resp.json()
-
+            payload = resp.json()
             return data.UserInfo(
-                sub=data["id"],
-                preferred_username=data.get("login"),
-                name=data.get("name"),
-                email=data.get("email"),
-                picture=data.get("avatar_url"),
+                sub=payload["id"],
+                preferred_username=payload.get("login"),
+                name=payload.get("name"),
+                email=payload.get("email"),
+                picture=payload.get("avatar_url"),
                 updated_at=self._maybe_isoformat_to_timestamp(
-                    data.get("updated_at")
+                    payload.get("updated_at")
                 ),
             )
 
     async def fetch_emails(self, token: str) -> list[data.Email]:
-        async with httpx.AsyncClient() as client:
+        async with self.http_factory(
+                base_url='https://api.github.com') as client:
             resp = await client.get(
-                "https://api.github.com/user/emails",
+                "/user/emails",
                 headers={
                     "Authorization": f"Bearer {token}",
                     "Accept": "application/vnd.github+json",
                     "X-GitHub-Api-Version": "2022-11-28",
                 },
             )
-            data = resp.json()
+            payload = resp.json()
 
             return [
                 data.Email(
-                    email=d["email"],
-                    verified=d["verified"],
-                    primary=d["primary"],
+                    address=d["email"],
+                    is_verified=d["verified"],
+                    is_primary=d["primary"],
                 )
-                for d in data
+                for d in payload
             ]
