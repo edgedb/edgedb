@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from .pool import create_compiler_pool
+from .pool import AbstractPool, create_compiler_pool
 
 
-__all__ = ('create_compiler_pool',)
+__all__ = ("AbstractPool", "create_compiler_pool",)
