@@ -223,7 +223,8 @@ async def compile(
     operation_name: Optional[str],
     variables: Dict[str, Any],
 ):
-    compiler_pool = tenant.get_compiler_pool()
+    server = tenant.server
+    compiler_pool = server.get_compiler_pool()
     return await compiler_pool.compile_graphql(
         db.name,
         db.user_schema,
@@ -236,6 +237,7 @@ async def compile(
         substitutions,
         operation_name,
         variables,
+        client_id=tenant.client_id,
     )
 
 

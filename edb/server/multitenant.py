@@ -33,8 +33,10 @@ import setproctitle
 
 from edb import buildmeta
 from edb import errors
+from edb.common import retryloop
 from edb.common import signalctl
 from edb.common import taskgroup
+from edb.pgsql import params as pgparams
 from edb.server import compiler as edbcompiler
 
 from . import args as srvargs
@@ -42,6 +44,7 @@ from . import config
 from . import pgcluster
 from . import server
 from . import tenant as edbtenant
+from .pgcon import errors as pgerrors
 
 logger = logging.getLogger("edb.server")
 
@@ -62,6 +65,7 @@ TenantConfig = TypedDict(
 
 
 class MultiTenantServer(server.BaseServer):
+    _config_file: pathlib.Path
     _sys_config: Mapping[str, config.SettingValue]
     _backend_settings: Mapping[str, str]
 
@@ -73,20 +77,18 @@ class MultiTenantServer(server.BaseServer):
 
     _task_group: taskgroup.TaskGroup | None
     _task_serial: int
-
-    _compiler_pool_size: int
-    _compiler_pool_addr: tuple[str, int]
+    _running: bool
 
     def __init__(
         self,
+        config_file: pathlib.Path,
         *,
         sys_config: Mapping[str, config.SettingValue],
         backend_settings: Mapping[str, str],
-        compiler_pool_size: int,
-        compiler_pool_addr: tuple[str, int],
         **kwargs,
     ):
         super().__init__(**kwargs)
+        self._config_file = config_file
         self._sys_config = sys_config
         self._backend_settings = backend_settings
 
@@ -98,9 +100,7 @@ class MultiTenantServer(server.BaseServer):
 
         self._task_group = taskgroup.TaskGroup()
         self._task_serial = 0
-
-        self._compiler_pool_size = compiler_pool_size
-        self._compiler_pool_addr = compiler_pool_addr
+        self._running = True
 
     def _get_sys_config(self) -> Mapping[str, config.SettingValue]:
         return self._sys_config
@@ -157,23 +157,43 @@ class MultiTenantServer(server.BaseServer):
     def retrieve_tenant(self, sslobj) -> edbtenant.Tenant | None:
         return self._tenants_by_sslobj.pop(sslobj, None)
 
-    async def _before_start_servers(self):
+    async def _before_start_servers(self) -> None:
+        assert self._task_group is not None
         await self._task_group.__aenter__()
+        await asyncio.wait(self.reload_tenants())
+
+    def _get_status(self) -> dict[str, Any]:
+        status = super()._get_status()
+        tenants = {}
+        for server_name, tenant in self._tenants.items():
+            tenants[server_name] = {
+                "tenant_id": tenant.tenant_id,
+            }
+        status["tenants"] = tenants
+        return status
+
+    def _get_backend_runtime_params(self) -> pgparams.BackendRuntimeParams:
+        return pgparams.get_default_runtime_params()
 
     async def stop(self):
+        self._running = False
         await super().stop()
         await self._task_group.__aexit__(*sys.exc_info())
 
-    def reload_tenants(self, config_file: pathlib.Path) -> None:
-        with config_file.open() as cf:
+    def reload_tenants(self) -> Sequence[asyncio.Future]:
+        with self._config_file.open() as cf:
             conf = json.load(cf)
+        rv = []
         for sni, tenant_conf in conf.items():
             if sni not in self._tenants_conf:
-                self._create_task(self._add_tenant, sni, tenant_conf)
+                rv.append(
+                    self._create_task(self._add_tenant, sni, tenant_conf)
+                )
         for sni in self._tenants_conf:
             if sni not in conf:
-                self._create_task(self._remove_tenant, sni)
+                rv.append(self._create_task(self._remove_tenant, sni))
         self._tenants_conf = conf
+        return rv
 
     def _create_task(self, method, *args) -> asyncio.Task:
         self._task_serial += 1
@@ -237,16 +257,12 @@ class MultiTenantServer(server.BaseServer):
             readiness_state_file=conf.get("readiness-state-file"),
             jwt_sub_allowlist_file=jwt_sub_allowlist_file,
             jwt_revocation_list_file=jwt_revocation_list_file,
-            compiler_pool_size=self._compiler_pool_size,
-            compiler_pool_mode=srvargs.CompilerPoolMode.Remote,
-            compiler_pool_addr=self._compiler_pool_addr,
         )
         tenant.set_server(self)
         tenant.load_jwcrypto()
         try:
             await tenant.init_sys_pgcon()
             await tenant.init()
-            await tenant.create_compiler_pool()
             await tenant.start_accepting_new_tasks()
             tenant.start_running()
             return tenant
@@ -260,38 +276,49 @@ class MultiTenantServer(server.BaseServer):
             tenant.stop()
             await tenant.wait_stopped()
         finally:
-            try:
-                await tenant.destroy_compiler_pool()
-            finally:
-                tenant.terminate_sys_pgcon()
+            tenant.terminate_sys_pgcon()
 
     async def _add_tenant(self, serial: int, sni: str, conf: TenantConfig):
-        while True:
-            try:
-                async with self._tenants_lock[sni]:
-                    if serial > self._tenants_serial.get(sni, 0):
-                        if sni in self._tenants:
-                            logger.error("shouldn't happen")
-                        else:
-                            tenant = await self._create_tenant(conf)
-                            self._tenants[sni] = tenant
-                        self._tenants_serial[sni] = serial
-                    return
-            except Exception as e:
-                # TODO: backoff
-                logger.exception(e)
+        def _warn(e):
+            logger.warning(
+                "Failed to add Tenant %s, retrying. Reason: %s", sni, e
+            )
+
+        rloop = retryloop.RetryLoop(
+            backoff=retryloop.exp_backoff(),
+            timeout=300,
+            ignore=(pgerrors.BackendError, IOError),
+            retry_cb=_warn,
+        )
+        try:
+            async for iteration in rloop:
+                async with iteration:
+                    if not self._running:
+                        return
+                    async with self._tenants_lock[sni]:
+                        if serial > self._tenants_serial.get(sni, 0):
+                            if sni not in self._tenants:
+                                tenant = await self._create_tenant(conf)
+                                self._tenants[sni] = tenant
+                                logger.info("Added Tenant %s", sni)
+                            self._tenants_serial[sni] = serial
+        except Exception:
+            logger.critical("Failed to add Tenant %s", sni, exc_info=True)
+            async with self._tenants_lock[sni]:
+                if serial > self._tenants_serial.get(sni, 0):
+                    self._tenants_conf.pop(sni, None)
 
     async def _remove_tenant(self, serial: int, sni: str):
         try:
             async with self._tenants_lock[sni]:
-                if serial > self._tenants_serial.pop(sni, 0):
+                if serial > self._tenants_serial.get(sni, 0):
                     if sni in self._tenants:
                         tenant = self._tenants.pop(sni)
                         await self._destroy_tenant(tenant)
-                    else:
-                        logger.error("shouldn't happen")
-        except Exception as e:
-            logger.exception(e)
+                        logger.info("Removed Tenant %s", sni)
+                    self._tenants_serial[sni] = serial
+        except Exception:
+            logger.critical("Failed to remove Tenant %s", sni, exc_info=True)
 
 
 async def run_server(
@@ -300,8 +327,7 @@ async def run_server(
     sys_config: Mapping[str, config.SettingValue],
     backend_settings: Mapping[str, str],
     runstate_dir: pathlib.Path,
-    compiler_pool_size: int,
-    compiler_pool_addr: tuple[str, int],
+    internal_runstate_dir: str,
     do_setproctitle: bool,
 ):
     multitenant_config_file = args.multitenant_config_file
@@ -309,9 +335,11 @@ async def run_server(
 
     with signalctl.SignalController(signal.SIGINT, signal.SIGTERM) as sc:
         ss = MultiTenantServer(
+            multitenant_config_file,
             sys_config=sys_config,
             backend_settings=backend_settings,
             runstate_dir=runstate_dir,
+            internal_runstate_dir=internal_runstate_dir,
             nethosts=args.bind_addresses,
             netport=args.port,
             listen_sockets=(),
@@ -324,8 +352,12 @@ async def run_server(
             testmode=args.testmode,
             admin_ui=args.admin_ui,
             disable_dynamic_system_config=args.disable_dynamic_system_config,
-            compiler_pool_size=compiler_pool_size,
-            compiler_pool_addr=compiler_pool_addr,
+            compiler_pool_size=args.compiler_pool_size,
+            compiler_pool_mode=srvargs.CompilerPoolMode.MultiTenant,
+            compiler_pool_addr=args.compiler_pool_addr,
+            compiler_pool_tenant_cache_size=(
+                args.compiler_pool_tenant_cache_size
+            ),
         )
         await sc.wait_for(ss.init())
         ss.init_tls(args.tls_cert_file, args.tls_key_file, False)
@@ -336,7 +368,7 @@ async def run_server(
             try:
                 ss.reload_tls(args.tls_cert_file, args.tls_key_file)
                 ss.load_jwcrypto(args.jws_key_file)
-                ss.reload_tenants(multitenant_config_file)
+                ss.reload_tenants()
             except Exception:
                 logger.critical(
                     "Unexpected error occurred during reload configuration; "
@@ -347,7 +379,6 @@ async def run_server(
 
         try:
             await sc.wait_for(ss.start())
-            ss.reload_tenants(multitenant_config_file)
             if do_setproctitle:
                 setproctitle.setproctitle(
                     f"edgedb-server-{ss.get_listen_port()}"

@@ -81,5 +81,5 @@ cdef class HttpProtocol:
     cdef unhandled_exception(self, ex)
     cdef resume(self)
     cdef close(self)
-    cdef inline _ensure_tenant(self)
+    cdef inline _schedule_handle_request(self, request)
     cdef inline _close_with_error(self, bytes status, bytes message)

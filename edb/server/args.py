@@ -158,6 +158,7 @@ class CompilerPoolMode(enum.StrEnum):
     Fixed = "fixed"
     OnDemand = "on_demand"
     Remote = "remote"
+    MultiTenant = "fixed_multi_tenant"
 
     def __init__(self, name):
         self.pool_class = None
@@ -195,7 +196,8 @@ class ServerConfig(NamedTuple):
     max_backend_connections: Optional[int]
     compiler_pool_size: int
     compiler_pool_mode: CompilerPoolMode
-    compiler_pool_addr: tuple[str, int]
+    compiler_pool_addr: str
+    compiler_pool_tenant_cache_size: int
     echo_runtime_info: bool
     emit_server_status: str
     temp_dir: bool
@@ -687,6 +689,14 @@ _server_options = [
         help=f'Specify the host[:port] of the compiler pool to connect to, '
              f'only used if --compiler-pool-mode=remote. Default host is '
              f'localhost, port is {defines.EDGEDB_REMOTE_COMPILER_PORT}',
+    ),
+    click.option(
+        "--compiler-pool-tenant-cache-size",
+        hidden=True,
+        type=int,
+        default=100,
+        help="Number of tenants each compiler worker could cache at most, "
+             "only used when --compiler-pool-mode=fixed_multi_tenant"
     ),
     click.option(
         '--echo-runtime-info', type=bool, default=False, is_flag=True,
@@ -1287,8 +1297,9 @@ def parse_args(**kwargs: Any):
             abort("must specify --jws-key-file in multi-tenant mode")
         if kwargs['jose_key_mode'] is not JOSEKeyMode.RequireFile:
             abort("must use --jose-key-mode=require_file in multi-tenant mode")
-        if kwargs['compiler_pool_mode'] is not CompilerPoolMode.Remote:
-            abort("must use --compiler-pool-mode=remote in multi-tenant mode")
+        if kwargs['compiler_pool_mode'] is not CompilerPoolMode.MultiTenant:
+            abort("must use --compiler-pool-mode=fixed_multi_tenant "
+                  "in multi-tenant mode")
 
     if kwargs['log_level']:
         kwargs['log_level'] = kwargs['log_level'].lower()[0]

@@ -247,16 +247,21 @@ cdef class HttpProtocol:
             self.unprocessed.append(req)
         else:
             self.in_response = True
-            self._schedule_handle_request()
+            self._schedule_handle_request(req)
 
         self.server._http_last_minute_requests += 1
 
-    cdef _schedule_handle_request(self, request):
+    cdef inline _schedule_handle_request(self, request):
         if self.tenant is None:
             self.loop.create_task(self._handle_request(request))
-        else:
-            self._ensure_tenant().create_task(
+        elif self.tenant.is_accepting_connections():
+            self.tenant.create_task(
                 self._handle_request(request), interruptable=False
+            )
+        else:
+            self._close_with_error(
+                b'503 Service Unavailable',
+                b'The server is closing.',
             )
 
     cdef close(self):
@@ -334,16 +339,6 @@ cdef class HttpProtocol:
             response.custom_headers,
             response.body,
             response.close_connection)
-
-    cdef inline _ensure_tenant(self):
-        if self.tenant is None:
-            self.tenant = self.server.get_default_tenant()
-        if not self.tenant.is_accepting_connections():
-            return self._close_with_error(
-                b'503 Service Unavailable',
-                b'The server is closing.',
-            )
-        return self.tenant
 
     def _switch_to_binary_protocol(self, data=None):
         binproto = binary.new_edge_connection(
@@ -473,13 +468,25 @@ cdef class HttpProtocol:
         path_parts_len = len(path_parts)
         route = path_parts[0]
 
+        if self.tenant is None and route in ['db', 'auth']:
+            self.tenant = self.server.get_default_tenant()
+            if self.tenant.is_accepting_connections():
+                return await self.tenant.create_task(
+                    self.handle_request(request, response),
+                    interruptable=False,
+                )
+            else:
+                return self._close_with_error(
+                    b'503 Service Unavailable',
+                    b'The server is closing.',
+                )
+
         if route == 'db':
             if path_parts_len < 2:
                 return self._not_found(request, response)
 
-            tenant = self._ensure_tenant()
             dbname = path_parts[1]
-            db = tenant.maybe_get_db(dbname=dbname)
+            db = self.tenant.maybe_get_db(dbname=dbname)
             if db is None:
                 return self._not_found(request, response)
 
@@ -528,18 +535,15 @@ cdef class HttpProtocol:
 
                     conn_params["database"] = dbname
 
-                    response.body = await tenant.create_task(
-                        binary.eval_buffer(
-                            self.server,
-                            tenant,
-                            database=dbname,
-                            data=self.current_request.body,
-                            conn_params=conn_params,
-                            protocol_version=proto_ver,
-                            auth_data=self.current_request.authorization,
-                            transport=srvargs.ServerConnTransport.HTTP,
-                        ),
-                        interruptable=False,
+                    response.body = await binary.eval_buffer(
+                        self.server,
+                        self.tenant,
+                        database=dbname,
+                        data=self.current_request.body,
+                        conn_params=conn_params,
+                        protocol_version=proto_ver,
+                        auth_data=self.current_request.authorization,
+                        transport=srvargs.ServerConnTransport.HTTP,
                     )
                     response.status = http.HTTPStatus.OK
                     response.content_type = PROTO_MIME
@@ -556,25 +560,16 @@ cdef class HttpProtocol:
                 args = path_parts[3:]
 
                 if extname == 'graphql':
-                    await tenant.create_task(
-                        graphql_ext.handle_request(
-                            request, response, db, args, tenant
-                        ),
-                        interruptable=False,
+                    await graphql_ext.handle_request(
+                        request, response, db, args, self.tenant
                     )
                 elif extname == 'notebook':
-                    await tenant.create_task(
-                        notebook_ext.handle_request(
-                            request, response, db, args, tenant
-                        ),
-                        interruptable=False,
+                    await notebook_ext.handle_request(
+                        request, response, db, args, self.tenant
                     )
                 elif extname == 'edgeql_http':
-                    await tenant.create_task(
-                        edgeql_ext.handle_request(
-                            request, response, db, args, self.server
-                        ),
-                        interruptable=False,
+                    await edgeql_ext.handle_request(
+                        request, response, db, args, self.server
                     )
 
         elif route == 'auth':
@@ -588,15 +583,11 @@ cdef class HttpProtocol:
                     return
 
             # Authentication request
-            tenant = self._ensure_tenant()
-            await tenant.create_task(
-                auth.handle_request(
-                    request,
-                    response,
-                    path_parts[1:],
-                    tenant,
-                ),
-                interruptable=False,
+            await auth.handle_request(
+                request,
+                response,
+                path_parts[1:],
+                self.tenant,
             )
         elif route == 'server':
             # System API request

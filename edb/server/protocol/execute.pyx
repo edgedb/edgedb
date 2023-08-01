@@ -70,6 +70,7 @@ async def execute(
         orig_state = state = dbv.serialize_state()
 
     new_types = None
+    server = dbv.server
     tenant = dbv.tenant
 
     data = None
@@ -122,7 +123,7 @@ async def execute(
                     if query_unit.is_explain:
                         # Go back to the compiler pool to analyze
                         # the explain output.
-                        compiler_pool = tenant.get_compiler_pool()
+                        compiler_pool = server.get_compiler_pool()
                         r = await compiler_pool.analyze_explain_output(
                             query_unit.query_asts, data
                         )

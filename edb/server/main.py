@@ -190,13 +190,16 @@ async def _run_server(
             readiness_state_file=args.readiness_state_file,
             jwt_sub_allowlist_file=args.jwt_sub_allowlist_file,
             jwt_revocation_list_file=args.jwt_revocation_list_file,
+        )
+        ss = server.Server(
+            runstate_dir=runstate_dir,
             internal_runstate_dir=internal_runstate_dir,
             compiler_pool_size=args.compiler_pool_size,
             compiler_pool_mode=args.compiler_pool_mode,
             compiler_pool_addr=args.compiler_pool_addr,
-        )
-        ss = server.Server(
-            runstate_dir=runstate_dir,
+            compiler_pool_tenant_cache_size=(
+                args.compiler_pool_tenant_cache_size
+            ),
             nethosts=args.bind_addresses,
             netport=args.port,
             listen_sockets=tuple(s for ss in sockets.values() for s in ss),
@@ -525,15 +528,15 @@ async def run_server(
                 sys_config, backend_settings = initialize_static_cfg(
                     args, is_remote_cluster=True
                 )
-                return await multitenant.run_server(
-                    args,
-                    sys_config=sys_config,
-                    backend_settings=backend_settings,
-                    runstate_dir=runstate_dir,
-                    compiler_pool_size=args.compiler_pool_size,
-                    compiler_pool_addr=args.compiler_pool_addr,
-                    do_setproctitle=do_setproctitle,
-                )
+                with _internal_state_dir(runstate_dir) as int_runstate_dir:
+                    return await multitenant.run_server(
+                        args,
+                        sys_config=sys_config,
+                        backend_settings=backend_settings,
+                        runstate_dir=runstate_dir,
+                        internal_runstate_dir=int_runstate_dir,
+                        do_setproctitle=do_setproctitle,
+                    )
             except server.StartupError as e:
                 abort(str(e))
 

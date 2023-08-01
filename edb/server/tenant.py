@@ -32,20 +32,19 @@ import time
 import immutables
 
 from edb import errors
-from edb import buildmeta
 from edb.common import retryloop
 from edb.common import taskgroup
 from edb.schema import roles as s_role
 from edb.schema import schema as s_schema
 
 from . import args as srvargs
-from . import compiler_pool
 from . import config
 from . import connpool
 from . import dbview
 from . import defines
 from . import metrics
 from . import pgcon
+from .compiler_pool import pool as compiler_pool
 from .ha import adaptive as adaptive_ha
 from .ha import base as ha_base
 from .pgcon import errors as pgcon_errors
@@ -108,12 +107,6 @@ class Tenant(ha_base.ClusterProtocol):
     _jwt_revocation_list_file: pathlib.Path | None
     _jwt_revocation_list: frozenset[str] | None
 
-    _internal_runstate_dir: str | None
-    _compiler_pool: compiler_pool.AbstractPool
-    _compiler_pool_size: int
-    _compiler_pool_mode: srvargs.CompilerPoolMode
-    _compiler_pool_addr: tuple[str, int]
-
     def __init__(
         self,
         cluster: pgcluster.BaseCluster,
@@ -124,16 +117,12 @@ class Tenant(ha_base.ClusterProtocol):
         readiness_state_file: str | None = None,
         jwt_sub_allowlist_file: pathlib.Path | None = None,
         jwt_revocation_list_file: pathlib.Path | None = None,
-        internal_runstate_dir: str | None = None,
-        compiler_pool_size: int,
-        compiler_pool_mode: srvargs.CompilerPoolMode,
-        compiler_pool_addr: tuple[str, int],
     ):
         self._cluster = cluster
         self._tenant_id = self.get_backend_runtime_params().tenant_id
         self._instance_name = instance_name
         self._instance_data = immutables.Map()
-        self._initing = False
+        self._initing = True
         self._running = False
         self._accepting_connections = False
 
@@ -172,7 +161,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._block_new_connections = set()
         self._report_config_data = {}
 
-        # DB state will be initialized in Server.init().
+        # DB state will be initialized in init().
         self._dbindex = None
 
         self._roles = immutables.Map()
@@ -181,11 +170,6 @@ class Tenant(ha_base.ClusterProtocol):
         self._jwt_sub_allowlist = None
         self._jwt_revocation_list_file = jwt_revocation_list_file
         self._jwt_revocation_list = None
-
-        self._internal_runstate_dir = internal_runstate_dir
-        self._compiler_pool_size = compiler_pool_size
-        self._compiler_pool_mode = compiler_pool_mode
-        self._compiler_pool_addr = compiler_pool_addr
 
     def set_server(self, server: edbserver.BaseServer) -> None:
         self._server = server
@@ -223,6 +207,10 @@ class Tenant(ha_base.ClusterProtocol):
         )
 
     @property
+    def client_id(self) -> int:
+        return self._cluster.get_client_id()
+
+    @property
     def server(self) -> edbserver.BaseServer:
         return self._server
 
@@ -231,16 +219,8 @@ class Tenant(ha_base.ClusterProtocol):
         return self._tenant_id
 
     @property
-    def max_backend_connections(self) -> int:
-        return self._max_backend_connections
-
-    @property
     def suggested_client_pool_size(self) -> int:
         return self._suggested_client_pool_size
-
-    @property
-    def dbindex(self) -> dbview.DatabaseIndex | None:
-        return self._dbindex
 
     def get_pg_dbname(self, dbname: str) -> str:
         return self._cluster.get_db_name(dbname)
@@ -319,61 +299,57 @@ class Tenant(ha_base.ClusterProtocol):
         self._roles = immutables.Map(roles)
 
     async def init_sys_pgcon(self) -> None:
-        self._initing = True
         self._sys_pgcon_waiter = asyncio.Lock()
         self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
         self._sys_pgcon_ready_evt = asyncio.Event()
         self._sys_pgcon_reconnect_evt = asyncio.Event()
 
     async def init(self) -> None:
-        try:
-            async with self.use_sys_pgcon() as syscon:
-                result = await syscon.sql_fetch_val(
-                    b"""\
-                        SELECT json::json FROM edgedbinstdata.instdata
-                        WHERE key = 'instancedata';
-                    """
-                )
-                self._instance_data = immutables.Map(json.loads(result))
-
-            global_schema = await self.introspect_global_schema()
-            sys_config = await self._load_sys_config()
-            default_sysconfig = await self._load_sys_config(
-                "sysconfig_default"
+        async with self.use_sys_pgcon() as syscon:
+            result = await syscon.sql_fetch_val(
+                b"""\
+                    SELECT json::json FROM edgedbinstdata.instdata
+                    WHERE key = 'instancedata';
+                """
             )
-            await self._load_reported_config()
+            self._instance_data = immutables.Map(json.loads(result))
 
-            self._dbindex = dbview.DatabaseIndex(
-                self,
-                std_schema=self._server.get_std_schema(),
-                global_schema=global_schema,
-                sys_config=sys_config,
-                default_sysconfig=default_sysconfig,
-            )
+        global_schema = await self.introspect_global_schema()
+        sys_config = await self._load_sys_config()
+        default_sysconfig = await self._load_sys_config("sysconfig_default")
+        await self._load_reported_config()
 
-            self.fetch_roles()
-            await self._introspect_dbs()
+        self._dbindex = dbview.DatabaseIndex(
+            self,
+            std_schema=self._server.get_std_schema(),
+            global_schema=global_schema,
+            sys_config=sys_config,
+            default_sysconfig=default_sysconfig,
+        )
 
-            # Now, once all DBs have been introspected, start listening on
-            # any notifications about schema/roles/etc changes.
-            assert self.__sys_pgcon is not None
-            await self.__sys_pgcon.listen_for_sysevent()
-            self.__sys_pgcon.mark_as_system_db()
-            self._sys_pgcon_ready_evt.set()
+        self.fetch_roles()
+        await self._introspect_dbs()
 
-            self.populate_sys_auth()
+        # Now, once all DBs have been introspected, start listening on
+        # any notifications about schema/roles/etc changes.
+        assert self.__sys_pgcon is not None
+        await self.__sys_pgcon.listen_for_sysevent()
+        self.__sys_pgcon.mark_as_system_db()
+        self._sys_pgcon_ready_evt.set()
 
-            if self._readiness_state_file is not None:
+        self.populate_sys_auth()
 
-                def reload_state_file(_file_modified, _event):
-                    self.reload_readiness_state()
+        if self._readiness_state_file is not None:
 
+            def reload_state_file(_file_modified, _event):
                 self.reload_readiness_state()
-                self._server.monitor_fs(
-                    self._readiness_state_file, reload_state_file
-                )
-        finally:
-            self._initing = False
+
+            self.reload_readiness_state()
+            self._server.monitor_fs(
+                self._readiness_state_file, reload_state_file
+            )
+
+        self._initing = False
 
     async def start_accepting_new_tasks(self) -> None:
         assert self._task_group is None
@@ -1356,42 +1332,6 @@ class Tenant(ha_base.ClusterProtocol):
 
         self.create_task(task(), interruptable=True)
 
-    async def create_compiler_pool(self) -> None:
-        # Force Postgres version in BackendRuntimeParams to be the
-        # minimal supported, because the compiler does not rely on
-        # the version, and not pinning it would make the remote compiler
-        # pool refuse connections from clients that have differing versions
-        # of Postgres backing them.
-        runtime_params = self.get_backend_runtime_params()
-        min_ver = ".".join(str(v) for v in defines.MIN_POSTGRES_VERSION)
-        runtime_params = runtime_params._replace(
-            instance_params=runtime_params.instance_params._replace(
-                version=buildmeta.parse_pg_version(min_ver),
-            ),
-        )
-
-        args = dict(
-            pool_size=self._compiler_pool_size,
-            pool_class=self._compiler_pool_mode.pool_class,
-            dbindex=self._dbindex,
-            runstate_dir=self._internal_runstate_dir,
-            backend_runtime_params=runtime_params,
-            std_schema=self._server.get_std_schema(),
-            refl_schema=self._server.get_refl_schema(),
-            schema_class_layout=self._server.get_schema_class_layout(),
-        )
-        if self._compiler_pool_mode == srvargs.CompilerPoolMode.Remote:
-            args["address"] = self._compiler_pool_addr
-        self._compiler_pool = await compiler_pool.create_compiler_pool(**args)
-
-    async def destroy_compiler_pool(self):
-        if hasattr(self, "_compiler_pool"):
-            await self._compiler_pool.stop()
-            del self._compiler_pool
-
-    def get_compiler_pool(self):
-        return self._compiler_pool
-
     def get_debug_info(self) -> dict[str, Any]:
         obj = dict(
             params=dict(
@@ -1402,7 +1342,6 @@ class Tenant(ha_base.ClusterProtocol):
             user_roles=self._roles,
             pg_addr=self.get_pgaddr(),
             pg_pool=self._pg_pool._build_snapshot(now=time.monotonic()),
-            compiler_pool=self._compiler_pool.get_debug_info(),
         )
 
         def serialize_config(cfg):
@@ -1434,3 +1373,7 @@ class Tenant(ha_base.ClusterProtocol):
         obj["databases"] = dbs
 
         return obj
+
+    def attach_to_compiler(self, compiler: compiler_pool.AbstractPool):
+        assert self._dbindex is not None
+        compiler.add_dbindex(self.client_id, self._dbindex)

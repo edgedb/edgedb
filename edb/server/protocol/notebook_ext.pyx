@@ -159,7 +159,7 @@ async def execute(db, tenant, queries: list):
         query_cache=False,
         protocol_version=edbdef.CURRENT_PROTOCOL,
     )
-    compiler_pool = tenant.get_compiler_pool()
+    compiler_pool = tenant.server.get_compiler_pool()
     units = await compiler_pool.compile_notebook(
         dbv.dbname,
         dbv.get_user_schema(),
@@ -170,6 +170,7 @@ async def execute(db, tenant, queries: list):
         queries,
         CURRENT_PROTOCOL,
         50,  # implicit limit
+        client_id=tenant.client_id,
     )
     result = []
     bind_data = None

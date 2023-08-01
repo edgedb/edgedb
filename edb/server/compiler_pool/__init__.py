@@ -22,4 +22,4 @@ from __future__ import annotations
 from .pool import AbstractPool, create_compiler_pool
 
 
-__all__ = ('AbstractPool', 'create_compiler_pool')
+__all__ = ("AbstractPool", "create_compiler_pool",)

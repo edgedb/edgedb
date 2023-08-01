@@ -36,6 +36,7 @@ import uuid
 import immutables
 from jwcrypto import jwk
 
+from edb import buildmeta
 from edb import errors
 
 from edb.common import devmode
@@ -49,6 +50,7 @@ from edb.schema import schema as s_schema
 from edb.server import args as srvargs
 from edb.server import cache
 from edb.server import config
+from edb.server import compiler_pool
 from edb.server import defines
 from edb.server import protocol
 from edb.server import tenant as edbtenant
@@ -62,6 +64,8 @@ from edb.pgsql import patches as pg_patches
 if TYPE_CHECKING:
     import asyncio.base_events
     import pathlib
+
+    from edb.pgsql import params as pgparams
 
 
 ADMIN_PLACEHOLDER = "<edgedb:admin>"
@@ -101,10 +105,17 @@ class BaseServer:
     _idle_gc_handler: asyncio.TimerHandle | None = None
     _stmt_cache_size: int | None = None
 
+    _compiler_pool: compiler_pool.AbstractPool | None
+
     def __init__(
         self,
         *,
         runstate_dir,
+        internal_runstate_dir,
+        compiler_pool_size,
+        compiler_pool_mode: srvargs.CompilerPoolMode,
+        compiler_pool_addr,
+        compiler_pool_tenant_cache_size,
         nethosts,
         netport,
         listen_sockets: tuple[socket.socket, ...] = (),
@@ -127,6 +138,12 @@ class BaseServer:
         self._server_id = str(uuid.uuid4())
 
         self._runstate_dir = runstate_dir
+        self._internal_runstate_dir = internal_runstate_dir
+        self._compiler_pool = None
+        self._compiler_pool_size = compiler_pool_size
+        self._compiler_pool_mode = compiler_pool_mode
+        self._compiler_pool_addr = compiler_pool_addr
+        self._compiler_pool_tenant_cache_size = compiler_pool_tenant_cache_size
 
         self._listen_sockets = listen_sockets
         if listen_sockets:
@@ -356,6 +373,47 @@ class BaseServer:
             metrics.background_errors.inc(1.0, 'idle_clients_collector')
             raise
 
+    def _get_backend_runtime_params(self) -> pgparams.BackendRuntimeParams:
+        raise NotImplementedError
+
+    def _create_compiler_pool(self) -> compiler_pool.AbstractPool:
+        # Force Postgres version in BackendRuntimeParams to be the
+        # minimal supported, because the compiler does not rely on
+        # the version, and not pinning it would make the remote compiler
+        # pool refuse connections from clients that have differing versions
+        # of Postgres backing them.
+        runtime_params = self._get_backend_runtime_params()
+        min_ver = '.'.join(str(v) for v in defines.MIN_POSTGRES_VERSION)
+        runtime_params = runtime_params._replace(
+            instance_params=runtime_params.instance_params._replace(
+                version=buildmeta.parse_pg_version(min_ver),
+            ),
+        )
+
+        args = dict(
+            pool_size=self._compiler_pool_size,
+            pool_class=self._compiler_pool_mode.pool_class,
+            runstate_dir=self._internal_runstate_dir,
+            backend_runtime_params=runtime_params,
+            std_schema=self._std_schema,
+            refl_schema=self._refl_schema,
+            schema_class_layout=self._schema_class_layout,
+        )
+        if self._compiler_pool_mode == srvargs.CompilerPoolMode.Remote:
+            args['address'] = self._compiler_pool_addr
+        elif self._compiler_pool_mode == srvargs.CompilerPoolMode.MultiTenant:
+            args["cache_size"] = self._compiler_pool_tenant_cache_size
+        self._compiler_pool = compiler_pool.create_compiler_pool(**args)
+        return self._compiler_pool
+
+    async def _destroy_compiler_pool(self):
+        if self._compiler_pool is not None:
+            await self._compiler_pool.stop()
+            self._compiler_pool = None
+
+    def get_compiler_pool(self):
+        return self._compiler_pool
+
     async def introspect_global_schema(
         self, conn: pgcon.PGConnection
     ) -> s_schema.Schema:
@@ -403,78 +461,6 @@ class BaseServer:
         )
         num_patches = json.loads(num_patches) if num_patches else 0
         return num_patches
-
-    def _load_schema(self, result, version_key):
-        res = pickle.loads(result[2:])
-        if version_key != pg_patches.get_version_key(len(pg_patches.PATCHES)):
-            res = s_schema.upgrade_schema(res)
-        return res
-
-    async def _load_instance_data(self, syscon: pgcon.PGConnection):
-        patch_count = await self.get_patch_count(syscon)
-        version_key = pg_patches.get_version_key(patch_count)
-
-        result = await syscon.sql_fetch_val(f'''\
-            SELECT json::json FROM edgedbinstdata.instdata
-            WHERE key = 'sysqueries{version_key}';
-        '''.encode('utf-8'))
-        queries = json.loads(result)
-        self._sys_queries = immutables.Map(
-            {k: q.encode() for k, q in queries.items()})
-
-        self._local_intro_query = await syscon.sql_fetch_val(f'''\
-            SELECT text FROM edgedbinstdata.instdata
-            WHERE key = 'local_intro_query{version_key}';
-        '''.encode('utf-8'))
-
-        self._global_intro_query = await syscon.sql_fetch_val(f'''\
-            SELECT text FROM edgedbinstdata.instdata
-            WHERE key = 'global_intro_query{version_key}';
-        '''.encode('utf-8'))
-
-        result = await syscon.sql_fetch_val(f'''\
-            SELECT bin FROM edgedbinstdata.instdata
-            WHERE key = 'stdschema{version_key}';
-        '''.encode('utf-8'))
-        try:
-            self._std_schema = self._load_schema(result, version_key)
-        except Exception as e:
-            raise RuntimeError(
-                'could not load std schema pickle') from e
-
-        result = await syscon.sql_fetch_val(f'''\
-            SELECT bin FROM edgedbinstdata.instdata
-            WHERE key = 'reflschema{version_key}';
-        '''.encode('utf-8'))
-        try:
-            self._refl_schema = self._load_schema(result, version_key)
-        except Exception as e:
-            raise RuntimeError(
-                'could not load refl schema pickle') from e
-
-        result = await syscon.sql_fetch_val(f'''\
-            SELECT bin FROM edgedbinstdata.instdata
-            WHERE key = 'classlayout{version_key}';
-        '''.encode('utf-8'))
-        try:
-            self._schema_class_layout = pickle.loads(result[2:])
-        except Exception as e:
-            raise RuntimeError(
-                'could not load schema class layout pickle') from e
-
-        self._report_config_typedesc[(1, 0)] = await syscon.sql_fetch_val(
-            f'''
-                SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'report_configs_typedesc_1_0{version_key}';
-            '''.encode('utf-8'),
-        )
-
-        self._report_config_typedesc[(2, 0)] = await syscon.sql_fetch_val(
-            f'''
-                SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'report_configs_typedesc_2_0{version_key}';
-            '''.encode('utf-8'),
-        )
 
     async def _on_system_config_add(self, setting_name, value):
         # CONFIGURE INSTANCE INSERT ConfigObject;
@@ -552,6 +538,7 @@ class BaseServer:
             + defines.MAX_UNIX_SOCKET_PATH_LENGTH
             + 1
         ), "admin Unix socket length exceeds maximum allowed"
+        # TODO(fantix): run multiple UNIX domain sockets in multi-tenant server
         admin_unix_srv = await self.__loop.create_unix_server(
             lambda: binary.new_edge_connection(
                 self, self.get_default_tenant(), external_auth=True
@@ -660,6 +647,11 @@ class BaseServer:
         )
 
     def _sni_callback(self, sslobj, server_name, sslctx):
+        # Match the given SNI for a pre-registered Tenant instance,
+        # and temporarily store in memory indexed by sslobj for future
+        # retrieval, see also retrieve_tenant() below.
+        #
+        # Used in multi-tenant server only. This method must not fail.
         pass
 
     def reload_tls(self, tls_cert_file, tls_key_file):
@@ -794,10 +786,10 @@ class BaseServer:
                 srv.close()
                 g.create_task(srv.wait_closed())
 
-    async def _before_start_servers(self):
+    async def _before_start_servers(self) -> None:
         pass
 
-    async def _after_start_servers(self):
+    async def _after_start_servers(self) -> None:
         pass
 
     async def start(self):
@@ -806,6 +798,8 @@ class BaseServer:
         self._http_request_logger = self.__loop.create_task(
             self._request_stats_logger()
         )
+
+        await self._create_compiler_pool().start()
 
         await self._before_start_servers()
         self._servers, actual_port, listen_addrs = await self._start_servers(
@@ -835,7 +829,7 @@ class BaseServer:
             self._auto_shutdown_handler = self.__loop.call_later(
                 self._auto_shutdown_after, self.request_auto_shutdown)
 
-    def _get_status(self):
+    def _get_status(self) -> dict[str, Any]:
         return {
             "port": self._listen_port,
             "socket_dir": str(self._runstate_dir),
@@ -905,6 +899,10 @@ class BaseServer:
                 listen_port=self._listen_port,
             ),
             instance_config=serialize_config(self._get_sys_config()),
+            compiler_pool=dict(
+                worker_pids=list(self._compiler_pool._workers.keys()),
+                template_pid=self._compiler_pool.get_template_pid(),
+            ),
         )
 
     def get_report_config_typedesc(
@@ -920,16 +918,22 @@ class BaseServer:
     def get_std_schema(self) -> s_schema.Schema:
         return self._std_schema
 
-    def get_refl_schema(self) -> s_schema.Schema:
-        return self._refl_schema
-
-    def get_schema_class_layout(self) -> s_refl.SchemaClassLayout:
-        return self._schema_class_layout
-
     def retrieve_tenant(self, sslobj) -> edbtenant.Tenant | None:
+        # After TLS handshake, the client connection would use this method to
+        # retrieve the Tenant instance associated with the given SSLObject.
+        #
+        # This method must not fail. See also _sni_callback() above.
         return self.get_default_tenant()
 
     def get_default_tenant(self) -> edbtenant.Tenant:
+        # The client connection must proceed on a Tenant instance. In cases:
+        #   1. plain-text connection without TLS handshake
+        #   2. TLS handshake didn't provide SNI
+        #   3. SNI didn't match any Tenant (retrieve_tenant() returned None)
+        # this method will be called for a "default" tenant to use.
+        #
+        # The caller must be ready to handle errors raised in this method, and
+        # provide a decent error.
         raise NotImplementedError
 
 
@@ -958,8 +962,7 @@ class Server(BaseServer):
 
     async def init(self) -> None:
         await self._tenant.init_sys_pgcon()
-        async with self._tenant.use_sys_pgcon() as syscon:
-            await self._load_instance_data(syscon)
+        await self._load_instance_data()
         await self._maybe_patch()
         await self._tenant.init()
         await super().init()
@@ -1142,43 +1145,85 @@ class Server(BaseServer):
             await self._maybe_apply_patches(
                 defines.EDGEDB_SYSTEM_DB, syscon, patches, sys=True)
 
+    def _load_schema(self, result, version_key):
+        res = pickle.loads(result[2:])
+        if version_key != pg_patches.get_version_key(len(pg_patches.PATCHES)):
+            res = s_schema.upgrade_schema(res)
+        return res
+
+    async def _load_instance_data(self):
+        async with self._tenant.use_sys_pgcon() as syscon:
+            patch_count = await self.get_patch_count(syscon)
+            version_key = pg_patches.get_version_key(patch_count)
+
+            result = await syscon.sql_fetch_val(f'''\
+                SELECT json::json FROM edgedbinstdata.instdata
+                WHERE key = 'sysqueries{version_key}';
+            '''.encode('utf-8'))
+            queries = json.loads(result)
+            self._sys_queries = immutables.Map(
+                {k: q.encode() for k, q in queries.items()})
+
+            self._local_intro_query = await syscon.sql_fetch_val(f'''\
+                SELECT text FROM edgedbinstdata.instdata
+                WHERE key = 'local_intro_query{version_key}';
+            '''.encode('utf-8'))
+
+            self._global_intro_query = await syscon.sql_fetch_val(f'''\
+                SELECT text FROM edgedbinstdata.instdata
+                WHERE key = 'global_intro_query{version_key}';
+            '''.encode('utf-8'))
+
+            result = await syscon.sql_fetch_val(f'''\
+                SELECT bin FROM edgedbinstdata.instdata
+                WHERE key = 'stdschema{version_key}';
+            '''.encode('utf-8'))
+            try:
+                self._std_schema = self._load_schema(result, version_key)
+            except Exception as e:
+                raise RuntimeError(
+                    'could not load std schema pickle') from e
+
+            result = await syscon.sql_fetch_val(f'''\
+                SELECT bin FROM edgedbinstdata.instdata
+                WHERE key = 'reflschema{version_key}';
+            '''.encode('utf-8'))
+            try:
+                self._refl_schema = self._load_schema(result, version_key)
+            except Exception as e:
+                raise RuntimeError(
+                    'could not load refl schema pickle') from e
+
+            result = await syscon.sql_fetch_val(f'''\
+                SELECT bin FROM edgedbinstdata.instdata
+                WHERE key = 'classlayout{version_key}';
+            '''.encode('utf-8'))
+            try:
+                self._schema_class_layout = pickle.loads(result[2:])
+            except Exception as e:
+                raise RuntimeError(
+                    'could not load schema class layout pickle') from e
+
+            self._report_config_typedesc[(1, 0)] = await syscon.sql_fetch_val(
+                f'''
+                    SELECT bin FROM edgedbinstdata.instdata
+                    WHERE key = 'report_configs_typedesc_1_0{version_key}';
+                '''.encode('utf-8'),
+            )
+
+            self._report_config_typedesc[(2, 0)] = await syscon.sql_fetch_val(
+                f'''
+                    SELECT bin FROM edgedbinstdata.instdata
+                    WHERE key = 'report_configs_typedesc_2_0{version_key}';
+                '''.encode('utf-8'),
+            )
+
     def _reload_stmt_cache_size(self):
         size = config.lookup(
             '_pg_prepared_statement_cache_size', self._get_sys_config()
         )
         self._stmt_cache_size = size
         self._tenant.set_stmt_cache_size(size)
-
-    async def _stop_servers_with_logging(self, servers_to_stop):
-        addrs = []
-        unix_addr = None
-        port = None
-        for srv in servers_to_stop:
-            for s in srv.sockets:
-                addr = s.getsockname()
-                if isinstance(addr, tuple):
-                    addrs.append(addr[:2])
-                    if port is None:
-                        port = addr[1]
-                    elif port != addr[1]:
-                        port = 0
-                else:
-                    unix_addr = addr
-        if len(addrs) > 1:
-            if port:
-                addr_str = f"{{{', '.join(addr[0] for addr in addrs)}}}:{port}"
-            else:
-                addr_str = f"{{{', '.join('%s:%d' % addr for addr in addrs)}}}"
-        elif addrs:
-            addr_str = "%s:%d" % addrs[0]
-        else:
-            addr_str = None
-        if addr_str:
-            logger.info('Stopping to serve on %s', addr_str)
-        if unix_addr:
-            logger.info('Stopping to serve admin on %s', unix_addr)
-
-        await self._stop_servers(servers_to_stop)
 
     async def _restart_servers_new_addr(self, nethosts, netport):
         if not netport:
@@ -1249,6 +1294,37 @@ class Server(BaseServer):
 
         await self._stop_servers_with_logging(servers_to_stop)
 
+    async def _stop_servers_with_logging(self, servers_to_stop):
+        addrs = []
+        unix_addr = None
+        port = None
+        for srv in servers_to_stop:
+            for s in srv.sockets:
+                addr = s.getsockname()
+                if isinstance(addr, tuple):
+                    addrs.append(addr[:2])
+                    if port is None:
+                        port = addr[1]
+                    elif port != addr[1]:
+                        port = 0
+                else:
+                    unix_addr = addr
+        if len(addrs) > 1:
+            if port:
+                addr_str = f"{{{', '.join(addr[0] for addr in addrs)}}}:{port}"
+            else:
+                addr_str = f"{{{', '.join('%s:%d' % addr for addr in addrs)}}}"
+        elif addrs:
+            addr_str = "%s:%d" % addrs[0]
+        else:
+            addr_str = None
+        if addr_str:
+            logger.info('Stopping to serve on %s', addr_str)
+        if unix_addr:
+            logger.info('Stopping to serve admin on %s', unix_addr)
+
+        await self._stop_servers(servers_to_stop)
+
     async def _on_system_config_set(self, setting_name, value):
         try:
             if setting_name == 'listen_addresses':
@@ -1315,7 +1391,7 @@ class Server(BaseServer):
         """Run the script specified in *startup_script* and exit immediately"""
         if self._startup_script is None:
             raise AssertionError('startup script is not defined')
-        await self._tenant.create_compiler_pool()
+        await self._create_compiler_pool().start()
         try:
             await binary.run_script(
                 server=self,
@@ -1325,10 +1401,9 @@ class Server(BaseServer):
                 script=self._startup_script.text,
             )
         finally:
-            await self._tenant.destroy_compiler_pool()
+            await self._destroy_compiler_pool()
 
-    async def _before_start_servers(self):
-        await self._tenant.create_compiler_pool()
+    async def _before_start_servers(self) -> None:
         await self._tenant.start_accepting_new_tasks()
         if self._startup_script and self._new_instance:
             await binary.run_script(
@@ -1339,10 +1414,10 @@ class Server(BaseServer):
                 script=self._startup_script.text,
             )
 
-    async def _after_start_servers(self):
+    async def _after_start_servers(self) -> None:
         self._tenant.start_running()
 
-    def _get_status(self):
+    def _get_status(self) -> dict[str, Any]:
         status = super()._get_status()
         status["tenant_id"] = self._tenant.tenant_id
         return status
@@ -1362,7 +1437,7 @@ class Server(BaseServer):
             await super().stop()
 
             await self._tenant.wait_stopped()
-            await self._tenant.destroy_compiler_pool()
+            await self._destroy_compiler_pool()
         finally:
             self._tenant.terminate_sys_pgcon()
 
@@ -1373,6 +1448,14 @@ class Server(BaseServer):
         child["params"] = parent["params"]
         parent.update(child)
         return parent
+
+    def _get_backend_runtime_params(self) -> pgparams.BackendRuntimeParams:
+        return self._tenant.get_backend_runtime_params()
+
+    def _create_compiler_pool(self) -> compiler_pool.AbstractPool:
+        pool = super()._create_compiler_pool()
+        self._tenant.attach_to_compiler(pool)
+        return pool
 
 
 def _cleanup_wildcard_addrs(

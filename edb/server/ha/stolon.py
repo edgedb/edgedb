@@ -140,6 +140,14 @@ class StolonConsulBackend(StolonBackend):
         )
         return pr  # type: ignore [return-value]
 
+    @property
+    def dsn(self) -> str:
+        proto = "http" if self._ssl is None else "https"
+        return (
+            f"stolon+consul+{proto}://"
+            f"{self._host}:{self._port}/{self._cluster_name}"
+        )
+
 
 def get_backend(
     sub_scheme: str, parsed_dsn: urllib.parse.ParseResult
