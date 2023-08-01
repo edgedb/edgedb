@@ -192,7 +192,7 @@ many of the commands:
       This command is compatible with EdgeDB server 3.0 and above.
 
   Run a query performance analysis on the given query. Most conveniently used
-  without a backslash by just adding `analyze` before any query.
+  without a backslash by just adding ``analyze`` before any query.
 
 .. rubric:: Data Operations
 
