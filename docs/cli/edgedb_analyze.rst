@@ -55,3 +55,8 @@ the connection target see :ref:`connection options <ref_cli_edgedb_connopts>`.
 
 :cli:synopsis:`--read-json <read_json>`
     Read JSON file instead of executing a query
+
+Media
+=====
+
+.. edb:youtube-embed:: WoHJu0nq5z0
