@@ -63,8 +63,18 @@ class Router:
                     response.close_connection = True
 
                 case ("callback",):
-                    # Callback from the OAuth authorization provider
-                    raise errors.NotFound("Not implemented")
+                    from . import oauth
+
+                    query = request.url.query.decode("ascii")
+                    state = _get_search_param(query, "state")
+                    code = _get_search_param(query, "code")
+                    provider = self._get_from_claims(state, "provider")
+                    redirect_to = self._get_from_claims(state, "redirect_to")
+                    client = oauth.Client(db=self.db, provider=provider)
+                    await client.handle_callback(code)
+                    response.status = http.HTTPStatus.FOUND
+                    response.custom_headers["Location"] = redirect_to
+                    response.close_connection = True
 
                 case _:
                     raise errors.NotFound("Unknown OAuth endpoint")
@@ -130,11 +140,17 @@ class Router:
         state_token.make_signed_token(signing_key)
         return state_token.serialize()
 
-    def _get_provider_from_claims(self, state: str) -> str | None:
+    def _get_from_claims(self, state: str, key: str) -> str:
         signing_key = self._get_auth_signing_key()
-        state_token = jwt.JWT(key=signing_key, jwt=state)
+        try:
+            state_token = jwt.JWT(key=signing_key, jwt=state)
+        except Exception:
+            raise errors.InvalidData("Invalid state token")
         state_claims: dict[str, str] = json.loads(state_token.claims)
-        return state_claims.get("provider")
+        value = state_claims.get(key)
+        if value is None:
+            raise errors.InvalidData("Invalid state token")
+        return value
 
 
 def _fail_with_error(

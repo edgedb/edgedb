@@ -17,10 +17,12 @@
 #
 
 
+import asyncio
+
+
 from typing import *
 
-from . import errors
-from . import util
+from . import errors, util, data
 
 
 class Client:
@@ -41,6 +43,17 @@ class Client:
         return self.provider.get_code_url(
             state=state, redirect_uri=redirect_uri
         )
+
+    async def handle_callback(self, code: str) -> None:
+        token = await self.provider.exchange_code(code)
+        user_info, emails = await asyncio.gather(
+            self.provider.fetch_user_info(token),
+            self.provider.fetch_emails(token),
+        )
+        await self._handle_identity(user_info, emails)
+
+    async def _handle_identity(self, user_info: data.UserInfo, emails: list[data.Email]) -> None:
+        ...
 
     def _get_client_credientials(self, client_name: str) -> tuple[str, str]:
         client_id = util.get_config(
