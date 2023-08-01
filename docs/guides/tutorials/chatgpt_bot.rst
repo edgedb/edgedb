@@ -108,9 +108,6 @@ Once bootstrapping is complete, you should see a success message:
 
     Success! Created docs-chatbot at /<path>/<to>/<project>/docs-chatbot
 
-Once you have the success message, go ahead and change into the project
-directory.
-
 Before we start writing code, let's first obtain an OpenAI API key, install the
 EdgeDB CLI, and create a local EdgeDB instance. We need the API key in order to
 use OpenAI's APIs for generating embeddings and answering questions. We need an
@@ -177,8 +174,9 @@ Now, let's get the documentation ready to send to OpenAI!
 
 Convert documentation into a unified format
 -------------------------------------------
-For this build, we will be using Mardown files since they are straightforward
+For this project, we will be using Markdown files since they are straightforward
 for OpenAI's language models to use.
+
 
 .. note::
 
@@ -194,7 +192,7 @@ Markdown files for this tutorial, but you can replace them with your own. Place
 those files in the ``docs`` folder.
 
 .. TODO: Where are these files and how should the user get them?
-
+.. TODO: Devon pls include parts about text files. Files are inside docs folder, the section you deleted : )
 .. Devon got this far
 
 Split the documentation into sections
