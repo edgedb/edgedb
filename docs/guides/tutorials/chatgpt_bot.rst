@@ -1,4 +1,4 @@
-.. \_ref_guide_chatgpt_bot:
+.. _ref_guide_chatgpt_bot:
 
 =======
 ChatGPT
@@ -7,17 +7,27 @@ ChatGPT
 :edb-alt-title: Build your own docs chatbot with ChatGPT and EdgeDB
 
 *For additional context, check out* `our blog post about why and how we use
-ChatGPT via embeddings <https://www.edgedb.com/blog/chit-chatting-with-edgedb-docs-via-chatgpt-and-pgvector>`_
-*to create our* `“Ask AI”  <https://www.edgedb.com/blog/chit-chatting-with-edgedb-docs-via-chatgpt-and-pgvector>`_
-*bot which answers questions related to the EdgeDB docs.*
+ChatGPT via embeddings`_ *to create our “Ask AI” bot which answers questions
+related to the EdgeDB docs.*
+
+.. lint-off
+
+.. _our blog post about why and how we use ChatGPT via embeddings:
+  https://www.edgedb.com/blog/chit-chatting-with-edgedb-docs-via-chatgpt-and-pgvector
+
+.. lint-on
 
 In this tutorial we're going to build a documentation chatbot with
 `Next.js <https://nextjs.org/>`_, `OpenAI <https://openai.com/>`_ and EdgeDB.
 
 Here is what the final result looks like: // todo provide video.
 
-Before we start let's understand how it all works
--------------------------------------------------
+Before we start, let's understand how it all works
+--------------------------------------------------
+
+tl;dr- Training a language model is hard, but using embeddings to give it
+access to information beyond what it's trained on is easy… so we will do that!
+Now, `get started building <ref_guide_chatgpt_bot_start>`_!
 
 Our chatbot is backed by `OpenAI's ChatGPT <https://openai.com/blog/chatgpt>`_.
 ChatGPT is an advanced language model that uses machine learning algorithms to
@@ -55,8 +65,10 @@ General implementation has these steps (we'll stick to them too in the guide):
    by the OpenAI API
 2. split the converted documentation into sections that can fit into the GPT
    context window
-3. create embeddings for each section using `OpenAI's embeddings API <https://platform.openai.com/docs/guides/embeddings>`_
+3. create embeddings for each section using `OpenAI's embeddings API
+   <https://platform.openai.com/docs/guides/embeddings>`_
 4. store the embeddings data in an vector database
+
 
 Each time a user asks a question:
 
@@ -66,33 +78,48 @@ Each time a user asks a question:
    question and submit a request to the OpenAI
 3. stream the OpenAI response back to the user in realtime
 
+.. _ref_guide_chatgpt_bot_start:
 
 Let's get started
 -----------------
 
-Let's start by scaffolding our app with Next.js's ``create-next-app`` tool.
-We'll be using TypeScript, ESLint and Tailwind CSS for this tutorial. Choose
-all the defaults for answering prompts except for using src, we will opt out.
-You can choose to use src but will have to update later some configuration, so
-for simplicity we will not use it in the tutorial.
+Let's start by scaffolding our app with the Next.js ``create-next-app`` tool.
+Run this in your projects directory or wherever you would like to create the
+new directory for this project.
 
 .. code-block:: bash
 
     $ npx create-next-app --typescript docs-chatbot
+    Need to install the following packages:
+      create-next-app@13.4.12
+    Ok to proceed? (y) y
+    ✔ Would you like to use ESLint? … No / Yes
+    ✔ Would you like to use Tailwind CSS? … No / Yes
+    ✔ Would you like to use `src/` directory? … No / Yes
+    ✔ Would you like to use App Router? (recommended) … No / Yes
+    ✔ Would you like to customize the default import alias? … No / Yes
+    Creating a new Next.js app in /<path>/<to>/<project>/docs-chatbot.
 
-After the prompts, ``create-next-app`` will create a folder with your project
-name and install the required dependencies.
+Answer "Yes" to all prompts except "Would you like to use \`src/\` directory?"
 
-Before we start writing code, let's first obtain an OpenAI API key, install
-EdgeDB CLI and create a local EdgeDB instance. (We will use a local instance
-here, but you could use an EdgeDB Cloud instance instead if you prefer).
-We need the API key in order to use OpenAI's APIs for generating embeddings
-and answering questions. We need an EdgeDB instance to store section contents
-and embeddings.
+Once bootstrapping is complete, you should see a success message:
+
+.. code-block::
+
+    Success! Created docs-chatbot at /<path>/<to>/<project>/docs-chatbot
+
+Once you have the success message, go ahead and change into the project
+directory.
+
+Before we start writing code, let's first obtain an OpenAI API key, install the
+EdgeDB CLI, and create a local EdgeDB instance. We need the API key in order to
+use OpenAI's APIs for generating embeddings and answering questions. We need an
+EdgeDB instance to store section contents and embeddings.
 
 Get an OpenAI API key
 ^^^^^^^^^^^^^^^^^^^^^
-1. Log in or sign up to the `OpenAI platform <https://platform.openai.com/account/api-keys>`_.
+1. Log in or sign up to the `OpenAI platform
+   <https://platform.openai.com/account/api-keys>`_.
 2. Create new `secret key <https://platform.openai.com/account/api-keys>`_.
 3. Create a ``.env.local`` file in the root of your project and copy your key
    here in the following format: ``OPENAI_KEY="<my-openai-key>"``.
@@ -100,69 +127,75 @@ Get an OpenAI API key
 
 Install EdgeDB CLI and create a local EdgeDB instance
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-We firstly need to install EdgeDB CLI. On Linux or MacOS, run the following
-in your terminal and follow the on-screen instructions:
+Before we can create an instance for our project, we need to install the EdgeDB
+CLI. On Linux or MacOS, run the following in your terminal and follow the
+on-screen instructions:
 
 .. code-block:: bash
 
     $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | sh
 
-For installation on Windows machines and more info check `EdgeDB CLI <https://www.edgedb.com/docs/cli/index>`_.
+Windows Powershell users can use this command:
 
-The easiest and fastest way to create an EdgeDB project or convert existing
-directory to EdgeDB project is to run ``edgedb project init`` in the terminal
-inside the project root. The CLI will ask you what you want to call the local
-instance that will be created. It will default to the name of your current
-directory with any illegal characters replaced. It will also ask you for
-EdgeDB version that you want to use with this project, pick the default one
-(which is the latest stable one).
+.. code-block:: powershell
+
+    PS> iwr https://ps1.edgedb.com -useb | iex
+
+For other installation scenarios, see the "Additional installation methods"
+section of `our "Install" page <https://www.edgedb.com/install>`_.
+
+To create our instance, we will initialize a new EdgeDB project:
 
 .. code-block:: bash
 
     $ edgedb project init
-    No `edgedb.toml` found in `/Users/Documents/projects/edgedb/docs-chatbot` or above
+    No `edgedb.toml` found in `/<path>/<to>/<project>/docs-chatbot` or above
 
     Do you want to initialize a new project? [Y/n]
     > Y
 
-    Specify the name of EdgeDB instance to use with this project [default: chatgpt_guide]:
-    > docs-chatbot
+    Specify the name of EdgeDB instance to use with this project
+    [default: docs_chatbot]:
+    > docs_chatbot
 
     Checking EdgeDB versions...
     Specify the version of EdgeDB to use with this project [default: 3.2]:
     > 3.2
 
-Great, the CLI should have set up an EdgeDB project, and instance, and a
-database within that instance. You can confirm project creation by checking
-for an ``edgedb.toml`` file and a ``dbschema`` directory in your project root. You
-can check if the instance is running with the ``edgedb instance list``
-command. Search for the name of the instance you've just created and check the
-status. It is okay if it is inactive, the status will change into running when
-you connect to the instance. You can connect to the created instance by running
-``edgedb`` in the terminal to connect to it via REPL or by running ``edgedb ui``
-to connect using the UI.
+The CLI should have set up an EdgeDB project, and instance, and a database
+within that instance. You can confirm project creation by checking for an
+``edgedb.toml`` file and a ``dbschema`` directory in your project root. You can
+check if the instance is running with the ``edgedb instance list`` command.
+Search for the name of the instance you've just created (``docs_chatbot`` if
+you're following along) and check the status. Don't worry if the status is
+"inactive"; the status will change to "running" automatically when you connect
+to the instance. You can connect to the created instance by running ``edgedb``
+in the terminal to connect to it via REPL or by running ``edgedb ui`` to
+connect using the UI.
 
-Ok, so now we can start with actual implementation details.
+Now, let's get the documentation ready to send to OpenAI!
 
 Convert documentation into a unified format
 -------------------------------------------
-OpenAI language models accept strings as input. So, the most common formats
-are Markdown and plain text files because you can use them straight away
-without any extra steps. It is possible to use HTML (and probably other
-formats too) but they usually introduce a lot of selectors and tags that are
-not needed nor relevant to the context, so you should either clean those files
-and extract content before using it with OpenAI or you can stringify and use
-the whole thing but then you will pay for all those extra
-tokens (OpenAI pricing models are per number of tokens used). Usually all
-available solutions firstly convert their docs into Markdown or text files.
-There are different libraries and tools available online that can help with
-this. But you maybe still need to write some custom scripts to further clean
-your data, depending on what is your starting point.
+For this build, we will be using Mardown files since they are straightforward
+for OpenAI's language models to use.
 
-We will use ready Markdown files. Create ``docs`` folder in the root of your
-project. You can copy/paste EdgeDB markdown files that we use or use your
-own markdown or text files (if you use text files you should just be careful to
-later replace ``.md``extension in the code with proper extension).
+.. note::
+
+    You *can* opt to use more complex formats like HTML, but since they include
+    additional data beyond what you want the language model to consume (like
+    HTML's tags and their attributes), you should first clean those files and
+    extract the content before sending it to OpenAI. It's possible to use more
+    complex formats *without* doing this, but then you're paying for extra
+    tokens that don't improve the answers your chatbot will give users.
+
+Create a ``docs`` folder in the root of your project. We have provided some
+Markdown files for this tutorial, but you can replace them with your own. Place
+those files in the ``docs`` folder.
+
+.. TODO: Where are these files and how should the user get them?
+
+.. Devon got this far
 
 Split the documentation into sections
 -------------------------------------
