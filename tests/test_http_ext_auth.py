@@ -21,12 +21,17 @@ import urllib.parse
 import uuid
 import json
 import base64
+import datetime
+import respx
+import httpx
 
 from jwcrypto import jwt, jwk
 from edb.testbase import http as tb
 
 
 class TestHttpExtAuth(tb.ExtAuthTestCase):
+    TRANSACTION_ISOLATION = False
+
     SETUP = [
         f"""
         CONFIGURE CURRENT DATABASE
@@ -65,7 +70,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.scheme, "https")
             self.assertEqual(url.hostname, "github.com")
             self.assertEqual(url.path, "/login/oauth/authorize")
-            self.assertEqual(qs.get("scope"), ["read:user"])
+            self.assertEqual(qs.get("scope"), ["read:user user:email"])
 
             state = qs.get("state")
             assert state is not None
@@ -81,3 +86,184 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 qs.get("redirect_uri"), [f"{self.http_addr}/callback"]
             )
             self.assertEqual(qs.get("client_id"), [client_id])
+
+    async def test_http_auth_ext_github_callback_missing_provider_01(self):
+        with self.http_con() as http_con:
+            auth_signing_key = await self.con.query_single(
+                """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
+            )
+
+            expires_at = datetime.datetime.utcnow() + datetime.timedelta(
+                minutes=5
+            )
+            missing_provider_state_claims = {
+                "iss": self.http_addr,
+                "exp": expires_at.astimezone().timestamp(),
+            }
+            state_token = jwt.JWT(
+                header={"alg": "HS256"},
+                claims=missing_provider_state_claims,
+            )
+
+            key_bytes = base64.b64encode(auth_signing_key.encode())
+            key = jwk.JWK(k=key_bytes.decode(), kty="oct")
+            state_token.make_signed_token(key)
+
+            _, _, status = self.http_con_request(
+                http_con,
+                {"state": state_token.serialize(), "code": "abc123"},
+                path="callback",
+            )
+
+            self.assertEqual(status, 400)
+
+    async def test_http_auth_ext_github_callback_wrong_key_01(self):
+        with self.http_con() as http_con:
+            auth_signing_key = "abcd" * 8
+
+            expires_at = datetime.datetime.utcnow() + datetime.timedelta(
+                minutes=5
+            )
+            missing_provider_state_claims = {
+                "iss": self.http_addr,
+                "provider": "github",
+                "exp": expires_at.astimezone().timestamp(),
+            }
+            state_token = jwt.JWT(
+                header={"alg": "HS256"},
+                claims=missing_provider_state_claims,
+            )
+
+            key_bytes = base64.b64encode(auth_signing_key.encode())
+            key = jwk.JWK(k=key_bytes.decode(), kty="oct")
+            state_token.make_signed_token(key)
+
+            _, _, status = self.http_con_request(
+                http_con,
+                {"state": state_token.serialize(), "code": "abc123"},
+                path="callback",
+            )
+
+            self.assertEqual(status, 400)
+
+    async def test_http_auth_ext_github_unknown_provider_01(self):
+        with self.http_con() as http_con:
+            auth_signing_key = await self.con.query_single(
+                """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
+            )
+
+            expires_at = datetime.datetime.utcnow() + datetime.timedelta(
+                minutes=5
+            )
+            state_claims = {
+                "iss": self.http_addr,
+                "provider": "beepboopbeep",
+                "exp": expires_at.astimezone().timestamp(),
+            }
+            state_token = jwt.JWT(
+                header={"alg": "HS256"},
+                claims=state_claims,
+            )
+
+            key_bytes = base64.b64encode(auth_signing_key.encode())
+            key = jwk.JWK(k=key_bytes.decode(), kty="oct")
+            state_token.make_signed_token(key)
+
+            _, _, status = self.http_con_request(
+                http_con,
+                {"state": state_token.serialize(), "code": "abc123"},
+                path="callback",
+            )
+
+            self.assertEqual(status, 400)
+
+    async def test_http_auth_ext_github_callback_01(self):
+        with self.http_con() as http_con:
+            async with respx.mock() as respx_mock:
+                auth_signing_key = await self.con.query_single(
+                    """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
+                )
+
+                expires_at = datetime.datetime.utcnow() + datetime.timedelta(
+                    minutes=5
+                )
+                state_claims = {
+                    "iss": self.http_addr,
+                    "provider": "github",
+                    "exp": expires_at.astimezone().timestamp(),
+                    "redirect_to": f"{self.http_addr}/some/path",
+                }
+                state_token = jwt.JWT(
+                    header={"alg": "HS256"},
+                    claims=state_claims,
+                )
+
+                key_bytes = base64.b64encode(auth_signing_key.encode())
+                key = jwk.JWK(k=key_bytes.decode(), kty="oct")
+                state_token.make_signed_token(key)
+                now = int(datetime.datetime.utcnow().timestamp())
+
+                route_auth = respx_mock.post(
+                    "https://github.com/login/oauth/access_token"
+                ).mock(
+                    return_value=httpx.Response(
+                        200,
+                        json={
+                            "access_token": "abc123",
+                            "scope": "read:user",
+                            "token_type": "bearer",
+                        },
+                    )
+                )
+                route_userinfo = respx_mock.get("https://api.github.com/user").mock(
+                    return_value=httpx.Response(
+                        200,
+                        json={
+                            "id": 1,
+                            "login": "octocat",
+                            "name": "monalisa octocat",
+                            "email": "octocat@example.com",
+                            "avatar_url": "http://example.com/example.jpg",
+                            "updated_at": now,
+                        },
+                    )
+                )
+                route_emails = respx_mock.get(
+                    "https://api.github.com/user/emails"
+                ).mock(
+                    return_value=httpx.Response(
+                        200,
+                        json=[
+                            {
+                                "email": "octocat@example.com",
+                                "verified": True,
+                                "primary": True,
+                            },
+                            {
+                                "email": "octocat+2@example.com",
+                                "verified": False,
+                                "primary": False,
+                            },
+                        ],
+                    )
+                )
+
+                _, headers, status = self.http_con_request(
+                    http_con,
+                    {"state": state_token.serialize(), "code": "abc123"},
+                    path="callback",
+                )
+
+                self.assertEqual(status, 302)
+
+                location = headers.get("location")
+                assert location is not None
+                server_url = urllib.parse.urlparse(self.http_addr)
+                url = urllib.parse.urlparse(location)
+                self.assertEqual(url.scheme, server_url.scheme)
+                self.assertEqual(url.hostname, server_url.hostname)
+                self.assertEqual(url.path, f"{server_url.path}/some/path")
+
+                self.assertIsNotNone(route_auth.called)
+                self.assertIsNotNone(route_userinfo.called)
+                self.assertIsNotNone(route_emails.called)
