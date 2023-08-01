@@ -202,14 +202,13 @@ Our files are already short enough ..todo explain token limits
 Create embeddings and store them in the EdgeDB database
 -------------------------------------------------------
 Finally, we're ready to create embeddings for all sections and store them in
-the database we've created earlier. Let's make ``gpt`` folder in the project's
-root and ``generate-embeddings.ts`` file inside it, all code related to
-embeddings generation will be inside this folder. And ``generate-embeddings.ts``
-is the main script we will run every time we want to re-generate embeddings.
+the database we've created earlier. Let's make ``generate-embeddings.ts`` file
+inside the project root, all code related to
+embeddings generation will be inside this file.
 
 .. code-block:: bash
 
-    $ mkdir gpt && touch gpt/generate-embeddings.ts
+    $ mkdir gpt && touch generate-embeddings.ts
 
 Schema
 ^^^^^^
@@ -240,7 +239,6 @@ Open the empty schema file generated when you initialized the EdgeDB project
           constraint exclusive;
         }
         required content: str;
-        required checksum: str;
         required tokens: int16;
         required embedding: OpenAIEmbedding;
 
@@ -286,52 +284,27 @@ Let's install few NPM dependencies our script will need.
 
 .. code-block:: bash
 
-    $ npm install openai gpt-tokenizer --save
-    $ npm install dotenv tsx --save-dev
+    $ npm install openai dotenv tsx edgedb @edgedb/generate gpt-tokenizer -D
 
-We'll kick off this script by opening the new file and importing all those
-dependencies and the other modules we need.
+
+Embeddings generation script
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Let's write the ``generate-embeddings.ts`` skeleton and understand the flow of
+tasks we need to perform.
 
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
-    import { Configuration, OpenAIApi } from "openai";
     import dotenv from "dotenv";
+    import { Configuration, OpenAIApi } from "openai";
     import { promises as fs } from "fs";
-    import { inspect } from "util";
     import { join } from "path";
     import getTokensLen from "./getTokensLen";
     import * as edgedb from "edgedb";
     import e from "../dbschema/edgeql-js";
 
-Next, we use the ``dotenv`` library to import the ``OPENAI_KEY`` we created
-earlier in the ``.env.local`` file. We'll use this later to authenticate with
-the API so we can make calls against it. If the user of our script hasn't set
-it, we won't be able to generate the embeddings, so we can go ahead and throw
-an exception.
-
-.. code-block:: typescript
-    :caption: generate-embeddings.ts
-
-    //…
     dotenv.config({ path: ".env.local" });
-    if (!process.env.OPENAI_KEY) {
-      throw new Error(
-        "Environment variable OPENAI_KEY is required: skipping embeddings generation."
-        );
-      }
 
-Then we need to define a ``Section`` TypeScript interface that corresponds to
-the ``Section`` type we have defined in schema.
-
-.. TODO: Would it be better to generate this with the interfaces generator and
-   import it? It would allow us to show off the generator and would also
-   slightly reduce the amount of code here.
-
-.. code-block:: typescript
-    :caption: generate-embeddings.ts
-
-    //…
     interface Section {
       id?: string;
       path: string;
@@ -340,458 +313,256 @@ the ``Section`` type we have defined in schema.
       embedding: number[];
     }
 
+    async function walk(dir: string): Promise<string[]> {
+        // ...
+    }
 
-We need to store the paths of documentation in the database. Since our ``docs``
-folder contains sections at multiple levels of nesting, we need a function that
-loops through all section files, builds an array of all paths relative to the
-project root, and sorts those paths. This is what the ``walk`` function does.
+    async function prepareSectionsData(
+      sectionPaths: string[],
+      openai: OpenAIApi,
+    ): Promise<Section[]> {
+        // ...
+    }
+
+
+    async function generateEmbeddings() {
+        // ...
+    }
+
+    (async function main() {
+      await generateEmbeddings();
+    })()
+
+
+At the top are all imports we will need throughout the file.
+
+After imports, we use the ``dotenv`` library to import environment variables
+from the ``.env.local`` file (in our case ``OPENAI_KEY``, that we will need for
+connecting to the OpenAIApi).
+
+Next, we define a ``Section`` TypeScript interface that corresponds to
+the ``Section`` type we have defined in the schema.
+
+There are also few function definitions:
+
+* ``generateEmbeddings`` is the main function, but since it is async we need
+  to create additional ``main`` function and call it from this function.
+  I am using IIFE (immediately invoked function expression), but of course you
+  can just call it with ``main()`` after defining it.
+
+* ``walk`` and ``prepareSectionsData`` we will use inside
+  ``generateEmbeddings``. ``walk`` give as array of all section paths relative
+  to the project root. ``prepareSectionsData`` takes care of preparing
+  ``Sections`` array before we insert it into the database.
+
+* There is ``getTokensLen`` import among imports. This function calculates
+  number of tokens per section that we need while preparing sections data. We
+  will write it a bit later.
+
+We will store the section paths in the database. This is not necessary, but we
+want to associate content and embeddings with a section name or path. Our
+sections don't have title or name so we use path as a unique identifier. Since
+our ``docs`` folder contains sections at multiple levels of nesting, we need a
+function that loops through all section files, builds an array of all paths
+relative to the project root, and sorts those paths. This is what the ``walk``
+function does.
 
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
-    //…
-    type WalkEntry = {
-      path: string;
-    };
-
-    async function walk(dir: string): Promise<WalkEntry[]> {
+    async function walk(dir: string): Promise<string[]> {
       const immediateFiles = await fs.readdir(dir);
 
-      const recursiveFiles: { path: string }[][] = await Promise.all(
+      const recursiveFiles: string[][] = await Promise.all(
         immediateFiles.map(async (file: any) => {
           const path = join(dir, file);
           const stats = await fs.stat(path);
           if (stats.isDirectory()) return walk(path);
-          else if (stats.isFile()) return [{ path }];
+          else if (stats.isFile()) return [path];
           else return [];
         })
       );
 
-      const flattenedFiles: { path: string }[] = recursiveFiles.reduce(
+      const flattenedFiles: string[] = recursiveFiles.reduce(
         (all, folderContents) => all.concat(folderContents),
         []
       );
 
-      return flattenedFiles.sort((a, b) => a.path.localeCompare(b.path));
+      return flattenedFiles.sort((a, b) => a.localeCompare(b));
     }
+
 
 The output it produces looks like this:
 
 .. code-block:: typescript
 
-    [
-      // ...
-      {path: ".docs/gpt/cli/edgedb_describe/edgedb_describe_schema2.md"},
-      {path: ".docs/gpt/cli/edgedb_describe/index.md"},
-      {path: ".docs/gpt/cli/edgedb_dump.md"},
-      {path: ".docs/gpt/cli/edgedb_info.md"},
-      {path: ".docs/gpt/cli/edgedb_instance/edgedb_instance_create.md"},
-      // ...
-    ];
-
-With this list of files and their paths, we're ready to read in the contents so
-we can generate the embeddings. We'll write a class to handle this for us. This
-``EmbeddingSource`` class's constructor takes the relative section path. We can
-call its ``load`` method to get the contents of the file from the file system.
-
-.. code-block:: typescript
-    :caption: generate-embeddings.ts
-
-    //…
-    class EmbeddingSource {
-      content?: string;
-
-      constructor(public filePath: string) { }
-
-      async load() {
-        const content = await fs.readFile(this.filePath, "utf8");
-        this.content = content;
-        return content;
-      }
-    }
+    sections [
+        'docs/datamodel/introspection/functions.md',
+        'docs/edgeql/index.md',
+        'docs/edgeql/index1.md',
+        'docs/edgeql/index2.md'
+    ]
 
 
-With all this setup out of the way, it's time to generate the actual
-embeddings. We'll write a function called ``generateEmbeddings`` to take care
-of this for us. It will fetch embeddings from OpenAI and store them inside our
-EdgeDB database.
+Regarding embeddings generation and storage, we can call OpenAI embeddings
+endpoint per section and store embeddings in the database one by one, but this
+will take significant amount of time of time if there are lot of sections. At EdgeDB we have around
+3000 documentation sections and it take around half an hour if we use this
+approach. That's why we will try to paralelize things as much as possible.
+OpenAI embeddings API accepts ``string`` or ``string[]`` for the input. We will
+collect all section contents in an array, get embeddings for the whole array
+and then associate every embedding with its section.
 
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
-    //…
-    async function generateEmbeddings() {
-      const args = process.argv.slice(2);
-
-
-      const configuration = new Configuration({
-        apiKey: process.env.OPENAI_KEY,
-      });
-
-      const openai = new OpenAIApi(configuration);
-
-      const client = edgedb.createClient();
-
-      const embeddingSources: EmbeddingSource[] = [
-        ...(await walk("docs")).map((entry) => new EmbeddingSource(entry.path)),
-      ];
-
-      console.log(`Discovered ${embeddingSources.length} pages`);
-
-      console.log("Re-generating pages.");
-
-      try {
-        // Delete old data from the DB.
-        await e
-          .delete(e.Section, (section) => ({
-            filter: e.op(section.tokens, ">=", 0),
-          }))
-          .run(client);
-
+    async function prepareSectionsData(
+        sectionPaths: string[],
+        openai: OpenAIApi
+    ): Promise<Section[]> {
         const contents: string[] = [];
         const sections: Section[] = [];
 
-        for (const embeddingSource of embeddingSources) {
-          const { path } = embeddingSource;
-          const content = await embeddingSource.load();
-          // OpenAI recommends replacing newlines with spaces for
-          // best results when generating embeddings
-          const contentTrimmed = content.replace(/\n/g, " ");
-          contents.push(contentTrimmed);
-          sections.push({ path, content, tokens: 0, embedding: [] });
+        for (const path of sectionPaths) {
+            const content = await fs.readFile(path, "utf8");
+            // OpenAI recommends replacing newlines with spaces for best results (specific to embeddings)
+            const contentTrimmed = content.replace(/\n/g, " ");
+            contents.push(contentTrimmed);
+            sections.push({
+                path,
+                content,
+                tokens: 0,
+                embedding: [],
+            });
         }
 
-        const tokens = await getTokensLen(contents);
-
         const embeddingResponse = await openai.createEmbedding({
-          model: "text-embedding-ada-002",
-          input: contents,
+            model: "text-embedding-ada-002",
+            input: contents,
         });
 
         if (embeddingResponse.status !== 200) {
-          throw new Error(inspect(embeddingResponse.data, false, 2));
+            throw new Error(embeddingResponse.statusText);
         }
 
         embeddingResponse.data.data.forEach((item, i) => {
-          sections[i].embedding = item.embedding;
-          sections[i].tokens = tokens[i];
+            sections[i].embedding = item.embedding;
+            sections[i].tokens = encode(contents[i]).length;
         });
 
-        const query = e.params({ sections: e.json }, ({ sections }) => {
-          return e.for(e.json_array_unpack(sections), (section) => {
-            return e.insert(e.Section, {
-              path: e.cast(e.str, section.path),
-              content: e.cast(e.str, section.content),
-              tokens: e.cast(e.int16, section.tokens),
-              embedding: e.cast(e.OpenAIEmbedding, section.embedding),
+        return sections;
+    }
+
+If we used embeddings API per content we would also get back as part of the
+response the number of tokens in a section, but the array endpoint doesn't give
+us back this number so we have to calculate them in the other way. We use
+``encode`` function from  `gpt_tokenizer
+<https://www.npmjs.com/package/gpt-tokenizer>`_ npm library to generate tokens
+for a section, and then use the length of the generated array as number of
+tokens.
+
+Low, that we have sections ready to be stored in the database let's write the
+actual ``generateEmbeddings`` function.
+
+.. code-block:: typescript
+    :caption: generate-embeddings.ts
+
+    async function generateEmbeddings() {
+        if (!process.env.OPENAI_KEY) {
+            return console.log(
+                "Environment variable OPENAI_KEY is required: skipping embeddings generation."
+            );
+        }
+
+        try {
+            const configuration = new Configuration({
+                apiKey: process.env.OPENAI_KEY,
             });
-          });
-        });
 
-        await query.run(client, { sections });
-      } catch (err) {
-        console.error("Error while trying to regenerate embeddings.", err);
-      }
-      console.log("Embedding generation complete");
-    }
+            const openai = new OpenAIApi(configuration);
 
-    async function main() {
-      await generateEmbeddings();
-    }
+            const client = edgedb.createClient();
 
-    main().catch((err) =>
-      console.error("Error has ocurred while generating embeddings.", err)
-    );
+            const sectionPaths = await walk("docs");
 
+            console.log(`Discovered ${sectionPaths.length} sections`);
 
-- Let's add at this point additional script to ``package.json`` that we will
-  use to call the embeddings generation script.
+            const sections = await prepareSectionsData(sectionPaths, openai);
 
-  .. code-block:: typescript
+            // Delete old data from the DB.
+            await e.delete(e.Section).run(client);
 
-    "embeddings": "cross-env tsx gpt/generate-embeddings.ts"
-
-  We also need to install ``cross-env`` npm package.
-
-  .. code-block:: bash
-
-    $ yarn add cross-env -D
-
-  So now we can invoke the ``generate-embeddings.ts`` script from our terminal
-  using ``yarn embeddings`` command. The idea is that when we invoke script
-  like this we should just re-generate embeddings for sections that have been
-  changed in the meantime. When we want to generate embeddings for all sections
-  (first time run when our database is empty or whenever later if we decide we
-  want to wipe the database and fill it again from scratch) we should apply
-  additional ``--refresh`` argument, so the commands is
-  ``yarn embeddings --refresh``.
-
-- If for some reason ``OPENAI_KEY`` is not available we should throw an error
-  right at the beginning.
-
-- Otherwise we connect to the OpenAI with the key.
-
-- And also create EdgeDB client that we will use later to access and query
-  the database.
-
-- We walk through all the docs files and create ``embeddingSources`` array.
-
-- **Typescript Query Builder**
-  Before we continue lets understand how can we query the EdgeDB database.
-  The `TS binding <https://www.edgedb.com/docs/clients/js/index>`_ offers
-  several options for writing queries. We (EdgeDB) recommend using our query
-  builder, and that's what we use here.
-
-  In order to be able to use query builder we need to install generators package.
-
-  .. code-block:: bash
-
-    $ yarn add @edgedb/generate -D
-
-  The ``@edgedb/generate`` package provides a set of code generation tools
-  that are useful when developing an EdgeDB-backed applications with
-  TypeScript / JavaScript. We need to run a `query builder <https://www.edgedb.com/docs/clients/js/querybuilder>`_
-  generator.
-
-  .. code-block:: bash
-
-    $ yarn run -B generate edgeql-js
-
-  This generator gives us a code-first way to write fully-typed EdgeQL
-  queries with TypeScript. The ``edgeql-js`` folder should have been created
-  inside ``dbschema`` folder.
-
-- **Re-generate all embeddings from scratch:**
-
-  - Firstly we should wipe the database if there are old entries. We have to
-    find a filter that will mark all entries. One way is to filter elements
-    whose tokens property is ``>=0`` which is true for all elements. EdgeDB
-    doesn't provide a simpler way to wipe all elements while not deleting the
-    database too.
-
-  - We already discussed that we want to paralellize things, so instead of
-    generating embeddings and updating database per section we will create a
-    ``const sections: Section[]`` array that we will update with all required
-    data and insert the whole array in one go to the database.
-
-  - We also create empty ``contents`` array and loop through ``embeddingSources``
-    we have created earlier in order to fill contents and sections arrays with
-    path, checksum and content.
-
-  - Next, we get embeddings for the whole contents array using the OpenAI
-    embeddings API and ``text-embedding-ada-002`` language model which is
-    recommended by them for embeddings.
-
-  - We also get all tokens with ``const tokens = await getTokensLen(contents);``.
-    I'll explain getTokensLen function shortly, it gives us back the array of
-    tokens numbers for the whole contents array.
-
-  - We update sections with tokens and embeddings and we can finally insert them
-    into the database. We perform `bulk-insert <https://www.edgedb.com/docs/edgeql/insert>`_
-    with the query builder.
-
-    Here is the side-by-side implementation of the bulk-insert from the code with
-    TS query builder and raw edgeql:
-
-    .. tabs::
-
-        .. code-tab:: edgeql
-            :caption: edgeql
-
-            with
-              sections := json_array_unpack(<json>$sections)
-
-              for section in sections union (
-                insert Section {
-                  path := <str>section['path'],
-                  content:= <str>section['content'],
-                  tokens:= <int16>section['tokens'],
-                  embedding:= <OpenAIEmbedding>section['embedding'],
-                }
-              )
-
-        .. code-tab:: typescript
-            :caption: TS query builder
-
-            const query = e.params({sections: e.json}, ({sections}) => {
-              return e.for(e.json_array_unpack(sections), (section) => {
-                return e.insert(e.Section, {
-                  path: e.cast(e.str, section.path),
-                  content: e.cast(e.str, section.content),
-                  tokens: e.cast(e.int16, section.tokens),
-                  embedding: e.cast(e.OpenAIEmbedding, section.embedding),
+            // Bulk-insert all data into EdgeDB database.
+            const query = e.params({ sections: e.json }, ({ sections }) => {
+                return e.for(e.json_array_unpack(sections), (section) => {
+                    return e.insert(e.Section, {
+                    path: e.cast(e.str, section.path),
+                    content: e.cast(e.str, section.content),
+                    tokens: e.cast(e.int16, section.tokens),
+                    embedding: e.cast(e.OpenAIEmbedding, section.embedding),
+                    });
                 });
-              });
             });
 
-        await query.run(client, {sections});
+            await query.run(client, { sections });
+        } catch (err) {
+            console.error("Error while trying to regenerate all embeddings.", err);
+        }
 
-Why we need to know number of tokens per section
-------------------------------------------------
-Later when we want to answer to the user's question, we will need to send
-similar sections as a context to the OpenAI completions endpoint, and we
-need to know how many tokens each content has in order to stay under the
-model's token limit.
+        console.log("Embedding generation complete");
+    }
 
-OpenAI's token limit
-^^^^^^^^^^^^^^^^^^^^
-OpenAI's language models, like GPT-4, work by processing and generating text
-in chunks referred to as "tokens." These tokens can be as short as one
-character or as long as one word in English, or even other lengths in
-different languages.
+At the top, we immediately return if ``OPENAI_KEY`` doesn't exist. Otherwise,
+we create try/catch block and write the rest of the function inside try block.
+If some error is thrown while we try to regenerate embeddings and update the
+database we will safely catch it in the catch block.
 
-There are two main reasons for having a token limit:
+We create OpenAI and EdgeDB clients. We use OpenAI client to get embeddings,
+and EdgeDB client to access and query the database.
 
-1. **Computational Efficiency**: Processing large amounts of text requires
-   significant computational resources. With each additional token, the model
-   has to keep track of more information and make more complex calculations.
-   Therefore, having a token limit helps to manage these computational
-   requirements and ensure that the model can operate effectively and efficiently.
+Next, we get sections paths and prepare all sections data.
 
-2. **Memory Constraints**: The models use a technique called "attention" to
-   consider the context in which each token appears. This context includes a
-   certain number of preceding tokens. If the number of tokens exceeds the
-   model's limit, it might lose context for some tokens, which could
-   negatively impact the quality of the generated text.
+Before we update the database we need to delete the old data from it.
+We just delete all ``Section`` objects.
 
-So in general, for the things to work, there is token limit per request which
-includes both the prompt and the answer. As part of the prompt we will send
-user's question and similar sections as context and we have to make sure to
-not send too many sections as context because we will either get error back
-or the answer can be cut off if there are few tokens left for the answer.
-We will use in this tutorial GPT-4 and its token limit is 8192.
+Typescript Query Builder
+^^^^^^^^^^^^^^^^^^^^^^^^
+Finally we bulk-insert all sections data in the database. The
+`TS binding <https://www.edgedb.com/docs/clients/js/index>`_ offers several
+options for writing queries. We recommend using our query builder, and that's
+what we use here.
 
-How to calculate number of tokens per section
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-There are at least 3 ways to solve this:
-
-- when you send one string to the OpenAI embedding endpoint you will get back
-  together with the embedding array also the **prompt_tokens** field telling
-  you how many tokens the submitted content has and then you can store this
-  in the database together with other data
-- second way is to use some npm library that generates tokens array for the
-  string you provide, and then you calculate the length of that array
-  (`gpt-tokenizer <https://www.npmjs.com/package/gpt-tokenizer>`_ for example)
-- the 3rd way is to use OpenAI `tiktoken <https://github.com/openai/tiktoken>`_
-  library which should be faster than npm alternatives (and probably better
-  maintained), but it's supposed to be used with python so we need to write a
-  python script in order to calculate tokens in this way.
-
-We can't go with the first approach because prompt_tokens field is received
-inside embeddings response only when one string is submitted, if array of
-strings is submitted you only get back the total_tokens number for the whole
-submitted array.
-
-We want to save tokens in the database so that we can retrieve them together
-with contents when we get similar sections later for the user's request.
-Another approach is to calculate tokens for every similar section every time
-we need to construct the prompt, but this is probably a bit slower.
-
-We use in the tutorial native OpenAI `tiktoken <https://github.com/openai/tiktoken>`_
-tool. You can also use `gpt-tokeniser <https://www.npmjs.com/package/gpt-tokenizer>`_
-. Using npm-library is also easier if you are not familiar with python at all.
-
-Using tiktoken tokeniser to generate and count tokens
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Since tiktoken is a python library we need to spawn child_process and use
-tiktoken in appropriate python script to calculate tokens for every section.
-
-Firstly we need to install tiktoken:
+The ``@edgedb/generate`` package that we previously installed provides a set
+of code generation tools that are useful when developing an EdgeDB-backed
+applications with TypeScript / JavaScript. We need to run a
+`query builder <https://www.edgedb.com/docs/clients/js/querybuilder>`_
+generator.
 
 .. code-block:: bash
 
-  $ pip install tiktoken
+    $ npx @edgedb/generate edgeql-js
 
-Next, we need to create two new files in our gpt folder.
-
-.. code-block:: bash
-
-  $ touch gpt/getTokensLen.py
-  $ touch gpt/getTokensLen.ts
-
-Below is the TS script that's responsible for spawning the child, providing
-sections as the input to stdin and reading response from stdout.
+This generator gives us a code-first way to write fully-typed EdgeQL
+queries with TypeScript. The ``edgeql-js`` folder should have been created
+inside ``dbschema`` folder. And from there we import query builder ``e`` that we use
+to delete and insert data into the database.
 
 .. code-block:: typescript
 
-  import path from "path";
-  import {spawn} from "child_process";
-  import {pythonCmd} from "@edgedb/site-build-tools/utils";
+    import e from "../dbschema/edgeql-js";
 
-  export default async function getTokensLen(
-    sections: string[]
-  ): Promise<number[]> {
-    const process = spawn(pythonCmd(), [
-      path.join(__dirname, "getTokensLen.py"),
-    ]);
+Let's add script to ``package.json`` that will invoke and execute
+``generate-embeddings.ts``.
 
-    let stderr = "";
+.. code-block:: typescript
 
-    process.stderr.setEncoding("utf8");
-    process.stderr.on("data", (data) => {
-      stderr += data;
-    });
+    "embeddings": "tsx generate-embeddings.ts"
 
-    process.stdin.write(JSON.stringify(sections));
-    process.stdin.write("\n");
-
-    return new Promise((resolve, reject) => {
-      let tokens: string = "";
-
-      process.stdout.on("data", (data) => {
-        tokens += data.toString();
-      });
-
-      process.on("close", (code) => {
-        if (code !== 0) {
-          reject(stderr);
-        } else {
-          resolve(JSON.parse(tokens));
-        }
-      });
-
-      process.on("error", reject);
-    });
-  }
-
-And here is the python script that uses tiktoken, calculates tokens for every
-section and prints result to the stdout.
-
-.. code-block:: python
-
-  import tiktoken
-  import json
-  import sys
-
-  encoding = tiktoken.encoding_for_model("text-embedding-ada-002")
-
-  sections = None
-
-  for line in sys.stdin:
-      line = line.rstrip()
-      sections = json.loads(line)
-      break
-
-  num_tokens = []
-
-  for section in sections:
-      tokens = len(encoding.encode(section))
-      num_tokens.append(tokens)
-
-  print(num_tokens)
-
-
-Graphical representation of the inserted data
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Let's run embeddings script from the terminal with:
-
-.. code-block:: bash
-
-  $ yarn embeddings --refresh
+So now we can invoke the ``generate-embeddings.ts`` script from our terminal
+using ``yarn embeddings`` command.
 
 After the script is done (should be less than  a min), we should be able to
-open UI with
+open UI with:
 
 .. code-block:: bash
 
@@ -800,5 +571,82 @@ open UI with
 and see that the DB is indeed updated with embeddings and other relevant data.
 
 
+
 Handler function for user's questions
 -------------------------------------
+Now that we have embeddings we can start working on the handler for user
+requests. For the handler we will use next route handler
+`<https://nextjs.org/docs/app/building-your-application/routing/route-handlers>`_
+. Let's generate new file inside ``pages/api``.
+
+.. code-block:: bash
+
+    $ touch pages/api/generate.ts
+
+
+
+
+.. do we want this at all
+.. Why we need to know number of tokens per section
+.. ------------------------------------------------
+.. Later when we want to answer to the user's question, we will need to send
+.. similar sections as a context to the OpenAI completions endpoint, and we
+.. need to know how many tokens each content has in order to stay under the
+.. model's token limit.
+.. OpenAI's token limit
+.. ^^^^^^^^^^^^^^^^^^^^
+.. OpenAI's language models, like GPT-4, work by processing and generating text
+.. in chunks referred to as "tokens." These tokens can be as short as one
+.. character or as long as one word in English, or even other lengths in
+.. different languages.
+
+.. There are two main reasons for having a token limit:
+
+.. 1. **Computational Efficiency**: Processing large amounts of text requires
+..    significant computational resources. With each additional token, the model
+..    has to keep track of more information and make more complex calculations.
+..    Therefore, having a token limit helps to manage these computational
+..    requirements and ensure that the model can operate effectively and efficiently.
+
+.. 2. **Memory Constraints**: The models use a technique called "attention" to
+..    consider the context in which each token appears. This context includes a
+..    certain number of preceding tokens. If the number of tokens exceeds the
+..    model's limit, it might lose context for some tokens, which could
+..    negatively impact the quality of the generated text.
+
+.. So in general, for the things to work, there is token limit per request which
+.. includes both the prompt and the answer. As part of the prompt we will send
+.. user's question and similar sections as context and we have to make sure to
+.. not send too many sections as context because we will either get error back
+.. or the answer can be cut off if there are few tokens left for the answer.
+.. We will use in this tutorial GPT-4 and its token limit is 8192.
+
+.. How to calculate number of tokens per section
+.. ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. There are at least 3 ways to solve this:
+
+.. - when you send one string to the OpenAI embedding endpoint you will get back
+..   together with the embedding array also the **prompt_tokens** field telling
+..   you how many tokens the submitted content has and then you can store this
+..   in the database together with other data
+.. - second way is to use some npm library that generates tokens array for the
+..   string you provide, and then you calculate the length of that array
+..   (`gpt-tokenizer <https://www.npmjs.com/package/gpt-tokenizer>`_ for example)
+.. - the 3rd way is to use OpenAI `tiktoken <https://github.com/openai/tiktoken>`_
+..   library which should be faster than npm alternatives (and probably better
+..   maintained), but it's supposed to be used with python so we need to write a
+..   python script in order to calculate tokens in this way.
+
+.. We can't go with the first approach because prompt_tokens field is received
+.. inside embeddings response only when one string is submitted, if array of
+.. strings is submitted you only get back the total_tokens number for the whole
+.. submitted array.
+
+.. We want to save tokens in the database so that we can retrieve them together
+.. with contents when we get similar sections later for the user's request.
+.. Another approach is to calculate tokens for every similar section every time
+.. we need to construct the prompt, but this is probably a bit slower.
+
+.. We use in the tutorial native OpenAI `tiktoken <https://github.com/openai/tiktoken>`_
+.. tool. You can also use `gpt-tokeniser <https://www.npmjs.com/package/gpt-tokenizer>`_
+.. . Using npm-library is also easier if you are not familiar with python at all.
