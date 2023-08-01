@@ -11,8 +11,10 @@ edgedb analyze
 
 .. note::
 
-    This feature is also available inside the EdgeDB REPL and UI in which
-    prefacing it with ``edgedb`` is not required.
+    Performance analysis is also available in our :ref:`CLI REPL
+    <ref_cli_edgedb>` and the UI's REPL and query builder (both accessible by
+    running :ref:`ref_cli_edgedb_ui` to invoke your instance's UI). Use it by
+    prepending your query with ``analyze``.
 
 Run a query performance analysis on the given query.
 

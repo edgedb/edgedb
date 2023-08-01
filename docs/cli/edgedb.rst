@@ -20,8 +20,8 @@ print all the responses into the standard output:
 
     cat myscript.edgeql | edgedb [<connection-option>...]
 
-This command also works on PowerShell in Windows, while the classic
-Command Prompt uses a different keyword:
+The above command also works on PowerShell in Windows, while the classic
+Windows Command Prompt uses a different command as show below:
 
 .. cli:synopsis::
 
