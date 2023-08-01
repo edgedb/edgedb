@@ -21,45 +21,80 @@ import httpx
 import urllib.parse
 
 from . import base
+from . import data
 
 
 class GitHubProvider(base.BaseProvider):
     def __init__(self, *args, **kwargs):
         super().__init__("github", *args, **kwargs)
 
-    def get_code_url(
-        self, state: str, redirect_uri: str
-    ) -> str:
+    def get_code_url(self, state: str, redirect_uri: str) -> str:
         params = {
             "client_id": self.client_id,
-            "scope": "read:user",
+            "scope": "read:user user:email",
             "state": state,
             "redirect_uri": redirect_uri,
         }
         encoded = urllib.parse.urlencode(params)
         return f"https://github.com/login/oauth/authorize?{encoded}"
 
-    async def exchange_access_token(
-        self, code: str, state: str, redirect_uri: str
-    ):
-        # TODO: Check state value
+    async def exchange_access_token(self, code: str) -> str:
         data = {
             "grant_type": "authorization_code",
             "code": code,
-            "state": state,
-            "redirect_uri": redirect_uri,
             "client_id": self.client_id,
             "client_secret": self.client_secret,
         }
-
-        headers = {"Content-Type": "application/json"}
 
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 "https://github.com/login/oauth/access_token",
                 json=data,
-                headers=headers,
             )
             token = resp.json()["access_token"]
 
             return token
+
+    async def get_user_info(self, token: str) -> data.UserInfo:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://api.github.com/user",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+            )
+            data = resp.json()
+
+            return data.UserInfo(
+                sub=data["id"],
+                preferred_username=data.get("login"),
+                name=data.get("name"),
+                email=data.get("email"),
+                picture=data.get("avatar_url"),
+                updated_at=self._maybe_isoformat_to_timestamp(
+                    data.get("updated_at")
+                ),
+            )
+
+    async def fetch_emails(self, token: str) -> list[data.Email]:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://api.github.com/user/emails",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+            )
+            data = resp.json()
+
+            return [
+                data.Email(
+                    email=d["email"],
+                    verified=d["verified"],
+                    primary=d["primary"],
+                )
+                for d in data
+            ]

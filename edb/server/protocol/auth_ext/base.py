@@ -16,6 +16,9 @@
 # limitations under the License.
 #
 
+from datetime import datetime
+
+from . import data
 
 class BaseProvider:
     def __init__(self, name: str, client_id: str, client_secret: str):
@@ -29,5 +32,15 @@ class BaseProvider:
     async def exchange_code(self, code: str) -> str:
         raise NotImplementedError
 
-    async def fetch_user_info(self, token: str) -> dict[str, str]:
+    async def fetch_user_info(self, token: str) -> data.UserInfo:
         raise NotImplementedError
+
+    async def fetch_emails(self, token: str) -> list[data.Email]:
+        raise NotImplementedError
+
+    def _maybe_isoformat_to_timestamp(
+        self, value: str | None
+    ) -> int | None:
+        return (
+            int(datetime.fromisoformat(value).timestamp()) if value else None
+        )
