@@ -65,6 +65,8 @@ if TYPE_CHECKING:
     import asyncio.base_events
     import pathlib
 
+    from edb.pgsql import params as pgparams
+
 
 ADMIN_PLACEHOLDER = "<edgedb:admin>"
 logger = logging.getLogger('edb.server')
@@ -105,6 +107,8 @@ class BaseServer:
     _pgext_conns: dict[str, pg_ext.PgConnection]
     _idle_gc_handler: asyncio.TimerHandle | None = None
     _stmt_cache_size: int | None = None
+
+    _compiler_pool: compiler_pool.AbstractPool | None
 
     def __init__(
         self,
@@ -376,13 +380,16 @@ class BaseServer:
             metrics.background_errors.inc(1.0, 'idle_clients_collector')
             raise
 
-    async def _create_compiler_pool(self):
+    def _get_backend_runtime_params(self) -> pgparams.BackendRuntimeParams:
+        raise NotImplementedError
+
+    def _create_compiler_pool(self) -> compiler_pool.AbstractPool:
         # Force Postgres version in BackendRuntimeParams to be the
         # minimal supported, because the compiler does not rely on
         # the version, and not pinning it would make the remote compiler
         # pool refuse connections from clients that have differing versions
         # of Postgres backing them.
-        runtime_params = self._tenant.get_backend_runtime_params()
+        runtime_params = self._get_backend_runtime_params()
         min_ver = '.'.join(str(v) for v in defines.MIN_POSTGRES_VERSION)
         runtime_params = runtime_params._replace(
             instance_params=runtime_params.instance_params._replace(
@@ -404,8 +411,7 @@ class BaseServer:
         elif self._compiler_pool_mode == srvargs.CompilerPoolMode.MultiTenant:
             args["cache_size"] = self._compiler_pool_tenant_cache_size
         self._compiler_pool = compiler_pool.create_compiler_pool(**args)
-        self._tenant.attach_to_compiler(self._compiler_pool)
-        await self._compiler_pool.start()
+        return self._compiler_pool
 
     async def _destroy_compiler_pool(self):
         if self._compiler_pool is not None:
@@ -800,7 +806,7 @@ class BaseServer:
             self._request_stats_logger()
         )
 
-        await self._create_compiler_pool()
+        await self._create_compiler_pool().start()
 
         await self._before_start_servers()
         self._servers, actual_port, listen_addrs = await self._start_servers(
@@ -1384,7 +1390,7 @@ class Server(BaseServer):
         """Run the script specified in *startup_script* and exit immediately"""
         if self._startup_script is None:
             raise AssertionError('startup script is not defined')
-        await self._create_compiler_pool()
+        await self._create_compiler_pool().start()
         try:
             await binary.run_script(
                 server=self,
@@ -1441,6 +1447,14 @@ class Server(BaseServer):
         child["params"] = parent["params"]
         parent.update(child)
         return parent
+
+    def _get_backend_runtime_params(self) -> pgparams.BackendRuntimeParams:
+        return self._tenant.get_backend_runtime_params()
+
+    def _create_compiler_pool(self) -> compiler_pool.AbstractPool:
+        pool = super()._create_compiler_pool()
+        self._tenant.attach_to_compiler(pool)
+        return pool
 
 
 def _cleanup_wildcard_addrs(
