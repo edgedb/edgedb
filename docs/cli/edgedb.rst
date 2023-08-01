@@ -189,9 +189,10 @@ many of the commands:
 :cli:synopsis:`\\analyze QUERY`
   .. note::
 
-      This backslash command is compatible with EdgeDB server 3.0 and above.
+      This command is compatible with EdgeDB server 3.0 and above.
 
-  Run a query performance analysis on the given query.
+  Run a query performance analysis on the given query. Most conveniently used
+  without a backslash by just adding `analyze` before any query.
 
 .. rubric:: Data Operations
 
