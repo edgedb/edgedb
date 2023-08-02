@@ -26,6 +26,7 @@ import datetime
 import http.server
 import threading
 
+from typing import Any
 from jwcrypto import jwt, jwk
 
 from edb.testbase import http as tb
@@ -53,6 +54,20 @@ class MockHttpServerHandler(http.server.BaseHTTPRequestHandler):
 class MockHttpServer:
     def __init__(self):
         self.has_started = threading.Event()
+        self.routes: dict[
+            tuple[str, str, str],
+            tuple[dict[str, Any] | list[dict[str, Any]], int],
+        ] = {}
+
+    def register_route(
+        self,
+        method: str,
+        server: str,
+        path: str,
+        response: dict[str, Any] | list[dict[str, Any]],
+        status: int = 200,
+    ):
+        self.routes[(method, server, path)] = (response, status)
 
     def handle_request(
         self,
@@ -63,7 +78,19 @@ class MockHttpServer:
     ):
         # `handler` is documented here:
         # https://docs.python.org/3/library/http.server.html#http.server.BaseHTTPRequestHandler
-        raise NotImplementedError
+        key = (method, server, path)
+        if key not in self.routes:
+            handler.send_error(404)
+            return
+
+        response, status = self.routes[key]
+        data = json.dumps(response).encode()
+
+        handler.send_response(status)
+        handler.send_header('Content-Type', 'application/json')
+        handler.send_header('Content-Length', str(len(data)))
+        handler.end_headers()
+        handler.wfile.write(data)
 
     def __enter__(self):
         assert not hasattr(self, '_http_runner')
@@ -87,84 +114,6 @@ class MockHttpServer:
         self._http_runner.join()
         self._http_runner = None
 
-class MockGithub(MockHttpServer):
-    def handle_request(
-        self,
-        method: str,
-        server: str,
-        path: str,
-        handler: MockHttpServerHandler,
-    ):
-        if (
-            method == 'POST'
-            and server == 'https://github.com'
-            and path == '/login/oauth/access_token'
-        ):
-            data = json.dumps(
-                {
-                    "access_token": "abc123",
-                    "scope": "read:user",
-                    "token_type": "bearer",
-                }
-            ).encode()
-
-            handler.send_response(200)
-            handler.send_header('Content-Type', 'application/json')
-            handler.send_header('Content-Length', str(len(data)))
-            handler.end_headers()
-            handler.wfile.write(data)
-            return
-
-        if (
-            method == 'GET'
-            and server == 'https://api.github.com'
-            and path == '/user'
-        ):
-            now = datetime.datetime.utcnow().isoformat()
-            data = json.dumps(
-                {
-                    "id": 1,
-                    "login": "octocat",
-                    "name": "monalisa octocat",
-                    "email": "octocat@example.com",
-                    "avatar_url": "http://example.com/example.jpg",
-                    "updated_at": now,
-                }
-            ).encode()
-
-            handler.send_response(200)
-            handler.send_header('Content-Type', 'application/json')
-            handler.send_header('Content-Length', str(len(data)))
-            handler.end_headers()
-            handler.wfile.write(data)
-            return
-
-        if (
-            method == 'GET'
-            and server == 'https://api.github.com'
-            and path == '/user/emails'
-        ):
-            data = json.dumps(
-                [
-                    {
-                        "email": "octocat@example.com",
-                        "verified": True,
-                        "primary": True,
-                    },
-                    {
-                        "email": "octocat+2@example.com",
-                        "verified": False,
-                        "primary": False,
-                    },
-                ]
-            ).encode()
-
-            handler.send_response(200)
-            handler.send_header('Content-Type', 'application/json')
-            handler.send_header('Content-Length', str(len(data)))
-            handler.end_headers()
-            handler.wfile.write(data)
-            return
 
 class TestHttpExtAuth(tb.ExtAuthTestCase):
     TRANSACTION_ISOLATION = False
@@ -199,7 +148,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         return super().http_con_send_request(*args, headers=headers, **kwargs)
 
     async def test_http_auth_ext_github_authorize_01(self):
-        with MockGithub(), self.http_con() as http_con:
+        with MockHttpServer(), self.http_con() as http_con:
             client_id = await self.con.query_single(
                 """SELECT assert_single(cfg::Config.xxx_github_client_id);"""
             )
@@ -239,7 +188,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(qs.get("client_id"), [client_id])
 
     async def test_http_auth_ext_github_callback_missing_provider_01(self):
-        with MockGithub(), self.http_con() as http_con:
+        with MockHttpServer(), self.http_con() as http_con:
             auth_signing_key = await self.con.query_single(
                 """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
             )
@@ -269,7 +218,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(status, 400)
 
     async def test_http_auth_ext_github_callback_wrong_key_01(self):
-        with MockGithub(), self.http_con() as http_con:
+        with MockHttpServer(), self.http_con() as http_con:
             auth_signing_key = "abcd" * 8
 
             expires_at = datetime.datetime.utcnow() + datetime.timedelta(
@@ -298,7 +247,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(status, 400)
 
     async def test_http_auth_ext_github_unknown_provider_01(self):
-        with MockGithub(), self.http_con() as http_con:
+        with MockHttpServer(), self.http_con() as http_con:
             auth_signing_key = await self.con.query_single(
                 """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
             )
@@ -329,7 +278,51 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(status, 400)
 
     async def test_http_auth_ext_github_callback_01(self):
-        with MockGithub(), self.http_con() as http_con:
+        with MockHttpServer() as mock_srv, self.http_con() as http_con:
+            now = datetime.datetime.utcnow().isoformat()
+            mock_srv.register_route(
+                method="POST",
+                server="https://github.com",
+                path="/login/oauth/access_token",
+                response={
+                    "access_token": "abc123",
+                    "scope": "read:user",
+                    "token_type": "bearer",
+                },
+            )
+
+            mock_srv.register_route(
+                method="GET",
+                server="https://api.github.com",
+                path="/user",
+                response={
+                    "id": 1,
+                    "login": "octocat",
+                    "name": "monalisa octocat",
+                    "email": "octocat@example.com",
+                    "avatar_url": "http://example.com/example.jpg",
+                    "updated_at": now,
+                },
+            )
+
+            mock_srv.register_route(
+                method="GET",
+                server="https://api.github.com",
+                path="/user/emails",
+                response=[
+                    {
+                        "email": "octocat@example.com",
+                        "verified": True,
+                        "primary": True,
+                    },
+                    {
+                        "email": "octocat+2@example.com",
+                        "verified": False,
+                        "primary": False,
+                    },
+                ],
+            )
+
             auth_signing_key = await self.con.query_single(
                 """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
             )
