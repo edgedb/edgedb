@@ -24,10 +24,6 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
 
     create abstract type ext::auth::User;
 
-    create type ext::auth::Identity {
-        create required link user: ext::auth::User;
-    };
-
     create type ext::auth::Provider {
         create required property name: std::str;
         create required property url: std::str {
@@ -35,19 +31,9 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
     };
 
-    create type ext::auth::Email {
-        create required property address: std::str;
-        create required property verified: std::bool;
-        create required property primary: std::bool;
-
-        create required link identity: ext::auth::Identity;
-
-        create constraint exclusive on ((.identity, .primary));
-    };
-
-    create type ext::auth::Claims {
+    create type ext::auth::Identity {
         create required link issuer: ext::auth::Provider;
-        create required link subject: ext::auth::Identity;
+        create required link subject: ext::auth::User;
 
         # Standard claims
         create required property sub: std::str;
@@ -65,6 +51,16 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create property zoneinfo: std::str;
         create property locale: std::str;
         create property updated_at: std::datetime;
+    };
+
+    create type ext::auth::Email {
+        create required property address: std::str;
+        create required property verified: std::bool;
+        create required property primary: std::bool;
+
+        create required link identity: ext::auth::Identity;
+
+        create constraint exclusive on ((.identity, .primary));
     };
 
     create type ext::auth::Session {
