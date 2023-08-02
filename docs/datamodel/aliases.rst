@@ -33,6 +33,27 @@ of all User objects*. After declaring the alias below, you can use ``User`` and
 
   alias UserAlias := User;
 
+**Tuple alias**
+
+A tuple alias has features in common with both scalar and object type aliases.
+Like object type aliases, a tuple alias can hold multiple values that can be
+accessed using the ``.`` dot operator. But like scalar aliases, a tuple alias
+is a standalone expression that does not involve object types.
+
+.. code-block:: sdl
+
+    alias Color := ("Purple", 128, 0, 128);
+
+    alias GameInfo := (
+      name := "Li Europan Lingues",
+      country := "Iceland",
+      date_published := 2023,
+      creators := (
+        (name := "Bob Bobson", age := 20),
+        (name := "Trina Trinadóttir", age := 25),
+      ),
+    );
+
 **Object type alias with computeds**
 
 Object type aliases can include a *shape* that declare additional computed
