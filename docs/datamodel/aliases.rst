@@ -62,7 +62,7 @@ properties or links.
 In effect, this creates a *virtual subtype* of the base type, which can be
 referenced in queries just like any other type.
 
-**Query alias**
+**Expression alias**
 
 Aliases can correspond to an arbitrary EdgeQL expression, including entire
 queries.
@@ -70,8 +70,10 @@ queries.
 .. code-block:: sdl
     :version-lt: 3.0
 
+    # Expression producing a tuple alias
     alias Color := ("Purple", 128, 0, 128);
 
+    # Expression producing a named tuple alias
     alias GameInfo := (
       name := "Li Europan Lingues",
       country := "Iceland",
@@ -87,6 +89,7 @@ queries.
       required property is_published -> bool;
     }
 
+    # Alias produced from a full query
     alias PublishedPosts := (
       select BlogPost
       filter .is_published = true
@@ -94,8 +97,10 @@ queries.
 
 .. code-block:: sdl
 
+    # Expression producing a tuple alias
     alias Color := ("Purple", 128, 0, 128);
 
+    # Expression producing a named tuple alias
     alias GameInfo := (
       name := "Li Europan Lingues",
       country := "Iceland",
@@ -111,6 +116,7 @@ queries.
       required is_published: bool;
     }
 
+    # Alias produced from a full query
     alias PublishedPosts := (
       select BlogPost
       filter .is_published = true
