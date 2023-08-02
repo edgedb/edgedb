@@ -23,7 +23,7 @@ import urllib.parse
 import httpx
 
 
-from typing import *
+from typing import Any
 
 from . import errors, util, data
 
@@ -49,21 +49,13 @@ class HttpClient(httpx.AsyncClient):
 
 
 class Client:
-    def __init__(self, db: Any, provider: str, request, test_mode):
+    def __init__(self, db: Any, provider: str, base_url: str | None = None):
         self.db = db
         self.db_config = db.db_config
 
-        if (
-            test_mode
-            and request.params
-            and b'oauth-test-server' in request.params
-        ):
-            test_url = request.params[b'oauth-test-server'].decode()
-            http_factory = lambda *args, **kwargs: HttpClient(
-                *args, edgedb_test_url=test_url, **kwargs
-            )
-        else:
-            http_factory = HttpClient
+        http_factory = lambda *args, **kwargs: HttpClient(
+            *args, edgedb_test_url=base_url, **kwargs
+        )
 
         match provider:
             case "github":

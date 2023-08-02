@@ -44,6 +44,16 @@ class Router:
     async def handle_request(
         self, request: Any, response: Any, args: list[str]
     ):
+        test_url = (
+            request.params[b'oauth-test-server'].decode()
+            if (
+                self.test_mode
+                and request.params
+                and b'oauth-test-server' in request.params
+            )
+            else None
+        )
+
         try:
             match args:
                 case ("authorize",):
@@ -54,10 +64,7 @@ class Router:
                         request.url.query.decode("ascii"), "provider"
                     )
                     client = oauth.Client(
-                        db=self.db,
-                        provider=provider,
-                        request=request,
-                        test_mode=self.test_mode,
+                        db=self.db, provider=provider, base_url=test_url
                     )
                     authorize_url = client.get_authorize_url(
                         redirect_uri=self._get_callback_url(),
@@ -76,8 +83,7 @@ class Router:
                     client = oauth.Client(
                         db=self.db,
                         provider=provider,
-                        request=request,
-                        test_mode=self.test_mode,
+                        base_url=test_url,
                     )
                     await client.handle_callback(code)
                     response.status = http.HTTPStatus.FOUND
