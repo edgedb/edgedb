@@ -3645,7 +3645,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
 
                 fts_document.add_constraint(dbops.GeneratedConstraint(
                     constraint_name='__fts_gen_doc__',
-                    expr = ' || '.join(document_exprs)
+                    expr=' || '.join(document_exprs)
                 ))
 
                 # use a reference to the new column in the index instead

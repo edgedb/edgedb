@@ -158,6 +158,7 @@ pg_oid_typeref = irast.TypeRef(
     sql_type='pg_catalog.oid',
 )
 
+
 def is_builtin_scalar(
     schema: s_schema.Schema, scalar: s_scalars.ScalarType
 ) -> bool:
