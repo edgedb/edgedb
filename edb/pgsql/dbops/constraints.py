@@ -60,8 +60,7 @@ class Constraint(base.DBObject):
         if quote and self._constraint_name:
             return common.quote_ident(self._constraint_name)
         else:
-            assert self._constraint_name
-            return self._constraint_name
+            return self._constraint_name or ''
 
     def constraint_code(self, block: base.PLBlock) -> str | List[str]:
         raise NotImplementedError

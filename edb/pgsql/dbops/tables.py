@@ -201,7 +201,9 @@ class TableConstraint(constraints.Constraint):
 
 
 class PrimaryKey(TableConstraint):
-    def __init__(self, table_name: Sequence[str], columns: Sequence[str | pgast.Star]):
+    def __init__(
+        self, table_name: Sequence[str], columns: Sequence[str | pgast.Star]
+    ):
         super().__init__(table_name)
         self.columns = columns
 
@@ -211,7 +213,9 @@ class PrimaryKey(TableConstraint):
 
 
 class UniqueConstraint(TableConstraint):
-    def __init__(self, table_name: Sequence[str], columns: Sequence[str | pgast.Star]):
+    def __init__(
+        self, table_name: Sequence[str], columns: Sequence[str | pgast.Star]
+    ):
         super().__init__(table_name)
         self.columns = columns
 
