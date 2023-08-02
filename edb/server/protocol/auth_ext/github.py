@@ -18,6 +18,7 @@
 
 
 import urllib.parse
+import functools
 
 from . import base
 from . import data
@@ -26,6 +27,14 @@ from . import data
 class GitHubProvider(base.BaseProvider):
     def __init__(self, *args, **kwargs):
         super().__init__("github", *args, **kwargs)
+        self.auth_domain = "https://github.com"
+        self.api_domain = "https://api.github.com"
+        self.auth_client = functools.partial(
+            self.http_factory, base_url=self.auth_domain
+        )
+        self.api_client = functools.partial(
+            self.http_factory, base_url=self.api_domain
+        )
 
     def get_code_url(self, state: str, redirect_uri: str) -> str:
         params = {
@@ -35,7 +44,7 @@ class GitHubProvider(base.BaseProvider):
             "redirect_uri": redirect_uri,
         }
         encoded = urllib.parse.urlencode(params)
-        return f"https://github.com/login/oauth/authorize?{encoded}"
+        return f"{self.auth_domain}/login/oauth/authorize?{encoded}"
 
     async def exchange_code(self, code: str) -> str:
         data = {
@@ -45,20 +54,17 @@ class GitHubProvider(base.BaseProvider):
             "client_secret": self.client_secret,
         }
 
-        async with self.http_factory(base_url='https://github.com') as client:
+        async with self.auth_client() as client:
             resp = await client.post(
                 "/login/oauth/access_token",
                 json=data,
             )
-            print(f"resp: {resp.text!r}")
             token = resp.json()["access_token"]
 
             return token
 
     async def fetch_user_info(self, token: str) -> data.UserInfo:
-        async with self.http_factory(
-            base_url='https://api.github.com'
-        ) as client:
+        async with self.api_client() as client:
             resp = await client.get(
                 "/user",
                 headers={
@@ -80,9 +86,7 @@ class GitHubProvider(base.BaseProvider):
             )
 
     async def fetch_emails(self, token: str) -> list[data.Email]:
-        async with self.http_factory(
-            base_url='https://api.github.com'
-        ) as client:
+        async with self.api_client() as client:
             resp = await client.get(
                 "/user/emails",
                 headers={
