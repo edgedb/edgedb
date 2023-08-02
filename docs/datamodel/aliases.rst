@@ -65,7 +65,7 @@ referenced in queries just like any other type.
 
 **Other arbitrary expressions**
 
-Aliases can correspond to an arbitrary EdgeQL expression, including entire
+Aliases can correspond to any arbitrary EdgeQL expression, including entire
 queries.
 
 .. code-block:: sdl
