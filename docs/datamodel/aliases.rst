@@ -14,8 +14,9 @@ An **alias** is a *pointer* to a set of values. This set is defined with an
 arbitrary EdgeQL expression.
 
 Like computed properties, this expression is evaluated on the fly whenever the
-alias is referenced in a query. Unlike computed properties, aliases are defined
-independent of an object type; they are standalone expressions.
+alias is referenced in a query. Unlike computed properties, aliases are 
+defined independent of an object type; they are standalone expressions.
+As such, aliases are fairly open ended. Some examples are:
 
 **Scalar alias**
 
@@ -62,7 +63,7 @@ properties or links.
 In effect, this creates a *virtual subtype* of the base type, which can be
 referenced in queries just like any other type.
 
-**Expression alias**
+**Other arbitrary expressions**
 
 Aliases can correspond to an arbitrary EdgeQL expression, including entire
 queries.
@@ -70,10 +71,10 @@ queries.
 .. code-block:: sdl
     :version-lt: 3.0
 
-    # Expression producing a tuple alias
+    # Tuple alias
     alias Color := ("Purple", 128, 0, 128);
 
-    # Expression producing a named tuple alias
+    # Named tuple alias
     alias GameInfo := (
       name := "Li Europan Lingues",
       country := "Iceland",
@@ -89,7 +90,7 @@ queries.
       required property is_published -> bool;
     }
 
-    # Alias produced from a full query
+    # Query alias
     alias PublishedPosts := (
       select BlogPost
       filter .is_published = true
@@ -97,10 +98,10 @@ queries.
 
 .. code-block:: sdl
 
-    # Expression producing a tuple alias
+    # Tuple alias
     alias Color := ("Purple", 128, 0, 128);
 
-    # Expression producing a named tuple alias
+    # Named tuple alias
     alias GameInfo := (
       name := "Li Europan Lingues",
       country := "Iceland",
@@ -116,7 +117,7 @@ queries.
       required is_published: bool;
     }
 
-    # Alias produced from a full query
+    # Query alias
     alias PublishedPosts := (
       select BlogPost
       filter .is_published = true
