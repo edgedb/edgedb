@@ -300,7 +300,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 """SELECT assert_single(cfg::Config.xxx_github_client_id);"""
             )
             client_secret = await self.con.query_single(
-                """SELECT assert_single(cfg::Config.xxx_github_client_secret);"""
+                """
+                SELECT assert_single(cfg::Config.xxx_github_client_secret);
+                """
             )
 
             now = datetime.datetime.utcnow().isoformat()
