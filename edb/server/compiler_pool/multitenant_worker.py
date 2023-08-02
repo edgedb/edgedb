@@ -76,7 +76,7 @@ def __init_worker__(
         refl_schema,
         schema_class_layout,
         backend_runtime_params=backend_runtime_params,
-        load_config=True,
+        config_spec=None,
     )
 
 

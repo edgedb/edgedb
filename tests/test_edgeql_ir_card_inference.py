@@ -1105,3 +1105,73 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         x: AT_LEAST_ONE
         """
+
+    def test_edgeql_ir_card_inference_129(self):
+        """
+        select assert(<bool>{})
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_130(self):
+        """
+        select assert(<bool>{}, message := {'uh', 'oh'})
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_131(self):
+        """
+        select assert(true, message := {'uh', 'oh'})
+% OK %
+        AT_LEAST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_132(self):
+        """
+        select distinct <str>{}
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_133(self):
+        """
+        select distinct 1
+% OK %
+        ONE
+        """
+
+    def test_edgeql_ir_card_inference_134(self):
+        """
+        select distinct {1, 2}
+% OK %
+        AT_LEAST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_135(self):
+        """
+        <str>{} if true else {'foo', 'bar'}
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_136(self):
+        """
+        <str>{} if true else 'foo'
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_137(self):
+        """
+        'bar' if true else 'foo'
+% OK %
+        ONE
+        """
+
+    def test_edgeql_ir_card_inference_138(self):
+        """
+        assert_exists(1, message := {"uh", "oh"})
+% OK %
+        AT_LEAST_ONE
+        """

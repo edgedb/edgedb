@@ -8819,6 +8819,20 @@ aa \
             }
         """)
 
+    async def test_edgeql_assert_message_crossproduct(self):
+        # Nobody should do this, but specifying a set to the message
+        # argument of an assert function should produce repeated
+        # output.
+        await self.assert_query_result(
+            """
+                select
+                    assert_single(1, message := {"uh", "oh"}) +
+                    assert_distinct(1, message := {"uh", "oh"}) +
+                    assert_exists({1, 2}, message := {"uh", "oh"});
+            """,
+            tb.bag([3] * 8 + [4] * 8),
+        )
+
     async def test_edgeql_assert_exists_01(self):
         await self.con.execute("""
             INSERT User {

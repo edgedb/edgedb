@@ -69,6 +69,7 @@ cdef class DatabaseIndex:
         object _global_schema
         object _factory
         object _default_sysconfig
+        object _sys_config_spec
 
 
 cdef class Database:
@@ -187,6 +188,8 @@ cdef class DatabaseConnectionView:
     cdef commit_implicit_tx(
         self, user_schema, global_schema, cached_reflection
     )
+
+    cpdef get_config_spec(self)
 
     cpdef get_session_config(self)
     cdef set_session_config(self, new_conf)

@@ -1,3 +1,5 @@
+# mypy: check-untyped-defs
+
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -61,11 +63,15 @@ from edb.server import pgcon
 
 from edb.pgsql import patches as pg_patches
 
+from . import compiler as edbcompiler
+
 if TYPE_CHECKING:
     import asyncio.base_events
     import pathlib
 
     from edb.pgsql import params as pgparams
+
+    from . import bootstrap
 
 
 ADMIN_PLACEHOLDER = "<edgedb:admin>"
@@ -106,6 +112,7 @@ class BaseServer:
     _stmt_cache_size: int | None = None
 
     _compiler_pool: compiler_pool.AbstractPool | None
+    _http_request_logger: asyncio.Task | None
 
     def __init__(
         self,
@@ -131,8 +138,20 @@ class BaseServer:
             srvargs.DEFAULT_AUTH_METHODS),
         admin_ui: bool = False,
         disable_dynamic_system_config: bool = False,
+        compiler_state: edbcompiler.CompilerState,
     ):
         self.__loop = asyncio.get_running_loop()
+
+        self._schema_class_layout = compiler_state.schema_class_layout
+        self._config_settings = compiler_state.config_spec
+        self._refl_schema = compiler_state.refl_schema
+        self._std_schema = compiler_state.std_schema
+        assert compiler_state.global_intro_query is not None
+        self._global_intro_query = (
+            compiler_state.global_intro_query.encode("utf-8"))
+        assert compiler_state.local_intro_query is not None
+        self._local_intro_query = (
+            compiler_state.local_intro_query.encode("utf-8"))
 
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
@@ -157,7 +176,7 @@ class BaseServer:
         # connection has disconnected
         # and there have been no new connections for n seconds
         self._auto_shutdown_after = auto_shutdown_after
-        self._auto_shutdown_handler = None
+        self._auto_shutdown_handler: Any = None
 
         self._echo_runtime_info = echo_runtime_info
         self._status_sinks = status_sinks
@@ -180,10 +199,10 @@ class BaseServer:
         self._http_request_logger = None
 
         self._stop_evt = asyncio.Event()
-        self._tls_cert_file = None
+        self._tls_cert_file: str | Any = None
         self._tls_cert_newly_generated = False
-        self._sslctx = None
-        self._sslctx_pgext = None
+        self._sslctx: ssl.SSLContext | Any = None
+        self._sslctx_pgext: ssl.SSLContext | Any = None
 
         self._jws_key: jwk.JWK | None = None
         self._jws_keys_newly_generated = False
@@ -197,7 +216,7 @@ class BaseServer:
         self._admin_ui = admin_ui
 
         self._file_watch_handles = []
-        self._tls_certs_reload_retry_handle = None
+        self._tls_certs_reload_retry_handle: Any | asyncio.TimerHandle = None
 
         self._disable_dynamic_system_config = disable_dynamic_system_config
         self._report_config_typedesc = {}
@@ -296,24 +315,40 @@ class BaseServer:
         if conn is not None:
             conn.cancel(secret)
 
+    def monitor_fs(
+        self, path: str | pathlib.Path,
+        cb: Callable[[str, int], None],
+    ) -> None:
+        self._file_watch_handles.append(
+            # ... we depend on an event loop internal _monitor_fs
+            self.__loop._monitor_fs(str(path), cb)  # type: ignore
+        )
+
     def _get_sys_config(self) -> Mapping[str, config.SettingValue]:
         raise NotImplementedError
+
+    def config_lookup(
+        self,
+        name: str,
+        *configs: Mapping[str, config.SettingValue],
+    ) -> Any:
+        return config.lookup(name, *configs, spec=self._config_settings)
 
     async def init(self):
         sys_config = self._get_sys_config()
         if not self._listen_hosts:
             self._listen_hosts = (
-                config.lookup('listen_addresses', sys_config)
+                self.config_lookup('listen_addresses', sys_config)
                 or ('localhost',)
             )
 
         if self._listen_port is None:
             self._listen_port = (
-                config.lookup('listen_port', sys_config)
+                self.config_lookup('listen_port', sys_config)
                 or defines.EDGEDB_PORT
             )
 
-        self._stmt_cache_size = config.lookup(
+        self._stmt_cache_size = self.config_lookup(
             '_pg_prepared_statement_cache_size', sys_config
         )
 
@@ -327,7 +362,7 @@ class BaseServer:
             self._idle_gc_handler.cancel()
             self._idle_gc_handler = None
 
-        session_idle_timeout = config.lookup(
+        session_idle_timeout = self.config_lookup(
             'session_idle_timeout', self._get_sys_config())
 
         timeout = session_idle_timeout.to_microseconds()
@@ -451,15 +486,15 @@ class BaseServer:
         json_data = await syscon.sql_fetch_val(dbs_query)
         return json.loads(json_data)
 
-    async def get_patch_count(self, conn):
+    async def get_patch_count(self, conn: pgcon.PGConnection) -> int:
         """Get the number of applied patches."""
-        num_patches = await conn.sql_fetch_val(
+        num_patches_b = await conn.sql_fetch_val(
             b'''
                 SELECT json::json from edgedbinstdata.instdata
                 WHERE key = 'num_patches';
             ''',
         )
-        num_patches = json.loads(num_patches) if num_patches else 0
+        num_patches = json.loads(num_patches_b) if num_patches_b else 0
         return num_patches
 
     async def _on_system_config_add(self, setting_name, value):
@@ -638,14 +673,6 @@ class BaseServer:
 
         return servers, port, addrs
 
-    def monitor_fs(
-        self, path: str | pathlib.Path,
-        cb: Callable[[str, int], None],
-    ) -> None:
-        self._file_watch_handles.append(
-            self.__loop._monitor_fs(str(path), cb)  # type: ignore
-        )
-
     def _sni_callback(self, sslobj, server_name, sslctx):
         # Match the given SNI for a pre-registered Tenant instance,
         # and temporarily store in memory indexed by sslobj for future
@@ -803,7 +830,7 @@ class BaseServer:
 
         await self._before_start_servers()
         self._servers, actual_port, listen_addrs = await self._start_servers(
-            (await _resolve_interfaces(self._listen_hosts))[0],
+            tuple((await _resolve_interfaces(self._listen_hosts))[0]),
             self._listen_port,
             sockets=self._listen_sockets,
         )
@@ -900,9 +927,11 @@ class BaseServer:
             ),
             instance_config=serialize_config(self._get_sys_config()),
             compiler_pool=dict(
-                worker_pids=list(self._compiler_pool._workers.keys()),
+                worker_pids=list(
+                    self._compiler_pool._workers.keys()  # type: ignore
+                ),
                 template_pid=self._compiler_pool.get_template_pid(),
-            ),
+            ) if self._compiler_pool else None,
         )
 
     def get_report_config_typedesc(
@@ -970,7 +999,9 @@ class Server(BaseServer):
     def get_default_tenant(self) -> edbtenant.Tenant:
         return self._tenant
 
-    async def _get_patch_log(self, conn, idx):
+    async def _get_patch_log(
+        self, conn: pgcon.PGConnection, idx: int
+    ) -> Optional[bootstrap.PatchEntry]:
         # We need to maintain a log in the system database of
         # patches that have been applied. This is so that if a
         # patch creates a new object, and then we succesfully
@@ -990,7 +1021,9 @@ class Server(BaseServer):
         else:
             return None
 
-    async def _prepare_patches(self, conn):
+    async def _prepare_patches(
+        self, conn: pgcon.PGConnection
+    ) -> dict[int, bootstrap.PatchEntry]:
         """Prepare all the patches"""
         num_patches = await self.get_patch_count(conn)
 
@@ -1000,7 +1033,7 @@ class Server(BaseServer):
         patches = {}
         patch_list = list(enumerate(pg_patches.PATCHES))
         for num, (kind, patch) in patch_list[num_patches:]:
-            from . import bootstrap
+            from . import bootstrap  # noqa: F402
 
             idx = num_patches + num
             if not (entry := await self._get_patch_log(conn, idx)):
@@ -1020,7 +1053,7 @@ class Server(BaseServer):
                 # a reload of it from the schema.
                 if '+config' in kind:
                     config_spec = config.load_spec_from_schema(self._std_schema)
-                    config.set_settings(config_spec)
+                    self._config_settings = config_spec
 
             if 'reflschema' in updates:
                 self._refl_schema = updates['reflschema']
@@ -1040,15 +1073,21 @@ class Server(BaseServer):
 
         return patches
 
-    async def _maybe_apply_patches(self, dbname, conn, patches, sys=False):
+    async def _maybe_apply_patches(
+        self,
+        dbname: str,
+        conn: pgcon.PGConnection,
+        patches: dict[int, bootstrap.PatchEntry],
+        sys: bool=False,
+    ) -> None:
         """Apply any un-applied patches to the database."""
         num_patches = await self.get_patch_count(conn)
-        for num, (sql, syssql, _, repair) in patches.items():
+        for num, (sql_b, syssql, _, repair) in patches.items():
             if num_patches <= num:
                 if sys:
-                    sql += syssql
+                    sql_b += syssql
                 logger.info("applying patch %d to database '%s'", num, dbname)
-                sql = tuple(x.encode('utf-8') for x in sql)
+                sql = tuple(x.encode('utf-8') for x in sql_b)
 
                 # Only do repairs when they are the *last* pending
                 # repair in the patch queue. We make sure that every
@@ -1092,7 +1131,9 @@ class Server(BaseServer):
                 if sql:
                     await conn.sql_fetch(sql)
 
-    async def _maybe_patch_db(self, dbname, patches):
+    async def _maybe_patch_db(
+        self, dbname: str, patches: dict[int, bootstrap.PatchEntry]
+    ) -> None:
         logger.info("applying patches to database '%s'", dbname)
 
         try:
@@ -1109,7 +1150,7 @@ class Server(BaseServer):
                 f'database {dbname}'
             ) from e
 
-    async def _maybe_patch(self):
+    async def _maybe_patch(self) -> None:
         """Apply patches to all the databases"""
 
         async with self._tenant.use_sys_pgcon() as syscon:
@@ -1145,7 +1186,7 @@ class Server(BaseServer):
             await self._maybe_apply_patches(
                 defines.EDGEDB_SYSTEM_DB, syscon, patches, sys=True)
 
-    def _load_schema(self, result, version_key):
+    def _load_schema(self, result, version_key) -> s_schema.FlatSchema:
         res = pickle.loads(result[2:])
         if version_key != pg_patches.get_version_key(len(pg_patches.PATCHES)):
             res = s_schema.upgrade_schema(res)
@@ -1164,46 +1205,6 @@ class Server(BaseServer):
             self._sys_queries = immutables.Map(
                 {k: q.encode() for k, q in queries.items()})
 
-            self._local_intro_query = await syscon.sql_fetch_val(f'''\
-                SELECT text FROM edgedbinstdata.instdata
-                WHERE key = 'local_intro_query{version_key}';
-            '''.encode('utf-8'))
-
-            self._global_intro_query = await syscon.sql_fetch_val(f'''\
-                SELECT text FROM edgedbinstdata.instdata
-                WHERE key = 'global_intro_query{version_key}';
-            '''.encode('utf-8'))
-
-            result = await syscon.sql_fetch_val(f'''\
-                SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'stdschema{version_key}';
-            '''.encode('utf-8'))
-            try:
-                self._std_schema = self._load_schema(result, version_key)
-            except Exception as e:
-                raise RuntimeError(
-                    'could not load std schema pickle') from e
-
-            result = await syscon.sql_fetch_val(f'''\
-                SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'reflschema{version_key}';
-            '''.encode('utf-8'))
-            try:
-                self._refl_schema = self._load_schema(result, version_key)
-            except Exception as e:
-                raise RuntimeError(
-                    'could not load refl schema pickle') from e
-
-            result = await syscon.sql_fetch_val(f'''\
-                SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'classlayout{version_key}';
-            '''.encode('utf-8'))
-            try:
-                self._schema_class_layout = pickle.loads(result[2:])
-            except Exception as e:
-                raise RuntimeError(
-                    'could not load schema class layout pickle') from e
-
             self._report_config_typedesc[(1, 0)] = await syscon.sql_fetch_val(
                 f'''
                     SELECT bin FROM edgedbinstdata.instdata
@@ -1219,7 +1220,7 @@ class Server(BaseServer):
             )
 
     def _reload_stmt_cache_size(self):
-        size = config.lookup(
+        size = self.config_lookup(
             '_pg_prepared_statement_cache_size', self._get_sys_config()
         )
         self._stmt_cache_size = size
@@ -1264,7 +1265,7 @@ class Server(BaseServer):
             admin = False
         else:
             hosts_to_start = nethosts
-            servers_to_stop = self._servers.values()
+            servers_to_stop = list(self._servers.values())
             admin = True
 
         if servers_to_stop_early:
@@ -1273,7 +1274,7 @@ class Server(BaseServer):
         if hosts_to_start:
             try:
                 new_servers, *_ = await self._start_servers(
-                    hosts_to_start,
+                    tuple(hosts_to_start),
                     netport,
                     admin=admin,
                 )
@@ -1288,7 +1289,7 @@ class Server(BaseServer):
             s.getsockname()[0]
             for host, tcp_srv in servers.items()
             if host != ADMIN_PLACEHOLDER
-            for s in tcp_srv.sockets
+            for s in tcp_srv.sockets  # type: ignore
         ]
         self._listen_port = netport
 
@@ -1349,7 +1350,8 @@ class Server(BaseServer):
             if setting_name == 'listen_addresses':
                 cfg = self._get_sys_config()
                 await self._restart_servers_new_addr(
-                    config.lookup('listen_addresses', cfg) or ('localhost',),
+                    self.config_lookup('listen_addresses', cfg)
+                    or ('localhost',),
                     self._listen_port,
                 )
 
@@ -1357,7 +1359,8 @@ class Server(BaseServer):
                 cfg = self._get_sys_config()
                 await self._restart_servers_new_addr(
                     self._listen_hosts,
-                    config.lookup('listen_port', cfg) or defines.EDGEDB_PORT,
+                    self.config_lookup('listen_port', cfg)
+                    or defines.EDGEDB_PORT,
                 )
 
             elif setting_name == 'session_idle_timeout':

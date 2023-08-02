@@ -111,22 +111,28 @@ class PGConnection:
     def get_server_parameter_status(self, parameter: str) -> Optional[str]:
         ...
 
-    def is_healthy(self) -> bool:
+    def set_stmt_cache_size(self, size: int) -> None:
+        ...
+
+    def set_server(self, server: object) -> None:
+        ...
+
+    async def signal_sysevent(self, event: str, *, dbname: str) -> None:
         ...
 
     def abort(self) -> None:
         ...
 
-    def set_stmt_cache_size(self, maxsize: int) -> None:
-        ...
-
-    def set_tenant(self, tenant: Any) -> None:
+    def is_healthy(self) -> bool:
         ...
 
     async def listen_for_sysevent(self) -> None:
         ...
 
     def mark_as_system_db(self) -> None:
+        ...
+
+    def set_tenant(self, tenant: Any) -> None:
         ...
 
     def is_cancelling(self) -> bool:
@@ -136,9 +142,6 @@ class PGConnection:
         ...
 
     def finish_pg_cancellation(self) -> None:
-        ...
-
-    async def signal_sysevent(self, event: str, **kwargs) -> None:
         ...
 
 

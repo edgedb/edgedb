@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *  # NoQA
 
 import functools
+import json
 import logging
 import os
 import sys
@@ -282,60 +283,106 @@ class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
     pass
 
 
-class ParserSpec:
-    parser_spec: ClassVar[parsing.Spec | None]
+def load_parser_spec(
+    mod: types.ModuleType,
+    allow_rebuild: bool = False,
+) -> parsing.Spec:
+    return parsing.Spec(
+        mod,
+        pickleFile=_localpath(mod, "pickle"),
+        skinny=not debug.flags.edgeql_parser,
+        logFile=_localpath(mod, "log"),
+        verbose=bool(debug.flags.edgeql_parser),
+        unpickleHook=functools.partial(
+            _on_spec_unpickle, mod, allow_rebuild)
+    )
 
-    def __init__(self, **parser_data):
-        self.parser_data = parser_data
 
-    def get_debug(self):
-        return debug.flags.edgeql_parser
-
-    def get_parser_spec_module(self) -> types.ModuleType:
-        raise NotImplementedError
-
-    def get_parser_spec(self, allow_rebuild: bool = True) -> parsing.Spec:
-        cls = self.__class__
-
-        try:
-            spec = cls.__dict__['parser_spec']
-        except KeyError:
-            pass
+def _on_spec_unpickle(
+    mod: types.ModuleType,
+    allow_rebuild: bool,
+    spec: parsing.Spec,
+    compatibility: str,
+) -> None:
+    if compatibility != "compatible":
+        if allow_rebuild:
+            logger.info(f'rebuilding grammar for {mod.__name__}...')
         else:
-            if spec is not None:
-                return spec
+            raise ParserSpecIncompatibleError(
+                f'parser tables for {mod.__name__} are missing or '
+                f'incompatible with parser source'
+            )
 
-        mod = self.get_parser_spec_module()
-        spec = parsing.Spec(
-            mod,
-            pickleFile=self.localpath(mod, "pickle"),
-            skinny=not self.get_debug(),
-            logFile=self.localpath(mod, "log"),
-            verbose=self.get_debug(),
-            unpickleHook=functools.partial(
-                self.on_spec_unpickle, mod, allow_rebuild)
-        )
 
-        self.__class__.parser_spec = spec
-        return spec
+def _localpath(mod, type):
+    return os.path.join(
+        os.path.dirname(mod.__file__),
+        mod.__name__.rpartition('.')[2] + '.' + type)
 
-    def on_spec_unpickle(
-        self,
-        mod: types.ModuleType,
-        allow_rebuild: bool,
-        spec: parsing.Spec,
-        compatibility: str,
-    ) -> None:
-        if compatibility != "compatible":
-            if allow_rebuild:
-                logger.info(f'rebuilding grammar for {mod.__name__}...')
+
+def spec_to_json(spec: parsing.Spec) -> tuple[str, list[Callable]]:
+    # Converts a ParserSpec into JSON. Called from edgeql-parser Rust crate.
+    assert spec.pureLR
+
+    token_map: Dict[str, str] = {
+        v._token: c for (_, c), v in TokenMeta.token_map.items()
+    }
+
+    # productions
+    productions: list[Any] = []
+    production_ids: dict[Any, int] = {}
+    inlines: list[tuple[int, int]] = []
+
+    def get_production_id(prod: Any) -> int:
+        if prod in production_ids:
+            return production_ids[prod]
+
+        id = len(productions)
+        productions.append(prod)
+        production_ids[prod] = id
+
+        inline = getattr(prod.method, 'inline_index', None)
+        if inline is not None:
+            assert isinstance(inline, int)
+            inlines.append((id, inline))
+
+        return id
+
+    actions = []
+    for st_actions in spec.actions():
+        out_st_actions = []
+        for tok, acts in st_actions.items():
+            act = cast(Any, acts[0])
+
+            str_tok = token_map.get(str(tok), str(tok))
+            if 'ShiftAction' in str(type(act)):
+                action_obj: Any = int(act.nextState)
             else:
-                raise ParserSpecIncompatibleError(
-                    f'parser tables for {mod.__name__} are missing or '
-                    f'incompatible with parser source'
-                )
+                prod = act.production
+                action_obj = {
+                    'production_id': get_production_id(prod),
+                    'non_term': str(prod.lhs),
+                    'cnt': len(prod.rhs),
+                }
 
-    def localpath(self, mod, type):
-        return os.path.join(
-            os.path.dirname(mod.__file__),
-            mod.__name__.rpartition('.')[2] + '.' + type)
+            out_st_actions.append((str_tok, action_obj))
+
+        actions.append(out_st_actions)
+
+    # goto
+    goto = []
+    for st_goto in spec.goto():
+        out_goto = []
+        for nterm, action in st_goto.items():
+            out_goto.append((str(nterm), action))
+
+        goto.append(out_goto)
+
+    res = {
+        'actions': actions,
+        'goto': goto,
+        'start': str(spec.start_sym()),
+        'inlines': inlines,
+    }
+    res_json = json.dumps(res)
+    return (res_json, productions)

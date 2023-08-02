@@ -287,7 +287,7 @@ class Tenant(ha_base.ClusterProtocol):
     def fetch_roles(self) -> None:
         global_schema = self.get_global_schema()
 
-        roles = {}
+        roles: Dict[str, RoleDescriptor] = {}
         for role in global_schema.get_objects(type=s_role.Role):
             role_name = str(role.get_name(global_schema))
             roles[role_name] = RoleDescriptor(
@@ -325,6 +325,7 @@ class Tenant(ha_base.ClusterProtocol):
             global_schema=global_schema,
             sys_config=sys_config,
             default_sysconfig=default_sysconfig,
+            sys_config_spec=self._server._config_settings,  # TODO
         )
 
         self.fetch_roles()
@@ -757,7 +758,7 @@ class Tenant(ha_base.ClusterProtocol):
         result = await conn.sql_fetch_val(
             self._server.get_sys_query("dbconfig")
         )
-        return config.from_json(config.get_settings(), result)
+        return config.from_json(self._server._config_settings, result)
 
     async def introspect_extensions(self, dbname: str) -> None:
         logger.info("introspecting extensions for database '%s'", dbname)
@@ -935,7 +936,9 @@ class Tenant(ha_base.ClusterProtocol):
             query = self._server.get_sys_query(query_name)
             sys_config_json = await syscon.sql_fetch_val(query)
 
-        return config.from_json(config.get_settings(), sys_config_json)
+        return config.from_json(
+            self._server._config_settings, sys_config_json  # TODO
+        )
 
     async def introspect_global_schema(
         self,
@@ -962,7 +965,7 @@ class Tenant(ha_base.ClusterProtocol):
     def populate_sys_auth(self) -> None:
         assert self._dbindex is not None
         cfg = self._dbindex.get_sys_config()
-        auth = config.lookup("auth", cfg) or ()
+        auth = self._server.config_lookup("auth", cfg) or ()
         self._sys_auth = tuple(sorted(auth, key=lambda a: a.priority))
 
     async def get_auth_method(
@@ -983,7 +986,7 @@ class Tenant(ha_base.ClusterProtocol):
                     return auth.method
 
         default_method = self._server.get_default_auth_method(transport)
-        auth_type = config.get_settings().get_type_by_name(
+        auth_type = self._server._config_settings.get_type_by_name(  # TODO
             default_method.value
         )
         return auth_type()
@@ -1007,7 +1010,7 @@ class Tenant(ha_base.ClusterProtocol):
         return self._dbindex.remove_view(dbview_)
 
     def schedule_reported_config_if_needed(self, setting_name: str) -> None:
-        setting = config.get_settings()[setting_name]
+        setting = self._server._config_settings[setting_name]  # TODO
         if setting.report and self._accept_new_tasks:
             self.create_task(self._load_reported_config(), interruptable=True)
 

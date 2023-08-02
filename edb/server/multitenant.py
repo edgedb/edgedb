@@ -41,6 +41,7 @@ from edb.server import compiler as edbcompiler
 
 from . import args as srvargs
 from . import config
+from . import defines
 from . import pgcluster
 from . import server
 from . import tenant as edbtenant
@@ -84,6 +85,8 @@ class MultiTenantServer(server.BaseServer):
         *,
         sys_config: Mapping[str, config.SettingValue],
         backend_settings: Mapping[str, str],
+        sys_queries: Mapping[str, bytes],
+        report_config_typedesc: dict[defines.ProtocolVersion, bytes],
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -99,51 +102,11 @@ class MultiTenantServer(server.BaseServer):
 
         self._task_group = taskgroup.TaskGroup()
         self._task_serial = 0
+        self._sys_queries = sys_queries
+        self._report_config_typedesc = report_config_typedesc
 
     def _get_sys_config(self) -> Mapping[str, config.SettingValue]:
         return self._sys_config
-
-    async def init(self) -> None:
-        from . import bootstrap
-
-        stdlib: bootstrap.StdlibBits | None = bootstrap.read_data_cache(
-            bootstrap.STDLIB_CACHE_FILE_NAME, pickled=True
-        )
-        if stdlib is None:
-            raise server.StartupError(
-                "Cannot run multi-tenant server "
-                "without pre-compiled standard library"
-            )
-
-        compiler = edbcompiler.new_compiler(
-            stdlib.stdschema,
-            stdlib.reflschema,
-            stdlib.classlayout,
-            load_config=True,
-        )
-        (
-            sys_queries,
-            report_configs_typedesc_1_0,
-            report_configs_typedesc_2_0,
-        ) = bootstrap.compile_sys_queries(
-            stdlib.reflschema,
-            compiler,
-            config.get_settings(),
-        )
-        self._sys_queries = {
-            key: sql.encode("utf-8") for key, sql in sys_queries.items()
-        }
-        self._local_intro_query = stdlib.local_intro_query.encode("utf-8")
-        self._global_intro_query = stdlib.global_intro_query.encode("utf-8")
-        self._std_schema = stdlib.stdschema
-        self._refl_schema = stdlib.reflschema
-        self._schema_class_layout = stdlib.classlayout
-        self._report_config_typedesc = {
-            (1, 0): report_configs_typedesc_1_0,
-            (2, 0): report_configs_typedesc_2_0,
-        }
-
-        await super().init()
 
     def _sni_callback(self, sslobj, server_name, _sslctx):
         if tenant := self._tenants.get(server_name):
@@ -337,9 +300,12 @@ async def run_server(
     *,
     sys_config: Mapping[str, config.SettingValue],
     backend_settings: Mapping[str, str],
+    sys_queries: Mapping[str, bytes],
+    report_config_typedesc: dict[defines.ProtocolVersion, bytes],
     runstate_dir: pathlib.Path,
     internal_runstate_dir: str,
     do_setproctitle: bool,
+    compiler_state: edbcompiler.CompilerState,
 ):
     multitenant_config_file = args.multitenant_config_file
     assert multitenant_config_file is not None
@@ -349,6 +315,8 @@ async def run_server(
             multitenant_config_file,
             sys_config=sys_config,
             backend_settings=backend_settings,
+            sys_queries=sys_queries,
+            report_config_typedesc=report_config_typedesc,
             runstate_dir=runstate_dir,
             internal_runstate_dir=internal_runstate_dir,
             nethosts=args.bind_addresses,
@@ -369,6 +337,7 @@ async def run_server(
             compiler_pool_tenant_cache_size=(
                 args.compiler_pool_tenant_cache_size
             ),
+            compiler_state=compiler_state,
         )
         await sc.wait_for(ss.init())
         ss.init_tls(args.tls_cert_file, args.tls_key_file, False)

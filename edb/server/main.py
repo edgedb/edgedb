@@ -53,6 +53,7 @@ from edb.common import debug
 
 from . import config
 from . import args as srvargs
+from . import compiler as edbcompiler
 from . import daemon
 from . import defines
 from . import pgconnparams
@@ -141,7 +142,9 @@ def _internal_state_dir(runstate_dir):
               f'--runstate-dir to specify the correct location')
 
 
-async def _init_cluster(cluster, args: srvargs.ServerConfig) -> bool:
+async def _init_cluster(
+    cluster, args: srvargs.ServerConfig
+) -> tuple[bool, edbcompiler.CompilerState]:
     from edb.server import bootstrap
 
     new_instance = await bootstrap.ensure_bootstrapped(cluster, args)
@@ -152,14 +155,17 @@ async def _init_cluster(cluster, args: srvargs.ServerConfig) -> bool:
 
 
 def _init_parsers():
-    # Initialize all parsers, rebuilding grammars if
-    # necessary.  Do it earlier than later so that we don't
-    # end up in a situation where all our compiler processes
-    # are building parsers in parallel.
-
+    # Initialize parsers that are used in the server process.
     from edb.edgeql import parser as ql_parser
+    from edb.edgeql.parser import grammar as ql_grammar
 
-    ql_parser.preload(allow_rebuild=devmode.is_in_dev_mode(), paralellize=True)
+    ql_parser.preload(
+        allow_rebuild=devmode.is_in_dev_mode(),
+        paralellize=True,
+        grammars=[
+            ql_grammar.fragment,
+        ]
+    )
 
 
 async def _run_server(
@@ -170,6 +176,7 @@ async def _run_server(
     *,
     do_setproctitle: bool,
     new_instance: bool,
+    compiler_state: edbcompiler.CompilerState,
 ):
 
     sockets = service_manager.get_activation_listen_sockets()
@@ -214,8 +221,13 @@ async def _run_server(
             new_instance=new_instance,
             admin_ui=args.admin_ui,
             disable_dynamic_system_config=args.disable_dynamic_system_config,
+            compiler_state=compiler_state,
             tenant=tenant,
         )
+        # This coroutine runs as long as the server,
+        # and compiler_state is *heavy*, so make sure we don't
+        # keep a reference to it.
+        del compiler_state
         await sc.wait_for(ss.init())
 
         tls_cert_newly_generated = False
@@ -522,20 +534,80 @@ async def run_server(
             )
 
         if args.multitenant_config_file:
+            from edb.schema import reflection as s_refl
+            from . import bootstrap
             from . import multitenant
 
             try:
+                stdlib: bootstrap.StdlibBits | None
+                stdlib = bootstrap.read_data_cache(
+                    bootstrap.STDLIB_CACHE_FILE_NAME, pickled=True
+                )
+                if stdlib is None:
+                    abort(
+                        "Cannot run multi-tenant server "
+                        "without pre-compiled standard library"
+                    )
+
+                compiler = edbcompiler.new_compiler(
+                    stdlib.stdschema,
+                    stdlib.reflschema,
+                    stdlib.classlayout,
+                    config_spec=None,
+                )
+                reflection = s_refl.generate_structure(
+                    stdlib.reflschema, make_funcs=False,
+                )
+                (
+                    local_intro_sql, global_intro_sql
+                ) = bootstrap.compile_intro_queries_stdlib(
+                    compiler=compiler,
+                    user_schema=stdlib.reflschema,
+                    reflection=reflection,
+                )
+                compiler_state = edbcompiler.CompilerState(
+                    std_schema=compiler.state.std_schema,
+                    refl_schema=compiler.state.refl_schema,
+                    schema_class_layout=stdlib.classlayout,
+                    backend_runtime_params=(
+                        compiler.state.backend_runtime_params
+                    ),
+                    config_spec=compiler.state.config_spec,
+                    local_intro_query=local_intro_sql,
+                    global_intro_query=global_intro_sql,
+                )
+                (
+                    sys_queries,
+                    report_configs_typedesc_1_0,
+                    report_configs_typedesc_2_0,
+                ) = bootstrap.compile_sys_queries(
+                    stdlib.reflschema,
+                    compiler,
+                    compiler_state.config_spec,
+                )
+
                 sys_config, backend_settings = initialize_static_cfg(
-                    args, is_remote_cluster=True
+                    args,
+                    is_remote_cluster=True,
+                    config_spec=compiler_state.config_spec,
                 )
                 with _internal_state_dir(runstate_dir) as int_runstate_dir:
                     return await multitenant.run_server(
                         args,
                         sys_config=sys_config,
                         backend_settings=backend_settings,
+                        sys_queries={
+                            key: sql.encode("utf-8")
+                            for key, sql in sys_queries.items()
+                        },
+                        report_config_typedesc={
+                            (1, 0): report_configs_typedesc_1_0,
+                            (2, 0): report_configs_typedesc_2_0,
+                        },
                         runstate_dir=runstate_dir,
                         internal_runstate_dir=int_runstate_dir,
                         do_setproctitle=do_setproctitle,
+                        compiler_state=compiler_state,
                     )
             except server.StartupError as e:
                 abort(str(e))
@@ -581,10 +653,12 @@ async def run_server(
                 if cluster_status != "running":
                     abort('specified PostgreSQL instance is not running')
 
-            new_instance = await _init_cluster(cluster, args)
+            new_instance, compiler_state = await _init_cluster(cluster, args)
 
             _, backend_settings = initialize_static_cfg(
-                args, is_remote_cluster=not is_local_cluster
+                args,
+                is_remote_cluster=not is_local_cluster,
+                config_spec=compiler_state.config_spec,
             )
 
             if is_local_cluster and (new_instance or backend_settings):
@@ -659,6 +733,7 @@ async def run_server(
                         int_runstate_dir,
                         do_setproctitle=do_setproctitle,
                         new_instance=new_instance,
+                        compiler_state=compiler_state,
                     )
 
         except server.StartupError as e:
@@ -774,20 +849,20 @@ def _coerce_cfg_value(setting: config.Setting, value):
 def initialize_static_cfg(
     args: srvargs.ServerConfig,
     is_remote_cluster: bool,
+    config_spec: config.Spec
 ) -> Tuple[Mapping[str, config.SettingValue], Dict[str, str]]:
     result = {}
     init_con_script_data = []
     backend_settings = {}
     command_line_argument = "A"
     environment_variable = "E"
-    spec = config.get_settings()
     sources = {
         command_line_argument: "command line argument",
         environment_variable: "environment variable",
     }
 
     def add_config(name, value, type_):
-        setting = spec[name]
+        setting = config_spec[name]
         if is_remote_cluster:
             if setting.backend_setting and setting.requires_restart:
                 if type_ == command_line_argument:
@@ -832,7 +907,7 @@ def initialize_static_cfg(
     setting: config.Setting
     for env_name, env_value, cfg_name in iter_environ():
         try:
-            setting = spec[cfg_name]
+            setting = config_spec[cfg_name]
         except KeyError:
             continue
         choices = setting.enum_values

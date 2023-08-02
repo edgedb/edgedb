@@ -4,17 +4,17 @@
 Indexes
 =======
 
-An index is a data structure used internally by a database to speed up
-filtering and sorting operations. Most commonly, indexes are declared within
-object type declarations and reference a particular property; this will speed
-up any query that references that property in a ``filter`` or ``order by``
-clause.
+An index is a data structure used internally to speed up filtering, ordering,
+and grouping operations. Most commonly, indexes are declared within object
+type declarations and reference a particular property; this will speed up
+any query that references that property in a ``filter``, ``order by``, or
+``group`` clause.
 
 .. note::
 
   While improving query performance, indexes also increase disk and memory
   usage and slow down insertions and updates. Creating too many indexes may be
-  detrimental; only index properties you often filter or order by.
+  detrimental; only index properties you often filter, order, or group by.
 
 Index on a property
 -------------------
@@ -37,9 +37,13 @@ notation shorthand <ref_dot_notation>`: ``.name``.
       index on (.name);
     }
 
-By indexing on ``User.name``, queries that filter by the ``name`` property will
-be faster, as the database can look up a name in the index instead of scanning
-through all Users sequentially.
+By indexing on ``User.name``, queries that filter, order, or group by the 
+``name`` property will be faster, as the database can look up a name in 
+the index instead of scanning through all ``User`` objects sequentially.
+
+To see the difference for yourself, try adding the :ref:`analyze
+<ref_cli_edgedb_analyze>` keyword before a query with an index compared
+to one without.
 
 Index on an expression
 ----------------------
@@ -73,8 +77,8 @@ Index on multiple properties
 ----------------------------
 
 A *composite index* is an index that references multiple properties. This will
-speed up queries that filter or sort on *both properties*. In EdgeDB, this is
-accomplished by indexing on a ``tuple`` of properties.
+speed up queries that filter, order, or group on *both properties*. In EdgeDB,
+this is accomplished by indexing on a ``tuple`` of properties.
 
 .. code-block:: sdl
     :version-lt: 3.0
@@ -184,10 +188,11 @@ Indexes can be augmented with annotations.
   **Foreign and primary keys**
 
   In SQL databases, indexes are commonly used to index *primary keys* and
-  *foreign keys*. In EdgeDB, these fields are automatically indexed; there's no
-  need to manually declare them. Moreover, any property with an
-  :eql:constraint:`exclusive` constraint is also automatically indexed.
-
+  *foreign keys*. EdgeDB's analog to SQL's primary key is the ``id`` field
+  that gets automatically created for each object, while a link in EdgeDB
+  is the analog to SQL's foreign key. Both of these are automatically indexed.
+  Moreover, any property with an :eql:constraint:`exclusive` constraint
+  is also automatically indexed.
 
 .. list-table::
   :class: seealso
