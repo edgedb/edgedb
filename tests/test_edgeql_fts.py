@@ -34,7 +34,7 @@ class TestEdgeQLFTS(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             select Paragraph {number, text}
-            filter fts::test('drink poison', .text, language := 'english');
+            filter fts::test('drink poison', Paragraph);
             ''',
             [{
                 "number": 15,
@@ -82,7 +82,7 @@ class TestEdgeQLFTS(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             select Paragraph {number, text}
-            filter fts::test('drink me', .text, language := 'english');
+            filter fts::test('drink me', Paragraph);
             ''',
             [{
                 "number": 15,
@@ -122,7 +122,7 @@ class TestEdgeQLFTS(tb.QueryTestCase):
             r'''
             select Paragraph {number, text}
             filter fts::test(
-                'drink AND poison', .text, language := 'english');
+                'drink AND poison', Paragraph);
             ''',
             [{
                 "number": 16,
@@ -148,7 +148,7 @@ class TestEdgeQLFTS(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             select Paragraph {number, text}
-            filter fts::test('drink "poison"', .text, language := 'english');
+            filter fts::test('drink "poison"', Paragraph);
             ''',
             [{
                 "number": 16,
