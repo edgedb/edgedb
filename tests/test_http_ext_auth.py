@@ -58,6 +58,7 @@ class MockAuthProvider:
             tuple[str, str, str],
             tuple[dict[str, Any] | list[dict[str, Any]], int],
         ] = {}
+        self.requests: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
 
     def register_route(
         self,
@@ -79,6 +80,22 @@ class MockAuthProvider:
         # `handler` is documented here:
         # https://docs.python.org/3/library/http.server.html#http.server.BaseHTTPRequestHandler
         key = (method, server, path)
+        if key not in self.requests:
+            self.requests[key] = []
+
+        # Parse and save the request details
+        parsed_path = urllib.parse.urlparse(path)
+        request_details = {
+            'headers': {k.lower(): v for k, v in dict(handler.headers).items()},
+            'query_params': urllib.parse.parse_qs(parsed_path.query),
+            'body': handler.rfile.read(
+                int(handler.headers['Content-Length'])
+            ).decode()
+            if 'Content-Length' in handler.headers
+            else None,
+        }
+        self.requests[key].append(request_details)
+
         if key not in self.routes:
             handler.send_error(404)
             return
@@ -279,22 +296,31 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_github_callback_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
+            client_id = await self.con.query_single(
+                """SELECT assert_single(cfg::Config.xxx_github_client_id);"""
+            )
+            client_secret = await self.con.query_single(
+                """SELECT assert_single(cfg::Config.xxx_github_client_secret);"""
+            )
+
             now = datetime.datetime.utcnow().isoformat()
+            token_request = (
+                "POST",
+                "https://github.com",
+                "/login/oauth/access_token",
+            )
             mock_provider.register_route(
-                method="POST",
-                server="https://github.com",
-                path="/login/oauth/access_token",
+                *token_request,
                 response={
-                    "access_token": "abc123",
+                    "access_token": "github_access_token",
                     "scope": "read:user",
                     "token_type": "bearer",
                 },
             )
 
+            user_request = ("GET", "https://api.github.com", "/user")
             mock_provider.register_route(
-                method="GET",
-                server="https://api.github.com",
-                path="/user",
+                *user_request,
                 response={
                     "id": 1,
                     "login": "octocat",
@@ -305,10 +331,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 },
             )
 
+            emails_request = ("GET", "https://api.github.com", "/user/emails")
             mock_provider.register_route(
-                method="GET",
-                server="https://api.github.com",
-                path="/user/emails",
+                *emails_request,
                 response=[
                     {
                         "email": "octocat@example.com",
@@ -360,3 +385,31 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.scheme, server_url.scheme)
             self.assertEqual(url.hostname, server_url.hostname)
             self.assertEqual(url.path, f"{server_url.path}/some/path")
+
+            requests_for_token = mock_provider.requests[token_request]
+            self.assertEqual(len(requests_for_token), 1)
+            self.assertEqual(
+                requests_for_token[0]["body"],
+                json.dumps(
+                    {
+                        "grant_type": "authorization_code",
+                        "code": "abc123",
+                        "client_id": client_id,
+                        "client_secret": client_secret,
+                    }
+                ),
+            )
+
+            requests_for_user = mock_provider.requests[user_request]
+            self.assertEqual(len(requests_for_user), 1)
+            self.assertEqual(
+                requests_for_user[0]["headers"]["authorization"],
+                "Bearer github_access_token",
+            )
+
+            requests_for_emails = mock_provider.requests[emails_request]
+            self.assertEqual(len(requests_for_emails), 1)
+            self.assertEqual(
+                requests_for_emails[0]["headers"]["authorization"],
+                "Bearer github_access_token",
+            )
