@@ -27,17 +27,16 @@ import http.server
 import threading
 
 from jwcrypto import jwt, jwk
-import respx
-import httpx
 
 from edb.testbase import http as tb
 
 
-HTTP_TEST_PORT = contextvars.ContextVar('HTTP_TEST_PORT')
+HTTP_TEST_PORT: contextvars.ContextVar[str] = contextvars.ContextVar(
+    'HTTP_TEST_PORT'
+)
 
 
 class MockHttpServerHandler(http.server.BaseHTTPRequestHandler):
-
     def do_GET(self):
         self.close_connection = False
         server, path = self.path.lstrip('/').split('/', 1)
@@ -52,7 +51,6 @@ class MockHttpServerHandler(http.server.BaseHTTPRequestHandler):
 
 
 class MockHttpServer:
-
     def __init__(self):
         self.has_started = threading.Event()
 
@@ -61,7 +59,7 @@ class MockHttpServer:
         method: str,
         server: str,
         path: str,
-        handler: MockHttpServerHandler
+        handler: MockHttpServerHandler,
     ):
         # `handler` is documented here:
         # https://docs.python.org/3/library/http.server.html#http.server.BaseHTTPRequestHandler
@@ -77,8 +75,7 @@ class MockHttpServer:
 
     def _http_worker(self):
         self._http_server = http.server.HTTPServer(
-            ('localhost', 0),
-            MockHttpServerHandler
+            ('localhost', 0), MockHttpServerHandler
         )
         self._http_server.owner = self
         self._address = self._http_server.server_address
@@ -112,7 +109,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     def http_con_send_request(self, *args, headers=None, **kwargs):
         """Inject a test header.
 
-        It's ecognized by the server when explicitly run in the test mode.
+        It's recognized by the server when explicitly run in the test mode.
 
         http_con_request() calls this method.
         """
@@ -120,7 +117,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         if test_port:
             if headers is None:
                 headers = {}
-            headers['x-edgedb-ouath-test-server'] = test_port
+            headers['x-edgedb-oauth-test-server'] = test_port
         return super().http_con_send_request(*args, headers=headers, **kwargs)
 
     async def test_http_auth_ext_github_authorize_01(self):
@@ -255,24 +252,25 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_github_callback_01(self):
         class MockGithub(MockHttpServer):
-
             def handle_request(
                 self,
                 method: str,
                 server: str,
                 path: str,
-                handler: MockHttpServerHandler
+                handler: MockHttpServerHandler,
             ):
-
-                if (method == 'POST' and
-                    server == 'https://github.com' and
-                    path == '/login/oauth/access_token'
+                if (
+                    method == 'POST'
+                    and server == 'https://github.com'
+                    and path == '/login/oauth/access_token'
                 ):
-                    data = json.dumps({
-                        "access_token": "abc123",
-                        "scope": "read:user",
-                        "token_type": "bearer",
-                    }).encode()
+                    data = json.dumps(
+                        {
+                            "access_token": "abc123",
+                            "scope": "read:user",
+                            "token_type": "bearer",
+                        }
+                    ).encode()
 
                     handler.send_response(200)
                     handler.send_header('Content-Type', 'application/json')
@@ -281,43 +279,22 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     handler.wfile.write(data)
                     return
 
-                if (method == 'GET' and
-                    server == 'https://api.github.com' and
-                    path == '/user'
+                if (
+                    method == 'GET'
+                    and server == 'https://api.github.com'
+                    and path == '/user'
                 ):
                     now = datetime.datetime.utcnow().isoformat()
-                    data = json.dumps({
-                        "id": 1,
-                        "login": "octocat",
-                        "name": "monalisa octocat",
-                        "email": "octocat@example.com",
-                        "avatar_url": "http://example.com/example.jpg",
-                        "updated_at": now,
-                    }).encode()
-
-                    handler.send_response(200)
-                    handler.send_header('Content-Type', 'application/json')
-                    handler.send_header('Content-Length', str(len(data)))
-                    handler.end_headers()
-                    handler.wfile.write(data)
-                    return
-
-                if (method == 'GET' and
-                    server == 'https://api.github.com' and
-                    path == '/user/emails'
-                ):
-                    data = json.dumps([
+                    data = json.dumps(
                         {
+                            "id": 1,
+                            "login": "octocat",
+                            "name": "monalisa octocat",
                             "email": "octocat@example.com",
-                            "verified": True,
-                            "primary": True,
-                        },
-                        {
-                            "email": "octocat+2@example.com",
-                            "verified": False,
-                            "primary": False,
-                        },
-                    ]).encode()
+                            "avatar_url": "http://example.com/example.jpg",
+                            "updated_at": now,
+                        }
+                    ).encode()
 
                     handler.send_response(200)
                     handler.send_header('Content-Type', 'application/json')
@@ -326,8 +303,32 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     handler.wfile.write(data)
                     return
 
-                print('!!!!!', method, server, path)
-                1/0
+                if (
+                    method == 'GET'
+                    and server == 'https://api.github.com'
+                    and path == '/user/emails'
+                ):
+                    data = json.dumps(
+                        [
+                            {
+                                "email": "octocat@example.com",
+                                "verified": True,
+                                "primary": True,
+                            },
+                            {
+                                "email": "octocat+2@example.com",
+                                "verified": False,
+                                "primary": False,
+                            },
+                        ]
+                    ).encode()
+
+                    handler.send_response(200)
+                    handler.send_header('Content-Type', 'application/json')
+                    handler.send_header('Content-Length', str(len(data)))
+                    handler.end_headers()
+                    handler.wfile.write(data)
+                    return
 
         with MockGithub(), self.http_con() as http_con:
             auth_signing_key = await self.con.query_single(

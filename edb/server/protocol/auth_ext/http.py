@@ -53,7 +53,12 @@ class Router:
                     provider = _get_search_param(
                         request.url.query.decode("ascii"), "provider"
                     )
-                    client = oauth.Client(db=self.db, provider=provider)
+                    client = oauth.Client(
+                        db=self.db,
+                        provider=provider,
+                        request=request,
+                        test_mode=self.test_mode,
+                    )
                     authorize_url = client.get_authorize_url(
                         redirect_uri=self._get_callback_url(),
                         state=self._make_state_claims(provider),
@@ -81,12 +86,6 @@ class Router:
 
                 case _:
                     raise errors.NotFound("Unknown OAuth endpoint")
-
-        except Exception as ex:
-            from edb.common import markup
-            markup.dump(ex)
-            raise
-
 
         except errors.NotFound as ex:
             _fail_with_error(

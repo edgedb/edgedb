@@ -29,13 +29,8 @@ from . import errors, util, data
 
 
 class HttpClient(httpx.AsyncClient):
-
     def __init__(
-        self,
-        *args,
-        edgedb_test_url: str | None,
-        base_url: str,
-        **kwargs
+        self, *args, edgedb_test_url: str | None, base_url: str, **kwargs
     ):
         if edgedb_test_url:
             self.edgedb_orig_base_url = urllib.parse.quote(base_url, safe='')
@@ -58,15 +53,14 @@ class Client:
         self.db = db
         self.db_config = db.db_config
 
-        if (test_mode and
-            request.params and
-            b'ouath-test-server' in request.params
+        if (
+            test_mode
+            and request.params
+            and b'oauth-test-server' in request.params
         ):
-            test_url = request.params[b'ouath-test-server'].decode()
+            test_url = request.params[b'oauth-test-server'].decode()
             http_factory = lambda *args, **kwargs: HttpClient(
-                *args,
-                edgedb_test_url=test_url,
-                **kwargs
+                *args, edgedb_test_url=test_url, **kwargs
             )
         else:
             http_factory = HttpClient
@@ -90,20 +84,17 @@ class Client:
     async def handle_callback(self, code: str) -> None:
         token = await self.provider.exchange_code(code)
 
-        # async with asyncio.TaskGroup() as g:
-        #     user_info_t = g.create_task(self.provider.fetch_user_info(token))
-        #     emails_t = g.create_task(self.provider.fetch_emails(token))
-        # user_info = await user_info_t
-        # emials = await emails_t
-
-        user_info, emails = await asyncio.gather(
-            self.provider.fetch_user_info(token),
-            self.provider.fetch_emails(token),
-        )
+        async with asyncio.TaskGroup() as g:
+            user_info_t = g.create_task(self.provider.fetch_user_info(token))
+            emails_t = g.create_task(self.provider.fetch_emails(token))
+        user_info = await user_info_t
+        emails = await emails_t
 
         await self._handle_identity(user_info, emails)
 
-    async def _handle_identity(self, user_info: data.UserInfo, emails: list[data.Email]) -> None:
+    async def _handle_identity(
+        self, user_info: data.UserInfo, emails: list[data.Email]
+    ) -> None:
         ...
 
     def _get_client_credientials(self, client_name: str) -> tuple[str, str]:

@@ -17,7 +17,6 @@
 #
 
 
-import httpx
 import urllib.parse
 
 from . import base
@@ -46,8 +45,7 @@ class GitHubProvider(base.BaseProvider):
             "client_secret": self.client_secret,
         }
 
-        async with self.http_factory(
-                base_url='https://github.com') as client:
+        async with self.http_factory(base_url='https://github.com') as client:
             resp = await client.post(
                 "/login/oauth/access_token",
                 json=data,
@@ -59,7 +57,8 @@ class GitHubProvider(base.BaseProvider):
 
     async def fetch_user_info(self, token: str) -> data.UserInfo:
         async with self.http_factory(
-                base_url='https://api.github.com') as client:
+            base_url='https://api.github.com'
+        ) as client:
             resp = await client.get(
                 "/user",
                 headers={
@@ -82,7 +81,8 @@ class GitHubProvider(base.BaseProvider):
 
     async def fetch_emails(self, token: str) -> list[data.Email]:
         async with self.http_factory(
-                base_url='https://api.github.com') as client:
+            base_url='https://api.github.com'
+        ) as client:
             resp = await client.get(
                 "/user/emails",
                 headers={
