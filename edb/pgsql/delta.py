@@ -3604,6 +3604,15 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
 
         # FTS
         if index.has_base_with_name(schema, sn.QualName('fts', 'textsearch')):
+
+            # create a generated column __fts_document__
+            alter_table = dbops.AlterTable(table_name)
+
+            fts_document = dbops.Column(
+                name=f'__fts_document__',
+                type='pg_catalog.tsvector',
+            )
+
             from edb.common import debug
             if debug.flags.zombodb:
 
@@ -3617,12 +3626,11 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 }
 
             else:
-                # create a generated column __fts_document__
-                documents = []
+                document_exprs = []
                 for sql_expr in sql_exprs:
                     language = "'english'"
                     weight = "'A'"
-                    documents.append(
+                    document_exprs.append(
                         f'''
                         setweight(
                             to_tsvector(
@@ -3633,20 +3641,17 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                         )
                     '''
                     )
-                document = ' || '.join(documents)
 
-                fts_document = dbops.Column(
-                    name=f'__fts_document__',
-                    type='pg_catalog.tsvector',
-                    generated=f'ALWAYS AS ({document}) STORED',
-                )
-
-                alter_table = dbops.AlterTable(table_name)
-                alter_table.add_operation(dbops.AlterTableAddColumn(fts_document))
-                ops.add_command(alter_table)
+                fts_document.add_constraint(dbops.GeneratedConstraint(
+                    constraint_name='__fts_gen_doc__',
+                    expr = ' || '.join(document_exprs)
+                ))
 
                 # use a reference to the new column in the index instead
                 sql_exprs = ['__fts_document__']
+
+            alter_table.add_operation(dbops.AlterTableAddColumn(fts_document))
+            ops.add_command(alter_table)
 
         pg_index = dbops.Index(
             name=index_name[1],
