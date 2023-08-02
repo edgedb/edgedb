@@ -26,7 +26,7 @@ import datetime
 import http.server
 import threading
 
-from typing import Any
+from typing import Any, Callable
 from jwcrypto import jwt, jwk
 
 from edb.testbase import http as tb
@@ -51,24 +51,32 @@ class MockHttpServerHandler(http.server.BaseHTTPRequestHandler):
         self.server.owner.handle_request('POST', server, path, self)
 
 
+ResponseType = tuple[dict[str, Any] | list[dict[str, Any]], int]
+
+
 class MockAuthProvider:
     def __init__(self):
         self.has_started = threading.Event()
         self.routes: dict[
             tuple[str, str, str],
-            tuple[dict[str, Any] | list[dict[str, Any]], int],
+            ResponseType | Callable[[MockHttpServerHandler], ResponseType],
         ] = {}
         self.requests: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
 
-    def register_route(
+    def register_route_handler(
         self,
         method: str,
         server: str,
         path: str,
-        response: dict[str, Any] | list[dict[str, Any]],
-        status: int = 200,
     ):
-        self.routes[(method, server, path)] = (response, status)
+        def wrapper(
+            handler: ResponseType
+            | Callable[[MockHttpServerHandler], ResponseType]
+        ):
+            self.routes[(method, server, path)] = handler
+            return handler
+
+        return wrapper
 
     def handle_request(
         self,
@@ -100,7 +108,16 @@ class MockAuthProvider:
             handler.send_error(404)
             return
 
-        response, status = self.routes[key]
+        registered_handler = self.routes[key]
+
+        if callable(registered_handler):
+            try:
+                response, status = registered_handler(handler)
+            except Exception:
+                handler.send_error(500)
+                raise
+        else:
+            response, status = registered_handler
         data = json.dumps(response).encode()
 
         handler.send_response(status)
@@ -311,43 +328,49 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "https://github.com",
                 "/login/oauth/access_token",
             )
-            mock_provider.register_route(
-                *token_request,
-                response={
-                    "access_token": "github_access_token",
-                    "scope": "read:user",
-                    "token_type": "bearer",
-                },
+            mock_provider.register_route_handler(*token_request)(
+                (
+                    {
+                        "access_token": "github_access_token",
+                        "scope": "read:user",
+                        "token_type": "bearer",
+                    },
+                    200,
+                )
             )
 
             user_request = ("GET", "https://api.github.com", "/user")
-            mock_provider.register_route(
-                *user_request,
-                response={
-                    "id": 1,
-                    "login": "octocat",
-                    "name": "monalisa octocat",
-                    "email": "octocat@example.com",
-                    "avatar_url": "http://example.com/example.jpg",
-                    "updated_at": now,
-                },
+            mock_provider.register_route_handler(*user_request)(
+                (
+                    {
+                        "id": 1,
+                        "login": "octocat",
+                        "name": "monalisa octocat",
+                        "email": "octocat@example.com",
+                        "avatar_url": "http://example.com/example.jpg",
+                        "updated_at": now,
+                    },
+                    200,
+                )
             )
 
             emails_request = ("GET", "https://api.github.com", "/user/emails")
-            mock_provider.register_route(
-                *emails_request,
-                response=[
-                    {
-                        "email": "octocat@example.com",
-                        "verified": True,
-                        "primary": True,
-                    },
-                    {
-                        "email": "octocat+2@example.com",
-                        "verified": False,
-                        "primary": False,
-                    },
-                ],
+            mock_provider.register_route_handler(*emails_request)(
+                (
+                    [
+                        {
+                            "email": "octocat@example.com",
+                            "verified": True,
+                            "primary": True,
+                        },
+                        {
+                            "email": "octocat+2@example.com",
+                            "verified": False,
+                            "primary": False,
+                        },
+                    ],
+                    200,
+                )
             )
 
             auth_signing_key = await self.con.query_single(
