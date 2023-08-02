@@ -51,7 +51,7 @@ class MockHttpServerHandler(http.server.BaseHTTPRequestHandler):
         self.server.owner.handle_request('POST', server, path, self)
 
 
-class MockHttpServer:
+class MockAuthProvider:
     def __init__(self):
         self.has_started = threading.Event()
         self.routes: dict[
@@ -148,7 +148,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         return super().http_con_send_request(*args, headers=headers, **kwargs)
 
     async def test_http_auth_ext_github_authorize_01(self):
-        with MockHttpServer(), self.http_con() as http_con:
+        with MockAuthProvider(), self.http_con() as http_con:
             client_id = await self.con.query_single(
                 """SELECT assert_single(cfg::Config.xxx_github_client_id);"""
             )
@@ -188,7 +188,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(qs.get("client_id"), [client_id])
 
     async def test_http_auth_ext_github_callback_missing_provider_01(self):
-        with MockHttpServer(), self.http_con() as http_con:
+        with MockAuthProvider(), self.http_con() as http_con:
             auth_signing_key = await self.con.query_single(
                 """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
             )
@@ -218,7 +218,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(status, 400)
 
     async def test_http_auth_ext_github_callback_wrong_key_01(self):
-        with MockHttpServer(), self.http_con() as http_con:
+        with MockAuthProvider(), self.http_con() as http_con:
             auth_signing_key = "abcd" * 8
 
             expires_at = datetime.datetime.utcnow() + datetime.timedelta(
@@ -247,7 +247,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(status, 400)
 
     async def test_http_auth_ext_github_unknown_provider_01(self):
-        with MockHttpServer(), self.http_con() as http_con:
+        with MockAuthProvider(), self.http_con() as http_con:
             auth_signing_key = await self.con.query_single(
                 """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
             )
@@ -278,9 +278,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(status, 400)
 
     async def test_http_auth_ext_github_callback_01(self):
-        with MockHttpServer() as mock_srv, self.http_con() as http_con:
+        with MockAuthProvider() as mock_provider, self.http_con() as http_con:
             now = datetime.datetime.utcnow().isoformat()
-            mock_srv.register_route(
+            mock_provider.register_route(
                 method="POST",
                 server="https://github.com",
                 path="/login/oauth/access_token",
@@ -291,7 +291,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 },
             )
 
-            mock_srv.register_route(
+            mock_provider.register_route(
                 method="GET",
                 server="https://api.github.com",
                 path="/user",
@@ -305,7 +305,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 },
             )
 
-            mock_srv.register_route(
+            mock_provider.register_route(
                 method="GET",
                 server="https://api.github.com",
                 path="/user/emails",
