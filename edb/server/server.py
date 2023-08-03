@@ -965,6 +965,35 @@ class BaseServer:
         # provide a decent error.
         raise NotImplementedError
 
+    async def maybe_generate_pki(
+        self, args: srvargs.ServerConfig, ss: BaseServer
+    ) -> tuple[bool, bool]:
+        tls_cert_newly_generated = False
+        if args.tls_cert_mode is srvargs.ServerTlsCertMode.SelfSigned:
+            assert args.tls_cert_file is not None
+            if not args.tls_cert_file.exists():
+                assert args.tls_key_file is not None
+                logger.info(
+                    f'generating self-signed TLS certificate '
+                    f'in "{args.tls_cert_file}"'
+                )
+                secretkey.generate_tls_cert(
+                    args.tls_cert_file,
+                    args.tls_key_file,
+                    ss.get_listen_hosts(),
+                )
+                tls_cert_newly_generated = True
+        jws_keys_newly_generated = False
+        if args.jose_key_mode is srvargs.JOSEKeyMode.Generate:
+            assert args.jws_key_file is not None
+            if not args.jws_key_file.exists():
+                logger.info(
+                    f'generating JOSE key pair in "{args.jws_key_file}"'
+                )
+                secretkey.generate_jwk(args.jws_key_file)
+                jws_keys_newly_generated = True
+        return tls_cert_newly_generated, jws_keys_newly_generated
+
 
 class Server(BaseServer):
     _tenant: edbtenant.Tenant

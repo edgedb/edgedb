@@ -23,7 +23,6 @@ from typing import *
 import asyncio
 import contextlib
 import dataclasses
-import datetime
 import logging
 import os
 import os.path
@@ -34,10 +33,8 @@ import resource
 import signal
 import sys
 import tempfile
-import uuid
 
 import click
-from jwcrypto import jwk
 import setproctitle
 import uvloop
 
@@ -132,10 +129,36 @@ def _ensure_runstate_dir(
 
 
 @contextlib.contextmanager
-def _internal_state_dir(runstate_dir):
+def _internal_state_dir(
+    runstate_dir: pathlib.Path, args: srvargs.ServerConfig
+) -> Iterator[Tuple[str, srvargs.ServerConfig]]:
     try:
         with tempfile.TemporaryDirectory(prefix="", dir=runstate_dir) as td:
-            yield td
+            if (
+                args.tls_cert_file
+                and '<runstate>' in str(args.tls_cert_file)
+            ):
+                args = args._replace(
+                    tls_cert_file=pathlib.Path(
+                        str(args.tls_cert_file).replace(
+                            '<runstate>', td)
+                    ),
+                    tls_key_file=pathlib.Path(
+                        str(args.tls_key_file).replace(
+                            '<runstate>', td)
+                    )
+                )
+            if (
+                args.jws_key_file
+                and '<runstate>' in str(args.jws_key_file)
+            ):
+                args = args._replace(
+                    jws_key_file=pathlib.Path(
+                        str(args.jws_key_file).replace(
+                            '<runstate>', td)
+                    ),
+                )
+            yield td, args
     except PermissionError as ex:
         abort(f'cannot write to the runstate directory: '
               f'{ex!s}; please fix the permissions or use '
@@ -230,24 +253,9 @@ async def _run_server(
         del compiler_state
         await sc.wait_for(ss.init())
 
-        tls_cert_newly_generated = False
-        if args.tls_cert_mode is srvargs.ServerTlsCertMode.SelfSigned:
-            assert args.tls_cert_file is not None
-            if not args.tls_cert_file.exists():
-                assert args.tls_key_file is not None
-                generate_tls_cert(
-                    args.tls_cert_file,
-                    args.tls_key_file,
-                    ss.get_listen_hosts(),
-                )
-                tls_cert_newly_generated = True
-
-        jws_keys_newly_generated = False
-        if args.jose_key_mode is srvargs.JOSEKeyMode.Generate:
-            assert args.jws_key_file is not None
-            if not args.jws_key_file.exists():
-                generate_jwk(args.jws_key_file)
-                jws_keys_newly_generated = True
+        (
+            tls_cert_newly_generated, jws_keys_newly_generated
+        ) = await ss.maybe_generate_pki(args, ss)
 
         if args.bootstrap_only:
             if args.startup_script and new_instance:
@@ -299,78 +307,6 @@ async def _run_server(
             service_manager.sd_notify('STOPPING=1')
             logger.info('Shutting down.')
             await sc.wait_for(ss.stop())
-
-
-def generate_tls_cert(
-    tls_cert_file: pathlib.Path,
-    tls_key_file: pathlib.Path,
-    listen_hosts: Iterable[str]
-) -> None:
-    logger.info(f'generating self-signed TLS certificate in "{tls_cert_file}"')
-
-    from cryptography import x509
-    from cryptography.hazmat import backends
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.asymmetric import rsa
-    from cryptography.x509 import oid
-
-    backend = backends.default_backend()
-    private_key = rsa.generate_private_key(
-        public_exponent=65537, key_size=2048, backend=backend
-    )
-    subject = x509.Name(
-        [x509.NameAttribute(oid.NameOID.COMMON_NAME, "EdgeDB Server")]
-    )
-    certificate = (
-        x509.CertificateBuilder()
-        .subject_name(subject)
-        .public_key(private_key.public_key())
-        .serial_number(int(uuid.uuid4()))
-        .issuer_name(subject)
-        .not_valid_before(
-            datetime.datetime.today() - datetime.timedelta(days=1)
-        )
-        .not_valid_after(
-            datetime.datetime.today() + datetime.timedelta(weeks=1000)
-        )
-        .add_extension(
-            x509.SubjectAlternativeName(
-                [
-                    x509.DNSName(name) for name in listen_hosts
-                    if name not in {'0.0.0.0', '::'}
-                ]
-            ),
-            critical=False,
-        )
-        .sign(
-            private_key=private_key,
-            algorithm=hashes.SHA256(),
-            backend=backend,
-        )
-    )
-    with tls_cert_file.open("wb") as f:
-        f.write(certificate.public_bytes(encoding=serialization.Encoding.PEM))
-    tls_cert_file.chmod(0o644)
-    with tls_key_file.open("wb") as f:
-        f.write(
-            private_key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.TraditionalOpenSSL,
-                encryption_algorithm=serialization.NoEncryption(),
-            )
-        )
-    tls_key_file.chmod(0o600)
-
-
-def generate_jwk(keys_file: pathlib.Path) -> None:
-    logger.info(f'generating JOSE key pair in "{keys_file}"')
-
-    key = jwk.JWK(generate='EC')
-    with keys_file.open("wb") as f:
-        f.write(key.export_to_pem(private_key=True, password=None))
-
-    keys_file.chmod(0o600)
 
 
 async def _get_local_pgcluster(
@@ -591,7 +527,10 @@ async def run_server(
                     is_remote_cluster=True,
                     config_spec=compiler_state.config_spec,
                 )
-                with _internal_state_dir(runstate_dir) as int_runstate_dir:
+                with _internal_state_dir(runstate_dir, args) as (
+                    int_runstate_dir,
+                    args,
+                ):
                     return await multitenant.run_server(
                         args,
                         sys_config=sys_config,
@@ -700,32 +639,10 @@ async def run_server(
 
                 cluster.set_connection_params(conn_params)
 
-                with _internal_state_dir(runstate_dir) as int_runstate_dir:
-                    if (
-                        args.tls_cert_file
-                        and '<runstate>' in str(args.tls_cert_file)
-                    ):
-                        args = args._replace(
-                            tls_cert_file=pathlib.Path(
-                                str(args.tls_cert_file).replace(
-                                    '<runstate>', int_runstate_dir)
-                            ),
-                            tls_key_file=pathlib.Path(
-                                str(args.tls_key_file).replace(
-                                    '<runstate>', int_runstate_dir)
-                            )
-                        )
-                    if (
-                        args.jws_key_file
-                        and '<runstate>' in str(args.jws_key_file)
-                    ):
-                        args = args._replace(
-                            jws_key_file=pathlib.Path(
-                                str(args.jws_key_file).replace(
-                                    '<runstate>', int_runstate_dir)
-                            ),
-                        )
-
+                with _internal_state_dir(runstate_dir, args) as (
+                    int_runstate_dir,
+                    args,
+                ):
                     await _run_server(
                         cluster,
                         args,

@@ -339,9 +339,19 @@ async def run_server(
             ),
             compiler_state=compiler_state,
         )
+        # This coroutine runs as long as the server,
+        # and compiler_state is *heavy*, so make sure we don't
+        # keep a reference to it.
+        del compiler_state
         await sc.wait_for(ss.init())
-        ss.init_tls(args.tls_cert_file, args.tls_key_file, False)
-        ss.init_jwcrypto(args.jws_key_file, False)
+
+        (
+            tls_cert_newly_generated, jws_keys_newly_generated
+        ) = await ss.maybe_generate_pki(args, ss)
+        ss.init_tls(
+            args.tls_cert_file, args.tls_key_file, tls_cert_newly_generated
+        )
+        ss.init_jwcrypto(args.jws_key_file, jws_keys_newly_generated)
 
         def load_configuration(_signum):
             logger.info("reloading configuration")

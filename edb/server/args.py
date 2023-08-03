@@ -822,6 +822,7 @@ _server_options = [
         help='Deprecated: no longer in use.'),
     click.option(
         '--jose-key-mode',
+        envvar="EDGEDB_SERVER_JOSE_KEY_MODE", cls=EnvvarResolver,
         type=click.Choice(
             ['default'] + list(JOSEKeyMode.__members__.values()),
             case_sensitive=True,
@@ -1131,7 +1132,9 @@ def parse_args(**kwargs: Any):
     kwargs['jose_key_mode'] = JOSEKeyMode(kwargs['jose_key_mode'])
 
     if kwargs['compiler_pool_mode'] == 'default':
-        if devmode.is_in_dev_mode():
+        if kwargs['multitenant_config_file']:
+            kwargs['compiler_pool_mode'] = 'fixed_multi_tenant'
+        elif devmode.is_in_dev_mode():
             kwargs['compiler_pool_mode'] = 'on_demand'
         else:
             kwargs['compiler_pool_mode'] = 'fixed'
@@ -1283,20 +1286,6 @@ def parse_args(**kwargs: Any):
                 opt = "--" + name.replace("_", "-")
                 abort(f"The {opt} and --multitenant-config-file options "
                       f"are mutually exclusive.")
-        if (
-            kwargs["tls_cert_file"]
-            and "<runstate>" in str(kwargs["tls_cert_file"])
-        ):
-            abort("must specify --tls-cert-file in multi-tenant mode")
-        if kwargs['tls_cert_mode'] is not ServerTlsCertMode.RequireFile:
-            abort("must use --tls-cert-mode=require_file in multi-tenant mode")
-        if (
-            kwargs['jws_key_file']
-            and "<runstate>" in str(kwargs['jws_key_file'])
-        ):
-            abort("must specify --jws-key-file in multi-tenant mode")
-        if kwargs['jose_key_mode'] is not JOSEKeyMode.RequireFile:
-            abort("must use --jose-key-mode=require_file in multi-tenant mode")
         if kwargs['compiler_pool_mode'] is not CompilerPoolMode.MultiTenant:
             abort("must use --compiler-pool-mode=fixed_multi_tenant "
                   "in multi-tenant mode")

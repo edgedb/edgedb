@@ -54,13 +54,13 @@ from edb.server import args as edgedb_args
 from edb.server import cluster as edgedb_cluster
 from edb.server import pgcluster
 from edb.server import defines as edgedb_defines
-from edb.server import main as edgedb_main
 from edb.server import pgconnparams
 
 from edb.common import assert_data_shape
 from edb.common import devmode
 from edb.common import debug
 from edb.common import retryloop
+from edb.common import secretkey
 from edb.common import taskgroup
 
 from edb.protocol import protocol as test_protocol
@@ -99,8 +99,8 @@ def get_test_cases(tests):
 
 bag = assert_data_shape.bag
 
-generate_jwk = edgedb_main.generate_jwk
-generate_tls_cert = edgedb_main.generate_tls_cert
+generate_jwk = secretkey.generate_jwk
+generate_tls_cert = secretkey.generate_tls_cert
 
 
 class StubbornHttpConnection(http.client.HTTPSConnection):
