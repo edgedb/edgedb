@@ -24,6 +24,7 @@ import pickle
 
 import immutables
 
+from edb import edgeql
 from edb import graphql
 
 from edb.common import debug
@@ -31,6 +32,7 @@ from edb.pgsql import params as pgparams
 from edb.schema import schema as s_schema
 from edb.server import compiler
 from edb.server import config
+from edb.server import defines
 
 from . import state
 from . import worker_proc
@@ -257,15 +259,41 @@ def compile_graphql(
     client_schema = clients[client_id]
     db = client_schema.dbs[dbname]
 
-    return graphql.compile_graphql(
+    gql_op = graphql.compile_graphql(
         STD_SCHEMA,
         db.user_schema,
         client_schema.global_schema,
         db.database_config,
         client_schema.instance_config,
         *compile_args,
-        **compile_kwargs,
+        **compile_kwargs
     )
+
+    source = edgeql.Source.from_string(
+        edgeql.generate_source(gql_op.edgeql_ast, pretty=True),
+    )
+
+    unit_group, _ = COMPILER.compile(
+        user_schema=db.user_schema,
+        global_schema=client_schema.global_schema,
+        reflection_cache=db.reflection_cache,
+        database_config=db.database_config,
+        system_config=client_schema.instance_config,
+        source=source,
+        sess_modaliases=None,
+        sess_config=None,
+        output_format=compiler.OutputFormat.JSON,
+        expect_one=True,
+        implicit_limit=0,
+        inline_typeids=False,
+        inline_typenames=False,
+        inline_objectids=False,
+        json_parameters=True,
+        skip_first=False,
+        protocol_version=defines.CURRENT_PROTOCOL,
+    )
+
+    return unit_group, gql_op
 
 
 def compile_sql(
