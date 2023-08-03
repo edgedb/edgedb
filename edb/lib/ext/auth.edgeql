@@ -22,15 +22,8 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
 
     create module ext::auth;
 
-    create type ext::auth::Provider {
-        create required property name: std::str;
-        create required property url: std::str {
-            create constraint exclusive;
-        };
-    };
-
     create type ext::auth::Identity {
-        create required link issuer: ext::auth::Provider;
+        create required property provider: std::str;
 
         # Standard OpenID claims
         create required property sub: std::str;
