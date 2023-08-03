@@ -3606,17 +3606,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         # FTS
         if index.has_base_with_name(schema, sn.QualName('fts', 'textsearch')):
 
-            # create a generated column __fts_document__
-            alter_table = dbops.AlterTable(table_name)
-
-            fts_document = dbops.Column(
-                name=f'__fts_document__',
-                type='pg_catalog.tsvector',
-            )
-
             from edb.common import debug
             if debug.flags.zombodb:
-
                 # TODO: create a function for specifing which columns to index
                 #       (see zombo docs on creating indexes)
 
@@ -3627,6 +3618,9 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 }
 
             else:
+                # create a generated column __fts_document__
+                alter_table = dbops.AlterTable(table_name)
+
                 document_exprs = []
                 for sql_expr in sql_exprs:
                     language = "'english'"
@@ -3643,16 +3637,24 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                     '''
                     )
 
-                fts_document.add_constraint(dbops.GeneratedConstraint(
+                generated_as = dbops.GeneratedConstraint(
                     constraint_name='__fts_gen_doc__',
                     expr=' || '.join(document_exprs)
-                ))
+                )
+
+                fts_document = dbops.Column(
+                    name=f'__fts_document__',
+                    type='pg_catalog.tsvector',
+                    constraints=[generated_as]
+                )
+                alter_table.add_operation(
+                    dbops.AlterTableAddColumn(fts_document)
+                )
 
                 # use a reference to the new column in the index instead
                 sql_exprs = ['__fts_document__']
 
-            alter_table.add_operation(dbops.AlterTableAddColumn(fts_document))
-            ops.add_command(alter_table)
+                ops.add_command(alter_table)
 
         pg_index = dbops.Index(
             name=index_name[1],
