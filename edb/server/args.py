@@ -1271,25 +1271,6 @@ def parse_args(**kwargs: Any):
             " is not a regular file"
         )
 
-    if kwargs['multitenant_config_file']:
-        for name in (
-            "tenant_id",
-            "backend_dsn",
-            "startup_script",
-            "instance_name",
-            "max_backend_connections",
-            "readiness_state_file",
-            "jwt_sub_allowlist_file",
-            "jwt_revocation_list_file",
-        ):
-            if kwargs.get(name):
-                opt = "--" + name.replace("_", "-")
-                abort(f"The {opt} and --multitenant-config-file options "
-                      f"are mutually exclusive.")
-        if kwargs['compiler_pool_mode'] is not CompilerPoolMode.MultiTenant:
-            abort("must use --compiler-pool-mode=fixed_multi_tenant "
-                  "in multi-tenant mode")
-
     if kwargs['log_level']:
         kwargs['log_level'] = kwargs['log_level'].lower()[0]
 
@@ -1310,6 +1291,28 @@ def parse_args(**kwargs: Any):
             )
 
     del kwargs['bootstrap_script']
+
+    if kwargs['multitenant_config_file']:
+        for name in (
+            "tenant_id",
+            "backend_dsn",
+            "backend_adaptive_ha",
+            "bootstrap_only",
+            "bootstrap_command",
+            "bootstrap_command_file",
+            "instance_name",
+            "max_backend_connections",
+            "readiness_state_file",
+            "jwt_sub_allowlist_file",
+            "jwt_revocation_list_file",
+        ):
+            if kwargs.get(name):
+                opt = "--" + name.replace("_", "-")
+                abort(f"The {opt} and --multitenant-config-file options "
+                      f"are mutually exclusive.")
+        if kwargs['compiler_pool_mode'] is not CompilerPoolMode.MultiTenant:
+            abort("must use --compiler-pool-mode=fixed_multi_tenant "
+                  "in multi-tenant mode")
 
     bootstrap_script_text: Optional[str]
     if kwargs['bootstrap_command_file']:

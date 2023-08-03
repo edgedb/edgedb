@@ -27,6 +27,7 @@ import json
 import os.path
 import pathlib
 import random
+import signal
 import subprocess
 import ssl
 import sys
@@ -955,3 +956,168 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             self.assertTrue(rsids)
         finally:
             await con.aclose()
+
+    async def _init_pg_cluster(self, path):
+        cluster = await pgcluster.get_local_pg_cluster(path, log_level='s')
+        cluster.set_connection_params(
+            pgconnparams.ConnectionParameters(
+                user='postgres',
+                database='template1',
+            ),
+        )
+        self.assertTrue(await cluster.ensure_initialized())
+        await cluster.start()
+        try:
+            runstate_dir = None if devmode.is_in_dev_mode() else path
+            async with tb.start_edgedb_server(
+                runstate_dir=runstate_dir,
+                backend_dsn=f'postgres:///?user=postgres&host={path}',
+                reset_auth=True,
+            ) as sd:
+                connect_args = {
+                    k: v
+                    for k, v in sd.get_connect_args().items()
+                    if k in {"user", "password"}
+                }
+        except Exception:
+            await cluster.stop()
+            raise
+        return cluster, connect_args
+
+    async def test_server_ops_multi_tenant(self):
+        with (
+            tempfile.TemporaryDirectory() as td1,
+            tempfile.TemporaryDirectory() as td2,
+            tempfile.NamedTemporaryFile("w+") as conf_file,
+            tempfile.NamedTemporaryFile("w+") as rd1,
+            tempfile.NamedTemporaryFile("w+") as rd2,
+        ):
+            fs = []
+            conf = {}
+            for i, td, rd in [(1, td1, rd1), (2, td2, rd2)]:
+                rd.file.write("default:ok")
+                rd.file.flush()
+                fs.append(self.loop.create_task(self._init_pg_cluster(td)))
+                conf[f"{i}.localhost"] = {
+                    "instance-name": f"localtest{i}",
+                    "backend-dsn": f'postgres:///?user=postgres&host={td}',
+                    "max-backend-connections": 10,
+                    "readiness-state-file": rd.name,
+                }
+            await asyncio.wait(fs)
+            cluster1, args1 = await fs[0]
+            cluster2, args2 = await fs[1]
+            args1["host"] = "1.localhost"
+            args2["host"] = "2.localhost"
+            try:
+                json.dump(conf, conf_file.file)
+                conf_file.file.flush()
+
+                runstate_dir = None if devmode.is_in_dev_mode() else td1
+                srv = tb.start_edgedb_server(
+                    runstate_dir=runstate_dir,
+                    multitenant_config=conf_file.name,
+                    max_allowed_connections=None,
+                )
+                async with srv as sd:
+                    mtargs = MultiTenantArgs(
+                        srv, sd, conf_file, conf, args1, args2, rd1, rd2
+                    )
+                    for name in [
+                        "_test_server_ops_multi_tenant_1",
+                        "_test_server_ops_multi_tenant_2",
+                        "_test_server_ops_multi_tenant_3",
+                        "_test_server_ops_multi_tenant_4",
+                    ]:
+                        with self.subTest(name):
+                            await getattr(self, name)(mtargs)
+            finally:
+                try:
+                    await cluster1.stop()
+                finally:
+                    await cluster2.stop()
+
+    async def _test_server_ops_multi_tenant_1(
+        self, mtargs: MultiTenantArgs, **kwargs
+    ):
+        conn = await mtargs.sd.connect(**mtargs.args1, **kwargs)
+        try:
+            rv = await conn.query_single("select sys::get_instance_name()")
+            self.assertEqual(rv, "localtest1")
+        finally:
+            await conn.aclose()
+
+    async def _test_server_ops_multi_tenant_2(self, mtargs: MultiTenantArgs):
+        conn = await mtargs.sd.connect(**mtargs.args2)
+        try:
+            rv = await conn.query_single("select sys::get_instance_name()")
+            self.assertEqual(rv, "localtest2")
+        finally:
+            await conn.aclose()
+
+    async def _test_server_ops_multi_tenant_3(self, mtargs: MultiTenantArgs):
+        conf1 = mtargs.conf.pop("1.localhost")
+        mtargs.reload_server()
+
+        async for tr in self.try_until_fails(
+            wait_for=errors.AvailabilityError
+        ):
+            async with tr:
+                await self._test_server_ops_multi_tenant_1(mtargs)
+
+        await self._test_server_ops_multi_tenant_2(mtargs)
+
+        mtargs.conf["1.localhost"] = conf1
+        mtargs.reload_server()
+
+        async for tr in self.try_until_succeeds(
+            ignore=errors.AvailabilityError
+        ):
+            async with tr:
+                await self._test_server_ops_multi_tenant_1(mtargs)
+
+        await self._test_server_ops_multi_tenant_2(mtargs)
+
+    async def _test_server_ops_multi_tenant_4(self, mtargs: MultiTenantArgs):
+        mtargs.rd1.file.seek(0)
+        mtargs.rd1.file.truncate(0)
+        mtargs.rd1.file.write("offline:test")
+        mtargs.rd1.file.flush()
+
+        async for tr in self.try_until_fails(
+            wait_for=errors.ClientConnectionClosedError
+        ):
+            async with tr:
+                await self._test_server_ops_multi_tenant_1(
+                    mtargs,
+                    timeout=1,
+                    wait_until_available=0,
+                )
+
+        await self._test_server_ops_multi_tenant_2(mtargs)
+
+        mtargs.rd1.file.seek(0)
+        mtargs.rd1.file.truncate(0)
+        mtargs.rd1.file.write("default:ok")
+        mtargs.rd1.file.flush()
+
+        await self._test_server_ops_multi_tenant_1(mtargs)
+        await self._test_server_ops_multi_tenant_2(mtargs)
+
+
+class MultiTenantArgs(NamedTuple):
+    srv: tb._EdgeDBServer
+    sd: tb._EdgeDBServerData
+    conf_file: tempfile._TemporaryFileWrapper
+    conf: dict[str, dict[str, Any]]
+    args1: dict[str, str]
+    args2: dict[str, str]
+    rd1: tempfile._TemporaryFileWrapper
+    rd2: tempfile._TemporaryFileWrapper
+
+    def reload_server(self):
+        self.conf_file.file.seek(0)
+        self.conf_file.file.truncate(0)
+        json.dump(self.conf, self.conf_file.file)
+        self.conf_file.file.flush()
+        self.srv.proc.send_signal(signal.SIGHUP)
