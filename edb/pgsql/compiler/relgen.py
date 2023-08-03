@@ -3872,7 +3872,7 @@ def process_set_as_fts_test(
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
 
-        [query_ir, obj_ir] = expr.args
+        [obj_ir, query_ir] = expr.args
 
         # compile query arg
         query_ref = set_as_subquery(query_ir.expr, as_value=True, ctx=newctx)
