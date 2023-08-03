@@ -61,6 +61,7 @@ TenantConfig = TypedDict(
         "jwt-sub-allowlist-file": str,
         "jwt-revocation-list-file": str,
         "readiness-state-file": str,
+        "admin": bool,
     },
 )
 
@@ -75,6 +76,7 @@ class MultiTenantServer(server.BaseServer):
     _tenants_lock: MutableMapping[str, asyncio.Lock]
     _tenants_serial: dict[str, int]
     _tenants: dict[str, edbtenant.Tenant]
+    _admin_tenant: edbtenant.Tenant | None
 
     _task_group: taskgroup.TaskGroup | None
     _task_serial: int
@@ -99,6 +101,7 @@ class MultiTenantServer(server.BaseServer):
         self._tenants_lock = collections.defaultdict(asyncio.Lock)
         self._tenants_serial = {}
         self._tenants = {}
+        self._admin_tenant = None
 
         self._task_group = taskgroup.TaskGroup()
         self._task_serial = 0
@@ -237,10 +240,22 @@ class MultiTenantServer(server.BaseServer):
             await tenant.init()
             await tenant.start_accepting_new_tasks()
             tenant.start_running()
+
+            if conf.get("admin", False):
+                # There can be only one "admin" tenant, the behavior of setting
+                # multiple tenants with `"admin": true` is undefined.
+                self._admin_tenant = tenant
+
             return tenant
         except Exception:
             await self._destroy_tenant(tenant)
             raise
+
+    def _get_admin_tenant(self) -> edbtenant.Tenant:
+        if self._admin_tenant is None:
+            return super()._get_admin_tenant()
+        else:
+            return self._admin_tenant
 
     async def _destroy_tenant(self, tenant: edbtenant.Tenant):
         try:

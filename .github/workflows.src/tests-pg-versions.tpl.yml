@@ -114,7 +114,7 @@ jobs:
         edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN --testmode
         if [[ "${{ matrix.multi-tenant-mode }}" == "multi-tenant" ]]; then
           export EDGEDB_SERVER_MULTITENANT_CONFIG_FILE=/tmp/edb.mt.json
-          echo "{\"localhost\":{\"instance-name\":\"localtest\",\"backend-dsn\":\"$EDGEDB_TEST_BACKEND_DSN\"}}" > /tmp/edb.mt.json
+          echo "{\"localhost\":{\"instance-name\":\"localtest\",\"backend-dsn\":\"$EDGEDB_TEST_BACKEND_DSN\",\"admin\":true}}" > /tmp/edb.mt.json
         fi
         if [[ "${{ matrix.single-mode }}" == *"NOCREATEDB"* ]]; then
           edb test -j1 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN

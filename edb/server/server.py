@@ -573,16 +573,18 @@ class BaseServer:
             + defines.MAX_UNIX_SOCKET_PATH_LENGTH
             + 1
         ), "admin Unix socket length exceeds maximum allowed"
-        # TODO(fantix): run multiple UNIX domain sockets in multi-tenant server
         admin_unix_srv = await self.__loop.create_unix_server(
             lambda: binary.new_edge_connection(
-                self, self.get_default_tenant(), external_auth=True
+                self, self._get_admin_tenant(), external_auth=True
             ),
             admin_unix_sock_path
         )
         os.chmod(admin_unix_sock_path, stat.S_IRUSR | stat.S_IWUSR)
         logger.info('Serving admin on %s', admin_unix_sock_path)
         return admin_unix_srv
+
+    def _get_admin_tenant(self) -> edbtenant.Tenant:
+        return self.get_default_tenant()
 
     async def _start_servers(
         self,
