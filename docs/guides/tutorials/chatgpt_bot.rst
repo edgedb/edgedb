@@ -325,7 +325,7 @@ inside the project root.
 
 .. code-block:: bash
 
-    $ mkdir gpt && touch generate-embeddings.ts
+    $ touch generate-embeddings.ts
 
 Open the new file (which is at ``gpt/generate-embeddings.ts`` from your project
 root). Let's write the script's skeleton and get an understanding the flow of
@@ -645,18 +645,467 @@ and see that the DB is indeed updated with embeddings and other relevant data.
 
 
 
-Handler function for user's questions
-=====================================
+Communication between the client and the server
+===============================================
 Now that we have embeddings we can start working on the handler for user
-requests. For the handler we will use next route handler
-`<https://nextjs.org/docs/app/building-your-application/routing/route-handlers>`_
-. Let's generate new file inside ``pages/api``.
+requests. The idea is that user submits a question to our server and we send
+him/her answer back. We basically have to define a route and an HTTP request
+handler. Since we use Next, we don't need separate server and we can do all
+this within our project using `next route handler
+<https://nextjs.org/docs/app/building-your-application/routing/route-handlers>`_.
+
+Another important thing is that answers can be quite long. We can wait on the
+server side to get the whole answer from OpenAI and then send it to the client,
+but much better approach is to use streaming. OpenAI supports streaming, so we
+can send answer to the client in chunks, as they arrive to the server. With
+this approach user waits much shorter on data and our API seems faster.
+
+In order to use streaming we will use `SSE (Server-Sent Events)
+<https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events>`_.
+Server-Sent Events is a server push technology enabling a client to receive
+automatic updates from a server via an HTTP connection, and describes how
+servers can initiate data transmission towards clients once an initial client
+connection has been established. So, the client sends a request and with that
+request initiates a connection with our server, after that server sends data
+back to the client in chunks until the whole data is sent and closes the
+connection.
+
+Next route handler implementation
+---------------------------------
+
+When using `Next APP router <https://nextjs.org/docs/app>`_ route handlers
+should be written inside ``app/api`` folder. Every route should have its own
+folder and the handler should be defined inside ``route.ts`` file inside that
+folder.
+
+Let's generate new folder for our route inside ``app/api``.
 
 .. code-block:: bash
 
-    $ touch pages/api/generate.ts
+    $ mkdir app/api && cd app/api
+    $ mkdir generate-answer && touch generate-answer/route.ts
+
+Next supports `Node JS and Edge Runtime
+<https://nextjs.org/docs/app/building-your-application/rendering/edge-and-nodejs-runtimes>`_.
+Streaming should be supported within both runtimes, but implementation is a bit
+simpler when using ``edge`` so that's what we will use here. Edge Runtime is
+based on Web APIs. It has very low latency thanks to its minimal use of
+resources, but the downside is that it doesn't support native Node.js APIs.
+
+Let's start with importing modules that we will need in the handler, and
+writing some configuration.
+
+.. code-block:: typescript
+    :caption: app/api/generate-answer/route.ts
+
+    import { codeBlock, oneLineTrim } from "common-tags";
+    import * as edgedb from "edgedb";
+    import e from "dbschema/edgeql-js";
+
+    export const config = {
+        runtime: "edge",
+    };
+
+    const openAIApiKey = process.env.OPENAI_API_KEY;
+
+    const client = edgedb.createHttpClient({ tlsSecurity: process.env.TLS_SECURITY });
+
+    export async function POST(req: Request) {
+        ...
+    }
+
+    // other functions that are called inside POST handler...
 
 
+We currently don't have ``common-tags`` package so let's install it. We will
+use it later when we create the prompt from user's question and similar sections.
+
+.. code-block:: bash
+    npm install common-tags
+
+We included the config declaring that we want to use ``edge runtime`` for this
+route (Node runtime is the default).
+
+We need to use ``createHttpClient`` to connect to the edgedb client. Http client
+defaults to using https which needs a trusted TLS/SSL certificate. Local
+development instances use self signed certificates, and using https with these
+certificates will results in an error. A walk around this error is to use http
+instead https which we can do by providing an option
+``{ tlsSecurity: "insecure" }`` when connecting to the client. Bear in mind
+that this is only for local development and you should never use http in
+production. Instead of hardcoding the ``tlsSecurity`` in the code let's better
+create another environment variable that we will only use in development.
+
+.. code-block:: typescript
+    :caption: env.local
+
+    TLS_SECURITY = "insecure"
+
+
+Let's now write the POST HTTP handler. It uses other functions that we will
+define shortly too.
+
+.. code-block:: typescript
+    :caption: app/api/generate-answer/route.ts
+    ...
+
+    export const errors = {
+    flagged: `OpenAI has declined to answer your question due to their
+    [usage-policies](https://openai.com/policies/usage-policies). Please try
+    another question.`,
+    default: "There was an error processing your request. Please try again.",
+    };
+
+    export async function POST(req: Request) {
+        try {
+            if (!openAIApiKey)
+                throw new Error("Missing environment variable OPENAI_API_KEY");
+
+            const { query } = await req.json();
+            const sanitizedQuery = query.trim();
+
+            const moderatedQuery = await moderateQuery(sanitizedQuery, openAIApiKey);
+            if (moderatedQuery.flagged) throw new Error(errors.flagged);
+
+            const embedding = await getEmbedding(query, openAIApiKey);
+
+            const context = await getContext(embedding);
+
+            const prompt = createFullPrompt(sanitizedQuery, context);
+
+            const answer = await getOpenAiAnswer(prompt, openAIApiKey);
+
+            return new Response(answer, {
+            headers: {
+                "Content-Type": "text/event-stream",
+            },
+            });
+        } catch (error: any) {
+            console.error(error);
+
+            const uiError = error.message || errors.default;
+
+            return new Response(uiError, {
+                status: 500,
+                headers: { "Content-Type": "application/json" },
+            });
+        }
+    }
+
+We should make sure that we have ``OPENAI_API_KEY`` before proceeding.
+We get the query from the request that is sent from the client.
+First thing that we need to check is that the query complies to the OpenAI's
+`usage-policies <https://openai.com/policies/usage-policies>`_, which means
+that it should not include any hateful, harassing, or violent content.
+
+For every request to the OpenAI in this handler we will write basic fetch
+requests. We can't use the ``openai`` package (the one we used in
+``generate-embeddings.ts`` file), because it uses
+`axios <https://www.npmjs.com/package/axios>`_ and ``axios`` is not supported in
+the edge runtime. There is another NPM package we can use instead
+`openai-edge <https://www.npmjs.com/package/openai-edge>`_ which works perfect
+and includes a little less code, but it is also good to understand how things
+works without syntantic sugar so that's why we will write fetch requests using
+OpenAI's documentation.
+
+Let's write moderation request somewhere outside the handler. We use
+``https://api.openai.com/v1/moderations`` endpoint that we can find in the
+`OpenAI documentation <https://platform.openai.com/docs/guides/moderation/quickstart>`_
+
+.. code-block:: typescript
+    :caption: app/api/generate-answer/route.ts
+
+    async function moderateQuery(query: string, apiKey: string) {
+        const moderationResponse = await fetch(
+            "https://api.openai.com/v1/moderations",
+            {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                input: query,
+            }),
+            }
+        ).then((res) => res.json());
+
+        const [results] = moderationResponse.results;
+        return results;
+    }
+
+If there is any issue with the user's query the response will have ``flagged``
+property set to true. In that case we will throw an general moderation error,
+but you can also inspect the response more to find what categories are
+problematic and include more info in the error.
+
+If the query passes moderation then we can proceed to get the embedding for
+the query from OpenAI. We will use ``https://api.openai.com/v1/embeddings``
+API endpoint and create another fetch request.
+
+.. code-block:: typescript
+    :caption: app/api/generate-answer/route.ts
+
+    async function getEmbedding(query: string, apiKey: string) {
+        const embeddingResponse = await fetch(
+            "https://api.openai.com/v1/embeddings",
+            {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                model: "text-embedding-ada-002",
+                input: query.replaceAll("\n", " "),
+            }),
+            }
+        );
+
+        if (embeddingResponse.status !== 200) {
+            throw new Error(embeddingResponse.statusText);
+        }
+
+        const {
+            data: [{ embedding }],
+        } = await embeddingResponse.json();
+
+        return embedding;
+    }
+
+If we get the embeddings without an error we can proceed to querying EdgeDB
+database for similar sections. Let's firstly write the database query that will
+give us back the similar sections.
+
+.. code-block:: typescript
+    :caption: app/api/generate-answer/route.ts
+
+    const getSectionsQuery = e.params(
+        {
+            target: e.OpenAIEmbedding,
+            matchThreshold: e.float64,
+            matchCount: e.int16,
+            minContentLength: e.int16,
+        },
+        (params) => {
+            return e.select(e.Section, (section) => {
+            const dist = e.ext.pgvector.cosine_distance(
+                section.embedding,
+                params.target
+            );
+            return {
+                content: true,
+                tokens: true,
+                dist,
+                filter: e.op(
+                    e.op(e.len(section.content), ">", params.minContentLength),
+                    "and",
+                    e.op(dist, "<", params.matchThreshold)
+                ),
+                order_by: {
+                        expression: dist,
+                empty: e.EMPTY_LAST,
+                },
+                limit: params.matchCount,
+            };
+            });
+        }
+    );
+
+In the above code we use TS query builder to create a query. We use
+``cosine_distance`` similarity to count the distance between the current
+section embedding and target (user's) embedding. We want to get back content
+and number of tokens for every matched section.
+
+The query uses few parameters that we need to provide when we call it:
+
+* target: the embedding array for which we need similar sections
+* matchThreshold: the similarity threshold, only matches with a similarity
+  score below this threshold will be returned.
+* matchCount: how many sections to return back the most
+* minContentLength: minimum number of characters the sections should have in
+  order to be considered.
+
+  Let's proceed now to executing this query and creating the context from
+  similar sections that we get from the database.
+
+.. code-block:: typescript
+    :caption: app/api/generate-answer/route.ts
+
+    async function getContext(embedding: number[]) {
+        const sections = await getSectionsQuery.run(client, {
+            target: embedding,
+            matchThreshold: 0.3,
+            matchCount: 8,
+            minContentLength: 20,
+        });
+
+        let tokenCount = 0;
+        let context = "";
+
+        for (let i = 0; i < sections.length; i++) {
+            const section = sections[i];
+            const content = section.content;
+            tokenCount += section.tokens;
+
+            if (tokenCount >= 1500) {
+            tokenCount -= section.tokens;
+            break;
+            }
+
+            context += `${content.trim()}\n---\n`;
+        }
+
+        return context;
+    }
+
+
+.. todo
+
+.. code-block:: typescript
+    :caption: app/api/generate-answer/route.ts
+
+    function createFullPrompt(query: string, context: string) {
+  const systemMessage = `
+      As an enthusiastic EdgeDB expert keen to assist, respond to questions in
+      markdown, referencing the given EdgeDB sections.
+
+      If unable to help based on documentation, respond with:
+      "Sorry, I don't know how to help with that."`;
+
+  return codeBlock`
+      ${oneLineTrim`${systemMessage}`}
+
+      EdgeDB sections: """
+      ${context}
+      """
+
+      Question: """
+      ${query}
+      """
+      `;
+}
+
+..todo
+
+async function getOpenAiAnswer(prompt: string, secretKey: string) {
+  const completionRequestObject = {
+    model: "gpt-3.5-turbo",
+    messages: [{ role: "user", content: prompt }],
+    max_tokens: 1024,
+    temperature: 0.1,
+    stream: true,
+  };
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(completionRequestObject),
+  });
+
+  return response.body;
+}
+
+Finally, let's update the front-end and connect everything together.
+
+Frontend
+========
+
+To make things as simple as possible we will just update the ``Home``
+component that's inside a ``app/page.tsx`` file. By default all components
+inside the `App Router <https://nextjs.org/docs/app/building-your-application/routing#the-app-router>`_
+are Server
+.. todo
+We can't use React hooks inside server
+components, so we have to t
+
+Before proceeding let's add directive "use client"; at the top of the file.
+
+You can/copy paste these styles to have exact application like in this
+tutorial, or you can create your own HTML and CSS.
+
+.. code-block:: typescript
+    :caption: app/page.tsx
+
+    import { useState } from "react";
+
+    export default function Home() {
+        const [prompt, setPrompt] = useState("");
+        const [question, setQuestion] = useState("");
+        const [answer, setAnswer] = useState<string | undefined>("");
+        const [isLoading, setIsLoading] = useState(false);
+        const [error, setError] = useState<string | undefined>(undefined);
+
+        const handleSubmit = () => {};
+
+        return (
+            <main className="w-screen h-screen flex items-center justify-center bg-[#2e2e2e]">
+            <form className="bg-[#2e2e2e] w-[540px] relative">
+                <input
+                className="py-5 pl-6 pr-[40px] rounded-md bg-[#1f1f1f] w-full outline-[#1f1f1f] focus:outline outline-offset-2 text-[#b3b3b3] mb-8 placeholder-[#4d4d4d]"
+                placeholder="Ask a question..."
+                value={prompt}
+                onChange={(e) => {
+                    setPrompt(e.target.value);
+                }}
+                ></input>
+                <button
+                onClick={handleSubmit}
+                className="absolute top-[25px] right-4"
+                disabled={!prompt}
+                >
+                <ReturnIcon
+                    className={`${!prompt ? "fill-[#4d4d4d]" : "fill-[#1b9873]"}`}
+                />
+                </button>
+                <div className="h-96 px-6">
+                {question && (
+                    <p className="text-[#b3b3b3] pb-4 mb-8 border-b border-[#525252] ">
+                    {question}
+                    </p>
+                )}
+                {(isLoading && <LoadingDots />) ||
+                    (error && <p className="text-[#b3b3b3]">{error}</p>) ||
+                    (answer && <p className="text-[#b3b3b3]">{answer}</p>)}
+                </div>
+            </form>
+            </main>
+        );
+    }
+
+    function ReturnIcon({ className }: { className?: string }) {
+        return (
+            <svg
+            width="20"
+            height="12"
+            viewBox="0 0 20 12"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className={className}
+            >
+            <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M12 0C11.4477 0 11 0.447715 11 1C11 1.55228 11.4477 2 12 2H17C17.5523 2 18 2.44771 18 3V6C18 6.55229 17.5523 7 17 7H3.41436L4.70726 5.70711C5.09778 5.31658 5.09778 4.68342 4.70726 4.29289C4.31673 3.90237 3.68357 3.90237 3.29304 4.29289L0.306297 7.27964L0.292893 7.2928C0.18663 7.39906 0.109281 7.52329 0.0608469 7.65571C0.0214847 7.76305 0 7.87902 0 8C0 8.23166 0.078771 8.44492 0.210989 8.61445C0.23874 8.65004 0.268845 8.68369 0.30107 8.71519L3.29289 11.707C3.68342 12.0975 4.31658 12.0975 4.70711 11.707C5.09763 11.3165 5.09763 10.6833 4.70711 10.2928L3.41431 9H17C18.6568 9 20 7.65685 20 6V3C20 1.34315 18.6568 0 17 0H12Z"
+            />
+            </svg>
+        );
+    }
+
+    function LoadingDots() {
+        return (
+            <div className="grid gap-2">
+            <div className="flex items-center space-x-2 animate-pulse">
+                <div className="w-1 h-1 bg-[#b3b3b3] rounded-full"></div>
+                <div className="w-1 h-1 bg-[#b3b3b3] rounded-full"></div>
+                <div className="w-1 h-1 bg-[#b3b3b3] rounded-full"></div>
+            </div>
+            </div>
+        );
+    }
 
 
 .. do we want this at all
