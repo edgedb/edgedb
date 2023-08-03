@@ -201,7 +201,7 @@ cdef class HttpProtocol:
         try:
             self.parser.feed_data(data)
         except Exception as ex:
-            self.unhandled_exception(ex)
+            self.unhandled_exception(b'400 Bad Request', ex)
 
     def on_url(self, url: bytes):
         self.current_request.url = httptools.parse_url(url)
@@ -270,12 +270,12 @@ cdef class HttpProtocol:
             self.transport = None
         self.unprocessed = None
 
-    cdef unhandled_exception(self, ex):
+    cdef unhandled_exception(self, bytes status, ex):
         if debug.flags.server:
             markup.dump(ex)
 
         self._close_with_error(
-            b'400 Bad Request',
+            status,
             f'{type(ex).__name__}: {ex}'.encode(),
         )
 
@@ -449,8 +449,14 @@ cdef class HttpProtocol:
 
         try:
             await self.handle_request(request, response)
+        except errors.NoSuchTenantError as ex:
+            self._close_with_error(
+                b"503 Service Unavailable",
+                f'{type(ex).__name__}: {ex}'.encode(),
+            )
+            return
         except Exception as ex:
-            self.unhandled_exception(ex)
+            self.unhandled_exception(b"500 Internal Server Error", ex)
             return
 
         self.write(request, response)
