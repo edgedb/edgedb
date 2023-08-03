@@ -22,8 +22,6 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
 
     create module ext::auth;
 
-    create abstract type ext::auth::User;
-
     create type ext::auth::Provider {
         create required property name: std::str;
         create required property url: std::str {
@@ -33,9 +31,8 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
 
     create type ext::auth::Identity {
         create required link issuer: ext::auth::Provider;
-        create required link subject: ext::auth::User;
 
-        # Standard claims
+        # Standard OpenID claims
         create required property sub: std::str;
         create property name: std::str;
         create property given_name: std::str;
@@ -70,6 +67,6 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property created_at: std::datetime;
         create property expires_at: std::datetime;
 
-        create required link user: ext::auth::User;
+        create required link identity: ext::auth::Identity;
     };
 };
