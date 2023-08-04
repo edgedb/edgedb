@@ -2127,6 +2127,7 @@ class _EdgeDBServer:
         env = os.environ.copy()
         if self.env:
             env.update(self.env)
+        env.pop("EDGEDB_SERVER_MULTITENANT_CONFIG_FILE", None)
 
         stat_reader, stat_writer = await asyncio.open_connection(sock=status_r)
 
@@ -2176,7 +2177,7 @@ class _EdgeDBServer:
             data = status_task.result()
 
         return _EdgeDBServerData(
-            host='127.0.0.1',
+            host='localhost',
             port=data['port'],
             password=password,
             server_data=data,
@@ -2251,6 +2252,14 @@ def start_edgedb_server(
             print('WARNING: starting an EdgeDB server with the default '
                   'runstate_dir; the test is likely to fail or hang. '
                   'Consider specifying the runstate_dir parameter.')
+
+    if mt_conf := os.environ.get("EDGEDB_SERVER_MULTITENANT_CONFIG_FILE"):
+        if multitenant_config is None and max_allowed_connections == 10:
+            if not any(
+                (adjacent_to, data_dir, backend_dsn, compiler_pool_mode)
+            ):
+                multitenant_config = mt_conf
+                max_allowed_connections = None
 
     params = locals()
     exclusives = [

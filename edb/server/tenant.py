@@ -1343,7 +1343,9 @@ class Tenant(ha_base.ClusterProtocol):
                 tenant_id=self._tenant_id,
             ),
             user_roles=self._roles,
-            pg_addr=self.get_pgaddr(),
+            pg_addr={
+                k: v for k, v in self.get_pgaddr().items() if k not in ["ssl"]
+            },
             pg_pool=self._pg_pool._build_snapshot(now=time.monotonic()),
         )
 
@@ -1359,7 +1361,11 @@ class Tenant(ha_base.ClusterProtocol):
                 dbs[db.name] = dict(
                     name=db.name,
                     dbver=db.dbver,
-                    config=serialize_config(db.db_config),
+                    config=(
+                        None
+                        if db.db_config is None
+                        else serialize_config(db.db_config)
+                    ),
                     extensions=sorted(db.extensions),
                     query_cache_size=db.get_query_cache_size(),
                     connections=[
