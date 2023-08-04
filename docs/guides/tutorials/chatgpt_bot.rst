@@ -721,6 +721,7 @@ We currently don't have ``common-tags`` package so let's install it. We will
 use it later when we create the prompt from user's question and similar sections.
 
 .. code-block:: bash
+
     npm install common-tags
 
 We included the config declaring that we want to use ``edge runtime`` for this
@@ -747,13 +748,14 @@ define shortly too.
 
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
+
     ...
 
     export const errors = {
-    flagged: `OpenAI has declined to answer your question due to their
-    [usage-policies](https://openai.com/policies/usage-policies). Please try
-    another question.`,
-    default: "There was an error processing your request. Please try again.",
+        flagged: `OpenAI has declined to answer your question due to their
+        [usage-policies](https://openai.com/policies/usage-policies). Please try
+        another question.`,
+        default: "There was an error processing your request. Please try again.",
     };
 
     export async function POST(req: Request) {
@@ -966,48 +968,50 @@ The query uses few parameters that we need to provide when we call it:
     :caption: app/api/generate-answer/route.ts
 
     function createFullPrompt(query: string, context: string) {
-  const systemMessage = `
-      As an enthusiastic EdgeDB expert keen to assist, respond to questions in
-      markdown, referencing the given EdgeDB sections.
+        const systemMessage = `
+            As an enthusiastic EdgeDB expert keen to assist, respond to questions in
+            markdown, referencing the given EdgeDB sections.
 
-      If unable to help based on documentation, respond with:
-      "Sorry, I don't know how to help with that."`;
+            If unable to help based on documentation, respond with:
+            "Sorry, I don't know how to help with that."`;
 
-  return codeBlock`
-      ${oneLineTrim`${systemMessage}`}
+        return codeBlock`
+            ${oneLineTrim`${systemMessage}`}
 
-      EdgeDB sections: """
-      ${context}
-      """
+            EdgeDB sections: """
+            ${context}
+            """
 
-      Question: """
-      ${query}
-      """
-      `;
-}
+            Question: """
+            ${query}
+            """`;
+    }
 
 ..todo
 
-async function getOpenAiAnswer(prompt: string, secretKey: string) {
-  const completionRequestObject = {
-    model: "gpt-3.5-turbo",
-    messages: [{ role: "user", content: prompt }],
-    max_tokens: 1024,
-    temperature: 0.1,
-    stream: true,
-  };
+.. code-block:: typescript
+    :caption: app/api/generate-answer/route.ts
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${secretKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(completionRequestObject),
-  });
+    async function getOpenAiAnswer(prompt: string, secretKey: string) {
+        const completionRequestObject = {
+            model: "gpt-3.5-turbo",
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: 1024,
+            temperature: 0.1,
+            stream: true,
+        };
 
-  return response.body;
-}
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+            Authorization: `Bearer ${secretKey}`,
+            "Content-Type": "application/json",
+            },
+            body: JSON.stringify(completionRequestObject),
+        });
+
+        return response.body;
+    }
 
 Finally, let's update the front-end and connect everything together.
 
@@ -1015,17 +1019,20 @@ Frontend
 ========
 
 To make things as simple as possible we will just update the ``Home``
-component that's inside a ``app/page.tsx`` file. By default all components
+component that's inside ``app/page.tsx`` file. By default all components
 inside the `App Router <https://nextjs.org/docs/app/building-your-application/routing#the-app-router>`_
-are Server
-.. todo
-We can't use React hooks inside server
-components, so we have to t
+are Server Components, but we want to have client-side interactivity and dynamic
+updates. In order to do that we have to use Client Component for our Home page,
+and the way to accomplish that is to convert ``page.tsx`` file to use Client
+Component. We do that by adding ``use client`` directive to the top of the file.
 
-Before proceeding let's add directive "use client"; at the top of the file.
+.. code-block:: typescript
+    :caption: app/page.tsx
 
-You can/copy paste these styles to have exact application like in this
-tutorial, or you can create your own HTML and CSS.
+    "use client";
+
+You can/copy paste the following HTML with Tailwind classes in order to have
+exact application like in this tutorial, or you can create your own HTML and CSS.
 
 .. code-block:: typescript
     :caption: app/page.tsx
@@ -1035,62 +1042,73 @@ tutorial, or you can create your own HTML and CSS.
     export default function Home() {
         const [prompt, setPrompt] = useState("");
         const [question, setQuestion] = useState("");
-        const [answer, setAnswer] = useState<string | undefined>("");
+        const [answer, setAnswer] = useState<string>("");
         const [isLoading, setIsLoading] = useState(false);
         const [error, setError] = useState<string | undefined>(undefined);
 
         const handleSubmit = () => {};
 
         return (
-            <main className="w-screen h-screen flex items-center justify-center bg-[#2e2e2e]">
+        <main className="w-screen h-screen flex items-center justify-center bg-[#2e2e2e]">
             <form className="bg-[#2e2e2e] w-[540px] relative">
-                <input
-                className="py-5 pl-6 pr-[40px] rounded-md bg-[#1f1f1f] w-full outline-[#1f1f1f] focus:outline outline-offset-2 text-[#b3b3b3] mb-8 placeholder-[#4d4d4d]"
+            <input
+                className={`py-5 pl-6 pr-[40px] rounded-md bg-[#1f1f1f] w-full
+                outline-[#1f1f1f] focus:outline outline-offset-2 text-[#b3b3b3]
+                mb-8 placeholder-[#4d4d4d]`}
                 placeholder="Ask a question..."
                 value={prompt}
                 onChange={(e) => {
-                    setPrompt(e.target.value);
+                setPrompt(e.target.value);
                 }}
-                ></input>
-                <button
+            ></input>
+            <button
                 onClick={handleSubmit}
                 className="absolute top-[25px] right-4"
                 disabled={!prompt}
-                >
+            >
                 <ReturnIcon
-                    className={`${!prompt ? "fill-[#4d4d4d]" : "fill-[#1b9873]"}`}
+                className={`${!prompt ? "fill-[#4d4d4d]" : "fill-[#1b9873]"}`}
                 />
-                </button>
-                <div className="h-96 px-6">
+            </button>
+            <div className="h-96 px-6">
                 {question && (
-                    <p className="text-[#b3b3b3] pb-4 mb-8 border-b border-[#525252] ">
+                <p className="text-[#b3b3b3] pb-4 mb-8 border-b border-[#525252] ">
                     {question}
-                    </p>
+                </p>
                 )}
                 {(isLoading && <LoadingDots />) ||
-                    (error && <p className="text-[#b3b3b3]">{error}</p>) ||
-                    (answer && <p className="text-[#b3b3b3]">{answer}</p>)}
-                </div>
+                (error && <p className="text-[#b3b3b3]">{error}</p>) ||
+                (answer && <p className="text-[#b3b3b3]">{answer}</p>)}
+            </div>
             </form>
-            </main>
+        </main>
         );
     }
 
     function ReturnIcon({ className }: { className?: string }) {
         return (
             <svg
-            width="20"
-            height="12"
-            viewBox="0 0 20 12"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className={className}
+                width="20"
+                height="12"
+                viewBox="0 0 20 12"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className={className}
             >
-            <path
+                <path
                 fillRule="evenodd"
                 clipRule="evenodd"
-                d="M12 0C11.4477 0 11 0.447715 11 1C11 1.55228 11.4477 2 12 2H17C17.5523 2 18 2.44771 18 3V6C18 6.55229 17.5523 7 17 7H3.41436L4.70726 5.70711C5.09778 5.31658 5.09778 4.68342 4.70726 4.29289C4.31673 3.90237 3.68357 3.90237 3.29304 4.29289L0.306297 7.27964L0.292893 7.2928C0.18663 7.39906 0.109281 7.52329 0.0608469 7.65571C0.0214847 7.76305 0 7.87902 0 8C0 8.23166 0.078771 8.44492 0.210989 8.61445C0.23874 8.65004 0.268845 8.68369 0.30107 8.71519L3.29289 11.707C3.68342 12.0975 4.31658 12.0975 4.70711 11.707C5.09763 11.3165 5.09763 10.6833 4.70711 10.2928L3.41431 9H17C18.6568 9 20 7.65685 20 6V3C20 1.34315 18.6568 0 17 0H12Z"
-            />
+                d={`M12 0C11.4477 0 11 0.447715 11 1C11 1.55228 11.4477 2 12
+                2H17C17.5523 2 18 2.44771 18 3V6C18 6.55229 17.5523 7 17
+                7H3.41436L4.70726 5.70711C5.09778 5.31658 5.09778 4.68342 4.70726
+                4.29289C4.31673 3.90237 3.68357 3.90237 3.29304 4.29289L0.306297
+                7.27964L0.292893 7.2928C0.18663 7.39906 0.109281 7.52329 0.0608469
+                7.65571C0.0214847 7.76305 0 7.87902 0 8C0 8.23166 0.078771 8.44492
+                0.210989 8.61445C0.23874 8.65004 0.268845 8.68369 0.30107
+                8.71519L3.29289 11.707C3.68342 12.0975 4.31658 12.0975 4.70711
+                11.707C5.09763 11.3165 5.09763 10.6833 4.70711 10.2928L3.41431
+                9H17C18.6568 9 20 7.65685 20 6V3C20 1.34315 18.6568 0 17 0H12Z`}
+                />
             </svg>
         );
     }
@@ -1098,14 +1116,164 @@ tutorial, or you can create your own HTML and CSS.
     function LoadingDots() {
         return (
             <div className="grid gap-2">
-            <div className="flex items-center space-x-2 animate-pulse">
+                <div className="flex items-center space-x-2 animate-pulse">
                 <div className="w-1 h-1 bg-[#b3b3b3] rounded-full"></div>
                 <div className="w-1 h-1 bg-[#b3b3b3] rounded-full"></div>
                 <div className="w-1 h-1 bg-[#b3b3b3] rounded-full"></div>
-            </div>
+                </div>
             </div>
         );
     }
+
+What we have here is input field where user can enter a prompt, when he/she
+submits a prompt we show loading dots while we wait for the first answer
+chunk from the OpenAI. When the first chunk arrives we start streaming the
+answer to the user. In case of an error we show an error text to the user. We
+differentiate between a prompt and a question because we want to clear the
+input and delete the prompt when user submits it, but show the submitted
+prompt bellow the input and above the answer (which corresponds to the
+``question`` state in our code).
+
+Let's now write the submit function.
+
+.. code-block:: typescript
+    :caption: app/page.tsx
+
+    const handleSubmit = (
+      e: KeyboardEvent | React.MouseEvent<HTMLButtonElement>
+    ) => {
+      e.preventDefault();
+
+      setIsLoading(true);
+      setQuestion(prompt);
+      setAnswer(");
+      setPrompt("");
+      generateAnswer(prompt);
+    };
+
+When user submits a prompt we set loading state to true and start showing
+loading dots and as said above we clear the prompt state and set the question
+state. We also clear the answer state because the answer will hold the previous
+answer and we want to start with empty answer.
+
+At this point we want to create SSE (Server-Sent Event) and send a request to
+our ``api/generate-answer`` route. We will do this inside ``generateAnswer``
+function.
+
+Available native `SSE <https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events>`_
+doesn't let you to send any payload from client to the server, client is only
+able to open a connection to the server to begin receiving events from it
+(GET request). In order for the client to send payload and a POST request we
+will use `sse.js <https://npm.io/package/sse.js>`_ package so let's install it.
+
+.. code-block:: bash
+
+    npm install sse.js --save
+
+This package doesn't have its corresponding types package so we need to add
+them manually when using Typescript. Let's create new folder ``types`` in the
+project root and ``sse.d.ts`` file inside it.
+
+.. code-block:: bash
+
+    mkdir types && touch types/sse.d.ts
+
+.. code-block:: typescript
+    :caption: types/sse.d.ts
+
+    type SSEOptions = EventSourceInit & {
+    payload?: string;
+    };
+
+    declare module "sse.js" {
+        class SSE extends EventSource {
+            constructor(url: string | URL, sseOptions?: SSEOptions);
+            stream(): void;
+        }
+    }
+
+Now we can import ``SSE`` in ``page.tsx`` and use it to open a connection to
+our handler route while also sending the user's query.
+
+.. code-block:: typescript
+    :caption: app/page.tsx
+
+    ...
+    import { SSE } from "sse.js";
+
+    export default function Home() {
+        const eventSourceRef = useRef<SSE>();
+
+        ...
+
+      const generateAnswer = async (query: string) => {
+        if (eventSourceRef.current) eventSourceRef.current.close();
+
+        const eventSource = new SSE(`api/generate-answer`, {
+            payload: JSON.stringify({ query }),
+        });
+        eventSourceRef.current = eventSource;
+
+        eventSource.onerror = handleError;
+        eventSource.onmessage = handleMessage;
+        eventSource.stream();
+    };
+
+        handleError() { ... }
+        handleMessage() { ... }
+    ...
+
+We will save a reference to the ``eventSource`` object. In case user submits a
+new question while answer to the previous one is still assembling on the client
+we need to close the current connection to the server, otherwise weird behavior
+will occur if we have two connections open and receive data from both of them.
+
+We opened a connection to the server and we are ready now to receive events
+from the server. We have to write handlers for those events. We will get the
+answer as part of the ``message event``, and if error is returned the server
+will send ``error event`` to the client.
+
+Let's write these handlers.
+
+.. code-block:: typescript
+    :caption: app/page.tsx
+
+    import { errors } from "./api/generate-answer/route";
+    ...
+
+    function handleError(err: any) {
+        setIsLoading(false);
+
+        const errMessage =
+        err.data === errors.flagged ? errors.flagged : errors.default;
+
+        setError(errMessage);
+    }
+
+.. code-block:: typescript
+    :caption: app/page.tsx
+
+      function handleMessage(e: MessageEvent<any>) {
+        try {
+            setIsLoading(false);
+            if (e.data === "[DONE]") return;
+
+            const chunkResponse = JSON.parse(e.data);
+            const chunk = chunkResponse.choices[0].delta?.content || "";
+            setAnswer((answer) => answer + chunk);
+        } catch (err) {
+            handleError(err);
+        }
+    }
+
+It's important to note here that if the chunk that is received is equal to
+``[DONE]`` it means that the whole answer has been received and the connection
+to the server is going to be closed. There is no data to be parsed in this case
+so we have to return instead of trying to parse it (the error will be thrown if
+you try to parse it).
+
+
+
 
 
 .. do we want this at all
