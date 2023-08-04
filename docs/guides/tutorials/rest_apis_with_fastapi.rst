@@ -1139,7 +1139,7 @@ Browse the endpoints using the native OpenAPI doc
 FastAPI automatically generates OpenAPI schema from the API endpoints and uses
 those to build the API docs. While the ``uvicorn`` server is running, go to
 your browser and head over to
-`http://localhost:5001/docs <http://locahost:5001/docs>`_. You should see an
+`http://localhost:5001/docs <http://localhost:5001/docs>`_. You should see an
 API navigator like this:
 
 .. image::
