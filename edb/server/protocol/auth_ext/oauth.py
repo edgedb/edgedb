@@ -79,8 +79,8 @@ class Client:
         async with asyncio.TaskGroup() as g:
             user_info_t = g.create_task(self.provider.fetch_user_info(token))
             emails_t = g.create_task(self.provider.fetch_emails(token))
-        user_info = await user_info_t
-        emails = await emails_t
+        user_info = user_info_t.result()
+        emails = emails_t.result()
 
         await self._handle_identity(user_info, emails)
 
