@@ -74,8 +74,7 @@ def is_index_valid_for_type(
                 )
             )
         case 'fts::textsearch':
-            return expr_type.issubclass(
-                schema, schema.get('std::str', type=s_scalars.ScalarType))
+            return is_subclass_or_tuple(expr_type, 'std::str', schema)
         case 'pg::gist':
             return expr_type.is_range() or expr_type.is_multirange()
         case 'pg::spgist':
@@ -130,6 +129,20 @@ def is_index_valid_for_type(
             )
 
     return False
+
+
+def is_subclass_or_tuple(
+    ty: s_types.Type, parent_name: str | sn.Name, schema: s_schema.Schema
+) -> bool:
+    parent = schema.get(parent_name, type=s_types.Type)
+
+    if isinstance(ty, s_types.Tuple):
+        for (_, st) in ty.iter_subtypes(schema):
+            if not st.issubclass(schema, parent):
+                return False
+        return True
+    else:
+        return ty.issubclass(schema, parent)
 
 
 class Index(
@@ -984,11 +997,11 @@ class CreateIndex(
             )
             expr_type = comp_expr.irast.stype
 
-            if not is_index_valid_for_type(root, expr_type, schema):
+            if not is_index_valid_for_type(root, expr_type, comp_expr.schema):
                 raise errors.SchemaDefinitionError(
                     f'index expression ({expr.text}) '
                     f'is not of a valid type for the '
-                    f'{self.scls.get_verbosename(schema)}',
+                    f'{self.scls.get_verbosename(comp_expr.schema)}',
                     context=self.source_context
                 )
 
