@@ -3872,16 +3872,19 @@ def process_set_as_fts_test(
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
 
-        [obj_ir, query_ir] = expr.args
+        [language, obj_ir, query_ir] = expr.args
+
+        # compile object arg
+        ensure_source_rvar(obj_ir.expr, newctx.rel, ctx=newctx)
+        obj_id = obj_ir.expr.path_id
 
         # compile query arg
         query_ref = set_as_subquery(query_ir.expr, as_value=True, ctx=newctx)
         query_ref.nullable = query_ir.cardinality.can_be_zero()
         query_pg = astutils.collapse_query(query_ref)
 
-        # compile object arg
-        ensure_source_rvar(obj_ir.expr, newctx.rel, ctx=newctx)
-        obj_id = obj_ir.expr.path_id
+        # compile language
+        language_pg = dispatch.compile(language.expr, ctx=ctx)
 
         from edb.common import debug
         if debug.flags.zombodb:
@@ -3922,10 +3925,20 @@ def process_set_as_fts_test(
                 ctx=newctx,
             )
 
+            language_pg = pgast.TypeCast(
+                arg=language_pg,
+                type_name=pgast.TypeName(
+                    name=('pg_catalog', 'regconfig')
+                ),
+            )
+
             set_expr = pgast.Expr(
                 name='@@',
                 lexpr=pgast.FuncCall(
-                    name=('edgedb', 'fts_parse_query'), args=[query_pg]
+                    name=('edgedb', 'fts_parse_query'), args=[
+                        query_pg,
+                        language_pg
+                    ]
                 ),
                 rexpr=fts_document,
             )

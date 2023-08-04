@@ -36,6 +36,7 @@ CREATE FUNCTION
 fts::test(
     object: std::Object,
     query: std::str,
+    named only language: std::str,
 ) -> std::bool
 {
     CREATE ANNOTATION std::description :=
