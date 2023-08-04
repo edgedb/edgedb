@@ -313,6 +313,14 @@ class MultiTenantServer(server.BaseServer):
         except Exception:
             logger.critical("Failed to remove Tenant %s", sni, exc_info=True)
 
+    def get_debug_info(self):
+        parent = super().get_debug_info()
+        parent["tenants"] = {
+            name: tenant.get_debug_info()
+            for name, tenant in self._tenants.items()
+        }
+        return parent
+
 
 async def run_server(
     args: srvargs.ServerConfig,

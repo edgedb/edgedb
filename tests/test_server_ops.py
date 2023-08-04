@@ -33,6 +33,7 @@ import ssl
 import sys
 import tempfile
 import time
+import unittest
 
 import edgedb
 from edgedb import errors
@@ -97,6 +98,10 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     (ConnectionError, edgedb.ClientConnectionError)):
                 await sd.connect(wait_until_available=0)
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "--bootstrap-command is not supported in multi-tenant mode",
+    )
     async def test_server_ops_bootstrap_script(self) -> None:
         # Test that "edgedb-server" works as expected with the
         # following arguments:
@@ -137,6 +142,10 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 f'STDERR: {stderr.decode()}',
             )
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "--bootstrap-command is not supported in multi-tenant mode",
+    )
     async def test_server_ops_bootstrap_script_server(self):
         # Test that "edgedb-server" works as expected with the
         # following arguments:
@@ -166,14 +175,17 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             sys.executable, '-m', 'edb.server.main',
             '--port', 'auto',
             '--testmode',
-            '--temp-dir',
             '--log-level=debug',
-            '--max-backend-connections', '10',
             '--emit-server-status', status_file,
             '--emit-server-status', status_file_2,
             '--tls-cert-mode=generate_self_signed',
             '--jose-key-mode=generate',
         ]
+        if "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" not in os.environ:
+            cmd.extend([
+                '--temp-dir',
+                '--max-backend-connections', '10',
+            ])
 
         proc = None
 
@@ -683,6 +695,10 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             finally:
                 await con.aclose()
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "--readiness-state-file is not allowed in multi-tenant mode",
+    )
     async def test_server_ops_readiness(self):
         rf_no, rf_name = tempfile.mkstemp(text=True)
         rf = open(rf_no, "wt")
@@ -778,6 +794,10 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 rf.close()
                 os.unlink(rf_name)
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "--readiness-state-file is not allowed in multi-tenant mode",
+    )
     async def test_server_ops_readonly(self):
         rf_no, rf_name = tempfile.mkstemp(text=True)
         rf = open(rf_no, "wt")
@@ -840,6 +860,10 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 rf.close()
                 os.unlink(rf_name)
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "covered in test_server_ops_multi_tenant",
+    )
     async def test_server_ops_offline(self):
         rf_no, rf_name = tempfile.mkstemp(text=True)
         rf = open(rf_no, "wt")
@@ -973,6 +997,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 runstate_dir=runstate_dir,
                 backend_dsn=f'postgres:///?user=postgres&host={path}',
                 reset_auth=True,
+                auto_shutdown_after=1,
             ) as sd:
                 connect_args = {
                     k: v

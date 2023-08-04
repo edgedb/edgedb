@@ -38,6 +38,10 @@ class TestServerAuth(tb.ConnectedTestCase):
     PARALLELISM_GRANULARITY = 'system'
     TRANSACTION_ISOLATION = False
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "cannot use CONFIGURE INSTANCE in multi-tenant mode",
+    )
     async def test_server_auth_01(self):
         if not self.has_create_role:
             self.skipTest('create role is not supported by the backend')
@@ -311,6 +315,10 @@ class TestServerAuth(tb.ConnectedTestCase):
                 CONFIGURE INSTANCE RESET Auth FILTER .comment = 'test'
             """)
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "cannot use CONFIGURE INSTANCE in multi-tenant mode",
+    )
     async def test_server_auth_jwt_2(self):
         jwk_fd, jwk_file = tempfile.mkstemp()
 
