@@ -28,11 +28,11 @@ class GitHubProvider(base.BaseProvider):
         super().__init__("github", *args, **kwargs)
 
     def get_code_url(
-        self, state: str, redirect_uri: str, scope: str = "read:user"
+        self, state: str, redirect_uri: str
     ) -> str:
         params = {
             "client_id": self.client_id,
-            "scope": scope,
+            "scope": "read:user",
             "state": state,
             "redirect_uri": redirect_uri,
         }
