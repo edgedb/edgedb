@@ -28,7 +28,7 @@ of several commands:
   discarded.
 
 :eql:stmt:`commit`
-  Commit the transaction. All changes made by the transaction become visible 
+  Commit the transaction. All changes made by the transaction become visible
   to others and will persist if a crash occurs.
 
 
@@ -40,7 +40,7 @@ libraries provide dedicated transaction APIs that handle transaction creation
 under the hood.
 
 Examples below show a transaction that sends 10 cents from the account
-of a ``BankCustomer`` called ``'Customer1'`` to ``BankCustomer`` called 
+of a ``BankCustomer`` called ``'Customer1'`` to ``BankCustomer`` called
 ``'Customer2'``. The equivalent EdgeDB schema and queries are:
 
 .. code-block::
@@ -51,10 +51,10 @@ of a ``BankCustomer`` called ``'Customer1'`` to ``BankCustomer`` called
       required balance: int64;
     }
   }
-  update BankCustomer 
+  update BankCustomer
       filter .name = 'Customer1'
       set { bank_balance := .bank_balance -10 };
-  update BankCustomer 
+  update BankCustomer
       filter .name = 'Customer2'
       set { bank_balance := .bank_balance +10 }
 
@@ -66,10 +66,10 @@ Using an EdgeQL query string:
 .. code-block:: typescript
 
   client.transaction(async tx => {
-    await tx.execute(`update BankCustomer 
+    await tx.execute(`update BankCustomer
       filter .name = 'Customer1'
       set { bank_balance := .bank_balance -10 }`);
-    await tx.execute(`update BankCustomer 
+    await tx.execute(`update BankCustomer
       filter .name = 'Customer2'
       set { bank_balance := .bank_balance +10 }`);
   });
@@ -106,10 +106,10 @@ Python
 
   async for tx in client.transaction():
       async with tx:
-          await tx.execute("""update BankCustomer 
+          await tx.execute("""update BankCustomer
               filter .name = 'Customer1'
               set { bank_balance := .bank_balance -10 };""")
-          await tx.execute("""update BankCustomer 
+          await tx.execute("""update BankCustomer
               filter .name = 'Customer2'
               set { bank_balance := .bank_balance +10 };""")
 
@@ -147,7 +147,7 @@ Rust
 
 .. code-block:: rust
 
-  let balance_change_query = "update BankCustomer 
+  let balance_change_query = "update BankCustomer
     filter .name = <str>$0
     set { bank_balance := .bank_balance + <int32>$1 }";
 
@@ -164,4 +164,4 @@ Rust
       .await
       .expect("Transaction should have worked");
 
-Full documentation at `Client Libraries > Rust </docs/clients/03_rust/index>`_.
+Full documentation at `Client Libraries > Rust </docs/clients/rust/index>`_.
