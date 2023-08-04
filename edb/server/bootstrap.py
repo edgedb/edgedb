@@ -1357,11 +1357,10 @@ async def _init_stdlib(
         schema = t.set_field_value(
             schema, 'backend_id', entry['backend_id'])
 
-    if backend_params.instance_params.ext_schema != "edgedbext":
-        # Patch functions referring to extensions, because
-        # some backends require extensions to be hosted in
-        # hardcoded schemas (e.g. Heroku)
-        await metaschema.patch_pg_extensions(conn, backend_params)
+    # Patch functions referring to extensions, because
+    # some backends require extensions to be hosted in
+    # hardcoded schemas (e.g. Heroku)
+    await metaschema.patch_pg_extensions(conn, backend_params)
 
     stdlib = stdlib._replace(stdschema=schema)
     version_key = patches.get_version_key(len(patches.PATCHES))
@@ -2060,17 +2059,6 @@ async def _bootstrap(ctx: BootstrapContext) -> edbcompiler.CompilerState:
             )
         )
 
-    if args.backend_capability_sets.must_be_absent:
-        caps = backend_params.instance_params.capabilities
-        disabled = []
-        for cap in args.backend_capability_sets.must_be_absent:
-            if caps & cap:
-                caps &= ~cap
-                disabled.append(cap)
-        if disabled:
-            logger.info(f"the following backend capabilities are disabled: "
-                        f"{', '.join(str(cap.name) for cap in disabled)}")
-            cluster.overwrite_capabilities(caps)
     _check_capabilities(ctx)
 
     if backend_params.has_create_role:

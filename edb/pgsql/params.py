@@ -59,7 +59,12 @@ class BackendInstanceParams(NamedTuple):
     base_superuser: Optional[str] = None
     max_connections: int = 500
     reserved_connections: int = 0
+
     ext_schema: str = "edgedbext"
+    """A Postgres schema where extensions can be created."""
+
+    existing_exts: Optional[Mapping[str, str]] = None
+    """A map of preexisting extensions in the target backend with schemas."""
 
 
 class BackendRuntimeParams(NamedTuple):
