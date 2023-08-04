@@ -27,7 +27,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10.12'
+        python-version: '3.11.3'
 
     # Build virtualenv
 
@@ -375,7 +375,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10.12'
+        python-version: '3.11.3'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1
@@ -579,7 +579,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10.12'
+        python-version: '3.11.3'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1
@@ -831,7 +831,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10.12'
+        python-version: '3.11.3'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1
@@ -1049,7 +1049,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10.12'
+        python-version: '3.11.3'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1
@@ -1255,7 +1255,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10.12'
+        python-version: '3.11.3'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1

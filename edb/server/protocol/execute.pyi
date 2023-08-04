@@ -16,9 +16,23 @@
 # limitations under the License.
 #
 
+from typing import (
+    Any,
+    Mapping,
+    Optional,
+)
+import immutables
 
-from __future__ import annotations
+from edb.server import compiler
+from edb.server.dbview import dbview
 
-from .dbview import DatabaseIndex, Database
-
-__all__ = ('DatabaseIndex', 'Database')
+async def parse_execute_json(
+    db: dbview.Database,
+    query: str,
+    *,
+    variables: Mapping[str, Any] = immutables.Map(),
+    globals_: Optional[Mapping[str, Any]] = None,
+    output_format: compiler.OutputFormat = compiler.OutputFormat.JSON,
+    query_cache_enabled: Optional[bool] = None,
+) -> bytes:
+    ...
