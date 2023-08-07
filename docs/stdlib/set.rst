@@ -98,12 +98,13 @@ Sets
     Produces a set of all unique elements in the given set.
 
     ``distinct`` is a set operator that returns a new set where
-    no member is equal to any other member.
+    no member is equal to any other member. The items in a set
+    returned by ``distinct`` will be in ascending order.
 
     .. code-block:: edgeql-repl
 
-        db> select distinct {1, 2, 2, 3};
-        {1, 2, 3}
+        db> select distinct {4, 4, 10, -1};
+        {-1, 4, 10}
 
 
 ----------
