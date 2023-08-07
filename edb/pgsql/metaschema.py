@@ -4723,14 +4723,24 @@ async def create_pg_extensions(
     conn: PGConnection,
     backend_params: params.BackendRuntimeParams,
 ) -> None:
-    ext_schema = backend_params.instance_params.ext_schema
+    inst_params = backend_params.instance_params
+    ext_schema = inst_params.ext_schema
+    # Both the extension schema, and the desired extension
+    # might already exist in a single database backend,
+    # attempt to create things conditionally.
     commands = dbops.CommandGroup()
-    commands.add_commands([
+    commands.add_command(
         dbops.CreateSchema(name=ext_schema, conditional=True),
-        dbops.CreateExtension(
-            dbops.Extension(name='uuid-ossp', schema=ext_schema),
-        ),
-    ])
+    )
+    if (
+        inst_params.existing_exts is None
+        or inst_params.existing_exts.get("uuid-ossp") is None
+    ):
+        commands.add_commands([
+            dbops.CreateExtension(
+                dbops.Extension(name='uuid-ossp', schema=ext_schema),
+            ),
+        ])
     block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)
@@ -4740,20 +4750,34 @@ async def patch_pg_extensions(
     conn: PGConnection,
     backend_params: params.BackendRuntimeParams,
 ) -> None:
-    ext_schema = backend_params.instance_params.ext_schema
+    # A single database backend might restrict creation of extensions
+    # to a specific schema, or restrict creation of extensions altogether
+    # and provide a way to register them using a different method
+    # (e.g. a hosting panel UI).
+    inst_params = backend_params.instance_params
+    if inst_params.existing_exts is not None:
+        uuid_ext_schema = inst_params.existing_exts.get("uuid-ossp")
+        if uuid_ext_schema is None:
+            uuid_ext_schema = inst_params.ext_schema
+    else:
+        uuid_ext_schema = inst_params.ext_schema
+
     commands = dbops.CommandGroup()
-    commands.add_commands([
-        dbops.CreateSchema(name=ext_schema, conditional=True),
-        dbops.CreateFunction(
-            UuidGenerateV1mcFunction(ext_schema), or_replace=True),
-        dbops.CreateFunction(
-            UuidGenerateV4Function(ext_schema), or_replace=True),
-        dbops.CreateFunction(
-            UuidGenerateV5Function(ext_schema), or_replace=True),
-    ])
-    block = dbops.PLTopBlock()
-    commands.generate(block)
-    await _execute_block(conn, block)
+
+    if uuid_ext_schema != "edgedbext":
+        commands.add_commands([
+            dbops.CreateFunction(
+                UuidGenerateV1mcFunction(uuid_ext_schema), or_replace=True),
+            dbops.CreateFunction(
+                UuidGenerateV4Function(uuid_ext_schema), or_replace=True),
+            dbops.CreateFunction(
+                UuidGenerateV5Function(uuid_ext_schema), or_replace=True),
+        ])
+
+    if len(commands) > 0:
+        block = dbops.PLTopBlock()
+        commands.generate(block)
+        await _execute_block(conn, block)
 
 
 classref_attr_aliases = {

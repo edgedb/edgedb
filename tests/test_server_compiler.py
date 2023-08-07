@@ -33,6 +33,7 @@ from edb.testbase import lang as tb
 from edb.testbase import server as tbs
 from edb.server import args as edbargs
 from edb.server import compiler as edbcompiler
+from edb.server import config
 from edb.server.compiler_pool import amsg
 from edb.server.compiler_pool import pool
 from edb.server.dbview import dbview
@@ -395,6 +396,8 @@ class TestCompilerPool(tbs.TestCase):
                     global_schema=None,
                     sys_config={},
                     default_sysconfig=immutables.Map(),
+                    sys_config_spec=config.load_spec_from_schema(
+                        self._std_schema),
                 ),
                 backend_runtime_params=None,
                 std_schema=self._std_schema,

@@ -658,6 +658,9 @@ def prepare_repair_patch(
     return sql
 
 
+PatchEntry = tuple[tuple[str, ...], tuple[str, ...], dict[str, Any], bool]
+
+
 def prepare_patch(
     num: int,
     kind: str,
@@ -666,7 +669,7 @@ def prepare_patch(
     reflschema: s_schema.Schema,
     schema_class_layout: s_refl.SchemaClassLayout,
     backend_params: params.BackendRuntimeParams,
-) -> tuple[tuple[str, ...], tuple[str, ...], dict[str, Any], bool]:
+) -> PatchEntry:
     val = f'{pg_common.quote_literal(json.dumps(num + 1))}::jsonb'
     # TODO: This is an INSERT because 2.0 shipped without num_patches.
     # We can just make this an UPDATE for 3.0
@@ -833,6 +836,8 @@ def prepare_patch(
             configspec=config.spec_to_json(config_spec).encode('utf-8'),
         ))
 
+        support_view_commands.generate(subblock)
+
     compiler = edbcompiler.new_compiler(
         std_schema=schema,
         reflection_schema=reflschema,
@@ -866,10 +871,10 @@ def prepare_patch(
 
     bins = (
         'stdschema', 'reflschema', 'global_schema', 'classlayout',
-        'report_configs_typedesc',
+        'report_configs_typedesc_1_0', 'report_configs_typedesc_2_0',
     )
     rawbin = (
-        'report_configs_typedesc',
+        'report_configs_typedesc_1_0', 'report_configs_typedesc_2_0',
     )
     jsons = (
         'sysqueries', 'configspec',
@@ -1213,7 +1218,6 @@ async def _init_stdlib(
     await metaschema.create_pg_extensions(conn, backend_params)
 
     config_spec = config.load_spec_from_schema(stdlib.stdschema)
-    config.set_settings(config_spec)
 
     if tpldbdump is None:
         logger.info('Populating internal SQL structures...')
@@ -1324,7 +1328,6 @@ async def _init_stdlib(
         # _testmode includes extra config settings, so make sure
         # those are picked up.
         config_spec = config.load_spec_from_schema(stdlib.stdschema)
-        config.set_settings(config_spec)
 
     # Make sure that schema backend_id properties are in sync with
     # the database.
@@ -1333,6 +1336,8 @@ async def _init_stdlib(
         std_schema=stdlib.stdschema,
         reflection_schema=stdlib.reflschema,
         schema_class_layout=stdlib.classlayout,
+        global_intro_query=stdlib.global_intro_query,
+        local_intro_query=stdlib.local_intro_query,
     )
     _, sql = compile_bootstrap_script(
         compiler,
@@ -1352,11 +1357,10 @@ async def _init_stdlib(
         schema = t.set_field_value(
             schema, 'backend_id', entry['backend_id'])
 
-    if backend_params.instance_params.ext_schema != "edgedbext":
-        # Patch functions referring to extensions, because
-        # some backends require extensions to be hosted in
-        # hardcoded schemas (e.g. Heroku)
-        await metaschema.patch_pg_extensions(conn, backend_params)
+    # Patch functions referring to extensions, because
+    # some backends require extensions to be hosted in
+    # hardcoded schemas (e.g. Heroku)
+    await metaschema.patch_pg_extensions(conn, backend_params)
 
     stdlib = stdlib._replace(stdschema=schema)
     version_key = patches.get_version_key(len(patches.PATCHES))
@@ -1406,6 +1410,8 @@ async def _init_stdlib(
         std_schema=schema,
         reflection_schema=stdlib.reflschema,
         schema_class_layout=stdlib.classlayout,
+        global_intro_query=stdlib.global_intro_query,
+        local_intro_query=stdlib.local_intro_query,
     )
 
     await metaschema.generate_more_support_functions(
@@ -1426,6 +1432,8 @@ async def _init_stdlib(
             std_schema=stdlib.stdschema,
             reflection_schema=stdlib.reflschema,
             schema_class_layout=stdlib.classlayout,
+            global_intro_query=stdlib.global_intro_query,
+            local_intro_query=stdlib.local_intro_query,
         )
         _, sql = compile_bootstrap_script(
             compiler,
@@ -2001,7 +2009,7 @@ async def _pg_ensure_database_not_connected(
             f'database {dbname!r} is being accessed by other users')
 
 
-async def _start(ctx: BootstrapContext) -> None:
+async def _start(ctx: BootstrapContext) -> edbcompiler.CompilerState:
     conn = await _check_catalog_compatibility(ctx)
 
     try:
@@ -2010,7 +2018,7 @@ async def _start(ctx: BootstrapContext) -> None:
         ctx.cluster.overwrite_capabilities(struct.Struct('!Q').unpack(caps)[0])
         _check_capabilities(ctx)
 
-        await edbcompiler.new_compiler_from_pg(conn)
+        return (await edbcompiler.new_compiler_from_pg(conn)).state
 
     finally:
         conn.terminate()
@@ -2035,7 +2043,7 @@ async def _bootstrap_edgedb_super_roles(ctx: BootstrapContext) -> uuid.UUID:
     return superuser_uid
 
 
-async def _bootstrap(ctx: BootstrapContext) -> None:
+async def _bootstrap(ctx: BootstrapContext) -> edbcompiler.CompilerState:
     args = ctx.args
     cluster = ctx.cluster
     backend_params = cluster.get_runtime_params()
@@ -2051,17 +2059,6 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
             )
         )
 
-    if args.backend_capability_sets.must_be_absent:
-        caps = backend_params.instance_params.capabilities
-        disabled = []
-        for cap in args.backend_capability_sets.must_be_absent:
-            if caps & cap:
-                caps &= ~cap
-                disabled.append(cap)
-        if disabled:
-            logger.info(f"the following backend capabilities are disabled: "
-                        f"{', '.join(str(cap.name) for cap in disabled)}")
-            cluster.overwrite_capabilities(caps)
     _check_capabilities(ctx)
 
     if backend_params.has_create_role:
@@ -2232,15 +2229,17 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
             args.default_database_user or edbdef.EDGEDB_SUPERUSER,
         )
 
+    return compiler.state
+
 
 async def ensure_bootstrapped(
     cluster: pgcluster.BaseCluster,
     args: edbargs.ServerConfig,
-) -> bool:
+) -> tuple[bool, edbcompiler.CompilerState]:
     """Bootstraps EdgeDB instance if it hasn't been bootstrapped already.
 
     Returns True if bootstrap happened and False if the instance was already
-    bootstrapped.
+    bootstrapped, along with the bootstrap compiler state.
     """
     pgconn = PGConnectionProxy(cluster)
     ctx = BootstrapContext(cluster=cluster, conn=pgconn, args=args)
@@ -2249,10 +2248,10 @@ async def ensure_bootstrapped(
         mode = await _get_cluster_mode(ctx)
         ctx = dataclasses.replace(ctx, mode=mode)
         if mode == ClusterMode.pristine:
-            await _bootstrap(ctx)
-            return True
+            state = await _bootstrap(ctx)
+            return True, state
         else:
-            await _start(ctx)
-            return False
+            state = await _start(ctx)
+            return False, state
     finally:
         pgconn.terminate()

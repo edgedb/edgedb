@@ -33,7 +33,6 @@ from edb.common import checked
 from . import annos as s_anno
 from . import casts as s_casts
 from . import delta as sd
-from . import functions as s_func
 from . import modules as s_mod
 from . import name as sn
 from . import objects as so
@@ -374,15 +373,15 @@ class DeleteExtension(
             )
 
         # Clean up the casts separately for annoying reasons
-        for obj in schema.get_objects(
+        for cast in schema.get_objects(
             included_modules=(sn.UnqualName('__derived__'),),
             type=s_casts.Cast,
         ):
             if (
-                _name_in_mod(obj.get_from_type(schema).get_name(schema))
-                or _name_in_mod(obj.get_to_type(schema).get_name(schema))
+                _name_in_mod(cast.get_from_type(schema).get_name(schema))
+                or _name_in_mod(cast.get_to_type(schema).get_name(schema))
             ):
-                drop = obj.init_delta_command(
+                drop = cast.init_delta_command(
                     schema, sd.DeleteObject
                 )
                 commands.append(drop)
@@ -390,12 +389,24 @@ class DeleteExtension(
         # Delete everything in the module
         for obj in schema.get_objects(
             included_modules=(module_name,),
+            type=so.Object,
         ):
-            if not isinstance(obj, s_func.Parameter):
-                drop, _, _ = obj.init_delta_branch(
-                    schema, context, sd.DeleteObject
+            if (
+                isinstance(obj, so.ObjectFragment)
+                or (
+                    isinstance(obj, so.DerivableObject)
+                    and not obj.generic(schema)
                 )
-                commands.append(drop)
+            ):
+                # Skip any dependent objects, only pick top level
+                # stuff, as otherwise ordering will likely choke
+                # on too-verbose of an input.  Do recursive
+                # canonicalization instead.
+                continue
+
+            drop = obj.init_delta_command(schema, sd.DeleteObject)
+            drop.update(drop._canonicalize(schema, context, obj))
+            commands.append(drop)
 
         # We add the module delete directly as add_caused, since the sorting
         # we do doesn't work.

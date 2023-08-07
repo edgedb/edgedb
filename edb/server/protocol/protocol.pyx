@@ -51,6 +51,7 @@ from . import server_info
 from . import notebook_ext
 from . import system_api
 from . import ui_ext
+from . import auth_ext
 
 
 HTTPStatus = http.HTTPStatus
@@ -523,11 +524,14 @@ cdef class HttpProtocol:
                 # Check if this is a request to a registered extension
                 if extname == 'edgeql':
                     extname = 'edgeql_http'
+                if extname == 'ext':
+                    extname = path_parts[3]
+                    args = path_parts[4:]
+                else:
+                    args = path_parts[3:]
 
                 if extname not in db.extensions:
                     return self._not_found(request, response)
-
-                args = path_parts[3:]
 
                 if extname == 'graphql':
                     await graphql_ext.handle_request(
@@ -541,6 +545,20 @@ cdef class HttpProtocol:
                     await edgeql_ext.handle_request(
                         request, response, db, args, self.server
                     )
+                elif extname == 'auth':
+                    netloc = (
+                        f"{request.url.host.decode()}:{request.url.port}"
+                            if request.url.port
+                            else request.url.host.decode()
+                    )
+                    extension_base_path = f"{request.url.schema.decode()}://" \
+                                          f"{netloc}/db/{dbname}/ext/auth"
+                    handler = auth_ext.http.Router(
+                        db=db,
+                        base_path=extension_base_path,
+                        test_mode=self.server.in_test_mode(),
+                    )
+                    await handler.handle_request(request, response, args)
 
         elif route == 'auth':
             if (

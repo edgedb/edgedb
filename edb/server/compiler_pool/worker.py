@@ -80,7 +80,7 @@ def __init_worker__(
         refl_schema,
         schema_class_layout,
         backend_runtime_params=BACKEND_RUNTIME_PARAMS,
-        load_config=True,
+        config_spec=None,
     )
 
 

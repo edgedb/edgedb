@@ -13,7 +13,7 @@ mod pynormalize;
 mod tokenizer;
 
 use errors::{SyntaxError, ParserResult};
-use parser::{parse, CSTNode, Production};
+use parser::{parse, cache_spec, CSTNode, Production};
 use position::{offset_of_line, SourcePoint};
 use pynormalize::normalize;
 use tokenizer::{get_fn_unpickle_token, tokenize, OpaqueToken};
@@ -53,6 +53,11 @@ py_module_initializer!(
             py,
             "parse",
             py_fn!(py, parse(parser_name: &PyString, data: PyObject)),
+        )?;
+        m.add(
+            py,
+            "cache_spec",
+            py_fn!(py, cache_spec(grammar_name: &PyString, py_spec: &PyObject)),
         )?;
         m.add(py, "CSTNode", py.get_type::<CSTNode>())?;
         m.add(py, "Production", py.get_type::<Production>())?;

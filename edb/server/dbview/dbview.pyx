@@ -48,7 +48,12 @@ from edb.server.protocol.args_ser cimport (
     recode_global,
 )
 
-__all__ = ('DatabaseIndex', 'DatabaseConnectionView', 'SideEffects')
+__all__ = (
+    'DatabaseIndex',
+    'DatabaseConnectionView',
+    'SideEffects',
+    'Database'
+)
 
 cdef DEFAULT_MODALIASES = immutables.Map({None: defines.DEFAULT_MODULE_ALIAS})
 cdef DEFAULT_CONFIG = immutables.Map()
@@ -430,6 +435,9 @@ cdef class DatabaseConnectionView:
         else:
             self._state_serializer = new_serializer
 
+    cpdef get_config_spec(self):
+        return self._db._index._sys_config_spec
+
     cdef set_session_config(self, new_conf):
         if self._in_tx:
             self._in_tx_config = new_conf
@@ -557,7 +565,7 @@ cdef class DatabaseConnectionView:
 
         state = []
         if self._config:
-            settings = config.get_settings()
+            settings = self.get_config_spec()
             for sval in self._config.values():
                 setting = settings[sval.name]
                 kind = 'B' if setting.backend_setting else 'C'
@@ -936,7 +944,7 @@ cdef class DatabaseConnectionView:
         return side_effects
 
     async def apply_config_ops(self, conn, ops):
-        settings = config.get_settings()
+        settings = self.get_config_spec()
 
         for op in ops:
             if op.scope is config.ConfigScope.INSTANCE:
@@ -1141,14 +1149,19 @@ cdef class DatabaseIndex:
         global_schema,
         sys_config,
         default_sysconfig,  # system config without system override
+        sys_config_spec,
     ):
         self._dbs = {}
         self._server = server
         self._std_schema = std_schema
         self._global_schema = global_schema
         self._default_sysconfig = default_sysconfig
+        self._sys_config_spec = sys_config_spec
+        # TODO: This factory will probably need to become per-db once
+        # config spec differs between databases.
+        self._factory = sertypes.StateSerializerFactory(
+            std_schema, sys_config_spec)
         self.update_sys_config(sys_config)
-        self._factory = sertypes.StateSerializerFactory(std_schema)
 
     def count_connections(self, dbname: str):
         try:
@@ -1169,7 +1182,8 @@ cdef class DatabaseIndex:
             mm.update(sys_config)
             sys_config = mm.finish()
         self._sys_config = sys_config
-        self._comp_sys_config = config.get_compilation_config(sys_config)
+        self._comp_sys_config = config.get_compilation_config(
+            sys_config, spec=self._sys_config_spec)
 
     def has_db(self, dbname):
         return dbname in self._dbs
@@ -1225,7 +1239,7 @@ cdef class DatabaseIndex:
 
     async def _save_system_overrides(self, conn):
         data = config.to_json(
-            config.get_settings(),
+            self._sys_config_spec,
             self._sys_config,
             setting_filter=lambda v: v.source == 'system override',
             include_source=False,
@@ -1246,7 +1260,7 @@ cdef class DatabaseIndex:
         await conn.sql_execute(block.to_string().encode())
 
     async def apply_system_config_op(self, conn, op):
-        spec = config.get_settings()
+        spec = self._sys_config_spec
         op_value = op.get_setting(spec)
         if op.opcode is not None:
             allow_missing = (
@@ -1260,7 +1274,7 @@ cdef class DatabaseIndex:
         # the callbacks below, because certain config changes
         # may cause the backend connection to drop.
         self.update_sys_config(
-            op.apply(config.get_settings(), self._sys_config)
+            op.apply(self._sys_config_spec, self._sys_config)
         )
 
         await self._save_system_overrides(conn)

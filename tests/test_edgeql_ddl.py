@@ -8653,6 +8653,33 @@ type default::Foo {
                 CREATE EXTENSION MyExtension VERSION '3.0';
             """)
 
+    async def test_edgeql_ddl_extension_02(self):
+        await self.con.execute(r"""
+            CREATE EXTENSION PACKAGE TestAuthExtension VERSION '1.0' {
+                set ext_module := "ext::auth";
+
+                create module ext::auth;
+
+                create type ext::auth::Identity {
+                    create required property provider: std::str;
+                };
+
+                create type ext::auth::Email {
+                    create required property primary: std::bool;
+                    create required link identity: ext::auth::Identity;
+                    create constraint exclusive on ((.identity, .primary));
+                };
+            }
+        """)
+
+        await self.con.execute(r"""
+            CREATE EXTENSION TestAuthExtension;
+        """)
+
+        await self.con.execute(r"""
+            DROP EXTENSION TestAuthExtension;
+        """)
+
     async def test_edgeql_ddl_role_01(self):
         if not self.has_create_role:
             self.skipTest("create role is not supported by the backend")

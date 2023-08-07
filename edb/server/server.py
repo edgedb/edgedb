@@ -1,3 +1,5 @@
+# mypy: check-untyped-defs
+
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -71,11 +73,14 @@ from edb.server.pgcon import errors as pgcon_errors
 
 from edb.pgsql import patches as pg_patches
 
+from . import compiler as edbcompiler
 from . import dbview
 
 if TYPE_CHECKING:
     import asyncio.base_events
     import pathlib
+
+    from . import bootstrap
 
 
 ADMIN_PLACEHOLDER = "<edgedb:admin>"
@@ -95,7 +100,7 @@ class StartupError(Exception):
 
 class Server(ha_base.ClusterProtocol):
 
-    _sys_pgcon: Optional[pgcon.PGConnection]
+    __sys_pgcon: pgcon.PGConnection | Any
 
     _roles: Mapping[str, RoleDescriptor]
     _instance_data: Mapping[str, str]
@@ -108,9 +113,9 @@ class Server(ha_base.ClusterProtocol):
 
     _std_schema: s_schema.Schema
     _refl_schema: s_schema.Schema
-    _schema_class_layout: s_refl.SchemaTypeLayout
+    _schema_class_layout: s_refl.SchemaClassLayout
 
-    _sys_pgcon_waiter: asyncio.Lock
+    _sys_pgcon_waiter: asyncio.Lock | Any
     _servers: Mapping[str, asyncio.AbstractServer]
 
     _task_group: Optional[taskgroup.TaskGroup]
@@ -162,9 +167,20 @@ class Server(ha_base.ClusterProtocol):
         admin_ui: bool = False,
         instance_name: str,
         disable_dynamic_system_config: bool = False,
+        compiler_state: edbcompiler.CompilerState,
     ):
         self.__loop = asyncio.get_running_loop()
-        self._config_settings = config.get_settings()
+
+        self._schema_class_layout = compiler_state.schema_class_layout
+        self._config_settings = compiler_state.config_spec
+        self._refl_schema = compiler_state.refl_schema
+        self._std_schema = compiler_state.std_schema
+        assert compiler_state.global_intro_query is not None
+        self._global_intro_query = (
+            compiler_state.global_intro_query.encode("utf-8"))
+        assert compiler_state.local_intro_query is not None
+        self._local_intro_query = (
+            compiler_state.local_intro_query.encode("utf-8"))
 
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
@@ -192,12 +208,12 @@ class Server(ha_base.ClusterProtocol):
         self._pg_unavailable_msg = None
 
         # DB state will be initialized in init().
-        self._dbindex = None
+        self._dbindex: Any = None
 
         self._runstate_dir = runstate_dir
         self._internal_runstate_dir = internal_runstate_dir
         self._max_backend_connections = max_backend_connections
-        self._compiler_pool = None
+        self._compiler_pool: Optional[compiler_pool.AbstractPool] = None
         self._compiler_pool_size = compiler_pool_size
         self._compiler_pool_mode = compiler_pool_mode
         self._compiler_pool_addr = compiler_pool_addr
@@ -221,7 +237,7 @@ class Server(ha_base.ClusterProtocol):
         # connection has disconnected
         # and there have been no new connections for n seconds
         self._auto_shutdown_after = auto_shutdown_after
-        self._auto_shutdown_handler = None
+        self._auto_shutdown_handler: Any = None
 
         self._echo_runtime_info = echo_runtime_info
         self._status_sinks = status_sinks
@@ -257,10 +273,10 @@ class Server(ha_base.ClusterProtocol):
 
         self._task_group = None
         self._stop_evt = asyncio.Event()
-        self._tls_cert_file = None
+        self._tls_cert_file: str | Any = None
         self._tls_cert_newly_generated = False
-        self._sslctx = None
-        self._sslctx_pgext = None
+        self._sslctx: ssl.SSLContext | Any = None
+        self._sslctx_pgext: ssl.SSLContext | Any = None
 
         self._jws_key: jwk.JWK | None = None
         self._jws_keys_newly_generated = False
@@ -287,7 +303,7 @@ class Server(ha_base.ClusterProtocol):
         self._block_new_connections: set[str] = set()
 
         self._file_watch_handles = []
-        self._tls_certs_reload_retry_handle = None
+        self._tls_certs_reload_retry_handle: Any | asyncio.TimerHandle = None
 
         self._disable_dynamic_system_config = disable_dynamic_system_config
         self._report_config_typedesc = {}
@@ -411,7 +427,13 @@ class Server(ha_base.ClusterProtocol):
         if conn is not None:
             conn.cancel(secret)
 
-    async def _pg_connect(self, dbname):
+    def _monitor_fs(self, name, func):
+        # ... we depend on an event loop internal _monitor_fs
+        return self.__loop._monitor_fs(  # type: ignore
+            name, func,
+        )
+
+    async def _pg_connect(self, dbname) -> pgcon.PGConnection:
         ha_serial = self._ha_master_serial
         if self.get_backend_runtime_params().has_create_database:
             pg_dbname = self.get_pg_dbname(dbname)
@@ -449,6 +471,13 @@ class Server(ha_base.ClusterProtocol):
         metrics.current_backend_connections.dec()
         conn.terminate()
 
+    def config_lookup(
+        self,
+        name: str,
+        *configs: Mapping[str, config.SettingValue],
+    ) -> Any:
+        return config.lookup(name, *configs, spec=self._config_settings)
+
     async def init(self):
         self._initing = True
         try:
@@ -471,6 +500,7 @@ class Server(ha_base.ClusterProtocol):
                 global_schema=global_schema,
                 sys_config=sys_config,
                 default_sysconfig=default_sysconfig,
+                sys_config_spec=self._config_settings,
             )
 
             self._fetch_roles()
@@ -486,17 +516,17 @@ class Server(ha_base.ClusterProtocol):
 
             if not self._listen_hosts:
                 self._listen_hosts = (
-                    config.lookup('listen_addresses', sys_config)
+                    self.config_lookup('listen_addresses', sys_config)
                     or ('localhost',)
                 )
 
             if self._listen_port is None:
                 self._listen_port = (
-                    config.lookup('listen_port', sys_config)
+                    self.config_lookup('listen_port', sys_config)
                     or defines.EDGEDB_PORT
                 )
 
-            self._stmt_cache_size = config.lookup(
+            self._stmt_cache_size = self.config_lookup(
                 '_pg_prepared_statement_cache_size', sys_config
             )
 
@@ -514,7 +544,7 @@ class Server(ha_base.ClusterProtocol):
             self._idle_gc_handler = None
 
         assert self._dbindex is not None
-        session_idle_timeout = config.lookup(
+        session_idle_timeout = self.config_lookup(
             'session_idle_timeout', self._dbindex.get_sys_config())
 
         timeout = session_idle_timeout.to_microseconds()
@@ -527,7 +557,7 @@ class Server(ha_base.ClusterProtocol):
         return timeout
 
     def _reload_stmt_cache_size(self):
-        size = config.lookup(
+        size = self.config_lookup(
             '_pg_prepared_statement_cache_size', self._dbindex.get_sys_config()
         )
         self._stmt_cache_size = size
@@ -599,7 +629,7 @@ class Server(ha_base.ClusterProtocol):
 
     def _populate_sys_auth(self):
         cfg = self._dbindex.get_sys_config()
-        auth = config.lookup('auth', cfg) or ()
+        auth = self.config_lookup('auth', cfg) or ()
         self._sys_auth = tuple(sorted(auth, key=lambda a: a.priority))
 
     def _get_pgaddr(self):
@@ -672,7 +702,7 @@ class Server(ha_base.ClusterProtocol):
             query = self.get_sys_query(query_name)
             sys_config_json = await syscon.sql_fetch_val(query)
 
-        return config.from_json(config.get_settings(), sys_config_json)
+        return config.from_json(self._config_settings, sys_config_json)
 
     async def reload_sys_config(self):
         cfg = await self.load_sys_config()
@@ -887,7 +917,7 @@ class Server(ha_base.ClusterProtocol):
 
     async def introspect_db_config(self, conn):
         result = await conn.sql_fetch_val(self.get_sys_query('dbconfig'))
-        return config.from_json(config.get_settings(), result)
+        return config.from_json(self._config_settings, result)
 
     async def _early_introspect_db(self, dbname):
         """We need to always introspect the extensions for each database.
@@ -934,18 +964,20 @@ class Server(ha_base.ClusterProtocol):
                 # information about them.
                 g.create_task(self._early_introspect_db(dbname))
 
-    async def get_patch_count(self, conn):
+    async def get_patch_count(self, conn: pgcon.PGConnection) -> int:
         """Get the number of applied patches."""
-        num_patches = await conn.sql_fetch_val(
+        num_patches_b = await conn.sql_fetch_val(
             b'''
                 SELECT json::json from edgedbinstdata.instdata
                 WHERE key = 'num_patches';
             ''',
         )
-        num_patches = json.loads(num_patches) if num_patches else 0
+        num_patches = json.loads(num_patches_b) if num_patches_b else 0
         return num_patches
 
-    async def _get_patch_log(self, conn, idx):
+    async def _get_patch_log(
+        self, conn: pgcon.PGConnection, idx: int
+    ) -> Optional[bootstrap.PatchEntry]:
         # We need to maintain a log in the system database of
         # patches that have been applied. This is so that if a
         # patch creates a new object, and then we succesfully
@@ -965,7 +997,9 @@ class Server(ha_base.ClusterProtocol):
         else:
             return None
 
-    async def _prepare_patches(self, conn):
+    async def _prepare_patches(
+        self, conn: pgcon.PGConnection
+    ) -> dict[int, bootstrap.PatchEntry]:
         """Prepare all the patches"""
         num_patches = await self.get_patch_count(conn)
 
@@ -975,7 +1009,7 @@ class Server(ha_base.ClusterProtocol):
         patches = {}
         patch_list = list(enumerate(pg_patches.PATCHES))
         for num, (kind, patch) in patch_list[num_patches:]:
-            from . import bootstrap
+            from . import bootstrap  # noqa: F402
 
             idx = num_patches + num
             if not (entry := await self._get_patch_log(conn, idx)):
@@ -995,7 +1029,7 @@ class Server(ha_base.ClusterProtocol):
                 # a reload of it from the schema.
                 if '+config' in kind:
                     config_spec = config.load_spec_from_schema(self._std_schema)
-                    config.set_settings(config_spec)
+                    self._config_settings = config_spec
 
             if 'reflschema' in updates:
                 self._refl_schema = updates['reflschema']
@@ -1015,15 +1049,21 @@ class Server(ha_base.ClusterProtocol):
 
         return patches
 
-    async def _maybe_apply_patches(self, dbname, conn, patches, sys=False):
+    async def _maybe_apply_patches(
+        self,
+        dbname: str,
+        conn: pgcon.PGConnection,
+        patches: dict[int, bootstrap.PatchEntry],
+        sys: bool=False,
+    ) -> None:
         """Apply any un-applied patches to the database."""
         num_patches = await self.get_patch_count(conn)
-        for num, (sql, syssql, _, repair) in patches.items():
+        for num, (sql_b, syssql, _, repair) in patches.items():
             if num_patches <= num:
                 if sys:
-                    sql += syssql
+                    sql_b += syssql
                 logger.info("applying patch %d to database '%s'", num, dbname)
-                sql = tuple(x.encode('utf-8') for x in sql)
+                sql = tuple(x.encode('utf-8') for x in sql_b)
 
                 # Only do repairs when they are the *last* pending
                 # repair in the patch queue. We make sure that every
@@ -1065,7 +1105,9 @@ class Server(ha_base.ClusterProtocol):
                 if sql:
                     await conn.sql_fetch(sql)
 
-    async def _maybe_patch_db(self, dbname, patches):
+    async def _maybe_patch_db(
+        self, dbname: str, patches: dict[int, bootstrap.PatchEntry]
+    ) -> None:
         logger.info("applying patches to database '%s'", dbname)
 
         try:
@@ -1082,7 +1124,7 @@ class Server(ha_base.ClusterProtocol):
                 f'database {dbname}'
             ) from e
 
-    async def _maybe_patch(self):
+    async def _maybe_patch(self) -> None:
         """Apply patches to all the databases"""
 
         async with self._use_sys_pgcon() as syscon:
@@ -1119,7 +1161,7 @@ class Server(ha_base.ClusterProtocol):
     def _fetch_roles(self):
         global_schema = self._dbindex.get_global_schema()
 
-        roles = {}
+        roles: Dict[str, RoleDescriptor] = {}
         for role in global_schema.get_objects(type=s_role.Role):
             role_name = str(role.get_name(global_schema))
             roles[role_name] = {
@@ -1130,7 +1172,7 @@ class Server(ha_base.ClusterProtocol):
 
         self._roles = immutables.Map(roles)
 
-    def _load_schema(self, result, version_key):
+    def _load_schema(self, result, version_key) -> s_schema.FlatSchema:
         res = pickle.loads(result[2:])
         if version_key != pg_patches.get_version_key(len(pg_patches.PATCHES)):
             res = s_schema.upgrade_schema(res)
@@ -1154,46 +1196,6 @@ class Server(ha_base.ClusterProtocol):
             queries = json.loads(result)
             self._sys_queries = immutables.Map(
                 {k: q.encode() for k, q in queries.items()})
-
-            self._local_intro_query = await syscon.sql_fetch_val(f'''\
-                SELECT text FROM edgedbinstdata.instdata
-                WHERE key = 'local_intro_query{version_key}';
-            '''.encode('utf-8'))
-
-            self._global_intro_query = await syscon.sql_fetch_val(f'''\
-                SELECT text FROM edgedbinstdata.instdata
-                WHERE key = 'global_intro_query{version_key}';
-            '''.encode('utf-8'))
-
-            result = await syscon.sql_fetch_val(f'''\
-                SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'stdschema{version_key}';
-            '''.encode('utf-8'))
-            try:
-                self._std_schema = self._load_schema(result, version_key)
-            except Exception as e:
-                raise RuntimeError(
-                    'could not load std schema pickle') from e
-
-            result = await syscon.sql_fetch_val(f'''\
-                SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'reflschema{version_key}';
-            '''.encode('utf-8'))
-            try:
-                self._refl_schema = self._load_schema(result, version_key)
-            except Exception as e:
-                raise RuntimeError(
-                    'could not load refl schema pickle') from e
-
-            result = await syscon.sql_fetch_val(f'''\
-                SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'classlayout{version_key}';
-            '''.encode('utf-8'))
-            try:
-                self._schema_class_layout = pickle.loads(result[2:])
-            except Exception as e:
-                raise RuntimeError(
-                    'could not load schema class layout pickle') from e
 
             self._report_config_typedesc[(1, 0)] = await syscon.sql_fetch_val(
                 f'''
@@ -1251,7 +1253,7 @@ class Server(ha_base.ClusterProtocol):
             admin = False
         else:
             hosts_to_start = nethosts
-            servers_to_stop = self._servers.values()
+            servers_to_stop = list(self._servers.values())
             admin = True
 
         if servers_to_stop_early:
@@ -1260,7 +1262,7 @@ class Server(ha_base.ClusterProtocol):
         if hosts_to_start:
             try:
                 new_servers, *_ = await self._start_servers(
-                    hosts_to_start,
+                    tuple(hosts_to_start),
                     netport,
                     admin=admin,
                 )
@@ -1275,7 +1277,7 @@ class Server(ha_base.ClusterProtocol):
             s.getsockname()[0]
             for host, tcp_srv in servers.items()
             if host != ADMIN_PLACEHOLDER
-            for s in tcp_srv.sockets
+            for s in tcp_srv.sockets  # type: ignore
         ]
         self._listen_port = netport
 
@@ -1429,7 +1431,8 @@ class Server(ha_base.ClusterProtocol):
             if setting_name == 'listen_addresses':
                 cfg = self._dbindex.get_sys_config()
                 await self._restart_servers_new_addr(
-                    config.lookup('listen_addresses', cfg) or ('localhost',),
+                    self.config_lookup('listen_addresses', cfg)
+                    or ('localhost',),
                     self._listen_port,
                 )
 
@@ -1437,7 +1440,8 @@ class Server(ha_base.ClusterProtocol):
                 cfg = self._dbindex.get_sys_config()
                 await self._restart_servers_new_addr(
                     self._listen_hosts,
-                    config.lookup('listen_port', cfg) or defines.EDGEDB_PORT,
+                    self.config_lookup('listen_port', cfg)
+                    or defines.EDGEDB_PORT,
                 )
 
             elif setting_name == 'session_idle_timeout':
@@ -1828,6 +1832,8 @@ class Server(ha_base.ClusterProtocol):
                     conn.abort()
                 return
 
+            assert conn
+
             logger.info("Successfully reconnected to the system database.")
             self.__sys_pgcon = conn
             self.__sys_pgcon.mark_as_system_db()
@@ -1995,7 +2001,7 @@ class Server(ha_base.ClusterProtocol):
 
         self.reload_readiness_state(state_file)
         self._file_watch_handles.append(
-            self.__loop._monitor_fs(str(state_file), reload_state_file)
+            self._monitor_fs(str(state_file), reload_state_file)
         )
 
     def reload_readiness_state(self, state_file):
@@ -2144,11 +2150,11 @@ class Server(ha_base.ClusterProtocol):
                 self.request_shutdown()
 
         self._file_watch_handles.append(
-            self.__loop._monitor_fs(str(tls_cert_file), reload_tls)
+            self._monitor_fs(str(tls_cert_file), reload_tls)
         )
         if tls_cert_file != tls_key_file:
             self._file_watch_handles.append(
-                self.__loop._monitor_fs(str(tls_key_file), reload_tls)
+                self._monitor_fs(str(tls_key_file), reload_tls)
             )
 
     def load_jwcrypto(
@@ -2253,7 +2259,7 @@ class Server(ha_base.ClusterProtocol):
             )
 
         self._servers, actual_port, listen_addrs = await self._start_servers(
-            (await _resolve_interfaces(self._listen_hosts))[0],
+            tuple((await _resolve_interfaces(self._listen_hosts))[0]),
             self._listen_port,
             sockets=self._listen_sockets,
         )
@@ -2354,6 +2360,7 @@ class Server(ha_base.ClusterProtocol):
             if interruptable:
                 rv = self.__loop.create_task(coro)
             else:
+                assert self._task_group
                 rv = self._task_group.create_task(coro)
 
             # Keep a strong reference of the created Task
@@ -2389,8 +2396,7 @@ class Server(ha_base.ClusterProtocol):
                     return auth.method
 
         default_method = self._default_auth_method.get(transport)
-        auth_type = config.get_settings().get_type_by_name(
-            default_method.value)
+        auth_type = self._config_settings.get_type_by_name(default_method.value)
         return auth_type()
 
     def is_database_connectable(self, dbname: str) -> bool:
@@ -2467,9 +2473,11 @@ class Server(ha_base.ClusterProtocol):
             pg_addr=self._pg_addr,
             pg_pool=self._pg_pool._build_snapshot(now=time.monotonic()),
             compiler_pool=dict(
-                worker_pids=list(self._compiler_pool._workers.keys()),
+                worker_pids=list(
+                    self._compiler_pool._workers.keys()  # type: ignore
+                ),
                 template_pid=self._compiler_pool.get_template_pid(),
-            ),
+            ) if self._compiler_pool else None,
         )
 
         dbs = {}

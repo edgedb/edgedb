@@ -2225,10 +2225,14 @@ def process_set_as_singleton_assertion(
     assert isinstance(expr, irast.FunctionCall)
     stmt = ctx.rel
 
+    msg_arg = expr.args[0]
     ir_arg = expr.args[1]
     ir_arg_set = ir_arg.expr
 
-    if ir_arg.cardinality.is_single():
+    if (
+        ir_arg.cardinality.is_single()
+        and not msg_arg.cardinality.is_multi()
+    ):
         # If the argument has been statically proven to be a singleton,
         # elide the entire assertion.
         arg_ref = dispatch.compile(ir_arg_set, ctx=ctx)
@@ -2329,10 +2333,14 @@ def process_set_as_existence_assertion(
     assert isinstance(expr, irast.FunctionCall)
     stmt = ctx.rel
 
+    msg_arg = expr.args[0]
     ir_arg = expr.args[1]
     ir_arg_set = ir_arg.expr
 
-    if not ir_arg.cardinality.can_be_zero():
+    if (
+        not ir_arg.cardinality.can_be_zero()
+        and not msg_arg.cardinality.is_multi()
+    ):
         # If the argument has been statically proven to be non empty,
         # elide the entire assertion.
         arg_ref = dispatch.compile(ir_arg_set, ctx=ctx)
@@ -2349,7 +2357,7 @@ def process_set_as_existence_assertion(
         arg_ref = dispatch.compile(ir_arg_set, ctx=newctx)
         arg_val = output.output_as_value(arg_ref, env=newctx.env)
 
-        msg = dispatch.compile(expr.args[0].expr, ctx=newctx)
+        msg = dispatch.compile(msg_arg.expr, ctx=newctx)
 
         set_expr = pgast.FuncCall(
             name=('edgedb', 'raise_on_null'),
@@ -2413,10 +2421,14 @@ def process_set_as_multiplicity_assertion(
     expr = ir_set.expr
     assert isinstance(expr, irast.FunctionCall)
 
+    msg_arg = expr.args[0]
     ir_arg = expr.args[1]
     ir_arg_set = ir_arg.expr
 
-    if not ir_arg.multiplicity.is_duplicate():
+    if (
+        not ir_arg.multiplicity.is_duplicate()
+        and not msg_arg.cardinality.is_multi()
+    ):
         # If the argument has been statically proven to be distinct,
         # elide the entire assertion.
         arg_ref = dispatch.compile(ir_arg_set, ctx=ctx)
@@ -2467,7 +2479,7 @@ def process_set_as_multiplicity_assertion(
                 )
             )
 
-        msg = dispatch.compile(expr.args[0].expr, ctx=newctx)
+        msg = dispatch.compile(msg_arg.expr, ctx=newctx)
 
         do_raise = pgast.FuncCall(
             name=('edgedb', 'raise'),

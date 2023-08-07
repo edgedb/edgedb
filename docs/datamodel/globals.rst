@@ -102,9 +102,31 @@ which client library you're using.
       fmt.Println(result)
     }
 
+  .. code-tab:: rust
+
+    use uuid::Uuid;
+
+    let client = edgedb_tokio::create_client().await.expect("Client init");
+
+    let client_with_globals = client.with_globals_fn(|c| {
+        c.set(
+            "current_user_id",
+            Value::Uuid(
+                Uuid::parse_str("2141a5b4-5634-4ccc-b835-437863534c51")
+                    .expect("Uuid should have parsed"),
+            ),
+        )
+    });
+    let val: Uuid = client_with_globals
+        .query_required_single("select global current_user_id;", &())
+        .await
+        .expect("Returning value");
+    println!("Result: {val}");
+
   .. code-tab:: edgeql
 
-    set global current_user_id := <uuid>'2141a5b4-5634-4ccc-b835-437863534c51';
+    set global current_user_id := 
+      <uuid>'2141a5b4-5634-4ccc-b835-437863534c51';
 
 
 Cardinality
