@@ -89,8 +89,13 @@ def _response_ok(response, message):
 
 
 async def _ping(server):
+    if server.get_backend_runtime_params().has_create_database:
+        dbname = edbdef.EDGEDB_SYSTEM_DB
+    else:
+        dbname = edbdef.EDGEDB_SUPERUSER_DB
+
     return await execute.parse_execute_json(
-        server.get_db(dbname=edbdef.EDGEDB_SYSTEM_DB),
+        server.get_db(dbname=dbname),
         query="SELECT 'OK'",
         output_format=compiler.OutputFormat.JSON_ELEMENTS,
         # Disable query cache because we need to ensure that the compiled

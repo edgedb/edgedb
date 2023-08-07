@@ -45,6 +45,25 @@ from edb.server import cluster as edbcluster
 from edb.testbase import server as tb
 
 
+class TestServerApi(tb.ClusterTestCase):
+    async def test_server_healthchecks(self):
+        with self.http_con() as http_con:
+            _, _, status = self.http_con_request(
+                http_con,
+                path='/server/status/alive',
+            )
+
+            self.assertEqual(status, http.HTTPStatus.OK)
+
+        with self.http_con() as http_con:
+            _, _, status = self.http_con_request(
+                http_con,
+                path='/server/status/ready',
+            )
+
+            self.assertEqual(status, http.HTTPStatus.OK)
+
+
 class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
     async def kill_process(self, proc: asyncio.subprocess.Process):
