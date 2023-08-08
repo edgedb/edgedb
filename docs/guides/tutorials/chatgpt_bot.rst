@@ -20,9 +20,6 @@ related to the EdgeDB docs.*
 In this tutorial we're going to build a documentation chatbot with
 `Next.js <https://nextjs.org/>`_, `OpenAI <https://openai.com/>`_ and EdgeDB.
 
-Here is what the final result looks like: // todo provide video.
-
-
 Before we start, let's understand how it all works
 ==================================================
 
@@ -115,13 +112,19 @@ new directory for this project.
     ✔ Would you like to customize the default import alias? … No / Yes
     Creating a new Next.js app in /<path>/<to>/<project>/docs-chatbot.
 
-Answer "Yes" to all prompts except "Would you like to use \`src/\` directory?"
+Choose all defaults as answers to prompts ("Yes" to all except "Would you like
+to use \`src/\` directory?").
 
 Once bootstrapping is complete, you should see a success message:
 
 .. code-block::
 
     Success! Created docs-chatbot at /<path>/<to>/<project>/docs-chatbot
+
+Let's quickly update the ``tsconfig/json``. Update the list of ``compilerOptions``
+by setting the ``baseUrl`` property to the root with ``"baseUrl": "."``. Later
+when we add functions and other things to the root of the project it is going
+to be easier to import them.
 
 Before we start writing code, let's first obtain an OpenAI API key, install the
 EdgeDB CLI, and create a local EdgeDB instance. We need the API key in order to
@@ -138,7 +141,7 @@ Get an OpenAI API key
 2. Create new `secret key <https://platform.openai.com/account/api-keys>`_.
 3. Create a ``.env.local`` file in the root of your new Next.js project and
    copy your key here in the following format:
-   ``OPENAI_KEY="<my-openai-key>"``.
+   ``OPENAI_API_KEY="<my-openai-api-key>"``.
 
 
 Install the EdgeDB CLI
@@ -165,7 +168,8 @@ section of `our "Install" page <https://www.edgedb.com/install>`_.
 Create a local EdgeDB instance
 ------------------------------
 
-To create our instance, we will initialize a new EdgeDB project:
+To create our instance, let's initialize our project as an EdgeDB project. Run
+the following in the root of the project:
 
 .. code-block:: bash
 
@@ -185,7 +189,7 @@ To create our instance, we will initialize a new EdgeDB project:
 
 The CLI should have set up an EdgeDB project, ad instance, and a database
 within that instance. You can confirm project creation by checking for an
-``edgedb.toml`` file and a ``dbschema`` directory in your project root. You can
+``edgedb.toml`` file and a ``dbschema`` directory in the project root. You can
 check if the instance is running with the ``edgedb instance list`` command.
 Search for the name of the instance you've just created (``docs_chatbot`` if
 you're following along) and check the status. Don't worry if the status is
@@ -194,7 +198,7 @@ to the instance. You can connect to the created instance by running ``edgedb``
 in the terminal to connect to it via REPL or by running ``edgedb ui`` to
 connect using the UI.
 
-Now, let's get the documentation ready to send to OpenAI!
+Now, let's get the documentation ready!
 
 
 Convert documentation into a unified format
@@ -205,29 +209,65 @@ for OpenAI's language models to use.
 
 .. note::
 
-    You *can* opt to other simple formats like plain text files or even more
-    complex formats like HTML. Since more complex formats include additional
+    You *can* opt to other formats like plain text files or more complex ones
+    like HTML. Since more complex formats include additional
     data beyond what you want the language model to consume (like HTML's tags
     and their attributes), you should first clean those files and extract the
-    content before sending it to OpenAI. It's possible to use more complex
+    content before sending it to OpenAI (you can write your own logic for this
+    or use libraries that are available online for conversion to Markdown for
+    example). It's possible to use more complex
     formats *without* doing this, but then you're paying for extra tokens that
     don't improve the answers your chatbot will give users.
 
-Create a ``docs`` folder in the root of your project. We have provided some
-Markdown files for this tutorial, but you can replace them with your own. Place
-those files in the ``docs`` folder.
-
-.. TODO: Where are these files and how should the user get them?
-.. TODO: Devon pls include parts about text files. Files are inside docs folder, the section you deleted : )
-
+Create a ``docs`` folder in the root of your project. Here we will place
+Markdown files. You can copy/paste the files we use from `<here https://github.com/diksipav/docs-chatbot/tree/main/docs>`_,
+or use your own.
 
 Split the documentation into sections
 =====================================
 
-Our files are already short enough ..todo explain token limits
+In general a documentation file can be quite long and it needs to be split
+into multiple sections. Usually this is done by parsing the file and creating
+new sections every time a header element is encountered. One section should not
+be too long nor too short, it should be long enough to explain some concept. So,
+when writing documentation you should pay attention to organize it into such a
+way that it can be parsed as array of self-contained chunks (sections).
 
-.. TODO: Does this ☝️ section just need to be removed since it's not pertinent
-   to the build?
+Why we need to split documentation into sections
+------------------------------------------------
+
+All language models have token limit, which means that you can't just provide
+a whole book as an input to it and get embedding or book summary. With time
+models improve and these token limits increase so longer and longer chunks of
+text can be served to them but for now we have to stay under the current OpenAI
+models token limits.
+
+For `embeddings <https://platform.openai.com/docs/guides/embeddings/what-are-embeddings>`_
+we will use ``text-embedding-ada-002`` model, it's input token limit is 8191.
+
+Later for answering user's questions we will use `chat completion <https://platform.openai.com/docs/guides/gpt/chat-completions-api>`_
+model ``pt-3.5-turbo``. It's token limit is 4,096 tokens, and this limit
+includes the input and the output.
+
+For English text, 1 token is approximately 4 characters or 0.75 words.
+
+Important thing to understand is that later together with user's question we
+will also send similar sections from documentation as part of the input to the
+chat completion API. And this is why we should keep the sections short. We want
+to leave enough space for the answer. If the similar sections are too long and together
+with the input exceed the mentioned 4,096 limit we will get an error straight
+away from the OpenAI. If the length of the question and similar sections are
+close to the token limit, then the answer will be cut off when the limit is
+reached which is not what we want, there should always be enough tokens for the
+answer. That's why we will later use 1500 tokens as a max number of tokens we
+will use for similar sections so all sections should be less than 1500 tokens,
+and it is better if few sections can be included as a context, so it is actually
+better to keep sections as small as possible as long as they have enough context.
+
+The Markdown files that we use here are already short enough and they represent
+separate sections so we will just use them as that. If your files contain multiple
+sections you should firstly parse them into smaller section chunks before you
+request embeddings for them and save them into database.
 
 
 Create the schema to store embeddings
@@ -236,12 +276,20 @@ Create the schema to store embeddings
 To be able to store data in the database, we have to create its schema first.
 We want to make the schema as simple as possible and store only the relevant
 data. We need to store the section content and embeddings. We will also save
-each section's relative path and content checksum. The checksum will allow us
-to easily determine which files of the documentation has changed every time we
-run the embeddings generation script. This way, we can re-generate the embeddings
-and write to the database only for those changed sections. We will also need to
-save the number of tokens for every section. We will need this later when
-calculating how many similar sections fit inside the prompt context.
+each section's relative path, and the number of tokens. We will need this number
+later when calculating how many similar sections fit inside the prompt context.
+
+.. note::
+
+    In this tutorial we will recreate all embeddings every time we run the
+    embeddings generation script, and we will wipe data and re-save everything
+    in the database.
+
+    In order to easily determine which files of the documentation has
+    changed when you run the script you should also save the content checksum
+    in the database. Next time you run it you compare the section's checksum
+    with it's checksum from the database and only if the checksums are different
+    you re-generate the embeddings and update the database.
 
 Open the empty schema file that was generated when you initialized the EdgeDB
 project (located at ``dbschema/default.esdl`` from the project directory) and
@@ -327,8 +375,7 @@ inside the project root.
 
     $ touch generate-embeddings.ts
 
-Open the new file (which is at ``gpt/generate-embeddings.ts`` from your project
-root). Let's write the script's skeleton and get an understanding the flow of
+Let's write the script's skeleton and get an understanding of the flow of
 tasks we need to perform.
 
 .. code-block:: typescript
@@ -338,9 +385,9 @@ tasks we need to perform.
     import { Configuration, OpenAIApi } from "openai";
     import { promises as fs } from "fs";
     import { join } from "path";
-    import getTokensLen from "./getTokensLen";
+    import { encode } from "gpt-tokenizer";
     import * as edgedb from "edgedb";
-    import e from "../dbschema/edgeql-js";
+    import e from "dbschema/edgeql-js";
 
     dotenv.config({ path: ".env.local" });
 
@@ -357,7 +404,8 @@ tasks we need to perform.
     }
 
     async function prepareSectionsData(
-      sectionPaths: string[]
+      sectionPaths: string[],
+       openai: OpenAIApi
     ): Promise<Section[]> {
       // ...
     }
@@ -367,7 +415,7 @@ tasks we need to perform.
       // ...
     }
 
-    (async function generateEmbeddings() {
+    (async function main() {
       await storeEmbeddings();
     })();
 
@@ -375,8 +423,8 @@ tasks we need to perform.
 At the top are all imports we will need throughout the file.
 
 After the imports, we use the ``dotenv`` library to import environment
-variables from the ``.env.local`` file. (In our case, that's just
-``OPENAI_KEY``, which we will need to connect to the OpenAI API).
+variables from the ``.env.local`` file. (In our case, that's
+``OPENAI_API_KEY``, which we will need to connect to the OpenAI API).
 
 Next, we define a ``Section`` TypeScript interface that corresponds to
 the ``Section`` type we have defined in the schema.
@@ -389,31 +437,24 @@ Then we have a few function definitions:
   preparing the ``Section`` objects we will insert into the database and
   returns those as an array.
 
-* ``storeEmbeddings`` coordinates everything, but since it is asynchronous,
-  we need to create an additional function to wrap it. CommonJS modules (which
-  is what we are building here) cannot use ``await`` at the top level. We have
-  to await ``storeEmbeddings`` since it is asynchronous, and the wrapper
-  function allows us to do this. We are wrapping it with an IIFE (`immediately
-  invoked function expression
-  <https://developer.mozilla.org/en-US/docs/Glossary/IIFE>`_).
-
-Apart from the functions in the script, you may have also noticed
-``getTokensLen`` among the imports. This function calculates the number of
-tokens each section will need as we prepare the section data. We will write it
-a bit later.
-
+* ``storeEmbeddings`` coordinates everything, and we have to execute it, but
+  we can't ``await`` at the top level so that's why we are wrapping it with an
+  IIFE (`immediately invoked function expression <https://developer.mozilla.org/en-US/docs/Glossary/IIFE>`_).
+  It is actually possible to use top level ``await`` expression from ES2017, so
+  this will work without a wrapping function if you update ``tsconfig.json``
+  and use for the ``target`` anything from ``ES2017`` or newer.
 
 Getting section paths
 ^^^^^^^^^^^^^^^^^^^^^
 
 We will store the section paths in the database. This is not necessary, but we
-want to associate content and embeddings with a section name or path. Our
-sections don't have title or name, so we use their path as a unique identifier.
+want to associate content and embeddings with a section path as their
+unique identifier.
 
 Since our ``docs`` folder contains files at multiple levels of nesting, we
 need a function that loops through all section files, builds an array of all
-paths relative to the project root, and sorts those paths. This is what the
-``walk`` function does.
+paths relative to the project root, and sorts those paths. This is the job of
+the ``walk`` function.
 
 .. code-block:: typescript
     :caption: generate-embeddings.ts
@@ -457,19 +498,15 @@ Preparing the ``Section`` objects
 
 This function will be responsible for collecting the data we need for each
 ``Section`` object we will store, including making the OpenAI API calls to
-generate the embeddings for those.
+generate the embeddings.
 
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
     async function prepareSectionsData(
       sectionPaths: string[],
+      openai: OpenAIApi
     ): Promise<Section[]> {
-      const configuration = new Configuration({
-        apiKey: process.env.OPENAI_KEY,
-      });
-      const openai = new OpenAIApi(configuration);
-
       const contents: string[] = [];
       const sections: Section[] = [];
 
@@ -503,40 +540,48 @@ generate the embeddings for those.
       return sections;
     }
 
-The first thing we do is initialize our OpenAI API library to use the API key
-we stored in our ``.env.local`` file. Then, we create a couple of empty arrays
-for storing our sections (which will later become ``Section`` objects in the
-database) and their contents. But we also store the content in the ``section``,
-just without the newlines replaced. Why store them twice? Because it allows us
-to generate the embeddings much faster.
+We will provide to it section paths and OpenAI client as parameters.
+We create a couple of empty arrays for storing our sections (which will later
+become ``Section`` objects in the database) and their contents. In the database
+we save content as is, but when calling the embedding API, OpenAI suggest that
+all new lines should be replaces with empty space for the best results.
 
 We need to be careful about how we approach the API calls to generate the
 embeddings since they could have a big impact on how long generation takes,
 especially as your documentation grows. The simplest solution would be to make
-a single request to the API for each piece of content, but in the case of
+a single request to the API for each section, but in the case of
 EdgeDB's documentation, which has around 3,000 pages, this would take about
 half an hour. Since OpenAI's embeddings API can take not only a *single* string
 but also an *array* of strings, we can leverage this to batch up all our
-content and generate the embeddings with a single request! You can see that
+contents and generate the embeddings with a single request! You can see that
 single API call when we set ``embeddingResponse`` to the result of the call to
 ``openai.createEmbedding``, specifying the model and passing the entire array
 of contents.
 
-One downside to this approach is that we do not get token counts from our
+One downside to this approach is that we do not get back token counts for the array
 embeddings API call since OpenAI only provides these for a single string. We
 need the token counts because we have to ensure everything we send to OpenAI's
 Completions API — the one that answers the user's question — comes in under the
-model's token limit. To do that, we need to know how many tokens we want to
-send. That's where the `gpt-tokenizer
-<https://www.npmjs.com/package/gpt-tokenizer>`_ library comes in. It counts the
-tokens for us so we can store them in the database along with the content and
-embeddings.
+model's token limit. To do that, we need to know how many tokens each section have.
+That's where the `gpt-tokenizer <https://www.npmjs.com/package/gpt-tokenizer>`_
+library comes in.
 
 You see this in action next, as we iterate through all the embeddings we got
 back, adding both the embedding and the token lengths to their respective
 sections. We imported the ``encode`` function earlier, and you can see that
 being called so that we can count and store those. These two additional pieces
 of data make the section fully ready to store in the database.
+
+.. note::
+    You can choose to not save tokens in the database and count tokens later on
+    the client after you get similar sections. You count tokens for each in order
+    to determine how many sections can be sent as a context to the chat
+    completions API.
+
+    Another tool you can use to count tokens in advance is `tiktoken <https://github.com/openai/tiktoken>`_.
+    This is a native OpenAI's Python tokenizer and probably is a better option
+    to use than the NPM alternative, but using it is a bit more complicated so
+    that's why we have chosen to use now the ``gpt-tokenizer``.
 
 Now that we have sections ready to be stored in the database, let's write the
 actual ``storeEmbeddings`` function.
@@ -545,13 +590,18 @@ actual ``storeEmbeddings`` function.
     :caption: generate-embeddings.ts
 
     async function storeEmbeddings() {
-      if (!process.env.OPENAI_KEY) {
+      if (!process.env.OPENAI_API_KEY) {
         return console.log(
-          "Environment variable OPENAI_KEY is required: skipping embeddings generation."
+          "Environment variable OPENAI_API_KEY is required: skipping embeddings generation."
         );
       }
 
       try {
+        const configuration = new Configuration({
+            apiKey: process.env.OPENAI_API_KEY,
+        });
+        const openai = new OpenAIApi(configuration);
+
         const client = edgedb.createClient();
 
         const sectionPaths = await walk("docs");
@@ -583,9 +633,8 @@ actual ``storeEmbeddings`` function.
       console.log("Embedding generation complete");
     }
 
-.. TODO: Devon got this far
 
-At the top, we immediately return if ``OPENAI_KEY`` doesn't exist. Otherwise,
+At the top, we immediately return if ``OPENAI_API_KEY`` doesn't exist. Otherwise,
 we create try/catch block and write the rest of the function inside try block.
 If some error is thrown while we try to regenerate embeddings and update the
 database we will safely catch it in the catch block.
@@ -599,7 +648,8 @@ Before we update the database we need to delete the old data from it.
 We just delete all ``Section`` objects.
 
 Typescript Query Builder
-------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^
+
 Finally we bulk-insert all sections data in the database. The
 `TS binding <https://www.edgedb.com/docs/clients/js/index>`_ offers several
 options for writing queries. We recommend using our query builder, and that's
@@ -624,6 +674,8 @@ to delete and insert data into the database.
 
     import e from "../dbschema/edgeql-js";
 
+Let's run the script
+^^^^^^^^^^^^^^^^^^^^
 Let's add script to ``package.json`` that will invoke and execute
 ``generate-embeddings.ts``.
 
@@ -632,7 +684,7 @@ Let's add script to ``package.json`` that will invoke and execute
     "embeddings": "tsx generate-embeddings.ts"
 
 So now we can invoke the ``generate-embeddings.ts`` script from our terminal
-using ``yarn embeddings`` command.
+using ``npm run embeddings`` command.
 
 After the script is done (should be less than  a min), we should be able to
 open UI with:
@@ -643,14 +695,12 @@ open UI with:
 
 and see that the DB is indeed updated with embeddings and other relevant data.
 
-
-
 Communication between the client and the server
 ===============================================
 Now that we have embeddings we can start working on the handler for user
 requests. The idea is that user submits a question to our server and we send
 him/her answer back. We basically have to define a route and an HTTP request
-handler. Since we use Next, we don't need separate server and we can do all
+handler. Since we use .js, we don't need separate server and we can do all
 this within our project using `next route handler
 <https://nextjs.org/docs/app/building-your-application/routing/route-handlers>`_.
 
@@ -673,7 +723,7 @@ connection.
 Next route handler implementation
 ---------------------------------
 
-When using `Next APP router <https://nextjs.org/docs/app>`_ route handlers
+When using `Next.js APP router <https://nextjs.org/docs/app>`_ route handlers
 should be written inside ``app/api`` folder. Every route should have its own
 folder and the handler should be defined inside ``route.ts`` file inside that
 folder.
@@ -685,7 +735,9 @@ Let's generate new folder for our route inside ``app/api``.
     $ mkdir app/api && cd app/api
     $ mkdir generate-answer && touch generate-answer/route.ts
 
-Next supports `Node JS and Edge Runtime
+One more thing to grasp are runtimes. In the context of Next.js, runtime refers
+to the set of libraries, APIs, and general functionality available to your code
+during execution. Next.js  supports `Node JS and Edge Runtime
 <https://nextjs.org/docs/app/building-your-application/rendering/edge-and-nodejs-runtimes>`_.
 Streaming should be supported within both runtimes, but implementation is a bit
 simpler when using ``edge`` so that's what we will use here. Edge Runtime is
@@ -735,16 +787,16 @@ instead https which we can do by providing an option
 ``{ tlsSecurity: "insecure" }`` when connecting to the client. Bear in mind
 that this is only for local development and you should never use http in
 production. Instead of hardcoding the ``tlsSecurity`` in the code let's better
-create another environment variable that we will only use in development.
+add another environment variable to the ``.env.local`` file that we will only
+use in development.
 
 .. code-block:: typescript
-    :caption: env.local
+    :caption: .env.local
 
     TLS_SECURITY = "insecure"
 
-
 Let's now write the POST HTTP handler. It uses other functions that we will
-define shortly too.
+define soon too.
 
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
@@ -778,9 +830,9 @@ define shortly too.
             const answer = await getOpenAiAnswer(prompt, openAIApiKey);
 
             return new Response(answer, {
-            headers: {
-                "Content-Type": "text/event-stream",
-            },
+                headers: {
+                    "Content-Type": "text/event-stream",
+                },
             });
         } catch (error: any) {
             console.error(error);
@@ -800,18 +852,31 @@ First thing that we need to check is that the query complies to the OpenAI's
 `usage-policies <https://openai.com/policies/usage-policies>`_, which means
 that it should not include any hateful, harassing, or violent content.
 
+If the query passes moderation then we get the embeddings for it using the
+OpenAI embedding API. Next, we get the context that consists of similar sections
+from the EdgeDB database. We create the full prompt (input) using the question,
+context and ``system message`` (The system message is a general instruction to
+the language model that it should follow when answering any question). We call the chat
+completions API using the previously generated prompt and we stream the response
+we get from the OpenAI to the user. In order to use streaming we need to
+provide the appropriate ``content-type`` header: ``"text/event-stream"``.
+
+If any error occurs we send the error message to the user with status 500,
+meaning that the problem happened on the server.
+
 For every request to the OpenAI in this handler we will write basic fetch
 requests. We can't use the ``openai`` package (the one we used in
 ``generate-embeddings.ts`` file), because it uses
 `axios <https://www.npmjs.com/package/axios>`_ and ``axios`` is not supported in
 the edge runtime. There is another NPM package we can use instead
 `openai-edge <https://www.npmjs.com/package/openai-edge>`_ which works perfect
-and includes a little less code, but it is also good to understand how things
-works without syntantic sugar so that's why we will write fetch requests using
-OpenAI's documentation.
+and includes a little less code, but it is also good to understand how to
+implement things without using additional libraries so that's why we will write
+fetch requests using OpenAI's documentation. You can of course replace them with
+``openai-edge`` ones.
 
-Let's write moderation request somewhere outside the handler. We use
-``https://api.openai.com/v1/moderations`` endpoint that we can find in the
+Let's write moderation request. We use
+``https://api.openai.com/v1/moderations`` endpoint that we find in the
 `OpenAI documentation <https://platform.openai.com/docs/guides/moderation/quickstart>`_
 
 .. code-block:: typescript
@@ -837,7 +902,7 @@ Let's write moderation request somewhere outside the handler. We use
     }
 
 If there is any issue with the user's query the response will have ``flagged``
-property set to true. In that case we will throw an general moderation error,
+property set to true. In that case we will throw general moderation error,
 but you can also inspect the response more to find what categories are
 problematic and include more info in the error.
 
@@ -905,8 +970,8 @@ give us back the similar sections.
                     e.op(dist, "<", params.matchThreshold)
                 ),
                 order_by: {
-                        expression: dist,
-                empty: e.EMPTY_LAST,
+                    expression: dist,
+                    empty: e.EMPTY_LAST,
                 },
                 limit: params.matchCount,
             };
@@ -914,12 +979,8 @@ give us back the similar sections.
         }
     );
 
-In the above code we use TS query builder to create a query. We use
-``cosine_distance`` similarity to count the distance between the current
-section embedding and target (user's) embedding. We want to get back content
-and number of tokens for every matched section.
-
-The query uses few parameters that we need to provide when we call it:
+In the above code we use TS query builder to create a query. The query uses
+few parameters that we need to provide when we call it:
 
 * target: the embedding array for which we need similar sections
 * matchThreshold: the similarity threshold, only matches with a similarity
@@ -928,8 +989,17 @@ The query uses few parameters that we need to provide when we call it:
 * minContentLength: minimum number of characters the sections should have in
   order to be considered.
 
-  Let's proceed now to executing this query and creating the context from
-  similar sections that we get from the database.
+We use ``cosine_distance`` similarity to count the distance between the current
+section embedding and target (user's) embedding.
+
+We want to get back content and number of tokens for every similar section that
+passes the filter clause (has more than ``minContentLength`` tokens and the
+distance from the question embedding is less than ``matchThreshold``).
+We want to order results in the ascending order (default) and to get back the
+most ``matchCount`` sections.
+
+Let's proceed now to executing this query and creating the context from
+similar sections that we get from the database.
 
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
@@ -951,8 +1021,8 @@ The query uses few parameters that we need to provide when we call it:
             tokenCount += section.tokens;
 
             if (tokenCount >= 1500) {
-            tokenCount -= section.tokens;
-            break;
+                tokenCount -= section.tokens;
+                break;
             }
 
             context += `${content.trim()}\n---\n`;
@@ -961,8 +1031,15 @@ The query uses few parameters that we need to provide when we call it:
         return context;
     }
 
+As we mentioned earlier we will spend at most 1500 tokens on the similar
+sections context. So from the similar sections that we got from the database we
+pick only the first few that together has less than 1500 tokens.
 
-.. todo
+Now we will create the full query that consists of the user's question, the
+context and the system message. The system message should tell the language model
+what tone to use when answering question and some general instructions on
+what is expected from it. With that you can kind of give it some personality
+that it will follow every time.
 
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
@@ -987,7 +1064,7 @@ The query uses few parameters that we need to provide when we call it:
             """`;
     }
 
-..todo
+We can now get the answer from the OpenAI and forward it to the user.
 
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
@@ -1012,6 +1089,19 @@ The query uses few parameters that we need to provide when we call it:
 
         return response.body;
     }
+
+We need to provide few parameters inside a request body:
+- ``model``: language model that we want the chat completions API to use when
+  answering question (you can also use ``gpt-4`` to if you have access to it),
+- ``messages``: we send the prompt as part of the messages property,
+  it is possible to send here the system message as first item of the array,
+  with the ``role: system`` but since we also have the context sections as part
+  of the input we send everything with the role ``user`,`
+- ``max_tokens``: maximum number of tokens to use for the answer
+- ``temperature``: number between 0 and 2, higher values like 0.8 will make the
+  output more random, while lower values like 0.2 will make it more focused
+  and deterministic.
+- and we need to set the ``stream`` to true in order to get streamed response
 
 Finally, let's update the front-end and connect everything together.
 
@@ -1125,14 +1215,15 @@ exact application like in this tutorial, or you can create your own HTML and CSS
         );
     }
 
-What we have here is input field where user can enter a prompt, when he/she
-submits a prompt we show loading dots while we wait for the first answer
+What we have here is input field where user can enter a prompt. When he/she
+submits a prompt we show loading dots while we wait on the server for the first answer
 chunk from the OpenAI. When the first chunk arrives we start streaming the
-answer to the user. In case of an error we show an error text to the user. We
-differentiate between a prompt and a question because we want to clear the
-input and delete the prompt when user submits it, but show the submitted
-prompt bellow the input and above the answer (which corresponds to the
-``question`` state in our code).
+answer to the user. In case of an error we show an error text to the user.
+
+In regard to the client a prompt is the text a user types in the input, and the
+question is the submitted prompt that we show under the input when user submits
+the prompt. We clear the input and delete the prompt when user submits it, but
+keep the question value.
 
 Let's now write the submit function.
 
@@ -1146,7 +1237,7 @@ Let's now write the submit function.
 
       setIsLoading(true);
       setQuestion(prompt);
-      setAnswer(");
+      setAnswer(""");
       setPrompt("");
       generateAnswer(prompt);
     };
@@ -1178,11 +1269,13 @@ project root and ``sse.d.ts`` file inside it.
 
     mkdir types && touch types/sse.d.ts
 
+The generated file should contain the following code:
+
 .. code-block:: typescript
     :caption: types/sse.d.ts
 
     type SSEOptions = EventSourceInit & {
-    payload?: string;
+        payload?: string;
     };
 
     declare module "sse.js" {
@@ -1192,13 +1285,19 @@ project root and ``sse.d.ts`` file inside it.
         }
     }
 
+We just extended the native ``EventStream`` to use payload in the constructor when
+generating the stream and we added the ``stream`` function to it which is used
+to activate the stream in the SSE NPM package.
+
 Now we can import ``SSE`` in ``page.tsx`` and use it to open a connection to
 our handler route while also sending the user's query.
 
 .. code-block:: typescript
     :caption: app/page.tsx
 
-    ...
+    "use client";
+
+    import { useState, useRef } from "react";
     import { SSE } from "sse.js";
 
     export default function Home() {
@@ -1206,18 +1305,18 @@ our handler route while also sending the user's query.
 
         ...
 
-      const generateAnswer = async (query: string) => {
-        if (eventSourceRef.current) eventSourceRef.current.close();
+        const generateAnswer = async (query: string) => {
+            if (eventSourceRef.current) eventSourceRef.current.close();
 
-        const eventSource = new SSE(`api/generate-answer`, {
-            payload: JSON.stringify({ query }),
-        });
-        eventSourceRef.current = eventSource;
+            const eventSource = new SSE(`api/generate-answer`, {
+                payload: JSON.stringify({ query }),
+            });
+            eventSourceRef.current = eventSource;
 
-        eventSource.onerror = handleError;
-        eventSource.onmessage = handleMessage;
-        eventSource.stream();
-    };
+            eventSource.onerror = handleError;
+            eventSource.onmessage = handleMessage;
+            eventSource.stream();
+        };
 
         handleError() { ... }
         handleMessage() { ... }
@@ -1250,10 +1349,8 @@ Let's write these handlers.
         setError(errMessage);
     }
 
-.. code-block:: typescript
-    :caption: app/page.tsx
 
-      function handleMessage(e: MessageEvent<any>) {
+    function handleMessage(e: MessageEvent<any>) {
         try {
             setIsLoading(false);
             if (e.data === "[DONE]") return;
@@ -1266,77 +1363,12 @@ Let's write these handlers.
         }
     }
 
-It's important to note here that if the chunk that is received is equal to
+When we get the message event we extract the data from it and add it to the
+``answer`` state until we receive all chunks. When the data is equal to
 ``[DONE]`` it means that the whole answer has been received and the connection
 to the server is going to be closed. There is no data to be parsed in this case
 so we have to return instead of trying to parse it (the error will be thrown if
 you try to parse it).
 
-
-
-
-
-.. do we want this at all
-.. Why we need to know number of tokens per section
-.. ================================================
-.. Later when we want to answer to the user's question, we will need to send
-.. similar sections as a context to the OpenAI completions endpoint, and we
-.. need to know how many tokens each content has in order to stay under the
-.. model's token limit.
-.. OpenAI's token limit
-.. --------------------
-.. OpenAI's language models, like GPT-4, work by processing and generating text
-.. in chunks referred to as "tokens." These tokens can be as short as one
-.. character or as long as one word in English, or even other lengths in
-.. different languages.
-
-.. There are two main reasons for having a token limit:
-
-.. 1. **Computational Efficiency**: Processing large amounts of text requires
-..    significant computational resources. With each additional token, the model
-..    has to keep track of more information and make more complex calculations.
-..    Therefore, having a token limit helps to manage these computational
-..    requirements and ensure that the model can operate effectively and efficiently.
-
-.. 2. **Memory Constraints**: The models use a technique called "attention" to
-..    consider the context in which each token appears. This context includes a
-..    certain number of preceding tokens. If the number of tokens exceeds the
-..    model's limit, it might lose context for some tokens, which could
-..    negatively impact the quality of the generated text.
-
-.. So in general, for the things to work, there is token limit per request which
-.. includes both the prompt and the answer. As part of the prompt we will send
-.. user's question and similar sections as context and we have to make sure to
-.. not send too many sections as context because we will either get error back
-.. or the answer can be cut off if there are few tokens left for the answer.
-.. We will use in this tutorial GPT-4 and its token limit is 8192.
-
-.. How to calculate number of tokens per section
-.. ---------------------------------------------
-.. There are at least 3 ways to solve this:
-
-.. - when you send one string to the OpenAI embedding endpoint you will get back
-..   together with the embedding array also the **prompt_tokens** field telling
-..   you how many tokens the submitted content has and then you can store this
-..   in the database together with other data
-.. - second way is to use some npm library that generates tokens array for the
-..   string you provide, and then you calculate the length of that array
-..   (`gpt-tokenizer <https://www.npmjs.com/package/gpt-tokenizer>`_ for example)
-.. - the 3rd way is to use OpenAI `tiktoken <https://github.com/openai/tiktoken>`_
-..   library which should be faster than npm alternatives (and probably better
-..   maintained), but it's supposed to be used with python so we need to write a
-..   python script in order to calculate tokens in this way.
-
-.. We can't go with the first approach because prompt_tokens field is received
-.. inside embeddings response only when one string is submitted, if array of
-.. strings is submitted you only get back the total_tokens number for the whole
-.. submitted array.
-
-.. We want to save tokens in the database so that we can retrieve them together
-.. with contents when we get similar sections later for the user's request.
-.. Another approach is to calculate tokens for every similar section every time
-.. we need to construct the prompt, but this is probably a bit slower.
-
-.. We use in the tutorial native OpenAI `tiktoken <https://github.com/openai/tiktoken>`_
-.. tool. You can also use `gpt-tokeniser <https://www.npmjs.com/package/gpt-tokenizer>`_
-.. . Using npm-library is also easier if you are not familiar with python at all.
+That's all. You should be able to run the project now with ``npm run dev``
+and test it.
