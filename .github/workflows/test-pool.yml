@@ -8,6 +8,7 @@ on:
     paths:
       - 'edb/server/connpool/**'
       - 'tests/test_server_pool.py'
+      - '.github/workflows/test-pool.yml'
   pull_request:
     branches:
       - master
@@ -40,7 +41,7 @@ jobs:
 
     - name: Generate requirements.txt
       run: |
-        echo 'uvloop==0.15.2' > requirements.txt
+        echo 'uvloop==0.17.0' > requirements.txt
         mkdir -p pool-simulation/reports
 
     - name: Handle virtualenv
