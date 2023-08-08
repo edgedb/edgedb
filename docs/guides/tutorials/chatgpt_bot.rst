@@ -774,7 +774,7 @@ use it later when we create the prompt from user's question and similar sections
 
 .. code-block:: bash
 
-    npm install common-tags
+    $ npm install common-tags
 
 We included the config declaring that we want to use ``edge runtime`` for this
 route (Node runtime is the default).
@@ -1091,22 +1091,27 @@ We can now get the answer from the OpenAI and forward it to the user.
     }
 
 We need to provide few parameters inside a request body:
-- ``model``: language model that we want the chat completions API to use when
+
+* ``model``: language model that we want the chat completions API to use when
   answering question (you can also use ``gpt-4`` to if you have access to it),
-- ``messages``: we send the prompt as part of the messages property,
+
+* ``messages``: we send the prompt as part of the messages property,
   it is possible to send here the system message as first item of the array,
   with the ``role: system`` but since we also have the context sections as part
-  of the input we send everything with the role ``user`,`
-- ``max_tokens``: maximum number of tokens to use for the answer
-- ``temperature``: number between 0 and 2, higher values like 0.8 will make the
+  of the input we send everything with the role ``user``
+
+* ``max_tokens``: maximum number of tokens to use for the answer
+
+* ``temperature``: number between 0 and 2, higher values like 0.8 will make the
   output more random, while lower values like 0.2 will make it more focused
   and deterministic.
-- and we need to set the ``stream`` to true in order to get streamed response
+
+* and we need to set the ``stream`` to true in order to get streamed response
 
 Finally, let's update the front-end and connect everything together.
 
-Frontend
-========
+Final touch: Front-end
+======================
 
 To make things as simple as possible we will just update the ``Home``
 component that's inside ``app/page.tsx`` file. By default all components
@@ -1259,7 +1264,7 @@ will use `sse.js <https://npm.io/package/sse.js>`_ package so let's install it.
 
 .. code-block:: bash
 
-    npm install sse.js --save
+    $ npm install sse.js --save
 
 This package doesn't have its corresponding types package so we need to add
 them manually when using Typescript. Let's create new folder ``types`` in the
@@ -1267,7 +1272,7 @@ project root and ``sse.d.ts`` file inside it.
 
 .. code-block:: bash
 
-    mkdir types && touch types/sse.d.ts
+    $ mkdir types && touch types/sse.d.ts
 
 The generated file should contain the following code:
 
