@@ -23,6 +23,8 @@ import functools
 import dataclasses
 from typing import *
 
+from edb.common.typeutils import not_none
+
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
@@ -224,7 +226,10 @@ def pg_type_from_object(
 
     elif isinstance(obj, s_abc.Tuple):
         if persistent_tuples:
-            return common.get_tuple_backend_name(obj.id, catenate=False)
+            return cast(
+                Tuple[str, ...],
+                common.get_tuple_backend_name(obj.id, catenate=False),
+            )
         else:
             return ('record',)
 
@@ -316,7 +321,10 @@ def pg_type_from_ir_typeref(
             material = ir_typeref
 
         if persistent_tuples or material.in_schema:
-            return common.get_tuple_backend_name(material.id, catenate=False)
+            return cast(
+                Tuple[str, str],
+                common.get_tuple_backend_name(material.id, catenate=False),
+            )
         else:
             return ('record',)
 
@@ -350,14 +358,14 @@ def pg_type_from_ir_typeref(
             return pg_type
 
 
-TableInfo = Tuple[Tuple[str, ...], str, str]
+TableInfo = Tuple[Tuple[str, str], str, str]
 
 
 def _source_table_info(
     schema: s_schema.Schema, pointer: s_pointers.Pointer
 ) -> TableInfo:
     table = common.get_backend_name(
-        schema, pointer.get_source(schema), catenate=False
+        schema, not_none(pointer.get_source(schema)), catenate=False
     )
     ptr_name = pointer.get_shortname(schema).name
     if ptr_name.startswith('__') or ptr_name == 'id':
@@ -459,6 +467,7 @@ def get_pointer_storage_info(
         table_type = 'ObjectType'
         col_name = pointer.get_shortname(schema).name
     elif is_lprop:
+        assert source
         table = common.get_backend_name(schema, source, catenate=False)
         table_type = 'link'
         if pointer.get_shortname(schema).name == 'source':

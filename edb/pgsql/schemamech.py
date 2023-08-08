@@ -299,6 +299,7 @@ def compile_constraint(
         else:
             subject_table = subject
 
+        assert subject_table
         subject_db_name = common.get_backend_name(
             schema, subject_table, catenate=False
         )

@@ -31,6 +31,7 @@ from edb.common import context as parser_context
 from edb.common import debug
 from edb.common import exceptions
 from edb.common import uuidgen
+from edb.common.typeutils import not_none
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -4789,25 +4790,23 @@ classref_attr_aliases = {
 def tabname(
     schema: s_schema.Schema, obj: s_obj.QualifiedObject
 ) -> tuple[str, str]:
-    res: tuple[str, str] = common.get_backend_name(
+    return common.get_backend_name(
         schema,
         obj,
         aspect='table',
         catenate=False,
     )
-    return res
 
 
 def inhviewname(
     schema: s_schema.Schema, obj: s_obj.QualifiedObject
 ) -> Tuple[str, str]:
-    res: tuple[str, str] = common.get_backend_name(
+    return common.get_backend_name(
         schema,
         obj,
         aspect='inhview',
         catenate=False,
     )
-    return res
 
 
 def ptr_col_name(
@@ -4960,7 +4959,7 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
         schema, s_name.UnqualName('version'), type=s_props.Property)
     ver_t = common.get_backend_name(
         schema,
-        ver.get_target(schema),
+        not_none(ver.get_target(schema)),
         catenate=False,
     )
 
