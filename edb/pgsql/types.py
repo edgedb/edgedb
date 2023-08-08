@@ -22,6 +22,7 @@ from __future__ import annotations
 import functools
 import dataclasses
 from typing import *
+from typing import overload
 
 from edb.common.typeutils import not_none
 
@@ -520,7 +521,7 @@ def get_ptrref_storage_info(
 
 
 @overload
-def get_ptrref_storage_info(  # NoQA: F811
+def get_ptrref_storage_info(
     ptrref: irast.BasePointerRef, *,
     resolve_type: bool=...,
     link_bias: bool=...,
@@ -529,7 +530,7 @@ def get_ptrref_storage_info(  # NoQA: F811
     ...
 
 
-def get_ptrref_storage_info(  # NoQA: F811
+def get_ptrref_storage_info(
     ptrref: irast.BasePointerRef,
     *,
     resolve_type: bool = True,

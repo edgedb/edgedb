@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 from typing import *
+from typing import overload
 
 import collections.abc
 import dataclasses
@@ -843,7 +844,7 @@ def describe_input_shape(
 
 
 @overload
-def describe_input_shape(  # noqa: F811
+def describe_input_shape(
     t: s_types.Type,
     input_shapes: InputShapeMap,
     *,
@@ -853,7 +854,7 @@ def describe_input_shape(  # noqa: F811
 
 
 @overload
-def describe_input_shape(  # noqa: F811
+def describe_input_shape(
     t: s_types.Type,
     input_shapes: InputShapeMap,
     *,
@@ -863,7 +864,7 @@ def describe_input_shape(  # noqa: F811
     ...
 
 
-def describe_input_shape(  # noqa: F811
+def describe_input_shape(
     t: s_types.Type,
     input_shapes: InputShapeMap,
     *,
