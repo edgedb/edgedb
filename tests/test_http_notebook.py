@@ -21,6 +21,7 @@ from typing import *
 
 import json
 import urllib
+import base64
 
 from edb.testbase import http as tb
 
@@ -34,10 +35,24 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest):
     def get_extension_name(cls):
         return 'notebook'
 
-    def run_queries(self, queries: List[str]):
-        req_data = {
+    def run_queries(
+        self,
+        queries: List[str],
+        params: Optional[str] = None,
+        *,
+        inject_typenames: Optional[bool] = None,
+        json_output: Optional[bool] = None
+    ):
+        req_data: dict[str, Any] = {
             'queries': queries
         }
+
+        if params is not None:
+            req_data['params'] = params
+        if inject_typenames is not None:
+            req_data['inject_typenames'] = inject_typenames
+        if json_output is not None:
+            req_data['json_output'] = json_output
 
         req = urllib.request.Request(
             self.http_addr, method='POST')  # type: ignore
@@ -49,6 +64,22 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest):
         self.assertIsNotNone(response.headers['EdgeDB-Protocol-Version'])
 
         resp_data = json.loads(response.read())
+        return resp_data
+
+    def parse_query(self, query: str):
+        req = urllib.request.Request(
+            self.http_addr + '/parse', method='POST')  # type: ignore
+        req.add_header('Content-Type', 'application/json')
+        response = urllib.request.urlopen(
+            req, json.dumps({'query': query}).encode(),
+            context=self.tls_context
+        )
+
+        resp_data = json.loads(response.read())
+
+        if resp_data['kind'] != 'error':
+            self.assertIsNotNone(response.headers['EdgeDB-Protocol-Version'])
+
         return resp_data
 
     def test_http_notebook_01(self):
@@ -273,3 +304,105 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest):
         ])
 
         self.assertNotIn('error', results['results'][0])
+
+    def test_http_notebook_10(self):
+        # Check that if no 'params' field is sent an error is still thrown
+        # when query contains params, to maintain behaviour of edgeql tutorial
+        results = self.run_queries(['select <str>$test'])
+
+        self.assert_data_shape(results, {
+            'kind': 'results',
+            'results': [{
+                'kind': 'error',
+                'error': [
+                    'QueryError',
+                    'cannot use query parameters in tutorial',
+                    {}
+                ]
+            }]
+        })
+
+    def test_http_notebook_11(self):
+        results = self.run_queries(['select <str>$test'],
+                                   'AAAAAQAAAAAAAAAIdGVzdCBzdHI=')
+
+        self.assert_data_shape(results, {
+            'kind': 'results',
+            'results': [{
+                'kind': 'data',
+                'data': [
+                    str,
+                    str,
+                    'RAAAABIAAQAAAAh0ZXN0IHN0cg==',
+                    str
+                ]
+            }]
+        })
+
+    def test_http_notebook_12(self):
+        result = self.parse_query('select <array<int32>>$test_param')
+
+        self.assert_data_shape(result, {
+            'kind': 'parse_result',
+            'in_type_id': str,
+            'in_type': str
+        })
+
+        error_result = self.parse_query('select $invalid')
+
+        self.assert_data_shape(error_result, {
+            'kind': 'error',
+            'error': {
+                'type': 'QueryError',
+                'message': 'missing a type cast before the parameter'
+            }
+        })
+
+    def test_http_notebook_13(self):
+        results = []
+        for inject_typenames, json_output in [
+            (None, None),
+            (True, None),
+            (False, None),
+            (None, True),
+            (None, False),
+            (True, True),
+            (True, False),
+            (False, True),
+            (False, False)
+        ]:
+            result = self.run_queries(['''
+                select {
+                    some := 'free shape'
+                }
+            '''], inject_typenames=inject_typenames, json_output=json_output)
+
+            self.assert_data_shape(result, {
+                'kind': 'results',
+                'results': [{
+                    'kind': 'data',
+                    'data': [str, str, str, str]
+                }]
+            })
+
+            results.append(result)
+
+        # Ideally we'd check the decoded data has/hasn't got the injected
+        # typeids/names but currently we can't decode the result, so just
+        # check the expected number of bytes were returned
+        self.assertEqual(
+            [
+                len(base64.b64decode(result['results'][0]['data'][2]))
+                for result in results
+            ],
+            [80, 80, 33, 36, 80, 36, 80, 36, 33]
+        )
+
+        # JSON results should be encoded as str which has a stable type id
+        self.assertEqual(
+            [
+                result['results'][0]['data'][0] == 'AAAAAAAAAAAAAAAAAAABAQ=='
+                for result in results
+            ],
+            [False, False, False, True, False, True, False, True, False]
+        )
