@@ -299,8 +299,8 @@ async def _get_dbs_and_roles(
     compiler = await edbcompiler.new_compiler_from_pg(pgconn)
     compilerctx = edbcompiler.new_compiler_context(
         compiler_state=compiler.state,
-        user_schema=s_schema.FlatSchema(),
-        global_schema=s_schema.FlatSchema(),
+        user_schema=s_schema.EMPTY_SCHEMA,
+        global_schema=s_schema.EMPTY_SCHEMA,
         expected_cardinality_one=False,
         output_format=edbcompiler.OutputFormat.JSON,
         bootstrap_mode=True,

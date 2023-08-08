@@ -1214,6 +1214,7 @@ def setup_domain(app):
 
     app.add_lexer("edgeql", EdgeQLLexer)
     app.add_lexer("edgeql-repl", EdgeQLLexer)
+    app.add_lexer("edgeql-runnable", EdgeQLLexer)
     app.add_lexer("edgeql-synopsis", EdgeQLLexer)
     app.add_lexer("edgeql-result", pygments.lexers.special.TextLexer)
 

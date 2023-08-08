@@ -171,6 +171,7 @@ def eval_FuncCall(
 
     if fn_name == "set_config":
         # HACK: allow set_config('search_path', '', false) to support pg_dump
+        # HACK: allow set_config('bytea_output','hex',false) to support pgadmin
         if args := eval_list(expr.args, ctx=ctx):
             name, value, is_local = args
             if (
@@ -184,6 +185,14 @@ def eval_FuncCall(
                     and not is_local.val
                 ):
                     return value
+
+                if (
+                    name.val == "bytea_output"
+                    and value.val == "hex"
+                    and not is_local.val
+                ):
+                    return value
+
         raise errors.QueryError(
             "function set_config is not supported", context=expr.context
         )

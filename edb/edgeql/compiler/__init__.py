@@ -127,6 +127,7 @@ dispatch.py
 
 from __future__ import annotations
 from typing import *
+from typing import overload
 
 # WARNING: this package is in a tight import loop with various modules
 # in edb.schema, so no direct imports from either this package or
@@ -195,7 +196,7 @@ def compile_ast_to_ir(
 
 
 @overload
-def compile_ast_to_ir(  # noqa
+def compile_ast_to_ir(
     tree: qlast.ConfigOp,
     schema: s_schema.Schema,
     *,
@@ -206,7 +207,7 @@ def compile_ast_to_ir(  # noqa
 
 
 @overload
-def compile_ast_to_ir(  # noqa
+def compile_ast_to_ir(
     tree: qlast.Base,
     schema: s_schema.Schema,
     *,
@@ -217,7 +218,7 @@ def compile_ast_to_ir(  # noqa
 
 
 @compiler_entrypoint
-def compile_ast_to_ir(  # noqa
+def compile_ast_to_ir(
     tree: qlast.Base,
     schema: s_schema.Schema,
     *,

@@ -954,9 +954,9 @@ async def _make_stdlib(
     global_ids: Mapping[str, uuid.UUID],
 ) -> StdlibBits:
     schema: s_schema.Schema = s_schema.ChainedSchema(
-        s_schema.FlatSchema(),
-        s_schema.FlatSchema(),
-        s_schema.FlatSchema(),
+        s_schema.EMPTY_SCHEMA,
+        s_schema.EMPTY_SCHEMA,
+        s_schema.EMPTY_SCHEMA,
     )
     schema, _ = s_mod.Module.create_in_schema(
         schema,
@@ -1135,7 +1135,7 @@ def compile_intro_queries_stdlib(
     *,
     compiler: edbcompiler.Compiler,
     user_schema: s_schema.Schema,
-    global_schema: s_schema.Schema=s_schema.FlatSchema(),
+    global_schema: s_schema.Schema=s_schema.EMPTY_SCHEMA,
     reflection: s_refl.SchemaReflectionParts,
 ) -> Tuple[str, str]:
     compilerctx = edbcompiler.new_compiler_context(
@@ -1385,11 +1385,10 @@ async def _init_stdlib(
         schema = t.set_field_value(
             schema, 'backend_id', entry['backend_id'])
 
-    if backend_params.instance_params.ext_schema != "edgedbext":
-        # Patch functions referring to extensions, because
-        # some backends require extensions to be hosted in
-        # hardcoded schemas (e.g. Heroku)
-        await metaschema.patch_pg_extensions(conn, backend_params)
+    # Patch functions referring to extensions, because
+    # some backends require extensions to be hosted in
+    # hardcoded schemas (e.g. Heroku)
+    await metaschema.patch_pg_extensions(conn, backend_params)
 
     stdlib = stdlib._replace(stdschema=schema)
     version_key = patches.get_version_key(len(patches.PATCHES))
@@ -2088,17 +2087,6 @@ async def _bootstrap(ctx: BootstrapContext) -> edbcompiler.CompilerState:
             )
         )
 
-    if args.backend_capability_sets.must_be_absent:
-        caps = backend_params.instance_params.capabilities
-        disabled = []
-        for cap in args.backend_capability_sets.must_be_absent:
-            if caps & cap:
-                caps &= ~cap
-                disabled.append(cap)
-        if disabled:
-            logger.info(f"the following backend capabilities are disabled: "
-                        f"{', '.join(str(cap.name) for cap in disabled)}")
-            cluster.overwrite_capabilities(caps)
     _check_capabilities(ctx)
 
     if backend_params.has_create_role:
@@ -2169,7 +2157,7 @@ async def _bootstrap(ctx: BootstrapContext) -> edbcompiler.CompilerState:
             report_configs_typedesc_2_0,
         )
 
-        schema = s_schema.FlatSchema()
+        schema = s_schema.EMPTY_SCHEMA
         schema = await _init_defaults(schema, compiler, tpl_ctx.conn)
 
         # Run analyze on the template database, so that new dbs start

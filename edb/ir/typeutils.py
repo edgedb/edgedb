@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 from typing import *
+from typing import overload
 
 import uuid
 
@@ -482,7 +483,7 @@ def ptrref_from_ptrcls(
 
 
 @overload
-def ptrref_from_ptrcls(  # NoQA: F811
+def ptrref_from_ptrcls(
     *,
     schema: s_schema.Schema,
     ptrcls: s_pointers.PointerLike,
@@ -492,7 +493,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
     ...
 
 
-def ptrref_from_ptrcls(  # NoQA: F811
+def ptrref_from_ptrcls(
     *,
     schema: s_schema.Schema,
     ptrcls: s_pointers.PointerLike,
@@ -729,14 +730,14 @@ def ptrcls_from_ptrref(
 
 
 @overload
-def ptrcls_from_ptrref(  # NoQA: F811
+def ptrcls_from_ptrref(
     ptrref: irast.BasePointerRef, *,
     schema: s_schema.Schema,
 ) -> Tuple[s_schema.Schema, s_pointers.PointerLike]:
     ...
 
 
-def ptrcls_from_ptrref(  # NoQA: F811
+def ptrcls_from_ptrref(
     ptrref: irast.BasePointerRef, *,
     schema: s_schema.Schema,
 ) -> Tuple[s_schema.Schema, s_pointers.PointerLike]:

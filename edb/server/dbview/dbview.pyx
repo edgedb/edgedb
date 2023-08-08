@@ -50,9 +50,9 @@ from edb.server.protocol.args_ser cimport (
 
 __all__ = (
     'DatabaseIndex',
-    'Database',
     'DatabaseConnectionView',
     'SideEffects',
+    'Database'
 )
 
 cdef DEFAULT_MODALIASES = immutables.Map({None: defines.DEFAULT_MODULE_ALIAS})
