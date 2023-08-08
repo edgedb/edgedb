@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 from typing import *
+from typing import overload
 
 from edb import edgeql
 from edb import errors
@@ -453,7 +454,7 @@ class IndexCommand(
         ...
 
     @overload
-    def get_object(  # NoQA: F811
+    def get_object(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
@@ -464,7 +465,7 @@ class IndexCommand(
     ) -> Optional[Index]:
         ...
 
-    def get_object(  # NoQA: F811
+    def get_object(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,

@@ -354,6 +354,7 @@ async def _get_remote_pgcluster(
     cluster = await pgcluster.get_remote_pg_cluster(
         args.backend_dsn,
         tenant_id=tenant_id,
+        specified_capabilities=args.backend_capability_sets,
     )
 
     instance_params = cluster.get_runtime_params().instance_params

@@ -462,7 +462,7 @@ def _start_migration(
         assert ctx.compiler_state.std_schema is not None
         base_schema = s_schema.ChainedSchema(
             ctx.compiler_state.std_schema,
-            s_schema.FlatSchema(),
+            s_schema.EMPTY_SCHEMA,
             current_tx.get_global_schema(),
         )
         target_schema = s_ddl.apply_sdl(
@@ -958,7 +958,7 @@ def _start_migration_rewrite(
         # Start from an empty schema except for `module default`
     base_schema = s_schema.ChainedSchema(
         ctx.compiler_state.std_schema,
-        s_schema.FlatSchema(),
+        s_schema.EMPTY_SCHEMA,
         current_tx.get_global_schema(),
     )
     base_schema = s_ddl.apply_sdl(  # type: ignore
@@ -1113,7 +1113,7 @@ def _reset_schema(
 
     empty_schema = s_schema.ChainedSchema(
         ctx.compiler_state.std_schema,
-        s_schema.FlatSchema(),
+        s_schema.EMPTY_SCHEMA,
         current_tx.get_global_schema(),
     )
     empty_schema = s_ddl.apply_sdl(  # type: ignore
@@ -1183,7 +1183,7 @@ def repair_schema(
 
     empty_schema = s_schema.ChainedSchema(
         ctx.compiler_state.std_schema,
-        s_schema.FlatSchema(),
+        s_schema.EMPTY_SCHEMA,
         current_tx.get_global_schema(),
     )
 

@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2019-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2018-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,8 +17,4 @@
 #
 
 
-from __future__ import annotations
-
-from .dbview import DatabaseIndex, Database, DatabaseConnectionView
-
-__all__ = ('DatabaseIndex', 'Database', 'DatabaseConnectionView')
+CREATE EXTENSION PACKAGE auth VERSION '1.0';

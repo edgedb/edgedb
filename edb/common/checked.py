@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 from typing import *
+from typing import overload
 
 import collections.abc
 import itertools
@@ -137,11 +138,11 @@ class FrozenCheckedList(
     def __getitem__(self, index: int) -> T:
         ...
 
-    @overload  # NoQA: F811
-    def __getitem__(self, index: slice) -> FrozenCheckedList[T]:  # NoQA: F811
+    @overload
+    def __getitem__(self, index: slice) -> FrozenCheckedList[T]:
         ...
 
-    def __getitem__(self, index: Union[int, slice]) -> Any:  # NoQA: F811
+    def __getitem__(self, index: Union[int, slice]) -> Any:
         if isinstance(index, slice):
             return self.__class__(self._container[index])
 
@@ -184,11 +185,11 @@ class CheckedList(
     def __getitem__(self, index: int) -> T:
         ...
 
-    @overload  # NoQA: F811
-    def __getitem__(self, index: slice) -> CheckedList[T]:  # NoQA: F811
+    @overload
+    def __getitem__(self, index: slice) -> CheckedList[T]:
         ...
 
-    def __getitem__(self, index: Union[int, slice]) -> Any:  # NoQA: F811
+    def __getitem__(self, index: Union[int, slice]) -> Any:
         if isinstance(index, slice):
             return self.__class__(self._container[index])
 
@@ -202,15 +203,15 @@ class CheckedList(
     def __setitem__(self, index: int, value: T) -> None:
         ...
 
-    @overload  # NoQA: F811
-    def __setitem__(  # NoQA: F811
+    @overload
+    def __setitem__(
         self,
         index: slice,
         value: Iterable[T]
     ) -> None:
         ...
 
-    def __setitem__(  # NoQA: F811
+    def __setitem__(
             self, index: Union[int, slice], value: Any) -> None:
         if isinstance(index, int):
             self._container[index] = self._check_type(value)
@@ -223,11 +224,11 @@ class CheckedList(
     def __delitem__(self, index: int) -> None:
         ...
 
-    @overload  # NoQA: F811
-    def __delitem__(self, index: slice) -> None:  # NoQA: F811
+    @overload
+    def __delitem__(self, index: slice) -> None:
         ...
 
-    def __delitem__(self, index: Union[int, slice]) -> None:  # NoQA: F811
+    def __delitem__(self, index: Union[int, slice]) -> None:
         del self._container[index]
 
     def insert(self, index: int, value: T) -> None:

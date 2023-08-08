@@ -812,12 +812,12 @@ def _trace_op(
         for ref in refs:
             write_ref_deps(ref, obj, this_name_str)
 
-        if tag in ('create', 'alter'):
+        if tag == 'create':
             # In a delete/create cycle, deletion must obviously
             # happen first.
-            deps.add(('delete', str(op.classname)))
+            deps.add(('delete', this_name_str))
             # Renaming also
-            deps.add(('rename', str(op.classname)))
+            deps.add(('rename', this_name_str))
 
             if isinstance(obj, s_func.Function) and old_schema is not None:
                 old_funcs = old_schema.get_functions(

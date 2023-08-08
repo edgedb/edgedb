@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 from typing import *
+from typing import overload
 
 import collections
 import dataclasses
@@ -319,7 +320,7 @@ class Environment:
             self.schema_ref_exprs.setdefault(sobj, set()).add(expr)
 
     @overload
-    def get_schema_object_and_track(  # NoQA: F811
+    def get_schema_object_and_track(
         self,
         name: s_name.Name,
         expr: Optional[qlast.Base],
@@ -333,7 +334,7 @@ class Environment:
         ...
 
     @overload
-    def get_schema_object_and_track(  # NoQA: F811
+    def get_schema_object_and_track(
         self,
         name: s_name.Name,
         expr: Optional[qlast.Base],
@@ -346,7 +347,7 @@ class Environment:
     ) -> Optional[s_obj.Object]:
         ...
 
-    def get_schema_object_and_track(  # NoQA: F811
+    def get_schema_object_and_track(
         self,
         name: s_name.Name,
         expr: Optional[qlast.Base],

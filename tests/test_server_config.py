@@ -1739,9 +1739,10 @@ class TestSeparateCluster(tb.TestCase):
                         'idle-in-transaction timeout'
             ), 8)
 
-            with self.assertRaises(
-                edgedb.ClientConnectionFailedTemporarilyError
-            ):
+            with self.assertRaises((
+                edgedb.ClientConnectionFailedTemporarilyError,
+                edgedb.ClientConnectionClosedError,
+            )):
                 await conn.execute('''
                     select 1
                 ''')

@@ -8,12 +8,14 @@ on:
     paths:
       - 'edb/server/connpool/**'
       - 'tests/test_server_pool.py'
+      - '.github/workflows/test-pool.yml'
   pull_request:
     branches:
       - master
     paths:
       - 'edb/server/connpool/**'
       - 'tests/test_server_pool.py'
+      - '.github/workflows/test-pool.yml'
 
 jobs:
   test:
@@ -36,11 +38,11 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10.12'
+        python-version: '3.11.3'
 
     - name: Generate requirements.txt
       run: |
-        echo 'uvloop==0.15.2' > requirements.txt
+        echo 'uvloop==0.17.0' > requirements.txt
         mkdir -p pool-simulation/reports
 
     - name: Handle virtualenv

@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 from typing import *
+from typing import overload
 
 import collections
 import collections.abc
@@ -727,7 +728,7 @@ class Command(
         ...
 
     @overload
-    def get_subcommands(  # NoQA: F811
+    def get_subcommands(
         self,
         *,
         type: None = None,
@@ -738,7 +739,7 @@ class Command(
     ) -> Tuple[Command, ...]:
         ...
 
-    def get_subcommands(  # NoQA: F811
+    def get_subcommands(
         self,
         *,
         type: Union[Type[Command_T], None] = None,
@@ -787,14 +788,14 @@ class Command(
         ...
 
     @overload
-    def get_prerequisites(  # NoQA: F811
+    def get_prerequisites(
         self,
         *,
         type: None = None,
     ) -> Tuple[Command, ...]:
         ...
 
-    def get_prerequisites(  # NoQA: F811
+    def get_prerequisites(
         self,
         *,
         type: Union[Type[Command_T], None] = None,
@@ -814,14 +815,14 @@ class Command(
         ...
 
     @overload
-    def get_caused(  # NoQA: F811
+    def get_caused(
         self,
         *,
         type: None = None,
     ) -> Tuple[Command, ...]:
         ...
 
-    def get_caused(  # NoQA: F811
+    def get_caused(
         self,
         *,
         type: Union[Type[Command_T], None] = None,
@@ -1390,13 +1391,13 @@ class CommandContext:
         ...
 
     @overload
-    def get(  # NoQA: F811
+    def get(
         self,
         cls: Union[Type[Command_T], Type[CommandContextToken[Command_T]]],
     ) -> Optional[CommandContextToken[Command_T]]:
         ...
 
-    def get(  # NoQA: F811
+    def get(
         self,
         cls: Union[Type[Command_T], Type[CommandContextToken[Command_T]]],
     ) -> Optional[CommandContextToken[Command_T]]:
@@ -2449,7 +2450,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         ...
 
     @overload
-    def get_object(  # NoQA: F811
+    def get_object(
         self,
         schema: s_schema.Schema,
         context: CommandContext,
@@ -2460,7 +2461,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
     ) -> Optional[so.Object_T]:
         ...
 
-    def get_object(  # NoQA: F811
+    def get_object(
         self,
         schema: s_schema.Schema,
         context: CommandContext,
@@ -2807,7 +2808,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         ...
 
     @overload
-    def get_object(  # NoQA: F811
+    def get_object(
         self,
         schema: s_schema.Schema,
         context: CommandContext,
@@ -2818,7 +2819,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
     ) -> Optional[so.QualifiedObject_T]:
         ...
 
-    def get_object(  # NoQA: F811
+    def get_object(
         self,
         schema: s_schema.Schema,
         context: CommandContext,

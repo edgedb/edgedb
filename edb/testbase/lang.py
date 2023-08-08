@@ -273,7 +273,7 @@ def _load_std_schema():
                 std_dirs_hash, 'transient-stdschema.pickle')
 
         if schema is None:
-            schema = s_schema.FlatSchema()
+            schema = s_schema.EMPTY_SCHEMA
             for modname in [*s_schema.STD_SOURCES, *s_schema.TESTMODE_SOURCES]:
                 schema = s_std.load_std_module(schema, modname)
             schema, _ = s_std.make_schema_version(schema)

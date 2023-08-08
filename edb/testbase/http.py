@@ -70,6 +70,17 @@ class BaseHttpExtensionTest(server.QueryTestCase):
         super().tearDownClass()
 
 
+class ExtAuthTestCase(BaseHttpExtensionTest):
+
+    @classmethod
+    def get_extension_name(cls):
+        return 'auth'
+
+    @classmethod
+    def get_extension_path(cls):
+        return 'ext/auth'
+
+
 class EdgeQLTestCase(BaseHttpExtensionTest):
 
     @classmethod
