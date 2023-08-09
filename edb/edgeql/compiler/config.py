@@ -177,7 +177,9 @@ def compile_ConfigInsert(
 
     info = _validate_op(expr, ctx=ctx)
 
-    if expr.scope is not qltypes.ConfigScope.INSTANCE:
+    if expr.scope not in (
+        qltypes.ConfigScope.INSTANCE, qltypes.ConfigScope.DATABASE
+    ):
         raise errors.UnsupportedFeatureError(
             f'CONFIGURE {expr.scope} INSERT is not supported'
         )

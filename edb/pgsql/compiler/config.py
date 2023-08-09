@@ -559,7 +559,9 @@ def top_output_as_config_op(
 
     assert isinstance(ir_set.expr, irast.ConfigCommand)
 
-    if ir_set.expr.scope is qltypes.ConfigScope.INSTANCE:
+    if ir_set.expr.scope in (
+        qltypes.ConfigScope.INSTANCE, qltypes.ConfigScope.DATABASE
+    ):
         alias = env.aliases.get('cfg')
         subrvar = pgast.RangeSubselect(
             subquery=stmt,

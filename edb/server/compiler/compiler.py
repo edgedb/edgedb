@@ -1947,13 +1947,19 @@ def _compile_ql_config_op(
         current_tx.update_session_config(session_config)
 
     elif ql.scope is qltypes.ConfigScope.DATABASE:
-        config_op = ireval.evaluate_to_config_op(ir, schema=schema)
-
-        database_config = config_op.apply(
-            _get_config_spec(ctx, config_op),
-            database_config,
-        )
-        current_tx.update_database_config(database_config)
+        try:
+            config_op = ireval.evaluate_to_config_op(ir, schema=schema)
+        except ireval.UnsupportedExpressionError:
+            # This is a complex config object operation, the
+            # op will be produced by the compiler as json.
+            config_op = None
+        else:
+            database_config = config_op.apply(
+                _get_config_spec(ctx, config_op),
+                database_config,
+            )
+            # HMMMMM
+            current_tx.update_database_config(database_config)
 
     elif ql.scope in (
             qltypes.ConfigScope.INSTANCE, qltypes.ConfigScope.GLOBAL):
@@ -2315,6 +2321,7 @@ def _try_compile(
 
             elif comp.config_scope is qltypes.ConfigScope.DATABASE:
                 unit.database_config = True
+                unit.set_global = True  # XXX: not really right!
 
             if comp.is_backend_setting:
                 unit.backend_config = True
