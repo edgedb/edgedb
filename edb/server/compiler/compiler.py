@@ -179,10 +179,6 @@ class CompileContext:
             )
         return mstate
 
-    def get_config_spec(self) -> config.Spec:
-        return self.state.current_tx().get_config_spec(
-            self.compiler_state.config_spec)
-
 
 DEFAULT_MODULE_ALIASES_MAP: immutables.Map[Optional[str], str] = (
     immutables.Map({None: defines.DEFAULT_MODULE_ALIAS}))
@@ -280,7 +276,6 @@ def new_compiler_context(
         database_config=EMPTY_MAP,
         system_config=EMPTY_MAP,
         cached_reflection=EMPTY_MAP,
-        config_spec=config.FlatSpec()
     )
 
     ctx = CompileContext(
@@ -459,10 +454,6 @@ class Compiler:
         ]
     ]:
 
-        # XXX: PERF! DON'T!
-        config_spec = config.load_ext_spec_from_schema(
-            user_schema, self.state.std_schema)
-
         state = dbstate.CompilerConnectionState(
             user_schema=user_schema,
             global_schema=global_schema,
@@ -471,7 +462,6 @@ class Compiler:
             database_config=database_config,
             system_config=system_config,
             cached_reflection=reflection_cache,
-            config_spec=config_spec,
         )
 
         state.start_tx()
@@ -529,11 +519,6 @@ class Compiler:
         current_database: str,
         current_user: str,
     ) -> List[dbstate.SQLQueryUnit]:
-
-        # XXX: PERF! DON'T!
-        config_spec = config.load_ext_spec_from_schema(
-            user_schema, self.state.std_schema)
-
         state = dbstate.CompilerConnectionState(
             user_schema=user_schema,
             global_schema=global_schema,
@@ -542,7 +527,6 @@ class Compiler:
             database_config=database_config,
             system_config=system_config,
             cached_reflection=reflection_cache,
-            config_spec=config_spec,
         )
         schema = state.current_tx().get_schema(self.state.std_schema)
 
@@ -855,10 +839,6 @@ class Compiler:
         if sess_modaliases is None:
             sess_modaliases = DEFAULT_MODULE_ALIASES_MAP
 
-        # XXX: PERF! DON'T!
-        config_spec = config.load_ext_spec_from_schema(
-            user_schema, self.state.std_schema)
-
         state = dbstate.CompilerConnectionState(
             user_schema=user_schema,
             global_schema=global_schema,
@@ -867,7 +847,6 @@ class Compiler:
             database_config=database_config,
             system_config=system_config,
             cached_reflection=reflection_cache,
-            config_spec=config_spec,
         )
 
         ctx = CompileContext(
@@ -1047,7 +1026,6 @@ class Compiler:
             database_config=EMPTY_MAP,
             system_config=EMPTY_MAP,
             cached_reflection=EMPTY_MAP,
-            config_spec=config.FlatSpec(),
         )
 
         ctx = CompileContext(
@@ -1874,6 +1852,25 @@ def _compile_ql_sess_state(
     )
 
 
+def _get_config_spec(
+    ctx: CompileContext, config_op: config.Operation
+) -> config.Spec:
+    config_spec = ctx.compiler_state.config_spec
+    if config_op.setting_name not in config_spec:
+        # We don't typically bother tracking the user config spec in
+        # the compiler workers (to avoid needing to bother with
+        # transmitting, caching, or computing it). If we hit a config
+        # op that needs it, load the spec.
+        config_spec = config.ChainedSpec(
+            config_spec,
+            config.load_ext_spec_from_schema(
+                ctx.state.current_tx().get_user_schema(),
+                ctx.compiler_state.std_schema,
+            ),
+        )
+    return config_spec
+
+
 def _compile_ql_config_op(
     ctx: CompileContext, ql: qlast.ConfigOp
 ) -> dbstate.SessionStateQuery:
@@ -1944,7 +1941,7 @@ def _compile_ql_config_op(
         config_op = ireval.evaluate_to_config_op(ir, schema=schema)
 
         session_config = config_op.apply(
-            ctx.get_config_spec(),
+            _get_config_spec(ctx, config_op),
             session_config,
         )
         current_tx.update_session_config(session_config)
@@ -1953,7 +1950,7 @@ def _compile_ql_config_op(
         config_op = ireval.evaluate_to_config_op(ir, schema=schema)
 
         database_config = config_op.apply(
-            ctx.get_config_spec(),
+            _get_config_spec(ctx, config_op),
             database_config,
         )
         current_tx.update_database_config(database_config)
@@ -2755,16 +2752,17 @@ def _get_config_val(
         current_tx.get_session_config(),
         current_tx.get_database_config(),
         current_tx.get_system_config(),
-        spec=ctx.get_config_spec(),
+        spec=ctx.compiler_state.config_spec,
         allow_unrecognized=True,
     )
 
 
 def _get_compilation_config_vals(ctx: CompileContext) -> Any:
+    assert ctx.compiler_state.config_spec is not None
     return {
         k: _get_config_val(ctx, k)
-        for k, s in ctx.get_config_spec().items()
-        if s.affects_compilation
+        for k in ctx.compiler_state.config_spec
+        if ctx.compiler_state.config_spec[k].affects_compilation
     }
 
 
