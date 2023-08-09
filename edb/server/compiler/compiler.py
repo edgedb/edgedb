@@ -931,7 +931,14 @@ class Compiler:
             global_schema
         )
 
-        config_ddl = config.to_edgeql(self.state.config_spec, database_config)
+        # XXX: ????
+        config_spec = config.ChainedSpec(
+            self.state.config_spec,
+            config.load_ext_spec_from_schema(
+                user_schema, self.state.std_schema),
+        )
+
+        config_ddl = config.to_edgeql(config_spec, database_config)
 
         schema_ddl = s_ddl.ddl_text_from_schema(
             schema, include_migrations=True)
@@ -1845,6 +1852,25 @@ def _compile_ql_sess_state(
     )
 
 
+def _get_config_spec(
+    ctx: CompileContext, config_op: config.Operation
+) -> config.Spec:
+    config_spec = ctx.compiler_state.config_spec
+    if config_op.setting_name not in config_spec:
+        # We don't typically bother tracking the user config spec in
+        # the compiler workers (to avoid needing to bother with
+        # transmitting, caching, or computing it). If we hit a config
+        # op that needs it, load the spec.
+        config_spec = config.ChainedSpec(
+            config_spec,
+            config.load_ext_spec_from_schema(
+                ctx.state.current_tx().get_user_schema(),
+                ctx.compiler_state.std_schema,
+            ),
+        )
+    return config_spec
+
+
 def _compile_ql_config_op(
     ctx: CompileContext, ql: qlast.ConfigOp
 ) -> dbstate.SessionStateQuery:
@@ -1915,7 +1941,7 @@ def _compile_ql_config_op(
         config_op = ireval.evaluate_to_config_op(ir, schema=schema)
 
         session_config = config_op.apply(
-            ctx.compiler_state.config_spec,
+            _get_config_spec(ctx, config_op),
             session_config,
         )
         current_tx.update_session_config(session_config)
@@ -1924,7 +1950,7 @@ def _compile_ql_config_op(
         config_op = ireval.evaluate_to_config_op(ir, schema=schema)
 
         database_config = config_op.apply(
-            ctx.compiler_state.config_spec,
+            _get_config_spec(ctx, config_op),
             database_config,
         )
         current_tx.update_database_config(database_config)

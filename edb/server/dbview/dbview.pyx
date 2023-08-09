@@ -448,7 +448,16 @@ cdef class DatabaseConnectionView:
             )
 
     cpdef get_config_spec(self):
-        return self._db._index._sys_config_spec
+        # XXX: PERF: DO BETTER; absolutely do not reload it every time
+        local_spec = config.load_ext_spec_from_schema(
+            self.get_user_schema(),
+            self._db._index._std_schema,
+        )
+        return config.ChainedSpec(
+            self._db._index._sys_config_spec,
+            local_spec,
+        )
+        # return self._db._index._sys_config_spec
 
     cdef set_session_config(self, new_conf):
         if self._in_tx:

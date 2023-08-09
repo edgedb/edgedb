@@ -83,7 +83,7 @@ Port = types.ConfigTypeSpec(
 )
 
 
-testspec1 = spec.Spec(
+testspec1 = spec.FlatSpec(
     spec.Setting(
         'int',
         type=int,
