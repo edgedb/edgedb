@@ -458,15 +458,15 @@ def object_type_to_python_type(
 @functools.singledispatch
 def evaluate_to_config_op(
         ir: irast.Base,
-        schema: s_schema.Schema) -> Any:
+        schema: s_schema.Schema) -> config.Operation:
     raise UnsupportedExpressionError(
         f'no config op evaluation handler for {ir.__class__}')
 
 
-@evaluate_to_config_op.register
+@evaluate_to_config_op.register(irast.ConfigSet)
 def evaluate_config_set(
         ir: irast.ConfigSet,
-        schema: s_schema.Schema) -> Any:
+        schema: s_schema.Schema) -> config.Operation:
 
     if ir.scope == qltypes.ConfigScope.GLOBAL:
         raise UnsupportedExpressionError(
@@ -488,10 +488,10 @@ def evaluate_config_set(
     )
 
 
-@evaluate_to_config_op.register
+@evaluate_to_config_op.register(irast.ConfigReset)
 def evaluate_config_reset(
         ir: irast.ConfigReset,
-        schema: s_schema.Schema) -> Any:
+        schema: s_schema.Schema) -> config.Operation:
 
     if ir.selector is not None:
         raise UnsupportedExpressionError(
