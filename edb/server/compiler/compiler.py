@@ -384,6 +384,12 @@ class CompilerState:
     local_intro_query: Optional[str]
     global_intro_query: Optional[str]
 
+    @functools.cached_property
+    def state_serializer_factory(self) -> sertypes.StateSerializerFactory:
+        return sertypes.StateSerializerFactory(
+            self.std_schema, self.config_spec
+        )
+
 
 class Compiler:
 
@@ -2118,6 +2124,8 @@ def _try_compile(
         non_trailing_ctx = dataclasses.replace(
             ctx, output_format=enums.OutputFormat.NONE)
 
+    final_user_schema: Optional[s_schema.Schema] = None
+
     for i, stmt in enumerate(statements):
         is_trailing_stmt = i == statements_len - 1
         stmt_ctx = ctx if is_trailing_stmt else non_trailing_ctx
@@ -2201,6 +2209,7 @@ def _try_compile(
             unit.has_role_ddl = comp.has_role_ddl
             unit.ddl_stmt_id = comp.ddl_stmt_id
             if comp.user_schema is not None:
+                final_user_schema = comp.user_schema
                 unit.user_schema = pickle.dumps(comp.user_schema, -1)
             if comp.cached_reflection is not None:
                 unit.cached_reflection = \
@@ -2219,6 +2228,7 @@ def _try_compile(
             unit.sql = comp.sql
             unit.cacheable = comp.cacheable
             if comp.user_schema is not None:
+                final_user_schema = comp.user_schema
                 unit.user_schema = pickle.dumps(comp.user_schema, -1)
             if comp.cached_reflection is not None:
                 unit.cached_reflection = \
@@ -2248,6 +2258,7 @@ def _try_compile(
             unit.sql = comp.sql
             unit.cacheable = comp.cacheable
             if comp.user_schema is not None:
+                final_user_schema = comp.user_schema
                 unit.user_schema = pickle.dumps(comp.user_schema, -1)
             if comp.cached_reflection is not None:
                 unit.cached_reflection = \
@@ -2350,6 +2361,13 @@ def _try_compile(
         rv.in_type_id = in_type_id.bytes
         rv.in_type_args = in_type_args
         rv.in_type_data = in_type_data
+
+    if final_user_schema:
+        rv.state_serializer = ctx.compiler_state.state_serializer_factory.make(
+            final_user_schema,
+            ctx.state.current_tx().get_global_schema(),
+            ctx.protocol_version,
+        )
 
     # Sanity checks
     for unit in rv:  # pragma: no cover

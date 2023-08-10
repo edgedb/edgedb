@@ -373,6 +373,8 @@ class QueryUnitGroup:
 
     units: List[QueryUnit] = dataclasses.field(default_factory=list)
 
+    state_serializer: Optional[sertypes.StateSerializer] = None
+
     def __iter__(self) -> Iterator[QueryUnit]:
         return iter(self.units)
 
