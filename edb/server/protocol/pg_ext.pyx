@@ -341,7 +341,7 @@ cdef class ConnectionView:
 
 cdef class PgConnection(frontend.FrontendConnection):
     def __init__(self, server, sslctx, endpoint_security, **kwargs):
-        super().__init__(server, **kwargs)
+        super().__init__(server, None, **kwargs)
         self._dbview = ConnectionView()
         self._id = str(<int32_t><uint32_t>(int(self._id) % (2 ** 32)))
         self.prepared_stmts = {}  # via extended query Parse
@@ -437,7 +437,7 @@ cdef class PgConnection(frontend.FrontendConnection):
 
         self.write(buf.end_message())
 
-    async def authenticate(self):
+    async def _handshake(self):
         cdef int16_t proto_ver_major, proto_ver_minor
 
         for first in (True, False):
@@ -480,6 +480,9 @@ cdef class PgConnection(frontend.FrontendConnection):
                         self.sslctx,
                         server_side=True,
                     )
+                    self.tenant = self.server.retrieve_tenant(
+                        self._transport.get_extra_info("ssl_object")
+                    )
                     self.is_tls = True
 
                 elif proto_ver_minor == 5680:  # GSSENCRequest
@@ -503,7 +506,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                         severity="FATAL",
                     )
 
-                await self._handle_startup_message()
+                await super()._handshake()
                 break
 
             else:
@@ -516,10 +519,10 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.secret == secret and
             self._pinned_pgcon is not None and
             not self._pinned_pgcon.idle and
-            self.server._accept_new_tasks
+            self.tenant.accept_new_tasks
         ):
-            self.server.create_task(
-                self.server._cancel_pgcon_operation(self._pinned_pgcon),
+            self.tenant.create_task(
+                self.tenant.cancel_pgcon_operation(self._pinned_pgcon),
                 interruptable=False,
             )
 
@@ -592,7 +595,7 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.debug_print("SASLResponse", len(client_final))
         return client_final
 
-    async def _handle_startup_message(self):
+    async def authenticate(self):
         cdef:
             WriteBuffer msg_buf
             WriteBuffer buf
@@ -638,13 +641,13 @@ cdef class PgConnection(frontend.FrontendConnection):
         logger.debug('successfully authenticated %s in database %s',
                      user, database)
 
-        if not self.server.is_database_connectable(database):
+        if not self.tenant.is_database_connectable(database):
             raise pgerror.InvalidAuthSpec(
                 f'database {database!r} does not accept connections',
                 severity="FATAL",
             )
 
-        self.database = self.server.get_db(dbname=database)
+        self.database = self.tenant.get_db(dbname=database)
         await self.database.introspection()
 
         self.dbname = database
@@ -680,7 +683,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 elif name == "session_authorization":
                     value = user
                 elif name == "application_name":
-                    value = self.server.get_instance_name()
+                    value = self.tenant.get_instance_name()
                 msg_buf.write_str(value, "utf-8")
                 msg_buf.end_message()
                 buf.write_buffer(msg_buf)
@@ -1410,6 +1413,7 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.sql_prepared_stmts_map,
             self.dbname,
             self.username,
+            client_id=self.tenant.client_id,
         )
         self.database.cache_compiled_sql(key, result)
         if self.debug:

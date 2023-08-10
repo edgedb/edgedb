@@ -158,6 +158,7 @@ class CompilerPoolMode(enum.StrEnum):
     Fixed = "fixed"
     OnDemand = "on_demand"
     Remote = "remote"
+    MultiTenant = "fixed_multi_tenant"
 
     def __init__(self, name):
         self.pool_class = None
@@ -175,6 +176,7 @@ class ServerConfig(NamedTuple):
     backend_adaptive_ha: bool
     tenant_id: Optional[str]
     ignore_other_tenants: bool
+    multitenant_config_file: Optional[pathlib.Path]
     log_level: str
     log_to: str
     bootstrap_only: bool
@@ -195,6 +197,7 @@ class ServerConfig(NamedTuple):
     compiler_pool_size: int
     compiler_pool_mode: CompilerPoolMode
     compiler_pool_addr: str
+    compiler_pool_tenant_cache_size: int
     echo_runtime_info: bool
     emit_server_status: str
     temp_dir: bool
@@ -575,6 +578,11 @@ _server_options = [
              'exiting with a catalog incompatibility error.'
     ),
     click.option(
+        '--multitenant-config-file', type=PathPath(), metavar="PATH",
+        envvar="EDGEDB_SERVER_MULTITENANT_CONFIG_FILE",
+        hidden=True,
+    ),
+    click.option(
         '-l', '--log-level',
         envvar="EDGEDB_SERVER_LOG_LEVEL",
         default='i',
@@ -681,6 +689,15 @@ _server_options = [
         help=f'Specify the host[:port] of the compiler pool to connect to, '
              f'only used if --compiler-pool-mode=remote. Default host is '
              f'localhost, port is {defines.EDGEDB_REMOTE_COMPILER_PORT}',
+    ),
+    click.option(
+        "--compiler-pool-tenant-cache-size",
+        hidden=True,
+        type=int,
+        default=100,
+        help="Maximum number of tenants for which each compiler worker can "
+             "cache their schemas, "
+             "only used when --compiler-pool-mode=fixed_multi_tenant"
     ),
     click.option(
         '--echo-runtime-info', type=bool, default=False, is_flag=True,
@@ -806,6 +823,7 @@ _server_options = [
         help='Deprecated: no longer in use.'),
     click.option(
         '--jose-key-mode',
+        envvar="EDGEDB_SERVER_JOSE_KEY_MODE", cls=EnvvarResolver,
         type=click.Choice(
             ['default'] + list(JOSEKeyMode.__members__.values()),
             case_sensitive=True,
@@ -1115,7 +1133,9 @@ def parse_args(**kwargs: Any):
     kwargs['jose_key_mode'] = JOSEKeyMode(kwargs['jose_key_mode'])
 
     if kwargs['compiler_pool_mode'] == 'default':
-        if devmode.is_in_dev_mode():
+        if kwargs['multitenant_config_file']:
+            kwargs['compiler_pool_mode'] = 'fixed_multi_tenant'
+        elif devmode.is_in_dev_mode():
             kwargs['compiler_pool_mode'] = 'on_demand'
         else:
             kwargs['compiler_pool_mode'] = 'fixed'
@@ -1146,11 +1166,13 @@ def parse_args(**kwargs: Any):
             abort('--temp-dir is incompatible with --runstate-dir')
         if kwargs['backend_dsn']:
             abort('--temp-dir is incompatible with --backend-dsn')
+        if kwargs['multitenant_config_file']:
+            abort('--temp-dir is incompatible with --multitenant-config-file')
         kwargs['data_dir'] = kwargs['runstate_dir'] = pathlib.Path(
             tempfile.mkdtemp())
     else:
         if not kwargs['data_dir']:
-            if kwargs['backend_dsn']:
+            if kwargs['backend_dsn'] or kwargs['multitenant_config_file']:
                 pass
             elif devmode.is_in_dev_mode():
                 data_dir = devmode.get_dev_mode_data_dir()
@@ -1164,6 +1186,9 @@ def parse_args(**kwargs: Any):
                       'backend cluster using the --backend-dsn argument')
         elif kwargs['backend_dsn']:
             abort('The -D and --backend-dsn options are mutually exclusive.')
+        elif kwargs['multitenant_config_file']:
+            abort('The -D and --multitenant-config-file options '
+                  'are mutually exclusive.')
 
     if kwargs['tls_key_file'] and not kwargs['tls_cert_file']:
         abort('When --tls-key-file is set, --tls-cert-file must also be set.')
@@ -1267,6 +1292,28 @@ def parse_args(**kwargs: Any):
             )
 
     del kwargs['bootstrap_script']
+
+    if kwargs['multitenant_config_file']:
+        for name in (
+            "tenant_id",
+            "backend_dsn",
+            "backend_adaptive_ha",
+            "bootstrap_only",
+            "bootstrap_command",
+            "bootstrap_command_file",
+            "instance_name",
+            "max_backend_connections",
+            "readiness_state_file",
+            "jwt_sub_allowlist_file",
+            "jwt_revocation_list_file",
+        ):
+            if kwargs.get(name):
+                opt = "--" + name.replace("_", "-")
+                abort(f"The {opt} and --multitenant-config-file options "
+                      f"are mutually exclusive.")
+        if kwargs['compiler_pool_mode'] is not CompilerPoolMode.MultiTenant:
+            abort("must use --compiler-pool-mode=fixed_multi_tenant "
+                  "in multi-tenant mode")
 
     bootstrap_script_text: Optional[str]
     if kwargs['bootstrap_command_file']:

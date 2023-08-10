@@ -82,13 +82,13 @@ async def handle_request(
     object response,
     object db,
     list args,
-    object server,
+    object tenant,
 ):
     response.content_type = b'application/json'
 
     if args == ['status'] and request.method == b'GET':
         try:
-            await heartbeat_check(db, server)
+            await heartbeat_check(db, tenant)
         except Exception as ex:
             return handle_error(request, response, ex)
         else:
@@ -122,7 +122,7 @@ async def handle_request(
 
     response.status = http.HTTPStatus.OK
     try:
-        result = await execute(db, server, queries)
+        result = await execute(db, tenant, queries)
     except Exception as ex:
         return handle_error(request, response, ex)
     else:
@@ -131,12 +131,12 @@ async def handle_request(
         response.body = b'{"kind": "results", "results":' + result + b'}'
 
 
-async def heartbeat_check(db, server):
-    pgcon = await server.acquire_pgcon(db.name)
+async def heartbeat_check(db, tenant):
+    pgcon = await tenant.acquire_pgcon(db.name)
     try:
         await pgcon.sql_execute(b"SELECT 'OK';")
     finally:
-        server.release_pgcon(db.name, pgcon)
+        tenant.release_pgcon(db.name, pgcon)
 
 
 cdef class NotebookConnection(frontend.AbstractFrontendConnection):
@@ -153,13 +153,13 @@ cdef class NotebookConnection(frontend.AbstractFrontendConnection):
         pass
 
 
-async def execute(db, server, queries: list):
-    dbv: dbview.DatabaseConnectionView = await server.new_dbview(
+async def execute(db, tenant, queries: list):
+    dbv: dbview.DatabaseConnectionView = await tenant.new_dbview(
         dbname=db.name,
         query_cache=False,
         protocol_version=edbdef.CURRENT_PROTOCOL,
     )
-    compiler_pool = server.get_compiler_pool()
+    compiler_pool = tenant.server.get_compiler_pool()
     units = await compiler_pool.compile_notebook(
         dbv.dbname,
         dbv.get_user_schema(),
@@ -170,10 +170,11 @@ async def execute(db, server, queries: list):
         queries,
         CURRENT_PROTOCOL,
         50,  # implicit limit
+        client_id=tenant.client_id,
     )
     result = []
     bind_data = None
-    pgcon = await server.acquire_pgcon(db.name)
+    pgcon = await tenant.acquire_pgcon(db.name)
     try:
         await pgcon.sql_execute(b'START TRANSACTION;')
 
@@ -245,6 +246,6 @@ async def execute(db, server, queries: list):
         try:
             await pgcon.sql_execute(b'ROLLBACK;')
         finally:
-            server.release_pgcon(db.name, pgcon)
+            tenant.release_pgcon(db.name, pgcon)
 
     return json.dumps(result).encode()

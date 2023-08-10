@@ -54,13 +54,13 @@ from edb.server import args as edgedb_args
 from edb.server import cluster as edgedb_cluster
 from edb.server import pgcluster
 from edb.server import defines as edgedb_defines
-from edb.server import main as edgedb_main
 from edb.server import pgconnparams
 
 from edb.common import assert_data_shape
 from edb.common import devmode
 from edb.common import debug
 from edb.common import retryloop
+from edb.common import secretkey
 from edb.common import taskgroup
 
 from edb.protocol import protocol as test_protocol
@@ -99,8 +99,8 @@ def get_test_cases(tests):
 
 bag = assert_data_shape.bag
 
-generate_jwk = edgedb_main.generate_jwk
-generate_tls_cert = edgedb_main.generate_tls_cert
+generate_jwk = secretkey.generate_jwk
+generate_tls_cert = secretkey.generate_tls_cert
 
 
 class StubbornHttpConnection(http.client.HTTPSConnection):
@@ -1910,6 +1910,7 @@ class _EdgeDBServer:
         jws_key_file: Optional[os.PathLike] = None,
         jwt_sub_allowlist_file: Optional[os.PathLike] = None,
         jwt_revocation_list_file: Optional[os.PathLike] = None,
+        multitenant_config: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
         extra_args: Optional[List[str]] = None,
     ) -> None:
@@ -1941,6 +1942,7 @@ class _EdgeDBServer:
         self.jws_key_file = jws_key_file
         self.jwt_sub_allowlist_file = jwt_sub_allowlist_file
         self.jwt_revocation_list_file = jwt_revocation_list_file
+        self.multitenant_config = multitenant_config
         self.env = env
         self.extra_args = extra_args
 
@@ -2029,6 +2031,8 @@ class _EdgeDBServer:
             cmd += [
                 '--backend-dsn', pgdsn
             ]
+        elif self.multitenant_config:
+            cmd += ['--multitenant-config-file', self.multitenant_config]
         elif self.data_dir:
             cmd += ['--data-dir', self.data_dir]
         else:
@@ -2114,6 +2118,7 @@ class _EdgeDBServer:
         env = os.environ.copy()
         if self.env:
             env.update(self.env)
+        env.pop("EDGEDB_SERVER_MULTITENANT_CONFIG_FILE", None)
 
         stat_reader, stat_writer = await asyncio.open_connection(sock=status_r)
 
@@ -2163,7 +2168,7 @@ class _EdgeDBServer:
             data = status_task.result()
 
         return _EdgeDBServerData(
-            host='127.0.0.1',
+            host='localhost',
             port=data['port'],
             password=password,
             server_data=data,
@@ -2228,6 +2233,7 @@ def start_edgedb_server(
     jws_key_file: Optional[os.PathLike] = None,
     jwt_sub_allowlist_file: Optional[os.PathLike] = None,
     jwt_revocation_list_file: Optional[os.PathLike] = None,
+    multitenant_config: Optional[str] = None,
     env: Optional[Dict[str, str]] = None,
     extra_args: Optional[List[str]] = None,
 ):
@@ -2238,15 +2244,29 @@ def start_edgedb_server(
                   'runstate_dir; the test is likely to fail or hang. '
                   'Consider specifying the runstate_dir parameter.')
 
-    if adjacent_to and data_dir:
+    if mt_conf := os.environ.get("EDGEDB_SERVER_MULTITENANT_CONFIG_FILE"):
+        if multitenant_config is None and max_allowed_connections == 10:
+            if not any(
+                (adjacent_to, data_dir, backend_dsn, compiler_pool_mode)
+            ):
+                multitenant_config = mt_conf
+                max_allowed_connections = None
+
+    params = locals()
+    exclusives = [
+        name
+        for name in [
+            "adjacent_to",
+            "data_dir",
+            "backend_dsn",
+            "multitenant_config",
+        ]
+        if params[name]
+    ]
+    if len(exclusives) > 1:
         raise RuntimeError(
-            'adjacent_to and data_dir options are mutually exclusive')
-    if backend_dsn and data_dir:
-        raise RuntimeError(
-            'backend_dsn and data_dir options are mutually exclusive')
-    if backend_dsn and adjacent_to:
-        raise RuntimeError(
-            'backend_dsn and adjacent_to options are mutually exclusive')
+            " and ".join(exclusives) + " options are mutually exclusive"
+        )
 
     if not runstate_dir and data_dir:
         runstate_dir = data_dir
@@ -2278,6 +2298,7 @@ def start_edgedb_server(
         jws_key_file=jws_key_file,
         jwt_sub_allowlist_file=jwt_sub_allowlist_file,
         jwt_revocation_list_file=jwt_revocation_list_file,
+        multitenant_config=multitenant_config,
         env=env,
         extra_args=extra_args,
     )

@@ -58,7 +58,7 @@ cdef class Connection:
     async def connect(self):
         await self._protocol.connect()
 
-    async def execute(self, query):
+    async def execute(self, query, state_id=b'\0' * 16, state=b''):
         await self.send(
             messages.Execute(
                 annotations=[],
@@ -70,9 +70,9 @@ cdef class Connection:
                 implicit_limit=0,
                 input_typedesc_id=b'\0' * 16,
                 output_typedesc_id=b'\0' * 16,
-                state_typedesc_id=b'\0' * 16,
+                state_typedesc_id=state_id,
                 arguments=b'',
-                state_data=b'',
+                state_data=state,
             ),
             messages.Sync(),
         )

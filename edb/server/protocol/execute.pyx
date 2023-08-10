@@ -71,6 +71,7 @@ async def execute(
 
     new_types = None
     server = dbv.server
+    tenant = dbv.tenant
 
     data = None
 
@@ -82,12 +83,12 @@ async def execute(
         if not skip_start:
             dbv.start(query_unit)
         if query_unit.create_db_template:
-            await server._on_before_create_db_from_template(
+            await tenant.on_before_create_db_from_template(
                 query_unit.create_db_template,
                 dbv.dbname,
             )
         if query_unit.drop_db:
-            await server._on_before_drop_db(query_unit.drop_db, dbv.dbname)
+            await tenant.on_before_drop_db(query_unit.drop_db, dbv.dbname)
         if query_unit.system_config:
             await execute_system_config(be_conn, dbv, query_unit)
         else:
@@ -144,10 +145,10 @@ async def execute(
                     query_unit.sp_name, query_unit.sp_id)
 
             if query_unit.create_db:
-                await server.introspect_db(query_unit.create_db)
+                await tenant.introspect_db(query_unit.create_db)
 
             if query_unit.drop_db:
-                server._on_after_drop_db(query_unit.drop_db)
+                tenant.on_after_drop_db(query_unit.drop_db)
 
             if config_ops:
                 await dbv.apply_config_ops(be_conn, config_ops)
@@ -177,9 +178,9 @@ async def execute(
                 be_conn.last_state = state
     finally:
         if query_unit.drop_db:
-            server._allow_database_connections(query_unit.drop_db)
+            tenant.allow_database_connections(query_unit.drop_db)
         if query_unit.create_db_template:
-            server._allow_database_connections(
+            tenant.allow_database_connections(
                 query_unit.create_db_template,
             )
 
@@ -379,13 +380,13 @@ async def execute_system_config(
 
 
 def signal_side_effects(dbv, side_effects):
-    server = dbv.server
-    if not server._accept_new_tasks:
+    tenant = dbv.tenant
+    if not tenant.accept_new_tasks:
         return
 
     if side_effects & dbview.SideEffects.SchemaChanges:
-        server.create_task(
-            server._signal_sysevent(
+        tenant.create_task(
+            tenant.signal_sysevent(
                 'schema-changes',
                 dbname=dbv.dbname,
             ),
@@ -393,16 +394,16 @@ def signal_side_effects(dbv, side_effects):
         )
 
     if side_effects & dbview.SideEffects.GlobalSchemaChanges:
-        server.create_task(
-            server._signal_sysevent(
+        tenant.create_task(
+            tenant.signal_sysevent(
                 'global-schema-changes',
             ),
             interruptable=False,
         )
 
     if side_effects & dbview.SideEffects.DatabaseConfigChanges:
-        server.create_task(
-            server._signal_sysevent(
+        tenant.create_task(
+            tenant.signal_sysevent(
                 'database-config-changes',
                 dbname=dbv.dbname,
             ),
@@ -410,24 +411,24 @@ def signal_side_effects(dbv, side_effects):
         )
 
     if side_effects & dbview.SideEffects.DatabaseChanges:
-        server.create_task(
-            server._signal_sysevent(
+        tenant.create_task(
+            tenant.signal_sysevent(
                 'database-changes',
             ),
             interruptable=False,
         )
 
     if side_effects & dbview.SideEffects.InstanceConfigChanges:
-        server.create_task(
-            server._signal_sysevent(
+        tenant.create_task(
+            tenant.signal_sysevent(
                 'system-config-changes',
             ),
             interruptable=False,
         )
 
     if side_effects & dbview.SideEffects.ExtensionChanges:
-        server.create_task(
-            server._signal_sysevent(
+        tenant.create_task(
+            tenant.signal_sysevent(
                 'extension-changes',
             ),
             interruptable=False,
@@ -447,8 +448,8 @@ async def parse_execute_json(
         query_cache_enabled = not (
             debug.flags.disable_qcache or debug.flags.edgeql_compile)
 
-    server = db.server
-    dbv = await server.new_dbview(
+    tenant = db.tenant
+    dbv = await tenant.new_dbview(
         dbname=db.name,
         query_cache=query_cache_enabled,
         protocol_version=edbdef.CURRENT_PROTOCOL,
@@ -464,7 +465,7 @@ async def parse_execute_json(
 
     compiled = await dbv.parse(query_req)
 
-    pgcon = await server.acquire_pgcon(db.name)
+    pgcon = await tenant.acquire_pgcon(db.name)
     try:
         return await execute_json(
             pgcon,
@@ -474,7 +475,7 @@ async def parse_execute_json(
             globals_=globals_,
         )
     finally:
-        server.release_pgcon(db.name, pgcon)
+        tenant.release_pgcon(db.name, pgcon)
 
 
 async def execute_json(

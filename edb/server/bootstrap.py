@@ -77,6 +77,7 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger('edb.server')
+STDLIB_CACHE_FILE_NAME = 'backend-stdlib.pickle'
 
 
 class ClusterMode(enum.IntEnum):
@@ -760,7 +761,7 @@ def prepare_patch(
             schema_class_layout=schema_class_layout
         )
 
-        local_intro_sql, global_intro_sql = _compile_intro_queries_stdlib(
+        local_intro_sql, global_intro_sql = compile_intro_queries_stdlib(
             compiler=compiler,
             user_schema=reflschema,
             reflection=reflection,
@@ -824,13 +825,13 @@ def prepare_patch(
             sysqueries,
             report_configs_typedesc_1_0,
             report_configs_typedesc_2_0,
-        ) = _compile_sys_queries(
+        ) = compile_sys_queries(
             reflschema,
             compiler,
             config_spec,
         )
         updates.update(dict(
-            sysqueries=sysqueries.encode('utf-8'),
+            sysqueries=json.dumps(sysqueries).encode('utf-8'),
             report_configs_typedesc_1_0=report_configs_typedesc_1_0,
             report_configs_typedesc_2_0=report_configs_typedesc_2_0,
             configspec=config.spec_to_json(config_spec).encode('utf-8'),
@@ -1063,7 +1064,7 @@ async def _make_stdlib(
 
     sqltext = current_block.to_string()
 
-    local_intro_sql, global_intro_sql = _compile_intro_queries_stdlib(
+    local_intro_sql, global_intro_sql = compile_intro_queries_stdlib(
         compiler=compiler,
         user_schema=reflschema.get_top_schema(),
         global_schema=schema.get_global_schema(),
@@ -1130,7 +1131,7 @@ async def _amend_stdlib(
     return stdlib._replace(stdschema=schema, reflschema=reflschema), sqltext
 
 
-def _compile_intro_queries_stdlib(
+def compile_intro_queries_stdlib(
     *,
     compiler: edbcompiler.Compiler,
     user_schema: s_schema.Schema,
@@ -1182,6 +1183,34 @@ def _compile_intro_queries_stdlib(
     return local_intro_sql, global_intro_sql
 
 
+def _calculate_src_hash() -> bytes:
+    return buildmeta.hash_dirs(
+        buildmeta.get_cache_src_dirs(), extra_files=[__file__],
+    )
+
+
+def _get_cache_dir() -> pathlib.Path | None:
+    if specified_cache_dir := os.environ.get('_EDGEDB_WRITE_DATA_CACHE_TO'):
+        return pathlib.Path(specified_cache_dir)
+    else:
+        return None
+
+
+def read_data_cache(
+    file_name: str,
+    pickled: bool,
+    *,
+    src_hash: bytes | None = None,
+    cache_dir: pathlib.Path | None = None,
+) -> Any:
+    if src_hash is None:
+        src_hash = _calculate_src_hash()
+    if cache_dir is None:
+        cache_dir = _get_cache_dir()
+    return buildmeta.read_data_cache(
+        src_hash, file_name, source_dir=cache_dir, pickled=pickled)
+
+
 async def _init_stdlib(
     ctx: BootstrapContext,
     testmode: bool,
@@ -1191,23 +1220,22 @@ async def _init_stdlib(
     conn = ctx.conn
     cluster = ctx.cluster
 
-    specified_cache_dir = os.environ.get('_EDGEDB_WRITE_DATA_CACHE_TO')
-    if not specified_cache_dir:
-        cache_dir = None
-    else:
-        cache_dir = pathlib.Path(specified_cache_dir)
+    tpldbdump_cache = 'backend-tpldbdump.sql'
+    src_hash = _calculate_src_hash()
+    cache_dir = _get_cache_dir()
 
-    stdlib_cache = f'backend-stdlib.pickle'
-    tpldbdump_cache = f'backend-tpldbdump.sql'
-
-    src_hash = buildmeta.hash_dirs(
-        buildmeta.get_cache_src_dirs(), extra_files=[__file__],
+    stdlib = read_data_cache(
+        STDLIB_CACHE_FILE_NAME,
+        pickled=True,
+        src_hash=src_hash,
+        cache_dir=cache_dir,
     )
-
-    stdlib = buildmeta.read_data_cache(
-        src_hash, stdlib_cache, source_dir=cache_dir)
-    tpldbdump = buildmeta.read_data_cache(
-        src_hash, tpldbdump_cache, source_dir=cache_dir, pickled=False)
+    tpldbdump = read_data_cache(
+        tpldbdump_cache,
+        pickled=False,
+        src_hash=src_hash,
+        cache_dir=cache_dir,
+    )
 
     if stdlib is None:
         logger.info('Compiling the standard library...')
@@ -1225,7 +1253,7 @@ async def _init_stdlib(
         logger.info('Executing the standard library...')
         await _execute(conn, stdlib.sqltext)
 
-        if in_dev_mode or specified_cache_dir:
+        if in_dev_mode or cache_dir:
             tpl_db_name = edbdef.EDGEDB_TEMPLATE_DB
             tpl_pg_db_name = cluster.get_db_name(tpl_db_name)
             tpl_pg_db_name_dyn = (
@@ -1306,7 +1334,7 @@ async def _init_stdlib(
             buildmeta.write_data_cache(
                 stdlib,
                 src_hash,
-                stdlib_cache,
+                STDLIB_CACHE_FILE_NAME,
                 target_dir=cache_dir,
             )
     else:
@@ -1548,11 +1576,11 @@ async def _configure(
             await _execute(ctx.conn, sql)
 
 
-def _compile_sys_queries(
+def compile_sys_queries(
     schema: s_schema.Schema,
     compiler: edbcompiler.Compiler,
     config_spec: config.Spec,
-) -> tuple[str, bytes, bytes]:
+) -> tuple[dict[str, str], bytes, bytes]:
     queries = {}
 
     _, sql = compile_bootstrap_script(
@@ -1677,7 +1705,7 @@ def _compile_sys_queries(
     report_configs_typedesc_1_0 = units[0].out_type_id + units[0].out_type_data
 
     return (
-        json.dumps(queries),
+        queries,
         report_configs_typedesc_1_0,
         report_configs_typedesc_2_0,
     )
@@ -2105,7 +2133,7 @@ async def _bootstrap(ctx: BootstrapContext) -> edbcompiler.CompilerState:
             sysqueries,
             report_configs_typedesc_1_0,
             report_configs_typedesc_2_0,
-        ) = _compile_sys_queries(
+        ) = compile_sys_queries(
             stdlib.reflschema,
             compiler,
             config_spec,
@@ -2114,7 +2142,7 @@ async def _bootstrap(ctx: BootstrapContext) -> edbcompiler.CompilerState:
         await _store_static_json_cache(
             tpl_ctx,
             f'sysqueries{version_key}',
-            sysqueries,
+            json.dumps(sysqueries),
         )
 
         await _store_static_bin_cache(

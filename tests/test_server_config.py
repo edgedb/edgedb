@@ -21,6 +21,7 @@ import asyncio
 import dataclasses
 import datetime
 import json
+import os
 import platform
 import random
 import tempfile
@@ -36,6 +37,7 @@ from edb import buildmeta
 from edb import errors
 from edb.edgeql import qltypes
 from edb.edgeql import quote as qlquote
+from edb.protocol import messages
 
 from edb.testbase import server as tb
 from edb.schema import objects as s_obj
@@ -1315,6 +1317,10 @@ class TestSeparateCluster(tb.TestCase):
         platform.system() == "Darwin",
         "loopback aliases aren't set up on macOS by default"
     )
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "cannot use CONFIGURE INSTANCE in multi-tenant mode",
+    )
     async def test_server_proto_configure_listen_addresses(self):
         con1 = con2 = con3 = con4 = con5 = None
 
@@ -1371,6 +1377,10 @@ class TestSeparateCluster(tb.TestCase):
                         closings.append(con.aclose())
                 await asyncio.gather(*closings)
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "cannot use CONFIGURE SYSTEM in multi-tenant mode",
+    )
     async def test_server_config_idle_connection_01(self):
         async with tb.start_edgedb_server(
             http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
@@ -1407,6 +1417,10 @@ class TestSeparateCluster(tb.TestCase):
             metrics
         )
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "cannot use CONFIGURE SYSTEM in multi-tenant mode",
+    )
     async def test_server_config_idle_connection_02(self):
         from edb import protocol
 
@@ -1459,7 +1473,11 @@ class TestSeparateCluster(tb.TestCase):
                     ignore=AssertionError):
                 async with tr:
                     info = sd.fetch_server_info()
-                    dbconf = info['databases']['edgedb']['config']
+                    if 'databases' in info:
+                        databases = info['databases']
+                    else:
+                        databases = info['tenants']['localhost']['databases']
+                    dbconf = databases['edgedb']['config']
                     self.assertEqual(
                         dbconf.get('__internal_sess_testvalue'), 5)
 
@@ -1477,12 +1495,19 @@ class TestSeparateCluster(tb.TestCase):
                     ignore=AssertionError):
                 async with tr:
                     info = sd.fetch_server_info()
-                    dbconf = info['databases']['edgedb']['config']
+                    if 'databases' in info:
+                        databases = info['databases']
+                    else:
+                        databases = info['tenants']['localhost']['databases']
+                    dbconf = databases['edgedb']['config']
                     self.assertEqual(
                         dbconf.get('__internal_sess_testvalue'), 10)
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "cannot use CONFIGURE INSTANCE in multi-tenant mode",
+    )
     async def test_server_config_backend_levels(self):
-
         async def assert_conf(con, name, expected_val):
             val = await con.query_single(f'''
                 select assert_single(cfg::Config.{name})
@@ -1675,27 +1700,49 @@ class TestSeparateCluster(tb.TestCase):
         ) as sd:
             conn = await sd.connect_test_protocol()
 
-            await conn.execute('''
+            query = '''
                 configure session set
                     session_idle_transaction_timeout :=
                         <duration>'1 second'
-            ''')
+            '''
+            await conn.send(
+                messages.Execute(
+                    annotations=[],
+                    command_text=query,
+                    output_format=messages.OutputFormat.NONE,
+                    expected_cardinality=messages.Cardinality.MANY,
+                    allowed_capabilities=messages.Capability.ALL,
+                    compilation_flags=messages.CompilationFlag(9),
+                    implicit_limit=0,
+                    input_typedesc_id=b'\0' * 16,
+                    output_typedesc_id=b'\0' * 16,
+                    state_typedesc_id=b'\0' * 16,
+                    arguments=b'',
+                    state_data=b'',
+                ),
+                messages.Sync(),
+            )
+            state_msg = await conn.recv_match(messages.CommandComplete)
+            await conn.recv_match(messages.ReadyForCommand)
 
-            await conn.execute('''
+            await conn.execute(
+                '''
                 start transaction
-            ''')
+                ''',
+                state_id=state_msg.state_typedesc_id,
+                state=state_msg.state_data,
+            )
 
-            await conn.execute('''
-                select sys::_sleep(4)
-            ''')
-
-            await conn.recv_match(
+            await asyncio.wait_for(conn.recv_match(
                 protocol.ErrorResponse,
                 message='terminating connection due to '
                         'idle-in-transaction timeout'
-            )
+            ), 8)
 
-            with self.assertRaises(edgedb.ClientConnectionClosedError):
+            with self.assertRaises((
+                edgedb.ClientConnectionFailedTemporarilyError,
+                edgedb.ClientConnectionClosedError,
+            )):
                 await conn.execute('''
                     select 1
                 ''')
@@ -1856,6 +1903,10 @@ class TestStaticServerConfig(tb.TestCase):
             async with tb.start_edgedb_server(env=env):
                 pass
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "cannot use CONFIGURE INSTANCE in multi-tenant mode",
+    )
     async def test_server_config_default(self):
         p1 = tb.find_available_port(max_value=32767)
         async with tb.start_edgedb_server(

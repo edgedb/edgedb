@@ -25,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import unittest.mock
 
 import immutables
 
@@ -387,11 +388,19 @@ class TestCompilerPool(tbs.TestCase):
 
     async def _test_pool_disconnect_queue(self, pool_class):
         with tempfile.TemporaryDirectory() as td:
-            pool_ = await pool.create_compiler_pool(
+            pool_ = pool.create_compiler_pool(
                 runstate_dir=td,
                 pool_size=2,
-                dbindex=dbview.DatabaseIndex(
-                    None,
+                backend_runtime_params=None,
+                std_schema=self._std_schema,
+                refl_schema=self._refl_schema,
+                schema_class_layout=self._schema_class_layout,
+                pool_class=pool_class,
+            )
+            pool_.add_dbindex(
+                0,
+                dbview.DatabaseIndex(
+                    unittest.mock.MagicMock(),
                     std_schema=self._std_schema,
                     global_schema=None,
                     sys_config={},
@@ -399,12 +408,8 @@ class TestCompilerPool(tbs.TestCase):
                     sys_config_spec=config.load_spec_from_schema(
                         self._std_schema),
                 ),
-                backend_runtime_params=None,
-                std_schema=self._std_schema,
-                refl_schema=self._refl_schema,
-                schema_class_layout=self._schema_class_layout,
-                pool_class=pool_class,
             )
+            await pool_.start()
             # HACK: For adaptive pool, force the creation of a second
             # worker. This is needed to work around issue #4680, where
             # we won't scale up from a single connection.

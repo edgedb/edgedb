@@ -192,11 +192,15 @@ cdef class Database:
     def server(self):
         return self._index._server
 
+    @property
+    def tenant(self):
+        return self._index._tenant
+
     cdef schedule_config_update(self):
-        self._index._server._on_local_database_config_change(self.name)
+        self._index._tenant.on_local_database_config_change(self.name)
 
     cdef schedule_extensions_update(self):
-        self._index._server._on_database_extensions_changes(self.name)
+        self._index._tenant.on_database_extensions_changes(self.name)
 
     cdef _set_and_signal_new_user_schema(
         self,
@@ -286,7 +290,7 @@ cdef class Database:
         if self.user_schema is None:
             async with self._introspection_lock:
                 if self.user_schema is None:
-                    await self._index._server.introspect_db(self.name)
+                    await self.tenant.introspect_db(self.name)
 
 
 cdef class DatabaseConnectionView:
@@ -721,6 +725,10 @@ cdef class DatabaseConnectionView:
     def server(self):
         return self._db._index._server
 
+    @property
+    def tenant(self):
+        return self._db._index._tenant
+
     cpdef in_tx(self):
         return self._in_tx
 
@@ -850,7 +858,7 @@ cdef class DatabaseConnectionView:
                     pickle.loads(query_unit.global_schema))
             if query_unit.has_role_ddl:
                 side_effects |= SideEffects.RoleChanges
-                self._db._index._server._fetch_roles()
+                self._db.tenant.fetch_roles()
             if query_unit.create_ext or query_unit.drop_ext:
                 side_effects |= SideEffects.ExtensionChanges
                 self._db.schedule_extensions_update()
@@ -891,7 +899,7 @@ cdef class DatabaseConnectionView:
                 side_effects |= SideEffects.GlobalSchemaChanges
                 self._db._index.update_global_schema(
                     pickle.loads(query_unit.global_schema))
-                self._db._index._server._fetch_roles()
+                self._db.tenant.fetch_roles()
             if self._in_tx_with_role_ddl:
                 side_effects |= SideEffects.RoleChanges
 
@@ -936,7 +944,7 @@ cdef class DatabaseConnectionView:
             side_effects |= SideEffects.GlobalSchemaChanges
             self._db._index.update_global_schema(
                 pickle.loads(global_schema))
-            self._db._index._server._fetch_roles()
+            self._db.tenant.fetch_roles()
         if self._in_tx_with_role_ddl:
             side_effects |= SideEffects.RoleChanges
 
@@ -1077,6 +1085,7 @@ cdef class DatabaseConnectionView:
                     self._protocol_version,
                     query_req.inline_objectids,
                     query_req.input_format is compiler.InputFormat.JSON,
+                    client_id=self.tenant.client_id,
                 )
         finally:
             metrics.edgeql_query_compilation_duration.observe(
@@ -1104,8 +1113,8 @@ cdef class DatabaseConnectionView:
         error_constructor,
         reason,
     ):
-        if not self.server.is_online():
-            readiness_reason = self.server.get_readiness_reason()
+        if not self.tenant.is_online():
+            readiness_reason = self.tenant.get_readiness_reason()
             msg = "the server is going offline"
             if readiness_reason:
                 msg = f"{msg}: {readiness_reason}"
@@ -1126,9 +1135,9 @@ cdef class DatabaseConnectionView:
                 reason,
             )
 
-        if self.server.is_readonly():
+        if self.tenant.is_readonly():
             if query_capabilities & enums.Capability.WRITE:
-                readiness_reason = self.server.get_readiness_reason()
+                readiness_reason = self.tenant.get_readiness_reason()
                 msg = "the server is currently in read-only mode"
                 if readiness_reason:
                     msg = f"{msg}: {readiness_reason}"
@@ -1143,7 +1152,7 @@ cdef class DatabaseIndex:
 
     def __init__(
         self,
-        server,
+        tenant,
         *,
         std_schema,
         global_schema,
@@ -1152,7 +1161,8 @@ cdef class DatabaseIndex:
         sys_config_spec,
     ):
         self._dbs = {}
-        self._server = server
+        self._server = tenant.server
+        self._tenant = tenant
         self._std_schema = std_schema
         self._global_schema = global_schema
         self._default_sysconfig = default_sysconfig
@@ -1246,10 +1256,10 @@ cdef class DatabaseIndex:
         )
         block = dbops.PLTopBlock()
         metadata = {'sysconfig': json.loads(data)}
-        if self._server.get_backend_runtime_params().has_create_database:
+        if self._tenant.get_backend_runtime_params().has_create_database:
             dbops.UpdateMetadata(
                 dbops.Database(
-                    name=self._server.get_pg_dbname(defines.EDGEDB_SYSTEM_DB),
+                    name=self._tenant.get_pg_dbname(defines.EDGEDB_SYSTEM_DB),
                 ),
                 metadata,
             ).generate(block)

@@ -23,19 +23,18 @@ from typing import *
 import asyncio
 import contextlib
 import dataclasses
-import datetime
 import logging
 import os
 import os.path
 import pathlib
+
+import immutables
 import resource
 import signal
 import sys
 import tempfile
-import uuid
 
 import click
-from jwcrypto import jwk
 import setproctitle
 import uvloop
 
@@ -130,10 +129,36 @@ def _ensure_runstate_dir(
 
 
 @contextlib.contextmanager
-def _internal_state_dir(runstate_dir):
+def _internal_state_dir(
+    runstate_dir: pathlib.Path, args: srvargs.ServerConfig
+) -> Iterator[Tuple[str, srvargs.ServerConfig]]:
     try:
         with tempfile.TemporaryDirectory(prefix="", dir=runstate_dir) as td:
-            yield td
+            if (
+                args.tls_cert_file
+                and '<runstate>' in str(args.tls_cert_file)
+            ):
+                args = args._replace(
+                    tls_cert_file=pathlib.Path(
+                        str(args.tls_cert_file).replace(
+                            '<runstate>', td)
+                    ),
+                    tls_key_file=pathlib.Path(
+                        str(args.tls_key_file).replace(
+                            '<runstate>', td)
+                    )
+                )
+            if (
+                args.jws_key_file
+                and '<runstate>' in str(args.jws_key_file)
+            ):
+                args = args._replace(
+                    jws_key_file=pathlib.Path(
+                        str(args.jws_key_file).replace(
+                            '<runstate>', td)
+                    ),
+                )
+            yield td, args
     except PermissionError as ex:
         abort(f'cannot write to the runstate directory: '
               f'{ex!s}; please fix the permissions or use '
@@ -183,14 +208,28 @@ async def _run_server(
         logger.info("detected service manager socket activation")
 
     with signalctl.SignalController(signal.SIGINT, signal.SIGTERM) as sc:
+        from . import tenant as edbtenant
+
+        # max_backend_connections should've been calculated already by now
+        assert args.max_backend_connections is not None
+        tenant = edbtenant.Tenant(
+            cluster,
+            instance_name=args.instance_name,
+            max_backend_connections=args.max_backend_connections,
+            backend_adaptive_ha=args.backend_adaptive_ha,
+            readiness_state_file=args.readiness_state_file,
+            jwt_sub_allowlist_file=args.jwt_sub_allowlist_file,
+            jwt_revocation_list_file=args.jwt_revocation_list_file,
+        )
         ss = server.Server(
-            cluster=cluster,
             runstate_dir=runstate_dir,
             internal_runstate_dir=internal_runstate_dir,
-            max_backend_connections=args.max_backend_connections,
             compiler_pool_size=args.compiler_pool_size,
             compiler_pool_mode=args.compiler_pool_mode,
             compiler_pool_addr=args.compiler_pool_addr,
+            compiler_pool_tenant_cache_size=(
+                args.compiler_pool_tenant_cache_size
+            ),
             nethosts=args.bind_addresses,
             netport=args.port,
             listen_sockets=tuple(s for ss in sockets.values() for s in ss),
@@ -200,14 +239,13 @@ async def _run_server(
             startup_script=args.startup_script,
             binary_endpoint_security=args.binary_endpoint_security,
             http_endpoint_security=args.http_endpoint_security,
-            backend_adaptive_ha=args.backend_adaptive_ha,
             default_auth_method=args.default_auth_method,
             testmode=args.testmode,
             new_instance=new_instance,
             admin_ui=args.admin_ui,
-            instance_name=args.instance_name,
             disable_dynamic_system_config=args.disable_dynamic_system_config,
             compiler_state=compiler_state,
+            tenant=tenant,
         )
         # This coroutine runs as long as the server,
         # and compiler_state is *heavy*, so make sure we don't
@@ -215,54 +253,27 @@ async def _run_server(
         del compiler_state
         await sc.wait_for(ss.init())
 
-        tls_cert_newly_generated = False
-        if args.tls_cert_mode is srvargs.ServerTlsCertMode.SelfSigned:
-            assert args.tls_cert_file is not None
-            if not args.tls_cert_file.exists():
-                assert args.tls_key_file is not None
-                generate_tls_cert(
-                    args.tls_cert_file,
-                    args.tls_key_file,
-                    ss.get_listen_hosts(),
-                )
-                tls_cert_newly_generated = True
-
-        jws_keys_newly_generated = False
-        if args.jose_key_mode is srvargs.JOSEKeyMode.Generate:
-            assert args.jws_key_file is not None
-            if not args.jws_key_file.exists():
-                generate_jwk(args.jws_key_file)
-                jws_keys_newly_generated = True
+        (
+            tls_cert_newly_generated, jws_keys_newly_generated
+        ) = await ss.maybe_generate_pki(args, ss)
 
         if args.bootstrap_only:
             if args.startup_script and new_instance:
                 await sc.wait_for(ss.run_startup_script_and_exit())
             return
 
-        if args.readiness_state_file:
-            ss.init_readiness_state(args.readiness_state_file)
-
         ss.init_tls(
             args.tls_cert_file, args.tls_key_file, tls_cert_newly_generated)
 
-        ss.init_jwcrypto(
-            args.jws_key_file,
-            args.jwt_sub_allowlist_file,
-            args.jwt_revocation_list_file,
-            jws_keys_newly_generated,
-        )
+        ss.init_jwcrypto(args.jws_key_file, jws_keys_newly_generated)
 
         def load_configuration(_signum):
             logger.info("reloading configuration")
             try:
                 if args.readiness_state_file:
-                    ss.reload_readiness_state(args.readiness_state_file)
+                    tenant.reload_readiness_state()
                 ss.reload_tls(args.tls_cert_file, args.tls_key_file)
-                ss.load_jwcrypto(
-                    args.jws_key_file,
-                    args.jwt_sub_allowlist_file,
-                    args.jwt_revocation_list_file,
-                )
+                ss.load_jwcrypto(args.jws_key_file)
             except Exception:
                 logger.critical(
                     "Unexpected error occurred during reload configuration; "
@@ -296,78 +307,6 @@ async def _run_server(
             service_manager.sd_notify('STOPPING=1')
             logger.info('Shutting down.')
             await sc.wait_for(ss.stop())
-
-
-def generate_tls_cert(
-    tls_cert_file: pathlib.Path,
-    tls_key_file: pathlib.Path,
-    listen_hosts: Iterable[str]
-) -> None:
-    logger.info(f'generating self-signed TLS certificate in "{tls_cert_file}"')
-
-    from cryptography import x509
-    from cryptography.hazmat import backends
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.asymmetric import rsa
-    from cryptography.x509 import oid
-
-    backend = backends.default_backend()
-    private_key = rsa.generate_private_key(
-        public_exponent=65537, key_size=2048, backend=backend
-    )
-    subject = x509.Name(
-        [x509.NameAttribute(oid.NameOID.COMMON_NAME, "EdgeDB Server")]
-    )
-    certificate = (
-        x509.CertificateBuilder()
-        .subject_name(subject)
-        .public_key(private_key.public_key())
-        .serial_number(int(uuid.uuid4()))
-        .issuer_name(subject)
-        .not_valid_before(
-            datetime.datetime.today() - datetime.timedelta(days=1)
-        )
-        .not_valid_after(
-            datetime.datetime.today() + datetime.timedelta(weeks=1000)
-        )
-        .add_extension(
-            x509.SubjectAlternativeName(
-                [
-                    x509.DNSName(name) for name in listen_hosts
-                    if name not in {'0.0.0.0', '::'}
-                ]
-            ),
-            critical=False,
-        )
-        .sign(
-            private_key=private_key,
-            algorithm=hashes.SHA256(),
-            backend=backend,
-        )
-    )
-    with tls_cert_file.open("wb") as f:
-        f.write(certificate.public_bytes(encoding=serialization.Encoding.PEM))
-    tls_cert_file.chmod(0o644)
-    with tls_key_file.open("wb") as f:
-        f.write(
-            private_key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.TraditionalOpenSSL,
-                encryption_algorithm=serialization.NoEncryption(),
-            )
-        )
-    tls_key_file.chmod(0o600)
-
-
-def generate_jwk(keys_file: pathlib.Path) -> None:
-    logger.info(f'generating JOSE key pair in "{keys_file}"')
-
-    key = jwk.JWK(generate='EC')
-    with keys_file.open("wb") as f:
-        f.write(key.export_to_pem(private_key=True, password=None))
-
-    keys_file.chmod(0o600)
 
 
 async def _get_local_pgcluster(
@@ -456,7 +395,10 @@ async def run_server(
     server = server_mod
 
     logger.info(f"starting EdgeDB server {buildmeta.get_version_line()}")
-    logger.info(f'instance name: {args.instance_name!r}')
+    if args.multitenant_config_file:
+        logger.info("configured as a multitenant instance")
+    else:
+        logger.info(f'instance name: {args.instance_name!r}')
     if devmode.is_in_dev_mode():
         logger.info(f'development mode active')
 
@@ -528,6 +470,88 @@ async def run_server(
                 exit_code=11,
             )
 
+        if args.multitenant_config_file:
+            from edb.schema import reflection as s_refl
+            from . import bootstrap
+            from . import multitenant
+
+            try:
+                stdlib: bootstrap.StdlibBits | None
+                stdlib = bootstrap.read_data_cache(
+                    bootstrap.STDLIB_CACHE_FILE_NAME, pickled=True
+                )
+                if stdlib is None:
+                    abort(
+                        "Cannot run multi-tenant server "
+                        "without pre-compiled standard library"
+                    )
+
+                compiler = edbcompiler.new_compiler(
+                    stdlib.stdschema,
+                    stdlib.reflschema,
+                    stdlib.classlayout,
+                    config_spec=None,
+                )
+                reflection = s_refl.generate_structure(
+                    stdlib.reflschema, make_funcs=False,
+                )
+                (
+                    local_intro_sql, global_intro_sql
+                ) = bootstrap.compile_intro_queries_stdlib(
+                    compiler=compiler,
+                    user_schema=stdlib.reflschema,
+                    reflection=reflection,
+                )
+                compiler_state = edbcompiler.CompilerState(
+                    std_schema=compiler.state.std_schema,
+                    refl_schema=compiler.state.refl_schema,
+                    schema_class_layout=stdlib.classlayout,
+                    backend_runtime_params=(
+                        compiler.state.backend_runtime_params
+                    ),
+                    config_spec=compiler.state.config_spec,
+                    local_intro_query=local_intro_sql,
+                    global_intro_query=global_intro_sql,
+                )
+                (
+                    sys_queries,
+                    report_configs_typedesc_1_0,
+                    report_configs_typedesc_2_0,
+                ) = bootstrap.compile_sys_queries(
+                    stdlib.reflschema,
+                    compiler,
+                    compiler_state.config_spec,
+                )
+
+                sys_config, backend_settings = initialize_static_cfg(
+                    args,
+                    is_remote_cluster=True,
+                    config_spec=compiler_state.config_spec,
+                )
+                with _internal_state_dir(runstate_dir, args) as (
+                    int_runstate_dir,
+                    args,
+                ):
+                    return await multitenant.run_server(
+                        args,
+                        sys_config=sys_config,
+                        backend_settings=backend_settings,
+                        sys_queries={
+                            key: sql.encode("utf-8")
+                            for key, sql in sys_queries.items()
+                        },
+                        report_config_typedesc={
+                            (1, 0): report_configs_typedesc_1_0,
+                            (2, 0): report_configs_typedesc_2_0,
+                        },
+                        runstate_dir=runstate_dir,
+                        internal_runstate_dir=int_runstate_dir,
+                        do_setproctitle=do_setproctitle,
+                        compiler_state=compiler_state,
+                    )
+            except server.StartupError as e:
+                abort(str(e))
+
         try:
             if args.data_dir:
                 cluster, args = await _get_local_pgcluster(
@@ -571,14 +595,11 @@ async def run_server(
 
             new_instance, compiler_state = await _init_cluster(cluster, args)
 
-            cfg, backend_settings = initialize_static_cfg(
+            _, backend_settings = initialize_static_cfg(
                 args,
                 is_remote_cluster=not is_local_cluster,
                 config_spec=compiler_state.config_spec,
             )
-            if cfg:
-                from . import pgcon
-                pgcon.set_init_con_script_data(cfg)
 
             if is_local_cluster and (new_instance or backend_settings):
                 logger.info('Restarting server to reload configuration...')
@@ -619,32 +640,10 @@ async def run_server(
 
                 cluster.set_connection_params(conn_params)
 
-                with _internal_state_dir(runstate_dir) as int_runstate_dir:
-                    if (
-                        args.tls_cert_file
-                        and '<runstate>' in str(args.tls_cert_file)
-                    ):
-                        args = args._replace(
-                            tls_cert_file=pathlib.Path(
-                                str(args.tls_cert_file).replace(
-                                    '<runstate>', int_runstate_dir)
-                            ),
-                            tls_key_file=pathlib.Path(
-                                str(args.tls_key_file).replace(
-                                    '<runstate>', int_runstate_dir)
-                            )
-                        )
-                    if (
-                        args.jws_key_file
-                        and '<runstate>' in str(args.jws_key_file)
-                    ):
-                        args = args._replace(
-                            jws_key_file=pathlib.Path(
-                                str(args.jws_key_file).replace(
-                                    '<runstate>', int_runstate_dir)
-                            ),
-                        )
-
+                with _internal_state_dir(runstate_dir, args) as (
+                    int_runstate_dir,
+                    args,
+                ):
                     await _run_server(
                         cluster,
                         args,
@@ -769,11 +768,16 @@ def initialize_static_cfg(
     args: srvargs.ServerConfig,
     is_remote_cluster: bool,
     config_spec: config.Spec
-) -> Tuple[List[Dict[str, Any]], Dict[str, str]]:
-    result = []
+) -> Tuple[Mapping[str, config.SettingValue], Dict[str, str]]:
+    result = {}
+    init_con_script_data = []
     backend_settings = {}
     command_line_argument = "A"
     environment_variable = "E"
+    sources = {
+        command_line_argument: "command line argument",
+        environment_variable: "environment variable",
+    }
 
     def add_config(name, value, type_):
         setting = config_spec[name]
@@ -788,11 +792,17 @@ def initialize_static_cfg(
                     f"a remote Postgres cluster"
                 )
         value = _coerce_cfg_value(setting, value)
-        result.append({
+        init_con_script_data.append({
             "name": name,
             "value": config.value_to_json_value(setting, value),
             "type": type_,
         })
+        result[name] = config.SettingValue(
+            name=name,
+            value=value,
+            source=sources[type_],
+            scope=config.ConfigScope.INSTANCE,
+        )
         if setting.backend_setting:
             if isinstance(value, statypes.ScalarType):
                 value = value.to_backend_str()
@@ -840,7 +850,11 @@ def initialize_static_cfg(
     if args.port:
         add_config("listen_port", args.port, command_line_argument)
 
-    return result, backend_settings
+    if init_con_script_data:
+        from . import pgcon
+        pgcon.set_init_con_script_data(init_con_script_data)
+
+    return immutables.Map(result), backend_settings
 
 
 if __name__ == '__main__':

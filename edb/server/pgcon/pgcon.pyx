@@ -558,6 +558,7 @@ cdef class PGConnection:
 
         self.pgaddr = addr
         self.server = None
+        self.tenant = None
         self.is_system_db = False
         self.close_requested = False
 
@@ -643,11 +644,12 @@ cdef class PGConnection:
     async def close(self):
         self.terminate()
 
-    def set_server(self, server):
-        self.server = server
+    def set_tenant(self, tenant):
+        self.tenant = tenant
+        self.server = tenant.server
 
     def mark_as_system_db(self):
-        if self.server.get_backend_runtime_params().has_create_database:
+        if self.tenant.get_backend_runtime_params().has_create_database:
             assert defines.EDGEDB_SYSTEM_DB in self.dbname
         self.is_system_db = True
 
@@ -656,7 +658,7 @@ cdef class PGConnection:
 
     async def listen_for_sysevent(self):
         try:
-            if self.server.get_backend_runtime_params().has_create_database:
+            if self.tenant.get_backend_runtime_params().has_create_database:
                 assert defines.EDGEDB_SYSTEM_DB in self.dbname
             await self.sql_execute(b'LISTEN __edgedb_sysevent__;')
         except Exception:
@@ -666,7 +668,7 @@ cdef class PGConnection:
                 raise
 
     async def signal_sysevent(self, event, **kwargs):
-        if self.server.get_backend_runtime_params().has_create_database:
+        if self.tenant.get_backend_runtime_params().has_create_database:
             assert defines.EDGEDB_SYSTEM_DB in self.dbname
         event = json.dumps({
             'event': event,
@@ -2792,8 +2794,8 @@ cdef class PGConnection:
                     )
 
                     if self.is_system_db:
-                        self.server.set_pg_unavailable_msg(pgmsg)
-                        self.server._on_sys_pgcon_failover_signal()
+                        self.tenant.set_pg_unavailable_msg(pgmsg)
+                        self.tenant.on_sys_pgcon_failover_signal()
 
                 else:
                     pgmsg = fields.get('M', '<empty message>')
@@ -2813,7 +2815,7 @@ cdef class PGConnection:
             # ParameterStatus
             name, value = self.parse_parameter_status_message()
             if self.is_system_db:
-                self.server._on_sys_pgcon_parameter_status_updated(name, value)
+                self.tenant.on_sys_pgcon_parameter_status_updated(name, value)
             self.parameter_status[name] = value
             return True
 
@@ -2846,21 +2848,21 @@ cdef class PGConnection:
                 event_payload = event_data.get('args')
                 if event == 'schema-changes':
                     dbname = event_payload['dbname']
-                    self.server._on_remote_ddl(dbname)
+                    self.tenant.on_remote_ddl(dbname)
                 elif event == 'database-config-changes':
                     dbname = event_payload['dbname']
-                    self.server._on_remote_database_config_change(dbname)
+                    self.tenant.on_remote_database_config_change(dbname)
                 elif event == 'system-config-changes':
-                    self.server._on_remote_system_config_change()
+                    self.tenant.on_remote_system_config_change()
                 elif event == 'global-schema-changes':
-                    self.server._on_global_schema_change()
+                    self.tenant.on_global_schema_change()
                 elif event == 'database-changes':
-                    self.server._on_remote_database_changes()
+                    self.tenant.on_remote_database_changes()
                 elif event == 'extension-changes':
-                    self.server._on_database_extensions_changes()
+                    self.tenant.on_database_extensions_changes()
                 elif event == 'ensure-database-not-used':
                     dbname = event_payload['dbname']
-                    self.server._on_remote_database_quarantine(dbname)
+                    self.tenant.on_remote_database_quarantine(dbname)
                 else:
                     raise AssertionError(f'unexpected system event: {event!r}')
 
@@ -3083,12 +3085,12 @@ cdef class PGConnection:
             pinned_by.on_aborted_pgcon(self)
 
         if self.is_system_db:
-            self.server._on_sys_pgcon_connection_lost(exc)
-        elif self.server is not None:
+            self.tenant.on_sys_pgcon_connection_lost(exc)
+        elif self.tenant is not None:
             if not self.close_requested:
-                self.server._on_pgcon_broken()
+                self.tenant.on_pgcon_broken()
             else:
-                self.server._on_pgcon_lost()
+                self.tenant.on_pgcon_lost()
 
         if self.connected_fut is not None and not self.connected_fut.done():
             self.connected_fut.set_exception(ConnectionAbortedError())

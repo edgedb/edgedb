@@ -80,10 +80,9 @@ class BaseCluster:
 
         compiler_addr = os.getenv('EDGEDB_TEST_REMOTE_COMPILER')
         if compiler_addr:
+            compiler_pool_mode = edgedb_args.CompilerPoolMode.Remote
             self._edgedb_cmd.extend(
                 [
-                    '--compiler-pool-mode',
-                    'remote',
                     '--compiler-pool-addr',
                     compiler_addr,
                 ]
@@ -570,6 +569,10 @@ class TempClusterWithRemotePg(BaseCluster):
             ),
         )
         self._backend_dsn = backend_dsn
+        mt = "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ
+        if mt:
+            compiler_pool_mode = edgedb_args.CompilerPoolMode.MultiTenant
+
         super().__init__(
             runstate_dir,
             env=env,
@@ -579,7 +582,8 @@ class TempClusterWithRemotePg(BaseCluster):
             http_endpoint_security=http_endpoint_security,
             compiler_pool_mode=compiler_pool_mode,
         )
-        self._edgedb_cmd.extend(['--backend-dsn', backend_dsn])
+        if not mt:
+            self._edgedb_cmd.extend(['--backend-dsn', backend_dsn])
 
     async def _new_pg_cluster(self) -> pgcluster.BaseCluster:
         return await pgcluster.get_remote_pg_cluster(self._backend_dsn)

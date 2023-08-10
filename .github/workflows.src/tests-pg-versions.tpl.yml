@@ -33,17 +33,20 @@ jobs:
          - ''
          - 'NOCREATEDB NOCREATEROLE'
          - 'CREATEDB NOCREATEROLE'
-        remote-compiler: [ '' ]
+        multi-tenant-mode: [ '' ]
         include:
           - postgres-version: 13
             single-mode: ''
-            remote-compiler: ''
+            multi-tenant-mode: ''
           - postgres-version: 14
             single-mode: ''
-            remote-compiler: 'remote-compiler'
+            multi-tenant-mode: 'remote-compiler'
+          - postgres-version: 14
+            single-mode: ''
+            multi-tenant-mode: 'multi-tenant'
           - postgres-version: 15
             single-mode: ''
-            remote-compiler: ''
+            multi-tenant-mode: ''
     services:
       postgres:
         image: fantix/pgvector:${{ matrix.postgres-version }}
@@ -103,7 +106,16 @@ jobs:
         else
           export EDGEDB_TEST_BACKEND_DSN=postgres://postgres:postgres@localhost/postgres
         fi
+        if [[ "${{ matrix.multi-tenant-mode }}" == "remote-compiler" ]]; then
+          export EDGEDB_TEST_REMOTE_COMPILER=localhost:5660
+          export _EDGEDB_SERVER_COMPILER_POOL_SECRET=secret
+          __EDGEDB_DEVMODE=1 edgedb-server compiler --pool-size 2 &
+        fi
         edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN --testmode
+        if [[ "${{ matrix.multi-tenant-mode }}" == "multi-tenant" ]]; then
+          export EDGEDB_SERVER_MULTITENANT_CONFIG_FILE=/tmp/edb.mt.json
+          echo "{\"localhost\":{\"instance-name\":\"localtest\",\"backend-dsn\":\"$EDGEDB_TEST_BACKEND_DSN\",\"admin\":true,\"max-backend-connections\":10}}" > /tmp/edb.mt.json
+        fi
         if [[ "${{ matrix.single-mode }}" == *"NOCREATEDB"* ]]; then
           edb test -j1 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
         else

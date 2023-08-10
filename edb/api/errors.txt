@@ -149,6 +149,7 @@
 
 0x_08_00_00_01   BackendUnavailableError  #SHOULD_RETRY
 0x_08_00_00_02   ServerOfflineError  #SHOULD_RECONNECT #SHOULD_RETRY
+0x_08_00_00_03   UnknownTenantError  #SHOULD_RECONNECT #SHOULD_RETRY
 
 ####
 

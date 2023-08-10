@@ -189,13 +189,12 @@ class Worker(pool_mod.Worker):
 
 class MultiSchemaPool(pool_mod.FixedPool):
     _worker_class = Worker  # type: ignore
-    _worker_mod = "remote_worker"
+    _worker_mod = "multitenant_worker"
     _workers: typing.Dict[int, Worker]  # type: ignore
     _clients: typing.Dict[int, ClientSchema]
 
     def __init__(self, cache_size, *, secret, **kwargs):
         super().__init__(
-            dbindex=None,
             backend_runtime_params=None,
             std_schema=None,
             refl_schema=None,
