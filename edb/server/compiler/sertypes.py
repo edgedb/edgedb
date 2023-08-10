@@ -1716,11 +1716,9 @@ class StateSerializerFactory:
         )
 
         type_data = b''.join(ctx.buffer)
-        codec = parse(type_data, protocol_version)
-        assert isinstance(codec, InputShapeDesc)
-        codec.fields['globals'][1].__dict__['data_raw'] = True
-
-        return StateSerializer(type_id, type_data, codec, global_reps)
+        return StateSerializer(
+            type_id, type_data, global_reps, protocol_version
+        )
 
 
 class StateSerializer:
@@ -1728,13 +1726,20 @@ class StateSerializer:
         self,
         type_id: uuid.UUID,
         type_data: bytes,
-        codec: TypeDesc,
         global_reps: dict[str, object],
+        protocol_version: edbdef.ProtocolVersion,
     ) -> None:
         self._type_id = type_id
         self._type_data = type_data
-        self._codec = codec
         self._global_reps = global_reps
+        self._protocol_version = protocol_version
+
+    @functools.cached_property
+    def _codec(self) -> TypeDesc:
+        codec = parse(self._type_data, self._protocol_version)
+        assert isinstance(codec, InputShapeDesc)
+        codec.fields['globals'][1].__dict__['data_raw'] = True
+        return codec
 
     @property
     def type_id(self) -> uuid.UUID:
