@@ -198,9 +198,11 @@ def compile_ConfigInsert(
         shape=expr.shape,
     )
 
-    for el in expr.shape:
-        if isinstance(el.compexpr, qlast.InsertQuery):
-            _inject_tname(el.compexpr, ctx=ctx)
+    # RIGHT? IDK?
+    _inject_tname(insert_stmt, ctx=ctx)
+    # for el in expr.shape:
+    #     if isinstance(el.compexpr, qlast.InsertQuery):
+    #         _inject_tname(el.compexpr, ctx=ctx)
 
     with ctx.newscope(fenced=False) as subctx:
         subctx.expr_exposed = context.Exposure.EXPOSED

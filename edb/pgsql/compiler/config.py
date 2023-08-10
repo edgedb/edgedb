@@ -558,33 +558,97 @@ def top_output_as_config_op(
         env: context.Environment) -> pgast.Query:
 
     assert isinstance(ir_set.expr, irast.ConfigCommand)
+    op = ir_set.expr
+
+    alias = env.aliases.get('cfg')
+    cte = pgast.CommonTableExpr(query=stmt, name=alias)
+    ctes = [cte]
+
+    subrvar = relctx.rvar_for_rel(cte, env=env)
+
+    stmt_res = stmt.target_list[0]
+
+    if stmt_res.name is None:
+        stmt_res = stmt.target_list[0] = pgast.ResTarget(
+            name=env.aliases.get('v'),
+            val=stmt_res.val,
+        )
+        assert stmt_res.name is not None
+    val = pgast.ColumnRef(name=[stmt_res.name])
+
+    # XXX: code duplication?
+    # wait what about _tname??
+    if op.scope is qltypes.ConfigScope.DATABASE:
+        sval = pgast.SelectStmt(
+            target_list=[pgast.ResTarget(val=val)], from_clause=[subrvar])
+        ins_val = pgast.FuncCall(
+            name=('jsonb_build_array',),
+            args=[sval],
+            null_safe=True,
+            ser_safe=True,
+        )
+        upd_val = pgast.Expr(
+            name='||',
+            lexpr=pgast.ColumnRef(name=['edgedb', '_db_config', 'value']),
+            rexpr=ins_val,
+        )
+
+        ins = pgast.InsertStmt(
+            relation=pgast.RelRangeVar(
+                relation=pgast.Relation(
+                    name='_db_config',
+                    schemaname='edgedb',
+                ),
+            ),
+            select_stmt=pgast.SelectStmt(
+                values=[
+                    pgast.ImplicitRowExpr(
+                        args=[
+                            pgast.StringConstant(
+                                val=op.name,
+                            ),
+                            ins_val,
+                        ]
+                    )
+                ],
+            ),
+            cols=[
+                pgast.InsertTarget(name='name'),
+                pgast.InsertTarget(name='value'),
+            ],
+            on_conflict=pgast.OnConflictClause(
+                action='update',
+                infer=pgast.InferClause(
+                    index_elems=[
+                        pgast.ColumnRef(name=['name']),
+                    ],
+                ),
+                target_list=[
+                    pgast.MultiAssignRef(
+                        columns=[pgast.ColumnRef(name=['value'])],
+                        source=pgast.RowExpr(
+                            args=[
+                                upd_val,
+                            ],
+                        ),
+                    ),
+                ],
+            ),
+        )
+        ctes.append(
+            pgast.CommonTableExpr(query=ins, name=env.aliases.get('ins'))
+        )
+
 
     if ir_set.expr.scope in (
         qltypes.ConfigScope.INSTANCE, qltypes.ConfigScope.DATABASE
     ):
-        alias = env.aliases.get('cfg')
-        subrvar = pgast.RangeSubselect(
-            subquery=stmt,
-            alias=pgast.Alias(
-                aliasname=alias,
-            )
-        )
-
-        stmt_res = stmt.target_list[0]
-
-        if stmt_res.name is None:
-            stmt_res = stmt.target_list[0] = pgast.ResTarget(
-                name=env.aliases.get('v'),
-                val=stmt_res.val,
-            )
-            assert stmt_res.name is not None
-
         result_row = pgast.RowExpr(
             args=[
                 pgast.StringConstant(val='ADD'),
                 pgast.StringConstant(val=str(ir_set.expr.scope)),
                 pgast.StringConstant(val=ir_set.expr.name),
-                pgast.ColumnRef(name=[stmt_res.name]),
+                val,
             ]
         )
 
@@ -604,9 +668,9 @@ def top_output_as_config_op(
             from_clause=[
                 subrvar,
             ],
+            ctes=ctes + (stmt.ctes or []),
         )
 
-        result.ctes = stmt.ctes
         stmt.ctes = []
 
         return result
