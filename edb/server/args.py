@@ -695,7 +695,8 @@ _server_options = [
         hidden=True,
         type=int,
         default=100,
-        help="Number of tenants each compiler worker could cache at most, "
+        help="Maximum number of tenants for which each compiler worker can "
+             "cache their schemas, "
              "only used when --compiler-pool-mode=fixed_multi_tenant"
     ),
     click.option(

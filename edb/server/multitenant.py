@@ -116,7 +116,7 @@ class MultiTenantServer(server.BaseServer):
             self._tenants_by_sslobj[sslobj] = tenant
 
     def get_default_tenant(self) -> edbtenant.Tenant:
-        raise errors.NoSuchTenantError(
+        raise errors.UnknownTenantError(
             "No such tenant configured.",
             hint="Please try again later, or "
                  "double check the SNI/server name in TLS connection",

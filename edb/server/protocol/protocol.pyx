@@ -450,7 +450,7 @@ cdef class HttpProtocol:
 
         try:
             await self.handle_request(request, response)
-        except errors.NoSuchTenantError as ex:
+        except errors.UnknownTenantError as ex:
             self._close_with_error(
                 b"503 Service Unavailable",
                 f'{type(ex).__name__}: {ex}'.encode(),

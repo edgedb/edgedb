@@ -90,7 +90,7 @@ __all__ = base.__all__ + (  # type: ignore
     'AvailabilityError',
     'BackendUnavailableError',
     'ServerOfflineError',
-    'NoSuchTenantError',
+    'UnknownTenantError',
     'BackendError',
     'UnsupportedBackendFeatureError',
     'LogMessage',
@@ -422,7 +422,7 @@ class ServerOfflineError(AvailabilityError):
     _code = 0x_08_00_00_02
 
 
-class NoSuchTenantError(AvailabilityError):
+class UnknownTenantError(AvailabilityError):
     _code = 0x_08_00_00_03
 
 
