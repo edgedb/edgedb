@@ -164,6 +164,9 @@ async def execute(
         raise
     else:
         side_effects = dbv.on_success(query_unit, new_types)
+        state_serializer = compiled.query_unit_group.state_serializer
+        if state_serializer is not None:
+            dbv.set_state_serializer(state_serializer)
         if side_effects:
             signal_side_effects(dbv, side_effects)
         if not dbv.in_tx() and not query_unit.tx_rollback:
@@ -335,6 +338,8 @@ async def execute_script(
             state = dbv.serialize_state()
             if state is not orig_state:
                 conn.last_state = state
+        if unit_group.state_serializer is not None:
+            dbv.set_state_serializer(unit_group.state_serializer)
 
     finally:
         if sent and sent < len(unit_group):

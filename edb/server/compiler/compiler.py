@@ -1067,7 +1067,11 @@ class Compiler:
             )
 
         ddl_source = edgeql.Source.from_string(schema_ddl_text)
+
+        # The state serializer generated below is somehow inappropriate,
+        # so it's simply ignored here and the I/O process will do it on its own
         units = compile(ctx=ctx, source=ddl_source).units
+
         schema = ctx.state.current_tx().get_schema(
             ctx.compiler_state.std_schema)
 
