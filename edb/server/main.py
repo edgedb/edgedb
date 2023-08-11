@@ -829,7 +829,7 @@ def initialize_static_cfg(
             )
         if setting.type == bool:
             env_value = env_value == 'true'
-        elif not issubclass(setting.type, statypes.ScalarType):
+        elif not issubclass(setting.type, statypes.ScalarType):  # type: ignore
             env_value = setting.type(env_value)  # type: ignore
         add_config(cfg_name, env_value, environment_variable)
 

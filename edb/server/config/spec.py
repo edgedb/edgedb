@@ -32,6 +32,8 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
 
+from edb.common.typeutils import downcast
+
 from . import types
 
 
@@ -42,7 +44,7 @@ SETTING_TYPES = {str, int, bool, statypes.Duration, statypes.ConfigMemory}
 class Setting:
 
     name: str
-    type: type
+    type: type | types.ConfigTypeSpec
     default: Any
     schema_type_name: Optional[sn.Name] = None
     set_of: bool = False
@@ -54,9 +56,9 @@ class Setting:
     affects_compilation: bool = False
     enum_values: Optional[Sequence[str]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if (self.type not in SETTING_TYPES and
-                not issubclass(self.type, types.ConfigType)):
+                not isinstance(self.type, types.ConfigTypeSpec)):
             raise ValueError(
                 f'invalid config setting {self.name!r}: '
                 f'type is expected to be either one of {{str, int, bool}} '
@@ -83,6 +85,7 @@ class Setting:
 
         else:
             if (not self.backend_setting and
+                    isinstance(self.type, type) and
                     not isinstance(self.default, self.type)):
                 raise ValueError(
                     f'invalid config setting {self.name!r}: '
@@ -98,24 +101,24 @@ class Spec(collections.abc.Mapping):
     def __init__(self, *settings: Setting):
         self._settings = tuple(settings)
         self._by_name = {s.name: s for s in self._settings}
-        self._types_by_name: Dict[str, type] = {}
+        self._types_by_name: Dict[str, types.ConfigTypeSpec] = {}
 
         for s in self._settings:
-            if issubclass(s.type, types.CompositeConfigType):
+            if isinstance(s.type, types.ConfigTypeSpec):
                 self._register_type(s.type)
 
-    def _register_type(self, t: type) -> None:
-        self._types_by_name[t.__name__] = t
-        for subclass in t.__subclasses__():
-            self._types_by_name[subclass.__name__] = subclass
+    def _register_type(self, t: types.ConfigTypeSpec) -> None:
+        self._types_by_name[t.name] = t
+        for subclass in t.children:
+            self._types_by_name[subclass.name] = downcast(
+                types.ConfigTypeSpec, subclass)
 
-        for field in dataclasses.fields(t):
+        for field in t.fields.values():
             f_type = field.type
-            if (isinstance(f_type, type)
-                    and issubclass(field.type, types.CompositeConfigType)):
+            if isinstance(f_type, types.ConfigTypeSpec):
                 self._register_type(f_type)
 
-    def get_type_by_name(self, name: str) -> type:
+    def get_type_by_name(self, name: str) -> types.ConfigTypeSpec:
         return self._types_by_name[name]
 
     def __iter__(self):
@@ -143,11 +146,14 @@ def load_spec_from_schema(schema: s_schema.Schema) -> Spec:
         ptype = p.get_target(schema)
         assert ptype
 
+        pytype: type | types.ConfigTypeSpec
         if isinstance(ptype, s_objtypes.ObjectType):
-            pytype = staeval.object_type_to_python_type(
-                ptype, schema, base_class=types.CompositeConfigType)
+            pytype = staeval.object_type_to_spec(
+                ptype, schema,
+                spec_class=types.ConfigTypeSpec,
+            )
         else:
-            pytype = staeval.schema_type_to_python_type(ptype, schema)
+            pytype = staeval.scalar_type_to_python_type(ptype, schema)
 
         attributes = {
             a: json.loads(v.get_value(schema))

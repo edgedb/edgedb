@@ -3585,7 +3585,10 @@ class ApplySessionConfigFunction(dbops.Function):
             setting = config_spec[setting_name]
 
             valql = '"value"->>0'
-            if issubclass(setting.type, statypes.Duration):
+            if (
+                isinstance(setting.type, type)
+                and issubclass(setting.type, statypes.Duration)
+            ):
                 valql = f"""
                     edgedb._interval_to_ms(({valql})::interval)::text || 'ms'
                 """

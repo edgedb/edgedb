@@ -20,11 +20,43 @@
 from __future__ import annotations
 from typing import *
 
+import dataclasses
 import functools
 import re
 import struct
 
+import immutables
+
 from edb import errors
+
+MISSING: Any = object()
+
+
+@dataclasses.dataclass(frozen=True)
+class CompositeTypeSpecField:
+    name: str
+    type: type | CompositeTypeSpec
+    _: dataclasses.KW_ONLY
+    unique: bool = True
+    default: Any = MISSING
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class CompositeTypeSpec:
+    name: str
+    fields: immutables.Map[str, CompositeTypeSpecField]
+    parent: Optional[CompositeTypeSpec] = None
+    children: list[CompositeTypeSpec] = dataclasses.field(
+        default_factory=list, hash=False, compare=False
+    )
+
+    def __post_init__(self) -> None:
+        if self.parent:
+            self.parent.children.append(self)
+
+    @property
+    def __name__(self) -> str:
+        return self.name
 
 
 class ScalarType:
