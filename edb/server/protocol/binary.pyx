@@ -1500,6 +1500,11 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             raise
         else:
             _dbview.on_success(query_unit, {})
+            # _execute_utility_stmt is only used in restore(), where the state
+            # serializer is not coming with the COMMIT command. However, we try
+            # to keep the state serializer here anyways in case of future use
+            if query_unit_group.state_serializer is not None:
+                _dbview.set_state_serializer(query_unit_group.state_serializer)
 
     async def restore(self):
         cdef:

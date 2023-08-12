@@ -235,6 +235,8 @@ cdef class Database:
     cdef _invalidate_caches(self):
         self._eql_to_compiled.clear()
         self._sql_to_compiled.clear()
+
+    cdef _clear_state_serializers(self):
         self._state_serializers.clear()
 
     cdef _cache_compiled_query(self, key, compiled: dbstate.QueryUnitGroup):
@@ -279,6 +281,18 @@ cdef class Database:
                 protocol_version,
             )
         return self._state_serializers[protocol_version]
+
+    cdef set_state_serializer(self, protocol_version, serializer):
+        old_serializer = self._state_serializers.get(protocol_version)
+        if (
+            old_serializer is None or
+            old_serializer.type_id != serializer.type_id
+        ):
+            # also invalidate other protocol versions
+            self._state_serializers = {protocol_version: serializer}
+            return serializer
+        else:
+            return old_serializer
 
     def iter_views(self):
         yield from self._views
@@ -435,9 +449,16 @@ cdef class DatabaseConnectionView:
 
     cdef set_state_serializer(self, new_serializer):
         if self._in_tx:
-            self._in_tx_state_serializer = new_serializer
+            if (
+                self._in_tx_state_serializer is None or
+                self._in_tx_state_serializer.type_id != new_serializer.type_id
+            ):
+                self._in_tx_state_serializer = new_serializer
         else:
-            self._state_serializer = new_serializer
+            # Use the same object as the database to avoid duplicate cache
+            self._state_serializer = self._db.set_state_serializer(
+                self._protocol_version, new_serializer
+            )
 
     cpdef get_config_spec(self):
         return self._db._index._sys_config_spec
@@ -581,16 +602,12 @@ cdef class DatabaseConnectionView:
         return spec
 
     cdef bint is_state_desc_changed(self):
+        # We may have executed a query, or COMMIT/ROLLBACK - just use the
+        # serializer we preserved before. NOTE: the schema might have been
+        # concurrently changed from other sessions, we should not reload
+        # serializer from self._db here so that our state can be serialized
+        # properly, and the Execute stays atomic.
         serializer = self.get_state_serializer()
-        if not self._in_tx:
-            # We may have executed a query, or COMMIT/ROLLBACK - just use
-            # the serializer we preserved before. NOTE: the schema might
-            # have been concurrently changed from other sessions, we should
-            # not reload serializer from self._db here so that our state
-            # can be serialized properly, and the Execute stays atomic.
-
-            # We don't need self._state_serializer from this point
-            self._state_serializer = None
 
         if self._command_state_serializer is not None:
             # If the resulting descriptor is the same as the input, return None
@@ -805,7 +822,6 @@ cdef class DatabaseConnectionView:
         if query_unit.user_schema is not None:
             self._in_tx_user_schema_pickled = query_unit.user_schema
             self._in_tx_user_schema = None
-            self._in_tx_state_serializer = None
         if query_unit.global_schema is not None:
             self._in_tx_global_schema_pickled = query_unit.global_schema
             self._in_tx_global_schema = None
@@ -835,7 +851,6 @@ cdef class DatabaseConnectionView:
                 self._db._update_backend_ids(new_types)
             if query_unit.user_schema is not None:
                 self._in_tx_dbver = next_dbver()
-                self._state_serializer = None
                 self._db._set_and_signal_new_user_schema(
                     pickle.loads(query_unit.user_schema),
                     pickle.loads(query_unit.cached_reflection)
@@ -882,7 +897,6 @@ cdef class DatabaseConnectionView:
             if self._in_tx_new_types:
                 self._db._update_backend_ids(self._in_tx_new_types)
             if query_unit.user_schema is not None:
-                self._state_serializer = None
                 self._db._set_and_signal_new_user_schema(
                     pickle.loads(query_unit.user_schema),
                     pickle.loads(query_unit.cached_reflection)
@@ -927,7 +941,6 @@ cdef class DatabaseConnectionView:
         if self._in_tx_new_types:
             self._db._update_backend_ids(self._in_tx_new_types)
         if user_schema is not None:
-            self._state_serializer = None
             self._db._set_and_signal_new_user_schema(
                 pickle.loads(user_schema),
                 pickle.loads(cached_reflection)
@@ -1227,8 +1240,12 @@ cdef class DatabaseIndex:
         cdef Database db
         db = self._dbs.get(dbname)
         if db is not None:
+            # This branch is only used by db restore
             db._set_and_signal_new_user_schema(
                 user_schema, reflection_cache, backend_ids, db_config)
+            # Make sure we will re-make the state serializers,
+            # see also comments in describe_database_restore()
+            db._clear_state_serializers()
         else:
             db = Database(
                 self,
