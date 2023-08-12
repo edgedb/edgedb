@@ -2366,7 +2366,7 @@ def _try_compile(
         rv.in_type_args = in_type_args
         rv.in_type_data = in_type_data
 
-    if final_user_schema:
+    if final_user_schema is not None:
         rv.state_serializer = ctx.compiler_state.state_serializer_factory.make(
             final_user_schema,
             ctx.state.current_tx().get_global_schema(),
