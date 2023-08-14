@@ -634,18 +634,32 @@ def top_output_as_config_op(
                     ),
                 ],
             ),
+            returning_list=[
+                pgast.ResTarget(
+                    val=pgast.ColumnRef(name=[pgast.Star()])
+                )
+            ],
         )
         ctes.append(
             pgast.CommonTableExpr(query=ins, name=env.aliases.get('ins'))
         )
 
+        subrvar = relctx.rvar_for_rel(ctes[-1], env=env)
+        val = pgast.ColumnRef(name=['value'])
 
     if ir_set.expr.scope in (
         qltypes.ConfigScope.INSTANCE, qltypes.ConfigScope.DATABASE
     ):
+        # For database config, we do SET, and we return the entire new
+        # value, in order to avoid race conditions in duplicate
+        # checking.
+        command = (
+            'SET' if ir_set.expr.scope is qltypes.ConfigScope.DATABASE
+            else 'ADD'
+        )
         result_row = pgast.RowExpr(
             args=[
-                pgast.StringConstant(val='ADD'),
+                pgast.StringConstant(val=command),
                 pgast.StringConstant(val=str(ir_set.expr.scope)),
                 pgast.StringConstant(val=ir_set.expr.name),
                 val,
