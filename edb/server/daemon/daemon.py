@@ -35,7 +35,7 @@ class DaemonContext:
     def __init__(
         self,
         *,
-        pidfile: os.PathLike,
+        pidfile: Optional[os.PathLike] = None,
         files_preserve: Optional[list] = None,
         working_directory: str = '/',
         umask: int = 0o022,
@@ -49,7 +49,7 @@ class DaemonContext:
         signal_map: Optional[dict] = None
     ):
 
-        self.pidfile = os.fspath(pidfile)
+        self.pidfile = os.fspath(pidfile) if pidfile is not None else None
         self.files_preserve = files_preserve
         self.working_directory = working_directory
         self.umask = umask
@@ -79,6 +79,7 @@ class DaemonContext:
         self._is_open = False
         self._close_stdin = self._close_stdout = self._close_stderr = None
         self._stdin_name = self._stdout_name = self._stderr_name = None
+        self._pidfile = None
 
     is_open = property(lambda self: self._is_open)
 
@@ -108,10 +109,12 @@ class DaemonContext:
             lib.detach_process_context()
 
         self._setup_signals()
+
+        if self._pidfile is not None:
+            self._pidfile.acquire()
+
         self._close_all_open_files()
         self._open_sys_streams()
-
-        self._pidfile.acquire()
 
         self._is_open = True
         atexit.register(self.close)
@@ -122,8 +125,9 @@ class DaemonContext:
 
         atexit.unregister(self.close)
 
-        self._pidfile.release()
-        self._pidfile = None
+        if self._pidfile is not None:
+            self._pidfile.release()
+            self._pidfile = None
 
         self._close_sys_streams()
 
@@ -208,6 +212,11 @@ class DaemonContext:
         if self.stdout and not isinstance(self.stdout, str):
             excl.add(self.stdout.fileno())
 
+        if self._pidfile is not None:
+            pidfile = self._pidfile.fileno
+            if pidfile is not None:
+                excl.add(pidfile)
+
         lib.close_all_open_files(excl)
 
     def _setup_signals(self):
@@ -255,6 +264,9 @@ class DaemonContext:
                 signal.signal(num, handler)
 
     def _init_pidfile(self):
+        if self.pidfile is None:
+            return
+
         if isinstance(self.pidfile, str):
             self._pidfile = pidfile_module.PidFile(self.pidfile)
         else:

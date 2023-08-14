@@ -647,8 +647,8 @@ _server_options = [
     click.option(
         '-b', '--background', is_flag=True, help='daemonize'),
     click.option(
-        '--pidfile-dir', type=PathPath(), default='/run/edgedb/',
-        help='path to PID file directory'),
+        '--pidfile-dir', type=PathPath(), default=None,
+        help='path to PID file directory, defaults to --runstate-dir'),
     click.option(
         '--daemon-user', type=int),
     click.option(

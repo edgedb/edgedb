@@ -181,6 +181,75 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             finally:
                 await con.aclose()
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "--background is not supported in multi-tenante mode"
+    )
+    async def test_server_ops_background(self) -> None:
+        # Test that "edgedb-server" works as expected with the
+        # following arguments:
+        #
+        # * "--background"
+        debug = False
+
+        status_fd, status_file = tempfile.mkstemp()
+        os.close(status_fd)
+
+        cmd = [
+            sys.executable, '-m', 'edb.server.main',
+            '--port', 'auto',
+            '--testmode',
+            '--temp-dir',
+            '--log-level=debug',
+            '--background',
+            '--emit-server-status', status_file,
+            '--tls-cert-mode=generate_self_signed',
+            '--jose-key-mode=generate',
+        ]
+
+        proc = None
+
+        def _read(filename: str) -> str:
+            with open(filename, 'r') as f:
+                while True:
+                    result = f.readline()
+                    if not result:
+                        time.sleep(0.1)
+                    else:
+                        return result
+
+        async def _waiter() -> Tuple[str, Mapping[str, Any]]:
+            loop = asyncio.get_running_loop()
+            line = await loop.run_in_executor(None, _read, status_file)
+            status, _, dataline = line.partition('=')
+            return status, json.loads(dataline)
+
+        pid = None
+
+        try:
+            if debug:
+                print(*cmd)
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=None if debug else subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
+            )
+
+            status, data = await asyncio.wait_for(_waiter(), timeout=240)
+            self.assertEqual(status, 'READY')
+            self.assertIsNotNone(data.get('socket_dir'))
+            self.assertIsNotNone(data.get('port'))
+            pid = data.get('main_pid')
+            self.assertIsNotNone(pid)
+
+        finally:
+            if proc and proc.returncode is None:
+                await self.kill_process(proc)
+            os.unlink(status_file)
+
+            if pid is not None:
+                os.kill(pid, signal.SIGTERM)
+
     async def test_server_ops_emit_server_status_to_file(self) -> None:
         debug = False
 
