@@ -32,6 +32,14 @@ SQL, the ``where`` clauses typically occur *last* despite being applied before
 the ``set`` statement. EdgeQL is structured to reflect this; first, a target
 set is specified, then filters are applied, then the data is updated.
 
+Updating properties
+-------------------
+
+To explicitly unset a property that is not required, set it to an empty set.
+
+.. code-block:: edgeql
+
+   update Person filter .id = <uuid>$id set { middle_name := {} };
 
 Updating links
 --------------
