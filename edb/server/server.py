@@ -1150,7 +1150,8 @@ class Server(BaseServer):
                     )
                     user_schema = await self._tenant.introspect_user_schema(
                         conn, global_schema)
-                    config = await self._tenant.introspect_db_config(conn)
+                    config = await self._tenant.introspect_db_config(
+                        conn, user_schema)
                     try:
                         logger.info("repairing database '%s'", dbname)
                         sql += bootstrap.prepare_repair_patch(
