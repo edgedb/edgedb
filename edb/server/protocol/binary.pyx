@@ -971,6 +971,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.debug_print('EXECUTE', query_req.source.text())
 
         metrics.edgeql_query_compilations.inc(1.0, 'cache')
+        force_script = any(x.set_global for x in query_unit_group)
         if (
             _dbview.in_tx_error()
             or query_unit_group[0].tx_savepoint_rollback
@@ -978,7 +979,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         ):
             assert len(query_unit_group) == 1
             await self._execute_rollback(compiled)
-        elif len(query_unit_group) > 1:
+        elif len(query_unit_group) > 1 or force_script:
             await self._execute_script(compiled, args)
         else:
             use_prep = (

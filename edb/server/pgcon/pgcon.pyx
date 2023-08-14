@@ -885,7 +885,8 @@ cdef class PGConnection:
             await self.after_command()
 
     cdef send_query_unit_group(
-        self, object query_unit_group, object bind_datas, bytes state,
+        self, object query_unit_group, bint sync,
+        object bind_datas, bytes state,
         ssize_t start, ssize_t end, int dbver, object parse_array
     ):
         # parse_array is an array of booleans for output with the same size as
@@ -960,12 +961,37 @@ cdef class PGConnection:
 
             idx += 1
 
-        if end == len(query_unit_group.units):
+        if sync:
             self.write_sync(out)
         else:
             out.write_bytes(FLUSH_MESSAGE)
 
         self.write(out)
+
+    async def force_error(self):
+        self.before_command()
+
+        # Send a bogus parse that will cause an error to be generated
+        out = WriteBuffer.new()
+        buf = WriteBuffer.new_message(b'P')
+        buf.write_bytestring(b'')
+        buf.write_bytestring(b'???')
+        buf.write_int16(0)
+
+        # Then do a sync to get everything executed and lined back up
+        out.write_buffer(buf.end_message())
+        self.write_sync(out)
+
+        self.write(out)
+
+        try:
+            await self.wait_for_sync()
+        except pgerror.BackendError as e:
+            pass
+        else:
+            raise RuntimeError("Didn't get expected error!")
+        finally:
+            await self.after_command()
 
     async def wait_for_state_resp(self, bytes state, bint state_sync):
         if state_sync:

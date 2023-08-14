@@ -42,6 +42,7 @@ from edb.server.protocol cimport args_ser
 from edb.server.protocol cimport frontend
 from edb.server.pgproto.pgproto cimport WriteBuffer
 from edb.server.pgcon cimport pgcon
+from edb.server.pgcon import errors as pgerror
 
 
 cdef object FMT_NONE = compiler.OutputFormat.NONE
@@ -201,7 +202,7 @@ async def execute_script(
     cdef:
         bytes state = None, orig_state = None
         ssize_t sent = 0
-        bint in_tx
+        bint in_tx, sync, no_sync
         object user_schema, extensions, cached_reflection, global_schema
         WriteBuffer bind_data
         int dbver = dbv.dbver
@@ -210,6 +211,8 @@ async def execute_script(
     user_schema = extensions = cached_reflection = global_schema = None
     unit_group = compiled.query_unit_group
 
+    sync = False
+    no_sync = False
     in_tx = dbv.in_tx()
     if not in_tx:
         orig_state = state = dbv.serialize_state()
@@ -240,19 +243,24 @@ async def execute_script(
                 # execute everything up to that point at once,
                 # finished by a FLUSH.
                 if idx >= sent:
+                    no_sync = False
                     for n in range(idx, len(unit_group)):
                         ng = unit_group[n]
                         if ng.ddl_stmt_id or ng.set_global:
                             sent = n + 1
+                            if ng.set_global:
+                                no_sync = True
                             break
                     else:
                         sent = len(unit_group)
 
+                    sync = sent == len(unit_group) and not no_sync
                     bind_array = args_ser.recode_bind_args_for_script(
                         dbv, compiled, bind_args, idx, sent)
                     dbver = dbv.dbver
                     conn.send_query_unit_group(
                         unit_group,
+                        sync,
                         bind_array,
                         state,
                         idx,
@@ -327,6 +335,11 @@ async def execute_script(
             # Abort the implicit transaction
             dbv.abort_tx()
 
+        # If something went wrong that is *not* on the backend side, force
+        # an error to occur on the SQL side.
+        if not isinstance(e, pgerror.BackendError):
+            await conn.force_error()
+
         raise
 
     else:
@@ -343,7 +356,7 @@ async def execute_script(
             dbv.set_state_serializer(unit_group.state_serializer)
 
     finally:
-        if sent and sent < len(unit_group):
+        if sent and not sync:
             await conn.sync()
 
     return data
@@ -505,7 +518,8 @@ async def execute_json(
 
     bind_args = _encode_args(args)
 
-    if len(qug) > 1:
+    force_script = any(x.set_global for x in qug)
+    if len(qug) > 1 or force_script:
         data = await execute_script(
             be_conn,
             dbv,
