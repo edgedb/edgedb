@@ -18,15 +18,15 @@ related to the EdgeDB docs.*
 .. lint-on
 
 In this tutorial we're going to build a documentation chatbot with
-`Next.js <https://nextjs.org/>`_, `OpenAI <https://openai.com/>`_ and EdgeDB.
+`Next.js <https://nextjs.org/>`_, `OpenAI <https://openai.com/>`_, and EdgeDB.
 
 Before we start, let's understand how it all works
 ==================================================
 
-tl;dr- Training a language model is hard, but using embeddings to give it
+*tl;dr- Training a language model is hard, but using embeddings to give it
 access to information beyond what it's trained on is easy… so we will do that!
-Now, `get started building <ref_guide_chatgpt_bot_start>`_ or read on for more
-detail.
+Now,* :ref:`skip ahead to get started building <ref_guide_chatgpt_bot_start>`
+*or read on for more detail.*
 
 Our chatbot is backed by `OpenAI's ChatGPT <https://openai.com/blog/chatgpt>`_.
 ChatGPT is an advanced language model that uses machine learning algorithms to
