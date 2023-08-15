@@ -77,7 +77,7 @@ Each time a user asks a question, our app will:
    the question using a similarity function
 2. inject these sections as a context into the prompt — together with user's
    question — and submit this request to the OpenAI
-3. stream the OpenAI response back to the user in realtime
+3. stream the OpenAI response back to the user in real time
 
 
 Prerequisites
