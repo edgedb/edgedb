@@ -28,7 +28,6 @@ from edb import buildmeta
 from edb.common import debug
 from edb.common import devmode as dm
 from edb.server import args as srv_args
-from edb.server import logsetup
 from edb.server import main as srv_main
 
 
@@ -53,7 +52,6 @@ def server(version=False, **kwargs):
     os.environ['EDGEDB_DEBUG_SERVER'] = '1'
     debug.init_debug_flags()
     kwargs['security'] = srv_args.ServerSecurityMode.InsecureDevMode
-    logsetup.setup_logging(kwargs['log_level'], kwargs['log_to'])
     srv_main.server_main(**kwargs)
 
 

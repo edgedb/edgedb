@@ -53,6 +53,7 @@ from edb.server import args as srvargs
 from edb.server import cache
 from edb.server import config
 from edb.server import compiler_pool
+from edb.server import daemon
 from edb.server import defines
 from edb.server import protocol
 from edb.server import tenant as edbtenant
@@ -127,6 +128,8 @@ class BaseServer:
         netport,
         listen_sockets: tuple[socket.socket, ...] = (),
         testmode: bool = False,
+        daemonized: bool = False,
+        pidfile_dir: Optional[pathlib.Path] = None,
         binary_endpoint_security: srvargs.ServerEndpointSecurityMode = (
             srvargs.ServerEndpointSecurityMode.Tls),
         http_endpoint_security: srvargs.ServerEndpointSecurityMode = (
@@ -156,6 +159,8 @@ class BaseServer:
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
 
+        self._daemonized = daemonized
+        self._pidfile_dir = pidfile_dir
         self._runstate_dir = runstate_dir
         self._internal_runstate_dir = internal_runstate_dir
         self._compiler_pool = None
@@ -838,6 +843,15 @@ class BaseServer:
         )
         self._listen_hosts = [addr[0] for addr in listen_addrs]
         self._listen_port = actual_port
+
+        if self._daemonized:
+            pidfile_dir = self._pidfile_dir
+            if pidfile_dir is None:
+                pidfile_dir = self._runstate_dir
+            pidfile_path = pidfile_dir / f".s.EDGEDB.{actual_port}.lock"
+            pidfile = daemon.PidFile(pidfile_path)
+            pidfile.acquire()
+
         await self._after_start_servers()
 
         if self._echo_runtime_info:
