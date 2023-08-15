@@ -4,7 +4,7 @@
 ChatGPT
 =======
 
-:edb-alt-title: Build your own docs chatbot with ChatGPT and EdgeDB
+:edb-alt-title: Build your own documentation chatbot with ChatGPT and EdgeDB
 
 *For additional context, check out* `our blog post about why and how we use
 ChatGPT via embeddings`_ *to create our “Ask AI” bot which answers questions
