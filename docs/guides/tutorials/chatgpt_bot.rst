@@ -293,6 +293,77 @@ add this code to it:
 
     using extension pgvector;
 
+We are able to store embeddings and find similar embeddings in the EdgeDB
+database because of the ``pgvector`` extension. In order to use it in our
+schema, we have to activate the ``ext::pgvector`` module with ``using extension
+pgvector`` at the beginning of the schema file. This module gives us access to
+``ext::pgvector::vector`` as well as few similarity functions and indexes we
+can use later to retrieve embeddings. Read our `pgvector documentation
+<https://www.edgedb.com/docs/stdlib/pgvector>`_ for more details on the
+extension.
+
+Just below that, we can start building our module by creating a new scalar
+type.
+
+.. code-block:: sdl
+    :caption: dbschema/default.esdl
+
+    …
+    module default {
+      scalar type OpenAIEmbedding extending
+        ext::pgvector::vector<1536>;
+
+      type Section {
+        # We will build this out next
+      }
+    }
+
+With the extension active, we may now add vector properties when defining our
+type. However, in order to be able to use indexes, the vectors in question need
+to be a of a fixed length. This can be achieved by creating a custom scalar
+extending the vector and specifying the desired length. OpenAI embeddings have
+length of 1,536, so that's what we use in our schema for this custom scalar.
+
+Now, the ``Section`` type:
+
+.. code-block:: sdl
+    :caption: dbschema/default.esdl
+
+    …
+      type Section {
+        required path: str {
+          constraint exclusive;
+        }
+        required content: str;
+        required tokens: int16;
+        required embedding: OpenAIEmbedding;
+
+        index ext::pgvector::ivfflat_cosine(lists := 3)
+          on (.embedding);
+      }
+    …
+
+The ``Section`` contains properties to store the path to the file, the content,
+a count of tokens, and the embedding, which is of the custom scalar type we
+created in the previous step.
+
+We will also add an index inside the ``Section`` type to speed up queries. In
+order to work properly, the index should correspond to the
+``cosine_similarity`` function we'll be using to find sections related to the
+user's question. That index is ``ivfflat_cosine``. We are using the value ``3``
+for the ``lists`` parameter because best practice is to use the number of
+objects divided by 1,000 for up to 1,000,000 entries. Our database will have
+around 3,000 total entries which falls well under that threshold. In our case
+indexing does not have much impact, but if you plan to store and query a large
+number of entries, an index is recommended.
+
+Put that all together, and your entire schema file should look like this:
+
+.. code-block:: sdl
+    :caption: dbschema/default.esdl
+
+    using extension pgvector;
+
     module default {
       scalar type OpenAIEmbedding extending
         ext::pgvector::vector<1536>;
@@ -309,30 +380,6 @@ add this code to it:
           on (.embedding);
       }
     }
-
-We are able to store embeddings and find similar embeddings in the EdgeDB
-database because of the ``pgvector`` extension. In order to use it in our
-schema, we have to activate the ``ext::pgvector`` module with ``using extension
-pgvector`` at the beginning of the schema file. This module gives us access to
-``ext::pgvector::vector`` as well as few similarity functions and indexes we
-can use later to retrieve embeddings. Read our `pgvector documentation
-<https://www.edgedb.com/docs/stdlib/pgvector>`_ for more details on the
-extension.
-
-With the extension active, we may now add vector properties when defining our
-type. However, in order to be able to use indexes, the vectors in question need
-to be a of a fixed length. This can be achieved by creating a custom scalar
-extending the vector and specifying the desired length. OpenAI embeddings have
-length of 1,536, so that's what we use in our schema.
-
-There is also an index inside the ``Section`` type. In order to speed up
-queries, we add the index that corresponds to the ``cosine_similarity``
-function which is ``ivfflat_cosine``. We are using the value ``3`` for the
-``lists`` parameter because best practice is to use the number of objects
-divided by 1,000 for up to 1,000,000 entries. Our database will have around
-3,000 total entries which falls well under that threshold. In our case indexing
-does not have much impact, but if you plan to store and query a large number of
-entries, an index is recommended.
 
 We apply this schema by creating and running a migration.
 
@@ -355,7 +402,8 @@ We apply this schema by creating and running a migration.
     section's current checksum with the one you stored in the database. You
     don't need to generate embeddings and update the database for a given
     section unless the two checksums are different indicating something has
-    changed.
+    changed. If you significant documentation, consider incorporating this into
+    your app.
 
 
 Create embeddings and store them
