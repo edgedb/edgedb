@@ -186,14 +186,12 @@ async def handle_request(
 
             # only use the backend if schema is required
             if static_exc is errormech.SchemaRequired:
-                ex = errormech.interpret_backend_error(
-                    s_schema.ChainedSchema(
-                        tenant.server.get_std_schema(),
-                        db.user_schema,
-                        tenant.get_global_schema(),
-                    ),
+                compiler_pool = tenant.server.get_compiler_pool()
+                ex = await compiler_pool.interpret_backend_error(
+                    db.user_schema_pickled,
+                    tenant.get_global_schema_pickled(),
                     ex.fields,
-                    from_graphql=True,
+                    True,
                 )
             else:
                 ex = static_exc

@@ -1202,10 +1202,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
             # only use the backend if schema is required
             if static_exc is errormech.SchemaRequired:
-                exc = errormech.interpret_backend_error(
-                    self.get_dbview().get_schema(),
-                    exc.fields
-                )
+                exc = await self.get_dbview().interpret_backend_error(exc)
             elif isinstance(static_exc, (
                     errors.DuplicateDatabaseDefinitionError,
                     errors.UnknownDatabaseError)):

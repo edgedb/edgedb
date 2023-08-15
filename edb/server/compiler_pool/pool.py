@@ -570,6 +570,22 @@ class AbstractPool:
         finally:
             self._release_worker(worker)
 
+    async def interpret_backend_error(
+        self,
+        *args,
+        **kwargs
+    ):
+        worker = await self._acquire_worker()
+        try:
+            return await worker.call(
+                'interpret_backend_error',
+                *args,
+                **kwargs
+            )
+
+        finally:
+            self._release_worker(worker)
+
     async def describe_database_dump(
         self,
         *args,

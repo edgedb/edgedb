@@ -919,6 +919,25 @@ class Compiler:
 
         return compile(ctx=ctx, source=source), ctx.state
 
+    def interpret_backend_error(
+        self,
+        user_schema: bytes,
+        global_schema: bytes,
+        error_fields: dict[str, str],
+        from_graphql: bool,
+    ) -> errors.EdgeDBError:
+        from . import errormech
+
+        schema = s_schema.ChainedSchema(
+            self.state.std_schema,
+            pickle.loads(user_schema),
+            pickle.loads(global_schema),
+        )
+        rv: errors.EdgeDBError = errormech.interpret_backend_error(
+            schema, error_fields, from_graphql=from_graphql
+        )
+        return rv
+
     def describe_database_dump(
         self,
         user_schema: s_schema.Schema,

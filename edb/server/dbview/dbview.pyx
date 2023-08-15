@@ -580,14 +580,6 @@ cdef class DatabaseConnectionView:
         else:
             return self._db._index._global_schema_pickled
 
-    def get_schema(self):
-        user_schema = self.get_user_schema()
-        return s_schema.ChainedSchema(
-            self._db._index._std_schema,
-            user_schema,
-            self._db._index._global_schema,
-        )
-
     def resolve_backend_type_id(self, type_id):
         type_id = str(type_id)
 
@@ -1137,6 +1129,15 @@ cdef class DatabaseConnectionView:
         unit_group, self._last_comp_state, self._last_comp_state_id = result
 
         return unit_group
+
+    async def interpret_backend_error(self, exc):
+        compiler_pool = self._db._index._server.get_compiler_pool()
+        return await compiler_pool.interpret_backend_error(
+            self.get_user_schema_pickled(),
+            self.get_global_schema_pickled(),
+            exc.fields,
+            False,
+        )
 
     cdef check_capabilities(
         self,
