@@ -96,8 +96,7 @@ Let's get started
 =================
 
 Let's start by scaffolding our app with the Next.js ``create-next-app`` tool.
-Run this in your projects directory or wherever you would like to create the
-new directory for this project.
+Run this wherever you would like to create the new directory for this project.
 
 .. code-block:: bash
 
