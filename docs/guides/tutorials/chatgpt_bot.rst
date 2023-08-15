@@ -186,8 +186,8 @@ the following in the root of the project:
     Specify the version of EdgeDB to use with this project [default: 3.2]:
     > 3.2
 
-The CLI should have set up an EdgeDB project, ad instance, and a database
-within that instance. You can confirm project creation by checking for an
+The CLI should set up an EdgeDB project, an instance, and a database within
+that instance. You can confirm project creation by checking for an
 ``edgedb.toml`` file and a ``dbschema`` directory in the project root. You can
 check if the instance is running with the ``edgedb instance list`` command.
 Search for the name of the instance you've just created (``docs_chatbot`` if
