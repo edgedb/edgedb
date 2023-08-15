@@ -394,14 +394,14 @@ We apply this schema by creating and running a migration.
 
 .. note::
 
-    In this tutorial we will recreate all embeddings every time we run the
+    In this tutorial we will regenerate all embeddings every time we run the
     embeddings generation script, wiping all data and saving new ``Section``
     objects for all of the documentation. This might be a reasonable approach
     if you don't have much documentation, but if you have a lot of
     documentation, you may want a more sophisticated approach that operates on
     only documentation sections which have changed.
 
-    You can achieve this by saving a content checksum as part of your
+    You can achieve this by saving content checksums as part of your
     ``Section`` objects. The next time you run generation, compare the
     section's current checksum with the one you stored in the database. You
     don't need to generate embeddings and update the database for a given
