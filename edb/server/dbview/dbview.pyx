@@ -922,6 +922,9 @@ cdef class DatabaseConnectionView:
             if self._in_tx_with_sysconfig:
                 side_effects |= SideEffects.InstanceConfigChanges
             if self._in_tx_with_dbconfig:
+                self._db_config_temp = self._in_tx_db_config
+                self._db_config_dbver = self._db.dbver
+
                 self.update_database_config()
                 side_effects |= SideEffects.DatabaseConfigChanges
             if query_unit.global_schema is not None:
@@ -967,6 +970,9 @@ cdef class DatabaseConnectionView:
         if self._in_tx_with_sysconfig:
             side_effects |= SideEffects.InstanceConfigChanges
         if self._in_tx_with_dbconfig:
+            self._db_config_temp = self._in_tx_db_config
+            self._db_config_dbver = self._db.dbver
+
             self.update_database_config()
             side_effects |= SideEffects.DatabaseConfigChanges
         if global_schema is not None:

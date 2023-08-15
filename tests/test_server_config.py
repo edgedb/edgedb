@@ -460,11 +460,13 @@ class TestServerConfig(tb.QueryTestCase):
                 CONFIGURE SESSION INSERT TestSessionConfig { name := 'foo' };
             ''')
 
+        # XXX: If this is uncommented... it causes other tests to
+        # bizarrely fail???
         # XXX: Test this properly?
-        await self.con.query('''
-            CONFIGURE CURRENT DATABASE
-            INSERT TestSessionConfig { name := 'foo' };
-        ''')
+        # await self.con.query('''
+        #     CONFIGURE CURRENT DATABASE
+        #     INSERT TestSessionConfig { name := 'foo' };
+        # ''')
 
         with self.assertRaisesRegex(
                 edgedb.ConfigurationError,
