@@ -27,6 +27,9 @@ import dataclasses
 import decimal
 import functools
 
+import immutables
+
+
 from edb import errors
 
 from edb.common import typeutils
@@ -328,11 +331,12 @@ def cast_const_to_python(
 
 def schema_type_to_python_type(
         stype: s_types.Type,
-        schema: s_schema.Schema) -> type:
+        schema: s_schema.Schema) -> type | statypes.CompositeTypeSpec:
     if isinstance(stype, s_scalars.ScalarType):
         return scalar_type_to_python_type(stype, schema)
     elif isinstance(stype, s_objtypes.ObjectType):
-        return object_type_to_python_type(stype, schema)
+        return object_type_to_spec(
+            stype, schema, spec_class=statypes.CompositeTypeSpec)
     else:
         raise UnsupportedExpressionError(
             f'{stype.get_displayname(schema)} is not representable in Python')
@@ -368,17 +372,23 @@ def scalar_type_to_python_type(
         f'{stype.get_displayname(schema)} is not representable in Python')
 
 
-def object_type_to_python_type(
+T_spec = TypeVar('T_spec', bound=statypes.CompositeTypeSpec)
+
+
+def object_type_to_spec(
     objtype: s_objtypes.ObjectType,
     schema: s_schema.Schema,
     *,
-    base_class: Optional[type] = None,
-    _memo: Optional[Dict[s_types.Type, type]] = None,
-) -> type:
+    # We pass a spec_class so that users like the config system can ask for
+    # their own subtyped versions of a spec.
+    spec_class: Type[T_spec],
+    parent: Optional[T_spec] = None,
+    _memo: Optional[Dict[s_types.Type, T_spec | type]] = None,
+) -> T_spec:
     if _memo is None:
         _memo = {}
     default: Any
-    fields = []
+    fields = {}
     subclasses = []
 
     for pn, p in objtype.get_pointers(schema).items(schema):
@@ -393,15 +403,17 @@ def object_type_to_python_type(
         if isinstance(ptype, s_objtypes.ObjectType):
             pytype = _memo.get(ptype)
             if pytype is None:
-                pytype = object_type_to_python_type(
-                    ptype, schema, base_class=base_class, _memo=_memo)
+                pytype = object_type_to_spec(
+                    ptype, schema, spec_class=spec_class,
+                    parent=parent, _memo=_memo)
                 _memo[ptype] = pytype
 
                 for subtype in ptype.children(schema):
                     subclasses.append(
-                        object_type_to_python_type(
+                        object_type_to_spec(
                             subtype, schema,
-                            base_class=pytype, _memo=_memo))
+                            spec_class=spec_class,
+                            parent=pytype, _memo=_memo))
         else:
             pytype = scalar_type_to_python_type(ptype, schema)
 
@@ -430,29 +442,15 @@ def object_type_to_python_type(
             not ptype.is_object_type()
             and any(c.issubclass(schema, exclusive) for c in constraints)
         )
-        field = dataclasses.field(
-            compare=unique,
-            hash=unique,
-            repr=True,
-            default=default,
+        fields[str_pn] = statypes.CompositeTypeSpecField(
+            name=str_pn, type=pytype, unique=unique, default=default
         )
-        fields.append((str_pn, pytype, field))
 
-    bases: Tuple[type, ...]
-    if base_class is not None:
-        bases = (base_class,)
-    else:
-        bases = ()
-
-    ptype_dataclass = dataclasses.make_dataclass(
-        objtype.get_name(schema).name,
-        fields=fields,
-        bases=bases,
-        frozen=True,
-        namespace={'_subclasses': subclasses},
+    return spec_class(
+        name=objtype.get_name(schema).name,
+        fields=immutables.Map(fields),
+        parent=parent,
     )
-    assert isinstance(ptype_dataclass, type)
-    return ptype_dataclass
 
 
 @functools.singledispatch

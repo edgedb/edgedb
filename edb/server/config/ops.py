@@ -20,7 +20,6 @@ from __future__ import annotations
 
 
 import base64
-import dataclasses
 import json
 from typing import *
 
@@ -62,14 +61,23 @@ if TYPE_CHECKING:
     SettingsMap = immutables.Map[str, SettingValue]
 
 
+T_type = TypeVar('T_type', bound=type)
+
+
+def _issubclass(
+    typ: type | types.ConfigTypeSpec, parent: T_type
+) -> TypeGuard[T_type]:
+    return isinstance(typ, type) and issubclass(typ, parent)
+
+
 def coerce_single_value(setting: spec.Setting, value: Any) -> Any:
-    if isinstance(value, setting.type):
+    if isinstance(setting.type, type) and isinstance(value, setting.type):
         return value
     elif (isinstance(value, str) and
-          issubclass(setting.type, statypes.Duration)):
+          _issubclass(setting.type, statypes.Duration)):
         return statypes.Duration(value)
     elif (isinstance(value, (str, int)) and
-          issubclass(setting.type, statypes.ConfigMemory)):
+          _issubclass(setting.type, statypes.ConfigMemory)):
         return statypes.ConfigMemory(value)
     else:
         raise errors.ConfigurationError(
@@ -92,10 +100,12 @@ class Operation(NamedTuple):
 
     def coerce_value(self, spec: spec.Spec, setting: spec.Setting, *,
                      allow_missing: bool = False):
-        if issubclass(setting.type, types.ConfigType):
+        if isinstance(setting.type, types.ConfigTypeSpec):
             try:
-                return setting.type.from_pyvalue(
-                    self.value, spec=spec, allow_missing=allow_missing)
+                return types.CompositeConfigType.from_pyvalue(
+                    self.value, spec=spec, tspec=setting.type,
+                    allow_missing=allow_missing,
+                )
             except (ValueError, TypeError):
                 raise errors.ConfigurationError(
                     f'invalid value type for the {setting.name!r} setting')
@@ -146,7 +156,7 @@ class Operation(NamedTuple):
             value = self.coerce_global_value(allow_missing=allow_missing)
 
         if self.opcode is OpCode.CONFIG_SET:
-            if setting and issubclass(setting.type, types.ConfigType):
+            if setting and _issubclass(setting.type, types.ConfigType):
                 raise errors.InternalServerError(
                     f'unexpected CONFIGURE SET on a non-primitive '
                     f'configuration parameter: {self.setting_name}'
@@ -155,7 +165,7 @@ class Operation(NamedTuple):
             storage = self._set_value(storage, value)
 
         elif self.opcode is OpCode.CONFIG_RESET:
-            if setting and issubclass(setting.type, types.ConfigType):
+            if setting and isinstance(setting.type, types.ConfigTypeSpec):
                 raise errors.InternalServerError(
                     f'unexpected CONFIGURE RESET on a non-primitive '
                     f'configuration parameter: {self.setting_name}'
@@ -168,7 +178,7 @@ class Operation(NamedTuple):
 
         elif self.opcode is OpCode.CONFIG_ADD:
             assert setting
-            if not issubclass(setting.type, types.ConfigType):
+            if not isinstance(setting.type, types.ConfigTypeSpec):
                 raise errors.InternalServerError(
                     f'unexpected CONFIGURE SET += on a primitive '
                     f'configuration parameter: {self.setting_name}'
@@ -182,8 +192,8 @@ class Operation(NamedTuple):
 
             if value in exist_value:
                 props = []
-                for f in dataclasses.fields(setting.type):
-                    if f.compare:
+                for f in setting.type.fields.values():
+                    if f.unique:
                         props.append(f.name)
 
                 if len(props) > 1:
@@ -201,7 +211,7 @@ class Operation(NamedTuple):
 
         elif self.opcode is OpCode.CONFIG_REM:
             assert setting
-            if not issubclass(setting.type, types.ConfigType):
+            if not isinstance(setting.type, types.ConfigTypeSpec):
                 raise errors.InternalServerError(
                     f'unexpected CONFIGURE SET -= on a primitive '
                     f'configuration parameter: {self.setting_name}'
@@ -257,18 +267,20 @@ def spec_to_json(spec: spec.Spec):
     dct = {}
 
     for setting in spec.values():
-        if issubclass(setting.type, str):
+        if _issubclass(setting.type, str):
             typeid = s_obj.get_known_type_id('std::str')
-        elif issubclass(setting.type, bool):
+        elif _issubclass(setting.type, bool):
             typeid = s_obj.get_known_type_id('std::bool')
-        elif issubclass(setting.type, int):
+        elif _issubclass(setting.type, int):
             typeid = s_obj.get_known_type_id('std::int64')
-        elif issubclass(setting.type, types.ConfigType):
+        elif _issubclass(setting.type, types.ConfigType):
             typeid = setting.type.get_edgeql_typeid()
-        elif issubclass(setting.type, statypes.Duration):
+        elif _issubclass(setting.type, statypes.Duration):
             typeid = s_obj.get_known_type_id('std::duration')
-        elif issubclass(setting.type, statypes.ConfigMemory):
+        elif _issubclass(setting.type, statypes.ConfigMemory):
             typeid = s_obj.get_known_type_id('cfg::memory')
+        elif isinstance(setting.type, types.ConfigTypeSpec):
+            typeid = types.CompositeConfigType.get_edgeql_typeid()
         else:
             raise RuntimeError(
                 f'cannot serialize type for config setting {setting.name}')
@@ -292,16 +304,16 @@ def spec_to_json(spec: spec.Spec):
 
 def value_to_json_value(setting: spec.Setting, value: Any):
     if setting.set_of:
-        if issubclass(setting.type, types.ConfigType):
+        if isinstance(setting.type, types.ConfigTypeSpec):
             return [v.to_json_value() for v in value]
         else:
             return list(value)
     else:
-        if issubclass(setting.type, types.ConfigType):
+        if isinstance(setting.type, types.ConfigTypeSpec):
             return value.to_json_value()
-        elif issubclass(setting.type, statypes.Duration) and value is not None:
+        elif _issubclass(setting.type, statypes.Duration) and value is not None:
             return value.to_iso8601()
-        elif (issubclass(setting.type, statypes.ConfigMemory) and
+        elif (_issubclass(setting.type, statypes.ConfigMemory) and
                 value is not None):
             return value.to_str()
         else:
@@ -310,17 +322,23 @@ def value_to_json_value(setting: spec.Setting, value: Any):
 
 def value_from_json_value(spec: spec.Spec, setting: spec.Setting, value: Any):
     if setting.set_of:
-        if issubclass(setting.type, types.ConfigType):
+        if isinstance(setting.type, types.ConfigTypeSpec):
             return frozenset(
-                setting.type.from_json_value(v, spec=spec) for v in value)
+                types.CompositeConfigType.from_pyvalue(
+                    v, spec=spec, tspec=setting.type,
+                )
+                for v in value
+            )
         else:
             return frozenset(value)
     else:
-        if issubclass(setting.type, types.ConfigType):
-            return setting.type.from_json_value(value, spec=spec)
-        elif issubclass(setting.type, statypes.Duration):
+        if isinstance(setting.type, types.ConfigTypeSpec):
+            return types.CompositeConfigType.from_pyvalue(
+                value, spec=spec, tspec=setting.type,
+            )
+        elif _issubclass(setting.type, statypes.Duration):
             return statypes.Duration.from_iso8601(value)
-        elif issubclass(setting.type, statypes.ConfigMemory):
+        elif _issubclass(setting.type, statypes.ConfigMemory):
             return statypes.ConfigMemory(value)
         else:
             return value

@@ -18,7 +18,6 @@
 
 
 import asyncio
-import dataclasses
 import datetime
 import json
 import os
@@ -26,7 +25,6 @@ import platform
 import random
 import tempfile
 import textwrap
-import typing
 import unittest
 
 import immutables
@@ -41,6 +39,9 @@ from edb.protocol import messages
 
 from edb.testbase import server as tb
 from edb.schema import objects as s_obj
+
+from edb.ir import statypes
+
 
 from edb.server import args
 from edb.server import cluster
@@ -62,15 +63,24 @@ def make_port_value(*, protocol='graphql+http',
         concurrency=concurrency, port=port, **kwargs)
 
 
-@dataclasses.dataclass(frozen=True, eq=True)
-class Port(types.CompositeConfigType):
+Field = statypes.CompositeTypeSpecField
 
-    protocol: str
-    database: str
-    port: int
-    concurrency: int
-    user: str
-    address: typing.FrozenSet[str] = frozenset({'localhost'})
+
+def _mk_fields(*fields):
+    return immutables.Map({f.name: f for f in fields})
+
+
+Port = types.ConfigTypeSpec(
+    name='Port',
+    fields=_mk_fields(
+        Field('protocol', str),
+        Field('database', str),
+        Field('port', int),
+        Field('concurrency', int),
+        Field('user', str),
+        Field('address', frozenset[str], default=frozenset({'localhost'})),
+    ),
+)
 
 
 testspec1 = spec.Spec(
