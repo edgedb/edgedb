@@ -55,6 +55,8 @@ compare it against the embeddings generated from our documentation to find
 the most similar embeddings. The answer is generated using the content that
 corresponds to these similar embeddings.
 
+With that out of the way, let's walk through how the pieces fit together.
+
 
 Implementation overview
 -----------------------
