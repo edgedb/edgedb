@@ -242,13 +242,6 @@ def compile_notebook(
     )
 
 
-def try_compile_rollback(
-    *compile_args: Any,
-    **compile_kwargs: Any,
-):
-    return COMPILER.try_compile_rollback(*compile_args, **compile_kwargs)
-
-
 def compile_graphql(
     client_id: int,
     dbname: str,
@@ -351,8 +344,6 @@ def get_handler(methname):
             meth = call_for_client
         elif methname == "compile_in_tx":
             meth = compile_in_tx
-        elif methname == "try_compile_rollback":
-            meth = try_compile_rollback
         else:
             meth = getattr(COMPILER, methname)
     return meth

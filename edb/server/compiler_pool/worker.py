@@ -218,13 +218,6 @@ def compile_notebook(
     )
 
 
-def try_compile_rollback(
-    *compile_args: Any,
-    **compile_kwargs: Any,
-):
-    return COMPILER.try_compile_rollback(*compile_args, **compile_kwargs)
-
-
 def compile_graphql(
     dbname: str,
     user_schema: Optional[bytes],
@@ -326,8 +319,6 @@ def get_handler(methname):
             meth = compile_notebook
         elif methname == "compile_graphql":
             meth = compile_graphql
-        elif methname == "try_compile_rollback":
-            meth = try_compile_rollback
         elif methname == "compile_sql":
             meth = compile_sql
         else:

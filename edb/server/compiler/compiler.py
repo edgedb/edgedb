@@ -398,7 +398,7 @@ class Compiler:
         self.state = state
 
     @staticmethod
-    def try_compile_rollback(eql: Union[edgeql.Source, bytes]) -> tuple[
+    def _try_compile_rollback(eql: Union[edgeql.Source, bytes]) -> tuple[
         dbstate.QueryUnitGroup, int
     ]:
         source: Union[str, edgeql.Source]
@@ -896,9 +896,7 @@ class Compiler:
         ):
             # This is a special case when COMMIT MIGRATION fails, the compiler
             # doesn't have the right transaction state, so we just roll back.
-            return (
-                self.try_compile_rollback(source)[0], state
-            )
+            return self._try_compile_rollback(source)[0], state
         else:
             state.sync_tx(txid)
 

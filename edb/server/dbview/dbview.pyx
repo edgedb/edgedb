@@ -1105,17 +1105,6 @@ cdef class DatabaseConnectionView:
 
         return unit_group
 
-    async def compile_rollback(
-        self,
-        eql: bytes,
-    ) -> tuple[dbstate.QueryUnitGroup, int]:
-        assert self.in_tx_error()
-        try:
-            compiler_pool = self._db._index._server.get_compiler_pool()
-            return await compiler_pool.try_compile_rollback(eql)
-        except Exception:
-            self.raise_in_tx_error()
-
     cdef check_capabilities(
         self,
         query_capabilities,
