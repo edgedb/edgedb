@@ -118,7 +118,8 @@ Once bootstrapping is complete, you should see a success message:
 
 .. code-block::
 
-    Success! Created docs-chatbot at /<path>/<to>/<project>/docs-chatbot
+    Success! Created docs-chatbot at
+    /<path>/<to>/<project>/docs-chatbot
 
 Let's quickly update the ``tsconfig/json``. Update the list of ``compilerOptions``
 by setting the ``baseUrl`` property to the root with ``"baseUrl": "."``. Later
