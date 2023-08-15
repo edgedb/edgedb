@@ -29,8 +29,8 @@ Now,* :ref:`skip ahead to get started building <ref_guide_chatgpt_bot_start>`
 *or read on for more detail.*
 
 Our chatbot is backed by `OpenAI's ChatGPT <https://openai.com/blog/chatgpt>`_.
-ChatGPT is an advanced language model that uses machine learning algorithms to
-generate human-like responses based on the input it's given.
+ChatGPT is an advanced large language model (LLM) that uses machine learning
+algorithms to generate human-like responses based on the input it's given.
 
 There are two options when integrating ChatGPT and language models in general:
 fine-tuning the model or using embeddings. Fine-tuning produces the best
