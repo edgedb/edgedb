@@ -284,22 +284,6 @@ each section's relative path, and the number of tokens. We will need this number
 later when calculating how many related sections fit inside the prompt context
 while staying under the model's token limit.
 
-.. note::
-
-    In this tutorial we will recreate all embeddings every time we run the
-    embeddings generation script, wiping all data and saving new ``Section``
-    objects for all of the documentation. This might be a reasonable approach
-    if you don't have much documentation, but if you have a lot of
-    documentation, you may want a more sophisticated approach that operates on
-    only documentation sections which have changed.
-
-    You can achieve this by saving a content checksum as part of your
-    ``Section`` objects. The next time you run generation, compare the
-    section's current checksum with the one you stored in the database. You
-    don't need to generate embeddings and update the database for a given
-    section unless the two checksums are different indicating something has
-    changed.
-
 Open the empty schema file that was generated when you initialized the EdgeDB
 project (located at ``dbschema/default.esdl`` from the project directory) and
 add this code to it:
@@ -356,6 +340,22 @@ We apply this schema by creating and running a migration.
 
     $ edgedb migration create
     $ edgedb migrate
+
+.. note::
+
+    In this tutorial we will recreate all embeddings every time we run the
+    embeddings generation script, wiping all data and saving new ``Section``
+    objects for all of the documentation. This might be a reasonable approach
+    if you don't have much documentation, but if you have a lot of
+    documentation, you may want a more sophisticated approach that operates on
+    only documentation sections which have changed.
+
+    You can achieve this by saving a content checksum as part of your
+    ``Section`` objects. The next time you run generation, compare the
+    section's current checksum with the one you stored in the database. You
+    don't need to generate embeddings and update the database for a given
+    section unless the two checksums are different indicating something has
+    changed.
 
 
 Create embeddings and store them
