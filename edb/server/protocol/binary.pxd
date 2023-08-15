@@ -77,8 +77,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
     cdef inline dbview.DatabaseConnectionView get_dbview(self)
 
-    cdef interpret_backend_error(self, exc)
-
     cdef dbview.QueryRequestInfo parse_execute_request(self)
     cdef parse_output_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)

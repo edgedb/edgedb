@@ -1084,6 +1084,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.get_dbview().tx_error()
             self.buffer.finish_message()
 
+            if isinstance(ex, pgerror.BackendError):
+                ex = await self.interpret_backend_error(ex)
+
             self.write_error(ex)
             self.flush()
 
@@ -1148,9 +1151,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         exc_code = None
 
-        if isinstance(exc, pgerror.BackendError):
-            exc = self.interpret_backend_error(exc)
-
         fields = {}
         if (isinstance(exc, errors.EdgeDBError) and
                 type(exc) is not errors.EdgeDBError):
@@ -1195,7 +1195,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.write(buf)
 
-    cdef interpret_backend_error(self, exc):
+    async def interpret_backend_error(self, exc):
         try:
             static_exc = errormech.static_interpret_backend_error(
                 exc.fields)
@@ -1873,7 +1873,7 @@ async def run_script(
         else:
             await conn._execute(compiled, b'', use_prep_stmt=0)
     except pgerror.BackendError as e:
-        exc = conn.interpret_backend_error(e)
+        exc = await conn.interpret_backend_error(e)
         if isinstance(exc, errors.EdgeDBError):
             raise exc from None
         else:
