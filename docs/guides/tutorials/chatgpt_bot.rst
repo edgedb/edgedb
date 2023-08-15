@@ -281,19 +281,24 @@ To be able to store data in the database, we have to create its schema first.
 We want to make the schema as simple as possible and store only the relevant
 data. We need to store the section content and embeddings. We will also save
 each section's relative path, and the number of tokens. We will need this number
-later when calculating how many similar sections fit inside the prompt context.
+later when calculating how many related sections fit inside the prompt context
+while staying under the model's token limit.
 
 .. note::
 
     In this tutorial we will recreate all embeddings every time we run the
-    embeddings generation script, and we will wipe data and re-save everything
-    in the database.
+    embeddings generation script, wiping all data and saving new ``Section``
+    objects for all of the documentation. This might be a reasonable approach
+    if you don't have much documentation, but if you have a lot of
+    documentation, you may want a more sophisticated approach that operates on
+    only documentation sections which have changed.
 
-    In order to easily determine which files of the documentation has
-    changed when you run the script you should also save the content checksum
-    in the database. Next time you run it you compare the section's checksum
-    with it's checksum from the database and only if the checksums are different
-    you re-generate the embeddings and update the database.
+    You can achieve this by saving a content checksum as part of your
+    ``Section`` objects. The next time you run generation, compare the
+    section's current checksum with the one you stored in the database. You
+    don't need to generate embeddings and update the database for a given
+    section unless the two checksums are different indicating something has
+    changed.
 
 Open the empty schema file that was generated when you initialized the EdgeDB
 project (located at ``dbschema/default.esdl`` from the project directory) and
