@@ -285,8 +285,8 @@ later when calculating how many related sections fit inside the prompt context
 while staying under the model's token limit.
 
 Open the empty schema file that was generated when you initialized the EdgeDB
-project (located at ``dbschema/default.esdl`` from the project directory) and
-add this code to it:
+project (located at ``dbschema/default.esdl`` from the project directory).
+We'll walk through what we'll add to it, one step at a time.
 
 .. code-block:: sdl
     :caption: dbschema/default.esdl
@@ -347,15 +347,19 @@ The ``Section`` contains properties to store the path to the file, the content,
 a count of tokens, and the embedding, which is of the custom scalar type we
 created in the previous step.
 
-We will also add an index inside the ``Section`` type to speed up queries. In
+We've also added an index inside the ``Section`` type to speed up queries. In
 order to work properly, the index should correspond to the
-``cosine_similarity`` function we'll be using to find sections related to the
-user's question. That index is ``ivfflat_cosine``. We are using the value ``3``
-for the ``lists`` parameter because best practice is to use the number of
-objects divided by 1,000 for up to 1,000,000 entries. Our database will have
-around 3,000 total entries which falls well under that threshold. In our case
-indexing does not have much impact, but if you plan to store and query a large
-number of entries, an index is recommended.
+``cosine_similarity`` function we're going to use to find sections related to
+the user's question. That corresponding index is ``ivfflat_cosine``.
+
+We are using the value ``3`` for the ``lists`` parameter because best practice
+is to use the number of objects divided by 1,000 for up to 1,000,000 objects.
+Our database will have around 3,000 total objects which falls well under that
+threshold.
+
+In our case indexing does not have much impact, but if you plan to store and
+query a large number of entries, you'll see performance gains by adding this
+index.
 
 Put that all together, and your entire schema file should look like this:
 
