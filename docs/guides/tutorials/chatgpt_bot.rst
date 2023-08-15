@@ -64,13 +64,11 @@ Implementation overview
 The general implementation has these steps (which we'll also follow in the
 guide):
 
-1. convert documentation into a unified format that is easily digestible
-   by the OpenAI API
-2. split the converted documentation into sections that can fit into the GPT
+1. split the converted documentation into sections that can fit into the GPT
    context window
-3. create embeddings for each section using `OpenAI's embeddings API
+2. create embeddings for each section using `OpenAI's embeddings API
    <https://platform.openai.com/docs/guides/embeddings>`_
-4. store the embeddings data in EdgeDB using pgvector
+3. store the embeddings data in EdgeDB using pgvector
 
 
 Each time a user asks a question, our app will:
@@ -203,8 +201,8 @@ connect using the UI.
 Now, let's get the documentation ready!
 
 
-Convert documentation into a unified format
-===========================================
+Get the documentation in place
+==============================
 
 For this project, we will be using Markdown files since they are straightforward
 for OpenAI's language models to use.
