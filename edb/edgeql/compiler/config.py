@@ -345,15 +345,15 @@ def _validate_op(
 
         cfg_type = ctx.env.get_schema_type_and_track(
             s_utils.ast_ref_to_name(expr.name), default=None)
-        if not cfg_type:
+        if not cfg_type and not expr.name.module:
             # expr.name is the name of the configuration type
             cfg_type = ctx.env.get_schema_type_and_track(
                 sn.QualName('cfg', name), default=None)
-            if cfg_type is None:
-                raise errors.ConfigurationError(
-                    f'unrecognized configuration object {name!r}',
-                    context=expr.context
-                )
+        if not cfg_type:
+            raise errors.ConfigurationError(
+                f'unrecognized configuration object {name!r}',
+                context=expr.context
+            )
 
         assert isinstance(cfg_type, s_objtypes.ObjectType)
         ptr_candidate: Optional[s_pointers.Pointer] = None

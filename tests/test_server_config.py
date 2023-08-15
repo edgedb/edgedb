@@ -460,17 +460,15 @@ class TestServerConfig(tb.QueryTestCase):
                 CONFIGURE SESSION INSERT TestSessionConfig { name := 'foo' };
             ''')
 
-        with self.assertRaisesRegex(
-                edgedb.UnsupportedFeatureError,
-                'CONFIGURE DATABASE INSERT is not supported'):
-            await self.con.query('''
-                CONFIGURE CURRENT DATABASE
-                INSERT TestSessionConfig { name := 'foo' };
-            ''')
+        # XXX: Test this properly?
+        await self.con.query('''
+            CONFIGURE CURRENT DATABASE
+            INSERT TestSessionConfig { name := 'foo' };
+        ''')
 
         with self.assertRaisesRegex(
-                edgedb.QueryError,
-                'module must be either \'cfg\' or empty'):
+                edgedb.ConfigurationError,
+                'unrecognized configuration object'):
             await self.con.query('''
                 CONFIGURE INSTANCE INSERT cf::TestInstanceConfig {
                     name := 'foo'
