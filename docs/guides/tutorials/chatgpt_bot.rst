@@ -187,15 +187,18 @@ the following in the root of the project:
     > 3.2
 
 The CLI should set up an EdgeDB project, an instance, and a database within
-that instance. You can confirm project creation by checking for an
-``edgedb.toml`` file and a ``dbschema`` directory in the project root. You can
-check if the instance is running with the ``edgedb instance list`` command.
-Search for the name of the instance you've just created (``docs_chatbot`` if
-you're following along) and check the status. Don't worry if the status is
-"inactive"; the status will change to "running" automatically when you connect
-to the instance. You can connect to the created instance by running ``edgedb``
-in the terminal to connect to it via REPL or by running ``edgedb ui`` to
-connect using the UI.
+that instance.
+
+- Confirm project creation by checking for an ``edgedb.toml`` file and a
+  ``dbschema`` directory in the project root.
+- Confirm the instance is running with the ``edgedb instance list`` command.
+  Search for the name of the instance you've just created (``docs_chatbot`` if
+  you're following along) and check the status. (Don't worry if the status is
+  "inactive"; the status will change to "running" automatically when you
+  connect to the instance.)
+- Confirm you can connect to the created instance by running ``edgedb`` in the
+  terminal to connect to it via REPL or by running ``edgedb ui`` to connect
+  using the UI.
 
 Now, let's get the documentation ready!
 
