@@ -63,14 +63,12 @@ With that out of the way, let's walk through how the pieces fit together.
 Implementation overview
 -----------------------
 
-The general implementation has these steps (which we'll also follow in the
+The general implementation has two steps (which we'll also follow in the
 guide):
 
-1. split the converted documentation into sections that can fit into the GPT
-   context window
-2. create embeddings for each section using `OpenAI's embeddings API
+1. create embeddings for each section using `OpenAI's embeddings API
    <https://platform.openai.com/docs/guides/embeddings>`_
-3. store the embeddings data in EdgeDB using pgvector
+2. store the embeddings data in EdgeDB using pgvector
 
 
 Each time a user asks a question, our app will:
@@ -205,72 +203,72 @@ Now, let's get the documentation ready!
 Get the documentation in place
 ==============================
 
-For this project, we will be using Markdown files since they are straightforward
-for OpenAI's language models to use.
-
-.. note::
-
-    You *can* opt to other formats like plain text files or more complex ones
-    like HTML. Since more complex formats include additional
-    data beyond what you want the language model to consume (like HTML's tags
-    and their attributes), you should first clean those files and extract the
-    content before sending it to OpenAI (you can write your own logic for this
-    or use libraries that are available online for conversion to Markdown for
-    example). It's possible to use more complex
-    formats *without* doing this, but then you're paying for extra tokens that
-    don't improve the answers your chatbot will give users.
+For this project, we will be using documentation written as Markdown files
+since they are straightforward for OpenAI's language models to use.
 
 Create a ``docs`` folder in the root of your project. Here we will place
-Markdown files. You can grab the files we use from `the example project's
+our Markdown files. You can grab the files we use from `the example project's
 GitHub repo
 <https://github.com/edgedb/edgedb-examples/tree/main/docs-chatbot/docs>`_, or
 add your own.
 
-Split the documentation into sections
-=====================================
+.. note:: On using formats other than Markdown
 
-In general a documentation file can be quite long and it needs to be split
-into multiple sections. Usually this is done by parsing the file and creating
-new sections every time a header element is encountered. One section should not
-be too long nor too short, it should be long enough to explain some concept. So,
-when writing documentation you should pay attention to organize it into such a
-way that it can be parsed as array of self-contained chunks (sections).
+    You *can* opt to use other simple formats like plain text files or more
+    complex ones like HTML. Since more complex formats can include additional
+    data beyond what you want the language model to consume (like HTML's tags
+    and their attributes), you may first want to clean those files and extract
+    the content before sending it to OpenAI. (You can write your own logic for
+    this or use libraries that are available online for conversion, to Markdown
+    for example.)
 
-Why we need to split documentation into sections
-------------------------------------------------
+    It's possible to use more complex formats *without* cleaning
+    them, but then you're paying for extra tokens that don't improve the
+    answers your chatbot will give users.
 
-All language models have token limit, which means that you can't just provide
-a whole book as an input to it and get embedding or book summary. With time
-models improve and these token limits increase so longer and longer chunks of
-text can be served to them but for now we have to stay under the current OpenAI
-models token limits.
+.. note:: On longer documentation sections
 
-For `embeddings <https://platform.openai.com/docs/guides/embeddings/what-are-embeddings>`_
-we will use ``text-embedding-ada-002`` model, it's input token limit is 8191.
+    In this tutorial project, our documentation pages are short, but in
+    practice, documentation files can get quite long and may need to be split
+    into multiple sections because of the LLM's token limit. LLMs divide text
+    into tokens. For English text, 1 token is approximately 4 characters or
+    0.75 words. LLMs have limits on the number of tokens they can receive and
+    send back.
 
-Later for answering user's questions we will use `chat completion <https://platform.openai.com/docs/guides/gpt/chat-completions-api>`_
-model ``pt-3.5-turbo``. It's token limit is 4,096 tokens, and this limit
-includes the input and the output.
+    One approach to mitigate this is to parse your documentation files and
+    create new sections every time you encounter a header. If you use this
+    approach, consider section lengths when writing your documentation. Use
+    your token limit to set a hard limit on documentation section length to
+    make sure it's accessible to your chatbot. If you find a section is too
+    long, consider ways you might break it up with additional headings. This
+    will probably make it easier to read for your users too!
 
-For English text, 1 token is approximately 4 characters or 0.75 words.
+    To generate embeddings, we will use the ``text-embedding-ada-002`` model.
+    Its input token limit is 8,191 tokens. Later, when answering a user's
+    questions we will use the `chat completion
+    <https://platform.openai.com/docs/guides/gpt/chat-completions-api>`_ model
+    ``pt-3.5-turbo``. Its token limit is 4,096 tokens. This limit covers not
+    only our input, but also the API's response.
 
-Important thing to understand is that later together with user's question we
-will also send similar sections from documentation as part of the input to the
-chat completion API. And this is why we should keep the sections short. We want
-to leave enough space for the answer. If the similar sections are too long and together
-with the input exceed the mentioned 4,096 limit we will get an error straight
-away from the OpenAI. If the length of the question and similar sections are
-close to the token limit, then the answer will be cut off when the limit is
-reached which is not what we want, there should always be enough tokens for the
-answer. That's why we will later use 1500 tokens as a max number of tokens we
-will use for similar sections so all sections should be less than 1500 tokens,
-and it is better if few sections can be included as a context, so it is actually
-better to keep sections as small as possible as long as they have enough context.
+    Later, when we send the user's question, we will also send related sections
+    from our documentation as part of the input to the chat completion API.
+    This is why it's important to keep our sections short: we want to leave
+    enough space for the answer.
 
-The Markdown files that we use here are already short enough and they represent
-separate sections so we will just use them as that. If your files contain multiple
-sections you should firstly parse them into smaller section chunks before you
-request embeddings for them and save them into database.
+    If the related sections are too long and, together with the user's
+    question, exceed the 4,096 token limit, we will get an error back from
+    OpenAI. If the length of the question and similar sections are too close to
+    the token limit but not over it, the API will send an answer, but the
+    answer will be cut off when the limit is reached.
+
+    We want to avoid either of these outcomes by making sure we always have
+    enough token headroom for all the input and the LLM's response. That's why
+    we will later set 1,500 tokens as the maximum number of tokens we will use
+    for our related sections, and it's also why it's important that sections be
+    relatively short.
+
+    If your application has longer documentation files, make sure to figure out
+    a strategy for splitting those before you generate your embeddings.
 
 
 Create the schema to store embeddings
