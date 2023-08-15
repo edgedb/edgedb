@@ -33,10 +33,12 @@ ChatGPT is an advanced large language model (LLM) that uses machine learning
 algorithms to generate human-like responses based on the input it's given.
 
 There are two options when integrating ChatGPT and language models in general:
-fine-tuning the model or using embeddings. Fine-tuning produces the best
-result, but it needs more of everything: more money, more time, more resources,
-and more training data. That's why many people and businesses use embeddings
-instead to provide additional context to an existing language model.
+fine-tuning the model or using `embeddings
+<https://platform.openai.com/docs/guides/embeddings/what-are-embeddings>`_.
+Fine-tuning produces the best result, but it needs more of everything: more
+money, more time, more resources, and more training data. That's why many
+people and businesses use embeddings instead to provide additional context to
+an existing language model.
 
 Embeddings are a way to convert words, phrases, or other types of data into a
 numerical form that a computer can do math with. All of this is built on top
