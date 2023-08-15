@@ -219,8 +219,10 @@ for OpenAI's language models to use.
     don't improve the answers your chatbot will give users.
 
 Create a ``docs`` folder in the root of your project. Here we will place
-Markdown files. You can copy/paste the files we use from `<here https://github.com/diksipav/docs-chatbot/tree/main/docs>`_,
-or use your own.
+Markdown files. You can grab the files we use from `the example project's
+GitHub repo
+<https://github.com/edgedb/edgedb-examples/tree/main/docs-chatbot/docs>`_, or
+add your own.
 
 Split the documentation into sections
 =====================================
