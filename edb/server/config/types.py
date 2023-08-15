@@ -25,7 +25,6 @@ from edb import errors
 from edb.common import typeutils
 from edb.common import typing_inspect
 from edb.schema import objects as s_obj
-from edb.schema import name as s_name
 
 from edb.ir import statypes
 
@@ -117,8 +116,6 @@ class CompositeConfigType(ConfigType):
         data = dict(data)
         tname = data.pop('_tname', None)
         if tname is not None:
-            if '::' in tname:
-                tname = s_name.QualName.from_string(tname).name
             tspec = spec.get_type_by_name(tname)
         assert tspec
 
@@ -171,8 +168,6 @@ class CompositeConfigType(ConfigType):
 
                 tname = value.get('_tname', None)
                 if tname is not None:
-                    if '::' in tname:
-                        tname = s_name.QualName.from_string(tname).name
                     actual_f_type = spec.get_type_by_name(tname)
                 else:
                     actual_f_type = f_type

@@ -560,7 +560,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         else:
             authmethod = await self.tenant.get_auth_method(
                 user, self._transport_proto)
-            authmethod_name = authmethod._tspec.name
+            authmethod_name = authmethod._tspec.name.split('::')[1]
 
         if authmethod_name == 'SCRAM':
             await self._auth_scram(user)

@@ -6636,7 +6636,7 @@ def _generate_config_type_view(
 
         key_expr = 'k.key'
 
-        tname = stype.get_name(schema).name
+        tname = str(stype.get_name(schema))
         where = f"{key_expr} IS NOT NULL AND ({sval}->>'_tname') = {ql(tname)}"
 
     else:

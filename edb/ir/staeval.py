@@ -447,7 +447,7 @@ def object_type_to_spec(
         )
 
     return spec_class(
-        name=objtype.get_name(schema).name,
+        name=str(objtype.get_name(schema)),
         fields=immutables.Map(fields),
         parent=parent,
     )
