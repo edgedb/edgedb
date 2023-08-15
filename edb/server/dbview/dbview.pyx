@@ -1055,7 +1055,6 @@ cdef class DatabaseConnectionView:
     async def _compile(
         self,
         query_req: QueryRequestInfo,
-        skip_first: bool = False,
     ) -> dbstate.QueryUnitGroup:
         compiler_pool = self._db._index._server.get_compiler_pool()
 
@@ -1072,7 +1071,6 @@ cdef class DatabaseConnectionView:
                     query_req.implicit_limit,
                     query_req.inline_typeids,
                     query_req.inline_typenames,
-                    skip_first,
                     self._protocol_version,
                     query_req.inline_objectids,
                     query_req.input_format is compiler.InputFormat.JSON,
@@ -1094,7 +1092,6 @@ cdef class DatabaseConnectionView:
                     query_req.implicit_limit,
                     query_req.inline_typeids,
                     query_req.inline_typenames,
-                    skip_first,
                     self._protocol_version,
                     query_req.inline_objectids,
                     query_req.input_format is compiler.InputFormat.JSON,

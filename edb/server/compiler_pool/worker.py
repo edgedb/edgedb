@@ -274,7 +274,6 @@ def compile_graphql(
         inline_typenames=False,
         inline_objectids=False,
         json_parameters=True,
-        skip_first=False,
         protocol_version=defines.CURRENT_PROTOCOL,
     )
 
