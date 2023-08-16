@@ -416,13 +416,16 @@ Create embeddings and store them
 Before we can script the creation of embeddings, we need to install some
 libraries that will help us.
 
-.. lint-off
-
 .. code-block:: bash
 
-    $ npm install openai dotenv tsx edgedb @edgedb/generate gpt-tokenizer --save-dev
-
-.. lint-on
+    $ npm install \
+        openai \
+        dotenv \
+        tsx \
+        edgedb \
+        @edgedb/generate \
+        gpt-tokenizer \
+        --save-dev
 
 
 Generating embeddings
