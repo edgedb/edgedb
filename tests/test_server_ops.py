@@ -1120,8 +1120,8 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             await asyncio.wait(fs)
             cluster1, args1 = await fs[0]
             cluster2, args2 = await fs[1]
-            args1["host"] = "1.localhost"
-            args2["host"] = "2.localhost"
+            args1["server_hostname"] = "1.localhost"
+            args2["server_hostname"] = "2.localhost"
             try:
                 json.dump(conf, conf_file.file)
                 conf_file.file.flush()
