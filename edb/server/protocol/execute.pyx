@@ -202,12 +202,12 @@ async def execute_script(
         bytes state = None, orig_state = None
         ssize_t sent = 0
         bint in_tx
-        object user_schema, cached_reflection, global_schema
+        object user_schema, extensions, cached_reflection, global_schema
         WriteBuffer bind_data
         int dbver = dbv.dbver
         bint parse
 
-    user_schema = cached_reflection = global_schema = None
+    user_schema = extensions = cached_reflection = global_schema = None
     unit_group = compiled.query_unit_group
 
     in_tx = dbv.in_tx()
@@ -273,6 +273,7 @@ async def execute_script(
 
                 if query_unit.user_schema:
                     user_schema = query_unit.user_schema
+                    extensions = query_unit.extensions
                     cached_reflection = query_unit.cached_reflection
 
                 if query_unit.global_schema:
@@ -331,7 +332,7 @@ async def execute_script(
     else:
         if not in_tx:
             side_effects = dbv.commit_implicit_tx(
-                user_schema, global_schema, cached_reflection
+                user_schema, extensions, global_schema, cached_reflection
             )
             if side_effects:
                 signal_side_effects(dbv, side_effects)
@@ -427,14 +428,6 @@ def signal_side_effects(dbv, side_effects):
         tenant.create_task(
             tenant.signal_sysevent(
                 'system-config-changes',
-            ),
-            interruptable=False,
-        )
-
-    if side_effects & dbview.SideEffects.ExtensionChanges:
-        tenant.create_task(
-            tenant.signal_sysevent(
-                'extension-changes',
             ),
             interruptable=False,
         )

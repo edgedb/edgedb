@@ -50,6 +50,7 @@ from edb.ir import ast as irast
 
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as s_delta
+from edb.schema import extensions as s_ext
 from edb.schema import functions as s_func
 from edb.schema import links as s_links
 from edb.schema import properties as s_props
@@ -2208,13 +2209,12 @@ def _try_compile(
             unit.create_db = comp.create_db
             unit.drop_db = comp.drop_db
             unit.create_db_template = comp.create_db_template
-            unit.create_ext = comp.create_ext
-            unit.drop_ext = comp.drop_ext
             unit.has_role_ddl = comp.has_role_ddl
             unit.ddl_stmt_id = comp.ddl_stmt_id
             if comp.user_schema is not None:
                 final_user_schema = comp.user_schema
                 unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                unit.extensions = _extract_extension_names(comp.user_schema)
             if comp.cached_reflection is not None:
                 unit.cached_reflection = \
                     pickle.dumps(comp.cached_reflection, -1)
@@ -2234,6 +2234,7 @@ def _try_compile(
             if comp.user_schema is not None:
                 final_user_schema = comp.user_schema
                 unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                unit.extensions = _extract_extension_names(comp.user_schema)
             if comp.cached_reflection is not None:
                 unit.cached_reflection = \
                     pickle.dumps(comp.cached_reflection, -1)
@@ -2264,6 +2265,7 @@ def _try_compile(
             if comp.user_schema is not None:
                 final_user_schema = comp.user_schema
                 unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                unit.extensions = _extract_extension_names(comp.user_schema)
             if comp.cached_reflection is not None:
                 unit.cached_reflection = \
                     pickle.dumps(comp.cached_reflection, -1)
@@ -2773,6 +2775,13 @@ def _hash_sql(sql: bytes, **kwargs: bytes) -> bytes:
         h.update(param.encode('latin1'))
         h.update(val)
     return h.hexdigest().encode('latin1')
+
+
+def _extract_extension_names(user_schema: s_schema.Schema) -> set[str]:
+    return {
+        ext.get_name(user_schema).name
+        for ext in user_schema.get_objects(type=s_ext.Extension)
+    }
 
 
 class DumpDescriptor(NamedTuple):

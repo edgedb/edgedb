@@ -760,22 +760,6 @@ class Tenant(ha_base.ClusterProtocol):
         )
         return config.from_json(self._server._config_settings, result)
 
-    async def introspect_extensions(self, dbname: str) -> None:
-        logger.info("introspecting extensions for database '%s'", dbname)
-        conn = await self._acquire_intro_pgcon(dbname)
-        if not conn:
-            return
-
-        try:
-            extensions = await self._introspect_extensions(conn)
-        finally:
-            self.release_pgcon(dbname, conn)
-
-        if self._dbindex is not None:
-            db = self._dbindex.maybe_get_db(dbname)
-            if db is not None:
-                db.extensions = extensions
-
     async def _introspect_extensions(
         self, conn: pgcon.PGConnection
     ) -> set[str]:
@@ -1264,21 +1248,6 @@ class Tenant(ha_base.ClusterProtocol):
             except Exception:
                 metrics.background_errors.inc(
                     1.0, "on_remote_database_config_change"
-                )
-                raise
-
-        self.create_task(task(), interruptable=True)
-
-    def on_database_extensions_changes(self, dbname: str) -> None:
-        if not self._accept_new_tasks:
-            return
-
-        async def task():
-            try:
-                await self.introspect_extensions(dbname)
-            except Exception:
-                metrics.background_errors.inc(
-                    1.0, "on_database_extensions_change"
                 )
                 raise
 
