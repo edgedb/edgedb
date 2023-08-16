@@ -283,10 +283,11 @@ Create the schema to store embeddings
 
 To be able to store data in the database, we have to create its schema first.
 We want to make the schema as simple as possible and store only the relevant
-data. We need to store the section content and embeddings. We will also save
-each section's relative path, and the number of tokens. We will need this number
-later when calculating how many related sections fit inside the prompt context
-while staying under the model's token limit.
+data. We need to store the section's embeddings, content, and the number of
+tokens. The embeddings allow us to match content to questions. The content
+gives us context to feed to the LLM. We will need the token count later when
+calculating how many related sections fit inside the prompt context while
+staying under the model's token limit.
 
 Open the empty schema file that was generated when you initialized the EdgeDB
 project (located at ``dbschema/default.esdl`` from the project directory).
@@ -335,9 +336,6 @@ Now, the ``Section`` type:
 
     …
       type Section {
-        required path: str {
-          constraint exclusive;
-        }
         required content: str;
         required tokens: int16;
         required embedding: OpenAIEmbedding;
@@ -377,9 +375,6 @@ Put that all together, and your entire schema file should look like this:
         ext::pgvector::vector<1536>;
 
       type Section {
-        required path: str {
-          constraint exclusive;
-        }
         required content: str;
         required tokens: int16;
         required embedding: OpenAIEmbedding;
@@ -405,13 +400,29 @@ We apply this schema by creating and running a migration.
     documentation, you may want a more sophisticated approach that operates on
     only documentation sections which have changed.
 
-    You can achieve this by saving content checksums as part of your
-    ``Section`` objects. The next time you run generation, compare the
-    section's current checksum with the one you stored in the database. You
-    don't need to generate embeddings and update the database for a given
-    section unless the two checksums are different indicating something has
-    changed. If you have significant documentation, consider incorporating this
-    into your app.
+    You can achieve this by saving content checksums and section paths as part
+    of your ``Section`` objects. The next time you run generation, compare the
+    section's current checksum with the one you stored in the database, finding
+    it by its path. You don't need to generate embeddings and update the
+    database for a given section unless the two checksums are different
+    indicating something has changed.
+
+    If you decide to go this route, add properties your ``Section`` as shown
+    below:
+
+    .. code-block:: sdl
+        :caption: dbschema/default.esdl
+
+        type Section {
+          required path: str {
+            constraint exclusive;
+          }
+          required checksum: str;
+          # The rest of the Section type
+        }
+
+    You'll need to store section paths, calculate and compare checksums, and
+    update objects conditionally based on the outcome of those comparisons.
 
 
 Create embeddings and store them
@@ -579,7 +590,6 @@ generate the embeddings.
         const contentTrimmed = content.replace(/\n/g, " ");
         contents.push(contentTrimmed);
         sections.push({
-          path,
           content,
           tokens: 0,
           embedding: [],
@@ -680,7 +690,6 @@ actual ``storeEmbeddings`` function.
         const query = e.params({ sections: e.json }, ({ sections }) => {
           return e.for(e.json_array_unpack(sections), (section) => {
             return e.insert(e.Section, {
-              path: e.cast(e.str, section.path),
               content: e.cast(e.str, section.content),
               tokens: e.cast(e.int16, section.tokens),
               embedding: e.cast(e.OpenAIEmbedding, section.embedding),
