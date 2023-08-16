@@ -406,8 +406,8 @@ We apply this schema by creating and running a migration.
     section's current checksum with the one you stored in the database. You
     don't need to generate embeddings and update the database for a given
     section unless the two checksums are different indicating something has
-    changed. If you significant documentation, consider incorporating this into
-    your app.
+    changed. If you have significant documentation, consider incorporating this
+    into your app.
 
 
 Create embeddings and store them
