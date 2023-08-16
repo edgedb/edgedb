@@ -511,14 +511,15 @@ Then we have a few function definitions:
 Getting section paths
 ^^^^^^^^^^^^^^^^^^^^^
 
-We will store the section paths in the database. This is not necessary, but we
-want to associate content and embeddings with a section path as their
-unique identifier.
+In order to get the sections' content, we first need to know where the files
+are that need to be read. The ``walk`` function finds them for us and returns
+all the paths.
 
-Since our ``docs`` folder contains files at multiple levels of nesting, we
-need a function that loops through all section files, builds an array of all
-paths relative to the project root, and sorts those paths. This is the job of
-the ``walk`` function.
+Since our ``docs`` folder contains files at multiple levels of nesting
+(assuming you copied our example documentation files across), we need a
+function that loops through all section files and directories recursively. It
+will build an array of all paths relative to the project root and sort those
+paths.
 
 .. code-block:: typescript
     :caption: generate-embeddings.ts
@@ -543,7 +544,6 @@ the ``walk`` function.
 
       return flattenedFiles.sort((a, b) => a.localeCompare(b));
     }
-
 
 The output it produces looks like this:
 
