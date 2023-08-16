@@ -147,8 +147,6 @@ class DDLQuery(BaseQuery):
     single_unit: bool = False
     create_db: Optional[str] = None
     drop_db: Optional[str] = None
-    create_ext: Optional[str] = None
-    drop_ext: Optional[str] = None
     create_db_template: Optional[str] = None
     has_role_ddl: bool = False
     ddl_stmt_id: Optional[str] = None
@@ -279,10 +277,6 @@ class QueryUnit:
     # close all inactive unused pooled connections to the template db.
     create_db_template: Optional[str] = None
 
-    # If non-None, contains name of created/deleted extension.
-    create_ext: Optional[str] = None
-    drop_ext: Optional[str] = None
-
     # If non-None, the DDL statement will emit data packets marked
     # with the indicated ID.
     ddl_stmt_id: Optional[str] = None
@@ -322,6 +316,7 @@ class QueryUnit:
     # the command is run. The schema is pickled.
     user_schema: Optional[bytes] = None
     cached_reflection: Optional[bytes] = None
+    extensions: Optional[set[str]] = None
 
     # If present, represents the future global schema state
     # after the command is run. The schema is pickled.

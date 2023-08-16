@@ -31,7 +31,6 @@ cpdef enum SideEffects:
     RoleChanges = 1 << 3
     GlobalSchemaChanges = 1 << 4
     DatabaseChanges = 1 << 5
-    ExtensionChanges = 1 << 6
 
 
 @cython.final
@@ -91,7 +90,6 @@ cdef class Database:
         readonly object extensions
 
     cdef schedule_config_update(self)
-    cdef schedule_extensions_update(self)
 
     cdef _invalidate_caches(self)
     cdef _clear_state_serializers(self)
@@ -102,6 +100,7 @@ cdef class Database:
     cdef _set_and_signal_new_user_schema(
         self,
         new_schema,
+        extensions,
         reflection_cache=?,
         backend_ids=?,
         db_config=?,
@@ -188,7 +187,7 @@ cdef class DatabaseConnectionView:
     cdef on_error(self)
     cdef on_success(self, query_unit, new_types)
     cdef commit_implicit_tx(
-        self, user_schema, global_schema, cached_reflection
+        self, user_schema, extensions, global_schema, cached_reflection
     )
 
     cpdef get_config_spec(self)

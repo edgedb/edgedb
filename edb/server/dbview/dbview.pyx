@@ -36,7 +36,6 @@ from edb import errors
 from edb.common import lru, uuidgen
 from edb import edgeql
 from edb.edgeql import qltypes
-from edb.schema import extensions as s_ext
 from edb.schema import schema as s_schema
 from edb.server import compiler, defines, config, metrics
 from edb.server.compiler import dbstate, enums, sertypes
@@ -180,13 +179,7 @@ cdef class Database:
         self.user_schema = user_schema
         self.reflection_cache = reflection_cache
         self.backend_ids = backend_ids
-        if user_schema is not None:
-            self.extensions = {
-                ext.get_name(user_schema).name
-                for ext in user_schema.get_objects(type=s_ext.Extension)
-            }
-        else:
-            self.extensions = extensions
+        self.extensions = extensions
 
     @property
     def server(self):
@@ -199,12 +192,10 @@ cdef class Database:
     cdef schedule_config_update(self):
         self._index._tenant.on_local_database_config_change(self.name)
 
-    cdef schedule_extensions_update(self):
-        self._index._tenant.on_database_extensions_changes(self.name)
-
     cdef _set_and_signal_new_user_schema(
         self,
         new_schema,
+        extensions,
         reflection_cache=None,
         backend_ids=None,
         db_config=None,
@@ -215,11 +206,7 @@ cdef class Database:
         self.dbver = next_dbver()
 
         self.user_schema = new_schema
-
-        self.extensions = {
-            ext.get_name(new_schema).name
-            for ext in new_schema.get_objects(type=s_ext.Extension)
-        }
+        self.extensions = extensions
 
         if backend_ids is not None:
             self.backend_ids = backend_ids
@@ -853,6 +840,7 @@ cdef class DatabaseConnectionView:
                 self._in_tx_dbver = next_dbver()
                 self._db._set_and_signal_new_user_schema(
                     pickle.loads(query_unit.user_schema),
+                    query_unit.extensions,
                     pickle.loads(query_unit.cached_reflection)
                         if query_unit.cached_reflection is not None
                         else None
@@ -874,9 +862,6 @@ cdef class DatabaseConnectionView:
             if query_unit.has_role_ddl:
                 side_effects |= SideEffects.RoleChanges
                 self._db.tenant.fetch_roles()
-            if query_unit.create_ext or query_unit.drop_ext:
-                side_effects |= SideEffects.ExtensionChanges
-                self._db.schedule_extensions_update()
         else:
             if new_types:
                 self._in_tx_new_types.update(new_types)
@@ -899,6 +884,7 @@ cdef class DatabaseConnectionView:
             if query_unit.user_schema is not None:
                 self._db._set_and_signal_new_user_schema(
                     pickle.loads(query_unit.user_schema),
+                    query_unit.extensions,
                     pickle.loads(query_unit.cached_reflection)
                         if query_unit.cached_reflection is not None
                         else None
@@ -929,7 +915,7 @@ cdef class DatabaseConnectionView:
         return side_effects
 
     cdef commit_implicit_tx(
-        self, user_schema, global_schema, cached_reflection
+        self, user_schema, extensions, global_schema, cached_reflection
     ):
         assert self._in_tx
         side_effects = 0
@@ -943,6 +929,7 @@ cdef class DatabaseConnectionView:
         if user_schema is not None:
             self._db._set_and_signal_new_user_schema(
                 pickle.loads(user_schema),
+                extensions,
                 pickle.loads(cached_reflection)
                     if cached_reflection is not None
                     else None
@@ -1235,14 +1222,18 @@ cdef class DatabaseIndex:
         db_config,
         reflection_cache,
         backend_ids,
-        extensions=None,
+        extensions,
     ):
         cdef Database db
         db = self._dbs.get(dbname)
         if db is not None:
-            # This branch is only used by db restore
             db._set_and_signal_new_user_schema(
-                user_schema, reflection_cache, backend_ids, db_config)
+                user_schema,
+                extensions,
+                reflection_cache,
+                backend_ids,
+                db_config,
+            )
             # Make sure we will re-make the state serializers,
             # see also comments in describe_database_restore()
             db._clear_state_serializers()
