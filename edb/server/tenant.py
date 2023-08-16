@@ -841,10 +841,14 @@ class Tenant(ha_base.ClusterProtocol):
             db_config = await self.introspect_db_config(conn, user_schema)
             extensions = await self._introspect_extensions(conn)
 
+            # GOTCHA: we will move introspect_user_schema() to the compiler
+            # so that we don't need this pickle.dumps+loads here.
+            import pickle
+
             assert self._dbindex is not None
             self._dbindex.register_db(
                 dbname,
-                user_schema=user_schema,
+                user_schema_pickled=pickle.dumps(user_schema, -1),
                 db_config=db_config,
                 reflection_cache=reflection_cache,
                 backend_ids=backend_ids,
@@ -873,7 +877,7 @@ class Tenant(ha_base.ClusterProtocol):
                 if not self._dbindex.has_db(dbname):
                     self._dbindex.register_db(
                         dbname,
-                        user_schema=None,
+                        user_schema_pickled=None,
                         db_config=None,
                         reflection_cache=None,
                         backend_ids=None,

@@ -85,6 +85,7 @@ cdef class Database:
         readonly object dbver
         readonly object db_config
         readonly object user_schema
+        readonly bytes user_schema_pickled
         readonly object reflection_cache
         readonly object backend_ids
         readonly object extensions
@@ -100,7 +101,7 @@ cdef class Database:
     cdef _update_backend_ids(self, new_types)
     cdef _set_and_signal_new_user_schema(
         self,
-        new_schema,
+        new_schema_pickled,
         extensions,
         reflection_cache=?,
         backend_ids=?,
