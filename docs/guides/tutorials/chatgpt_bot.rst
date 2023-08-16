@@ -425,8 +425,8 @@ We apply this schema by creating and running a migration.
     update objects conditionally based on the outcome of those comparisons.
 
 
-Create embeddings and store them
-================================
+Create and store embeddings
+===========================
 
 Before we can script the creation of embeddings, we need to install some
 libraries that will help us.
