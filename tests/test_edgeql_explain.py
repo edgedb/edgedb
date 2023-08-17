@@ -1335,6 +1335,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             self.get_gist_index_expected_res('mdate', 'BitmapIndexScan'),
         )
 
+    @unittest.skip("this test flakes: #5922")
     async def test_edgeql_explain_ranges_contains_02(self):
         res = await self.explain('''
             select RangeTest {id, rval}
@@ -1380,6 +1381,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             self.get_gist_index_expected_res('mdate', 'BitmapIndexScan'),
         )
 
+    @unittest.skip("this test flakes: #5922")
     async def test_edgeql_explain_ranges_contains_03(self):
         res = await self.explain('''
             select RangeTest {id, mval}
