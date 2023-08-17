@@ -252,13 +252,13 @@ add your own.
 
     To generate embeddings, we will use the ``text-embedding-ada-002`` model.
     Its input token limit is 8,191 tokens. Later, when answering a user's
-    questions we will use the `chat completion
+    questions we will use the `chat completions
     <https://platform.openai.com/docs/guides/gpt/chat-completions-api>`_ model
     ``pt-3.5-turbo``. Its token limit is 4,096 tokens. This limit covers not
     only our input, but also the API's response.
 
     Later, when we send the user's question, we will also send related sections
-    from our documentation as part of the input to the chat completion API.
+    from our documentation as part of the input to the chat completions API.
     This is why it's important to keep our sections short: we want to leave
     enough space for the answer.
 
@@ -670,7 +670,7 @@ through the response data.
 One downside to this one-shot embedding generation approach is that we do not
 get back token counts with the result. Token counts are important because they
 determine how many relevant sections we can send along with our input to the
-Completions API — the one that answers the user's question — and still be
+chat completions API — the one that answers the user's question — and still be
 within the model's token limit. To stay within the limit, we need to know how
 many tokens each section has. That's where the `gpt-tokenizer
 <https://www.npmjs.com/package/gpt-tokenizer>`_ library comes in. OpenAI only
