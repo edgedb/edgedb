@@ -1042,7 +1042,6 @@ cdef class DatabaseConnectionView:
     async def _compile(
         self,
         query_req: QueryRequestInfo,
-        skip_first: bool = False,
     ) -> dbstate.QueryUnitGroup:
         compiler_pool = self._db._index._server.get_compiler_pool()
 
@@ -1059,7 +1058,6 @@ cdef class DatabaseConnectionView:
                     query_req.implicit_limit,
                     query_req.inline_typeids,
                     query_req.inline_typenames,
-                    skip_first,
                     self._protocol_version,
                     query_req.inline_objectids,
                     query_req.input_format is compiler.InputFormat.JSON,
@@ -1081,7 +1079,6 @@ cdef class DatabaseConnectionView:
                     query_req.implicit_limit,
                     query_req.inline_typeids,
                     query_req.inline_typenames,
-                    skip_first,
                     self._protocol_version,
                     query_req.inline_objectids,
                     query_req.input_format is compiler.InputFormat.JSON,
@@ -1094,17 +1091,6 @@ cdef class DatabaseConnectionView:
         unit_group, self._last_comp_state, self._last_comp_state_id = result
 
         return unit_group
-
-    async def compile_rollback(
-        self,
-        eql: bytes,
-    ) -> tuple[dbstate.QueryUnitGroup, int]:
-        assert self.in_tx_error()
-        try:
-            compiler_pool = self._db._index._server.get_compiler_pool()
-            return await compiler_pool.try_compile_rollback(eql)
-        except Exception:
-            self.raise_in_tx_error()
 
     cdef check_capabilities(
         self,

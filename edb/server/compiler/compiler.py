@@ -103,7 +103,6 @@ class CompileContext:
     output_format: enums.OutputFormat
     expected_cardinality_one: bool
     protocol_version: defines.ProtocolVersion
-    skip_first: bool = False
     expect_rollback: bool = False
     json_parameters: bool = False
     schema_reflection_mode: bool = False
@@ -400,7 +399,7 @@ class Compiler:
         self.state = state
 
     @staticmethod
-    def try_compile_rollback(eql: Union[edgeql.Source, bytes]) -> tuple[
+    def _try_compile_rollback(eql: Union[edgeql.Source, bytes]) -> tuple[
         dbstate.QueryUnitGroup, int
     ]:
         source: Union[str, edgeql.Source]
@@ -822,7 +821,6 @@ class Compiler:
         implicit_limit: int,
         inline_typeids: bool,
         inline_typenames: bool,
-        skip_first: bool,
         protocol_version: defines.ProtocolVersion,
         inline_objectids: bool = True,
         json_parameters: bool = False,
@@ -860,7 +858,6 @@ class Compiler:
             inline_typeids=inline_typeids,
             inline_typenames=inline_typenames,
             inline_objectids=inline_objectids,
-            skip_first=skip_first,
             json_parameters=json_parameters,
             source=source,
             protocol_version=protocol_version,
@@ -888,7 +885,6 @@ class Compiler:
         implicit_limit: int,
         inline_typeids: bool,
         inline_typenames: bool,
-        skip_first: bool,
         protocol_version: defines.ProtocolVersion,
         inline_objectids: bool = True,
         json_parameters: bool = False,
@@ -901,9 +897,7 @@ class Compiler:
         ):
             # This is a special case when COMMIT MIGRATION fails, the compiler
             # doesn't have the right transaction state, so we just roll back.
-            return (
-                self.try_compile_rollback(source)[0], state
-            )
+            return self._try_compile_rollback(source)[0], state
         else:
             state.sync_tx(txid)
 
@@ -916,7 +910,6 @@ class Compiler:
             inline_typeids=inline_typeids,
             inline_typenames=inline_typenames,
             inline_objectids=inline_objectids,
-            skip_first=skip_first,
             source=source,
             protocol_version=protocol_version,
             json_parameters=json_parameters,
@@ -2095,15 +2088,6 @@ def _try_compile(
     default_cardinality = enums.Cardinality.NO_RESULT
     statements = edgeql.parse_block(source)
     statements_len = len(statements)
-
-    if ctx.skip_first:
-        statements = statements[1:]
-        if not statements:  # pragma: no cover
-            # Shouldn't ever happen as the server tracks the number
-            # of statements (via the "try_compile_rollback()" method)
-            # before using skip_first.
-            raise errors.ProtocolError(
-                f'no statements to compile in skip_first mode')
 
     if not len(statements):  # pragma: no cover
         raise errors.ProtocolError('nothing to compile')
