@@ -65,6 +65,7 @@ cdef class DatabaseIndex:
         object _comp_sys_config
         object _std_schema
         object _global_schema
+        object _global_schema_pickled
         object _factory
         object _default_sysconfig
         object _sys_config_spec

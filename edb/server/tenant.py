@@ -950,9 +950,15 @@ class Tenant(ha_base.ClusterProtocol):
             return
         async with self.use_sys_pgcon() as syscon:
             new_global_schema = await self.introspect_global_schema(syscon)
-            assert self._dbindex is not None
-            self._dbindex.update_global_schema(new_global_schema)
             await self._fetch_roles(syscon)
+
+        assert self._dbindex is not None
+
+        # GOTCHA: we will move introspect_global_schema() to the compiler
+        # so that we don't need this pickle.dumps+loads here.
+        import pickle
+
+        self._dbindex.update_global_schema(pickle.dumps(new_global_schema, -1))
 
     def populate_sys_auth(self) -> None:
         assert self._dbindex is not None
