@@ -1491,8 +1491,8 @@ We need to provide these parameters inside the request body:
 
 With the route in place, let's update the UI and connect everything together.
 
-Final touch: Front-end
-======================
+Final touch: UI
+===============
 
 To make things as simple as possible we will just update the ``Home``
 component that's inside ``app/page.tsx`` file. By default all components
