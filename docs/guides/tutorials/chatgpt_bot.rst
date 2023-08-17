@@ -978,31 +978,47 @@ point it closes the connection.
 .. lint-on
 
 
-Next.js route handler implementation
-------------------------------------
+Next.js route handler
+---------------------
 
-When using `Next.js APP router <https://nextjs.org/docs/app>`_ route handlers
-should be written inside ``app/api`` folder. Every route should have its own
-folder and the handler should be defined inside ``route.ts`` file inside that
-folder.
+When using `Next.js's App router <https://nextjs.org/docs/app>`_, route
+handlers should be written inside an ``app/api`` folder. Every route should
+have its own folder within that, and the handlers should be defined inside a
+``route.ts`` file inside the route's folder.
 
-Let's generate new folder for our route inside ``app/api``.
+Let's generate a new folder for the answer generation route inside ``app/api``.
 
 .. code-block:: bash
 
     $ mkdir app/api && cd app/api
     $ mkdir generate-answer && touch generate-answer/route.ts
 
-One more thing to grasp are runtimes. In the context of Next.js, runtime refers
-to the set of libraries, APIs, and general functionality available to your code
-during execution. Next.js  supports `Node JS and Edge Runtime
-<https://nextjs.org/docs/app/building-your-application/rendering/edge-and-nodejs-runtimes>`_.
-Streaming should be supported within both runtimes, but implementation is a bit
-simpler when using ``edge`` so that's what we will use here. Edge Runtime is
-based on Web APIs. It has very low latency thanks to its minimal use of
-resources, but the downside is that it doesn't support native Node.js APIs.
+As the final setup step, we will install the ``common-tags`` NPM package which
+gives us some useful template tags to make it easier to generate HTML from our
+route handler. We will use it later when we create the prompt from user's
+question and related sections.
 
-Let's start with importing modules that we will need in the handler, and
+.. code-block:: bash
+
+    $ npm install common-tags
+
+Let's talk briefly about runtimes. In the context of Next.js, "runtime" refers
+to the set of libraries, APIs, and general functionality available to your code
+during execution. Next.js supports `Node.js and Edge runtimes`_. (The "Edge"
+runtime is coincidentally named but is not related to EdgeDB.) Streaming is
+supported within both runtimes, but the implementation is a bit simpler when
+using Edge, so that's what we will use here. The Edge runtime is based on Web
+APIs. It has very low latency thanks to its minimal use of resources, but the
+downside is that it doesn't support native Node.js APIs.
+
+.. lint-off
+
+.. _Node.js and Edge runtimes:
+  https://nextjs.org/docs/app/building-your-application/rendering/edge-and-nodejs-runtimes
+
+.. lint-on
+
+We'll start by importing the modules we will need in the handler and
 writing some configuration.
 
 .. code-block:: typescript
@@ -1021,45 +1037,47 @@ writing some configuration.
     const client = edgedb.createHttpClient({ tlsSecurity: process.env.TLS_SECURITY });
 
     export async function POST(req: Request) {
-        ...
+        …
     }
 
     // other functions that are called inside POST handler...
 
 
-We currently don't have ``common-tags`` package so let's install it. We will
-use it later when we create the prompt from user's question and similar sections.
+The first imports are templates from the ``common-tags`` library we installed
+earlier. Then, we import the EdgeDB binding. The third import is the query
+builder we described previously.
 
-.. code-block:: bash
+By exporting ``config``, we override Next.js configuration defaults for this
+handler. In this case, we want to override the runtime for this handler so that
+Next.js will use the Edge runtime instead of the default Node.js runtime.
 
-    $ npm install common-tags
+We need to use ``createHttpClient`` to connect to the EdgeDB client. The HTTP
+client defaults to using HTTPS which needs a trusted TLS/SSL certificate. Local
+development instances use self signed certificates, and using HTTPS with these
+certificates will result in an error. To work around this error, we use HTTP
+instead by passing ``{ tlsSecurity: "insecure" }`` when creating the client.
+Bear in mind that this is only for local development, and you should use TLS
+in production. Instead of hardcoding the ``tlsSecurity`` in the code, let's
+add another environment variable to ``.env.local`` file so we can easily change
+this value per environment.
 
-We included the config declaring that we want to use ``edge runtime`` for this
-route (Node runtime is the default).
-
-We need to use ``createHttpClient`` to connect to the edgedb client. Http client
-defaults to using https which needs a trusted TLS/SSL certificate. Local
-development instances use self signed certificates, and using https with these
-certificates will results in an error. A walk around this error is to use http
-instead https which we can do by providing an option
-``{ tlsSecurity: "insecure" }`` when connecting to the client. Bear in mind
-that this is only for local development and you should never use http in
-production. Instead of hardcoding the ``tlsSecurity`` in the code let's better
-add another environment variable to the ``.env.local`` file that we will only
-use in development.
-
-.. code-block:: typescript
+.. code-block:: -diff
     :caption: .env.local
 
-    TLS_SECURITY = "insecure"
+      OPENAI_API_KEY="<my-openai-api-key>"
+    + TLS_SECURITY = "insecure"
 
-Let's now write the POST HTTP handler. It uses other functions that we will
-define soon too.
+We're ready now to write the handler function for HTTP POST requests. To do
+this in Next.js, you export a function named for the request method you want it
+to handle.
+
+Our POST handler calls other functions that we will won't define just yet, but
+we'll circle back to them later.
 
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
 
-    ...
+    …
 
     export const errors = {
         flagged: `OpenAI has declined to answer your question due to their
@@ -1104,38 +1122,70 @@ define soon too.
         }
     }
 
-We should make sure that we have ``OPENAI_API_KEY`` before proceeding.
-We get the query from the request that is sent from the client.
-First thing that we need to check is that the query complies to the OpenAI's
-`usage-policies <https://openai.com/policies/usage-policies>`_, which means
-that it should not include any hateful, harassing, or violent content.
+We start by writing a couple of error message for different error cases. You
+might want to get even more granular with these to give your users more
+granular error information, but we'll just define two cases for simplicity.
 
-If the query passes moderation then we get the embeddings for it using the
-OpenAI embedding API. Next, we get the context that consists of similar sections
-from the EdgeDB database. We create the full prompt (input) using the question,
-context and ``system message`` (The system message is a general instruction to
-the language model that it should follow when answering any question). We call the chat
-completions API using the previously generated prompt and we stream the response
-we get from the OpenAI to the user. In order to use streaming we need to
-provide the appropriate ``content-type`` header: ``"text/event-stream"``.
+We should make sure that we have the ``OPENAI_API_KEY`` environment variable
+set before proceeding, since we can't get an answer without it. We throw if it
+isn't set.
 
-If any error occurs we send the error message to the user with status 500,
-meaning that the problem happened on the server.
+Now, our handler will run the user's question through a few different steps as
+we build toward an answer.
 
-For every request to the OpenAI in this handler we will write basic fetch
-requests. We can't use the ``openai`` package (the one we used in
-``generate-embeddings.ts`` file), because it uses
-`axios <https://www.npmjs.com/package/axios>`_ and ``axios`` is not supported in
-the edge runtime. There is another NPM package we can use instead
-`openai-edge <https://www.npmjs.com/package/openai-edge>`_ which works perfect
-and includes a little less code, but it is also good to understand how to
-implement things without using additional libraries so that's why we will write
-fetch requests using OpenAI's documentation. You can of course replace them with
-``openai-edge`` ones.
+1. We check that the query complies with the OpenAI's `usage policies
+   <https://openai.com/policies/usage-policies>`_, which means that it should
+   not include any hateful, harassing, or violent content. This is handled by
+   our ``moderateQuery`` function.
+2. If the query passes moderation, we generate embeddings for it using the
+   OpenAI embedding API. This is handled by our ``getEmbedding`` function.
+3. We get related documentation sections from the EdgeDB database. This is
+   handled by ``getContext``.
+4. We create the full prompt as our input to the chat completions API by
+   combining the question, related documentation sections, and a "system
+   message."
 
-Let's write moderation request. We use
-``https://api.openai.com/v1/moderations`` endpoint that we find in the
-`OpenAI documentation <https://platform.openai.com/docs/guides/moderation/quickstart>`_
+.. note::
+
+   The system message is a general instruction to the language model that it
+   should follow when answering any question.
+
+With the input fully prepared, we call the chat completions API using the
+previously generated prompt, and we stream the response we get from OpenAI
+to the user. In order to use streaming we need to provide the appropriate
+``content-type`` header: ``"text/event-stream"``. (You'll see that in the
+options object passed to the ``Response`` constructor.)
+
+To keep things simple, we've wrapped most of these in a single
+``try``/``catch`` block. If any error occurs we send the error message to the
+user with status 500. In practice, you may want to split this up and respond
+with different status codes based on the outcome. For example, in the case the
+moderation request returns an error, you may want to send back a ``400``
+response status ("Bad Request") instead of a ``500`` ("Internal Server Error").
+
+Now that you can see broadly what we're doing in this handler, let's dig into
+each of the functions we've called in the handler.
+
+
+Moderation request
+^^^^^^^^^^^^^^^^^^
+
+For every request to OpenAI in this handler, we will write basic fetch
+requests. We can't use the ``openai`` package (the one we used in our embedding
+generation script), because it uses `Axios
+<https://www.npmjs.com/package/axios>`_ to make requests, and Axios is not
+supported in the Edge runtime.
+
+We could use `openai-edge <https://www.npmjs.com/package/openai-edge>`_
+instead, which works perfectly on the Edge runtime and would leave us with a
+little less code, but it is also useful to understand how to implement things
+*without* using additional libraries. Feel free to install ``openai-edge``, and
+replace our fetch calls if you prefer.
+
+Let's write our moderation request function: ``moderateQuery``. We will use the
+``https://api.openai.com/v1/moderations`` endpoint. Read about it in the
+`OpenAI moderation quickstart
+<https://platform.openai.com/docs/guides/moderation/quickstart>`_.
 
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
@@ -1159,14 +1209,23 @@ Let's write moderation request. We use
         return results;
     }
 
-If there is any issue with the user's query the response will have ``flagged``
-property set to true. In that case we will throw general moderation error,
-but you can also inspect the response more to find what categories are
+The function is pretty straightforward: it takes the question (the ``query``
+paramter) and API key, fires off a request to the API, and returns the result.
+If the API finds an issue with the user's question, the response will have the
+``flagged`` property set to ``true``. In that case we will throw a general
+error, but you could also inspect the response to find what categories are
 problematic and include more info in the error.
 
-If the query passes moderation then we can proceed to get the embedding for
-the query from OpenAI. We will use ``https://api.openai.com/v1/embeddings``
-API endpoint and create another fetch request.
+If the question passes moderation then we can generate the
+embeddings for the question.
+
+
+Embeddings generation request
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For the embeddings request, we will build another fetch request to the
+``https://api.openai.com/v1/embeddings`` API endpoint in a new function called
+``getEmbedding``.
 
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
@@ -1198,9 +1257,20 @@ API endpoint and create another fetch request.
         return embedding;
     }
 
-If we get the embeddings without an error we can proceed to querying EdgeDB
-database for similar sections. Let's firstly write the database query that will
-give us back the similar sections.
+This new function again takes the question (as ``query``) and the API key. We
+build a fetch request to the appropriate endpoint, specifying the model to use
+for generation (the ``model`` property of the request's body).
+
+If the response status is not 200 ("OK"), we will throw an error. If we get the
+embeddings *without* an error we can query our embeddings database for related
+documentation sections.
+
+
+Get related documentation sections request
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Let's first write the database query that will give us back the related
+sections in a variable named ``getSectionsQuery``.
 
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
@@ -1237,27 +1307,40 @@ give us back the similar sections.
         }
     );
 
-In the above code we use TS query builder to create a query. The query uses
-few parameters that we need to provide when we call it:
+In the above code we use EdgeDB's TypeScript query builder to create a query.
+The query takes a few parameters:
 
-* target: the embedding array for which we need similar sections
-* matchThreshold: the similarity threshold, only matches with a similarity
-  score below this threshold will be returned.
-* matchCount: how many sections to return back the most
-* minContentLength: minimum number of characters the sections should have in
-  order to be considered.
+* ``target``: Embedding array to compare against to find related sections. In
+  this case, these will be the questions's embeddings we just generated.
+* ``matchThreshold``: Similarity threshold. Only matches with a similarity
+  score below this threshold will be returned. This will be a number between
+  ``0.0`` and ``1.0``. Values closer to ``0.0`` mean the documentation sections
+  must be very similar to the question while values closer to ``1.0`` allow for
+  more variance.
+* ``matchCount``: Maximum number of sections to return
+* ``minContentLength``: Minimum number of characters the sections should have in
+  order to be considered
 
-We use ``cosine_distance`` similarity to count the distance between the current
-section embedding and target (user's) embedding.
+We write a select query by calling ``e.select`` and passing it the type we want
+to select (``e.Section``). We return from that function an object representing
+the shape we want back plus any other clauses we need: in this case, a filter,
+ordering, and limit clause.
 
-We want to get back content and number of tokens for every similar section that
-passes the filter clause (has more than ``minContentLength`` tokens and the
-distance from the question embedding is less than ``matchThreshold``).
-We want to order results in the ascending order (default) and to get back the
-most ``matchCount`` sections.
+We use the ``cosine_distance`` function to calculate the similarity between the
+user's question and our documentation sections. We have access to this function
+through EdgeDB's pgvector extension. We then filter on that property by
+comparing it to the ``matchThreshold`` value we will pass when executing the
+query.
 
-Let's proceed now to executing this query and creating the context from
-similar sections that we get from the database.
+We want to get back the content and number of tokens for every related section
+that passes the filter clause (i.e., has more than ``minContentLength`` tokens,
+and the distance from the question embedding is less than our
+``matchThreshold``). We want to order results in ascending order (which is the
+default) by how related they are to the question (represented as ``dist``) and
+to get back, at most, ``matchCount`` sections.
+
+We've written the query, but it won't help us until we execute it. We'll do
+that in the ``getContext`` function.
 
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
@@ -1289,15 +1372,40 @@ similar sections that we get from the database.
         return context;
     }
 
-As we mentioned earlier we will spend at most 1500 tokens on the similar
-sections context. So from the similar sections that we got from the database we
-pick only the first few that together has less than 1500 tokens.
+This function takes the embeddings of the question (the ``embedding``
+parameter) and returns the related documentation sections.
 
-Now we will create the full query that consists of the user's question, the
-context and the system message. The system message should tell the language model
-what tone to use when answering question and some general instructions on
-what is expected from it. With that you can kind of give it some personality
-that it will follow every time.
+We start by running the query and passing in some values for the parameters:
+
+- the question embeddings that were passed to the function
+- a ``matchThreshold`` value of ``0.3``. You can tinker with this if you don't
+  like the results.
+- a ``matchCount``. We've chosen ``8`` here which represents the most sections
+  we'll get back.
+- a ``minContentLength`` of 20 tokens
+
+We then iterate through the sections that came back to prepare them to send on
+to the chat completions API. This involves incrementing the token count for the
+current section, making sure the overall token count doesn't exceed our maximum
+of 1,500 for the context (to stay under the LLM's token limit), and, if the
+token count isn't exceeded, adding the trimmed content of this section to
+``context`` which we will ultimately return. Since we ordered this query by
+``dist`` ascending, and since lower ``dist`` values mean more similar sections,
+we will be sure to get the most similar sections before we hit our token limit.
+
+With our context ready, it's time to get our user their answer.
+
+
+Chat completions request
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Before we make our completion request, we will build the full input which
+consists of the user's question, the related documentation, and the system
+message. The system message should tell the language model what tone to use
+when answering question and some general instructions on what is expected from
+it. With that you can give it some personality that it will bake into every
+response. We'll combine all of these parts in a function called
+``createFullPrompt``.
 
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
@@ -1322,12 +1430,18 @@ that it will follow every time.
             """`;
     }
 
-We can now get the answer from the OpenAI and forward it to the user.
+This function takes the question (as ``query``) and the related documentation
+(as ``context``), combines them with a system message, and formats it all
+nicely for easy consumption by the chat completions API.
+
+We'll use the returned prompt from that function, along with the OpenAI API
+key, as arguments to a new function (``getOpenAiAnswer``) that will get the
+answer from the OpenAI and return it.
 
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
 
-    async function getOpenAiAnswer(prompt: string, secretKey: string) {
+    async function getOpenAiAnswer(prompt: string, apiKey: string) {
         const completionRequestObject = {
             model: "gpt-3.5-turbo",
             messages: [{ role: "user", content: prompt }],
@@ -1339,7 +1453,7 @@ We can now get the answer from the OpenAI and forward it to the user.
         const response = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: {
-            Authorization: `Bearer ${secretKey}`,
+            Authorization: `Bearer ${apiKey}`,
             "Content-Type": "application/json",
             },
             body: JSON.stringify(completionRequestObject),
@@ -1348,25 +1462,34 @@ We can now get the answer from the OpenAI and forward it to the user.
         return response.body;
     }
 
-We need to provide few parameters inside a request body:
+We start by building up an object to send through on the body of our request.
+We need to provide these parameters inside the request body:
 
-* ``model``: language model that we want the chat completions API to use when
-  answering question (you can also use ``gpt-4`` to if you have access to it),
+* ``model``: The language model we want the chat completions API to use when
+  answering the question. (You can alternatively use ``gpt-4`` to if you have
+  access to it.)
 
-* ``messages``: we send the prompt as part of the messages property,
-  it is possible to send here the system message as first item of the array,
-  with the ``role: system`` but since we also have the context sections as part
-  of the input we send everything with the role ``user``
+* ``messages``: We send the prompt as part of the messages property. It is
+  possible to send the system message on the first object of the array, with
+  ``role: system``, but since we also have the context sections as part of the
+  input, we will just send everything with the role ``user``.
 
-* ``max_tokens``: maximum number of tokens to use for the answer
+* ``max_tokens``: Maximum number of tokens to use for the answer.
 
-* ``temperature``: number between 0 and 2, higher values like 0.8 will make the
-  output more random, while lower values like 0.2 will make it more focused
-  and deterministic.
+* ``temperature``: Number between 0 and 2. From `OpenAI's description of
+  temperature`_: "Higher values like 0.8 will make the output more random,
+  while lower values like 0.2 will make it more focused and deterministic."
 
-* and we need to set the ``stream`` to true in order to get streamed response
+* ``stream``: Setting this to ``true`` will have the API stream the response
 
-Finally, let's update the front-end and connect everything together.
+.. lint-off
+
+.. _OpenAI's description of temperature:
+  https://platform.openai.com/docs/api-reference/chat/create#chat/create-temperature
+
+.. lint-on
+
+With the route in place, let's update the UI and connect everything together.
 
 Final touch: Front-end
 ======================
