@@ -743,7 +743,57 @@ everything together with the ``storeEmbeddings`` function.
 
 
 Storing the ``Section`` objects
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+-------------------------------
+
+.. TODO: Still need to edit this section
+
+Again, we'll break this function apart and walk through it.
+
+.. code-block:: typescript
+    :caption: generate-embeddings.ts
+
+    async function storeEmbeddings() {
+      if (!process.env.OPENAI_API_KEY) {
+        return console.log(
+          "Environment variable OPENAI_API_KEY is required: skipping embeddings generation."
+        );
+      }
+
+      try {
+        const configuration = new Configuration({
+            apiKey: process.env.OPENAI_API_KEY,
+        });
+        const openai = new OpenAIApi(configuration);
+
+        const client = edgedb.createClient();
+
+        const sectionPaths = await walk("docs");
+
+        console.log(`Discovered ${sectionPaths.length} sections`);
+
+        const sections = await prepareSectionsData(sectionPaths, openai);
+
+        // Delete old data from the DB.
+        await e.delete(e.Section).run(client);
+
+        // Bulk-insert all data into EdgeDB database.
+        const query = e.params({ sections: e.json }, ({ sections }) => {
+          return e.for(e.json_array_unpack(sections), (section) => {
+            return e.insert(e.Section, {
+              content: e.cast(e.str, section.content),
+              tokens: e.cast(e.int16, section.tokens),
+              embedding: e.cast(e.OpenAIEmbedding, section.embedding),
+            });
+          });
+        });
+
+        await query.run(client, { sections });
+      } catch (err) {
+        console.error("Error while trying to regenerate all embeddings.", err);
+      }
+
+      console.log("Embedding generation complete");
+    }
 
 .. code-block:: typescript
     :caption: generate-embeddings.ts
@@ -829,8 +879,9 @@ to delete and insert data into the database.
 
     import e from "../dbschema/edgeql-js";
 
-Let's run the script
-^^^^^^^^^^^^^^^^^^^^
+Running the script
+------------------
+
 Let's add script to ``package.json`` that will invoke and execute
 ``generate-embeddings.ts``.
 
