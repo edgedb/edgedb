@@ -976,7 +976,7 @@ point it closes the connection.
 Next.js route handler
 ---------------------
 
-When using `Next.js's App router <https://nextjs.org/docs/app>`_, route
+When using `Next.js's App Router <https://nextjs.org/docs/app>`_, route
 handlers should be written inside an ``app/api`` folder. Every route should
 have its own folder within that, and the handlers should be defined inside a
 ``route.ts`` file inside the route's folder.
