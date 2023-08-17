@@ -2222,6 +2222,8 @@ def _try_compile(
             if comp.cached_reflection is not None:
                 unit.cached_reflection = \
                     pickle.dumps(comp.cached_reflection, -1)
+            if comp.global_schema is not None:
+                unit.global_schema = pickle.dumps(comp.global_schema, -1)
 
             if comp.modaliases is not None:
                 unit.modaliases = comp.modaliases

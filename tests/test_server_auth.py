@@ -390,3 +390,25 @@ class TestServerAuth(tb.ConnectedTestCase):
                 'authentication failed: revoked key',
             ):
                 await sd.connect(secret_key=sk)
+
+    async def test_server_auth_in_transaction(self):
+        if not self.has_create_role:
+            self.skipTest('create role is not supported by the backend')
+
+        async with self.con.transaction():
+            await self.con.query('''
+                CREATE SUPERUSER ROLE foo {
+                    SET password := 'foo-pass';
+                };
+            ''')
+
+        try:
+            conn = await self.connect(
+                user='foo',
+                password='foo-pass',
+            )
+            await conn.aclose()
+        finally:
+            await self.con.query('''
+                DROP ROLE foo;
+            ''')
