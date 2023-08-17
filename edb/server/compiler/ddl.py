@@ -273,7 +273,6 @@ def compile_and_apply_ddl_stmt(
         create_db=create_db,
         drop_db=drop_db,
         create_db_template=create_db_template,
-        has_role_ddl=isinstance(stmt, qlast.RoleCommand),
         ddl_stmt_id=ddl_stmt_id,
         user_schema=current_tx.get_user_schema_if_updated(),  # type: ignore
         cached_reflection=current_tx.get_cached_reflection_if_updated(),

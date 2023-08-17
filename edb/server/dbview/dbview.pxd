@@ -28,9 +28,8 @@ cpdef enum SideEffects:
     SchemaChanges = 1 << 0
     DatabaseConfigChanges = 1 << 1
     InstanceConfigChanges = 1 << 2
-    RoleChanges = 1 << 3
-    GlobalSchemaChanges = 1 << 4
-    DatabaseChanges = 1 << 5
+    GlobalSchemaChanges = 1 << 3
+    DatabaseChanges = 1 << 4
 
 
 @cython.final
@@ -150,7 +149,6 @@ cdef class DatabaseConnectionView:
         int _in_tx_dbver
         bint _in_tx
         bint _in_tx_with_ddl
-        bint _in_tx_with_role_ddl
         bint _in_tx_with_sysconfig
         bint _in_tx_with_dbconfig
         bint _in_tx_with_set
