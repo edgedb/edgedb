@@ -443,9 +443,6 @@ libraries that will help us.
         --save-dev
 
 
-Generating embeddings
----------------------
-
 Finally, we're ready to create embeddings for all sections and store them in
 the database we created earlier. Let's make a ``generate-embeddings.ts`` file
 inside the project root.
@@ -518,8 +515,9 @@ Then we have a few function definitions:
 
 * ``storeEmbeddings`` coordinates everything.
 
+
 Getting section paths
-^^^^^^^^^^^^^^^^^^^^^
+---------------------
 
 In order to get the sections' content, we first need to know where the files
 are that need to be read. The ``walk`` function finds them for us and returns
@@ -568,7 +566,7 @@ The output it produces looks like this:
 
 
 Preparing the ``Section`` objects
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+---------------------------------
 
 This function will be responsible for collecting the data we need for each
 ``Section`` object we will store, including making the OpenAI API calls to
@@ -807,9 +805,6 @@ Next, we get sections paths and prepare all sections data.
 Before we update the database we need to delete the old data from it.
 We just delete all ``Section`` objects.
 
-Typescript Query Builder
-^^^^^^^^^^^^^^^^^^^^^^^^
-
 Finally we bulk-insert all sections data in the database. The
 `TS binding <https://www.edgedb.com/docs/clients/js/index>`_ offers several
 options for writing queries. We recommend using our query builder, and that's
@@ -855,8 +850,10 @@ open UI with:
 
 and see that the DB is indeed updated with embeddings and other relevant data.
 
+
 Communication between the client and the server
 ===============================================
+
 Now that we have embeddings we can start working on the handler for user
 requests. The idea is that user submits a question to our server and we send
 him/her answer back. We basically have to define a route and an HTTP request
