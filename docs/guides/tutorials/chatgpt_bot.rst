@@ -924,8 +924,12 @@ Let's add a script to ``package.json`` that will invoke and execute
         }
       }
 
-So now we can invoke the ``generate-embeddings.ts`` script from our terminal
-using ``npm run embeddings`` command.
+Now we can invoke the ``generate-embeddings.ts`` script from our terminal using
+a simple command:
+
+.. code-block:: bash
+
+   $ npm run embeddings
 
 After the script is done (should be less than  a min), we should be able to
 open UI with:
