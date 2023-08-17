@@ -442,6 +442,19 @@ libraries that will help us.
         gpt-tokenizer \
         --save-dev
 
+The ``@edgedb/generate`` package provides a set of code generation tools that
+are useful when developing an EdgeDB-backed applications with TypeScript /
+JavaScript. We're going to write queries using our `query builder
+<https://www.edgedb.com/docs/clients/js/querybuilder>`_, but before we can, we
+need to run the query builder generator.
+
+.. code-block:: bash
+
+    $ npx @edgedb/generate edgeql-js
+
+This generator gives us a code-first way to write fully-typed EdgeQL queries
+with TypeScript. After running the generator, you should see a new ``edgeql-js``
+folder inside ``dbschema``.
 
 Finally, we're ready to create embeddings for all sections and store them in
 the database we created earlier. Let's make a ``generate-embeddings.ts`` file
@@ -496,7 +509,8 @@ tasks we need to perform.
     })();
 
 
-At the top are all imports we will need throughout the file.
+At the top are all imports we will need throughout the file. The last import is
+the query builder we generated earlier.
 
 After the imports, we use the ``dotenv`` library to import environment
 variables from the ``.env.local`` file. (In our case, that's
@@ -855,29 +869,10 @@ Next, we get sections paths and prepare all sections data.
 Before we update the database we need to delete the old data from it.
 We just delete all ``Section`` objects.
 
-Finally we bulk-insert all sections data in the database. The
-`TS binding <https://www.edgedb.com/docs/clients/js/index>`_ offers several
-options for writing queries. We recommend using our query builder, and that's
-what we use here.
-
-The ``@edgedb/generate`` package that we previously installed provides a set
-of code generation tools that are useful when developing an EdgeDB-backed
-applications with TypeScript / JavaScript. We need to run a
-`query builder <https://www.edgedb.com/docs/clients/js/querybuilder>`_
-generator.
-
-.. code-block:: bash
-
-    $ npx @edgedb/generate edgeql-js
-
-This generator gives us a code-first way to write fully-typed EdgeQL
-queries with TypeScript. The ``edgeql-js`` folder should have been created
-inside ``dbschema`` folder. And from there we import query builder ``e`` that we use
-to delete and insert data into the database.
-
-.. code-block:: typescript
-
-    import e from "../dbschema/edgeql-js";
+Finally we bulk-insert all sections data in the database. The `TypeScript
+binding <https://www.edgedb.com/docs/clients/js/index>`_ offers several options
+for writing queries. We recommend using our query builder, and that's what we
+have used here.
 
 
 Running the script
