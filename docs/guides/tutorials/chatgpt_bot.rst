@@ -879,15 +879,50 @@ to delete and insert data into the database.
 
     import e from "../dbschema/edgeql-js";
 
+
 Running the script
 ------------------
 
-Let's add script to ``package.json`` that will invoke and execute
+Let's add a script to ``package.json`` that will invoke and execute
 ``generate-embeddings.ts``.
 
-.. code-block:: typescript
+.. code-block:: json-diff
+    :caption: package.json
 
-    "embeddings": "tsx generate-embeddings.ts"
+    {
+      "name": "docs-chatbot",
+      "version": "0.1.0",
+      "private": true,
+      "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "lint": "next lint",
+  +     "embeddings": "tsx generate-embeddings.ts"
+      },
+      "dependencies": {
+        "@types/node": "20.4.8",
+        "@types/react": "18.2.18",
+        "@types/react-dom": "18.2.7",
+        "autoprefixer": "10.4.14",
+        "eslint": "8.46.0",
+        "eslint-config-next": "13.4.13",
+        "next": "13.4.13",
+        "postcss": "8.4.27",
+        "react": "18.2.0",
+        "react-dom": "18.2.0",
+        "tailwindcss": "3.3.3",
+        "typescript": "5.1.6"
+      },
+      "devDependencies": {
+        "@edgedb/generate": "^0.3.3",
+        "dotenv": "^16.3.1",
+        "edgedb": "^1.3.4",
+        "gpt-tokenizer": "^2.1.1",
+        "openai": "^3.3.0",
+        "tsx": "^3.12.7"
+      }
+    }
 
 So now we can invoke the ``generate-embeddings.ts`` script from our terminal
 using ``npm run embeddings`` command.
