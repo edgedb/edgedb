@@ -572,7 +572,122 @@ Preparing the ``Section`` objects
 
 This function will be responsible for collecting the data we need for each
 ``Section`` object we will store, including making the OpenAI API calls to
-generate the embeddings.
+generate the embeddings. Let's walk through it one piece at a time.
+
+.. code-block:: typescript
+    :caption: generate-embeddings.ts
+
+    async function prepareSectionsData(
+      sectionPaths: string[],
+      openai: OpenAIApi
+    ): Promise<Section[]> {
+      const contents: string[] = [];
+      const sections: Section[] = [];
+
+      for (const path of sectionPaths) {
+        const content = await fs.readFile(path, "utf8");
+        // OpenAI recommends replacing newlines with spaces for best results (specific to embeddings)
+        const contentTrimmed = content.replace(/\n/g, " ");
+        contents.push(contentTrimmed);
+        sections.push({
+          content,
+          tokens: 0,
+          embedding: [],
+        });
+      }
+      // The rest of the function
+    }
+
+We start with two parameters: an array of section paths and an OpenAI client.
+We create a couple of empty arrays for storing information about our sections
+(which will later become ``Section`` objects in the database) and their
+contents. We iterate through the paths, loading each file to get its content.
+In the database we save the content as is, but when calling the
+embedding API, OpenAI suggests that all newlines should be replaced with a
+single space for the best results. ``contentTrimmed`` is the content with
+newlines replaced. We push that onto our ``contents`` array and the un-trimmed
+content onto ``sections``, along with a ``0`` for the token count and an empty
+array we will later replace with the actual embeddings.
+
+Onto the next bit!
+
+.. code-block:: typescript
+    :caption: generate-embeddings.ts
+
+    async function prepareSectionsData(
+      sectionPaths: string[],
+      openai: OpenAIApi
+    ): Promise<Section[]> {
+      // Part we just talked about
+
+      const embeddingResponse = await openai.createEmbedding({
+        model: "text-embedding-ada-002",
+        input: contents,
+      });
+
+      if (embeddingResponse.status !== 200) {
+        throw new Error(embeddingResponse.statusText);
+      }
+
+      // The rest
+    }
+
+Now, we generate embeddings from the content. We need to be careful about how
+we approach the API calls to generate the embeddings since they could have a
+big impact on how long generation takes, especially as your documentation
+grows. The simplest solution would be to make a single request to the API for
+each section, but in the case of EdgeDB's documentation, which has around 3,000
+pages, this would take about half an hour.
+
+Since OpenAI's embeddings API can take not only a *single* string but also an
+*array* of strings, we can leverage this to batch up all our content and
+generate the embeddings with a single request! You can see that single API call
+when we set ``embeddingResponse`` to the result of the call to
+``openai.createEmbedding``, specifying the model and passing the entire array
+of contents.
+
+After that, we handle the case where the status of the embeddings call result is
+anything other than ``200`` (``OK``).
+
+Now, it's time to put those embeddings into our section objects by iterating
+through the response data.
+
+.. code-block:: typescript
+    :caption: generate-embeddings.ts
+
+    async function prepareSectionsData(
+      sectionPaths: string[],
+      openai: OpenAIApi
+    ): Promise<Section[]> {
+      // The stuff we already talked about
+
+      embeddingResponse.data.data.forEach((item, i) => {
+        sections[i].embedding = item.embedding;
+        sections[i].tokens = encode(contents[i]).length;
+      });
+
+      return sections;
+    }
+
+One downside to this one-shot embedding generation approach is that we do not
+get back token counts with the result. Token counts are important because they
+determine how many relevant sections we can send along with our input to the
+Completions API — the one that answers the user's question — and still be
+within the model's token limit. To stay within the limit, we need to know how
+many tokens each section has. That's where the `gpt-tokenizer
+<https://www.npmjs.com/package/gpt-tokenizer>`_ library comes in. OpenAI only
+provides token counts for a single string. That means, we'll need to count them
+ourselves.
+
+You see this in action next as we iterate through all the embeddings we got
+back, adding both the embedding and the token lengths to their respective
+sections. We imported the ``encode`` function earlier from ``gpt-tokenizer``,
+and we call it, passing the contents, and measure the ``length`` to get the
+token counts. These two additional pieces of data make the section fully ready
+to store in the database, so we can return the fully-formed sections from the
+function.
+
+Here's the entire function assembled:
 
 .. code-block:: typescript
     :caption: generate-embeddings.ts
@@ -613,51 +728,24 @@ generate the embeddings.
       return sections;
     }
 
-We will provide to it section paths and OpenAI client as parameters.
-We create a couple of empty arrays for storing our sections (which will later
-become ``Section`` objects in the database) and their contents. In the database
-we save content as is, but when calling the embedding API, OpenAI suggest that
-all new lines should be replaces with empty space for the best results.
-
-We need to be careful about how we approach the API calls to generate the
-embeddings since they could have a big impact on how long generation takes,
-especially as your documentation grows. The simplest solution would be to make
-a single request to the API for each section, but in the case of
-EdgeDB's documentation, which has around 3,000 pages, this would take about
-half an hour. Since OpenAI's embeddings API can take not only a *single* string
-but also an *array* of strings, we can leverage this to batch up all our
-contents and generate the embeddings with a single request! You can see that
-single API call when we set ``embeddingResponse`` to the result of the call to
-``openai.createEmbedding``, specifying the model and passing the entire array
-of contents.
-
-One downside to this approach is that we do not get back token counts for the array
-embeddings API call since OpenAI only provides these for a single string. We
-need the token counts because we have to ensure everything we send to OpenAI's
-Completions API — the one that answers the user's question — comes in under the
-model's token limit. To do that, we need to know how many tokens each section have.
-That's where the `gpt-tokenizer <https://www.npmjs.com/package/gpt-tokenizer>`_
-library comes in.
-
-You see this in action next, as we iterate through all the embeddings we got
-back, adding both the embedding and the token lengths to their respective
-sections. We imported the ``encode`` function earlier, and you can see that
-being called so that we can count and store those. These two additional pieces
-of data make the section fully ready to store in the database.
-
 .. note::
-    You can choose to not save tokens in the database and count tokens later on
-    the client after you get similar sections. You count tokens for each in order
-    to determine how many sections can be sent as a context to the chat
-    completions API.
 
-    Another tool you can use to count tokens in advance is `tiktoken <https://github.com/openai/tiktoken>`_.
-    This is a native OpenAI's Python tokenizer and probably is a better option
-    to use than the NPM alternative, but using it is a bit more complicated so
-    that's why we have chosen to use now the ``gpt-tokenizer``.
+    This is not the only approach to keeping track of tokens. We could choose
+    *not* to save token counts in the database and to instead count section
+    tokens later on the client after we find the relevant sections.
 
-Now that we have sections ready to be stored in the database, let's write the
-actual ``storeEmbeddings`` function.
+    We have other options for counting early too. Another tool you can use to
+    count tokens in advance is `tiktoken
+    <https://github.com/openai/tiktoken>`_. This is OpenAI's Python tokenizer
+    and would give the more accurate result over the Node alternative, but
+    using ``gpt-tokenizer`` is more straightforward for our use case.
+
+Now that we have sections ready to be stored in the database, let's tie
+everything together with the ``storeEmbeddings`` function.
+
+
+Storing the ``Section`` objects
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: typescript
     :caption: generate-embeddings.ts
