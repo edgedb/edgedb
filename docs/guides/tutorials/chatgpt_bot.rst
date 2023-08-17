@@ -931,8 +931,7 @@ a simple command:
 
    $ npm run embeddings
 
-After the script is done (should be less than  a min), we should be able to
-open UI with:
+After the script finishes, open the EdgeDB UI.
 
 .. code-block:: bash
 
@@ -944,28 +943,22 @@ and see that the DB is indeed updated with embeddings and other relevant data.
 Answering user questions
 ========================
 
-Now that we have embeddings we can start working on the handler for user
-requests. The idea is that user submits a question to our server and we send
-him/her answer back. We basically have to define a route and an HTTP request
-handler. Since we use .js, we don't need separate server and we can do all
-this within our project using `next route handler
-<https://nextjs.org/docs/app/building-your-application/routing/route-handlers>`_.
+Now that we have the content's embeddings stored, we can start working on the
+handler for user questions. The user will submit a question to our server, and
+the handler will send them and answer back. We will define a route and an HTTP
+request handler for this task. Thanks to the power of Next.js, we can do all of
+this within our project using a `route handler`_.
 
-Another important thing is that answers can be quite long. We can wait on the
-server side to get the whole answer from OpenAI and then send it to the client,
-but much better approach is to use streaming. OpenAI supports streaming, so we
-can send answer to the client in chunks, as they arrive to the server. With
-this approach user waits much shorter on data and our API seems faster.
+.. _route handler:
+  https://nextjs.org/docs/app/building-your-application/routing/route-handlers
 
-In order to use streaming we will use `SSE (Server-Sent Events)
-<https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events>`_.
-Server-Sent Events is a server push technology enabling a client to receive
-automatic updates from a server via an HTTP connection, and describes how
-servers can initiate data transmission towards clients once an initial client
-connection has been established. So, the client sends a request and with that
-request initiates a connection with our server, after that server sends data
-back to the client in chunks until the whole data is sent and closes the
-connection.
+As we write our handler, one important consideration is that answers can be
+quite long. We could wait on the server side to get the whole answer from
+OpenAI and then send it to the client, but that would feel slow to the user.
+OpenAI supports streaming, so instead we can send answer to the client in
+chunks, as they arrive to the server. With this approach, the user doesn't have
+to wait for the entire response before they start getting feedback and our API
+seems faster.
 
 In order to stream responses, we will use the browser's `server-sent events
 (SSE) API`_. Server-sent events enables a client to receive automatic updates
