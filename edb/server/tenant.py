@@ -269,6 +269,10 @@ class Tenant(ha_base.ClusterProtocol):
         assert self._dbindex is not None
         return self._dbindex.get_global_schema()
 
+    def get_global_schema_pickled(self) -> bytes:
+        assert self._dbindex is not None
+        return self._dbindex.get_global_schema_pickled()
+
     def get_db(self, *, dbname: str) -> dbview.Database:
         assert self._dbindex is not None
         return self._dbindex.get_db(dbname)

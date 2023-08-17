@@ -64,15 +64,32 @@ def __init_worker__(
         std_schema,
         refl_schema,
         schema_class_layout,
-        global_schema,
+        global_schema_pickled,
         system_config,
     ) = pickle.loads(init_args_pickled)
 
     INITED = True
-    DBS = dbs
+    DBS = immutables.Map(
+        [
+            (
+                dbname,
+                state.DatabaseState(
+                    name=dbname,
+                    user_schema=(
+                        None  # type: ignore
+                        if db.user_schema_pickled is None
+                        else pickle.loads(db.user_schema_pickled)
+                    ),
+                    reflection_cache=db.reflection_cache,
+                    database_config=db.database_config,
+                ),
+            )
+            for dbname, db in dbs.items()
+        ]
+    )
     BACKEND_RUNTIME_PARAMS = backend_runtime_params
     STD_SCHEMA = std_schema
-    GLOBAL_SCHEMA = global_schema
+    GLOBAL_SCHEMA = pickle.loads(global_schema_pickled)
     INSTANCE_CONFIG = system_config
 
     COMPILER = compiler.new_compiler(

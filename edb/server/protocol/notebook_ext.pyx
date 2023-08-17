@@ -162,8 +162,8 @@ async def execute(db, tenant, queries: list):
     compiler_pool = tenant.server.get_compiler_pool()
     units = await compiler_pool.compile_notebook(
         dbv.dbname,
-        dbv.get_user_schema(),
-        dbv.get_global_schema(),
+        dbv.get_user_schema_pickled(),
+        dbv.get_global_schema_pickled(),
         dbv.reflection_cache,
         dbv.get_database_config(),
         dbv.get_compilation_system_config(),

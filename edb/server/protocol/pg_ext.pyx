@@ -1403,8 +1403,8 @@ cdef class PgConnection(frontend.FrontendConnection):
         compiler_pool = self.server.get_compiler_pool()
         result = await compiler_pool.compile_sql(
             self.dbname,
-            self.database.user_schema,
-            self.database._index._global_schema,
+            self.database.user_schema_pickled,
+            self.database._index._global_schema_pickled,
             self.database.reflection_cache,
             self.database.db_config,
             self.database._index.get_compilation_system_config(),

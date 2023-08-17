@@ -264,7 +264,7 @@ class MultiSchemaPool(pool_mod.FixedPool):
                 (
                     dbname,
                     PickledState(
-                        pickle.dumps(state.user_schema, -1),
+                        state.user_schema_pickled,
                         pickle.dumps(state.reflection_cache, -1),
                         pickle.dumps(state.database_config, -1),
                     ),

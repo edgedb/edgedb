@@ -75,16 +75,17 @@ def _pickle_memoized(schema):
 
 class BaseWorker:
 
-    _dbs: state.DatabasesState
+    _dbs: immutables.Map[str, state.PickledDatabaseState]
+    _global_schema_pickled: bytes
 
     def __init__(
         self,
-        dbs: state.DatabasesState,
+        dbs: immutables.Map[str, state.PickledDatabaseState],
         backend_runtime_params: pgparams.BackendRuntimeParams,
         std_schema,
         refl_schema,
         schema_class_layout,
-        global_schema,
+        global_schema_pickled,
         system_config,
     ):
         self._dbs = dbs
@@ -92,7 +93,7 @@ class BaseWorker:
         self._std_schema = std_schema
         self._refl_schema = refl_schema
         self._schema_class_layout = schema_class_layout
-        self._global_schema = global_schema
+        self._global_schema_pickled = global_schema_pickled
         self._system_config = system_config
         self._last_pickled_state = None
 
@@ -208,13 +209,12 @@ class AbstractPool:
         return init_args, pickled_args
 
     def _get_init_args_uncached(self) -> Any:
-        dbs: state.DatabasesState = immutables.Map()
+        dbs: immutables.Map[str, state.PickledDatabaseState] = immutables.Map()
         for db in self._dbindex.iter_dbs():
             dbs = dbs.set(
                 db.name,
-                state.DatabaseState(
-                    name=db.name,
-                    user_schema=db.user_schema,
+                state.PickledDatabaseState(
+                    user_schema_pickled=db.user_schema_pickled,
                     reflection_cache=db.reflection_cache,
                     database_config=db.db_config,
                 )
@@ -226,7 +226,7 @@ class AbstractPool:
             self._std_schema,
             self._refl_schema,
             self._schema_class_layout,
-            self._dbindex.get_global_schema(),
+            self._dbindex.get_global_schema_pickled(),
             self._dbindex.get_compilation_system_config(),
         )
         return init_args
@@ -247,10 +247,10 @@ class AbstractPool:
     async def _compute_compile_preargs(
         self,
         method_name: str,
-        worker,
+        worker: BaseWorker,
         dbname,
-        user_schema,
-        global_schema,
+        user_schema_pickled,
+        global_schema_pickled,
         reflection_cache,
         database_config,
         system_config,
@@ -258,48 +258,57 @@ class AbstractPool:
 
         def sync_worker_state_cb(
             *,
-            worker,
+            worker: BaseWorker,
             dbname,
-            user_schema=None,
-            global_schema=None,
+            user_schema_pickled=None,
+            global_schema_pickled=None,
             reflection_cache=None,
             database_config=None,
             system_config=None,
         ):
             worker_db = worker._dbs.get(dbname)
             if worker_db is None:
-                assert user_schema is not None
+                assert user_schema_pickled is not None
                 assert reflection_cache is not None
-                assert global_schema is not None
+                assert global_schema_pickled is not None
                 assert database_config is not None
                 assert system_config is not None
 
-                worker._dbs = worker._dbs.set(dbname, state.DatabaseState(
-                    name=dbname,
-                    user_schema=user_schema,
-                    reflection_cache=reflection_cache,
-                    database_config=database_config,
-                ))
-                worker._global_schema = global_schema
+                worker._dbs = worker._dbs.set(
+                    dbname,
+                    state.PickledDatabaseState(
+                        user_schema_pickled=user_schema_pickled,
+                        reflection_cache=reflection_cache,
+                        database_config=database_config,
+                    ),
+                )
+                worker._global_schema_pickled = global_schema_pickled
                 worker._system_config = system_config
             else:
                 if (
-                    user_schema is not None
+                    user_schema_pickled is not None
                     or reflection_cache is not None
                     or database_config is not None
                 ):
-                    worker._dbs = worker._dbs.set(dbname, state.DatabaseState(
-                        name=dbname,
-                        user_schema=(
-                            user_schema or worker_db.user_schema),
-                        reflection_cache=(
-                            reflection_cache or worker_db.reflection_cache),
-                        database_config=(
-                            database_config or worker_db.database_config),
-                    ))
+                    worker._dbs = worker._dbs.set(
+                        dbname,
+                        state.PickledDatabaseState(
+                            user_schema_pickled=(
+                                user_schema_pickled
+                                or worker_db.user_schema_pickled
+                            ),
+                            reflection_cache=(
+                                reflection_cache
+                                or worker_db.reflection_cache
+                            ),
+                            database_config=(
+                                database_config or worker_db.database_config
+                            ),
+                        ),
+                    )
 
-                if global_schema is not None:
-                    worker._global_schema = global_schema
+                if global_schema_pickled is not None:
+                    worker._global_schema_pickled = global_schema_pickled
                 if system_config is not None:
                     worker._system_config = system_config
 
@@ -309,23 +318,23 @@ class AbstractPool:
 
         if worker_db is None:
             preargs.extend([
-                _pickle_memoized(user_schema),
+                user_schema_pickled,
                 _pickle_memoized(reflection_cache),
-                _pickle_memoized(global_schema),
+                global_schema_pickled,
                 _pickle_memoized(database_config),
                 _pickle_memoized(system_config),
             ])
             to_update = {
-                'user_schema': user_schema,
+                'user_schema_pickled': user_schema_pickled,
                 'reflection_cache': reflection_cache,
-                'global_schema': global_schema,
+                'global_schema_pickled': global_schema_pickled,
                 'database_config': database_config,
                 'system_config': system_config,
             }
         else:
-            if worker_db.user_schema is not user_schema:
-                preargs.append(_pickle_memoized(user_schema))
-                to_update['user_schema'] = user_schema
+            if worker_db.user_schema_pickled is not user_schema_pickled:
+                preargs.append(user_schema_pickled)
+                to_update['user_schema_pickled'] = user_schema_pickled
             else:
                 preargs.append(None)
 
@@ -335,9 +344,9 @@ class AbstractPool:
             else:
                 preargs.append(None)
 
-            if worker._global_schema is not global_schema:
-                preargs.append(_pickle_memoized(global_schema))
-                to_update['global_schema'] = global_schema
+            if worker._global_schema_pickled is not global_schema_pickled:
+                preargs.append(global_schema_pickled)
+                to_update['global_schema_pickled'] = global_schema_pickled
             else:
                 preargs.append(None)
 
@@ -376,8 +385,8 @@ class AbstractPool:
     async def compile(
         self,
         dbname,
-        user_schema,
-        global_schema,
+        user_schema_pickled,
+        global_schema_pickled,
         reflection_cache,
         database_config,
         system_config,
@@ -390,8 +399,8 @@ class AbstractPool:
                 "compile",
                 worker,
                 dbname,
-                user_schema,
-                global_schema,
+                user_schema_pickled,
+                global_schema_pickled,
                 reflection_cache,
                 database_config,
                 system_config,
@@ -466,8 +475,8 @@ class AbstractPool:
     async def compile_notebook(
         self,
         dbname,
-        user_schema,
-        global_schema,
+        user_schema_pickled,
+        global_schema_pickled,
         reflection_cache,
         database_config,
         system_config,
@@ -480,8 +489,8 @@ class AbstractPool:
                 "compile_notebook",
                 worker,
                 dbname,
-                user_schema,
-                global_schema,
+                user_schema_pickled,
+                global_schema_pickled,
                 reflection_cache,
                 database_config,
                 system_config,
@@ -499,8 +508,8 @@ class AbstractPool:
     async def compile_graphql(
         self,
         dbname,
-        user_schema,
-        global_schema,
+        user_schema_pickled,
+        global_schema_pickled,
         reflection_cache,
         database_config,
         system_config,
@@ -513,8 +522,8 @@ class AbstractPool:
                 "compile_graphql",
                 worker,
                 dbname,
-                user_schema,
-                global_schema,
+                user_schema_pickled,
+                global_schema_pickled,
                 reflection_cache,
                 database_config,
                 system_config,
@@ -532,8 +541,8 @@ class AbstractPool:
     async def compile_sql(
         self,
         dbname,
-        user_schema,
-        global_schema,
+        user_schema_pickled,
+        global_schema_pickled,
         reflection_cache,
         database_config,
         system_config,
@@ -546,8 +555,8 @@ class AbstractPool:
                 "compile_sql",
                 worker,
                 dbname,
-                user_schema,
-                global_schema,
+                user_schema_pickled,
+                global_schema_pickled,
                 reflection_cache,
                 database_config,
                 system_config,
@@ -1082,7 +1091,7 @@ class RemotePool(AbstractPool):
             std_schema,
             refl_schema,
             schema_class_layout,
-            global_schema,
+            global_schema_pickled,
             system_config,
         ) = init_args
         std_args = (std_schema, refl_schema, schema_class_layout)
@@ -1090,7 +1099,7 @@ class RemotePool(AbstractPool):
         return (
             pickle.dumps(std_args, -1),
             pickle.dumps(client_args, -1),
-            pickle.dumps(global_schema, -1),
+            global_schema_pickled,
             pickle.dumps(system_config, -1),
         )
 
@@ -1181,8 +1190,8 @@ class RemotePool(AbstractPool):
 @dataclasses.dataclass
 class TenantSchema:
     client_id: int
-    dbs: state.DatabasesState
-    global_schema: Any
+    dbs: immutables.Map[str, state.PickledDatabaseState]
+    global_schema_pickled: bytes
     system_config: Any
 
 
@@ -1330,72 +1339,74 @@ class MultiTenantPool(FixedPool):
     async def _compute_compile_preargs(
         self,
         method_name: str,
-        worker: MultiTenantWorker,
+        worker: BaseWorker,
         dbname,
-        user_schema,
-        global_schema,
+        user_schema_pickled,
+        global_schema_pickled,
         reflection_cache,
         database_config,
         system_config,
     ):
+        assert isinstance(worker, MultiTenantWorker)
+
         def sync_worker_state_cb(
             *,
             worker: MultiTenantWorker,
             client_id,
             dbname,
-            user_schema=None,
-            global_schema=None,
+            user_schema_pickled=None,
+            global_schema_pickled=None,
             reflection_cache=None,
             database_config=None,
             instance_config=None,
         ):
             tenant_schema = worker.get_tenant_schema(client_id)
             if tenant_schema is None:
-                assert user_schema is not None
+                assert user_schema_pickled is not None
                 assert reflection_cache is not None
-                assert global_schema is not None
+                assert global_schema_pickled is not None
                 assert database_config is not None
                 assert instance_config is not None
 
                 tenant_schema = TenantSchema(
                     client_id,
-                    immutables.Map([(dbname, state.DatabaseState(
-                        dbname,
-                        user_schema,
+                    immutables.Map([(dbname, state.PickledDatabaseState(
+                        user_schema_pickled,
                         reflection_cache,
                         database_config,
                     ))]),
-                    global_schema,
+                    global_schema_pickled,
                     instance_config,
                 )
                 worker.set_tenant_schema(client_id, tenant_schema)
             else:
                 worker_db = tenant_schema.dbs.get(dbname)
                 if worker_db is None:
-                    assert user_schema is not None
+                    assert user_schema_pickled is not None
                     assert reflection_cache is not None
                     assert database_config is not None
 
                     tenant_schema.dbs = tenant_schema.dbs.set(
                         dbname,
-                        state.DatabaseState(
-                            name=dbname,
-                            user_schema=user_schema,
+                        state.PickledDatabaseState(
+                            user_schema_pickled=user_schema_pickled,
                             reflection_cache=reflection_cache,
                             database_config=database_config,
                         ),
                     )
 
                 elif (
-                    user_schema is not None
+                    user_schema_pickled is not None
                     or reflection_cache is not None
                     or database_config is not None
                 ):
                     tenant_schema.dbs = tenant_schema.dbs.set(
                         dbname,
-                        state.DatabaseState(
-                            name=dbname,
-                            user_schema=user_schema or worker_db.user_schema,
+                        state.PickledDatabaseState(
+                            user_schema_pickled=(
+                                user_schema_pickled
+                                or worker_db.user_schema_pickled
+                            ),
                             reflection_cache=(
                                 reflection_cache or worker_db.reflection_cache
                             ),
@@ -1405,8 +1416,8 @@ class MultiTenantPool(FixedPool):
                         )
                     )
 
-                if global_schema is not None:
-                    tenant_schema.global_schema = global_schema
+                if global_schema_pickled is not None:
+                    tenant_schema.global_schema_pickled = global_schema_pickled
                 if instance_config is not None:
                     tenant_schema.system_config = instance_config
             worker.flush_invalidation()
@@ -1418,9 +1429,9 @@ class MultiTenantPool(FixedPool):
             # make room for the new client in this worker
             worker.maybe_invalidate_last()
             to_update = {
-                "user_schema": user_schema,
+                "user_schema_pickled": user_schema_pickled,
                 "reflection_cache": reflection_cache,
-                "global_schema": global_schema,
+                "global_schema_pickled": global_schema_pickled,
                 "database_config": database_config,
                 "instance_config": system_config,
             }
@@ -1428,25 +1439,33 @@ class MultiTenantPool(FixedPool):
             worker_db = tenant_schema.dbs.get(dbname)
             if worker_db is None:
                 to_update = {
-                    "user_schema": user_schema,
+                    "user_schema_pickled": user_schema_pickled,
                     "reflection_cache": reflection_cache,
                     "database_config": database_config,
                 }
             else:
                 to_update = {}
-                if worker_db.user_schema is not user_schema:
-                    to_update["user_schema"] = user_schema
+                if worker_db.user_schema_pickled is not user_schema_pickled:
+                    to_update["user_schema_pickled"] = user_schema_pickled
                 if worker_db.reflection_cache is not reflection_cache:
                     to_update["reflection_cache"] = reflection_cache
                 if worker_db.database_config is not database_config:
                     to_update["database_config"] = database_config
-            if tenant_schema.global_schema is not global_schema:
-                to_update["global_schema"] = global_schema
+            if (
+                tenant_schema.global_schema_pickled
+                is not global_schema_pickled
+            ):
+                to_update["global_schema_pickled"] = global_schema_pickled
             if tenant_schema.system_config is not system_config:
                 to_update["instance_config"] = system_config
 
         if to_update:
-            pickled = {k: _pickle_memoized(v) for k, v in to_update.items()}
+            pickled = {
+                k.removesuffix("_pickled"): v
+                if k.endswith("_pickled")
+                else _pickle_memoized(v)
+                for k, v in to_update.items()
+            }
             if any(f in pickled for f in PickledState._fields):
                 db_state = PickledState(
                     **{f: pickled.pop(f, None) for f in PickledState._fields}

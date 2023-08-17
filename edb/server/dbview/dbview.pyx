@@ -1112,8 +1112,8 @@ cdef class DatabaseConnectionView:
             else:
                 result = await compiler_pool.compile(
                     self.dbname,
-                    self.get_user_schema(),
-                    self.get_global_schema(),
+                    self.get_user_schema_pickled(),
+                    self.get_global_schema_pickled(),
                     self.reflection_cache,
                     self.get_database_config(),
                     self.get_compilation_system_config(),

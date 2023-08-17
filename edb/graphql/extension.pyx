@@ -227,8 +227,8 @@ async def compile(
     compiler_pool = server.get_compiler_pool()
     return await compiler_pool.compile_graphql(
         db.name,
-        db.user_schema,
-        tenant.get_global_schema(),
+        db.user_schema_pickled,
+        tenant.get_global_schema_pickled(),
         db.reflection_cache,
         db.db_config,
         db._index.get_compilation_system_config(),

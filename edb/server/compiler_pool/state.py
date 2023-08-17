@@ -38,6 +38,12 @@ class DatabaseState(typing.NamedTuple):
 DatabasesState = immutables.Map[str, DatabaseState]
 
 
+class PickledDatabaseState(typing.NamedTuple):
+    user_schema_pickled: bytes
+    reflection_cache: ReflectionCache
+    database_config: immutables.Map[str, config.SettingValue]
+
+
 class FailedStateSync(Exception):
     pass
 
