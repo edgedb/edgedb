@@ -20,8 +20,8 @@ related to the EdgeDB docs.*
 In this tutorial we're going to build a documentation chatbot with
 `Next.js <https://nextjs.org/>`_, `OpenAI <https://openai.com/>`_, and EdgeDB.
 
-Before we start, let's understand how it all works
-==================================================
+How it works
+============
 
 *tl;dr- Training a language model is hard, but using embeddings to give it
 access to information beyond what it's trained on is easy… so we will do that!
@@ -92,8 +92,8 @@ the tutorial.
 .. _ref_guide_chatgpt_bot_start:
 
 
-Let's get started
-=================
+Initial setup
+=============
 
 Let's start by scaffolding our app with the Next.js ``create-next-app`` tool.
 Run this wherever you would like to create the new directory for this project.
@@ -207,7 +207,7 @@ that instance.
 Now, let's get the documentation ready!
 
 
-Get the documentation in place
+Put the documentation in place
 ==============================
 
 For this project, we will be using documentation written as Markdown files
@@ -937,8 +937,8 @@ open UI with:
 and see that the DB is indeed updated with embeddings and other relevant data.
 
 
-Communication between the client and the server
-===============================================
+Answering user questions
+========================
 
 Now that we have embeddings we can start working on the handler for user
 requests. The idea is that user submits a question to our server and we send
@@ -963,8 +963,25 @@ request initiates a connection with our server, after that server sends data
 back to the client in chunks until the whole data is sent and closes the
 connection.
 
-Next route handler implementation
----------------------------------
+In order to stream responses, we will use the browser's `server-sent events
+(SSE) API`_. Server-sent events enables a client to receive automatic updates
+from a server via an HTTP connection, and describes how servers can initiate
+data transmission towards clients once an initial client connection has been
+established. The client sends a request and with that request initiates a
+connection with our server. With that connection established, the server will
+send data back to the client in chunks until all of the data is sent, at which
+point it closes the connection.
+
+.. lint-off
+
+.. _server-sent events (SSE) API:
+  https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events
+
+.. lint-on
+
+
+Next.js route handler implementation
+------------------------------------
 
 When using `Next.js APP router <https://nextjs.org/docs/app>`_ route handlers
 should be written inside ``app/api`` folder. Every route should have its own
