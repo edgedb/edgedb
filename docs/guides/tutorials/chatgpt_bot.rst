@@ -937,7 +937,8 @@ After the script finishes, open the EdgeDB UI.
 
   $ egdedb ui
 
-and see that the DB is indeed updated with embeddings and other relevant data.
+Switch to the Data Explorer, and you should see that the database has been
+updated with the embeddings and other relevant data.
 
 
 Answering user questions
