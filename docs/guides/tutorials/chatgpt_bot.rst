@@ -51,7 +51,7 @@ other, and words that often appear in similar contexts are grouped together.
 
 When using embeddings we are not training the language model. Instead we're
 creating embeddings vectors for every piece of documentation which will later
-help you find which documentation likely answers a user's question. When a
+help us find which documentation likely answers a user's question. When a
 user asks a question, we create a new embedding for that question and
 compare it against the embeddings generated from our documentation to find
 the most similar embeddings. The answer is generated using the content that
@@ -221,17 +221,17 @@ add your own.
 
 .. note:: On using formats other than Markdown
 
-    You *can* opt to use other simple formats like plain text files or more
+    We *could* opt to use other simple formats like plain text files or more
     complex ones like HTML. Since more complex formats can include additional
-    data beyond what you want the language model to consume (like HTML's tags
-    and their attributes), you may first want to clean those files and extract
-    the content before sending it to OpenAI. (You can write your own logic for
+    data beyond what we want the language model to consume (like HTML's tags
+    and their attributes), we may first want to clean those files and extract
+    the content before sending it to OpenAI. (We can write our own logic for
     this or use libraries that are available online for conversion, to Markdown
     for example.)
 
-    It's possible to use more complex formats *without* cleaning
-    them, but then you're paying for extra tokens that don't improve the
-    answers your chatbot will give users.
+    It's possible to use more complex formats *without* cleaning them, but then
+    we're paying for extra tokens that don't improve the answers our chatbot
+    will give users.
 
 .. note:: On longer documentation sections
 
@@ -289,7 +289,7 @@ gives us context to feed to the LLM. We will need the token count later when
 calculating how many related sections fit inside the prompt context while
 staying under the model's token limit.
 
-Open the empty schema file that was generated when you initialized the EdgeDB
+Open the empty schema file that was generated when we initialized the EdgeDB
 project (located at ``dbschema/default.esdl`` from the project directory).
 We'll walk through what we'll add to it, one step at a time.
 
