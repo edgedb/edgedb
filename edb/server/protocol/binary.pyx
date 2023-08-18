@@ -279,7 +279,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         logger.debug('received connection request by %s to database %s',
                      user, database)
 
-        await self._authenticate(user, params)
+        await self._authenticate(user, database, params)
 
         logger.debug('successfully authenticated %s in database %s',
                      user, database)
@@ -409,7 +409,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         return prefixed_token.strip()
 
-    def _auth_jwt(self, user, params):
+    def _auth_jwt(self, user, database, params):
         # token in the HTTP header has higher priority than
         # the ClientHandshake message, under the scenario of
         # binary protocol over HTTP
@@ -465,7 +465,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 f'authentication failed: malformed claims section in JWT'
             ) from None
 
-        self._check_jwt_authz(claims, token_version, user, params['database'])
+        self._check_jwt_authz(claims, token_version, user, database)
 
     def _check_jwt_authz(self, claims, token_version, user, dbname):
         # Check general key validity (e.g. whether it's a revoked key)
