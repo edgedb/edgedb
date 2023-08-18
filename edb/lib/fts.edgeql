@@ -34,12 +34,12 @@ CREATE SCALAR TYPE fts::searchable_str {
 
 CREATE FUNCTION
 fts::search(
-    object: std::Object,
+    object: anyobject,
     query: std::str,
     named only language: std::str,
 ) -> optional tuple<
-  object: std::Object,
-  rank: float64
+    object: anyobject,
+    rank: float32,
 >
 {
     CREATE ANNOTATION std::description :=
