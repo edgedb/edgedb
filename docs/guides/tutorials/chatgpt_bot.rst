@@ -410,16 +410,16 @@ We apply this schema by creating and running a migration.
     If you decide to go this route, add properties your ``Section`` as shown
     below:
 
-    .. code-block:: sdl
+    .. code-block:: sdl-diff
         :caption: dbschema/default.esdl
 
-        type Section {
-          required path: str {
-            constraint exclusive;
+          type Section {
+        +   required path: str {
+        +     constraint exclusive;
+        +   }
+        +   required checksum: str;
+            # The rest of the Section type
           }
-          required checksum: str;
-          # The rest of the Section type
-        }
 
     You'll need to store section paths, calculate and compare checksums, and
     update objects conditionally based on the outcome of those comparisons.
