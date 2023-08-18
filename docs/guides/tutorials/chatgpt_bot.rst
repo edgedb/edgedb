@@ -213,10 +213,10 @@ Put the documentation in place
 For this project, we will be using documentation written as Markdown files
 since they are straightforward for OpenAI's language models to use.
 
-Create a ``docs`` folder in the root of your project. Here we will place
-our Markdown files. You can grab the files we use from `the example project's
-GitHub repo
-<https://github.com/edgedb/edgedb-examples/tree/main/docs-chatbot/docs>`_, or
+Create a ``docs`` folder in the root of the project. Here we will place our
+Markdown documentation files. You can grab the files we use from `the example
+project's GitHub repo
+<https://github.com/edgedb/edgedb-examples/tree/main/docs-chatbot/docs>`_ or
 add your own.
 
 .. note:: On using formats other than Markdown
@@ -1051,10 +1051,10 @@ client defaults to using HTTPS which needs a trusted TLS/SSL certificate. Local
 development instances use self signed certificates, and using HTTPS with these
 certificates will result in an error. To work around this error, we use HTTP
 instead by passing ``{ tlsSecurity: "insecure" }`` when creating the client.
-Bear in mind that this is only for local development, and you should use TLS
-in production. Instead of hardcoding the ``tlsSecurity`` in the code, let's
-add another environment variable to ``.env.local`` file so we can easily change
-this value per environment.
+Bear in mind that this is only for local development, and you should always use
+TLS in production. Instead of hardcoding the ``tlsSecurity`` value in our code,
+let's add another environment variable to ``.env.local`` file so we can easily
+change this value per environment.
 
 .. code-block:: -diff
     :caption: .env.local
@@ -1066,8 +1066,8 @@ We're ready now to write the handler function for HTTP POST requests. To do
 this in Next.js, you export a function named for the request method you want it
 to handle.
 
-Our POST handler calls other functions that we will won't define just yet, but
-we'll circle back to them later.
+Our POST handler calls other functions that we won't define just yet, but we'll
+circle back to them later.
 
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
@@ -1119,7 +1119,7 @@ we'll circle back to them later.
 
 We start by writing a couple of error message for different error cases. You
 might want to get even more granular with these to give your users more
-granular error information, but we'll just define two cases for simplicity.
+granular error information, but we'll define just two cases for simplicity.
 
 We should make sure that we have the ``OPENAI_API_KEY`` environment variable
 set before proceeding, since we can't get an answer without it. We throw if it
@@ -1159,7 +1159,7 @@ moderation request returns an error, you may want to send back a ``400``
 response status ("Bad Request") instead of a ``500`` ("Internal Server Error").
 
 Now that you can see broadly what we're doing in this handler, let's dig into
-each of the functions we've called in the handler.
+each of the functions we've called in it.
 
 
 Moderation request
@@ -1205,22 +1205,22 @@ Let's write our moderation request function: ``moderateQuery``. We will use the
     }
 
 The function is pretty straightforward: it takes the question (the ``query``
-paramter) and API key, fires off a request to the API, and returns the result.
+parameter) and API key, fires off a request to the API, and returns the result.
 If the API finds an issue with the user's question, the response will have the
 ``flagged`` property set to ``true``. In that case we will throw a general
 error, but you could also inspect the response to find what categories are
 problematic and include more info in the error.
 
-If the question passes moderation then we can generate the
-embeddings for the question.
+If the question passes moderation then we can generate the embeddings for the
+question.
 
 
 Embeddings generation request
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For the embeddings request, we will build another fetch request to the
-``https://api.openai.com/v1/embeddings`` API endpoint in a new function called
-``getEmbedding``.
+For the embeddings request, we will build another fetch request, this time to
+the ``https://api.openai.com/v1/embeddings`` API endpoint, in a new function
+called ``getEmbedding``.
 
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
@@ -1502,8 +1502,8 @@ the ``page.tsx`` file to use the client component. We do that by adding the
 
     "use client";
 
-You can/copy paste the following HTML with Tailwind classes in order to have a
-ready-made UI, or you can write your own HTML and CSS.
+Feel free to copy/paste the following HTML with Tailwind classes in order to
+have a ready-made UI, or you can write your own from scratch.
 
 .. code-block:: typescript
     :caption: app/page.tsx
