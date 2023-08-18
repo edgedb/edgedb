@@ -3862,8 +3862,8 @@ def process_encoded_param(
     return sctx.rel
 
 
-@_special_case('fts::test')
-def process_set_as_fts_test(
+@_special_case('fts::search')
+def process_set_as_fts_search(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
     expr = ir_set.expr
@@ -3875,8 +3875,9 @@ def process_set_as_fts_test(
         [language, obj_ir, query_ir] = expr.args
 
         # compile object arg
-        ensure_source_rvar(obj_ir.expr, newctx.rel, ctx=newctx)
         obj_id = obj_ir.expr.path_id
+        obj_ref = dispatch.compile(obj_ir.expr, ctx=newctx)
+        obj_val = output.output_as_value(obj_ref, env=newctx.env)
 
         # compile query arg
         query_ref = set_as_subquery(query_ir.expr, as_value=True, ctx=newctx)
@@ -3885,6 +3886,9 @@ def process_set_as_fts_test(
 
         # compile language
         language_pg = dispatch.compile(language.expr, ctx=ctx)
+
+        rtype = ir_set.typeref
+        [out_obj_id, out_rank_id] = expr.tuple_path_ids
 
         from edb.common import debug
         if debug.flags.zombodb:
@@ -3907,6 +3911,10 @@ def process_set_as_fts_test(
                 name='==>',
                 lexpr=ctid,
                 rexpr=query_pg,
+            )
+
+            return _compile_func_epilogue(
+                ir_set, set_expr=set_expr, func_rel=newctx.rel, ctx=ctx
             )
         else:
             el_name = sn.QualName('__object__', '__fts_document__')
@@ -3931,19 +3939,63 @@ def process_set_as_fts_test(
                     name=('pg_catalog', 'regconfig')
                 ),
             )
-
-            set_expr = pgast.Expr(
-                name='@@',
-                lexpr=pgast.FuncCall(
-                    name=('edgedb', 'fts_parse_query'), args=[
-                        query_pg,
-                        language_pg
-                    ]
-                ),
-                rexpr=fts_document,
+            parsed_query_pg = pgast.FuncCall(
+                name=('edgedb', 'fts_parse_query'), args=[query_pg, language_pg]
             )
-        func_rel = newctx.rel
+            rank_pg = pgast.FuncCall(
+                name=('pg_catalog', 'ts_rank'),
+                args=[fts_document, parsed_query_pg]
+            )
 
-    return _compile_func_epilogue(
-        ir_set, set_expr=set_expr, func_rel=func_rel, ctx=ctx
+            tuple_expr = pgast.TupleVar(
+                elements=[
+                    pgast.TupleElement(
+                        path_id=out_obj_id,
+                        name='object',
+                        val=obj_val,
+                    ),
+                    pgast.TupleElement(
+                        path_id=out_rank_id,
+                        name='rank',
+                        val=rank_pg,
+                    ),
+                ],
+                named=True,
+                typeref=ir_set.typeref,
+            )
+
+            pathctx.put_path_var(
+                newctx.rel, out_obj_id, obj_val, aspect='source'
+            )
+            pathctx.put_path_var(
+                newctx.rel, out_rank_id, rank_pg, aspect='value'
+            )
+
+
+            var = pathctx.maybe_get_path_var(
+                newctx.rel,
+                obj_id,
+                aspect='serialized',
+                env=newctx.env
+            )
+            if var is not None:
+                pathctx.put_path_var(
+                    newctx.rel,
+                    out_obj_id,
+                    var,
+                    aspect='serialized',
+                )
+
+            pathctx.put_path_var_if_not_exists(
+                newctx.rel, ir_set.path_id, tuple_expr, aspect='value'
+            )
+
+    aspects = {'source', 'value'}
+
+    func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
+    relctx.include_rvar(
+        ctx.rel, func_rvar, ir_set.path_id, aspects=aspects, ctx=ctx
     )
+
+    return new_stmt_set_rvar(ir_set, ctx.rel, aspects=aspects, ctx=ctx)
+
