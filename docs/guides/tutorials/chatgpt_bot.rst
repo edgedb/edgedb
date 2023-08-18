@@ -1754,3 +1754,44 @@ we try to parse it in this case.)
 
 With that, the UI can now get answers from the Next.js route. The build is
 complete, and it's time to try it out!
+
+
+Testing it out
+==============
+
+You should now be able to run the project with ``npm run dev`` to test it. If
+you used our example documentation, the chatbot will know a few things about
+EdgeDB along with whatever it was trained on (which would have been relatively
+early in EdgeDB's development as of the time of this tutorial's publication).
+
+Some questions you might try:
+
+- "What is EdgeDB?"
+- "How do I introspect a function in EdgeDB?"
+- "Who is EdgeDB for?"
+- "How should I get started with EdgeDB?"
+
+If you don't like the responses you're getting, here are a few things you might
+try tweaking:
+
+- ``systemMessage`` in the ``createFullPrompt`` function in
+  ``app/api/generate-answer/route.ts``
+- ``temperature`` in the ``getOpenAiAnswer`` in
+  ``app/api/generate-answer/route.ts``
+- the ``matchThreshold`` value passed to the query from the ``getContext``
+  function in ``app/api/generate-answer/route.ts``
+
+You can see the finished source code for this build in `our examples repo on
+GitHub
+<https://github.com/edgedb/edgedb-examples/tree/main/docs-chatbot/docs>`_. You
+might also find our actual implementation interesting. You'll find it in `our
+website repo <https://github.com/edgedb/website>`_. Pay close attention to the
+contents of `buildTools/gpt
+<https://github.com/edgedb/website/tree/main/buildTools/gpt>`_, where the
+embedding generation happens and `components/gpt
+<https://github.com/edgedb/website/tree/main/components/gpt>`_, which contains
+most of the UI for our chatbot.
+
+If you have trouble with the build or just want to hang out with other EdgeDB
+users, please join `our awesome community on Discord
+<https://discord.gg/umUueND6ag>`_!
