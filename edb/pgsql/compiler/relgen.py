@@ -3887,10 +3887,11 @@ def process_set_as_fts_search(
         # compile language
         language_pg = dispatch.compile(language.expr, ctx=ctx)
 
-        rtype = ir_set.typeref
         [out_obj_id, out_rank_id] = expr.tuple_path_ids
 
         with newctx.subrel() as inner_ctx:
+            # inner_ctx generates the `SELECT score WHERE test` relation
+
             from edb.common import debug
             if debug.flags.zombodb:
                 el_name = sn.QualName('__object__', 'ctid')
@@ -3908,15 +3909,16 @@ def process_set_as_fts_search(
                     aspect='value',
                     ctx=newctx,
                 )
-                set_expr = pgast.Expr(
-                    name='==>',
-                    lexpr=ctid,
-                    rexpr=query_pg,
-                )
 
-                return _compile_func_epilogue(
-                    ir_set, set_expr=set_expr, func_rel=newctx.rel, ctx=ctx
+                score_pg = pgast.FuncCall(
+                    name= ('zdb', 'score'),
+                    args=[ctid]
                 )
+                where_clause = pgast.Expr(
+                    lexpr=ctid,
+                    name='==>',
+                    rexpr=query_pg,
+                )                
             else:
                 el_name = sn.QualName('__object__', '__fts_document__')
                 fts_document_ptrref = irast.SpecialPointerRef(
@@ -3940,28 +3942,34 @@ def process_set_as_fts_search(
                         name=('pg_catalog', 'regconfig')
                     ),
                 )
+                # TODO: This call gets replicated.
+                #       Should it reside in a subquery?
                 parsed_query_pg = pgast.FuncCall(
-                    name=('edgedb', 'fts_parse_query'), args=[query_pg, language_pg]
+                    name=('edgedb', 'fts_parse_query'),
+                    args=[query_pg, language_pg]
                 )
-                rank_pg = pgast.FuncCall(
+
+                score_pg = pgast.FuncCall(
                     name=('pg_catalog', 'ts_rank'),
                     args=[fts_document, parsed_query_pg]
                 )
-                pathctx.put_path_var(
-                    inner_ctx.rel, out_rank_id, rank_pg, aspect='value'
-                )
-                inner_ctx.rel.where_clause = pgast.Expr(
+                where_clause = pgast.Expr(
                     lexpr=fts_document,
                     name='@@',
                     rexpr=parsed_query_pg
                 )
-                
-                inner_rvar = relctx.new_rel_rvar(
-                    ir_set, inner_ctx.rel, ctx=newctx
-                )
-                relctx.include_rvar(
-                    newctx.rel, inner_rvar, out_rank_id, aspects={'value'}, ctx=newctx
-                )
+
+            pathctx.put_path_var(
+                inner_ctx.rel, out_rank_id, score_pg, aspect='value'
+            )
+            inner_ctx.rel.where_clause = where_clause
+
+            inner_rvar = relctx.new_rel_rvar(
+                ir_set, inner_ctx.rel, ctx=newctx
+            )
+            relctx.include_rvar(
+                newctx.rel, inner_rvar, out_rank_id, aspects={'value'}, ctx=newctx
+            )
 
         rank_pg_ref = pathctx.get_path_var(
             newctx.rel, out_rank_id, aspect='value', env=newctx.env
