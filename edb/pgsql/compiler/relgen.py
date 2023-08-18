@@ -3890,105 +3890,121 @@ def process_set_as_fts_search(
         rtype = ir_set.typeref
         [out_obj_id, out_rank_id] = expr.tuple_path_ids
 
-        from edb.common import debug
-        if debug.flags.zombodb:
-            el_name = sn.QualName('__object__', 'ctid')
-            ctid_ptrref = irast.SpecialPointerRef(
-                name=el_name,
-                shortname=el_name,
-                out_source=obj_id.target,
-                out_target=pg_types.pg_oid_typeref,
-                out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
-            )
-            ctid_id = obj_id.extend(ptrref=ctid_ptrref)
-            ctid = relctx.get_path_var(
-                newctx.rel,
-                ctid_id,
-                aspect='value',
-                ctx=newctx,
-            )
-            set_expr = pgast.Expr(
-                name='==>',
-                lexpr=ctid,
-                rexpr=query_pg,
-            )
-
-            return _compile_func_epilogue(
-                ir_set, set_expr=set_expr, func_rel=newctx.rel, ctx=ctx
-            )
-        else:
-            el_name = sn.QualName('__object__', '__fts_document__')
-            fts_document_ptrref = irast.SpecialPointerRef(
-                name=el_name,
-                shortname=el_name,
-                out_source=obj_id.target,
-                out_target=pg_types.pg_tsvector_typeref,
-                out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
-            )
-            fts_document_id = obj_id.extend(ptrref=fts_document_ptrref)
-            fts_document = relctx.get_path_var(
-                newctx.rel,
-                fts_document_id,
-                aspect='value',
-                ctx=newctx,
-            )
-
-            language_pg = pgast.TypeCast(
-                arg=language_pg,
-                type_name=pgast.TypeName(
-                    name=('pg_catalog', 'regconfig')
-                ),
-            )
-            parsed_query_pg = pgast.FuncCall(
-                name=('edgedb', 'fts_parse_query'), args=[query_pg, language_pg]
-            )
-            rank_pg = pgast.FuncCall(
-                name=('pg_catalog', 'ts_rank'),
-                args=[fts_document, parsed_query_pg]
-            )
-
-            tuple_expr = pgast.TupleVar(
-                elements=[
-                    pgast.TupleElement(
-                        path_id=out_obj_id,
-                        name='object',
-                        val=obj_val,
-                    ),
-                    pgast.TupleElement(
-                        path_id=out_rank_id,
-                        name='rank',
-                        val=rank_pg,
-                    ),
-                ],
-                named=True,
-                typeref=ir_set.typeref,
-            )
-
-            pathctx.put_path_var(
-                newctx.rel, out_obj_id, obj_val, aspect='source'
-            )
-            pathctx.put_path_var(
-                newctx.rel, out_rank_id, rank_pg, aspect='value'
-            )
-
-
-            var = pathctx.maybe_get_path_var(
-                newctx.rel,
-                obj_id,
-                aspect='serialized',
-                env=newctx.env
-            )
-            if var is not None:
-                pathctx.put_path_var(
+        with newctx.subrel() as inner_ctx:
+            from edb.common import debug
+            if debug.flags.zombodb:
+                el_name = sn.QualName('__object__', 'ctid')
+                ctid_ptrref = irast.SpecialPointerRef(
+                    name=el_name,
+                    shortname=el_name,
+                    out_source=obj_id.target,
+                    out_target=pg_types.pg_oid_typeref,
+                    out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
+                )
+                ctid_id = obj_id.extend(ptrref=ctid_ptrref)
+                ctid = relctx.get_path_var(
                     newctx.rel,
-                    out_obj_id,
-                    var,
-                    aspect='serialized',
+                    ctid_id,
+                    aspect='value',
+                    ctx=newctx,
+                )
+                set_expr = pgast.Expr(
+                    name='==>',
+                    lexpr=ctid,
+                    rexpr=query_pg,
                 )
 
-            pathctx.put_path_var_if_not_exists(
-                newctx.rel, ir_set.path_id, tuple_expr, aspect='value'
+                return _compile_func_epilogue(
+                    ir_set, set_expr=set_expr, func_rel=newctx.rel, ctx=ctx
+                )
+            else:
+                el_name = sn.QualName('__object__', '__fts_document__')
+                fts_document_ptrref = irast.SpecialPointerRef(
+                    name=el_name,
+                    shortname=el_name,
+                    out_source=obj_id.target,
+                    out_target=pg_types.pg_tsvector_typeref,
+                    out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
+                )
+                fts_document_id = obj_id.extend(ptrref=fts_document_ptrref)
+                fts_document = relctx.get_path_var(
+                    newctx.rel,
+                    fts_document_id,
+                    aspect='value',
+                    ctx=newctx,
+                )
+
+                language_pg = pgast.TypeCast(
+                    arg=language_pg,
+                    type_name=pgast.TypeName(
+                        name=('pg_catalog', 'regconfig')
+                    ),
+                )
+                parsed_query_pg = pgast.FuncCall(
+                    name=('edgedb', 'fts_parse_query'), args=[query_pg, language_pg]
+                )
+                rank_pg = pgast.FuncCall(
+                    name=('pg_catalog', 'ts_rank'),
+                    args=[fts_document, parsed_query_pg]
+                )
+                pathctx.put_path_var(
+                    inner_ctx.rel, out_rank_id, rank_pg, aspect='value'
+                )
+                inner_ctx.rel.where_clause = pgast.Expr(
+                    lexpr=fts_document,
+                    name='@@',
+                    rexpr=parsed_query_pg
+                )
+                
+                inner_rvar = relctx.new_rel_rvar(
+                    ir_set, inner_ctx.rel, ctx=newctx
+                )
+                relctx.include_rvar(
+                    newctx.rel, inner_rvar, out_rank_id, aspects={'value'}, ctx=newctx
+                )
+
+        rank_pg_ref = pathctx.get_path_var(
+            newctx.rel, out_rank_id, aspect='value', env=newctx.env
+        )
+
+        tuple_expr = pgast.TupleVar(
+            elements=[
+                pgast.TupleElement(
+                    path_id=out_obj_id,
+                    name='object',
+                    val=obj_val,
+                ),
+                pgast.TupleElement(
+                    path_id=out_rank_id,
+                    name='rank',
+                    val=rank_pg_ref,
+                ),
+            ],
+            named=True,
+            typeref=ir_set.typeref,
+        )
+
+        pathctx.put_path_var(
+            newctx.rel, out_obj_id, obj_val, aspect='source'
+        )
+
+        var = pathctx.maybe_get_path_var(
+            newctx.rel,
+            obj_id,
+            aspect='serialized',
+            env=newctx.env
+        )
+        if var is not None:
+            pathctx.put_path_var(
+                newctx.rel,
+                out_obj_id,
+                var,
+                aspect='serialized',
             )
+
+        pathctx.put_path_var_if_not_exists(
+            newctx.rel, ir_set.path_id, tuple_expr, aspect='value'
+        )
 
     aspects = {'source', 'value'}
 
