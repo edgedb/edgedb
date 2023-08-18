@@ -4014,6 +4014,8 @@ def process_set_as_fts_search(
             newctx.rel, ir_set.path_id, tuple_expr, aspect='value'
         )
 
+    pathctx.put_path_id_map(newctx.rel, out_obj_id, obj_id)
+
     aspects = {'source', 'value'}
 
     func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
