@@ -33,11 +33,14 @@ CREATE SCALAR TYPE fts::searchable_str {
 ## ---------
 
 CREATE FUNCTION
-fts::test(
+fts::search(
     object: std::Object,
     query: std::str,
     named only language: std::str,
-) -> std::bool
+) -> optional tuple<
+  object: std::Object,
+  rank: float64
+>
 {
     CREATE ANNOTATION std::description :=
         'Return true if the document matches the FTS query.';
