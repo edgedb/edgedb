@@ -465,9 +465,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 f'authentication failed: malformed claims section in JWT'
             ) from None
 
-        self._check_jwt_authz(claims, token_version, user)
+        self._check_jwt_authz(claims, token_version, user, params['database'])
 
-    def _check_jwt_authz(self, claims, token_version, user):
+    def _check_jwt_authz(self, claims, token_version, user, dbname):
         # Check general key validity (e.g. whether it's a revoked key)
         self.tenant.check_jwt(claims)
 
@@ -499,11 +499,11 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         if (
             token_databases is not None
-            and self.dbname not in token_databases
+            and dbname not in token_databases
         ):
             raise errors.AuthenticationError(
                 'authentication failed: secret key does not authorize '
-                f'access to database "{self.dbname}"')
+                f'access to database "{dbname}"')
 
         if token_roles is not None and user not in token_roles:
             raise errors.AuthenticationError(
