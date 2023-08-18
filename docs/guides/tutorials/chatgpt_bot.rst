@@ -1486,24 +1486,24 @@ We need to provide these parameters inside the request body:
 
 With the route in place, let's update the UI and connect everything together.
 
-Final touch: UI
+Building the UI
 ===============
 
-To make things as simple as possible we will just update the ``Home``
-component that's inside ``app/page.tsx`` file. By default all components
-inside the `App Router <https://nextjs.org/docs/app/building-your-application/routing#the-app-router>`_
-are Server Components, but we want to have client-side interactivity and dynamic
-updates. In order to do that we have to use Client Component for our Home page,
-and the way to accomplish that is to convert ``page.tsx`` file to use Client
-Component. We do that by adding ``use client`` directive to the top of the file.
+To make things as simple as possible, we will just update the ``Home``
+component that's inside ``app/page.tsx`` file. By default all components inside
+the App Router are server components, but we want to have client-side
+interactivity and dynamic updates. In order to do that we have to use a client
+component for our ``Home`` component. The way to accomplish that is to convert
+the ``page.tsx`` file to use the client component. We do that by adding the
+``use client`` directive to the top of the file.
 
 .. code-block:: typescript
     :caption: app/page.tsx
 
     "use client";
 
-You can/copy paste the following HTML with Tailwind classes in order to have
-exact application like in this tutorial, or you can create your own HTML and CSS.
+You can/copy paste the following HTML with Tailwind classes in order to have a
+ready-made UI, or you can write your own HTML and CSS.
 
 .. code-block:: typescript
     :caption: app/page.tsx
@@ -1596,17 +1596,17 @@ exact application like in this tutorial, or you can create your own HTML and CSS
         );
     }
 
-What we have here is input field where user can enter a prompt. When he/she
-submits a prompt we show loading dots while we wait on the server for the first answer
-chunk from the OpenAI. When the first chunk arrives we start streaming the
-answer to the user. In case of an error we show an error text to the user.
+We have created an input field where the user can enter a question. When they
+submit, we show a loading indicator while we wait for the first answer chunk
+from OpenAI. When the first chunk arrives, we start streaming the answer to the
+user. In case of an error, we show an error message to the user.
 
-In regard to the client a prompt is the text a user types in the input, and the
-question is the submitted prompt that we show under the input when user submits
-the prompt. We clear the input and delete the prompt when user submits it, but
-keep the question value.
+The text the user types in the input field is captured as ``prompt``.
+``question`` is the submitted prompt that we show under the input when user
+submits their question. We clear the input and delete the prompt when user
+submits it, but keep the ``question`` value so the user can reference it.
 
-Let's now write the submit function.
+Let's write the form submission handler function.
 
 .. code-block:: typescript
     :caption: app/page.tsx
@@ -1623,34 +1623,34 @@ Let's now write the submit function.
       generateAnswer(prompt);
     };
 
-When user submits a prompt we set loading state to true and start showing
-loading dots and as said above we clear the prompt state and set the question
-state. We also clear the answer state because the answer will hold the previous
-answer and we want to start with empty answer.
+When the user submits a question, we set the ``isLoading`` state to ``true``
+and show the loading indicator. We clear the prompt state and set the question
+state. We also clear the answer state because the answer may hold an answer to
+a previous question, but we want to start with an empty answer.
 
-At this point we want to create SSE (Server-Sent Event) and send a request to
-our ``api/generate-answer`` route. We will do this inside ``generateAnswer``
+At this point we want to create a server-sent event and send a request to our
+``api/generate-answer`` route. We will do this inside the ``generateAnswer``
 function.
 
-Available native `SSE <https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events>`_
-doesn't let you to send any payload from client to the server, client is only
-able to open a connection to the server to begin receiving events from it
-(GET request). In order for the client to send payload and a POST request we
-will use `sse.js <https://npm.io/package/sse.js>`_ package so let's install it.
+The browser-native SSE API doesn't allow the client to send a payload to the
+server; the client is only able to open a connection to the server to begin
+receiving events from it via a GET request. In order for the client to be able
+to send a payload via a POST request to open the SSE connection, we will use
+the `sse.js <https://npm.io/package/sse.js>`_ package, so let's install it.
 
 .. code-block:: bash
 
     $ npm install sse.js --save
 
-This package doesn't have its corresponding types package so we need to add
-them manually when using Typescript. Let's create new folder ``types`` in the
-project root and ``sse.d.ts`` file inside it.
+This package doesn't have a corresponding types package, so we need to add them
+manually. Let's create a new folder named ``types`` in the project root and
+an ``sse.d.ts`` file inside it.
 
 .. code-block:: bash
 
     $ mkdir types && touch types/sse.d.ts
 
-The generated file should contain the following code:
+Open ``sse.d.ts`` and add this code:
 
 .. code-block:: typescript
     :caption: types/sse.d.ts
@@ -1666,52 +1666,53 @@ The generated file should contain the following code:
         }
     }
 
-We just extended the native ``EventStream`` to use payload in the constructor when
-generating the stream and we added the ``stream`` function to it which is used
-to activate the stream in the SSE NPM package.
+This extends the native ``EventStream`` by adding a payload to the constructor.
+We also added the ``stream`` function to it which is used to activate the
+stream in the sse.js library.
 
-Now we can import ``SSE`` in ``page.tsx`` and use it to open a connection to
+Now, we can import ``SSE`` in ``page.tsx`` and use it to open a connection to
 our handler route while also sending the user's query.
 
-.. code-block:: typescript
+.. code-block:: typescript-diff
     :caption: app/page.tsx
 
-    "use client";
+      "use client";
 
-    import { useState, useRef } from "react";
-    import { SSE } from "sse.js";
+      import { useState, useRef } from "react";
+    + import { SSE } from "sse.js";
 
-    export default function Home() {
-        const eventSourceRef = useRef<SSE>();
+      export default function Home() {
+          const eventSourceRef = useRef<SSE>();
 
-        ...
+          ...
 
-        const generateAnswer = async (query: string) => {
-            if (eventSourceRef.current) eventSourceRef.current.close();
+          const generateAnswer = async (query: string) => {
+              if (eventSourceRef.current) eventSourceRef.current.close();
 
-            const eventSource = new SSE(`api/generate-answer`, {
-                payload: JSON.stringify({ query }),
-            });
-            eventSourceRef.current = eventSource;
+              const eventSource = new SSE(`api/generate-answer`, {
+                  payload: JSON.stringify({ query }),
+              });
+              eventSourceRef.current = eventSource;
 
-            eventSource.onerror = handleError;
-            eventSource.onmessage = handleMessage;
-            eventSource.stream();
-        };
+              eventSource.onerror = handleError;
+              eventSource.onmessage = handleMessage;
+              eventSource.stream();
+          };
 
-        handleError() { ... }
-        handleMessage() { ... }
-    ...
+          handleError() { ... }
+          handleMessage() { ... }
+      ...
 
-We will save a reference to the ``eventSource`` object. In case user submits a
-new question while answer to the previous one is still assembling on the client
-we need to close the current connection to the server, otherwise weird behavior
-will occur if we have two connections open and receive data from both of them.
+Note that we save a reference to the ``eventSource`` object. We need this in
+case a user submits a new question while answer to the previous one is still
+assembling on the client. If we don't close the existing connection to the
+server before opening the new one, this could cause problems since two
+connections will be open and trying to receive data.
 
-We opened a connection to the server and we are ready now to receive events
-from the server. We have to write handlers for those events. We will get the
-answer as part of the ``message event``, and if error is returned the server
-will send ``error event`` to the client.
+We opened a connection to the server, and we are now ready to receive events
+from it. We just need to write handlers for those events so the UI knows what
+to do with them. We will get the answer as part of a message event, and if an
+error is returned, the server will send an error event to the client.
 
 Let's write these handlers.
 
@@ -1719,7 +1720,7 @@ Let's write these handlers.
     :caption: app/page.tsx
 
     import { errors } from "./api/generate-answer/route";
-    ...
+    …
 
     function handleError(err: any) {
         setIsLoading(false);
@@ -1744,12 +1745,12 @@ Let's write these handlers.
         }
     }
 
-When we get the message event we extract the data from it and add it to the
-``answer`` state until we receive all chunks. When the data is equal to
-``[DONE]`` it means that the whole answer has been received and the connection
-to the server is going to be closed. There is no data to be parsed in this case
-so we have to return instead of trying to parse it (the error will be thrown if
-you try to parse it).
+When we get the message event, we extract the data from it and add it to the
+``answer`` state until we receive all chunks. This is indicated when the data
+is equal to ``[DONE]``, meaning the whole answer has been received and the
+connection to the server will be closed. There is no data to be parsed in this
+case, so we return instead of trying to parse it. (An error will be thrown if
+we try to parse it in this case.)
 
-That's all. You should be able to run the project now with ``npm run dev``
-and test it.
+With that, the UI can now get answers from the Next.js route. The build is
+complete, and it's time to try it out!
