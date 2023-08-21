@@ -3530,7 +3530,10 @@ class ResetSessionConfigFunction(dbops.Function):
         )
 
 
-# XXX: Uh oh.
+# FIXME: Support extension-defined configs that affect the backend
+# Not needed for supporting auth, so can skip temporarily.
+# If perf seems to matter, can hardcode things for base config
+# and consult json for just extension stuff.
 class ApplySessionConfigFunction(dbops.Function):
     """Apply an EdgeDB config setting to the backend, if possible.
 

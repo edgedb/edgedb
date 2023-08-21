@@ -231,11 +231,11 @@ cdef class Database:
     cdef _invalidate_caches(self):
         self._eql_to_compiled.clear()
         self._sql_to_compiled.clear()
+        # XXX: FIXME: Only invalidate when spec actually changes?
+        self._user_config_spec = None
 
     cdef _clear_state_serializers(self):
         self._state_serializers.clear()
-        # XXX: FIXME: Only invalidate when spec actually changes?
-        self._user_config_spec = None
 
     cdef _cache_compiled_query(self, key, compiled: dbstate.QueryUnitGroup):
         assert compiled.cacheable

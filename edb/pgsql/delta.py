@@ -3729,6 +3729,8 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand,
                 key = 'configspec_ext';
         ''')))
 
+        # FIXME: If this is not a top-level object it is not going to
+        # work right...
         views = metaschema.get_config_type_views(eff_schema, scls, scope=None)
         if isinstance(self, sd.DeleteObject):
             for cv in views:

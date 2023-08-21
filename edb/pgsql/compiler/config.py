@@ -576,8 +576,7 @@ def top_output_as_config_op(
         assert stmt_res.name is not None
     val = pgast.ColumnRef(name=[stmt_res.name])
 
-    # XXX: code duplication?
-    # wait what about _tname??
+    # FIXME: Can the duplication with other db cases be reduced?
     if op.scope is qltypes.ConfigScope.DATABASE:
         sval = pgast.SelectStmt(
             target_list=[pgast.ResTarget(val=val)], from_clause=[subrvar])

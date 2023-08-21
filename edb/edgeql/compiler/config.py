@@ -185,24 +185,12 @@ def compile_ConfigInsert(
         )
 
     subject = info.param_type
-    # subject = ctx.env.get_schema_object_and_track(
-    #     sn.QualName('cfg', expr.name.name), expr.name, default=None)
-    # if subject is None:
-    #     raise errors.ConfigurationError(
-    #         f'{expr.name.name!r} is not a valid configuration item',
-    #         context=expr.context,
-    #     )
-
     insert_stmt = qlast.InsertQuery(
         subject=s_utils.name_to_ast_ref(subject.get_name(ctx.env.schema)),
         shape=expr.shape,
     )
 
-    # RIGHT? IDK?
     _inject_tname(insert_stmt, ctx=ctx)
-    # for el in expr.shape:
-    #     if isinstance(el.compexpr, qlast.InsertQuery):
-    #         _inject_tname(el.compexpr, ctx=ctx)
 
     with ctx.newscope(fenced=False) as subctx:
         subctx.expr_exposed = context.Exposure.EXPOSED
@@ -300,12 +288,6 @@ def _validate_op(
 
     if expr.scope == qltypes.ConfigScope.GLOBAL:
         return _validate_global_op(expr, ctx=ctx)
-
-    # if expr.name.module and expr.name.module != 'cfg':
-    #     raise errors.QueryError(
-    #         'invalid configuration parameter name: module must be either '
-    #         '\'cfg\' or empty', context=expr.name.context,
-    #     )
 
     cfg_host_type = None
     is_ext_config = False
