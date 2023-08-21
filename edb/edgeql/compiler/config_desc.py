@@ -128,13 +128,15 @@ def _describe_config(
         " ?? false"
     )
     query = (
-        f"FOR conf IN {{cfg::get_config_json(sources := [{ql(source)}])}} "
+        "assert_exists(assert_single(("
+        + f"FOR conf IN {{cfg::get_config_json(sources := [{ql(source)}])}} "
         + "UNION (\n"
         + (f"FOR testmode IN {{{testmode_check}}} UNION (\n"
            if testmode else "")
-        + "SELECT\n  " + ' ++ '.join(items)
+        + "SELECT array_join([" + ', '.join(items) + "], '')"
         + (")" if testmode else "")
         + ")"
+        + ")))"
     )
     return query
 
