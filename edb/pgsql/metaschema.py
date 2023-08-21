@@ -23,7 +23,6 @@ from __future__ import annotations
 from typing import *
 
 import re
-import textwrap
 
 import edb._edgeql_parser as ql_parser
 
