@@ -47,7 +47,6 @@ from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import properties as s_props
-from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
@@ -56,7 +55,6 @@ from edb.schema import utils as s_utils
 from edb.server import defines
 from edb.server import compiler as edbcompiler
 from edb.server import config as edbconfig
-from edb.server import bootstrap as edbbootstrap
 
 from .resolver import sql_introspection
 
@@ -2713,30 +2711,6 @@ class DescribeRolesAsDDLFunction(dbops.Function):
             text=text)
 
 
-class DescribeInstanceConfigAsDDLFunctionForwardDecl(dbops.Function):
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', '_describe_system_config_as_ddl'),
-            args=[],
-            returns=('text'),
-            volatility='stable',
-            text='SELECT NULL::text',
-        )
-
-
-class DescribeDatabaseConfigAsDDLFunctionForwardDecl(dbops.Function):
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', '_describe_database_config_as_ddl'),
-            args=[],
-            returns=('text'),
-            volatility='stable',
-            text='SELECT NULL::text',
-        )
-
-
 class DumpSequencesFunction(dbops.Function):
 
     text = r"""
@@ -4310,8 +4284,6 @@ async def bootstrap(
         dbops.CreateFunction(GetTypeToRangeNameMap()),
         dbops.CreateFunction(GetTypeToMultiRangeNameMap()),
         dbops.CreateFunction(GetPgTypeForEdgeDBTypeFunction()),
-        dbops.CreateFunction(DescribeInstanceConfigAsDDLFunctionForwardDecl()),
-        dbops.CreateFunction(DescribeDatabaseConfigAsDDLFunctionForwardDecl()),
         dbops.CreateFunction(DescribeRolesAsDDLFunctionForwardDecl()),
         dbops.CreateRange(Float32Range()),
         dbops.CreateRange(Float64Range()),
@@ -6321,45 +6293,7 @@ async def generate_more_support_functions(
 ) -> None:
     commands = dbops.CommandGroup()
 
-    _, text = edbbootstrap.compile_bootstrap_script(
-        compiler,
-        schema,
-        _describe_config(
-            schema, source='system override', testmode=testmode),
-        output_format=edbcompiler.OutputFormat.BINARY,
-    )
-
-    DescribeInstanceConfigAsDDLFunction = dbops.Function(
-        name=('edgedb', '_describe_system_config_as_ddl'),
-        args=[],
-        returns=('text'),
-        # Stable because it's raising exceptions.
-        volatility='stable',
-        text=text,
-    )
-
-    _, text = edbbootstrap.compile_bootstrap_script(
-        compiler,
-        schema,
-        _describe_config(
-            schema, source='database', testmode=testmode),
-        output_format=edbcompiler.OutputFormat.BINARY,
-    )
-
-    DescribeDatabaseConfigAsDDLFunction = dbops.Function(
-        name=('edgedb', '_describe_database_config_as_ddl'),
-        args=[],
-        returns=('text'),
-        # Stable because it's raising exceptions.
-        volatility='stable',
-        text=text,
-    )
-
     commands.add_commands([
-        dbops.CreateFunction(
-            DescribeInstanceConfigAsDDLFunction, or_replace=True),
-        dbops.CreateFunction(
-            DescribeDatabaseConfigAsDDLFunction, or_replace=True),
         dbops.CreateFunction(
             DescribeRolesAsDDLFunction(schema), or_replace=True),
         dbops.CreateFunction(GetSequenceBackendNameFunction()),
@@ -6369,314 +6303,6 @@ async def generate_more_support_functions(
     block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)
-
-
-def _describe_config(
-    schema: s_schema.Schema,
-    source: str,
-    testmode: bool,
-) -> str:
-    """Generate an EdgeQL query to render config as DDL."""
-
-    if source == 'system override':
-        scope = qltypes.ConfigScope.INSTANCE
-        config_object_name = 'cfg::InstanceConfig'
-    elif source == 'database':
-        scope = qltypes.ConfigScope.DATABASE
-        config_object_name = 'cfg::DatabaseConfig'
-    else:
-        raise AssertionError(f'unexpected configuration source: {source!r}')
-
-    cfg = schema.get(config_object_name, type=s_objtypes.ObjectType)
-    items = []
-    for ptr_name, p in cfg.get_pointers(schema).items(schema):
-        pn = str(ptr_name)
-        if pn in ('id', '__type__'):
-            continue
-
-        is_internal = (
-            p.get_annotation(
-                schema,
-                s_name.QualName('cfg', 'internal')
-            ) == 'true'
-        )
-        if is_internal and not testmode:
-            continue
-
-        ptype = p.get_target(schema)
-        assert ptype is not None
-        ptr_card = p.get_cardinality(schema)
-        mult = ptr_card.is_multi()
-        if isinstance(ptype, s_objtypes.ObjectType):
-            item = textwrap.indent(
-                _render_config_object(
-                    schema=schema,
-                    valtype=ptype,
-                    value_expr=str(ptype.get_name(schema)),
-                    scope=scope,
-                    join_term='',
-                    level=1,
-                ),
-                ' ' * 4,
-            )
-        else:
-            psource = f'{config_object_name}.{ qlquote.quote_ident(pn) }'
-            renderer = _render_config_set if mult else _render_config_scalar
-            item = textwrap.indent(
-                renderer(
-                    schema=schema,
-                    valtype=ptype,
-                    value_expr=psource,
-                    name=pn,
-                    scope=scope,
-                    level=1,
-                ),
-                ' ' * 4,
-            )
-
-        condition = f'EXISTS json_get(conf, {ql(pn)})'
-        if is_internal:
-            condition = f'({condition}) AND testmode'
-        items.append(f"(\n{item}\n    IF {condition} ELSE ''\n  )")
-
-    testmode_check = (
-        "<bool>json_get(cfg::get_config_json(),'__internal_testmode','value')"
-        " ?? false"
-    )
-    query = (
-        f"FOR conf IN {{cfg::get_config_json(sources := [{ql(source)}])}} "
-        + "UNION (\n"
-        + (f"FOR testmode IN {{{testmode_check}}} UNION (\n"
-           if testmode else "")
-        + "SELECT\n  " + ' ++ '.join(items)
-        + (")" if testmode else "")
-        + ")"
-    )
-    return query
-
-
-def _render_config_value(
-    *,
-    schema: s_schema.Schema,
-    valtype: s_types.Type,
-    value_expr: str,
-) -> str:
-    if valtype.issubclass(
-        schema,
-        schema.get('std::anyreal', type=s_scalars.ScalarType),
-    ):
-        val = f'<str>{value_expr}'
-    elif valtype.issubclass(
-        schema,
-        schema.get('std::bool', type=s_scalars.ScalarType),
-    ):
-        val = f'<str>{value_expr}'
-    elif valtype.issubclass(
-        schema,
-        schema.get('std::duration', type=s_scalars.ScalarType),
-    ):
-        val = f'"<std::duration>" ++ cfg::_quote(<str>{value_expr})'
-    elif valtype.issubclass(
-        schema,
-        schema.get('cfg::memory', type=s_scalars.ScalarType),
-    ):
-        val = f'"<cfg::memory>" ++ cfg::_quote(<str>{value_expr})'
-    elif valtype.issubclass(
-        schema,
-        schema.get('std::str', type=s_scalars.ScalarType),
-    ):
-        val = f'cfg::_quote({value_expr})'
-    elif valtype.is_enum(schema):
-        tn = valtype.get_name(schema)
-        val = f'"<{str(tn)}>" ++ cfg::_quote(<str>{value_expr})'
-    else:
-        raise AssertionError(
-            f'unexpected configuration value type: '
-            f'{valtype.get_displayname(schema)}'
-        )
-
-    return val
-
-
-def _render_config_set(
-    *,
-    schema: s_schema.Schema,
-    valtype: s_types.Type,
-    value_expr: str,
-    scope: qltypes.ConfigScope,
-    name: str,
-    level: int,
-) -> str:
-    assert isinstance(valtype, s_scalars.ScalarType)
-    v = _render_config_value(
-        schema=schema, valtype=valtype, value_expr=value_expr)
-    if level == 1:
-        return (
-            f"'CONFIGURE {scope.to_edgeql()} "
-            f"SET { qlquote.quote_ident(name) } := {{' ++ "
-            f"array_join(array_agg({v}), ', ') ++ '}};'"
-        )
-    else:
-        indent = ' ' * (4 * (level - 1))
-        return (
-            f"'{indent}{ qlquote.quote_ident(name) } := {{' ++ "
-            f"array_join(array_agg({v}), ', ') ++ '}},'"
-        )
-
-
-def _render_config_scalar(
-    *,
-    schema: s_schema.Schema,
-    valtype: s_types.Type,
-    value_expr: str,
-    scope: qltypes.ConfigScope,
-    name: str,
-    level: int,
-) -> str:
-    assert isinstance(valtype, s_scalars.ScalarType)
-    v = _render_config_value(
-        schema=schema, valtype=valtype, value_expr=value_expr)
-    if level == 1:
-        return (
-            f"'CONFIGURE {scope.to_edgeql()} "
-            f"SET { qlquote.quote_ident(name) } := ' ++ {v} ++ ';'"
-        )
-    else:
-        indent = ' ' * (4 * (level - 1))
-        return f"'{indent}{ qlquote.quote_ident(name) } := ' ++ {v} ++ ','"
-
-
-def _render_config_object(
-    *,
-    schema: s_schema.Schema,
-    valtype: s_objtypes.ObjectType,
-    value_expr: str,
-    scope: qltypes.ConfigScope,
-    join_term: str,
-    level: int,
-) -> str:
-    # Generate a valid `CONFIGURE <SCOPE> INSERT ConfigObject`
-    # shape for a given configuration object type or
-    # `INSERT ConfigObject` for a nested configuration type.
-    sub_layouts = _describe_config_object(
-        schema=schema, valtype=valtype, level=level + 1, scope=scope)
-    sub_layouts_items = []
-    if level == 1:
-        decor = [f'CONFIGURE {scope.to_edgeql()} INSERT ', ';\\n']
-    else:
-        decor = ['(INSERT ', ')']
-
-    indent = ' ' * (4 * (level - 1))
-
-    for type_name, type_layout in sub_layouts.items():
-        if type_layout:
-            sub_layout_item = (
-                f"'{indent}{decor[0]}{type_name} {{\\n'\n++ "
-                + "\n++ ".join(type_layout)
-                + f" ++ '{indent}}}{decor[1]}'"
-            )
-        else:
-            sub_layout_item = (
-                f"'{indent}{decor[0]}{type_name}{decor[1]}'"
-            )
-
-        if len(sub_layouts) > 1:
-            if type_layout:
-                sub_layout_item = (
-                    f'(WITH item := item[IS {type_name}]'
-                    f' SELECT {sub_layout_item}) '
-                    f'IF item.__type__.name = {ql(str(type_name))}'
-                )
-            else:
-                sub_layout_item = (
-                    f'{sub_layout_item} '
-                    f'IF item.__type__.name = {ql(str(type_name))}'
-                )
-
-        sub_layouts_items.append(sub_layout_item)
-
-    if len(sub_layouts_items) > 1:
-        sli_render = '\nELSE '.join(sub_layouts_items) + "\nELSE ''"
-    else:
-        sli_render = sub_layouts_items[0]
-
-    return '\n'.join((
-        f"array_join(array_agg((",
-        f"  FOR item IN {{ {value_expr} }}",
-        f"  UNION (",
-        f"{textwrap.indent(sli_render, ' ' * 4)}",
-        f"  )",
-        f")), {ql(join_term)})",
-    ))
-
-
-def _describe_config_object(
-    *,
-    schema: s_schema.Schema,
-    valtype: s_objtypes.ObjectType,
-    level: int,
-    scope: qltypes.ConfigScope,
-) -> Dict[s_name.QualName, List[str]]:
-    cfg_types = [valtype]
-    cfg_types.extend(cfg_types[0].descendants(schema))
-    layouts = {}
-    for cfg in cfg_types:
-        items = []
-        for ptr_name, p in cfg.get_pointers(schema).items(schema):
-            pn = str(ptr_name)
-            if (
-                pn in ('id', '__type__')
-                or p.get_annotation(
-                    schema,
-                    s_name.QualName('cfg', 'internal'),
-                ) == 'true'
-            ):
-                continue
-
-            ptype = p.get_target(schema)
-            assert ptype is not None
-            ptr_card = p.get_cardinality(schema)
-            mult = ptr_card.is_multi()
-            psource = f'item.{ qlquote.quote_ident(pn) }'
-
-            if isinstance(ptype, s_objtypes.ObjectType):
-                rval = textwrap.indent(
-                    _render_config_object(
-                        schema=schema,
-                        valtype=ptype,
-                        value_expr=psource,
-                        scope=scope,
-                        join_term=' UNION ',
-                        level=level + 1,
-                    ),
-                    ' ' * 2,
-                ).strip()
-                indent = ' ' * (4 * (level - 1))
-                item = (
-                    f"'{indent}{qlquote.quote_ident(pn)} "
-                    f":= (\\n'\n++ {rval} ++ '\\n{indent}),\\n'"
-                )
-                condition = None
-            else:
-                render = _render_config_set if mult else _render_config_scalar
-                item = render(
-                    schema=schema,
-                    valtype=ptype,
-                    value_expr=psource,
-                    scope=scope,
-                    name=pn,
-                    level=level,
-                )
-                condition = f'EXISTS {psource}'
-
-            if condition is not None:
-                item = f"({item} ++ '\\n' IF {condition} ELSE '')"
-
-            items.append(item)
-
-        layouts[cfg.get_name(schema)] = items
-
-    return layouts
 
 
 def _build_key_source(

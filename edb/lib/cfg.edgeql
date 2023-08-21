@@ -273,26 +273,6 @@ cfg::_quote(text: std::str) -> std::str
     $$
 };
 
-CREATE FUNCTION
-cfg::_describe_system_config_as_ddl() -> str
-{
-    # The results won't change within a single statement.
-    SET volatility := 'Stable';
-    SET internal := true;
-    USING SQL FUNCTION 'edgedb._describe_system_config_as_ddl';
-};
-
-
-CREATE FUNCTION
-cfg::_describe_database_config_as_ddl() -> str
-{
-    # The results won't change within a single statement.
-    SET volatility := 'Stable';
-    SET internal := true;
-    USING SQL FUNCTION 'edgedb._describe_database_config_as_ddl';
-};
-
-
 CREATE CAST FROM std::int64 TO cfg::memory {
     SET volatility := 'Immutable';
     USING SQL CAST;
