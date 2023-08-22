@@ -412,4 +412,3 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 requests_for_user[0]["headers"]["authorization"],
                 "Bearer github_access_token",
             )
-
