@@ -39,9 +39,6 @@ class BaseProvider:
     async def fetch_user_info(self, token: str) -> data.UserInfo:
         raise NotImplementedError
 
-    async def fetch_emails(self, token: str) -> list[data.Email]:
-        raise NotImplementedError
-
     def _maybe_isoformat_to_timestamp(self, value: str | None) -> float | None:
         return (
             datetime.fromisoformat(value).timestamp() if value else None
