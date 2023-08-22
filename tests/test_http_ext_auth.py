@@ -455,3 +455,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 requests_for_user[0]["headers"]["authorization"],
                 "Bearer github_access_token",
             )
+
+            identity = await self.con.query(
+                """
+                SELECT ext::auth::Identity
+                FILTER .sub = '1'
+                AND .iss = 'github'
+                AND .email = 'octocat@example.com'
+                """
+            )
+            self.assertEqual(len(identity), 1)

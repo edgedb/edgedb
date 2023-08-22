@@ -75,7 +75,7 @@ class GitHubProvider(base.BaseProvider):
             )
             payload = resp.json()
             return data.UserInfo(
-                sub=payload["id"],
+                sub=str(payload["id"]),
                 preferred_username=payload.get("login"),
                 name=payload.get("name"),
                 email=payload.get("email"),
