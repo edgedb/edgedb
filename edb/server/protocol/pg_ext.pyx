@@ -636,7 +636,7 @@ cdef class PgConnection(frontend.FrontendConnection):
         logger.debug('received pg connection request by %s to database %s',
                      user, database)
 
-        await self._authenticate(user, params)
+        await self._authenticate(user, database, params)
 
         logger.debug('successfully authenticated %s in database %s',
                      user, database)
