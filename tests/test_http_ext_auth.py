@@ -354,25 +354,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-            emails_request = ("GET", "https://api.github.com", "/user/emails")
-            mock_provider.register_route_handler(*emails_request)(
-                (
-                    [
-                        {
-                            "email": "octocat@example.com",
-                            "verified": True,
-                            "primary": True,
-                        },
-                        {
-                            "email": "octocat+2@example.com",
-                            "verified": False,
-                            "primary": False,
-                        },
-                    ],
-                    200,
-                )
-            )
-
             auth_signing_key = await self.con.query_single(
                 """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
             )
@@ -432,9 +413,3 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "Bearer github_access_token",
             )
 
-            requests_for_emails = mock_provider.requests[emails_request]
-            self.assertEqual(len(requests_for_emails), 1)
-            self.assertEqual(
-                requests_for_emails[0]["headers"]["authorization"],
-                "Bearer github_access_token",
-            )
