@@ -110,6 +110,9 @@ class CompositeConfigType(ConfigType):
                      tspec: statypes.CompositeTypeSpec,
                      spec: spec.Spec,
                      allow_missing=False) -> CompositeConfigType:
+        if allow_missing and data is None:
+            return None  # type: ignore
+
         if not isinstance(data, dict):
             raise cls._err(tspec, f'expected a dict value, got {type(data)!r}')
 

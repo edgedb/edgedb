@@ -3432,7 +3432,7 @@ class SysConfigFullFunction(dbops.Function):
                 ) AS u
             ) AS q
         WHERE
-            q.n = 1;
+            q.n = 1 AND q.value IS NOT NULL;
     $$;
 
     RETURN QUERY EXECUTE query USING source_filter, max_source;

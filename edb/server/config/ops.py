@@ -199,12 +199,6 @@ class Operation(NamedTuple):
             storage = self._set_value(storage, value)
 
         elif self.opcode is OpCode.CONFIG_RESET:
-            if setting and isinstance(setting.type, types.ConfigTypeSpec):
-                raise errors.InternalServerError(
-                    f'unexpected CONFIGURE RESET on a non-primitive '
-                    f'configuration parameter: {self.setting_name}'
-                )
-
             try:
                 storage = storage.delete(self.setting_name)
             except KeyError:

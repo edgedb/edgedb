@@ -444,18 +444,7 @@ def compile_ConfigReset(
         stmt = pgast.UpdateStmt(
             targets=[pgast.UpdateTarget(
                 name='value',
-                # XXX: Having removed everything is distinguishable...
-                val=pgast.CoalesceExpr(
-                    args=[
-                        newval,
-                        pgast.TypeCast(
-                            arg=pgast.StringConstant(val='[]'),
-                            type_name=pgast.TypeName(
-                                name=('jsonb',),
-                            ),
-                        ),
-                    ],
-                ),
+                val=newval,
             )],
             relation=pgast.RelRangeVar(
                 relation=pgast.Relation(
@@ -469,14 +458,32 @@ def compile_ConfigReset(
                 op='=',
             ),
             returning_list=[pgast.ResTarget(
-                val=pgast.FuncCall(
-                    name=('jsonb_build_array',),
+                val=pgast.CaseExpr(
                     args=[
-                        pgast.StringConstant(val='SET'),
-                        pgast.StringConstant(val=str(op.scope)),
-                        pgast.StringConstant(val=op.name),
-                        pgast.ColumnRef(name=['value']),
+                        pgast.CaseWhen(
+                            expr=pgast.NullTest(
+                                arg=pgast.ColumnRef(name=['value'])
+                            ),
+                            result=pgast.FuncCall(
+                                name=('jsonb_build_array',),
+                                args=[
+                                    pgast.StringConstant(val='RESET'),
+                                    pgast.StringConstant(val=str(op.scope)),
+                                    pgast.StringConstant(val=op.name),
+                                    pgast.NullConstant(),
+                                ],
+                            )
+                        ),
                     ],
+                    defresult=pgast.FuncCall(
+                        name=('jsonb_build_array',),
+                        args=[
+                            pgast.StringConstant(val='SET'),
+                            pgast.StringConstant(val=str(op.scope)),
+                            pgast.StringConstant(val=op.name),
+                            pgast.ColumnRef(name=['value']),
+                        ],
+                    )
                 )
             )],
         )
@@ -707,9 +714,21 @@ def top_output_as_config_op(
             null_safe=True,
             ser_safe=True,
         )
+
+        old_val = pgast.CoalesceExpr(
+            args=[
+                pgast.ColumnRef(name=['edgedb', '_db_config', 'value']),
+                pgast.TypeCast(
+                    arg=pgast.StringConstant(val='[]'),
+                    type_name=pgast.TypeName(
+                        name=('jsonb',),
+                    ),
+                ),
+            ],
+        )
         upd_val = pgast.Expr(
             name='||',
-            lexpr=pgast.ColumnRef(name=['edgedb', '_db_config', 'value']),
+            lexpr=old_val,
             rexpr=ins_val,
         )
 

@@ -468,6 +468,11 @@ class TestServerConfig(tb.QueryTestCase):
         #     INSERT TestSessionConfig { name := 'foo' };
         # ''')
 
+        # await self.con.query('''
+        #     CONFIGURE CURRENT DATABASE
+        #     RESET TestSessionConfig FILTER .name = 'foo'
+        # ''')
+
         with self.assertRaisesRegex(
                 edgedb.ConfigurationError,
                 'unrecognized configuration object'):
