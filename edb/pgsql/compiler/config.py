@@ -22,6 +22,7 @@ from __future__ import annotations
 from edb import errors
 from edb.ir import ast as irast
 
+from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
 from edb.schema import casts as s_casts
@@ -344,7 +345,7 @@ def compile_ConfigReset(
         if rvar is not None:
             stmt.from_clause = [rvar]
 
-    elif op.scope is qltypes.ConfigScope.DATABASE:
+    elif op.scope is qltypes.ConfigScope.DATABASE and op.selector is None:
         stmt = pgast.DeleteStmt(
             relation=pgast.RelRangeVar(
                 relation=pgast.Relation(
@@ -358,6 +359,126 @@ def compile_ConfigReset(
                 rexpr=pgast.StringConstant(val=op.name),
                 op='=',
             ),
+        )
+
+    elif op.scope is qltypes.ConfigScope.DATABASE and op.selector is not None:
+        # XXX: some duplication with above
+        with context.output_format(ctx, context.OutputFormat.JSONB):
+            selector = dispatch.compile(op.selector, ctx=ctx)
+
+        assert isinstance(selector, pgast.SelectStmt), \
+            "expected ast.SelectStmt"
+        target = selector.target_list[0]
+        if not target.name:
+            target = selector.target_list[0] = pgast.ResTarget(
+                name=ctx.env.aliases.get('res'),
+                val=target.val,
+            )
+            assert target.name is not None
+
+        rvar = relctx.rvar_for_rel(selector, ctx=ctx)
+
+        assert isinstance(op.selector.expr, irast.SelectStmt)
+
+        keys = [
+            el.rptr.ptrref.shortname.name
+            for el, op in op.selector.expr.result.shape
+            if el.rptr and op == qlast.ShapeOp.ASSIGN
+        ]
+
+        newval = pgast.SelectStmt(
+            target_list=[pgast.ResTarget(
+                val=pgast.FuncCall(
+                    name=('jsonb_agg',),
+                    args=[pgast.ColumnRef(name=['ov', 'value'])],
+                ),
+            )],
+            from_clause=[
+                pgast.RangeFunction(
+                    lateral=True,
+                    alias=pgast.Alias(aliasname='ov'),
+                    functions=[pgast.FuncCall(
+                        name=('jsonb_array_elements',),
+                        args=[pgast.ColumnRef(name=['value'])],
+                    )],
+                ),
+            ],
+            where_clause=(
+                pgast.SubLink(
+                    operator="NOT EXISTS",
+                    expr=pgast.SelectStmt(
+                        from_clause=[rvar],
+                        where_clause=astutils.extend_binop(
+                            None,
+                            *[
+                                pgast.Expr(
+                                    name='IS NOT DISTINCT FROM',
+                                    lexpr=pgast.FuncCall(
+                                        name=('jsonb_extract_path',),
+                                        args=[
+                                            pgast.ColumnRef(name=[
+                                                rvar.alias.aliasname,
+                                                target.name,
+                                            ]),
+                                            pgast.StringConstant(val=key),
+                                        ]
+                                    ),
+                                    rexpr=pgast.FuncCall(
+                                        name=('jsonb_extract_path',),
+                                        args=[
+                                            pgast.ColumnRef(name=[
+                                                'ov', 'value'
+                                            ]),
+                                            pgast.StringConstant(val=key),
+                                        ]
+                                    ),
+                                )
+                                for key in keys
+                            ],
+                        )
+                    )
+                )
+            ),
+        )
+
+        stmt = pgast.UpdateStmt(
+            targets=[pgast.UpdateTarget(
+                name='value',
+                # XXX: Having removed everything is distinguishable...
+                val=pgast.CoalesceExpr(
+                    args=[
+                        newval,
+                        pgast.TypeCast(
+                            arg=pgast.StringConstant(val='[]'),
+                            type_name=pgast.TypeName(
+                                name=('jsonb',),
+                            ),
+                        ),
+                    ],
+                ),
+            )],
+            relation=pgast.RelRangeVar(
+                relation=pgast.Relation(
+                    name='_db_config',
+                    schemaname='edgedb',
+                ),
+            ),
+            where_clause=astutils.new_binop(
+                lexpr=pgast.ColumnRef(name=['name']),
+                rexpr=pgast.StringConstant(val=op.name),
+                op='=',
+            ),
+            returning_list=[pgast.ResTarget(
+                val=pgast.FuncCall(
+                    name=('jsonb_build_array',),
+                    args=[
+                        pgast.StringConstant(val='SET'),
+                        pgast.StringConstant(val=str(op.scope)),
+                        pgast.StringConstant(val=op.name),
+                        pgast.ColumnRef(name=['value']),
+                    ],
+                )
+            )],
         )
 
     elif op.scope is qltypes.ConfigScope.SESSION:
