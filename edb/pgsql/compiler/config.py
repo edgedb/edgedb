@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from edb import errors
 from edb.ir import ast as irast
+from edb.ir import typeutils as irtyputils
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -380,10 +381,15 @@ def compile_ConfigReset(
 
         assert isinstance(op.selector.expr, irast.SelectStmt)
 
+        # Grab all the non-link properties of the object as keys. We
+        # could just do the exclusive ones, but this works too and we
+        # have the information at hand.
         keys = [
             el.rptr.ptrref.shortname.name
             for el, op in op.selector.expr.result.shape
-            if el.rptr and op == qlast.ShapeOp.ASSIGN
+            if el.rptr
+            and op == qlast.ShapeOp.ASSIGN
+            and not irtyputils.is_object(el.rptr.ptrref.out_target)
         ]
 
         newval = pgast.SelectStmt(

@@ -3423,7 +3423,8 @@ class SysConfigFullFunction(dbops.Function):
                         SELECT * FROM pg_all_settings
                     ) AS q
                 WHERE
-                    ($1 IS NULL OR
+                    q.value IS NOT NULL
+                    AND ($1 IS NULL OR
                         q.source::edgedb._sys_config_source_t = any($1)
                     )
                     AND ($2 IS NULL OR
@@ -3432,7 +3433,7 @@ class SysConfigFullFunction(dbops.Function):
                 ) AS u
             ) AS q
         WHERE
-            q.n = 1 AND q.value IS NOT NULL;
+            q.n = 1;
     $$;
 
     RETURN QUERY EXECUTE query USING source_filter, max_source;
