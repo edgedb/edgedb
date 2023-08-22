@@ -17,7 +17,6 @@
 #
 
 
-import asyncio
 import urllib.parse
 
 import httpx
