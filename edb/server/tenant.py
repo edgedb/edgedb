@@ -284,6 +284,9 @@ class Tenant(ha_base.ClusterProtocol):
     def get_roles(self) -> Mapping[str, RoleDescriptor]:
         return self._roles
 
+    def set_roles(self, roles: Mapping[str, RoleDescriptor]) -> None:
+        self._roles = roles
+
     def fetch_roles(self) -> None:
         global_schema = self.get_global_schema()
 

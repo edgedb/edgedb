@@ -185,7 +185,12 @@ cdef class DatabaseConnectionView:
     cdef on_error(self)
     cdef on_success(self, query_unit, new_types)
     cdef commit_implicit_tx(
-        self, user_schema, extensions, global_schema, cached_reflection
+        self,
+        user_schema,
+        extensions,
+        global_schema,
+        roles,
+        cached_reflection,
     )
 
     cpdef get_config_spec(self)

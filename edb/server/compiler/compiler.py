@@ -60,6 +60,7 @@ from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import reflection as s_refl
+from edb.schema import roles as s_role
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 
@@ -2203,6 +2204,7 @@ def _try_compile(
                     pickle.dumps(comp.cached_reflection, -1)
             if comp.global_schema is not None:
                 unit.global_schema = pickle.dumps(comp.global_schema, -1)
+                unit.roles = _extract_roles(comp.global_schema)
 
             unit.config_ops.extend(comp.config_ops)
 
@@ -2223,6 +2225,7 @@ def _try_compile(
                     pickle.dumps(comp.cached_reflection, -1)
             if comp.global_schema is not None:
                 unit.global_schema = pickle.dumps(comp.global_schema, -1)
+                unit.roles = _extract_roles(comp.global_schema)
 
             if comp.modaliases is not None:
                 unit.modaliases = comp.modaliases
@@ -2767,6 +2770,20 @@ def _extract_extension_names(user_schema: s_schema.Schema) -> set[str]:
         ext.get_name(user_schema).name
         for ext in user_schema.get_objects(type=s_ext.Extension)
     }
+
+
+def _extract_roles(
+    global_schema: s_schema.Schema
+) -> immutables.Map[str, immutables.Map[str, Any]]:
+    roles = {}
+    for role in global_schema.get_objects(type=s_role.Role):
+        role_name = str(role.get_name(global_schema))
+        roles[role_name] = immutables.Map(
+            name=role_name,
+            superuser=role.get_superuser(global_schema),
+            password=role.get_password(global_schema),
+        )
+    return immutables.Map(roles)
 
 
 class DumpDescriptor(NamedTuple):

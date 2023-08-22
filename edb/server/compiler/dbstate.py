@@ -317,6 +317,7 @@ class QueryUnit:
     # If present, represents the future global schema state
     # after the command is run. The schema is pickled.
     global_schema: Optional[bytes] = None
+    roles: immutables.Map[str, immutables.Map[str, Any]] | None = None
 
     is_explain: bool = False
     query_asts: Any = None

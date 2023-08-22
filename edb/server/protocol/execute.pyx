@@ -207,7 +207,8 @@ async def execute_script(
         int dbver = dbv.dbver
         bint parse
 
-    user_schema = extensions = cached_reflection = global_schema = None
+    user_schema = extensions = cached_reflection = None
+    global_schema = roles = None
     unit_group = compiled.query_unit_group
 
     in_tx = dbv.in_tx()
@@ -278,6 +279,7 @@ async def execute_script(
 
                 if query_unit.global_schema:
                     global_schema = query_unit.global_schema
+                    roles = query_unit.roles
 
                 if query_unit.sql:
                     parse = parse_array[idx]
@@ -332,7 +334,11 @@ async def execute_script(
     else:
         if not in_tx:
             side_effects = dbv.commit_implicit_tx(
-                user_schema, extensions, global_schema, cached_reflection
+                user_schema,
+                extensions,
+                global_schema,
+                roles,
+                cached_reflection,
             )
             if side_effects:
                 signal_side_effects(dbv, side_effects)
