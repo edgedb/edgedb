@@ -3214,8 +3214,10 @@ def _compile_arg_null_check(
 
 
 def _compile_call_args(
-        ir_set: irast.Set, *,
-        ctx: context.CompilerContextLevel
+    ir_set: irast.Set,
+    *,
+    skip: Set[int] = set(),
+    ctx: context.CompilerContextLevel
 ) -> List[pgast.BaseExpr]:
     expr = ir_set.expr
     assert isinstance(expr, irast.Call)
@@ -3227,7 +3229,9 @@ def _compile_call_args(
             arg_ref = dispatch.compile(glob_arg, ctx=ctx)
             args.append(output.output_as_value(arg_ref, env=ctx.env))
 
-    for ir_arg, typemod in zip(expr.args, expr.params_typemods):
+    for i, (ir_arg, typemod) in enumerate(zip(expr.args, expr.params_typemods)):
+        if i in skip:
+            continue        
         assert ir_arg.multiplicity != qltypes.Multiplicity.UNKNOWN
 
         # Support a mode where we try to compile arguments as pure
@@ -3866,28 +3870,19 @@ def process_encoded_param(
 def process_set_as_fts_search(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
-    expr = ir_set.expr
-    assert isinstance(expr, irast.FunctionCall)
+    func_call = ir_set.expr
+    assert isinstance(func_call, irast.FunctionCall)
 
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
 
-        [language, obj_ir, query_ir] = expr.args
+        obj_ir = func_call.args[1].expr
+        obj_id = obj_ir.path_id
+        obj_rvar = ensure_source_rvar(obj_ir, newctx.rel, ctx=newctx)
 
-        # compile object arg
-        obj_id = obj_ir.expr.path_id
-        obj_ref = dispatch.compile(obj_ir.expr, ctx=newctx)
-        obj_val = output.output_as_value(obj_ref, env=newctx.env)
+        [lang_pg, query_pg] = _compile_call_args(ir_set, skip={1}, ctx=newctx)
 
-        # compile query arg
-        query_ref = set_as_subquery(query_ir.expr, as_value=True, ctx=newctx)
-        query_ref.nullable = query_ir.cardinality.can_be_zero()
-        query_pg = astutils.collapse_query(query_ref)
-
-        # compile language
-        language_pg = dispatch.compile(language.expr, ctx=ctx)
-
-        [out_obj_id, out_rank_id] = expr.tuple_path_ids
+        [out_obj_id, out_rank_id] = func_call.tuple_path_ids
 
         with newctx.subrel() as inner_ctx:
             # inner_ctx generates the `SELECT score WHERE test` relation
@@ -3936,8 +3931,8 @@ def process_set_as_fts_search(
                     ctx=newctx,
                 )
 
-                language_pg = pgast.TypeCast(
-                    arg=language_pg,
+                lang_pg = pgast.TypeCast(
+                    arg=lang_pg,
                     type_name=pgast.TypeName(
                         name=('pg_catalog', 'regconfig')
                     ),
@@ -3946,7 +3941,7 @@ def process_set_as_fts_search(
                 #       Should it reside in a subquery?
                 parsed_query_pg = pgast.FuncCall(
                     name=('edgedb', 'fts_parse_query'),
-                    args=[query_pg, language_pg]
+                    args=[query_pg, lang_pg]
                 )
 
                 score_pg = pgast.FuncCall(
@@ -3959,10 +3954,25 @@ def process_set_as_fts_search(
                     rexpr=parsed_query_pg
                 )
 
+            # <!-- parent rel -->
+            # FROM                  
+            #     (... Movie ...)    <!-- source of the obj -->
+            # CROSS JOIN LATERAL (
+            #     <!-- new rel -->
+            #     FROM (   
+            #         <!-- inner rel -->
+            #         SELECT ts_rank(Movie.__fts_document__) as score
+            #         WHERE query @@ Movie.__fts_document__
+            #     )
+            #     SELECT score
+            # )
+
             pathctx.put_path_var(
                 inner_ctx.rel, out_rank_id, score_pg, aspect='value'
             )
-            inner_ctx.rel.where_clause = where_clause
+            inner_ctx.rel.where_clause = astutils.extend_binop(
+                inner_ctx.rel.where_clause, where_clause
+            )
 
             inner_rvar = relctx.new_rel_rvar(
                 ir_set, inner_ctx.rel, ctx=newctx
@@ -3980,7 +3990,7 @@ def process_set_as_fts_search(
                 pgast.TupleElement(
                     path_id=out_obj_id,
                     name='object',
-                    val=obj_val,
+                    val=obj_rvar,
                 ),
                 pgast.TupleElement(
                     path_id=out_rank_id,
@@ -3993,7 +4003,7 @@ def process_set_as_fts_search(
         )
 
         pathctx.put_path_var(
-            newctx.rel, out_obj_id, obj_val, aspect='source'
+            newctx.rel, ir_set.path_id, tuple_expr, aspect='source'
         )
 
         var = pathctx.maybe_get_path_var(
