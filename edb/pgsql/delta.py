@@ -3729,13 +3729,19 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand,
                 key = 'configspec_ext';
         ''')))
 
-        # FIXME: If this is not a top-level object it is not going to
-        # work right...
-        views = metaschema.get_config_type_views(eff_schema, scls, scope=None)
+        for sub in self.get_subcommands(type=s_pointers.DeletePointer):
+            if has_table(sub.scls, eff_schema):
+                self.pgops.add(dbops.DropView(common.get_backend_name(
+                    eff_schema, sub.scls, catenate=False)))
+
         if isinstance(self, sd.DeleteObject):
-            for cv in views:
-                self.pgops.add(dbops.DropView(cv.view.name))
+            self.pgops.add(dbops.DropView(common.get_backend_name(
+                eff_schema, scls, catenate=False)))
         else:
+            # FIXME: If this is not a top-level object it is not going to
+            # work right...
+            views = metaschema.get_config_type_views(
+                eff_schema, scls, scope=None)
             self.pgops.update(views)
 
 
