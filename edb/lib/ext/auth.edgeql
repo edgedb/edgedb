@@ -26,6 +26,8 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property iss: std::str;
         create required property sub: std::str;
         create property email: std::str;
+
+        create constraint exclusive on ((.iss, .sub))
     };
 
     create type ext::auth::Session {
