@@ -29,7 +29,6 @@ import edgedb
 
 from edb.common import secretkey
 from edb.schema import defines as s_def
-from edb.server import cluster as edb_cluster
 from edb.testbase import server as tb
 
 
@@ -237,7 +236,7 @@ class TestServerAuth(tb.ConnectedTestCase):
         if not self.has_create_role:
             self.skipTest("create role is not supported by the backend")
 
-        if not isinstance(self.cluster, edb_cluster.Cluster):
+        if not hasattr(self.cluster, "get_jws_key"):
             raise unittest.SkipTest("test not supported on remote cluster")
 
         jwk = self.cluster.get_jws_key()

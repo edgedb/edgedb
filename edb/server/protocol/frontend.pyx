@@ -512,7 +512,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
     async def authenticate(self):
         raise NotImplementedError
 
-    def _auth_jwt(self, user, params):
+    def _auth_jwt(self, user, database, params):
         raise NotImplementedError
 
     def _auth_trust(self, user):
@@ -520,7 +520,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         if user not in roles:
             raise errors.AuthenticationError('authentication failed')
 
-    async def _authenticate(self, user, params):
+    async def _authenticate(self, user, database, params):
         # The user has already been authenticated by other means
         # (such as the ability to write to a protected socket).
         if self._external_auth:
@@ -533,7 +533,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         if authmethod_name == 'SCRAM':
             await self._auth_scram(user)
         elif authmethod_name == 'JWT':
-            self._auth_jwt(user, params)
+            self._auth_jwt(user, database, params)
         elif authmethod_name == 'Trust':
             self._auth_trust(user)
         else:
