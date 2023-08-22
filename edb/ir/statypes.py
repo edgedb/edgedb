@@ -50,10 +50,6 @@ class CompositeTypeSpec:
         default_factory=list, hash=False, compare=False
     )
 
-    def __post_init__(self) -> None:
-        if self.parent:
-            self.parent.children.append(self)
-
     @property
     def __name__(self) -> str:
         return self.name
