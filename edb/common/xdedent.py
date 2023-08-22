@@ -43,10 +43,9 @@ in-band signalling, all hell can break loose if the signals appear in
 the input data unescaped.
 
 Our signal sequences contain a null byte and both kinds of quote
-character, so you should be fine as long as any untrusted data
-either:
- * Has no null bytes
- * Has at least one kind of quote character escaped in it somehow
+character, so you should be fine unless the untrusted data:
+ * has null bytes and
+ * does not have any kind of quote character escaped in it somehow
 
 """
 
