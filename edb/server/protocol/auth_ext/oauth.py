@@ -75,17 +75,12 @@ class Client:
 
     async def handle_callback(self, code: str) -> None:
         token = await self.provider.exchange_code(code)
+        user_info = await self.provider.fetch_user_info(token)
 
-        async with asyncio.TaskGroup() as g:
-            user_info_t = g.create_task(self.provider.fetch_user_info(token))
-            emails_t = g.create_task(self.provider.fetch_emails(token))
-        user_info = user_info_t.result()
-        emails = emails_t.result()
-
-        await self._handle_identity(user_info, emails)
+        await self._handle_identity(user_info)
 
     async def _handle_identity(
-        self, user_info: data.UserInfo, emails: list[data.Email]
+        self, user_info: data.UserInfo
     ) -> None:
         ...
 
