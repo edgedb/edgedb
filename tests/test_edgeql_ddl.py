@@ -16040,7 +16040,6 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 objs=[],
             )
 
-        # TODO: test that users can't create them
         # TODO: redacted annotation?
 
         # TODO: This should all work, instead!

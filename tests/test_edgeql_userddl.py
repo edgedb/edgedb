@@ -377,3 +377,11 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                     SET fallback := false;
                 }
             ''')
+
+    async def test_edgeql_userddl_28(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                r"cannot extend system type"):
+            await self.con.execute(r'''
+            create type Foo extending cfg::ConfigObject;
+            ''')
