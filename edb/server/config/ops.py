@@ -92,7 +92,6 @@ def coerce_object_set(
     for jv in values:
         new_value = types.CompositeConfigType.from_pyvalue(
             jv, spec=spec, tspec=setting.type,
-            # allow_missing=allow_missing,
         )
 
         if new_value in new_values:

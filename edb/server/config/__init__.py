@@ -83,6 +83,6 @@ def get_compilation_config(
     return immutables.Map((
         (k, v)
         for k, v in config.items()
-        if k in spec  # XXX!!!
+        if k in spec
         if spec[k].affects_compilation
     ))

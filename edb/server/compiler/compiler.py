@@ -931,7 +931,6 @@ class Compiler:
             global_schema
         )
 
-        # XXX: ????
         config_spec = config.ChainedSpec(
             self.state.config_spec,
             config.load_ext_spec_from_schema(
@@ -1958,7 +1957,6 @@ def _compile_ql_config_op(
                 _get_config_spec(ctx, config_op),
                 database_config,
             )
-            # HMMMMM
             current_tx.update_database_config(database_config)
 
     elif ql.scope in (

@@ -3534,7 +3534,7 @@ class ResetSessionConfigFunction(dbops.Function):
         )
 
 
-# FIXME: Support extension-defined configs that affect the backend
+# TODO: Support extension-defined configs that affect the backend
 # Not needed for supporting auth, so can skip temporarily.
 # If perf seems to matter, can hardcode things for base config
 # and consult json for just extension stuff.
@@ -6437,14 +6437,13 @@ def _generate_config_type_view(
 
     ext_cfg = schema.get('cfg::ExtensionConfig', type=s_objtypes.ObjectType)
     is_ext_cfg = stype.issubclass(schema, ext_cfg)
-    if is_ext_cfg:  # XXX? Sure!!
+    if is_ext_cfg:
         rptr = None
     is_rptr_ext_cfg = False
 
     if not path:
         if is_ext_cfg:
             # Extension configs get one object per scope.
-            # Though we skip instance? Maybe we should include it, just because?
             cfg_name = str(stype.get_name(schema))
 
             escaped_name = _escape_like(cfg_name)
@@ -6482,8 +6481,6 @@ def _generate_config_type_view(
                 cfg_name = str(rptr_source.get_name(schema)) + '::' + rptr_name
                 escaped_name = _escape_like(cfg_name)
 
-                # XXX: MAYBE: Have some level of configurability here,
-                # so we don't always duplicate the objects?
                 source0 = f'''
                     (SELECT el.val AS val, s.scope::text AS scope,
                             s.scope_id AS scope_id
@@ -6522,8 +6519,8 @@ def _generate_config_type_view(
         sources.append(source0)
         key_start = 0
     else:
-        # XXX: We want to merge this shit in
         # XXX: The second level is broken
+        # Can we solve this without code duplication?
         key_start = 0
 
         for i, (l, exc_props) in enumerate(path):
@@ -6698,7 +6695,7 @@ def _generate_config_type_view(
             schema, target_exc_props, link, source_idx=link_name)
         sources.append(target_key_source)
 
-        # XXX: that doesn't seem right to *just* use the exc props??
+        # XXX: it doesn't seem right to *just* use the exc props?
         if target_exc_props:
             target_key_components = [f'k{link_name}.key']
         else:

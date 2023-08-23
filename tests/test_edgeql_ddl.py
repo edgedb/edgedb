@@ -16042,8 +16042,6 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 objs=[],
             )
 
-        # TODO: redacted annotation?
-
         # TODO: This should all work, instead!
         async with self.assertRaisesRegexTx(
                 edgedb.UnsupportedFeatureError, ""):

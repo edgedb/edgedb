@@ -363,7 +363,13 @@ def compile_ConfigReset(
         )
 
     elif op.scope is qltypes.ConfigScope.DATABASE and op.selector is not None:
-        # XXX: some duplication with above
+        # For FILTERed RESET on the database, we have to do a decent
+        # amount of work to actually delete the RESET objects from the
+        # json config blogs.
+        #
+        # This is because the server isn't set up to write back just
+        # the changed parts of the config based on interpreting the output,
+        # so instead we do all the work here.
         with context.output_format(ctx, context.OutputFormat.JSONB):
             selector = dispatch.compile(op.selector, ctx=ctx)
 
