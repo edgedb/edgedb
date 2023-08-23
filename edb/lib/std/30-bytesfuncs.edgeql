@@ -32,6 +32,17 @@ std::bytes_get_bit(bytes: std::bytes, num: int64) -> std::int64
 };
 
 
+CREATE FUNCTION
+std::bytes_to_human(size: int64) -> std::str
+{
+    CREATE ANNOTATION std::description :=
+        'Convert a byte size in a human readable string.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+    SELECT pg_size_pretty("size"::bigint)
+    $$;
+};
+
 
 ## Byte string operators
 ## ---------------------
