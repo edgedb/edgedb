@@ -16137,7 +16137,6 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         val = await self.con.query_single('''
             describe current database config
         ''')
-        # XXX! config_name is *wrong* here!!
         test_expected = textwrap.dedent('''\
         CONFIGURE CURRENT DATABASE INSERT ext::conf::Obj {
             name := '1',
@@ -16152,7 +16151,8 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             name := '3',
             extra := 42,
         };
-        CONFIGURE CURRENT DATABASE SET config_name := 'ready';
+        CONFIGURE CURRENT DATABASE SET ext::conf::Config::config_name := \
+'ready';
         ''')
         self.assertEqual(val, test_expected)
 

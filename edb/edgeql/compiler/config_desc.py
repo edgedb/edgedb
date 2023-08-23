@@ -154,13 +154,17 @@ def _describe_config_inner(
                 ' ' * 4,
             )
         else:
+            fn = (
+                pn if actual_name == config_object_name
+                else f'{actual_name}::{pn}'
+            )
             renderer = _render_config_set if mult else _render_config_scalar
             item = textwrap.indent(
                 renderer(
                     schema=schema,
                     valtype=ptype,
                     value_expr=psource,
-                    name=pn,
+                    name=fn,
                     scope=scope,
                     level=1,
                 ),
