@@ -93,29 +93,17 @@ class Client:
 with
   iss := <str>$issuer_url,
   sub := <str>$provider_id,
-  email := <optional str>$email,
+  email := <optional str>$email
 
-  # update an existing identity, if it exists
-  ExistingIdentity := (
-    update ext::auth::Identity
-    filter .iss = iss
-    and .sub = sub
-    set {
-      email := email
-    }
-  ),
-
-  # if it doesn't exist, insert a new one
-  should_insert := {true} if not exists ExistingIdentity else <bool>{},
-  NewProviderIdentity := (
-    for _ in should_insert union
-    (insert ext::auth::Identity {
-      iss := iss,
-      sub := sub,
-      email := email,
-    })
-  ),
-select NewProviderIdentity ?? ExistingIdentity;""",
+insert ext::auth::Identity {
+  iss := iss,
+  sub := sub,
+  email := email,
+} unless conflict on ((.iss, .sub)) else (
+  update ext::auth::Identity set {
+    email := email
+  }
+);""",
             variables={
                 "issuer_url": self.provider.issuer_url,
                 "provider_id": user_info.sub,
