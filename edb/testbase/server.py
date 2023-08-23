@@ -371,13 +371,15 @@ class BaseHTTPTestCase(TestCase):
         http_con: http.client.HTTPConnection,
         params: Optional[dict[str, str]] = None,
         *,
+        prefix: Optional[str] = None,
         headers: Optional[dict[str, str]] = None,
         method: str = "GET",
         body: bytes = b"",
         path: str = "",
     ):
         url = f'https://{http_con.host}:{http_con.port}'
-        prefix = self.get_api_prefix()
+        if prefix is None:
+            prefix = self.get_api_prefix()
         if prefix:
             url = f'{url}{prefix}'
         if path:
@@ -402,6 +404,7 @@ class BaseHTTPTestCase(TestCase):
         http_con: http.client.HTTPConnection,
         params: Optional[dict[str, str]] = None,
         *,
+        prefix: Optional[str] = None,
         headers: Optional[dict[str, str]] = None,
         method: str = "GET",
         body: bytes = b"",
@@ -410,6 +413,7 @@ class BaseHTTPTestCase(TestCase):
         self.http_con_send_request(
             http_con,
             params,
+            prefix=prefix,
             headers=headers,
             method=method,
             body=body,
@@ -422,6 +426,7 @@ class BaseHTTPTestCase(TestCase):
         http_con: http.client.HTTPConnection,
         params: Optional[dict[str, str]] = None,
         *,
+        prefix: Optional[str] = None,
         body: Any,
         path: str = "",
     ):
@@ -430,6 +435,7 @@ class BaseHTTPTestCase(TestCase):
             params,
             method="POST",
             body=json.dumps(body).encode(),
+            prefix=prefix,
             headers={"Content-Type": "application/json"},
             path=path,
         )

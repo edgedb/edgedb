@@ -17,6 +17,7 @@
 #
 
 import decimal
+import json
 import os
 import re
 import textwrap
@@ -15986,7 +15987,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 drop extension package ltree_broken VERSION '1.0'
             ''')
 
-    async def _extension_test_05(self, do_instance):
+    async def _extension_test_05(self, in_tx):
         await self.con.execute('''
             create extension conf
         ''')
@@ -16013,7 +16014,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             objs=[],
         )
 
-        if do_instance:
+        if not in_tx:
             await self.con.execute('''
                 configure instance set ext::conf::Config::config_name :=
                     "instance";
@@ -16033,7 +16034,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             objs=[],
         )
 
-        if do_instance:
+        if not in_tx:
             await _check(
                 'InstanceConfig',
                 config_name='instance',
@@ -16083,14 +16084,52 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             };
         ''')
 
+        await self.con.execute('''
+            configure current database set ext::conf::Config::config_name :=
+                "ready";
+        ''')
+
         await _check(
-            config_name='test',
+            config_name='ready',
             objs=[
                 dict(name='1', value='foo', tname='ext::conf::Obj'),
                 dict(name='2', value='bar', tname='ext::conf::Obj'),
                 dict(name='3', value='baz', tname='ext::conf::SubObj'),
             ],
         )
+
+        if not in_tx:
+            # Load the in-memory config state via a HTTP debug endpoint
+            # Retry until we see 'ready' is visible
+            async for tr in self.try_until_succeeds(ignore=AssertionError):
+                async with tr:
+                    with self.http_con() as http_con:
+                        rdata, _headers, status = self.http_con_request(
+                            http_con,
+                            prefix="",
+                            path="server-info",
+                        )
+                        data = json.loads(rdata)
+                        db_data = data['databases'][self.get_database_name()]
+                        config = db_data['config']
+                        assert (
+                            config['ext::conf::Config::config_name'] == 'ready'
+                        )
+
+            self.assertEqual(
+                sorted(
+                    config['ext::conf::Config::objs'],
+                    key=lambda x: x['name'],
+                ),
+                [
+                    {'_tname': 'ext::conf::Obj',
+                     'name': '1', 'value': 'foo'},
+                    {'_tname': 'ext::conf::Obj',
+                     'name': '2', 'value': 'bar'},
+                    {'_tname': 'ext::conf::SubObj',
+                     'name': '3', 'value': 'baz'},
+                ],
+            )
 
         val = await self.con.query_single('''
             describe current database config
@@ -16108,7 +16147,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             value := 'baz',
             name := '3',
         };
-        CONFIGURE CURRENT DATABASE SET config_name := 'test';
+        CONFIGURE CURRENT DATABASE SET config_name := 'ready';
         ''')
         self.assertEqual(val, test_expected)
 
@@ -16118,7 +16157,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         ''')
 
         await _check(
-            config_name='test',
+            config_name='ready',
             objs=[
                 dict(name='1', value='foo'),
             ],
@@ -16129,14 +16168,14 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         ''')
 
         await _check(
-            config_name='test',
+            config_name='ready',
             objs=[],
         )
 
         await self.con.execute('''
             configure current database reset ext::conf::Config::config_name;
         ''')
-        if do_instance:
+        if not in_tx:
             await _check(
                 config_name='instance',
                 objs=[],
@@ -16181,9 +16220,9 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         ''')
         try:
             async with self._run_and_rollback():
-                await self._extension_test_05(do_instance=False)
+                await self._extension_test_05(in_tx=True)
             try:
-                await self._extension_test_05(do_instance=True)
+                await self._extension_test_05(in_tx=False)
             finally:
                 await self.con.execute('''
                     drop extension conf
