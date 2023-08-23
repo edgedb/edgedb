@@ -15996,7 +15996,8 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             select cfg::%s {
                 conf := assert_single(.extensions[is ext::conf::Config] {
                     config_name,
-                    objs: { name, value, tname := .__type__.name }
+                    objs: { name, value, [is ext::conf::SubObj].extra,
+                            tname := .__type__.name }
                           order by .name,
                 })
             };
@@ -16081,6 +16082,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             configure current database insert ext::conf::SubObj {
                 name := '3',
                 value := 'baz',
+                extra := 42,
             };
         ''')
 
@@ -16094,7 +16096,8 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             objs=[
                 dict(name='1', value='foo', tname='ext::conf::Obj'),
                 dict(name='2', value='bar', tname='ext::conf::Obj'),
-                dict(name='3', value='baz', tname='ext::conf::SubObj'),
+                dict(name='3', value='baz', extra=42,
+                     tname='ext::conf::SubObj'),
             ],
         )
 
@@ -16127,13 +16130,14 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                     {'_tname': 'ext::conf::Obj',
                      'name': '2', 'value': 'bar'},
                     {'_tname': 'ext::conf::SubObj',
-                     'name': '3', 'value': 'baz'},
+                     'name': '3', 'value': 'baz', 'extra': 42},
                 ],
             )
 
         val = await self.con.query_single('''
             describe current database config
         ''')
+        # XXX! config_name is *wrong* here!!
         test_expected = textwrap.dedent('''\
         CONFIGURE CURRENT DATABASE INSERT ext::conf::Obj {
             name := '1',
@@ -16146,6 +16150,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         CONFIGURE CURRENT DATABASE INSERT ext::conf::SubObj {
             value := 'baz',
             name := '3',
+            extra := 42,
         };
         CONFIGURE CURRENT DATABASE SET config_name := 'ready';
         ''')
@@ -16207,7 +16212,11 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                   set readonly := true;
               };
           };
-          create type ext::conf::SubObj extending ext::conf::Obj;
+          create type ext::conf::SubObj extending ext::conf::Obj {
+              create required property extra -> int64 {
+                  set readonly := true;
+              };
+          };
 
           create type ext::conf::Config extending cfg::ExtensionConfig {
               create multi link objs -> ext::conf::Obj;

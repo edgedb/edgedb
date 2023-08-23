@@ -384,6 +384,7 @@ def compile_ConfigReset(
         # Grab all the non-link properties of the object as keys. We
         # could just do the exclusive ones, but this works too and we
         # have the information at hand.
+        # XXX: Do we need to consider _tname also?
         keys = [
             el.rptr.ptrref.shortname.name
             for el, op in op.selector.expr.result.shape
@@ -418,26 +419,35 @@ def compile_ConfigReset(
                             None,
                             *[
                                 pgast.Expr(
-                                    name='IS NOT DISTINCT FROM',
-                                    lexpr=pgast.FuncCall(
-                                        name=('jsonb_extract_path',),
-                                        args=[
-                                            pgast.ColumnRef(name=[
-                                                rvar.alias.aliasname,
-                                                target.name,
-                                            ]),
-                                            pgast.StringConstant(val=key),
-                                        ]
+                                    name='=',
+                                    lexpr=pgast.Expr(
+                                        name='->',
+                                        lexpr=pgast.ColumnRef(name=[
+                                            rvar.alias.aliasname,
+                                            target.name,
+                                        ]),
+                                        rexpr=pgast.StringConstant(val=key),
                                     ),
-                                    rexpr=pgast.FuncCall(
-                                        name=('jsonb_extract_path',),
+                                    rexpr=pgast.CoalesceExpr(
                                         args=[
-                                            pgast.ColumnRef(name=[
-                                                'ov', 'value'
-                                            ]),
-                                            pgast.StringConstant(val=key),
+                                            pgast.Expr(
+                                                name='->',
+                                                lexpr=pgast.ColumnRef(name=[
+                                                    'ov', 'value'
+                                                ]),
+                                                rexpr=pgast.StringConstant(
+                                                    val=key
+                                                ),
+                                            ),
+                                            pgast.TypeCast(
+                                                arg=pgast.StringConstant(
+                                                    val='null'),
+                                                type_name=pgast.TypeName(
+                                                    name=('jsonb',),
+                                                ),
+                                            ),
                                         ]
-                                    ),
+                                    )
                                 )
                                 for key in keys
                             ],
