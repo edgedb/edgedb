@@ -460,7 +460,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 """
                 SELECT ext::auth::Identity
                 FILTER .sub = '1'
-                AND .iss = 'github'
+                AND .iss = 'https://github.com'
                 AND .email = 'octocat@example.com'
                 """
             )

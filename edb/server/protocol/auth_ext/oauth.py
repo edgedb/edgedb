@@ -91,7 +91,7 @@ class Client:
             db=self.db,
             query="""\
 with
-  iss := <str>$provider,
+  iss := <str>$issuer_url,
   sub := <str>$provider_id,
   email := <optional str>$email,
 
@@ -117,7 +117,7 @@ with
   ),
 select NewProviderIdentity ?? ExistingIdentity;""",
             variables={
-                "provider": self.provider.name,
+                "issuer_url": self.provider.issuer_url,
                 "provider_id": user_info.sub,
                 "email": user_info.email,
             },
