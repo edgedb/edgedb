@@ -72,5 +72,11 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
                 least 32 characters long.";
             set default := "00000000000000000000000000000000";
         };
+
+        create property token_time_to_live -> std::duration {
+            create annotation std::description :=
+                'The time after which an auth token expires.';
+            set default := <std::duration>'336 hours';
+        };
     };
 };

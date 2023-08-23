@@ -93,7 +93,12 @@ class Client:
 with
   iss := <str>$issuer_url,
   sub := <str>$provider_id,
-  email := <optional str>$email
+  email := <optional str>$email,
+  now := std::datetime_of_statement(),
+  expires_in := std::assert_single(
+    cfg::Config.extensions[is ext::auth::AuthConfig]
+      .token_time_to_live
+  ),
 
   Identity := insert ext::auth::Identity {
     iss := iss,
@@ -108,9 +113,8 @@ with
     insert ext::auth::Session {
         # TODO: token: use JWT
         token := <str>std::uuid_generate_v4(),
-        created_at := std::datetime_of_statement(),
-        # TODO: expires_at: make configurable
-        expires_at := std::datetime_of_statement() + <duration>"336 hours",
+        created_at := now,
+        expires_at := now + expires_in,
         identity := Identity,
     }
   )
