@@ -73,55 +73,14 @@ def _describe_config(
 
     cfg = schema.get(config_object_name, type=s_objtypes.ObjectType)
     items = []
-    for ptr_name, p in cfg.get_pointers(schema).items(schema):
-        pn = str(ptr_name)
-        if pn in ('id', '__type__'):
-            continue
-
-        is_internal = (
-            p.get_annotation(
-                schema,
-                s_name.QualName('cfg', 'internal')
-            ) == 'true'
-        )
-        if is_internal and not testmode:
-            continue
-
-        ptype = p.get_target(schema)
-        assert ptype is not None
-        ptr_card = p.get_cardinality(schema)
-        mult = ptr_card.is_multi()
-        if isinstance(ptype, s_objtypes.ObjectType):
-            item = textwrap.indent(
-                _render_config_object(
-                    schema=schema,
-                    valtype=ptype,
-                    value_expr=str(ptype.get_name(schema)),
-                    scope=scope,
-                    join_term='',
-                    level=1,
-                ),
-                ' ' * 4,
-            )
-        else:
-            psource = f'{config_object_name}.{ qlquote.quote_ident(pn) }'
-            renderer = _render_config_set if mult else _render_config_scalar
-            item = textwrap.indent(
-                renderer(
-                    schema=schema,
-                    valtype=ptype,
-                    value_expr=psource,
-                    name=pn,
-                    scope=scope,
-                    level=1,
-                ),
-                ' ' * 4,
-            )
-
-        condition = f'EXISTS json_get(conf, {ql(pn)})'
-        if is_internal:
-            condition = f'({condition}) AND testmode'
-        items.append(f"(\n{item}\n    IF {condition} ELSE ''\n  )")
+    items.extend(_describe_config_inner(
+        schema, scope, config_object_name, cfg, testmode
+    ))
+    ext = schema.get('cfg::ExtensionConfig', type=s_objtypes.ObjectType)
+    for ext_cfg in ext.descendants(schema):
+        items.extend(_describe_config_inner(
+            schema, scope, config_object_name, ext_cfg, testmode
+        ))
 
     testmode_check = (
         "<bool>json_get(cfg::get_config_json(),'__internal_testmode','value')"
@@ -139,6 +98,83 @@ def _describe_config(
         + ")))"
     )
     return query
+
+
+def _describe_config_inner(
+    schema: s_schema.Schema,
+    scope: qltypes.ConfigScope,
+    config_object_name: str,
+    cfg: s_objtypes.ObjectType,
+    testmode: bool,
+) -> list[str]:
+    """Generate an EdgeQL query to render config as DDL."""
+
+    actual_name = str(cfg.get_name(schema))
+    cast = (
+        f'.extensions[is {actual_name}]' if actual_name != config_object_name
+        else ''
+    )
+
+    items = []
+    for ptr_name, p in cfg.get_pointers(schema).items(schema):
+        pn = str(ptr_name)
+        if pn in ('id', '__type__') or p.get_computable(schema):
+            continue
+
+        is_internal = (
+            p.get_annotation(
+                schema,
+                s_name.QualName('cfg', 'internal')
+            ) == 'true'
+        )
+        if is_internal and not testmode:
+            continue
+
+        ptype = p.get_target(schema)
+        assert ptype is not None
+
+        # Skip backlinks to the base object. The will get plenty of
+        # special treatment.
+        if str(ptype.get_name(schema)) == 'cfg::AbstractConfig':
+            continue
+
+        ptr_card = p.get_cardinality(schema)
+        mult = ptr_card.is_multi()
+        psource = f'{config_object_name}{cast}.{ qlquote.quote_ident(pn) }'
+        if isinstance(ptype, s_objtypes.ObjectType):
+            item = textwrap.indent(
+                _render_config_object(
+                    schema=schema,
+                    valtype=ptype,
+                    value_expr=psource,
+                    scope=scope,
+                    join_term='',
+                    level=1,
+                ),
+                ' ' * 4,
+            )
+        else:
+            renderer = _render_config_set if mult else _render_config_scalar
+            item = textwrap.indent(
+                renderer(
+                    schema=schema,
+                    valtype=ptype,
+                    value_expr=psource,
+                    name=pn,
+                    scope=scope,
+                    level=1,
+                ),
+                ' ' * 4,
+            )
+
+        fpn = f'{actual_name}::{pn}' if cast else pn
+
+        condition = f'EXISTS json_get(conf, {ql(fpn)})'
+        if is_internal:
+            condition = f'({condition}) AND testmode'
+        items.append(f"(\n{item}\n    IF {condition} ELSE ''\n  )")
+
+    return items
 
 
 def _render_config_value(
@@ -200,7 +236,7 @@ def _render_config_set(
         return (
             f"'CONFIGURE {scope.to_edgeql()} "
             f"SET { qlquote.quote_ident(name) } := {{' ++ "
-            f"array_join(array_agg({v}), ', ') ++ '}};'"
+            f"array_join(array_agg({v}), ', ') ++ '}};\\n'"
         )
     else:
         indent = ' ' * (4 * (level - 1))
@@ -225,7 +261,7 @@ def _render_config_scalar(
     if level == 1:
         return (
             f"'CONFIGURE {scope.to_edgeql()} "
-            f"SET { qlquote.quote_ident(name) } := ' ++ {v} ++ ';'"
+            f"SET { qlquote.quote_ident(name) } := ' ++ {v} ++ ';\\n'"
         )
     else:
         indent = ' ' * (4 * (level - 1))

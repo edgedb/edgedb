@@ -3468,6 +3468,9 @@ class SysConfigFullFunction(dbops.Function):
         )
 
 
+# TODO: Calling this function repeatedly in config introspection
+# queries can lead to performance problems. Could we cache the results
+# in _edgecon_state or something?
 class SysConfigFunction(dbops.Function):
 
     text = f'''

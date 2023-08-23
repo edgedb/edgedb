@@ -16041,7 +16041,6 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             )
 
         # TODO: test that users can't create them
-        # TODO: test describe
         # TODO: redacted annotation?
 
         # TODO: This should all work, instead!
@@ -16093,6 +16092,26 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 dict(name='3', value='baz', tname='ext::conf::SubObj'),
             ],
         )
+
+        val = await self.con.query_single('''
+            describe current database config
+        ''')
+        test_expected = textwrap.dedent('''\
+        CONFIGURE CURRENT DATABASE INSERT ext::conf::Obj {
+            name := '1',
+            value := 'foo',
+        };
+        CONFIGURE CURRENT DATABASE INSERT ext::conf::Obj {
+            name := '2',
+            value := 'bar',
+        };
+        CONFIGURE CURRENT DATABASE INSERT ext::conf::SubObj {
+            value := 'baz',
+            name := '3',
+        };
+        CONFIGURE CURRENT DATABASE SET config_name := 'test';
+        ''')
+        self.assertEqual(val, test_expected)
 
         await self.con.execute('''
             configure current database reset ext::conf::Obj
