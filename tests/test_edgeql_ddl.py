@@ -15986,6 +15986,198 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 drop extension package ltree_broken VERSION '1.0'
             ''')
 
+    async def _extension_test_05(self, do_instance):
+        await self.con.execute('''
+            create extension conf
+        ''')
+
+        Q = '''
+            select cfg::%s {
+                conf := assert_single(.extensions[is ext::conf::Config] {
+                    config_name,
+                    objs: { name, value, tname := .__type__.name }
+                          order by .name,
+                })
+            };
+        '''
+
+        async def _check(_cfg_obj='Config', **kwargs):
+            q = Q % _cfg_obj
+            await self.assert_query_result(
+                q,
+                [{'conf': kwargs}],
+            )
+
+        await _check(
+            config_name='',
+            objs=[],
+        )
+
+        if do_instance:
+            await self.con.execute('''
+                configure instance set ext::conf::Config::config_name :=
+                    "instance";
+            ''')
+            await _check(
+                config_name='instance',
+                objs=[],
+            )
+
+        await self.con.execute('''
+            configure current database set ext::conf::Config::config_name :=
+                "test";
+        ''')
+
+        await _check(
+            config_name='test',
+            objs=[],
+        )
+
+        if do_instance:
+            await _check(
+                'InstanceConfig',
+                config_name='instance',
+                objs=[],
+            )
+
+        # TODO: test that users can't create them
+        # TODO: test describe
+        # TODO: redacted annotation?
+
+        # TODO: This should all work, instead!
+        async with self.assertRaisesRegexTx(
+                edgedb.UnsupportedFeatureError, ""):
+            await self.con.execute('''
+                configure session set ext::conf::Config::config_name :=
+                    "session!";
+            ''')
+
+            await _check(
+                config_name='session!',
+                objs=[],
+            )
+
+            await self.con.execute('''
+                configure session reset ext::conf::Config::config_name;
+            ''')
+
+        await _check(
+            config_name='test',
+            objs=[],
+        )
+
+        await self.con.execute('''
+            configure current database insert ext::conf::Obj {
+                name := '1',
+                value := 'foo',
+            };
+        ''')
+        await self.con.execute('''
+            configure current database insert ext::conf::Obj {
+                name := '2',
+                value := 'bar',
+            };
+        ''')
+        await self.con.execute('''
+            configure current database insert ext::conf::SubObj {
+                name := '3',
+                value := 'baz',
+            };
+        ''')
+
+        await _check(
+            config_name='test',
+            objs=[
+                dict(name='1', value='foo', tname='ext::conf::Obj'),
+                dict(name='2', value='bar', tname='ext::conf::Obj'),
+                dict(name='3', value='baz', tname='ext::conf::SubObj'),
+            ],
+        )
+
+        await self.con.execute('''
+            configure current database reset ext::conf::Obj
+            filter .value like 'ba%'
+        ''')
+
+        await _check(
+            config_name='test',
+            objs=[
+                dict(name='1', value='foo'),
+            ],
+        )
+
+        await self.con.execute('''
+            configure current database reset ext::conf::Obj
+        ''')
+
+        await _check(
+            config_name='test',
+            objs=[],
+        )
+
+        await self.con.execute('''
+            configure current database reset ext::conf::Config::config_name;
+        ''')
+        if do_instance:
+            await _check(
+                config_name='instance',
+                objs=[],
+            )
+
+            await self.con.execute('''
+                configure instance reset ext::conf::Config::config_name;
+            ''')
+
+        await _check(
+            config_name='',
+            objs=[],
+        )
+
+    async def test_edgeql_ddl_extensions_05(self):
+        # Test config extension
+        await self.con.execute('''
+        create extension package conf VERSION '1.0' {
+          set ext_module := "ext::conf";
+          set sql_extensions := [];
+          create module ext::conf;
+
+          create type ext::conf::Obj extending cfg::ConfigObject {
+              create required property name -> std::str {
+                  set readonly := true;
+                  create constraint std::exclusive;
+              };
+              create required property value -> std::str {
+                  set readonly := true;
+              };
+          };
+          create type ext::conf::SubObj extending ext::conf::Obj;
+
+          create type ext::conf::Config extending cfg::ExtensionConfig {
+              create multi link objs -> ext::conf::Obj;
+
+              create property config_name -> std::str {
+                  set default := "";
+              };
+          };
+        };
+        ''')
+        try:
+            async with self._run_and_rollback():
+                await self._extension_test_05(do_instance=False)
+            try:
+                await self._extension_test_05(do_instance=True)
+            finally:
+                await self.con.execute('''
+                    drop extension conf
+                ''')
+        finally:
+            try:
+                await self.con.execute('''
+                    drop extension package conf VERSION '1.0'
+                ''')
+            except Exception:
+                pass
+
     async def test_edgeql_ddl_reindex(self):
         await self.con.execute('''
             create type Tgt;

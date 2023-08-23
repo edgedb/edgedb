@@ -3097,7 +3097,7 @@ class CompositeMetaCommand(MetaCommand):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> None:
-        if not context.is_deleting(obj):
+        if not context.in_deletion():
             self.pgops.add(
                 self._refresh_fake_cfg_view_cmd(obj, schema, context))
 
@@ -3344,7 +3344,12 @@ class CompositeMetaCommand(MetaCommand):
     ) -> None:
         for base in obj.get_ancestors(schema).objects(schema):
             src = base.get_source(schema)
-            if src and has_table(src, schema) and not context.is_deleting(src):
+            if (
+                src
+                and has_table(src, schema)
+                and not context.is_deleting(base)
+                and not context.is_deleting(src)
+            ):
                 assert isinstance(src, s_sources.Source)
                 self.alter_inhview(
                     schema,
@@ -3730,19 +3735,19 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand,
         ''')))
 
         for sub in self.get_subcommands(type=s_pointers.DeletePointer):
-            if has_table(sub.scls, eff_schema):
+            if has_table(sub.scls, orig_schema):
                 self.pgops.add(dbops.DropView(common.get_backend_name(
                     eff_schema, sub.scls, catenate=False)))
 
         if isinstance(self, sd.DeleteObject):
             self.pgops.add(dbops.DropView(common.get_backend_name(
                 eff_schema, scls, catenate=False)))
-        else:
-            # FIXME: If this is not a top-level object it is not going to
-            # work right...
+        elif isinstance(self, sd.CreateObject):
             views = metaschema.get_config_type_views(
                 eff_schema, scls, scope=None)
             self.pgops.update(views)
+        # FIXME: ALTER doesn't work in meaningful ways. We'll maybe
+        # need to fix that when we have patching configs.
 
 
 class CreateObjectType(ObjectTypeMetaCommand,

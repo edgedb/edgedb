@@ -313,6 +313,13 @@ def _validate_op(
     cfg_type = None
 
     if isinstance(expr, (qlast.ConfigSet, qlast.ConfigReset)):
+        # TODO: Fix this. The problem is that it gets lost when serializing it
+        if is_ext_config and expr.scope == qltypes.ConfigScope.SESSION:
+            raise errors.UnsupportedFeatureError(
+                'SESSION configuration of extension-defined config variables '
+                'is not yet implemented'
+            )
+
         # expr.name is the actual name of the property.
         ptr = cfg_host_type.maybe_get_ptr(ctx.env.schema, sn.UnqualName(name))
         if ptr is not None:

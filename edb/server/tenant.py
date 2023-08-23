@@ -1003,8 +1003,8 @@ class Tenant(ha_base.ClusterProtocol):
         return self._dbindex.remove_view(dbview_)
 
     def schedule_reported_config_if_needed(self, setting_name: str) -> None:
-        setting = self._server._config_settings[setting_name]  # TODO
-        if setting.report and self._accept_new_tasks:
+        setting = self._server._config_settings.get(setting_name)  # TODO
+        if setting and setting.report and self._accept_new_tasks:
             self.create_task(self._load_reported_config(), interruptable=True)
 
     def load_jwcrypto(self) -> None:
