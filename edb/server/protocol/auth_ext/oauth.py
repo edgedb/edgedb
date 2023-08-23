@@ -85,7 +85,7 @@ class Client:
         await self._handle_identity(user_info)
 
     async def _handle_identity(self, user_info: data.UserInfo) -> None:
-        """Update or create an identity"""
+        """Update or create an identity and session"""
 
         await execute.parse_execute_json(
             db=self.db,
@@ -95,15 +95,26 @@ with
   sub := <str>$provider_id,
   email := <optional str>$email
 
-insert ext::auth::Identity {
-  iss := iss,
-  sub := sub,
-  email := email,
-} unless conflict on ((.iss, .sub)) else (
-  update ext::auth::Identity set {
-    email := email
-  }
-);""",
+  Identity := insert ext::auth::Identity {
+    iss := iss,
+    sub := sub,
+    email := email,
+  } unless conflict on ((.iss, .sub)) else (
+    update ext::auth::Identity set {
+        email := email
+    }
+  ),
+  Session := (
+    insert ext::auth::Session {
+        # TODO: token: use JWT
+        token := <str>std::uuid_generate_v4(),
+        created_at := std::datetime_of_statement(),
+        # TODO: expires_at: make configurable
+        expires_at := std::datetime_of_statement() + <duration>"336 hours",
+        identity := Identity,
+    }
+  )
+select Identity;""",
             variables={
                 "issuer_url": self.provider.issuer_url,
                 "provider_id": user_info.sub,

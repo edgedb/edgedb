@@ -466,6 +466,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(len(identity), 1)
 
+            session = await self.con.query(
+                """
+                SELECT ext::auth::Session { identity: { id } }
+                """
+            )
+            self.assertEqual(len(session), 1)
+            self.assertEqual(session[0].identity.id, identity[0].id)
+
             mock_provider.register_route_handler(*user_request)(
                 (
                     {
@@ -495,3 +503,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(len(same_identity), 1)
             self.assertEqual(identity[0].id, same_identity[0].id)
+
+            new_sessions = await self.con.query(
+                """
+                SELECT ext::auth::Session { identity: { id } }
+                """
+            )
+            self.assertEqual(len(new_sessions), 2)
+            self.assertEqual(new_sessions[0].identity.id, same_identity[0].id)
+            self.assertEqual(new_sessions[1].identity.id, same_identity[0].id)
