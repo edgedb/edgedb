@@ -26,8 +26,8 @@ from . import data
 
 class GitHubProvider(base.BaseProvider):
     def __init__(self, *args, **kwargs):
-        super().__init__("github", *args, **kwargs)
-        self.auth_domain = "https://github.com"
+        super().__init__("github", "https://github.com", *args, **kwargs)
+        self.auth_domain = self.issuer_url
         self.api_domain = "https://api.github.com"
         self.auth_client = functools.partial(
             self.http_factory, base_url=self.auth_domain
