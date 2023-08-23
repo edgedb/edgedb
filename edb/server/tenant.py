@@ -34,7 +34,6 @@ import immutables
 from edb import errors
 from edb.common import retryloop
 from edb.common import taskgroup
-from edb.schema import roles as s_role
 from edb.schema import schema as s_schema
 
 from . import args as srvargs
@@ -287,19 +286,11 @@ class Tenant(ha_base.ClusterProtocol):
     def set_roles(self, roles: Mapping[str, RoleDescriptor]) -> None:
         self._roles = roles
 
-    def fetch_roles(self) -> None:
-        global_schema = self.get_global_schema()
-
-        roles: Dict[str, RoleDescriptor] = {}
-        for role in global_schema.get_objects(type=s_role.Role):
-            role_name = str(role.get_name(global_schema))
-            roles[role_name] = RoleDescriptor(
-                name=role_name,
-                superuser=role.get_superuser(global_schema),
-                password=role.get_password(global_schema),
-            )
-
-        self._roles = immutables.Map(roles)
+    async def _fetch_roles(self, syscon: pgcon.PGConnection) -> None:
+        role_query = self._server.get_sys_query("roles")
+        json_data = await syscon.sql_fetch_val(role_query, use_prep_stmt=True)
+        roles = json.loads(json_data)
+        self._roles = immutables.Map([(r["name"], r) for r in roles])
 
     async def init_sys_pgcon(self) -> None:
         self._sys_pgcon_waiter = asyncio.Lock()
@@ -316,6 +307,7 @@ class Tenant(ha_base.ClusterProtocol):
                 """
             )
             self._instance_data = immutables.Map(json.loads(result))
+            await self._fetch_roles(syscon)
 
         global_schema = await self.introspect_global_schema()
         sys_config = await self._load_sys_config()
@@ -331,7 +323,6 @@ class Tenant(ha_base.ClusterProtocol):
             sys_config_spec=self._server._config_settings,  # TODO
         )
 
-        self.fetch_roles()
         await self._introspect_dbs()
 
         # Now, once all DBs have been introspected, start listening on
@@ -944,10 +935,11 @@ class Tenant(ha_base.ClusterProtocol):
                 "ignoring."
             )
             return
-        new_global_schema = await self.introspect_global_schema()
-        assert self._dbindex is not None
-        self._dbindex.update_global_schema(new_global_schema)
-        self.fetch_roles()
+        async with self.use_sys_pgcon() as syscon:
+            new_global_schema = await self.introspect_global_schema(syscon)
+            assert self._dbindex is not None
+            self._dbindex.update_global_schema(new_global_schema)
+            await self._fetch_roles(syscon)
 
     def populate_sys_auth(self) -> None:
         assert self._dbindex is not None
