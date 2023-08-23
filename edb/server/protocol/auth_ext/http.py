@@ -69,7 +69,6 @@ class Router:
                     )
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = authorize_url
-                    response.close_connection = True
 
                 case ("callback",):
                     query = request.url.query.decode("ascii")
@@ -85,7 +84,6 @@ class Router:
                     await client.handle_callback(code)
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = redirect_to
-                    response.close_connection = True
 
                 case _:
                     raise errors.NotFound("Unknown OAuth endpoint")
