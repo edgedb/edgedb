@@ -938,13 +938,49 @@ class Compiler:
         )
         return rv
 
+    def parse_json_schema(
+        self,
+        schema_json: bytes,
+        base_schema: s_schema.Schema | None,
+    ) -> s_schema.Schema:
+        if base_schema is None:
+            base_schema = self.state.std_schema
+        else:
+            base_schema = s_schema.ChainedSchema(
+                self.state.std_schema,
+                s_schema.EMPTY_SCHEMA,
+                base_schema,
+            )
+
+        return s_refl.parse_into(
+            base_schema=base_schema,
+            schema=s_schema.EMPTY_SCHEMA,
+            data=schema_json,
+            schema_class_layout=self.state.schema_class_layout,
+        )
+
+    def parse_db_config(
+        self, db_config_json: bytes, user_schema: s_schema.Schema
+    ) -> Mapping[str, config.SettingValue]:
+        spec = config.ChainedSpec(
+            self.state.config_spec,
+            config.load_ext_spec_from_schema(
+                user_schema,
+                self.state.std_schema,
+            ),
+        )
+        return config.from_json(spec, db_config_json)
+
     def describe_database_dump(
         self,
-        user_schema: s_schema.Schema,
-        global_schema: s_schema.Schema,
-        database_config: immutables.Map[str, config.SettingValue],
+        user_schema_json: bytes,
+        global_schema_json: bytes,
+        db_config_json: bytes,
         protocol_version: defines.ProtocolVersion,
     ) -> DumpDescriptor:
+        global_schema = self.parse_json_schema(global_schema_json, None)
+        user_schema = self.parse_json_schema(user_schema_json, global_schema)
+        database_config = self.parse_db_config(db_config_json, user_schema)
         schema = s_schema.ChainedSchema(
             self.state.std_schema,
             user_schema,

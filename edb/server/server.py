@@ -454,11 +454,15 @@ class BaseServer:
     def get_compiler_pool(self):
         return self._compiler_pool
 
+    async def introspect_global_schema_json(
+        self, conn: pgcon.PGConnection
+    ) -> bytes:
+        return await conn.sql_fetch_val(self._global_intro_query)
+
     async def introspect_global_schema(
         self, conn: pgcon.PGConnection
     ) -> s_schema.Schema:
-        intro_query = self._global_intro_query
-        json_data = await conn.sql_fetch_val(intro_query)
+        json_data = await self.introspect_global_schema_json(conn)
         return s_refl.parse_into(
             base_schema=self._std_schema,
             schema=s_schema.EMPTY_SCHEMA,
@@ -466,12 +470,18 @@ class BaseServer:
             schema_class_layout=self._schema_class_layout,
         )
 
+    async def introspect_user_schema_json(
+        self,
+        conn: pgcon.PGConnection,
+    ) -> bytes:
+        return await conn.sql_fetch_val(self._local_intro_query)
+
     async def introspect_user_schema(
         self,
         conn: pgcon.PGConnection,
         global_schema: s_schema.Schema,
     ) -> s_schema.Schema:
-        json_data = await conn.sql_fetch_val(self._local_intro_query)
+        json_data = await self.introspect_user_schema_json(conn)
 
         base_schema = s_schema.ChainedSchema(
             self._std_schema,

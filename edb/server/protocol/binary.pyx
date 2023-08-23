@@ -1352,17 +1352,18 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 ''',
             )
 
-            user_schema = await tenant.introspect_user_schema(pgcon)
-            global_schema = await tenant.introspect_global_schema(pgcon)
+            user_schema_json = await server.introspect_user_schema_json(pgcon)
+            global_schema_json = (
+                await server.introspect_global_schema_json(pgcon)
+            )
             db_config_json = await server.introspect_db_config(pgcon)
-            db_config = server._parse_db_config(db_config_json, user_schema)
             dump_protocol = self.max_protocol
 
             schema_ddl, schema_dynamic_ddl, schema_ids, blocks = (
                 await compiler_pool.describe_database_dump(
-                    user_schema,
-                    global_schema,
-                    db_config,
+                    user_schema_json,
+                    global_schema_json,
+                    db_config_json,
                     dump_protocol,
                 )
             )
