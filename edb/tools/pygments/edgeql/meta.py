@@ -288,6 +288,7 @@ class EdgeQL:
         "bit_rshift",
         "bit_xor",
         "bytes_get_bit",
+        "bytes_to_human",
         "ceil",
         "contains",
         "count",
