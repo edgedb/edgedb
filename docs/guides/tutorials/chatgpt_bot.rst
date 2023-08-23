@@ -20,6 +20,14 @@ related to the EdgeDB docs.*
 In this tutorial we're going to build a documentation chatbot with
 `Next.js <https://nextjs.org/>`_, `OpenAI <https://openai.com/>`_, and EdgeDB.
 
+.. warning::
+
+    This project makes calls to OpenAI's APIs. At the time of publication, new
+    users are granted $5 in API credits to use within the first three months
+    after registration. Trials are granted per phone number, not per account.
+    If you exhaust your trial credits or if your three months lapse, you will
+    need to switch to a paid account in order to build the tutorial project.
+
 How it works
 ============
 
