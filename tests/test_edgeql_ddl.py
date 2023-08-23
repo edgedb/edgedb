@@ -16195,6 +16195,41 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             objs=[],
         )
 
+        if not in_tx:
+            con2 = await self.connect(database=self.con.dbname)
+            try:
+                await con2.query('select 1')
+                await self.con.execute('''
+                    CONFIGURE CURRENT DATABASE INSERT ext::conf::Obj {
+                        name := 'fail',
+                        value := '',
+                    };
+                ''')
+
+                # This needs to fail
+                with self.assertRaisesRegex(
+                    edgedb.ConstraintViolationError, ""
+                ):
+                    await self.con.execute('''
+                        CONFIGURE CURRENT DATABASE INSERT ext::conf::Obj {
+                            name := 'fail',
+                            value := '',
+                        };
+                        insert Test;
+                    ''')
+
+                # The code path by which the above fails is subtle (it
+                # gets triggered by config processing code in the
+                # server). Make sure that the error properly aborts
+                # the whole script.
+                await self.assert_query_result(
+                    'select count(Test)',
+                    [0],
+                )
+
+            finally:
+                await con2.aclose()
+
     async def test_edgeql_ddl_extensions_05(self):
         # Test config extension
         await self.con.execute('''
@@ -16227,6 +16262,10 @@ class TestDDLNonIsolated(tb.DDLTestCase):
           };
         };
         ''')
+        await self.con.execute('''
+            create type Test;
+        ''')
+
         try:
             async with self._run_and_rollback():
                 await self._extension_test_05(in_tx=True)
@@ -16239,7 +16278,8 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         finally:
             try:
                 await self.con.execute('''
-                    drop extension package conf VERSION '1.0'
+                    drop extension package conf VERSION '1.0';
+                    drop type Test;
                 ''')
             except Exception:
                 pass
