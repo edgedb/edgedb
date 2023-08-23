@@ -150,6 +150,41 @@ Get an OpenAI API key
    copy your key here in the following format:
    ``OPENAI_API_KEY="<my-openai-api-key>"``.
 
+While we're here, let's get that key ready to be used. We will be making calls
+to the OpenAI API. We'll create a ``utils`` module and export a function from
+it, so we can initialize the API client which we can then reuse anywhere we
+need to call it. Create ``utils.ts`` in your project root and add this code:
+
+.. code-block:: typescript
+
+    import OpenAI from "openai";
+
+    export function initOpenAIClient() {
+      if (!process.env.OPENAI_API_KEY)
+        throw new Error("Missing environment variable OPENAI_API_KEY");
+
+      return new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY!,
+      });
+    }
+
+It's pretty simple. It makes sure the API key was provided in the environment
+variable and returns a new API client initialized with that key.
+
+Now, let's create error messages we will use in a couple of places if these API
+calls go wrong. Create a file ``app/constants.ts`` and fill it with this:
+
+.. code-block:: typescript
+
+    export const errors = {
+      flagged: `OpenAI has declined to answer your question due to their
+              [usage-policies](https://openai.com/policies/usage-policies). Please try
+              another question.`,
+      default: "There was an error processing your request. Please try again.",
+    };
+
+This exports an object ``errors`` with a couple of error messages.
+
 
 Install the EdgeDB CLI
 ----------------------
@@ -221,7 +256,8 @@ Create a ``docs`` folder in the root of the project. Here we will place our
 Markdown documentation files. You can grab the files we use from `the example
 project's GitHub repo
 <https://github.com/edgedb/edgedb-examples/tree/main/docs-chatbot/docs>`_ or
-add your own.
+add your own. (If you use your own, you may also want to adjust the system
+message we send to OpenAI later.)
 
 .. note:: On using formats other than Markdown
 
@@ -474,15 +510,17 @@ tasks we need to perform.
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
-    import dotenv from "dotenv";
-    import { Configuration, OpenAIApi } from "openai";
     import { promises as fs } from "fs";
     import { join } from "path";
+    import dotenv from "dotenv";
     import { encode } from "gpt-tokenizer";
     import * as edgedb from "edgedb";
     import e from "dbschema/edgeql-js";
+    import { initOpenAIClient } from "./utils";
 
     dotenv.config({ path: ".env.local" });
+
+    const openai = initOpenAIClient();
 
     interface Section {
       id?: string;
@@ -497,8 +535,7 @@ tasks we need to perform.
     }
 
     async function prepareSectionsData(
-      sectionPaths: string[],
-       openai: OpenAIApi
+      sectionPaths: string[]
     ): Promise<Section[]> {
       // ...
     }
@@ -509,12 +546,17 @@ tasks we need to perform.
     }
 
     (async function main() {
-      await storeEmbeddings();
+      try {
+        await storeEmbeddings();
+      } catch (err) {
+        console.error("Error while trying to regenerate all embeddings.", err);
+      }
     })();
 
 
-At the top are all imports we will need throughout the file. The last import is
-the query builder we generated earlier.
+At the top are all imports we will need throughout the file. The second to last
+import is the query builder we generated earlier, and the last one is our
+OpenAI API client.
 
 After the imports, we use the ``dotenv`` library to import environment
 variables from the ``.env.local`` file. (In our case, that's
@@ -539,13 +581,8 @@ Getting section paths
 
 In order to get the sections' content, we first need to know where the files
 are that need to be read. The ``walk`` function finds them for us and returns
-all the paths.
-
-Since our ``docs`` folder contains files at multiple levels of nesting
-(assuming you copied our example documentation files across), we need a
-function that loops through all section files and directories recursively. It
-will build an array of all paths relative to the project root and sort those
-paths.
+all the paths. It will build an array of all paths relative to the project root
+and sort them.
 
 .. code-block:: typescript
     :caption: generate-embeddings.ts
@@ -582,6 +619,14 @@ The output it produces looks like this:
       'docs/edgeql/index2.md'
     ]
 
+.. note::
+
+    Our ``docs`` folder is flat (if you took the sample files), so the
+    recursion isn't strictly necessary here, but we will keep it because, in
+    practice, it's rare that your documentation structure will be flat in all
+    but the simplest of documentation… and in those cases, the value of a
+    chatbot might not justify the effort of implementing it.
+
 
 Preparing the ``Section`` objects
 ---------------------------------
@@ -594,8 +639,7 @@ generate the embeddings. Let's walk through it one piece at a time.
     :caption: generate-embeddings.ts
 
     async function prepareSectionsData(
-      sectionPaths: string[],
-      openai: OpenAIApi
+      sectionPaths: string[]
     ): Promise<Section[]> {
       const contents: string[] = [];
       const sections: Section[] = [];
@@ -607,23 +651,24 @@ generate the embeddings. Let's walk through it one piece at a time.
         contents.push(contentTrimmed);
         sections.push({
           content,
-          tokens: 0,
+          tokens: encode(content).length
           embedding: [],
         });
       }
       // The rest of the function
     }
 
-We start with two parameters: an array of section paths and an OpenAI client.
-We create a couple of empty arrays for storing information about our sections
-(which will later become ``Section`` objects in the database) and their
-contents. We iterate through the paths, loading each file to get its content.
-In the database we save the content as is, but when calling the
-embedding API, OpenAI suggests that all newlines should be replaced with a
-single space for the best results. ``contentTrimmed`` is the content with
-newlines replaced. We push that onto our ``contents`` array and the un-trimmed
-content onto ``sections``, along with a ``0`` for the token count and an empty
-array we will later replace with the actual embeddings.
+We start with a parameter: an array of section paths. We create a couple of
+empty arrays for storing information about our sections (which will later
+become ``Section`` objects in the database) and their contents. We iterate
+through the paths, loading each file to get its content. In the database we
+save the content as is, but when calling the embedding API, OpenAI suggests
+that all newlines should be replaced with a single space for the best results.
+``contentTrimmed`` is the content with newlines replaced. We push that onto our
+``contents`` array and the un-trimmed content onto ``sections``, along with a
+token count obtained by calling the ``encode`` function imported from
+``gpt-tokenizer`` and an empty array we will later replace with the actual
+embeddings.
 
 Onto the next bit!
 
@@ -631,19 +676,14 @@ Onto the next bit!
     :caption: generate-embeddings.ts
 
     async function prepareSectionsData(
-      sectionPaths: string[],
-      openai: OpenAIApi
+      sectionPaths: string[]
     ): Promise<Section[]> {
       // Part we just talked about
 
-      const embeddingResponse = await openai.createEmbedding({
+      const embeddingResponse = await openai.embeddings.create({
         model: "text-embedding-ada-002",
         input: contents,
       });
-
-      if (embeddingResponse.status !== 200) {
-        throw new Error(embeddingResponse.statusText);
-      }
 
       // The rest
     }
@@ -662,9 +702,6 @@ when we set ``embeddingResponse`` to the result of the call to
 ``openai.createEmbedding``, specifying the model and passing the entire array
 of contents.
 
-After that, we handle the case where the status of the embeddings call result is
-anything other than ``200`` (``OK``).
-
 Now, it's time to put those embeddings into our section objects by iterating
 through the response data.
 
@@ -672,14 +709,12 @@ through the response data.
     :caption: generate-embeddings.ts
 
     async function prepareSectionsData(
-      sectionPaths: string[],
-      openai: OpenAIApi
+      sectionPaths: string[]
     ): Promise<Section[]> {
       // The stuff we already talked about
 
-      embeddingResponse.data.data.forEach((item, i) => {
+      embeddingResponse.data.forEach((item, i) => {
         sections[i].embedding = item.embedding;
-        sections[i].tokens = encode(contents[i]).length;
       });
 
       return sections;
@@ -709,8 +744,7 @@ Here's the entire function assembled:
     :caption: generate-embeddings.ts
 
     async function prepareSectionsData(
-      sectionPaths: string[],
-      openai: OpenAIApi
+      sectionPaths: string[]
     ): Promise<Section[]> {
       const contents: string[] = [];
       const sections: Section[] = [];
@@ -722,23 +756,18 @@ Here's the entire function assembled:
         contents.push(contentTrimmed);
         sections.push({
           content,
-          tokens: 0,
+          tokens: encode(content).length
           embedding: [],
         });
       }
 
-      const embeddingResponse = await openai.createEmbedding({
+      const embeddingResponse = await openai.embeddings.create({
         model: "text-embedding-ada-002",
         input: contents,
       });
 
-      if (embeddingResponse.status !== 200) {
-        throw new Error(embeddingResponse.statusText);
-      }
-
-      embeddingResponse.data.data.forEach((item, i) => {
+      embeddingResponse.data.forEach((item, i) => {
         sections[i].embedding = item.embedding;
-        sections[i].tokens = encode(contents[i]).length;
       });
 
       return sections;
@@ -771,45 +800,29 @@ Again, we'll break this function apart and walk through it.
     :caption: generate-embeddings.ts
 
     async function storeEmbeddings() {
-      if (!process.env.OPENAI_API_KEY) {
-        return console.log(
-          "Environment variable OPENAI_API_KEY is required: skipping embeddings generation."
-        );
-      }
+      const client = edgedb.createClient();
 
-      try {
-        const configuration = new Configuration({
-            apiKey: process.env.OPENAI_API_KEY,
-        });
-        const openai = new OpenAIApi(configuration);
+      const sectionPaths = await walk("docs");
 
-        const client = edgedb.createClient();
+      console.log(`Discovered ${sectionPaths.length} sections`);
 
-        const sectionPaths = await walk("docs");
+      const sections = await prepareSectionsData(sectionPaths);
 
-        console.log(`Discovered ${sectionPaths.length} sections`);
+      // Delete old data from the DB.
+      await e.delete(e.Section).run(client);
 
-        const sections = await prepareSectionsData(sectionPaths, openai);
-
-        // Delete old data from the DB.
-        await e.delete(e.Section).run(client);
-
-        // Bulk-insert all data into EdgeDB database.
-        const query = e.params({ sections: e.json }, ({ sections }) => {
-          return e.for(e.json_array_unpack(sections), (section) => {
-            return e.insert(e.Section, {
-              content: e.cast(e.str, section.content),
-              tokens: e.cast(e.int16, section.tokens),
-              embedding: e.cast(e.OpenAIEmbedding, section.embedding),
-            });
+      // Bulk-insert all data into EdgeDB database.
+      const query = e.params({ sections: e.json }, ({ sections }) => {
+        return e.for(e.json_array_unpack(sections), (section) => {
+          return e.insert(e.Section, {
+            content: e.cast(e.str, section.content),
+            tokens: e.cast(e.int16, section.tokens),
+            embedding: e.cast(e.OpenAIEmbedding, section.embedding),
           });
         });
+      });
 
-        await query.run(client, { sections });
-      } catch (err) {
-        console.error("Error while trying to regenerate all embeddings.", err);
-      }
-
+      await query.run(client, { sections });
       console.log("Embedding generation complete");
     }
 
@@ -817,45 +830,29 @@ Again, we'll break this function apart and walk through it.
     :caption: generate-embeddings.ts
 
     async function storeEmbeddings() {
-      if (!process.env.OPENAI_API_KEY) {
-        return console.log(
-          "Environment variable OPENAI_API_KEY is required: skipping embeddings generation."
-        );
-      }
+      const client = edgedb.createClient();
 
-      try {
-        const configuration = new Configuration({
-            apiKey: process.env.OPENAI_API_KEY,
-        });
-        const openai = new OpenAIApi(configuration);
+      const sectionPaths = await walk("docs");
 
-        const client = edgedb.createClient();
+      console.log(`Discovered ${sectionPaths.length} sections`);
 
-        const sectionPaths = await walk("docs");
+      const sections = await prepareSectionsData(sectionPaths);
 
-        console.log(`Discovered ${sectionPaths.length} sections`);
+      // Delete old data from the DB.
+      await e.delete(e.Section).run(client);
 
-        const sections = await prepareSectionsData(sectionPaths, openai);
-
-        // Delete old data from the DB.
-        await e.delete(e.Section).run(client);
-
-        // Bulk-insert all data into EdgeDB database.
-        const query = e.params({ sections: e.json }, ({ sections }) => {
-          return e.for(e.json_array_unpack(sections), (section) => {
-            return e.insert(e.Section, {
-              content: e.cast(e.str, section.content),
-              tokens: e.cast(e.int16, section.tokens),
-              embedding: e.cast(e.OpenAIEmbedding, section.embedding),
-            });
+      // Bulk-insert all data into EdgeDB database.
+      const query = e.params({ sections: e.json }, ({ sections }) => {
+        return e.for(e.json_array_unpack(sections), (section) => {
+          return e.insert(e.Section, {
+            content: e.cast(e.str, section.content),
+            tokens: e.cast(e.int16, section.tokens),
+            embedding: e.cast(e.OpenAIEmbedding, section.embedding),
           });
         });
+      });
 
-        await query.run(client, { sections });
-      } catch (err) {
-        console.error("Error while trying to regenerate all embeddings.", err);
-      }
-
+      await query.run(client, { sections });
       console.log("Embedding generation complete");
     }
 
@@ -906,7 +903,7 @@ Let's add a script to ``package.json`` that will invoke and execute
           "autoprefixer": "10.4.14",
           "eslint": "8.46.0",
           "eslint-config-next": "13.4.13",
-          "next": "13.4.13",
+          "next": "13.4.19",
           "postcss": "8.4.27",
           "react": "18.2.0",
           "react-dom": "18.2.0",
@@ -918,7 +915,7 @@ Let's add a script to ``package.json`` that will invoke and execute
           "dotenv": "^16.3.1",
           "edgedb": "^1.3.4",
           "gpt-tokenizer": "^2.1.1",
-          "openai": "^3.3.0",
+          "openai": "^4.0.1",
           "tsx": "^3.12.7"
         }
       }
@@ -1026,14 +1023,16 @@ writing some configuration.
     import { codeBlock, oneLineTrim } from "common-tags";
     import * as edgedb from "edgedb";
     import e from "dbschema/edgeql-js";
+    import { errors } from "../../constants";
+    import { initOpenAIClient } from "@/utils";
 
-    export const config = {
-        runtime: "edge",
-    };
+    export const config = { runtime: "edge" };
 
-    const openAIApiKey = process.env.OPENAI_API_KEY;
+    const openai = initOpenAIClient();
 
-    const client = edgedb.createHttpClient({ tlsSecurity: process.env.TLS_SECURITY });
+    const client = edgedb.createHttpClient({
+      tlsSecurity: process.env.TLS_SECURITY
+    });
 
     export async function POST(req: Request) {
         …
@@ -1044,7 +1043,8 @@ writing some configuration.
 
 The first imports are templates from the ``common-tags`` library we installed
 earlier. Then, we import the EdgeDB binding. The third import is the query
-builder we described previously.
+builder we described previously. We also import our errors and our Open AI API
+client.
 
 By exporting ``config``, we override Next.js configuration defaults for this
 handler. In this case, we want to override the runtime for this handler so that
@@ -1078,71 +1078,55 @@ circle back to them later.
 
     …
 
-    export const errors = {
-        flagged: `OpenAI has declined to answer your question due to their
-        [usage-policies](https://openai.com/policies/usage-policies). Please try
-        another question.`,
-        default: "There was an error processing your request. Please try again.",
-    };
-
     export async function POST(req: Request) {
-        try {
-            if (!openAIApiKey)
-                throw new Error("Missing environment variable OPENAI_API_KEY");
+      try {
+        const { query } = await req.json();
+        const sanitizedQuery = query.trim();
 
-            const { query } = await req.json();
-            const sanitizedQuery = query.trim();
+        const flagged = await isQueryFlagged(query);
 
-            const moderatedQuery = await moderateQuery(sanitizedQuery, openAIApiKey);
-            if (moderatedQuery.flagged) throw new Error(errors.flagged);
+        if (flagged) throw new Error(errors.flagged);
 
-            const embedding = await getEmbedding(query, openAIApiKey);
+        const embedding = await getEmbedding(query);
 
-            const context = await getContext(embedding);
+        const context = await getContext(embedding);
 
-            const prompt = createFullPrompt(sanitizedQuery, context);
+        const prompt = createFullPrompt(sanitizedQuery, context);
 
-            const answer = await getOpenAiAnswer(prompt, openAIApiKey);
+        const answer = await getOpenAiAnswer(prompt);
 
-            return new Response(answer, {
-                headers: {
-                    "Content-Type": "text/event-stream",
-                },
-            });
-        } catch (error: any) {
-            console.error(error);
+        return new Response(answer.body, {
+          headers: {
+            "Content-Type": "text/event-stream",
+          },
+        });
+      } catch (error: any) {
+        console.error(error);
 
-            const uiError = error.message || errors.default;
+        const uiError = error.message || errors.default;
 
-            return new Response(uiError, {
-                status: 500,
-                headers: { "Content-Type": "application/json" },
-            });
-        }
+        return new Response(uiError, {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
     }
 
-We start by writing a couple of error message for different error cases. You
-might want to get even more granular with these to give your users more
-granular error information, but we'll define just two cases for simplicity.
-
-We should make sure that we have the ``OPENAI_API_KEY`` environment variable
-set before proceeding, since we can't get an answer without it. We throw if it
-isn't set.
-
-Now, our handler will run the user's question through a few different steps as
-we build toward an answer.
+Our handler will run the user's question through a few different steps as we
+build toward an answer.
 
 1. We check that the query complies with the OpenAI's `usage policies
    <https://openai.com/policies/usage-policies>`_, which means that it should
    not include any hateful, harassing, or violent content. This is handled by
-   our ``moderateQuery`` function.
-2. If the query passes moderation, we generate embeddings for it using the
-   OpenAI embedding API. This is handled by our ``getEmbedding`` function.
+   our ``isQueryFlagged`` function.
+2. If the query fails, we throw. If it passes, we generate embeddings for it
+   using the OpenAI embedding API. This is handled by our ``getEmbedding``
+   function.
 3. We get related documentation sections from the EdgeDB database. This is
    handled by ``getContext``.
 4. We create the full prompt as our input to the chat completions API by
-   combining the question, related documentation sections, and a "system
-   message."
+   combining the question, related documentation sections, and a system
+   message.
 
 .. note::
 
@@ -1189,31 +1173,24 @@ Let's write our moderation request function: ``moderateQuery``. We will use the
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
 
-    async function moderateQuery(query: string, apiKey: string) {
-        const moderationResponse = await fetch(
-            "https://api.openai.com/v1/moderations",
-            {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${apiKey}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                input: query,
-            }),
-            }
-        ).then((res) => res.json());
+    async function isQueryFlagged(query: string) {
+      const moderation = await openai.moderations.create({
+        input: query,
+      });
 
-        const [results] = moderationResponse.results;
-        return results;
+      const [{ flagged }] = moderation.results;
+
+      return flagged;
     }
 
 The function is pretty straightforward: it takes the question (the ``query``
-parameter) and API key, fires off a request to the API, and returns the result.
+parameter), fires off a moderation request to the API, unpacks ``flagged`` from
+the results, and returns it.
+
 If the API finds an issue with the user's question, the response will have the
 ``flagged`` property set to ``true``. In that case we will throw a general
-error, but you could also inspect the response to find what categories are
-problematic and include more info in the error.
+error back in the handler, but you could also inspect the response to find what
+categories are problematic and include more info in the error.
 
 If the question passes moderation then we can generate the embeddings for the
 question.
@@ -1229,40 +1206,21 @@ called ``getEmbedding``.
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
 
-    async function getEmbedding(query: string, apiKey: string) {
-        const embeddingResponse = await fetch(
-            "https://api.openai.com/v1/embeddings",
-            {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${apiKey}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                model: "text-embedding-ada-002",
-                input: query.replaceAll("\n", " "),
-            }),
-            }
-        );
+    async function getEmbedding(query: string) {
+      const embeddingResponse = await openai.embeddings.create({
+        model: "text-embedding-ada-002",
+        input: query.replaceAll("\n", " "),
+      });
 
-        if (embeddingResponse.status !== 200) {
-            throw new Error(embeddingResponse.statusText);
-        }
+      const [{ embedding }] = embeddingResponse.data;
 
-        const {
-            data: [{ embedding }],
-        } = await embeddingResponse.json();
-
-        return embedding;
+      return embedding;
     }
 
-This new function again takes the question (as ``query``) and the API key. We
-build a fetch request to the appropriate endpoint, specifying the model to use
-for generation (the ``model`` property of the request's body).
-
-If the response status is not 200 ("OK"), we will throw an error. If we get the
-embeddings *without* an error we can query our embeddings database for related
-documentation sections.
+This new function again takes the question (as ``query``). We call the OpenAI
+library's ``embeddings.create`` method, specifying the model to use for
+generation (the ``model`` property of the request's body) and passing the input
+(``query`` with all newlines replaced by single spaces).
 
 
 Get related documentation sections request
@@ -1433,36 +1391,28 @@ This function takes the question (as ``query``) and the related documentation
 (as ``context``), combines them with a system message, and formats it all
 nicely for easy consumption by the chat completions API.
 
-We'll use the returned prompt from that function, along with the OpenAI API
-key, as arguments to a new function (``getOpenAiAnswer``) that will get the
-answer from the OpenAI and return it.
+We'll pass the prompt returned from that function as an argument to a new
+function (``getOpenAiAnswer``) that will get the answer from the OpenAI and
+return it.
 
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
 
-    async function getOpenAiAnswer(prompt: string, apiKey: string) {
-        const completionRequestObject = {
-            model: "gpt-3.5-turbo",
-            messages: [{ role: "user", content: prompt }],
-            max_tokens: 1024,
-            temperature: 0.1,
-            stream: true,
-        };
+    async function getOpenAiAnswer(prompt: string) {
+      const completion = await openai.chat.completions
+        .create({
+          model: "gpt-3.5-turbo",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 1024,
+          temperature: 0.1,
+          stream: true,
+        })
+        .asResponse();
 
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-            },
-            body: JSON.stringify(completionRequestObject),
-        });
-
-        return response.body;
+      return completion;
     }
 
-We start by building up an object to send through on the body of our request.
-We need to provide these parameters inside the request body:
+Let's take a look at the options we're sending through:
 
 * ``model``: The language model we want the chat completions API to use when
   answering the question. (You can alternatively use ``gpt-4`` to if you have
@@ -1513,6 +1463,7 @@ have a ready-made UI, or you can write your own from scratch.
     :caption: app/page.tsx
 
     import { useState } from "react";
+    import { errors } from "./constants";
 
     export default function Home() {
         const [prompt, setPrompt] = useState("");
@@ -1682,29 +1633,37 @@ our handler route while also sending the user's query.
 
       "use client";
 
-      import { useState, useRef } from "react";
+    - import { useState } from "react";
+    + import { useState, useRef } from "react";
     + import { SSE } from "sse.js";
+      import { errors } from "./constants";
 
       export default function Home() {
-          const eventSourceRef = useRef<SSE>();
+    +     const eventSourceRef = useRef<SSE>();
+    +
+          const [prompt, setPrompt] = useState("");
+          const [question, setQuestion] = useState("");
+          const [answer, setAnswer] = useState<string>("");
+          const [isLoading, setIsLoading] = useState(false);
+          const [error, setError] = useState<string | undefined>(undefined);
 
-          ...
-
-          const generateAnswer = async (query: string) => {
-              if (eventSourceRef.current) eventSourceRef.current.close();
-
-              const eventSource = new SSE(`api/generate-answer`, {
-                  payload: JSON.stringify({ query }),
-              });
-              eventSourceRef.current = eventSource;
-
-              eventSource.onerror = handleError;
-              eventSource.onmessage = handleMessage;
-              eventSource.stream();
-          };
-
-          handleError() { ... }
-          handleMessage() { ... }
+          const handleSubmit = () => {};
+    +
+    +     const generateAnswer = async (query: string) => {
+    +         if (eventSourceRef.current) eventSourceRef.current.close();
+    +
+    +         const eventSource = new SSE(`api/generate-answer`, {
+    +             payload: JSON.stringify({ query }),
+    +         });
+    +         eventSourceRef.current = eventSource;
+    +
+    +         eventSource.onerror = handleError;
+    +         eventSource.onmessage = handleMessage;
+    +         eventSource.stream();
+    +     };
+    +
+    +     handleError() { ... }
+    +     handleMessage() { ... }
       ...
 
 Note that we save a reference to the ``eventSource`` object. We need this in
@@ -1723,7 +1682,6 @@ Let's write these handlers.
 .. code-block:: typescript
     :caption: app/page.tsx
 
-    import { errors } from "./api/generate-answer/route";
     …
 
     function handleError(err: any) {
@@ -1756,6 +1714,149 @@ connection to the server will be closed. There is no data to be parsed in this
 case, so we return instead of trying to parse it. (An error will be thrown if
 we try to parse it in this case.)
 
+Put it all together, and you have this:
+
+.. code-block:: typescript
+
+    "use client";
+
+    import { useState, useRef } from "react";
+    import { SSE } from "sse.js";
+    import { errors } from "./constants";
+
+    export default function Home() {
+      const eventSourceRef = useRef<SSE>();
+
+      const [prompt, setPrompt] = useState("");
+      const [question, setQuestion] = useState("");
+      const [answer, setAnswer] = useState<string>("");
+      const [isLoading, setIsLoading] = useState(false);
+      const [error, setError] = useState<string | undefined>(undefined);
+
+      const handleSubmit = (
+        e: KeyboardEvent | React.MouseEvent<HTMLButtonElement>
+      ) => {
+        e.preventDefault();
+
+        setIsLoading(true);
+        setQuestion(prompt);
+        setAnswer("");
+        setPrompt("");
+        generateAnswer(prompt);
+      };
+
+      const generateAnswer = async (query: string) => {
+        if (eventSourceRef.current) eventSourceRef.current.close();
+
+        const eventSource = new SSE(`api/generate-answer`, {
+          payload: JSON.stringify({ query }),
+        });
+        eventSourceRef.current = eventSource;
+
+        eventSource.onerror = handleError;
+        eventSource.onmessage = handleMessage;
+        eventSource.stream();
+      };
+
+      function handleError(err: any) {
+        setIsLoading(false);
+
+        const errMessage =
+          err.data === errors.flagged ? errors.flagged : errors.default;
+
+        setError(errMessage);
+      }
+
+      function handleMessage(e: MessageEvent<any>) {
+        try {
+          setIsLoading(false);
+          if (e.data === "[DONE]") return;
+
+          const chunkResponse = JSON.parse(e.data);
+          const chunk = chunkResponse.choices[0].delta?.content || "";
+          setAnswer((answer) => answer + chunk);
+        } catch (err) {
+          handleError(err);
+        }
+      }
+
+      return (
+        <main className="w-screen h-screen flex items-center justify-center bg-[#2e2e2e]">
+          <form className="bg-[#2e2e2e] w-[540px] relative">
+            <input
+              className={`py-5 pl-6 pr-[40px] rounded-md bg-[#1f1f1f] w-full
+                outline-[#1f1f1f] focus:outline outline-offset-2 text-[#b3b3b3]
+                mb-8 placeholder-[#4d4d4d]`}
+              placeholder="Ask a question..."
+              value={prompt}
+              onChange={(e) => {
+                setPrompt(e.target.value);
+              }}
+            ></input>
+            <button
+              onClick={handleSubmit}
+              className="absolute top-[25px] right-4"
+              disabled={!prompt}
+            >
+              <ReturnIcon
+                className={`${!prompt ? "fill-[#4d4d4d]" : "fill-[#1b9873]"}`}
+              />
+            </button>
+            <div className="h-96 px-6">
+              {question && (
+                <p className="text-[#b3b3b3] pb-4 mb-8 border-b border-[#525252] ">
+                  {question}
+                </p>
+              )}
+              {(isLoading && <LoadingDots />) ||
+                (error && <p className="text-[#b3b3b3]">{error}</p>) ||
+                (answer && <p className="text-[#b3b3b3]">{answer}</p>)}
+            </div>
+          </form>
+        </main>
+      );
+    }
+
+    function ReturnIcon({ className }: { className?: string }) {
+      return (
+        <svg
+          width="20"
+          height="12"
+          viewBox="0 0 20 12"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className={className}
+        >
+          <path
+            fillRule="evenodd"
+            clipRule="evenodd"
+            d={`M12 0C11.4477 0 11 0.447715 11 1C11 1.55228 11.4477 2 12
+                2H17C17.5523 2 18 2.44771 18 3V6C18 6.55229 17.5523 7 17
+                7H3.41436L4.70726 5.70711C5.09778 5.31658 5.09778 4.68342 4.70726
+                4.29289C4.31673 3.90237 3.68357 3.90237 3.29304 4.29289L0.306297
+                7.27964L0.292893 7.2928C0.18663 7.39906 0.109281 7.52329 0.0608469
+                7.65571C0.0214847 7.76305 0 7.87902 0 8C0 8.23166 0.078771 8.44492
+                0.210989 8.61445C0.23874 8.65004 0.268845 8.68369 0.30107
+                8.71519L3.29289 11.707C3.68342 12.0975 4.31658 12.0975 4.70711
+                11.707C5.09763 11.3165 5.09763 10.6833 4.70711 10.2928L3.41431
+                9H17C18.6568 9 20 7.65685 20 6V3C20 1.34315 18.6568 0 17 0H12Z`}
+          />
+        </svg>
+      );
+    }
+
+    function LoadingDots() {
+      return (
+        <div className="grid gap-2">
+          <div className="flex items-center space-x-2 animate-pulse">
+            <div className="w-1 h-1 bg-[#b3b3b3] rounded-full"></div>
+            <div className="w-1 h-1 bg-[#b3b3b3] rounded-full"></div>
+            <div className="w-1 h-1 bg-[#b3b3b3] rounded-full"></div>
+          </div>
+        </div>
+      );
+    }
+
 With that, the UI can now get answers from the Next.js route. The build is
 complete, and it's time to try it out!
 
@@ -1771,7 +1872,6 @@ early in EdgeDB's development as of the time of this tutorial's publication).
 Some questions you might try:
 
 - "What is EdgeDB?"
-- "How do I introspect a function in EdgeDB?"
 - "Who is EdgeDB for?"
 - "How should I get started with EdgeDB?"
 
