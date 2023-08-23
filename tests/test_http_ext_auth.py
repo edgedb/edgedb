@@ -468,11 +468,16 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             session = await self.con.query(
                 """
-                SELECT ext::auth::Session { identity: { id } }
+                SELECT ext::auth::Session { token, identity: { id } }
                 """
             )
             self.assertEqual(len(session), 1)
             self.assertEqual(session[0].identity.id, identity[0].id)
+
+            set_cookie = headers.get("set-cookie")
+            assert set_cookie is not None
+            cookie_value = set_cookie.split(";")[0]
+            self.assertEqual(cookie_value, f"edgedb-session={session[0].token}")
 
             mock_provider.register_route_handler(*user_request)(
                 (

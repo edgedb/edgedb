@@ -60,3 +60,27 @@ class UserInfo:
             f"email={self.email!r} "
             f"preferred_username={self.preferred_username!r})"
         )
+
+
+@dataclasses.dataclass
+class Session:
+    """
+    Session data.
+    """
+
+    id: str
+    token: str
+    expires_at: str
+    created_at: str
+
+    def __str__(self) -> str:
+        return self.token
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"id={self.id!r} "
+            f"token={self.token!r} "
+            f"expires_at={self.expires_at!r} "
+            f"created_at={self.created_at!r})"
+        )

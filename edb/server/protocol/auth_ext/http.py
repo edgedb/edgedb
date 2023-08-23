@@ -81,9 +81,12 @@ class Router:
                         provider_id=provider_id,
                         base_url=test_url,
                     )
-                    await client.handle_callback(code)
+                    session = await client.handle_callback(code)
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = redirect_to
+                    response.custom_headers["Set-Cookie"] = (
+                        f"edgedb-session={session.token}; HttpOnly; Secure; SameSite=Strict"
+                    )
 
                 case _:
                     raise errors.NotFound("Unknown OAuth endpoint")

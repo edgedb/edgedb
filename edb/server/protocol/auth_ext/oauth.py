@@ -18,9 +18,11 @@
 
 
 import urllib.parse
+import json
 
 import httpx
 from edb.server.protocol import execute
+from edb.common import markup
 
 
 from typing import Any
@@ -78,16 +80,18 @@ class Client:
             state=state, redirect_uri=redirect_uri
         )
 
-    async def handle_callback(self, code: str) -> None:
+    async def handle_callback(self, code: str) -> data.Session:
         token = await self.provider.exchange_code(code)
         user_info = await self.provider.fetch_user_info(token)
 
-        await self._handle_identity(user_info)
+        session = await self._handle_identity(user_info)
 
-    async def _handle_identity(self, user_info: data.UserInfo) -> None:
+        return session
+
+    async def _handle_identity(self, user_info: data.UserInfo) -> data.Session:
         """Update or create an identity and session"""
 
-        await execute.parse_execute_json(
+        r = await execute.parse_execute_json(
             db=self.db,
             query="""\
 with
@@ -118,13 +122,16 @@ with
         identity := Identity,
     }
   )
-select Identity;""",
+select Session { * };""",
             variables={
                 "issuer_url": self.provider.issuer_url,
                 "provider_id": user_info.sub,
                 "email": user_info.email,
             },
         )
+        results = json.loads(r.decode())
+        assert len(results) == 1
+        return data.Session(**results[0])
 
     def _get_provider_config(self, provider_id: str) -> tuple[str, str, str]:
         provider_client_config = util.get_config(
