@@ -802,6 +802,19 @@ when we set ``embeddingResponse`` to the result of the call to
 ``openai.embeddings.create``, specifying the model and passing the entire array
 of contents.
 
+.. note::
+
+    One downside to this one-shot embedding generation approach is that we do
+    *not* get back token counts with the result where we *would* generating
+    embeddings for only a single string. Token counts are important because
+    they determine how many relevant sections we can send along with our input
+    to the chat completions API — the one that answers the user's question —
+    and still be within the model's token limit. To stay within the limit, we
+    need to know how many tokens each section has. Since we don't get them back
+    on a batched embedding generation, we used the `gpt-tokenizer
+    <https://www.npmjs.com/package/gpt-tokenizer>`_ library's ``encode``
+    function earlier to count them ourselves.
+
 Now, it's time to put those embeddings into our section objects by iterating
 through the response data.
 
@@ -821,16 +834,6 @@ through the response data.
       return sections;
     }
     …
-
-One downside to this one-shot embedding generation approach is that we do not
-get back token counts with the result. Token counts are important because they
-determine how many relevant sections we can send along with our input to the
-chat completions API — the one that answers the user's question — and still be
-within the model's token limit. To stay within the limit, we need to know how
-many tokens each section has. That's where the `gpt-tokenizer
-<https://www.npmjs.com/package/gpt-tokenizer>`_ library comes in. OpenAI only
-provides token counts for a single string. That means, we'll need to count them
-ourselves.
 
 You see this in action next as we iterate through all the embeddings we got
 back, adding both the embedding and the token lengths to their respective
