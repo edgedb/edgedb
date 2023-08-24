@@ -181,6 +181,8 @@ install EdgeDB!
 Install the EdgeDB CLI
 ----------------------
 
+*If you already have EdgeDB installed, you can skip to creating an instance.*
+
 Before we can create an instance for our project, we need to install the EdgeDB
 CLI. On Linux or MacOS, run the following in your terminal and follow the
 on-screen instructions:
