@@ -140,6 +140,40 @@ Update the ``compilerOptions`` object by setting the ``baseUrl`` property to
 the root with ``"baseUrl": "."``. Later when we add modules to the root of the
 project, this will make it easier to import them.
 
+.. code-block:: json-diff
+    :caption: tsconfig.json
+
+      {
+        "compilerOptions": {
+          "target": "es5",
+          "lib": ["dom", "dom.iterable", "esnext"],
+          "allowJs": true,
+          "skipLibCheck": true,
+          "strict": true,
+          "forceConsistentCasingInFileNames": true,
+          "noEmit": true,
+          "esModuleInterop": true,
+          "module": "esnext",
+          "moduleResolution": "bundler",
+          "resolveJsonModule": true,
+          "isolatedModules": true,
+          "jsx": "preserve",
+          "incremental": true,
+          "plugins": [
+            {
+              "name": "next"
+            }
+          ],
+          "paths": {
+            "@/*": ["./*"]
+    -     }
+    +     },
+    +     "baseUrl": "."
+        },
+        "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+        "exclude": ["node_modules"]
+      }
+
 Now, we'll create an instance of EdgeDB for our project, but first, we need to
 install EdgeDB!
 
