@@ -362,12 +362,9 @@ def value_from_json(spec, setting, value: str):
     return value_from_json_value(spec, setting, json.loads(value))
 
 
-def value_to_edgeql_const(setting: spec.Setting, value: Any) -> str:
-    if isinstance(setting.type, types.ConfigType):
-        raise NotImplementedError(
-            'cannot render non-scalar configuration value'
-        )
-
+def value_to_edgeql_const(
+    type: type | types.ConfigTypeSpec, value: Any
+) -> str:
     ql = s_utils.const_ast_from_python(value)
     return qlcodegen.generate_source(ql)
 
@@ -429,10 +426,18 @@ def to_edgeql(
     stmts = []
 
     for name, value in storage.items():
+        if name not in spec:
+            continue
         setting = spec[name]
-        val = value_to_edgeql_const(setting, value.value)
-        stmt = f'CONFIGURE {value.scope.to_edgeql()} SET {name} := {val};'
-        stmts.append(stmt)
+        if isinstance(setting.type, types.ConfigTypeSpec):
+            for x in value.value:
+                val = value_to_edgeql_const(setting.type, x)
+                stmt = f'CONFIGURE {value.scope.to_edgeql()}\n{val};'
+                stmts.append(stmt)
+        else:
+            val = value_to_edgeql_const(setting.type, value.value)
+            stmt = f'CONFIGURE {value.scope.to_edgeql()} SET {name} := {val};'
+            stmts.append(stmt)
 
     return '\n'.join(stmts)
 

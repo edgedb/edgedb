@@ -64,8 +64,7 @@ class ConfigType:
         raise NotImplementedError
 
 
-class CompositeConfigType(ConfigType):
-    _tspec: statypes.CompositeTypeSpec
+class CompositeConfigType(ConfigType, statypes.CompositeType):
     _compare_keys: tuple[str, ...]
 
     def __init__(self, tspec: statypes.CompositeTypeSpec, **kwargs) -> None:

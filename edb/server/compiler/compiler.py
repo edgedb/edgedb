@@ -931,13 +931,16 @@ class Compiler:
             global_schema
         )
 
-        config_spec = config.ChainedSpec(
-            self.state.config_spec,
+        sys_config_ddl = config.to_edgeql(
+            self.state.config_spec, database_config
+        )
+        # We need to put extension DDL configs *after* we have
+        # reloaded the schema
+        user_config_ddl = config.to_edgeql(
             config.load_ext_spec_from_schema(
                 user_schema, self.state.std_schema),
+            database_config,
         )
-
-        config_ddl = config.to_edgeql(config_spec, database_config)
 
         schema_ddl = s_ddl.ddl_text_from_schema(
             schema, include_migrations=True)
@@ -969,8 +972,11 @@ class Compiler:
         )
         descriptors = []
 
+        cfg_object = schema.get('cfg::ConfigObject', type=s_objtypes.ObjectType)
         for objtype in objtypes:
             if objtype.is_union_type(schema) or objtype.is_view(schema):
+                continue
+            if objtype.issubclass(schema, cfg_object):
                 continue
             descriptors.extend(_describe_object(schema, objtype,
                                                 protocol_version))
@@ -986,7 +992,7 @@ class Compiler:
             )
 
         return DumpDescriptor(
-            schema_ddl=config_ddl + '\n' + schema_ddl,
+            schema_ddl='\n'.join([sys_config_ddl, schema_ddl, user_config_ddl]),
             schema_dynamic_ddl=tuple(dynamic_ddl),
             schema_ids=ids,
             blocks=descriptors,

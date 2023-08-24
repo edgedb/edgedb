@@ -1200,6 +1200,21 @@ def const_ast_from_python(val: Any) -> qlast.Expr:
             ),
             expr=qlast.StringConstant(value=val.to_iso8601()),
         )
+    elif isinstance(val, statypes.CompositeType):
+        return qlast.InsertQuery(
+            subject=name_to_ast_ref(sn.name_from_string(val._tspec.name)),
+            shape=[
+                qlast.ShapeElement(
+                    expr=qlast.Path(steps=[qlast.Ptr(ptr=qlast.ObjectRef(
+                        name=ptr
+                    ))]),
+                    compexpr=const_ast_from_python(getattr(val, ptr)),
+                )
+                for ptr in val._tspec.fields
+            ],
+        )
+    elif isinstance(val, (set, frozenset)):
+        return qlast.Set(elements=[const_ast_from_python(x) for x in val])
     else:
         raise ValueError(f'unexpected constant type: {type(val)!r}')
 

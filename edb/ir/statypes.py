@@ -55,6 +55,10 @@ class CompositeTypeSpec:
         return self.name
 
 
+class CompositeType:
+    _tspec: CompositeTypeSpec
+
+
 class ScalarType:
     def __init__(self, val: str, /) -> None:
         raise NotImplementedError
