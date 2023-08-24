@@ -464,7 +464,7 @@ type.
 .. code-block:: sdl
     :caption: dbschema/default.esdl
 
-    …
+    using extension pgvector;
     module default {
       scalar type OpenAIEmbedding extending
         ext::pgvector::vector<1536>;
@@ -486,7 +486,11 @@ Now, the ``Section`` type:
 .. code-block:: sdl
     :caption: dbschema/default.esdl
 
-    …
+    using extension pgvector;
+    module default {
+      scalar type OpenAIEmbedding extending
+        ext::pgvector::vector<1536>;
+
       type Section {
         required content: str;
         required tokens: int16;
@@ -495,7 +499,7 @@ Now, the ``Section`` type:
         index ext::pgvector::ivfflat_cosine(lists := 3)
           on (.embedding);
       }
-    …
+    }
 
 The ``Section`` contains properties to store the content, a count of tokens,
 and the embedding, which is of the custom scalar type we created in the
@@ -708,7 +712,7 @@ and sort them.
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
-    …
+    // …
     async function walk(dir: string): Promise<string[]> {
       const entries = await fs.readdir(dir, { withFileTypes: true });
 
@@ -723,7 +727,7 @@ and sort them.
         )
       ).flat();
     }
-    …
+    // …
 
 The output it produces looks like this:
 
@@ -746,7 +750,7 @@ generate the embeddings. Let's walk through it one piece at a time.
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
-    …
+    // …
     async function prepareSectionsData(
       sectionPaths: string[]
     ): Promise<Section[]> {
@@ -767,7 +771,7 @@ generate the embeddings. Let's walk through it one piece at a time.
       }
       // The rest of the function
     }
-    …
+    // …
 
 We start with a parameter: an array of section paths. We create a couple of
 empty arrays for storing information about our sections (which will later
@@ -787,7 +791,7 @@ Onto the next bit!
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
-    …
+    // …
     async function prepareSectionsData(
       sectionPaths: string[]
     ): Promise<Section[]> {
@@ -800,7 +804,7 @@ Onto the next bit!
 
       // The rest
     }
-    …
+    // …
 
 Now, we generate embeddings from the content. We need to be careful about how
 we approach the API calls to generate the embeddings since they could have a
@@ -835,7 +839,7 @@ through the response data.
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
-    …
+    // …
     async function prepareSectionsData(
       sectionPaths: string[]
     ): Promise<Section[]> {
@@ -847,7 +851,7 @@ through the response data.
 
       return sections;
     }
-    …
+    // …
 
 We iterate through all the embeddings we got back, adding the embedding to its
 respective section. This final piece of data makes the section fully ready to
@@ -859,7 +863,7 @@ Here's the entire function assembled:
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
-    …
+    // …
     async function prepareSectionsData(
       sectionPaths: string[]
     ): Promise<Section[]> {
@@ -890,7 +894,7 @@ Here's the entire function assembled:
 
       return sections;
     }
-    …
+    // …
 
 .. note::
 
@@ -916,7 +920,7 @@ Again, we'll break the ``storeEmbeddings`` function apart and walk through it.
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
-    …
+    // …
     async function storeEmbeddings() {
       const client = edgedb.createClient();
 
@@ -928,7 +932,7 @@ Again, we'll break the ``storeEmbeddings`` function apart and walk through it.
 
       // The rest of the function
     }
-    …
+    // …
 
 We create our EdgeDB client and get our documentation paths by calling
 ``walk``. We also log out some debug information showing how many sections were
@@ -941,7 +945,7 @@ Next, we'll store this data.
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
-    …
+    // …
     async function storeEmbeddings() {
       // The parts we just talked about
 
@@ -962,7 +966,7 @@ Next, we'll store this data.
       await query.run(client, { sections });
       console.log("Embedding generation complete");
     }
-    …
+    // …
 
 The comments do a good job of explaining here, but let's go into a little more
 detail. First, we build and run a query that deletes all ``Section`` objects
@@ -975,7 +979,7 @@ Here's what the whole function looks like:
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
-    …
+    // …
     async function storeEmbeddings() {
       const client = edgedb.createClient();
 
@@ -1002,7 +1006,7 @@ Here's what the whole function looks like:
       await query.run(client, { sections });
       console.log("Embedding generation complete");
     }
-    …
+    // …
 
 
 Putting it all together
@@ -1275,7 +1279,7 @@ writing some configuration.
     const client = edgedb.createHttpClient();
 
     export async function POST(req: Request) {
-        …
+        // …
     }
 
     // other functions that are called inside POST handler
@@ -1299,7 +1303,7 @@ circle back to them later.
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
 
-    …
+    // …
 
     export async function POST(req: Request) {
       try {
@@ -2058,9 +2062,9 @@ connection to our handler route while also sending the user's query.
     +         eventSource.stream();
     +     };
     +
-    +     handleError() { … }
-    +     handleMessage() { … }
-      …
+    +     handleError() { /* … */ }
+    +     handleMessage() { /* … */ }
+      // …
 
 Note that we save a reference to the ``eventSource`` object. We need this in
 case a user submits a new question while answer to the previous one is still
@@ -2078,7 +2082,7 @@ Let's break down these handlers.
 .. code-block:: typescript
     :caption: app/page.tsx
 
-    …
+    // …
 
     function handleError(err: any) {
         setIsLoading(false);
