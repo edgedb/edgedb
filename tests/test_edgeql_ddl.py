@@ -16136,6 +16136,8 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             describe current database config
         ''')
         test_expected = textwrap.dedent('''\
+        CONFIGURE CURRENT DATABASE SET ext::conf::Config::config_name := \
+'ready';
         CONFIGURE CURRENT DATABASE INSERT ext::conf::Obj {
             name := '1',
             value := 'foo',
@@ -16145,12 +16147,10 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             value := 'bar',
         };
         CONFIGURE CURRENT DATABASE INSERT ext::conf::SubObj {
-            value := 'baz',
-            name := '3',
             extra := 42,
+            name := '3',
+            value := 'baz',
         };
-        CONFIGURE CURRENT DATABASE SET ext::conf::Config::config_name := \
-'ready';
         ''')
         self.assertEqual(val, test_expected)
 

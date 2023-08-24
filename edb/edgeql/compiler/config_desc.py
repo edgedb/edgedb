@@ -77,7 +77,9 @@ def _describe_config(
         schema, scope, config_object_name, cfg, testmode
     ))
     ext = schema.get('cfg::ExtensionConfig', type=s_objtypes.ObjectType)
-    for ext_cfg in ext.descendants(schema):
+    for ext_cfg in sorted(
+        ext.descendants(schema), key=lambda x: x.get_name(schema)
+    ):
         items.extend(_describe_config_inner(
             schema, scope, config_object_name, ext_cfg, testmode
         ))
@@ -116,7 +118,10 @@ def _describe_config_inner(
     )
 
     items = []
-    for ptr_name, p in cfg.get_pointers(schema).items(schema):
+    for ptr_name, p in sorted(
+        cfg.get_pointers(schema).items(schema),
+        key=lambda x: x[0],
+    ):
         pn = str(ptr_name)
         if pn in ('id', '__type__') or p.get_computable(schema):
             continue
@@ -348,7 +353,10 @@ def _describe_config_object(
     layouts = {}
     for cfg in cfg_types:
         items = []
-        for ptr_name, p in cfg.get_pointers(schema).items(schema):
+        for ptr_name, p in sorted(
+            cfg.get_pointers(schema).items(schema),
+            key=lambda x: x[0],
+        ):
             pn = str(ptr_name)
             if (
                 pn in ('id', '__type__')
