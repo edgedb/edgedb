@@ -164,9 +164,7 @@ class Router:
             "ext::auth::AuthConfig::token_time_to_live",
             statypes.Duration
         )
-        expires_in = datetime.timedelta(
-            microseconds=auth_expiration_time.to_microseconds()
-        )
+        expires_in = auth_expiration_time.to_timedelta()
         expires_at = datetime.datetime.utcnow() + expires_in
 
         claims = {
