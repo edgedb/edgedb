@@ -652,8 +652,8 @@ tasks we need to perform.
 
 
 At the top are all imports we will need throughout the file. The second to last
-import is the query builder we generated earlier, and the last one is our
-OpenAI API client.
+import is the query builder we generated earlier, and the last one is the
+function that initializes our OpenAI API client.
 
 After the imports, we use the ``dotenv`` library to import environment
 variables from the ``.env.local`` file. (In our case, that's
