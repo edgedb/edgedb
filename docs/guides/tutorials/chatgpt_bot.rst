@@ -665,6 +665,8 @@ function that initializes our OpenAI API client.
 After the imports, we use the ``dotenv`` library to import environment
 variables from the ``.env.local`` file.
 
+Then, we initialize our OpenAI API client by calling ``initOpenAIClient``.
+
 Next, we define a ``Section`` TypeScript interface that corresponds to
 the ``Section`` type we have defined in the schema.
 
