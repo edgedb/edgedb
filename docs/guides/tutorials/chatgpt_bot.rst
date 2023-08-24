@@ -299,7 +299,6 @@ app work. To get one:
 Copy the new key. Re-open your ``.env.local`` file and add it like this:
 
 .. code-block:: -diff
-    :caption: .env.local
 
       EDGEDB_DSN=<your-dsn>
       EDGEDB_CLIENT_TLS_SECURITY="insecure"
