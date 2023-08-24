@@ -651,7 +651,6 @@ tasks we need to perform.
 
     interface Section {
       id?: string;
-      path: string;
       tokens: number;
       content: string;
       embedding: number[];
