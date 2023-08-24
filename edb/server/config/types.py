@@ -25,7 +25,6 @@ from edb import errors
 from edb.common import typeutils
 from edb.common import typing_inspect
 from edb.schema import objects as s_obj
-from edb.schema import name as s_name
 
 from edb.ir import statypes
 
@@ -65,8 +64,7 @@ class ConfigType:
         raise NotImplementedError
 
 
-class CompositeConfigType(ConfigType):
-    _tspec: statypes.CompositeTypeSpec
+class CompositeConfigType(ConfigType, statypes.CompositeType):
     _compare_keys: tuple[str, ...]
 
     def __init__(self, tspec: statypes.CompositeTypeSpec, **kwargs) -> None:
@@ -111,14 +109,15 @@ class CompositeConfigType(ConfigType):
                      tspec: statypes.CompositeTypeSpec,
                      spec: spec.Spec,
                      allow_missing=False) -> CompositeConfigType:
+        if allow_missing and data is None:
+            return None  # type: ignore
+
         if not isinstance(data, dict):
             raise cls._err(tspec, f'expected a dict value, got {type(data)!r}')
 
         data = dict(data)
         tname = data.pop('_tname', None)
         if tname is not None:
-            if '::' in tname:
-                tname = s_name.QualName.from_string(tname).name
             tspec = spec.get_type_by_name(tname)
         assert tspec
 
@@ -171,8 +170,6 @@ class CompositeConfigType(ConfigType):
 
                 tname = value.get('_tname', None)
                 if tname is not None:
-                    if '::' in tname:
-                        tname = s_name.QualName.from_string(tname).name
                     actual_f_type = spec.get_type_by_name(tname)
                 else:
                     actual_f_type = f_type

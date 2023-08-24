@@ -123,6 +123,37 @@ ALTER TYPE cfg::AbstractConfig {
 };
 
 
+# For testing configs defined in extensions
+create extension package _conf VERSION '1.0' {
+    set ext_module := "ext::_conf";
+    set sql_extensions := [];
+    create module ext::_conf;
+
+    create type ext::_conf::Obj extending cfg::ConfigObject {
+        create required property name -> std::str {
+            set readonly := true;
+            create constraint std::exclusive;
+        };
+        create required property value -> std::str {
+            set readonly := true;
+        };
+    };
+    create type ext::_conf::SubObj extending ext::_conf::Obj {
+        create required property extra -> int64 {
+            set readonly := true;
+        };
+    };
+
+    create type ext::_conf::Config extending cfg::ExtensionConfig {
+        create multi link objs -> ext::_conf::Obj;
+
+        create property config_name -> std::str {
+            set default := "";
+        };
+    };
+};
+
+
 # std::_gen_series
 
 CREATE FUNCTION

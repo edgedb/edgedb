@@ -931,7 +931,16 @@ class Compiler:
             global_schema
         )
 
-        config_ddl = config.to_edgeql(self.state.config_spec, database_config)
+        sys_config_ddl = config.to_edgeql(
+            self.state.config_spec, database_config
+        )
+        # We need to put extension DDL configs *after* we have
+        # reloaded the schema
+        user_config_ddl = config.to_edgeql(
+            config.load_ext_spec_from_schema(
+                user_schema, self.state.std_schema),
+            database_config,
+        )
 
         schema_ddl = s_ddl.ddl_text_from_schema(
             schema, include_migrations=True)
@@ -963,8 +972,11 @@ class Compiler:
         )
         descriptors = []
 
+        cfg_object = schema.get('cfg::ConfigObject', type=s_objtypes.ObjectType)
         for objtype in objtypes:
             if objtype.is_union_type(schema) or objtype.is_view(schema):
+                continue
+            if objtype.issubclass(schema, cfg_object):
                 continue
             descriptors.extend(_describe_object(schema, objtype,
                                                 protocol_version))
@@ -980,7 +992,7 @@ class Compiler:
             )
 
         return DumpDescriptor(
-            schema_ddl=config_ddl + '\n' + schema_ddl,
+            schema_ddl='\n'.join([sys_config_ddl, schema_ddl, user_config_ddl]),
             schema_dynamic_ddl=tuple(dynamic_ddl),
             schema_ids=ids,
             blocks=descriptors,
@@ -1845,6 +1857,25 @@ def _compile_ql_sess_state(
     )
 
 
+def _get_config_spec(
+    ctx: CompileContext, config_op: config.Operation
+) -> config.Spec:
+    config_spec = ctx.compiler_state.config_spec
+    if config_op.setting_name not in config_spec:
+        # We don't typically bother tracking the user config spec in
+        # the compiler workers (to avoid needing to bother with
+        # transmitting, caching, or computing it). If we hit a config
+        # op that needs it, load the spec.
+        config_spec = config.ChainedSpec(
+            config_spec,
+            config.load_ext_spec_from_schema(
+                ctx.state.current_tx().get_user_schema(),
+                ctx.compiler_state.std_schema,
+            ),
+        )
+    return config_spec
+
+
 def _compile_ql_config_op(
     ctx: CompileContext, ql: qlast.ConfigOp
 ) -> dbstate.SessionStateQuery:
@@ -1915,19 +1946,24 @@ def _compile_ql_config_op(
         config_op = ireval.evaluate_to_config_op(ir, schema=schema)
 
         session_config = config_op.apply(
-            ctx.compiler_state.config_spec,
+            _get_config_spec(ctx, config_op),
             session_config,
         )
         current_tx.update_session_config(session_config)
 
     elif ql.scope is qltypes.ConfigScope.DATABASE:
-        config_op = ireval.evaluate_to_config_op(ir, schema=schema)
-
-        database_config = config_op.apply(
-            ctx.compiler_state.config_spec,
-            database_config,
-        )
-        current_tx.update_database_config(database_config)
+        try:
+            config_op = ireval.evaluate_to_config_op(ir, schema=schema)
+        except ireval.UnsupportedExpressionError:
+            # This is a complex config object operation, the
+            # op will be produced by the compiler as json.
+            config_op = None
+        else:
+            database_config = config_op.apply(
+                _get_config_spec(ctx, config_op),
+                database_config,
+            )
+            current_tx.update_database_config(database_config)
 
     elif ql.scope in (
             qltypes.ConfigScope.INSTANCE, qltypes.ConfigScope.GLOBAL):
@@ -2285,10 +2321,11 @@ def _try_compile(
 
                 unit.system_config = True
             elif comp.config_scope is qltypes.ConfigScope.GLOBAL:
-                unit.set_global = True
+                unit.needs_readback = True
 
             elif comp.config_scope is qltypes.ConfigScope.DATABASE:
                 unit.database_config = True
+                unit.needs_readback = True
 
             if comp.is_backend_setting:
                 unit.backend_config = True

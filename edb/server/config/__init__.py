@@ -28,18 +28,21 @@ from edb.edgeql.qltypes import ConfigScope
 from .ops import OpCode, Operation, SettingValue
 from .ops import spec_to_json, to_json, from_json, set_value, to_edgeql
 from .ops import value_from_json, value_to_json_value, coerce_single_value
-from .spec import Spec, Setting, load_spec_from_schema
+from .spec import (
+    Spec, FlatSpec, ChainedSpec, Setting,
+    load_spec_from_schema, load_ext_spec_from_schema,
+)
 from .types import ConfigType, CompositeConfigType
 
 
 __all__ = (
     'lookup',
-    'Spec', 'Setting', 'SettingValue',
+    'Spec', 'FlatSpec', 'ChainedSpec', 'Setting', 'SettingValue',
     'spec_to_json', 'to_json', 'to_edgeql', 'from_json', 'set_value',
     'value_from_json', 'value_to_json_value',
     'ConfigScope', 'OpCode', 'Operation',
     'ConfigType', 'CompositeConfigType',
-    'load_spec_from_schema',
+    'load_spec_from_schema', 'load_ext_spec_from_schema',
     'get_compilation_config',
     'coerce_single_value',
 )
@@ -80,5 +83,6 @@ def get_compilation_config(
     return immutables.Map((
         (k, v)
         for k, v in config.items()
+        if k in spec
         if spec[k].affects_compilation
     ))

@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from abc import abstractmethod
+
 import collections.abc
 import dataclasses
 import json
@@ -97,7 +99,28 @@ class Setting:
 
 
 class Spec(collections.abc.Mapping):
+    @abstractmethod
+    def get_type_by_name(self, name: str) -> types.ConfigTypeSpec:
+        raise NotImplementedError
 
+    @abstractmethod
+    def __iter__(self) -> Iterator[str]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def __getitem__(self, name: str) -> Setting:
+        raise NotImplementedError
+
+    @abstractmethod
+    def __contains__(self, name: object) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def __len__(self) -> int:
+        raise NotImplementedError
+
+
+class FlatSpec(Spec):
     def __init__(self, *settings: Setting):
         self._settings = tuple(settings)
         self._by_name = {s.name: s for s in self._settings}
@@ -121,7 +144,7 @@ class Spec(collections.abc.Mapping):
     def get_type_by_name(self, name: str) -> types.ConfigTypeSpec:
         return self._types_by_name[name]
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         return iter(self._by_name)
 
     def __getitem__(self, name: str) -> Setting:
@@ -134,17 +157,80 @@ class Spec(collections.abc.Mapping):
         return len(self._settings)
 
 
-def load_spec_from_schema(schema: s_schema.Schema) -> Spec:
-    cfg = schema.get('cfg::Config', type=s_objtypes.ObjectType)
+class ChainedSpec(Spec):
+    def __init__(self, base: Spec, top: Spec):
+        self._base = base
+        self._top = top
+
+    def get_type_by_name(self, name: str) -> types.ConfigTypeSpec:
+        try:
+            return self._top.get_type_by_name(name)
+        except KeyError:
+            return self._base.get_type_by_name(name)
+
+    def __iter__(self) -> Iterator[str]:
+        yield from self._top
+        yield from self._base
+
+    def __getitem__(self, name: str) -> Setting:
+        if name in self._top:
+            return self._top[name]
+        else:
+            return self._base[name]
+        return self._by_name[name]
+
+    def __contains__(self, name: object) -> bool:
+        return name in self._top or name in self._base
+
+    def __len__(self) -> int:
+        return len(self._top) + len(self._base)
+
+
+def load_spec_from_schema(
+    schema: s_schema.Schema, only_exts: bool=False
+) -> Spec:
+    settings = []
+    if not only_exts:
+        cfg = schema.get('cfg::Config', type=s_objtypes.ObjectType)
+        settings.extend(_load_spec_from_type(schema, cfg))
+
+    ext_cfg = schema.get('cfg::ExtensionConfig', type=s_objtypes.ObjectType)
+    for ecfg in ext_cfg.descendants(schema):
+        if not ecfg.get_abstract(schema):
+            settings.extend(_load_spec_from_type(schema, ecfg))
+
+    return FlatSpec(*settings)
+
+
+def load_ext_spec_from_schema(
+    user_schema: s_schema.Schema,
+    std_schema: s_schema.Schema,
+) -> Spec:
+    schema = s_schema.ChainedSchema(
+        std_schema, user_schema, s_schema.EMPTY_SCHEMA
+    )
+    return load_spec_from_schema(schema, only_exts=True)
+
+
+def _load_spec_from_type(
+    schema: s_schema.Schema, cfg: s_objtypes.ObjectType
+) -> list[Setting]:
     settings = []
 
+    cfg_name = str(cfg.get_name(schema))
+    is_root = cfg_name == 'cfg::Config'
     for ptr_name, p in cfg.get_pointers(schema).items(schema):
         pn = str(ptr_name)
-        if pn in ('id', '__type__'):
+        if pn in ('id', '__type__') or p.get_computable(schema):
             continue
 
         ptype = p.get_target(schema)
         assert ptype
+
+        # Skip backlinks to the base object. The will get plenty of
+        # special treatment.
+        if str(ptype.get_name(schema)) == 'cfg::AbstractConfig':
+            continue
 
         pytype: type | types.ConfigTypeSpec
         if isinstance(ptype, s_objtypes.ObjectType):
@@ -158,6 +244,7 @@ def load_spec_from_schema(schema: s_schema.Schema) -> Spec:
         attributes = {
             a: json.loads(v.get_value(schema))
             for a, v in p.get_annotations(schema).items(schema)
+            if isinstance(a, sn.QualName) and a.module == 'cfg'
         }
 
         ptr_card = p.get_cardinality(schema)
@@ -178,6 +265,9 @@ def load_spec_from_schema(schema: s_schema.Schema) -> Spec:
                 raise RuntimeError(f'cfg::Config.{pn} has no default')
             else:
                 deflt = None
+
+        if not is_root:
+            pn = f'{cfg_name}::{pn}'
 
         setting = Setting(
             pn,
@@ -203,4 +293,4 @@ def load_spec_from_schema(schema: s_schema.Schema) -> Spec:
 
         settings.append(setting)
 
-    return Spec(*settings)
+    return settings

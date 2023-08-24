@@ -389,7 +389,6 @@ def object_type_to_spec(
         _memo = {}
     default: Any
     fields = {}
-    subclasses = []
 
     for pn, p in objtype.get_pointers(schema).items(schema):
         assert isinstance(p, s_pointers.Pointer)
@@ -407,13 +406,6 @@ def object_type_to_spec(
                     ptype, schema, spec_class=spec_class,
                     parent=parent, _memo=_memo)
                 _memo[ptype] = pytype
-
-                for subtype in ptype.children(schema):
-                    subclasses.append(
-                        object_type_to_spec(
-                            subtype, schema,
-                            spec_class=spec_class,
-                            parent=pytype, _memo=_memo))
         else:
             pytype = scalar_type_to_python_type(ptype, schema)
 
@@ -446,11 +438,20 @@ def object_type_to_spec(
             name=str_pn, type=pytype, unique=unique, default=default
         )
 
-    return spec_class(
-        name=objtype.get_name(schema).name,
+    spec = spec_class(
+        name=str(objtype.get_name(schema)),
         fields=immutables.Map(fields),
         parent=parent,
     )
+
+    for subtype in objtype.children(schema):
+        spec.children.append(
+            object_type_to_spec(
+                subtype, schema,
+                spec_class=spec_class,
+                parent=spec, _memo=_memo))
+
+    return spec
 
 
 @functools.singledispatch

@@ -2018,8 +2018,12 @@ def rvar_for_rel(
     typeref: Optional[irast.TypeRef] = None,
     lateral: bool = False,
     colnames: Optional[List[str]] = None,
-    ctx: context.CompilerContextLevel,
+    ctx: Optional[context.CompilerContextLevel] = None,
+    env: Optional[context.Environment] = None,
 ) -> pgast.PathRangeVar:
+    if ctx:
+        env = ctx.env
+    assert env
 
     rvar: pgast.PathRangeVar
 
@@ -2027,7 +2031,7 @@ def rvar_for_rel(
         colnames = []
 
     if isinstance(rel, pgast.Query):
-        alias = alias or ctx.env.aliases.get(rel.name or 'q')
+        alias = alias or env.aliases.get(rel.name or 'q')
 
         rvar = pgast.RangeSubselect(
             subquery=rel,
@@ -2036,7 +2040,7 @@ def rvar_for_rel(
             typeref=typeref,
         )
     else:
-        alias = alias or ctx.env.aliases.get(rel.name or '')
+        alias = alias or env.aliases.get(rel.name or '')
 
         rvar = pgast.RelRangeVar(
             relation=rel,

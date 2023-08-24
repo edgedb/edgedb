@@ -21,7 +21,9 @@ from __future__ import annotations
 
 from edb import errors
 from edb.ir import ast as irast
+from edb.ir import typeutils as irtyputils
 
+from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
 from edb.schema import casts as s_casts
@@ -344,7 +346,7 @@ def compile_ConfigReset(
         if rvar is not None:
             stmt.from_clause = [rvar]
 
-    elif op.scope is qltypes.ConfigScope.DATABASE:
+    elif op.scope is qltypes.ConfigScope.DATABASE and op.selector is None:
         stmt = pgast.DeleteStmt(
             relation=pgast.RelRangeVar(
                 relation=pgast.Relation(
@@ -358,6 +360,154 @@ def compile_ConfigReset(
                 rexpr=pgast.StringConstant(val=op.name),
                 op='=',
             ),
+        )
+
+    elif op.scope is qltypes.ConfigScope.DATABASE and op.selector is not None:
+        # For FILTERed RESET on the database, we have to do a decent
+        # amount of work to actually delete the RESET objects from the
+        # json config blogs.
+        #
+        # This is because the server isn't set up to write back just
+        # the changed parts of the config based on interpreting the output,
+        # so instead we do all the work here.
+        with context.output_format(ctx, context.OutputFormat.JSONB):
+            selector = dispatch.compile(op.selector, ctx=ctx)
+
+        assert isinstance(selector, pgast.SelectStmt), \
+            "expected ast.SelectStmt"
+        target = selector.target_list[0]
+        if not target.name:
+            target = selector.target_list[0] = pgast.ResTarget(
+                name=ctx.env.aliases.get('res'),
+                val=target.val,
+            )
+            assert target.name is not None
+
+        rvar = relctx.rvar_for_rel(selector, ctx=ctx)
+
+        assert isinstance(op.selector.expr, irast.SelectStmt)
+
+        # Grab all the non-link properties of the object as keys. We
+        # could just do the exclusive ones, but this works too and we
+        # have the information at hand.
+        # XXX: Do we need to consider _tname also?
+        keys = [
+            el.rptr.ptrref.shortname.name
+            for el, op in op.selector.expr.result.shape
+            if el.rptr
+            and op == qlast.ShapeOp.ASSIGN
+            and not irtyputils.is_object(el.rptr.ptrref.out_target)
+        ]
+
+        newval = pgast.SelectStmt(
+            target_list=[pgast.ResTarget(
+                val=pgast.FuncCall(
+                    name=('jsonb_agg',),
+                    args=[pgast.ColumnRef(name=['ov', 'value'])],
+                ),
+            )],
+            from_clause=[
+                pgast.RangeFunction(
+                    lateral=True,
+                    alias=pgast.Alias(aliasname='ov'),
+                    functions=[pgast.FuncCall(
+                        name=('jsonb_array_elements',),
+                        args=[pgast.ColumnRef(name=['value'])],
+                    )],
+                ),
+            ],
+            where_clause=(
+                pgast.SubLink(
+                    operator="NOT EXISTS",
+                    expr=pgast.SelectStmt(
+                        from_clause=[rvar],
+                        where_clause=astutils.extend_binop(
+                            None,
+                            *[
+                                pgast.Expr(
+                                    name='=',
+                                    lexpr=pgast.Expr(
+                                        name='->',
+                                        lexpr=pgast.ColumnRef(name=[
+                                            rvar.alias.aliasname,
+                                            target.name,
+                                        ]),
+                                        rexpr=pgast.StringConstant(val=key),
+                                    ),
+                                    rexpr=pgast.CoalesceExpr(
+                                        args=[
+                                            pgast.Expr(
+                                                name='->',
+                                                lexpr=pgast.ColumnRef(name=[
+                                                    'ov', 'value'
+                                                ]),
+                                                rexpr=pgast.StringConstant(
+                                                    val=key
+                                                ),
+                                            ),
+                                            pgast.TypeCast(
+                                                arg=pgast.StringConstant(
+                                                    val='null'),
+                                                type_name=pgast.TypeName(
+                                                    name=('jsonb',),
+                                                ),
+                                            ),
+                                        ]
+                                    )
+                                )
+                                for key in keys
+                            ],
+                        )
+                    )
+                )
+            ),
+        )
+
+        stmt = pgast.UpdateStmt(
+            targets=[pgast.UpdateTarget(
+                name='value',
+                val=newval,
+            )],
+            relation=pgast.RelRangeVar(
+                relation=pgast.Relation(
+                    name='_db_config',
+                    schemaname='edgedb',
+                ),
+            ),
+            where_clause=astutils.new_binop(
+                lexpr=pgast.ColumnRef(name=['name']),
+                rexpr=pgast.StringConstant(val=op.name),
+                op='=',
+            ),
+            returning_list=[pgast.ResTarget(
+                val=pgast.CaseExpr(
+                    args=[
+                        pgast.CaseWhen(
+                            expr=pgast.NullTest(
+                                arg=pgast.ColumnRef(name=['value'])
+                            ),
+                            result=pgast.FuncCall(
+                                name=('jsonb_build_array',),
+                                args=[
+                                    pgast.StringConstant(val='RESET'),
+                                    pgast.StringConstant(val=str(op.scope)),
+                                    pgast.StringConstant(val=op.name),
+                                    pgast.NullConstant(),
+                                ],
+                            )
+                        ),
+                    ],
+                    defresult=pgast.FuncCall(
+                        name=('jsonb_build_array',),
+                        args=[
+                            pgast.StringConstant(val='SET'),
+                            pgast.StringConstant(val=str(op.scope)),
+                            pgast.StringConstant(val=op.name),
+                            pgast.ColumnRef(name=['value']),
+                        ],
+                    )
+                )
+            )],
         )
 
     elif op.scope is qltypes.ConfigScope.SESSION:
@@ -558,31 +708,122 @@ def top_output_as_config_op(
         env: context.Environment) -> pgast.Query:
 
     assert isinstance(ir_set.expr, irast.ConfigCommand)
+    op = ir_set.expr
 
-    if ir_set.expr.scope is qltypes.ConfigScope.INSTANCE:
-        alias = env.aliases.get('cfg')
-        subrvar = pgast.RangeSubselect(
-            subquery=stmt,
-            alias=pgast.Alias(
-                aliasname=alias,
-            )
+    alias = env.aliases.get('cfg')
+    cte = pgast.CommonTableExpr(query=stmt, name=alias)
+    ctes = [cte]
+
+    subrvar = relctx.rvar_for_rel(cte, env=env)
+
+    stmt_res = stmt.target_list[0]
+
+    if stmt_res.name is None:
+        stmt_res = stmt.target_list[0] = pgast.ResTarget(
+            name=env.aliases.get('v'),
+            val=stmt_res.val,
+        )
+        assert stmt_res.name is not None
+    val = pgast.ColumnRef(name=[stmt_res.name])
+
+    # FIXME: Can the duplication with other db cases be reduced?
+    if op.scope is qltypes.ConfigScope.DATABASE:
+        sval = pgast.SelectStmt(
+            target_list=[pgast.ResTarget(val=val)], from_clause=[subrvar])
+        ins_val = pgast.FuncCall(
+            name=('jsonb_build_array',),
+            args=[sval],
+            null_safe=True,
+            ser_safe=True,
         )
 
-        stmt_res = stmt.target_list[0]
+        old_val = pgast.CoalesceExpr(
+            args=[
+                pgast.ColumnRef(name=['edgedb', '_db_config', 'value']),
+                pgast.TypeCast(
+                    arg=pgast.StringConstant(val='[]'),
+                    type_name=pgast.TypeName(
+                        name=('jsonb',),
+                    ),
+                ),
+            ],
+        )
+        upd_val = pgast.Expr(
+            name='||',
+            lexpr=old_val,
+            rexpr=ins_val,
+        )
 
-        if stmt_res.name is None:
-            stmt_res = stmt.target_list[0] = pgast.ResTarget(
-                name=env.aliases.get('v'),
-                val=stmt_res.val,
-            )
-            assert stmt_res.name is not None
+        ins = pgast.InsertStmt(
+            relation=pgast.RelRangeVar(
+                relation=pgast.Relation(
+                    name='_db_config',
+                    schemaname='edgedb',
+                ),
+            ),
+            select_stmt=pgast.SelectStmt(
+                values=[
+                    pgast.ImplicitRowExpr(
+                        args=[
+                            pgast.StringConstant(
+                                val=op.name,
+                            ),
+                            ins_val,
+                        ]
+                    )
+                ],
+            ),
+            cols=[
+                pgast.InsertTarget(name='name'),
+                pgast.InsertTarget(name='value'),
+            ],
+            on_conflict=pgast.OnConflictClause(
+                action='update',
+                infer=pgast.InferClause(
+                    index_elems=[
+                        pgast.ColumnRef(name=['name']),
+                    ],
+                ),
+                target_list=[
+                    pgast.MultiAssignRef(
+                        columns=[pgast.ColumnRef(name=['value'])],
+                        source=pgast.RowExpr(
+                            args=[
+                                upd_val,
+                            ],
+                        ),
+                    ),
+                ],
+            ),
+            returning_list=[
+                pgast.ResTarget(
+                    val=pgast.ColumnRef(name=[pgast.Star()])
+                )
+            ],
+        )
+        ctes.append(
+            pgast.CommonTableExpr(query=ins, name=env.aliases.get('ins'))
+        )
 
+        subrvar = relctx.rvar_for_rel(ctes[-1], env=env)
+        val = pgast.ColumnRef(name=['value'])
+
+    if ir_set.expr.scope in (
+        qltypes.ConfigScope.INSTANCE, qltypes.ConfigScope.DATABASE
+    ):
+        # For database config, we do SET, and we return the entire new
+        # value, in order to avoid race conditions in duplicate
+        # checking.
+        command = (
+            'SET' if ir_set.expr.scope is qltypes.ConfigScope.DATABASE
+            else 'ADD'
+        )
         result_row = pgast.RowExpr(
             args=[
-                pgast.StringConstant(val='ADD'),
+                pgast.StringConstant(val=command),
                 pgast.StringConstant(val=str(ir_set.expr.scope)),
                 pgast.StringConstant(val=ir_set.expr.name),
-                pgast.ColumnRef(name=[stmt_res.name]),
+                val,
             ]
         )
 
@@ -602,9 +843,9 @@ def top_output_as_config_op(
             from_clause=[
                 subrvar,
             ],
+            ctes=ctes + (stmt.ctes or []),
         )
 
-        result.ctes = stmt.ctes
         stmt.ctes = []
 
         return result

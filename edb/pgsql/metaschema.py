@@ -3144,11 +3144,9 @@ class SysConfigFullFunction(dbops.Function):
                 (s.value->>'typemod') AS typemod,
                 (s.value->>'backend_setting') AS backend_setting
             FROM
-                jsonb_each(
-                    (SELECT json
-                    FROM edgedbinstdata.instdata
-                    WHERE key = 'configspec')
-                ) AS s
+                edgedbinstdata.instdata as id,
+            LATERAL jsonb_each(id.json) AS s
+            WHERE id.key LIKE 'configspec%'
         ),
 
         config_defaults AS (
@@ -3425,7 +3423,8 @@ class SysConfigFullFunction(dbops.Function):
                         SELECT * FROM pg_all_settings
                     ) AS q
                 WHERE
-                    ($1 IS NULL OR
+                    q.value IS NOT NULL
+                    AND ($1 IS NULL OR
                         q.source::edgedb._sys_config_source_t = any($1)
                     )
                     AND ($2 IS NULL OR
@@ -3469,6 +3468,9 @@ class SysConfigFullFunction(dbops.Function):
         )
 
 
+# TODO: Calling this function repeatedly in config introspection
+# queries can lead to performance problems. Could we cache the results
+# in _edgecon_state or something?
 class SysConfigFunction(dbops.Function):
 
     text = f'''
@@ -3532,6 +3534,10 @@ class ResetSessionConfigFunction(dbops.Function):
         )
 
 
+# TODO: Support extension-defined configs that affect the backend
+# Not needed for supporting auth, so can skip temporarily.
+# If perf seems to matter, can hardcode things for base config
+# and consult json for just extension stuff.
 class ApplySessionConfigFunction(dbops.Function):
     """Apply an EdgeDB config setting to the backend, if possible.
 
@@ -6155,49 +6161,47 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
     )
 
 
+def get_config_type_views(
+    schema: s_schema.Schema,
+    conf: s_objtypes.ObjectType,
+    scope: Optional[qltypes.ConfigScope],
+) -> dbops.CommandGroup:
+    commands = dbops.CommandGroup()
+
+    cfg_views, _ = _generate_config_type_view(
+        schema,
+        conf,
+        scope=scope,
+        path=[],
+        rptr=None,
+    )
+    commands.add_commands([
+        dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
+        for tn, q in cfg_views
+    ])
+
+    return commands
+
+
 def get_config_views(
     schema: s_schema.Schema,
 ) -> dbops.CommandGroup:
     commands = dbops.CommandGroup()
 
     conf = schema.get('cfg::Config', type=s_objtypes.ObjectType)
-    cfg_views, _ = _generate_config_type_view(
-        schema,
-        conf,
-        scope=None,
-        path=[],
-        rptr=None,
+    commands.add_command(
+        get_config_type_views(schema, conf, scope=None),
     )
-    commands.add_commands([
-        dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
-        for tn, q in cfg_views
-    ])
 
     conf = schema.get('cfg::InstanceConfig', type=s_objtypes.ObjectType)
-    cfg_views, _ = _generate_config_type_view(
-        schema,
-        conf,
-        scope=qltypes.ConfigScope.INSTANCE,
-        path=[],
-        rptr=None,
+    commands.add_command(
+        get_config_type_views(schema, conf, scope=qltypes.ConfigScope.INSTANCE),
     )
-    commands.add_commands([
-        dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
-        for tn, q in cfg_views
-    ])
 
     conf = schema.get('cfg::DatabaseConfig', type=s_objtypes.ObjectType)
-    cfg_views, _ = _generate_config_type_view(
-        schema,
-        conf,
-        scope=qltypes.ConfigScope.DATABASE,
-        path=[],
-        rptr=None,
+    commands.add_command(
+        get_config_type_views(schema, conf, scope=qltypes.ConfigScope.DATABASE),
     )
-    commands.add_commands([
-        dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
-        for tn, q in cfg_views
-    ])
 
     return commands
 
@@ -6392,6 +6396,10 @@ def _build_data_source(
     return sourceN
 
 
+def _escape_like(s: str) -> str:
+    return s.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+
+
 def _generate_config_type_view(
     schema: s_schema.Schema,
     stype: s_objtypes.ObjectType,
@@ -6427,9 +6435,37 @@ def _generate_config_type_view(
 
     sources = []
 
+    ext_cfg = schema.get('cfg::ExtensionConfig', type=s_objtypes.ObjectType)
+    is_ext_cfg = stype.issubclass(schema, ext_cfg)
+    if is_ext_cfg:
+        rptr = None
+    is_rptr_ext_cfg = False
+
     if not path:
-        # This is the root config object.
-        if rptr is None:
+        if is_ext_cfg:
+            # Extension configs get one object per scope.
+            cfg_name = str(stype.get_name(schema))
+
+            escaped_name = _escape_like(cfg_name)
+            source0 = f'''
+                (SELECT
+                    (SELECT jsonb_object_agg(
+                      substr(name, {len(cfg_name)+3}), value) AS val
+                    FROM edgedb._read_sys_config(
+                      NULL, scope::edgedb._sys_config_source_t) cfg
+                    WHERE name LIKE {ql(escaped_name + '%')}
+                    ) AS val, scope::text AS scope, scope_id AS scope_id
+                    FROM (VALUES
+                        (NULL, '{CONFIG_ID[None]}'::uuid),
+                        ('database',
+                         '{CONFIG_ID[qltypes.ConfigScope.DATABASE]}'::uuid),
+                        ('system override',
+                         '{CONFIG_ID[qltypes.ConfigScope.INSTANCE]}'::uuid)
+                    ) AS s(scope, scope_id)
+                ) AS q0
+            '''
+        elif rptr is None:
+            # This is the root config object.
             source0 = f'''
                 (SELECT jsonb_object_agg(name, value) AS val
                 FROM edgedb._read_sys_config(NULL, {max_source}) cfg) AS q0'''
@@ -6437,8 +6473,35 @@ def _generate_config_type_view(
             rptr_card = rptr.get_cardinality(schema)
             rptr_multi = rptr_card.is_multi()
             rptr_name = rptr.get_shortname(schema).name
+            rptr_source = rptr.get_source(schema)
+            assert rptr_source
+            is_rptr_ext_cfg = rptr_source.issubclass(schema, ext_cfg)
+            if is_rptr_ext_cfg:
+                assert rptr_multi
+                cfg_name = str(rptr_source.get_name(schema)) + '::' + rptr_name
+                escaped_name = _escape_like(cfg_name)
 
-            if rptr_multi:
+                source0 = f'''
+                    (SELECT el.val AS val, s.scope::text AS scope,
+                            s.scope_id AS scope_id
+                     FROM (VALUES
+                         (NULL, '{CONFIG_ID[None]}'::uuid),
+                         ('database',
+                          '{CONFIG_ID[qltypes.ConfigScope.DATABASE]}'::uuid),
+                         ('system override',
+                          '{CONFIG_ID[qltypes.ConfigScope.INSTANCE]}'::uuid)
+                     ) AS s(scope, scope_id),
+                     LATERAL (
+                         SELECT (value::jsonb) AS val
+                         FROM edgedb._read_sys_config(
+                           NULL, scope::edgedb._sys_config_source_t) cfg
+                         WHERE name LIKE {ql(escaped_name + '%')}
+                     ) AS cfg,
+                     LATERAL jsonb_array_elements(cfg.val) AS el(val)
+                    ) AS q0
+                '''
+
+            elif rptr_multi:
                 source0 = f'''
                     (SELECT el.val
                      FROM
@@ -6456,6 +6519,8 @@ def _generate_config_type_view(
         sources.append(source0)
         key_start = 0
     else:
+        # XXX: The second level is broken
+        # Can we solve this without code duplication?
         key_start = 0
 
         for i, (l, exc_props) in enumerate(path):
@@ -6545,17 +6610,37 @@ def _generate_config_type_view(
 
     exclusive_props.sort(key=lambda p: p.get_shortname(schema).name)
 
-    if exclusive_props or rptr:
+    if is_ext_cfg:
+        # Extension configs get custom keys based on their type name
+        # and the scope, since we create one object per scope.
+        key_components = [
+            f'ARRAY[{ql(str(stype.get_name(schema)))}]',
+            "ARRAY[coalesce(q0.scope, 'session')]"
+        ]
+        final_keysource = f'{_build_key_expr(key_components)} AS k'
+        sources.append(final_keysource)
+
+        key_expr = 'k.key'
+        where = f"q0.val IS NOT NULL"
+
+    elif exclusive_props or rptr:
         sources.append(
             _build_key_source(schema, exclusive_props, rptr, str(self_idx)))
 
         key_components = [f'k{i}.key' for i in range(key_start, self_idx + 1)]
+        if is_rptr_ext_cfg:
+            assert rptr_source
+            key_components = [
+                f'ARRAY[{ql(str(rptr_source.get_name(schema)))}]',
+                "ARRAY[coalesce(q0.scope, 'session')]"
+            ] + key_components
+
         final_keysource = f'{_build_key_expr(key_components)} AS k'
         sources.append(final_keysource)
 
         key_expr = 'k.key'
 
-        tname = stype.get_name(schema).name
+        tname = str(stype.get_name(schema))
         where = f"{key_expr} IS NOT NULL AND ({sval}->>'_tname') = {ql(tname)}"
 
     else:
@@ -6571,6 +6656,10 @@ def _generate_config_type_view(
         link_type = link.get_target(schema)
         link_psi = types.get_pointer_storage_info(link, schema=schema)
         link_col = link_psi.column_name
+
+        if str(link_type.get_name(schema)) == 'cfg::AbstractConfig':
+            target_cols[link] = f'q0.scope_id AS {qi(link_col)}'
+            continue
 
         if rptr is not None:
             target_path = path + [(rptr, exclusive_props)]
@@ -6606,6 +6695,7 @@ def _generate_config_type_view(
             schema, target_exc_props, link, source_idx=link_name)
         sources.append(target_key_source)
 
+        # XXX: it doesn't seem right to *just* use the exc props?
         if target_exc_props:
             target_key_components = [f'k{link_name}.key']
         else:
@@ -6670,6 +6760,12 @@ def _generate_config_type_view(
                     _memo=_memo,
                 )
                 views.extend(desc_views)
+
+        # HACK: For computable links (just extensions hopefully?), we
+        # want to compile the targets as a side effect, but we don't
+        # want to actually include them in the view.
+        if link.get_computable(schema):
+            continue
 
         target_source = _build_data_source(
             schema, link, self_idx, alias=link_name)

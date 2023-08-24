@@ -1336,7 +1336,7 @@ class CommandContext:
             from *offset* in the stack.
         """
         return any(isinstance(ctx.op, DeleteObject)
-                   for ctx in self.stack[:-offset])
+                   for ctx in self.stack[:-offset if offset else None])
 
     def is_deleting(self, obj: so.Object) -> bool:
         """Return True if *obj* is being deleted in this context.

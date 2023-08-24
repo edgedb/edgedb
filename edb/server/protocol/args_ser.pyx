@@ -51,6 +51,9 @@ cdef recode_bind_args_for_script(
 ):
     cdef:
         WriteBuffer bind_data
+        ssize_t i
+        ssize_t oidx
+        ssize_t iidx
 
     unit_group = compiled.query_unit_group
 
@@ -76,8 +79,8 @@ cdef recode_bind_args_for_script(
         bind_data.write_int16(<int16_t>num_args)
 
         if query_unit.in_type_args:
-            for arg in query_unit.in_type_args:
-                oidx = arg.outer_idx
+            for iidx, arg in enumerate(query_unit.in_type_args):
+                oidx = arg.outer_idx if arg.outer_idx is not None else iidx
                 barg = recoded[positions[oidx]:positions[oidx+1]]
                 bind_data.write_bytes(barg)
 

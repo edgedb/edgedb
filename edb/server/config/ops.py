@@ -84,6 +84,42 @@ def coerce_single_value(setting: spec.Setting, value: Any) -> Any:
             f'invalid value type for the {setting.name!r} setting')
 
 
+def coerce_object_set(
+    spec: spec.Spec, setting: spec.Setting, values: Any
+) -> Any:
+    assert isinstance(setting.type, types.ConfigTypeSpec)
+    new_values = set()
+    for jv in values:
+        new_value = types.CompositeConfigType.from_pyvalue(
+            jv, spec=spec, tspec=setting.type,
+        )
+
+        if new_value in new_values:
+            _report_constraint_error(setting)
+        new_values.add(new_value)
+
+    return frozenset(new_values)
+
+
+def _report_constraint_error(setting: spec.Setting) -> NoReturn:
+    assert isinstance(setting.type, types.ConfigTypeSpec)
+
+    props = []
+    for f in setting.type.fields.values():
+        if f.unique:
+            props.append(f.name)
+
+    if len(props) > 1:
+        props_s = f' ({", ".join(props)}) violate'
+    else:
+        props_s = f'.{props[0]} violates'
+
+    raise errors.ConstraintViolationError(
+        f'{setting.type.__name__}{props_s} '
+        f'exclusivity constraint'
+    )
+
+
 class Operation(NamedTuple):
 
     opcode: OpCode
@@ -102,10 +138,13 @@ class Operation(NamedTuple):
                      allow_missing: bool = False):
         if isinstance(setting.type, types.ConfigTypeSpec):
             try:
-                return types.CompositeConfigType.from_pyvalue(
-                    self.value, spec=spec, tspec=setting.type,
-                    allow_missing=allow_missing,
-                )
+                if setting.set_of and self.opcode is OpCode.CONFIG_SET:
+                    return coerce_object_set(spec, setting, self.value)
+                else:
+                    return types.CompositeConfigType.from_pyvalue(
+                        self.value, spec=spec, tspec=setting.type,
+                        allow_missing=allow_missing,
+                    )
             except (ValueError, TypeError):
                 raise errors.ConfigurationError(
                     f'invalid value type for the {setting.name!r} setting')
@@ -156,21 +195,9 @@ class Operation(NamedTuple):
             value = self.coerce_global_value(allow_missing=allow_missing)
 
         if self.opcode is OpCode.CONFIG_SET:
-            if setting and _issubclass(setting.type, types.ConfigType):
-                raise errors.InternalServerError(
-                    f'unexpected CONFIGURE SET on a non-primitive '
-                    f'configuration parameter: {self.setting_name}'
-                )
-
             storage = self._set_value(storage, value)
 
         elif self.opcode is OpCode.CONFIG_RESET:
-            if setting and isinstance(setting.type, types.ConfigTypeSpec):
-                raise errors.InternalServerError(
-                    f'unexpected CONFIGURE RESET on a non-primitive '
-                    f'configuration parameter: {self.setting_name}'
-                )
-
             try:
                 storage = storage.delete(self.setting_name)
             except KeyError:
@@ -191,20 +218,7 @@ class Operation(NamedTuple):
                 exist_value = setting.default
 
             if value in exist_value:
-                props = []
-                for f in setting.type.fields.values():
-                    if f.unique:
-                        props.append(f.name)
-
-                if len(props) > 1:
-                    props_s = f' ({", ".join(props)}) violate'
-                else:
-                    props_s = f'.{props[0]} violates'
-
-                raise errors.ConstraintViolationError(
-                    f'{setting.type.__name__}{props_s} '
-                    f'exclusivity constraint'
-                )
+                _report_constraint_error(setting)
 
             new_value = exist_value | {value}
             storage = self._set_value(storage, new_value)
@@ -348,12 +362,9 @@ def value_from_json(spec, setting, value: str):
     return value_from_json_value(spec, setting, json.loads(value))
 
 
-def value_to_edgeql_const(setting: spec.Setting, value: Any) -> str:
-    if isinstance(setting.type, types.ConfigType):
-        raise NotImplementedError(
-            'cannot render non-scalar configuration value'
-        )
-
+def value_to_edgeql_const(
+    type: type | types.ConfigTypeSpec, value: Any
+) -> str:
     ql = s_utils.const_ast_from_python(value)
     return qlcodegen.generate_source(ql)
 
@@ -415,10 +426,18 @@ def to_edgeql(
     stmts = []
 
     for name, value in storage.items():
+        if name not in spec:
+            continue
         setting = spec[name]
-        val = value_to_edgeql_const(setting, value.value)
-        stmt = f'CONFIGURE {value.scope.to_edgeql()} SET {name} := {val};'
-        stmts.append(stmt)
+        if isinstance(setting.type, types.ConfigTypeSpec):
+            for x in value.value:
+                val = value_to_edgeql_const(setting.type, x)
+                stmt = f'CONFIGURE {value.scope.to_edgeql()}\n{val};'
+                stmts.append(stmt)
+        else:
+            val = value_to_edgeql_const(setting.type, value.value)
+            stmt = f'CONFIGURE {value.scope.to_edgeql()} SET {name} := {val};'
+            stmts.append(stmt)
 
     return '\n'.join(stmts)
 

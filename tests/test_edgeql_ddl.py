@@ -17,6 +17,7 @@
 #
 
 import decimal
+import json
 import os
 import re
 import textwrap
@@ -15984,6 +15985,267 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         finally:
             await self.con.execute('''
                 drop extension package ltree_broken VERSION '1.0'
+            ''')
+
+    async def _extension_test_05(self, in_tx):
+        await self.con.execute('''
+            create extension _conf
+        ''')
+
+        Q = '''
+            select cfg::%s {
+                conf := assert_single(.extensions[is ext::_conf::Config] {
+                    config_name,
+                    objs: { name, value, [is ext::_conf::SubObj].extra,
+                            tname := .__type__.name }
+                          order by .name,
+                })
+            };
+        '''
+
+        async def _check(_cfg_obj='Config', **kwargs):
+            q = Q % _cfg_obj
+            await self.assert_query_result(
+                q,
+                [{'conf': kwargs}],
+            )
+
+        await _check(
+            config_name='',
+            objs=[],
+        )
+
+        if not in_tx:
+            await self.con.execute('''
+                configure instance set ext::_conf::Config::config_name :=
+                    "instance";
+            ''')
+            await _check(
+                config_name='instance',
+                objs=[],
+            )
+
+        await self.con.execute('''
+            configure current database set ext::_conf::Config::config_name :=
+                "test";
+        ''')
+
+        await _check(
+            config_name='test',
+            objs=[],
+        )
+
+        if not in_tx:
+            await _check(
+                'InstanceConfig',
+                config_name='instance',
+                objs=[],
+            )
+
+        # TODO: This should all work, instead!
+        async with self.assertRaisesRegexTx(
+                edgedb.UnsupportedFeatureError, ""):
+            await self.con.execute('''
+                configure session set ext::_conf::Config::config_name :=
+                    "session!";
+            ''')
+
+            await _check(
+                config_name='session!',
+                objs=[],
+            )
+
+            await self.con.execute('''
+                configure session reset ext::_conf::Config::config_name;
+            ''')
+
+        await _check(
+            config_name='test',
+            objs=[],
+        )
+
+        await self.con.execute('''
+            configure current database insert ext::_conf::Obj {
+                name := '1',
+                value := 'foo',
+            };
+        ''')
+        await self.con.execute('''
+            configure current database insert ext::_conf::Obj {
+                name := '2',
+                value := 'bar',
+            };
+        ''')
+        await self.con.execute('''
+            configure current database insert ext::_conf::SubObj {
+                name := '3',
+                value := 'baz',
+                extra := 42,
+            };
+        ''')
+
+        await self.con.execute('''
+            configure current database set ext::_conf::Config::config_name :=
+                "ready";
+        ''')
+
+        await _check(
+            config_name='ready',
+            objs=[
+                dict(name='1', value='foo', tname='ext::_conf::Obj'),
+                dict(name='2', value='bar', tname='ext::_conf::Obj'),
+                dict(name='3', value='baz', extra=42,
+                     tname='ext::_conf::SubObj'),
+            ],
+        )
+
+        if not in_tx:
+            # Load the in-memory config state via a HTTP debug endpoint
+            # Retry until we see 'ready' is visible
+            async for tr in self.try_until_succeeds(ignore=AssertionError):
+                async with tr:
+                    with self.http_con() as http_con:
+                        rdata, _headers, status = self.http_con_request(
+                            http_con,
+                            prefix="",
+                            path="server-info",
+                        )
+                        data = json.loads(rdata)
+                        db_data = data['databases'][self.get_database_name()]
+                        config = db_data['config']
+                        assert (
+                            config['ext::_conf::Config::config_name'] == 'ready'
+                        )
+
+            self.assertEqual(
+                sorted(
+                    config['ext::_conf::Config::objs'],
+                    key=lambda x: x['name'],
+                ),
+                [
+                    {'_tname': 'ext::_conf::Obj',
+                     'name': '1', 'value': 'foo'},
+                    {'_tname': 'ext::_conf::Obj',
+                     'name': '2', 'value': 'bar'},
+                    {'_tname': 'ext::_conf::SubObj',
+                     'name': '3', 'value': 'baz', 'extra': 42},
+                ],
+            )
+
+        val = await self.con.query_single('''
+            describe current database config
+        ''')
+        test_expected = textwrap.dedent('''\
+        CONFIGURE CURRENT DATABASE SET ext::_conf::Config::config_name := \
+'ready';
+        CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
+            name := '1',
+            value := 'foo',
+        };
+        CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
+            name := '2',
+            value := 'bar',
+        };
+        CONFIGURE CURRENT DATABASE INSERT ext::_conf::SubObj {
+            extra := 42,
+            name := '3',
+            value := 'baz',
+        };
+        ''')
+        self.assertEqual(val, test_expected)
+
+        await self.con.execute('''
+            configure current database reset ext::_conf::Obj
+            filter .value like 'ba%'
+        ''')
+
+        await _check(
+            config_name='ready',
+            objs=[
+                dict(name='1', value='foo'),
+            ],
+        )
+
+        await self.con.execute('''
+            configure current database reset ext::_conf::Obj
+        ''')
+
+        await _check(
+            config_name='ready',
+            objs=[],
+        )
+
+        await self.con.execute('''
+            configure current database reset ext::_conf::Config::config_name;
+        ''')
+        if not in_tx:
+            await _check(
+                config_name='instance',
+                objs=[],
+            )
+
+            await self.con.execute('''
+                configure instance reset ext::_conf::Config::config_name;
+            ''')
+
+        await _check(
+            config_name='',
+            objs=[],
+        )
+
+        if not in_tx:
+            con2 = await self.connect(database=self.con.dbname)
+            try:
+                await con2.query('select 1')
+                await self.con.execute('''
+                    CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
+                        name := 'fail',
+                        value := '',
+                    };
+                ''')
+
+                # This needs to fail
+                with self.assertRaisesRegex(
+                    edgedb.ConstraintViolationError, ""
+                ):
+                    await self.con.execute('''
+                        CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
+                            name := 'fail',
+                            value := '',
+                        };
+                        insert Test;
+                    ''')
+
+                # The code path by which the above fails is subtle (it
+                # gets triggered by config processing code in the
+                # server). Make sure that the error properly aborts
+                # the whole script.
+                await self.assert_query_result(
+                    'select count(Test)',
+                    [0],
+                )
+
+            finally:
+                await con2.aclose()
+
+    async def test_edgeql_ddl_extensions_05(self):
+        # Test config extension
+        await self.con.execute('''
+            create type Test;
+        ''')
+
+        try:
+            async with self._run_and_rollback():
+                await self._extension_test_05(in_tx=True)
+            try:
+                await self._extension_test_05(in_tx=False)
+            finally:
+                await self.con.execute('''
+                    drop extension _conf
+                ''')
+        finally:
+            await self.con.execute('''
+                drop type Test;
             ''')
 
     async def test_edgeql_ddl_reindex(self):

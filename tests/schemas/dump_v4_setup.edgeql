@@ -24,3 +24,19 @@ union (
     # Large, varied, but deterministic dataset.
     insert L2 {vec := [x % 10, math::ln(x), x / 7 % 13]}
 );
+
+
+CONFIGURE CURRENT DATABASE SET ext::_conf::Config::config_name := 'ready';
+CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
+    name := '1',
+    value := 'foo',
+};
+CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
+    name := '2',
+    value := 'bar',
+};
+CONFIGURE CURRENT DATABASE INSERT ext::_conf::SubObj {
+    extra := 42,
+    name := '3',
+    value := 'baz',
+};

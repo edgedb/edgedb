@@ -404,6 +404,8 @@ class DeleteExtension(
                 # canonicalization instead.
                 continue
 
+            # This is still kind of sketchy. _canonicalize doesn't
+            # really *fully* canonicalize things.
             drop = obj.init_delta_command(schema, sd.DeleteObject)
             drop.update(drop._canonicalize(schema, context, obj))
             commands.append(drop)

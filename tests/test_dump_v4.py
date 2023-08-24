@@ -54,9 +54,31 @@ class DumpTestCaseMixin:
             ]
         )
 
+        await self.assert_query_result(
+            '''
+                select cfg::Config {
+                    conf := assert_single(.extensions[is ext::_conf::Config] {
+                        config_name,
+                        objs: { name, value, [is ext::_conf::SubObj].extra,
+                                tname := .__type__.name }
+                              order by .name,
+                    })
+                };
+            ''',
+            [dict(conf=dict(
+                config_name='ready',
+                objs=[
+                    dict(name='1', value='foo', tname='ext::_conf::Obj'),
+                    dict(name='2', value='bar', tname='ext::_conf::Obj'),
+                    dict(name='3', value='baz', extra=42,
+                         tname='ext::_conf::SubObj'),
+                ],
+            ))]
+        )
+
 
 class TestDumpV4(tb.StableDumpTestCase, DumpTestCaseMixin):
-    EXTENSIONS = ["pgvector"]
+    EXTENSIONS = ["pgvector", "_conf"]
     BACKEND_SUPERUSER = True
 
     SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',

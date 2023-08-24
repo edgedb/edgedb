@@ -1528,7 +1528,11 @@ class DeleteReferencedInheritingObject(
             cmd.add(rebase_cmd)
         else:
             # The ref in child should no longer exist.
-            cmd = child_ref.init_delta_command(schema, sd.DeleteObject)
+            # HACK: Pass if_exists to work around some mismatches in
+            # how canonicalization works when deleting a module as
+            # part of DeleteExtension. It should be harmless though.
+            cmd = child_ref.init_delta_command(
+                schema, sd.DeleteObject, if_exists=True)
 
         return cmd
 

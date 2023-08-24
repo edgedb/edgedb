@@ -753,12 +753,21 @@ class Tenant(ha_base.ClusterProtocol):
         return await self._server.introspect_user_schema(conn, global_schema)
 
     async def introspect_db_config(
-        self, conn: pgcon.PGConnection
+        self, conn: pgcon.PGConnection, user_schema: s_schema.Schema
     ) -> Mapping[str, config.SettingValue]:
         result = await conn.sql_fetch_val(
             self._server.get_sys_query("dbconfig")
         )
-        return config.from_json(self._server._config_settings, result)
+        # XXX: are we hoping to not use the user_schema in the server?
+        spec = config.ChainedSpec(
+            self._server._config_settings,
+            config.load_ext_spec_from_schema(
+                user_schema,
+                self._server.get_std_schema(),
+            ),
+        )
+
+        return config.from_json(spec, result)
 
     async def _introspect_extensions(
         self, conn: pgcon.PGConnection
@@ -835,7 +844,7 @@ class Tenant(ha_base.ClusterProtocol):
             )
             backend_ids = json.loads(backend_ids_json)
 
-            db_config = await self.introspect_db_config(conn)
+            db_config = await self.introspect_db_config(conn, user_schema)
             extensions = await self._introspect_extensions(conn)
 
             assert self._dbindex is not None
@@ -971,7 +980,7 @@ class Tenant(ha_base.ClusterProtocol):
 
         default_method = self._server.get_default_auth_method(transport)
         auth_type = self._server._config_settings.get_type_by_name(  # TODO
-            default_method.value
+            f'cfg::{default_method.value}'
         )
         return auth_type()
 
@@ -994,8 +1003,8 @@ class Tenant(ha_base.ClusterProtocol):
         return self._dbindex.remove_view(dbview_)
 
     def schedule_reported_config_if_needed(self, setting_name: str) -> None:
-        setting = self._server._config_settings[setting_name]  # TODO
-        if setting.report and self._accept_new_tasks:
+        setting = self._server._config_settings.get(setting_name)  # TODO
+        if setting and setting.report and self._accept_new_tasks:
             self.create_task(self._load_reported_config(), interruptable=True)
 
     def load_jwcrypto(self) -> None:

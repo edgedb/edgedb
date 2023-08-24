@@ -177,6 +177,7 @@ cdef class Database:
 
         self.db_config = db_config
         self.user_schema = user_schema
+        self._user_config_spec = None
         self.reflection_cache = reflection_cache
         self.backend_ids = backend_ids
         self.extensions = extensions
@@ -216,12 +217,22 @@ cdef class Database:
             self.db_config = db_config
         self._invalidate_caches()
 
+    cdef get_user_config_spec(self):
+        if self._user_config_spec is None:
+            self._user_config_spec = config.load_ext_spec_from_schema(
+                self.user_schema,
+                self._index._std_schema,
+            )
+        return self._user_config_spec
+
     cdef _update_backend_ids(self, new_types):
         self.backend_ids.update(new_types)
 
     cdef _invalidate_caches(self):
         self._eql_to_compiled.clear()
         self._sql_to_compiled.clear()
+        # XXX: FIXME: Only invalidate when spec actually changes?
+        self._user_config_spec = None
 
     cdef _clear_state_serializers(self):
         self._state_serializers.clear()
@@ -354,6 +365,7 @@ cdef class DatabaseConnectionView:
         self._in_tx_global_schema = None
         self._in_tx_global_schema_pickled = None
         self._in_tx_new_types = {}
+        self._in_tx_user_config_spec = None
         self._in_tx_state_serializer = None
         self._tx_error = False
         self._in_tx_dbver = 0
@@ -447,8 +459,22 @@ cdef class DatabaseConnectionView:
                 self._protocol_version, new_serializer
             )
 
+    cdef get_user_config_spec(self):
+        if self._in_tx:
+            if self._in_tx_user_config_spec is None:
+                self._in_tx_user_config_spec = config.load_ext_spec_from_schema(
+                    self.get_user_schema(),
+                    self._db._index._std_schema,
+                )
+            return self._in_tx_user_config_spec
+        else:
+            return self._db.get_user_config_spec()
+
     cpdef get_config_spec(self):
-        return self._db._index._sys_config_spec
+        return config.ChainedSpec(
+            self._db._index._sys_config_spec,
+            self.get_user_config_spec(),
+        )
 
     cdef set_session_config(self, new_conf):
         if self._in_tx:
@@ -793,6 +819,7 @@ cdef class DatabaseConnectionView:
         self._in_tx_modaliases = self._modaliases
         self._in_tx_user_schema = self._db.user_schema
         self._in_tx_global_schema = self._db._index._global_schema
+        self._in_tx_user_config_spec = self._db.get_user_config_spec()
         self._in_tx_state_serializer = self._state_serializer
 
     cdef _apply_in_tx(self, query_unit):
@@ -809,6 +836,8 @@ cdef class DatabaseConnectionView:
         if query_unit.user_schema is not None:
             self._in_tx_user_schema_pickled = query_unit.user_schema
             self._in_tx_user_schema = None
+            # XXX: FIXME: Only invalidate when spec actually changes?
+            self._in_tx_user_config_spec = None
         if query_unit.global_schema is not None:
             self._in_tx_global_schema_pickled = query_unit.global_schema
             self._in_tx_global_schema = None
@@ -893,6 +922,9 @@ cdef class DatabaseConnectionView:
             if self._in_tx_with_sysconfig:
                 side_effects |= SideEffects.InstanceConfigChanges
             if self._in_tx_with_dbconfig:
+                self._db_config_temp = self._in_tx_db_config
+                self._db_config_dbver = self._db.dbver
+
                 self.update_database_config()
                 side_effects |= SideEffects.DatabaseConfigChanges
             if query_unit.global_schema is not None:
@@ -938,6 +970,9 @@ cdef class DatabaseConnectionView:
         if self._in_tx_with_sysconfig:
             side_effects |= SideEffects.InstanceConfigChanges
         if self._in_tx_with_dbconfig:
+            self._db_config_temp = self._in_tx_db_config
+            self._db_config_dbver = self._db.dbver
+
             self.update_database_config()
             side_effects |= SideEffects.DatabaseConfigChanges
         if global_schema is not None:
@@ -956,7 +991,7 @@ cdef class DatabaseConnectionView:
 
         for op in ops:
             if op.scope is config.ConfigScope.INSTANCE:
-                await self._db._index.apply_system_config_op(conn, op)
+                await self._db._index.apply_system_config_op(conn, op, self)
             elif op.scope is config.ConfigScope.DATABASE:
                 self.set_database_config(
                     op.apply(settings, self.get_database_config()),
@@ -1241,9 +1276,9 @@ cdef class DatabaseIndex:
     def iter_dbs(self):
         return iter(self._dbs.values())
 
-    async def _save_system_overrides(self, conn):
+    async def _save_system_overrides(self, conn, spec):
         data = config.to_json(
-            self._sys_config_spec,
+            spec,
             self._sys_config,
             setting_filter=lambda v: v.source == 'system override',
             include_source=False,
@@ -1263,8 +1298,11 @@ cdef class DatabaseIndex:
             ).generate(block)
         await conn.sql_execute(block.to_string().encode())
 
-    async def apply_system_config_op(self, conn, op):
-        spec = self._sys_config_spec
+    async def apply_system_config_op(self, conn, op, dbv):
+        # XXX: Is it actually legit to have INSTANCE configs of
+        # database local extension configs?
+        spec = dbv.get_config_spec()
+
         op_value = op.get_setting(spec)
         if op.opcode is not None:
             allow_missing = (
@@ -1278,10 +1316,10 @@ cdef class DatabaseIndex:
         # the callbacks below, because certain config changes
         # may cause the backend connection to drop.
         self.update_sys_config(
-            op.apply(self._sys_config_spec, self._sys_config)
+            op.apply(spec, self._sys_config)
         )
 
-        await self._save_system_overrides(conn)
+        await self._save_system_overrides(conn, spec)
 
         if op.opcode is config.OpCode.CONFIG_ADD:
             await self._server._on_system_config_add(op.setting_name, op_value)
