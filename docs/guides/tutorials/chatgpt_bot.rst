@@ -2271,11 +2271,10 @@ try tweaking:
   function in ``app/api/generate-answer/route.ts``
 
 You can see the finished source code for this build in `our examples repo on
-GitHub
-<https://github.com/edgedb/edgedb-examples/tree/main/docs-chatbot/docs>`_. You
-might also find our actual implementation interesting. You'll find it in `our
-website repo <https://github.com/edgedb/website>`_. Pay close attention to the
-contents of `buildTools/gpt
+GitHub <https://github.com/edgedb/edgedb-examples/tree/main/docs-chatbot>`_.
+You might also find our actual implementation interesting. You'll find it in
+`our website repo <https://github.com/edgedb/website>`_. Pay close attention to
+the contents of `buildTools/gpt
 <https://github.com/edgedb/website/tree/main/buildTools/gpt>`_, where the
 embedding generation happens and `components/gpt
 <https://github.com/edgedb/website/tree/main/components/gpt>`_, which contains
