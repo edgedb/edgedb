@@ -306,7 +306,7 @@ app work. To get one:
 
 Copy the new key. Re-open your ``.env.local`` file and add it like this:
 
-.. code-block:: -diff
+.. code-block:: typescript-diff
 
       EDGEDB_DSN=<your-dsn>
       EDGEDB_CLIENT_TLS_SECURITY="insecure"
