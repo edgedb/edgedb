@@ -20,13 +20,9 @@
 import urllib.parse
 import json
 import httpx
-import base64
-import datetime
 
 from typing import Any
-from jwcrypto import jwt, jwk
 from edb.server.protocol import execute
-from edb.common import markup
 
 from . import errors, util, data
 

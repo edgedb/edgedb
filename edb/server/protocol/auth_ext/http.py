@@ -88,7 +88,10 @@ class Router:
                     response.custom_headers["Location"] = redirect_to
                     response.custom_headers[
                         "Set-Cookie"
-                    ] = f"edgedb-session={session_token}; HttpOnly; Secure; SameSite=Strict"
+                    ] = (
+                        f"edgedb-session={session_token}; "
+                        f"HttpOnly; Secure; SameSite=Strict"
+                    )
 
                 case _:
                     raise errors.NotFound("Unknown OAuth endpoint")
