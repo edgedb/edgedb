@@ -556,15 +556,16 @@ We apply this schema by creating and running a migration.
     documentation, you may want a more sophisticated approach that operates on
     only documentation sections which have changed.
 
-    You can achieve this by saving content checksums and section paths as part
-    of your ``Section`` objects. The next time you run generation, compare the
-    section's current checksum with the one you stored in the database, finding
-    it by its path. You don't need to generate embeddings and update the
-    database for a given section unless the two checksums are different
-    indicating something has changed.
+    You can achieve this by saving content checksums and a unique identifier
+    for each section — in our production implementation, we use section paths —
+    as part of your ``Section`` objects. The next time you run generation,
+    compare the section's current checksum with the one you stored in the
+    database, finding it by its unique identifier. You don't need to generate
+    embeddings and update the database for a given section unless the two
+    checksums are different indicating something has changed.
 
-    If you decide to go this route, add properties to your ``Section`` as shown
-    below:
+    If you decide to go this route, here's one way you could modify your schema
+    to support this:
 
     .. code-block:: sdl-diff
         :caption: dbschema/default.esdl
@@ -577,8 +578,9 @@ We apply this schema by creating and running a migration.
             # The rest of the Section type
           }
 
-    You'll need to store section paths, calculate and compare checksums, and
-    update objects conditionally based on the outcome of those comparisons.
+    You'll also need to store your unique identifier, calculate and compare
+    checksums, and update objects conditionally based on the outcome of those
+    comparisons.
 
 
 Create and store embeddings
