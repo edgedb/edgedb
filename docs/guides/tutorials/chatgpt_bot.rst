@@ -758,14 +758,15 @@ generate the embeddings. Let's walk through it one piece at a time.
 We start with a parameter: an array of section paths. We create a couple of
 empty arrays for storing information about our sections (which will later
 become ``Section`` objects in the database) and their contents. We iterate
-through the paths, loading each file to get its content. In the database we
-save the content as is, but when calling the embedding API, OpenAI suggests
-that all newlines should be replaced with a single space for the best results.
-``contentTrimmed`` is the content with newlines replaced. We push that onto our
-``contents`` array and the un-trimmed content onto ``sections``, along with a
-token count obtained by calling the ``encode`` function imported from
-``gpt-tokenizer`` and an empty array we will later replace with the actual
-embeddings.
+through the paths, loading each file to get its content.
+
+In the database we will save the content as is, but when calling the embedding
+API, OpenAI suggests that all newlines should be replaced with a single space
+for the best results. ``contentTrimmed`` is the content with newlines replaced.
+We push that onto our ``contents`` array and the un-trimmed content onto
+``sections``, along with a token count (obtained by calling the ``encode``
+function imported from ``gpt-tokenizer``) and an empty array we will later
+replace with the actual embeddings.
 
 Onto the next bit!
 
