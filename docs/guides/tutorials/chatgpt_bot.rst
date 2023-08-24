@@ -1440,7 +1440,11 @@ a variable named ``getSectionsQuery``.
                 tokens: true,
                 dist,
                 filter: e.op(
-                    e.op(e.len(section.content), ">", params.minContentLength),
+                    e.op(
+                      e.len(section.content),
+                      ">",
+                      params.minContentLength
+                    ),
                     "and",
                     e.op(dist, "<", params.matchThreshold)
                 ),
@@ -1561,11 +1565,12 @@ response. We'll combine all of these parts in a function called
 
     function createFullPrompt(query: string, context: string) {
         const systemMessage = `
-            As an enthusiastic EdgeDB expert keen to assist, respond to questions
-            referencing the given EdgeDB sections.
+            As an enthusiastic EdgeDB expert keen to assist,
+            respond to questions referencing the given EdgeDB
+            sections.
 
-            If unable to help based on documentation, respond with:
-            "Sorry, I don't know how to help with that."`;
+            If unable to help based on documentation, respond
+            with: "Sorry, I don't know how to help with that."`;
 
         return codeBlock`
             ${oneLineTrim`${systemMessage}`}
