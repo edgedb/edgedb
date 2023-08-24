@@ -291,6 +291,11 @@ app work. To get one:
    <https://platform.openai.com/account/api-keys>`_.
 2. Create new `secret key <https://platform.openai.com/account/api-keys>`_.
 
+.. warning::
+
+    Don't forget: you may need to start a paid account if you do not have any
+    API free trial credits remaining.
+
 Copy the new key. Re-open your ``.env.local`` file and add it like this:
 
 .. code-block:: -diff
