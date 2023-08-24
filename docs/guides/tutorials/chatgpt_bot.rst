@@ -656,8 +656,7 @@ import is the query builder we generated earlier, and the last one is the
 function that initializes our OpenAI API client.
 
 After the imports, we use the ``dotenv`` library to import environment
-variables from the ``.env.local`` file. (In our case, that's
-``OPENAI_API_KEY``, which we will need to connect to the OpenAI API).
+variables from the ``.env.local`` file.
 
 Next, we define a ``Section`` TypeScript interface that corresponds to
 the ``Section`` type we have defined in the schema.
