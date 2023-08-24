@@ -582,8 +582,8 @@ libraries that will help us.
         --save-dev
 
 The ``@edgedb/generate`` package provides a set of code generation tools that
-are useful when developing an EdgeDB-backed applications with TypeScript /
-JavaScript. We're going to write queries using our `query builder
+are useful when developing an EdgeDB-backed applications with
+TypeScript/JavaScript. We're going to write queries using our `query builder
 <https://www.edgedb.com/docs/clients/js/querybuilder>`_, but before we can, we
 need to run the query builder generator.
 
