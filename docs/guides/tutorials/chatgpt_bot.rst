@@ -71,13 +71,17 @@ With that out of the way, let's walk through how the pieces fit together.
 Implementation overview
 -----------------------
 
-The general implementation has two steps (which we'll also follow in the
-guide):
+Broadly, the app does two things: it generates embeddings from documentation,
+and it uses those embeddings to answer user questions. The first is triggered
+manually in this implementation. We'll want to trigger it whenever the
+documentation is updated. The second is triggered automatically when the user
+asks a question.
+
+Embedding generation requires two steps:
 
 1. create embeddings for each section using `OpenAI's embeddings API
    <https://platform.openai.com/docs/guides/embeddings>`_
 2. store the embeddings data in EdgeDB using pgvector
-
 
 Each time a user asks a question, our app will:
 
