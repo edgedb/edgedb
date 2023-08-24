@@ -3954,19 +3954,6 @@ def process_set_as_fts_search(
                     rexpr=parsed_query_pg
                 )
 
-            # <!-- parent rel -->
-            # FROM                  
-            #     (... Movie ...)    <!-- source of the obj -->
-            # CROSS JOIN LATERAL (
-            #     <!-- new rel -->
-            #     FROM (   
-            #         <!-- inner rel -->
-            #         SELECT ts_rank(Movie.__fts_document__) as score
-            #         WHERE query @@ Movie.__fts_document__
-            #     )
-            #     SELECT score
-            # )
-
             pathctx.put_path_var(
                 inner_ctx.rel, out_rank_id, score_pg, aspect='value'
             )
@@ -3981,6 +3968,9 @@ def process_set_as_fts_search(
                 newctx.rel, inner_rvar, out_rank_id, aspects={'value'}, ctx=newctx
             )
 
+        obj_id_pg_ref = pathctx.get_rvar_path_var(
+            obj_rvar, out_obj_id, aspect='value', env=newctx.env
+        )
         rank_pg_ref = pathctx.get_path_var(
             newctx.rel, out_rank_id, aspect='value', env=newctx.env
         )
@@ -3990,7 +3980,7 @@ def process_set_as_fts_search(
                 pgast.TupleElement(
                     path_id=out_obj_id,
                     name='object',
-                    val=obj_rvar,
+                    val=obj_id_pg_ref,
                 ),
                 pgast.TupleElement(
                     path_id=out_rank_id,
@@ -4003,7 +3993,7 @@ def process_set_as_fts_search(
         )
 
         pathctx.put_path_var(
-            newctx.rel, ir_set.path_id, tuple_expr, aspect='source'
+            newctx.rel, ir_set.path_id, tuple_expr, aspect='value'
         )
 
         var = pathctx.maybe_get_path_var(
@@ -4020,13 +4010,9 @@ def process_set_as_fts_search(
                 aspect='serialized',
             )
 
-        pathctx.put_path_var_if_not_exists(
-            newctx.rel, ir_set.path_id, tuple_expr, aspect='value'
-        )
-
     pathctx.put_path_id_map(newctx.rel, out_obj_id, obj_id)
 
-    aspects = {'source', 'value'}
+    aspects = {'value'}
 
     func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
     relctx.include_rvar(

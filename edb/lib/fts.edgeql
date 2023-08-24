@@ -39,7 +39,7 @@ fts::search(
     named only language: std::str,
 ) -> optional tuple<
     object: anyobject,
-    rank: float32,
+    rank: float32
 >
 {
     CREATE ANNOTATION std::description :=
