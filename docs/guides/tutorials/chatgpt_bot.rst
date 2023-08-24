@@ -591,6 +591,8 @@ need to run the query builder generator.
 
     $ npx @edgedb/generate edgeql-js
 
+Answer "y" when asked about adding the query builder to ``.gitignore``.
+
 This generator gives us a code-first way to write fully-typed EdgeQL queries
 with TypeScript. After running the generator, you should see a new ``edgeql-js``
 folder inside ``dbschema``.
