@@ -29,14 +29,4 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
 
         create constraint exclusive on ((.iss, .sub))
     };
-
-    create type ext::auth::Session {
-        create required property token: std::str {
-            create constraint exclusive;
-        };
-        create required property created_at: std::datetime;
-        create property expires_at: std::datetime;
-
-        create required link identity: ext::auth::Identity;
-    };
 };
