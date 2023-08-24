@@ -104,7 +104,10 @@ async def execute(
                     bound_args_buf = args_ser.recode_bind_args(
                         dbv, compiled, bind_args)
 
-                    read_data = query_unit.set_global or query_unit.is_explain
+                    assert not query_unit.needs_readback, (
+                        "needs_readback should use the script path"
+                    )
+                    read_data = query_unit.is_explain
 
                     data = await be_conn.parse_execute(
                         query=query_unit,
@@ -114,12 +117,6 @@ async def execute(
                         state=state,
                         dbver=dbv.dbver,
                     )
-
-                    if query_unit.set_global and data:
-                        config_ops = [
-                            config.Operation.from_json(r[0][1:])
-                            for r in data
-                        ]
 
                     if query_unit.is_explain:
                         # Go back to the compiler pool to analyze
@@ -246,9 +243,9 @@ async def execute_script(
                     no_sync = False
                     for n in range(idx, len(unit_group)):
                         ng = unit_group[n]
-                        if ng.ddl_stmt_id or ng.set_global:
+                        if ng.ddl_stmt_id or ng.needs_readback:
                             sent = n + 1
-                            if ng.set_global:
+                            if ng.needs_readback:
                                 no_sync = True
                             break
                     else:
@@ -295,16 +292,16 @@ async def execute_script(
                         )
                         if ddl_ret and ddl_ret['new_types']:
                             new_types = ddl_ret['new_types']
-                    elif query_unit.set_global:
-                        globals_data = []
+                    elif query_unit.needs_readback:
+                        config_data = []
                         for sql in query_unit.sql:
-                            globals_data = await conn.wait_for_command(
+                            config_data = await conn.wait_for_command(
                                 query_unit, parse, dbver, ignore_data=False
                             )
-                        if globals_data:
+                        if config_data:
                             config_ops = [
                                 config.Operation.from_json(r[0][1:])
-                                for r in globals_data
+                                for r in config_data
                             ]
                     elif query_unit.output_format == FMT_NONE:
                         for sql in query_unit.sql:
@@ -518,7 +515,7 @@ async def execute_json(
 
     bind_args = _encode_args(args)
 
-    force_script = any(x.set_global for x in qug)
+    force_script = any(x.needs_readback for x in qug)
     if len(qug) > 1 or force_script:
         data = await execute_script(
             be_conn,

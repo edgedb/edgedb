@@ -971,7 +971,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.debug_print('EXECUTE', query_req.source.text())
 
         metrics.edgeql_query_compilations.inc(1.0, 'cache')
-        force_script = any(x.set_global for x in query_unit_group)
+        force_script = any(x.needs_readback for x in query_unit_group)
         if (
             _dbview.in_tx_error()
             or query_unit_group[0].tx_savepoint_rollback

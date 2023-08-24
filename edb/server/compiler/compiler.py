@@ -2315,11 +2315,11 @@ def _try_compile(
 
                 unit.system_config = True
             elif comp.config_scope is qltypes.ConfigScope.GLOBAL:
-                unit.set_global = True
+                unit.needs_readback = True
 
             elif comp.config_scope is qltypes.ConfigScope.DATABASE:
                 unit.database_config = True
-                unit.set_global = True  # XXX: not really right!
+                unit.needs_readback = True
 
             if comp.is_backend_setting:
                 unit.backend_config = True
