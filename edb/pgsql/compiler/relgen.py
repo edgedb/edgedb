@@ -3882,7 +3882,7 @@ def process_set_as_fts_search(
 
         [lang_pg, query_pg] = _compile_call_args(ir_set, skip={1}, ctx=newctx)
 
-        [out_obj_id, out_rank_id] = func_call.tuple_path_ids
+        [out_obj_id, out_score_id] = func_call.tuple_path_ids
 
         with newctx.subrel() as inner_ctx:
             # inner_ctx generates the `SELECT score WHERE test` relation
@@ -3955,7 +3955,7 @@ def process_set_as_fts_search(
                 )
 
             pathctx.put_path_var(
-                inner_ctx.rel, out_rank_id, score_pg, aspect='value'
+                inner_ctx.rel, out_score_id, score_pg, aspect='value'
             )
             inner_ctx.rel.where_clause = astutils.extend_binop(
                 inner_ctx.rel.where_clause, where_clause
@@ -3965,14 +3965,14 @@ def process_set_as_fts_search(
                 ir_set, inner_ctx.rel, ctx=newctx
             )
             relctx.include_rvar(
-                newctx.rel, inner_rvar, out_rank_id, aspects={'value'}, ctx=newctx
+                newctx.rel, inner_rvar, out_score_id, aspects={'value'}, ctx=newctx
             )
 
         obj_id_pg_ref = pathctx.get_rvar_path_var(
             obj_rvar, out_obj_id, aspect='value', env=newctx.env
         )
-        rank_pg_ref = pathctx.get_path_var(
-            newctx.rel, out_rank_id, aspect='value', env=newctx.env
+        score_pg_ref = pathctx.get_path_var(
+            newctx.rel, out_score_id, aspect='value', env=newctx.env
         )
 
         tuple_expr = pgast.TupleVar(
@@ -3983,9 +3983,9 @@ def process_set_as_fts_search(
                     val=obj_id_pg_ref,
                 ),
                 pgast.TupleElement(
-                    path_id=out_rank_id,
-                    name='rank',
-                    val=rank_pg_ref,
+                    path_id=out_score_id,
+                    name='score',
+                    val=score_pg_ref,
                 ),
             ],
             named=True,
