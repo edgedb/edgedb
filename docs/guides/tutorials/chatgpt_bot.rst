@@ -316,8 +316,8 @@ Instead of ``<your-openai-api-key>``, paste in the key you just created.
 
 While we're here, let's get that key ready to be used. We will be making calls
 to the OpenAI API. We'll create a ``utils`` module and export a function from
-it, so we can initialize the API client which we can then reuse anywhere we
-need to call it. Create ``utils.ts`` in your project root and add this code:
+it that initializes an OpenAI API client. We can import and call the function
+to create a new client anywhere we need to make OpenAI API calls.
 
 .. code-block:: typescript
 
