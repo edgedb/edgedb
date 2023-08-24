@@ -1300,8 +1300,7 @@ class TestServerConfig(tb.QueryTestCase):
                         await tx.query('select schema::Object')
 
             # It might take a bit before con2 sees the error config
-            async for tr in self.try_until_succeeds(
-                    ignore=AssertionError):
+            async for tr in self.try_until_succeeds(ignore=AssertionError):
                 async with tr:
                     with self.assertRaisesRegex(edgedb.SchemaError, 'danger',
                                                 _position=42):
@@ -1315,14 +1314,24 @@ class TestServerConfig(tb.QueryTestCase):
             await con2.query('select schema::Object')
 
         finally:
-            await con1.execute(f'''
-                configure current database reset force_database_error;
-            ''')
-            await con2.aclose()
+            try:
+                await con1.execute(f'''
+                    configure current database reset force_database_error;
+                ''')
 
-            # Try to give the server time to reload the state so later
-            # tests don't flake
-            await asyncio.sleep(1)
+                # Wait for the config change to be visible to other
+                # connections.  (Not doing this might cause later tests
+                # that use other connections to flake)
+                await con2.execute(f'''
+                    configure session reset force_database_error;
+                ''')
+                async for tr in self.try_until_succeeds(
+                    ignore=edgedb.SchemaError
+                ):
+                    async with tr:
+                        await con2.execute('select 1')
+            finally:
+                await con2.aclose()
 
     async def test_server_proto_non_transactional_pg_14_7(self):
         con1 = self.con
