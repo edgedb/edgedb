@@ -718,14 +718,6 @@ The output it produces looks like this:
       'docs/edgeql/index2.md'
     ]
 
-.. note::
-
-    Our ``docs`` folder is flat (if you took the sample files), so the
-    recursion isn't strictly necessary here, but we will keep it because, in
-    practice, it's rare that your documentation structure will be flat in all
-    but the simplest of documentation… and in those cases, the value of a
-    chatbot might not justify the effort of implementing it.
-
 
 Preparing the ``Section`` objects
 ---------------------------------
