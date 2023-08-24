@@ -402,7 +402,7 @@ message we send to OpenAI later.)
 
     If the related sections are too long and, together with the user's
     question, exceed the 4,096 token limit, we will get an error back from
-    OpenAI. If the length of the question and similar sections are too close to
+    OpenAI. If the length of the question and related sections are too close to
     the token limit but not over it, the API will send an answer, but the
     answer will be cut off when the limit is reached.
 
