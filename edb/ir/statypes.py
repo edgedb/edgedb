@@ -336,6 +336,9 @@ class Duration(ScalarType):
             ret.append('0S')
         return ''.join(ret)
 
+    def to_timedelta(self) -> datetime.timedelta:
+        return datetime.timedelta(microseconds=self.to_microseconds())
+
     def to_backend_str(self) -> str:
         return f'{self.to_microseconds()}us'
 
