@@ -2092,7 +2092,8 @@ we try to parse it in this case.)
 The completed UI
 ----------------
 
-Put all that together, and you have this:
+Put all that together, and you have this (which can be copy/pasted to
+``app/page.tsx``):
 
 .. code-block:: typescript
     :caption: app/page.tsx
