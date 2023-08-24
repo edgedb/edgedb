@@ -1042,7 +1042,9 @@ into your ``generate-embeddings.ts`` file.
       ).flat();
     }
 
-    async function prepareSectionsData(sectionPaths: string[]): Promise<Section[]> {
+    async function prepareSectionsData(
+      sectionPaths: string[]
+    ): Promise<Section[]> {
       const contents: string[] = [];
       const sections: Section[] = [];
 
