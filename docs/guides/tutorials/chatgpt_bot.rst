@@ -1862,7 +1862,7 @@ Now we build a simple UI for the chatbot.
                 placeholder="Ask a question..."
                 value={prompt}
                 onChange={(e) => {
-                setPrompt(e.target.value);
+                  setPrompt(e.target.value);
                 }}
             ></input>
             <button
