@@ -1825,6 +1825,11 @@ component for our ``Home`` component. The way to accomplish that is to convert
 the ``page.tsx`` file to use the client component. We do that by adding the
 ``use client`` directive to the top of the file.
 
+.. note::
+
+    Follow along for understanding and copy/paste the full component code at
+    the end of the section.
+
 .. code-block:: typescript
     :caption: app/page.tsx
 
@@ -2088,9 +2093,14 @@ connection to the server will be closed. There is no data to be parsed in this
 case, so we return instead of trying to parse it. (An error will be thrown if
 we try to parse it in this case.)
 
-Put it all together, and you have this:
+
+The completed UI
+----------------
+
+Put all that together, and you have this:
 
 .. code-block:: typescript
+    :caption: app/page.tsx
 
     "use client";
 
