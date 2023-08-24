@@ -210,7 +210,8 @@ the following in the root of the project:
 .. code-block:: bash
 
     $ edgedb project init
-    No `edgedb.toml` found in `/<path>/<to>/<project>/docs-chatbot` or above
+    No `edgedb.toml` found in `/<path>/<to>/<project>/docs-chatbot`
+    or above
 
     Do you want to initialize a new project? [Y/n]
     > Y
@@ -220,7 +221,8 @@ the following in the root of the project:
     > docs_chatbot
 
     Checking EdgeDB versions...
-    Specify the version of EdgeDB to use with this project [default: 3.2]:
+    Specify the version of EdgeDB to use with this project
+    [default: 3.2]:
     > 3.2
 
 The CLI should set up an EdgeDB project, an instance, and a database within
