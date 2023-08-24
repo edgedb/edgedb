@@ -1109,8 +1109,9 @@ Let's add a script to ``package.json`` that will invoke and execute
           "dev": "next dev",
           "build": "next build",
           "start": "next start",
-          "lint": "next lint",
-    +     "embeddings": "tsx generate-embeddings.ts",
+    -     "lint": "next lint"
+    +     "lint": "next lint",
+    +     "embeddings": "tsx generate-embeddings.ts"
         },
         "dependencies": {
           "next": "^13.4.19",
