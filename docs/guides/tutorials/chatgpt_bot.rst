@@ -1153,18 +1153,6 @@ each of the functions we've called in it.
 Moderation request
 ^^^^^^^^^^^^^^^^^^
 
-For every request to OpenAI in this handler, we will write basic fetch
-requests. We can't use the ``openai`` package (the one we used in our embedding
-generation script), because it uses `Axios
-<https://www.npmjs.com/package/axios>`_ to make requests, and Axios is not
-supported in the Edge runtime.
-
-We could use `openai-edge <https://www.npmjs.com/package/openai-edge>`_
-instead, which works perfectly on the Edge runtime and would leave us with a
-little less code, but it is also useful to understand how to implement things
-*without* using additional libraries. Feel free to install ``openai-edge``, and
-replace our fetch calls if you prefer.
-
 Let's write our moderation request function: ``moderateQuery``. We will use the
 ``https://api.openai.com/v1/moderations`` endpoint. Read about it in the
 `OpenAI moderation quickstart
