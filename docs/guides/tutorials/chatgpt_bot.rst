@@ -835,12 +835,9 @@ through the response data.
     }
     …
 
-You see this in action next as we iterate through all the embeddings we got
-back, adding both the embedding and the token lengths to their respective
-sections. We imported the ``encode`` function earlier from ``gpt-tokenizer``,
-and we call it, passing the contents, and measure the ``length`` to get the
-token counts. These two additional pieces of data make the section fully ready
-to store in the database, so we can return the fully-formed sections from the
+We iterate through all the embeddings we got back, adding the embedding to its
+respective section. This final piece of data makes the section fully ready to
+store in the database, so we can now return the fully-formed sections from the
 function.
 
 Here's the entire function assembled:
@@ -996,7 +993,8 @@ Here's what the whole function looks like:
 Putting it all together
 -----------------------
 
-Here's the entire embeddings generation script:
+Here's the entire embeddings generation script. Copy and paste the whole thing
+into your ``generate-embeddings.ts`` file.
 
 .. code-block:: typescript
     :caption: generate-embeddings.ts
