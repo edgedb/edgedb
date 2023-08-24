@@ -605,8 +605,15 @@ inside the project root.
 
     $ touch generate-embeddings.ts
 
-Let's write the script's skeleton and get an understanding of the flow of
+Let's look at the script's skeleton and get an understanding of the flow of
 tasks we need to perform.
+
+.. note::
+
+    Rather than trying to build this incrementally as we go, you may just want
+    to read through to understand all the code. We'll put the entire script
+    together at the end of the section, and you can copy/paste that into your
+    file.
 
 .. code-block:: typescript
     :caption: generate-embeddings.ts
@@ -951,25 +958,109 @@ Again, we'll break this function apart and walk through it.
       await query.run(client, { sections });
       console.log("Embedding generation complete");
     }
+    …
 
 
-At the top, we immediately return if ``OPENAI_API_KEY`` doesn't exist. Otherwise,
-we create try/catch block and write the rest of the function inside try block.
-If some error is thrown while we try to regenerate embeddings and update the
-database we will safely catch it in the catch block.
+Putting it all together
+-----------------------
 
-We create OpenAI and EdgeDB clients. We use OpenAI client to get embeddings,
-and EdgeDB client to access and query the database.
+Here's the entire embeddings generation script:
 
-Next, we get sections paths and prepare all sections data.
+.. code-block:: typescript
+    :caption: generate-embeddings.ts
 
-Before we update the database we need to delete the old data from it.
-We just delete all ``Section`` objects.
+    import { promises as fs } from "fs";
+    import { join } from "path";
+    import dotenv from "dotenv";
+    import { encode } from "gpt-tokenizer";
+    import * as edgedb from "edgedb";
+    import e from "dbschema/edgeql-js";
+    import { initOpenAIClient } from "@/utils";
 
-Finally we bulk-insert all sections data in the database. The `TypeScript
-binding <https://www.edgedb.com/docs/clients/js/index>`_ offers several options
-for writing queries. We recommend using our query builder, and that's what we
-have used here.
+    dotenv.config({ path: ".env.local" });
+
+    const openai = initOpenAIClient();
+
+    interface Section {
+      id?: string;
+      tokens: number;
+      content: string;
+      embedding: number[];
+    }
+
+    async function walk(dir: string): Promise<string[]> {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+
+      return (
+        await Promise.all(
+          entries.map((entry) => {
+            const path = join(dir, entry.name);
+            if (entry.isFile()) return [path];
+            else if (entry.isDirectory()) return walk(path);
+            return [];
+          })
+        )
+      ).flat();
+    }
+
+    async function prepareSectionsData(sectionPaths: string[]): Promise<Section[]> {
+      const contents: string[] = [];
+      const sections: Section[] = [];
+
+      for (const path of sectionPaths) {
+        const content = await fs.readFile(path, "utf8");
+        // OpenAI recommends replacing newlines with spaces for best results (specific to embeddings)
+        const contentTrimmed = content.replace(/\n/g, " ");
+        contents.push(contentTrimmed);
+        sections.push({
+          content,
+          tokens: encode(content).length,
+          embedding: [],
+        });
+      }
+
+      const embeddingResponse = await openai.embeddings.create({
+        model: "text-embedding-ada-002",
+        input: contents,
+      });
+
+      embeddingResponse.data.forEach((item, i) => {
+        sections[i].embedding = item.embedding;
+      });
+
+      return sections;
+    }
+
+    async function storeEmbeddings() {
+      const client = edgedb.createClient();
+
+      const sectionPaths = await walk("docs");
+
+      console.log(`Discovered ${sectionPaths.length} sections`);
+
+      const sections = await prepareSectionsData(sectionPaths);
+
+      // Delete old data from the DB.
+      await e.delete(e.Section).run(client);
+
+      // Bulk-insert all data into EdgeDB database.
+      const query = e.params({ sections: e.json }, ({ sections }) => {
+        return e.for(e.json_array_unpack(sections), (section) => {
+          return e.insert(e.Section, {
+            content: e.cast(e.str, section.content),
+            tokens: e.cast(e.int16, section.tokens),
+            embedding: e.cast(e.OpenAIEmbedding, section.embedding),
+          });
+        });
+      });
+
+      await query.run(client, { sections });
+      console.log("Embedding generation complete");
+    }
+
+    (async function main() {
+      await storeEmbeddings();
+    })();
 
 
 Running the script
