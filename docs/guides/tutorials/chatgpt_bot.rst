@@ -390,11 +390,10 @@ message we send to OpenAI later.)
 
     One approach to mitigate this is to parse your documentation files and
     create new sections every time you encounter a header. If you use this
-    approach, consider section lengths when writing your documentation. Use
-    your token limit to set a hard limit on documentation section length to
-    make sure it's accessible to your chatbot. If you find a section is too
-    long, consider ways you might break it up with additional headings. This
-    will probably make it easier to read for your users too!
+    approach, consider section lengths when writing your documentation. If you
+    find a section is too long, consider ways you might break it up with
+    additional headings. This will probably make it easier to read for your
+    users too!
 
     To generate embeddings, we will use the ``text-embedding-ada-002`` model.
     Its input token limit is 8,191 tokens. Later, when answering a user's
