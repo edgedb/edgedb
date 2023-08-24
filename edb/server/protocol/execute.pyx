@@ -104,10 +104,12 @@ async def execute(
                     bound_args_buf = args_ser.recode_bind_args(
                         dbv, compiled, bind_args)
 
-                    assert not query_unit.needs_readback, (
-                        "needs_readback should use the script path"
+                    assert not (query_unit.database_config
+                                and query_unit.needs_readback), (
+                        "needs_readback+database_config must use execute_script"
                     )
-                    read_data = query_unit.is_explain
+                    read_data = (
+                        query_unit.needs_readback or query_unit.is_explain)
 
                     data = await be_conn.parse_execute(
                         query=query_unit,
@@ -117,6 +119,12 @@ async def execute(
                         state=state,
                         dbver=dbv.dbver,
                     )
+
+                    if query_unit.needs_readback and data:
+                        config_ops = [
+                            config.Operation.from_json(r[0][1:])
+                            for r in data
+                        ]
 
                     if query_unit.is_explain:
                         # Go back to the compiler pool to analyze
