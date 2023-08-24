@@ -140,8 +140,8 @@ EdgeDB instance to store section contents and embeddings, and the EdgeDB CLI
 will help us easily set up and manage that instance.
 
 
-Get an OpenAI API key
----------------------
+Prepare the OpenAI API client
+-----------------------------
 
 1. Log in or sign up to the `OpenAI platform
    <https://platform.openai.com/account/api-keys>`_.
