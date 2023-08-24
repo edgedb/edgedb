@@ -421,13 +421,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             signing_key = jwk.JWK(k=key_bytes.decode(), kty="oct")
             state_token.make_signed_token(signing_key)
 
-            _data, headers, status = self.http_con_request(
+            data, headers, status = self.http_con_request(
                 http_con,
                 {"state": state_token.serialize(), "code": "abc123"},
                 path="callback",
             )
 
-            print(f"body={_data!r}")
+            self.assertEqual(data, b"")
             self.assertEqual(status, 302)
 
             location = headers.get("location")
