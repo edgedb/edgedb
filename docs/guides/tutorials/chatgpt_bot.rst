@@ -429,7 +429,8 @@ staying under the model's token limit.
 
 Open the empty schema file that was generated when we initialized the EdgeDB
 project (located at ``dbschema/default.esdl`` from the project directory).
-We'll walk through what we'll add to it, one step at a time.
+We'll walk through what we'll add to it, one step at a time. First, add this at
+the top of the file (above ``module default {``):
 
 .. code-block:: sdl
     :caption: dbschema/default.esdl
