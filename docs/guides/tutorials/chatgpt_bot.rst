@@ -563,7 +563,7 @@ We apply this schema by creating and running a migration.
     database for a given section unless the two checksums are different
     indicating something has changed.
 
-    If you decide to go this route, add properties your ``Section`` as shown
+    If you decide to go this route, add properties to your ``Section`` as shown
     below:
 
     .. code-block:: sdl-diff
