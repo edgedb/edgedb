@@ -1458,7 +1458,7 @@ a variable named ``getSectionsQuery``.
         }
     );
 
-In the above code we use EdgeDB's TypeScript query builder to create a query.
+In the above code, we use EdgeDB's TypeScript query builder to create a query.
 The query takes a few parameters:
 
 * ``target``: Embedding array to compare against to find related sections. In
@@ -1484,11 +1484,11 @@ comparing it to the ``matchThreshold`` value we will pass when executing the
 query.
 
 We want to get back the content and number of tokens for every related section
-that passes the filter clause (i.e., has more than ``minContentLength`` tokens,
-and the distance from the question embedding is less than our
-``matchThreshold``). We want to order results in ascending order (which is the
-default) by how related they are to the question (represented as ``dist``) and
-to get back, at most, ``matchCount`` sections.
+that passes the filter clause (i.e., has more than ``minContentLength`` tokens
+and a distance from the question embedding less than our ``matchThreshold``).
+We want to order results in ascending order (which is the default) by how
+related they are to the question (represented as ``dist``) and to get back, at
+most, ``matchCount`` sections.
 
 We've written the query, but it won't help us until we execute it. We'll do
 that in the ``getContext`` function.
