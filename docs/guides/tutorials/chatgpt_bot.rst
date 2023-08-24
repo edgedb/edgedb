@@ -441,10 +441,10 @@ We are able to store embeddings and find similar embeddings in the EdgeDB
 database because of the ``pgvector`` extension. In order to use it in our
 schema, we have to activate the ``ext::pgvector`` module with ``using extension
 pgvector`` at the beginning of the schema file. This module gives us access to
-``ext::pgvector::vector`` as well as few similarity functions and indexes we
-can use later to retrieve embeddings. Read our `pgvector documentation
-<https://www.edgedb.com/docs/stdlib/pgvector>`_ for more details on the
-extension.
+the ``ext::pgvector::vector`` data type as well as few similarity functions and
+indexes we can use later to retrieve embeddings. Read our `pgvector
+documentation <https://www.edgedb.com/docs/stdlib/pgvector>`_ for more details
+on the extension.
 
 Just below that, we can start building our module by creating a new scalar
 type.
