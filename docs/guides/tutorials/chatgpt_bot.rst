@@ -133,57 +133,8 @@ Update the ``compilerOptions`` object by setting the ``baseUrl`` property to
 the root with ``"baseUrl": "."``. Later when we add modules to the root of the
 project, this will make it easier to import them.
 
-Before we start writing code, let's first obtain an OpenAI API key, install the
-EdgeDB CLI, and create a local EdgeDB instance. We need the API key in order to
-use OpenAI's APIs for generating embeddings and answering questions. We need an
-EdgeDB instance to store section contents and embeddings, and the EdgeDB CLI
-will help us easily set up and manage that instance.
-
-
-Prepare the OpenAI API client
------------------------------
-
-1. Log in or sign up to the `OpenAI platform
-   <https://platform.openai.com/account/api-keys>`_.
-2. Create new `secret key <https://platform.openai.com/account/api-keys>`_.
-3. Create a ``.env.local`` file in the root of your new Next.js project and
-   copy your key here in the following format:
-   ``OPENAI_API_KEY="<my-openai-api-key>"``.
-
-While we're here, let's get that key ready to be used. We will be making calls
-to the OpenAI API. We'll create a ``utils`` module and export a function from
-it, so we can initialize the API client which we can then reuse anywhere we
-need to call it. Create ``utils.ts`` in your project root and add this code:
-
-.. code-block:: typescript
-
-    import OpenAI from "openai";
-
-    export function initOpenAIClient() {
-      if (!process.env.OPENAI_API_KEY)
-        throw new Error("Missing environment variable OPENAI_API_KEY");
-
-      return new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY!,
-      });
-    }
-
-It's pretty simple. It makes sure the API key was provided in the environment
-variable and returns a new API client initialized with that key.
-
-Now, let's create error messages we will use in a couple of places if these API
-calls go wrong. Create a file ``app/constants.ts`` and fill it with this:
-
-.. code-block:: typescript
-
-    export const errors = {
-      flagged: `OpenAI has declined to answer your question due to their
-              [usage-policies](https://openai.com/policies/usage-policies). Please try
-              another question.`,
-      default: "There was an error processing your request. Please try again.",
-    };
-
-This exports an object ``errors`` with a couple of error messages.
+Now, we'll create an instance of EdgeDB for our project, but first, we need to
+install EdgeDB!
 
 
 Install the EdgeDB CLI
@@ -242,6 +193,104 @@ that instance.
 - Confirm you can connect to the created instance by running ``edgedb`` in the
   terminal to connect to it via REPL or by running ``edgedb ui`` to connect
   using the UI.
+
+
+Configure the environment
+-------------------------
+
+Create a ``.env.local`` file in the root of your new Next.js project.
+
+.. code-block:: bash
+
+    $ touch .env.local
+
+We're going to add a couple of variables to that file to configure EdgeDB.
+We'll need to run a command on our new instance to get the value for one of
+those. Since the runtime we're using in our Next.js project does not have file
+system access, we need to provide a DSN to tell the project how to connect. To
+get that, run this command:
+
+.. code-block:: bash
+
+    $ edgedb instance credentials --insecure-dsn
+
+Copy what it logs out. Open the ``.env.local`` file in your text editor and add
+this to it:
+
+.. code-block::
+
+    EDGEDB_DSN=<your-dsn>
+    EDGEDB_CLIENT_TLS_SECURITY="insecure"
+
+Instead of ``<your-dsn>`` paste in the value you copied earlier.
+
+We're going to be using the EdgeDB HTTP client a bit later to connect to our
+database, but it requires a trusted TLS/SSL certificate. Local development
+instances use self signed certificates, and using HTTPS with these certificates
+will result in an error. To work around this error, we allow the client to
+ignore TLS by setting the ``EDGEDB_CLIENT_TLS_SECURITY`` variable to
+``"insecure"``. Bear in mind that this is only for local development, and you
+should always use TLS in production.
+
+We need to set one more environment variable, but first we have to get an API
+key.
+
+
+Prepare the OpenAI API client
+-----------------------------
+
+We need an API key from OpenAI in order to make the calls we need to make this
+app work. To get one:
+
+1. Log in or sign up to the `OpenAI platform
+   <https://platform.openai.com/account/api-keys>`_.
+2. Create new `secret key <https://platform.openai.com/account/api-keys>`_.
+
+Copy the new key. Re-open your ``.env.local`` file and add it like this:
+
+.. code-block:: -diff
+    :caption: .env.local
+
+      EDGEDB_DSN=<your-dsn>
+      EDGEDB_CLIENT_TLS_SECURITY="insecure"
+    + OPENAI_API_KEY="<your-openai-api-key>"
+
+Instead of ``<your-openai-api-key>``, paste in the key you just created.
+
+While we're here, let's get that key ready to be used. We will be making calls
+to the OpenAI API. We'll create a ``utils`` module and export a function from
+it, so we can initialize the API client which we can then reuse anywhere we
+need to call it. Create ``utils.ts`` in your project root and add this code:
+
+.. code-block:: typescript
+
+    import OpenAI from "openai";
+
+    export function initOpenAIClient() {
+      if (!process.env.OPENAI_API_KEY)
+        throw new Error("Missing environment variable OPENAI_API_KEY");
+
+      return new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY!,
+      });
+    }
+
+It's pretty simple. It makes sure the API key was provided in the environment
+variable and returns a new API client initialized with that key.
+
+Now, let's create error messages we will use in a couple of places if these API
+calls go wrong. Create a file ``app/constants.ts`` and fill it with this:
+
+.. code-block:: typescript
+
+    export const errors = {
+      flagged: `OpenAI has declined to answer your question due to their
+              [usage-policies](https://openai.com/policies/usage-policies). Please try
+              another question.`,
+      default: "There was an error processing your request. Please try again.",
+    };
+
+This exports an object ``errors`` with a couple of error messages.
 
 Now, let's get the documentation ready!
 
@@ -1041,23 +1090,9 @@ earlier. Then, we import the EdgeDB binding. The third import is the query
 builder we described previously. We also import our errors and our Open AI API
 client.
 
-By exporting ``config``, we override Next.js configuration defaults for this
-handler. In this case, we want to override the runtime for this handler so that
-Next.js will use the Edge runtime instead of the default Node.js runtime.
-
-We need to use ``createHttpClient`` to connect to the EdgeDB client. The HTTP
-client defaults to using HTTPS which needs a trusted TLS/SSL certificate. Local
-development instances use self signed certificates, and using HTTPS with these
-certificates will result in an error. To work around this error, we will allow
-the client to ignore TLS. Bear in mind that this is only for local development,
-and you should always use TLS in production. We do this by adding another
-environment variable to ``.env.local`` file:
-
-.. code-block:: -diff
-    :caption: .env.local
-
-      OPENAI_API_KEY="<my-openai-api-key>"
-    + EDGEDB_CLIENT_TLS_SECURITY="insecure"
+By exporting ``runtime``, we override Next.js runtime default for this handler
+so that Next.js will use the Edge runtime instead of the default Node.js
+runtime.
 
 We're ready now to write the handler function for HTTP POST requests. To do
 this in Next.js, you export a function named for the request method you want it
@@ -1848,26 +1883,6 @@ complete, and it's time to try it out!
 
 Testing it out
 ==============
-
-Since we're using the Edge runtime which doesn't have file system access, we
-we need to tell our app explicitly how to access the database. We'll do that by
-providing a DSN. To get it, run this command inside your project:
-
-.. code-block:: bash
-
-    $ edgedb instance credentials --insecure-dsn
-
-Copy the value to the clipboard. Now, we need to add it to our environment.
-Open ``.env.local`` and add your DSN like this:
-
-.. code-block:: -diff
-    :caption: .env.local
-
-      OPENAI_API_KEY="<my-openai-api-key>"
-      EDGEDB_CLIENT_TLS_SECURITY="insecure"
-    + EDGEDB_DSN=<your-dsn>
-
-replacing ``<your-dsn>`` with the pasted value.
 
 You should now be able to run the project with ``npm run dev`` to test it. If
 you used our example documentation, the chatbot will know a few things about
