@@ -947,7 +947,7 @@ Let's add a script to ``package.json`` that will invoke and execute
           "react-dom": "18.2.0",
           "sse.js": "^0.6.1",
           "typescript": "5.1.6",
-          "edgedb": "^1.3.4",
+          "edgedb": "^1.3.5",
           "openai": "^4.0.1"
         },
         "devDependencies": {
