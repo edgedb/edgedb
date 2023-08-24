@@ -918,8 +918,8 @@ Again, we'll break the ``storeEmbeddings`` function apart and walk through it.
 We create our EdgeDB client and get our documentation paths by calling
 ``walk``. We also log out some debug information showing how many sections were
 discovered. Then, we prep our ``Section`` objects by calling the
-``prepareSectionData`` function we just wrote and passing in the documentation
-paths.
+``prepareSectionsData`` function we just walked through and passing in the
+documentation paths we got back from ``walk``.
 
 Next, we'll store this data.
 
@@ -949,8 +949,8 @@ Next, we'll store this data.
     }
     …
 
-The comments do a good job of explaining here, but lets go into a little more
-detail. First, we build and run a query that deletes all ``Section`` types
+The comments do a good job of explaining here, but let's go into a little more
+detail. First, we build and run a query that deletes all ``Section`` objects
 currently in the database. Then, we build another query that will insert the
 new ``Section`` data we just prepared. We await a call to that query's ``run``
 method, passing in the sections we just prepared.
