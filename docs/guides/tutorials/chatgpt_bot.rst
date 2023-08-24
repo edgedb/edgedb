@@ -2244,8 +2244,13 @@ complete, and it's time to try it out!
 Testing it out
 ==============
 
-You should now be able to run the project with ``npm run dev`` to test it. If
-you used our example documentation, the chatbot will know a few things about
+You should now be able to run the project to test it.
+
+.. code-block:: bash
+
+    $ npm run dev
+
+If you used our example documentation, the chatbot will know a few things about
 EdgeDB along with whatever it was trained on (which would have been relatively
 early in EdgeDB's development as of the time of this tutorial's publication).
 
