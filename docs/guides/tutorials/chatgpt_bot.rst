@@ -59,11 +59,11 @@ other, and words that often appear in similar contexts are grouped together.
 
 When using embeddings we are not training the language model. Instead we're
 creating embedding vectors for every piece of documentation which will later
-help us find which documentation likely answers a user's question. When a user
-asks a question, we create a new embedding for that question and compare it
-against the embeddings generated from our documentation to find the most
-similar embeddings. The answer is generated using the content that corresponds
-to these similar embeddings.
+help us find which piece of documentation likely answers a user's question.
+When a user asks a question, we create a new embedding for that question and
+compare it against the embeddings generated from our documentation to find the
+most similar embeddings. The answer is generated using the content that
+corresponds to these similar embeddings.
 
 With that out of the way, let's walk through how the pieces fit together.
 
