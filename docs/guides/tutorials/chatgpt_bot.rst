@@ -1358,10 +1358,8 @@ each of the functions we've called in it.
 Moderation request
 ^^^^^^^^^^^^^^^^^^
 
-Let's write our moderation request function: ``moderateQuery``. We will use the
-``https://api.openai.com/v1/moderations`` endpoint. Read about it in the
-`OpenAI moderation quickstart
-<https://platform.openai.com/docs/guides/moderation/quickstart>`_.
+Let's write our moderation request function: ``isQueryFlagged``. We will use
+the ``openai.moderations.create`` method.
 
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
@@ -1392,9 +1390,8 @@ question.
 Embeddings generation request
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For the embeddings request, we will build another fetch request, this time to
-the ``https://api.openai.com/v1/embeddings`` API endpoint, in a new function
-called ``getEmbedding``.
+For the embeddings request, we will call the ``openai.embeddings.create``
+method, in a new function called ``getEmbedding``.
 
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
@@ -1412,8 +1409,8 @@ called ``getEmbedding``.
 
 This new function again takes the question (as ``query``). We call the OpenAI
 library's ``embeddings.create`` method, specifying the model to use for
-generation (the ``model`` property of the request's body) and passing the input
-(``query`` with all newlines replaced by single spaces).
+generation (the ``model`` property of the options passed to the method) and
+passing the input (``query`` with all newlines replaced by single spaces).
 
 
 Get related documentation sections request
