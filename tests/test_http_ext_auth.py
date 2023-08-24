@@ -159,20 +159,18 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         """,
         """
         CONFIGURE CURRENT DATABASE SET
-        ext::auth::AuthConfig::token_time_to_live := <duration>'336 hours';
+        ext::auth::AuthConfig::token_time_to_live := <duration>'24 hours';
         """,
-        (
-            f"""
-            CONFIGURE CURRENT DATABASE
-            INSERT ext::auth::ClientConfig {{
-                provider_name := "github",
-                url := "https://github.com",
-                provider_id := <str>'{uuid.uuid4()}',
-                secret := <str>'{"b" * 32}',
-                client_id := <str>'{uuid.uuid4()}'
-            }};
-            """
-        ),
+        f"""
+        CONFIGURE CURRENT DATABASE
+        INSERT ext::auth::ClientConfig {{
+            provider_name := "github",
+            url := "https://github.com",
+            provider_id := <str>'{uuid.uuid4()}',
+            secret := <str>'{"b" * 32}',
+            client_id := <str>'{uuid.uuid4()}'
+        }};
+        """,
     ]
 
     def http_con_send_request(self, *args, headers=None, **kwargs):
@@ -364,7 +362,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             client_id = github_provider_config.client_id
             client_secret = github_provider_config.secret
 
-            now = datetime.datetime.utcnow().isoformat()
+            now = datetime.datetime.utcnow()
             token_request = (
                 "POST",
                 "https://github.com",
@@ -390,7 +388,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         "name": "monalisa octocat",
                         "email": "octocat@example.com",
                         "avatar_url": "http://example.com/example.jpg",
-                        "updated_at": now,
+                        "updated_at": now.isoformat(),
                     },
                     200,
                 )
@@ -405,7 +403,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 """
             )
 
-            expires_at = datetime.datetime.utcnow() + datetime.timedelta(
+            expires_at = now + datetime.timedelta(
                 minutes=5
             )
             state_claims = {
@@ -420,8 +418,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             key_bytes = base64.b64encode(auth_signing_key.encode())
-            key = jwk.JWK(k=key_bytes.decode(), kty="oct")
-            state_token.make_signed_token(key)
+            signing_key = jwk.JWK(k=key_bytes.decode(), kty="oct")
+            state_token.make_signed_token(signing_key)
 
             _data, headers, status = self.http_con_request(
                 http_con,
@@ -473,8 +471,21 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             set_cookie = headers.get("set-cookie")
             assert set_cookie is not None
-            (k, _v) = set_cookie.split(";")[0].split("=")
+            (k, v) = set_cookie.split(";")[0].split("=")
             self.assertEqual(k, "edgedb-session")
+            session_token = jwt.JWT(key=signing_key, jwt=v)
+            session_claims = json.loads(session_token.claims)
+            self.assertEqual(session_claims.get("sub"), str(identity[0].id))
+            self.assertEqual(session_claims.get("iss"), str(self.http_addr))
+            tomorrow = now + datetime.timedelta(hours=25)
+            self.assertTrue(
+                session_claims.get("exp")
+                > now.astimezone().timestamp()
+            )
+            self.assertTrue(
+                session_claims.get("exp")
+                < tomorrow.astimezone().timestamp()
+            )
 
             mock_provider.register_route_handler(*user_request)(
                 (
@@ -484,7 +495,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         "name": "monalisa octocat",
                         "email": "octocat+2@example.com",
                         "avatar_url": "http://example.com/example.jpg",
-                        "updated_at": now,
+                        "updated_at": now.isoformat(),
                     },
                     200,
                 )
@@ -508,5 +519,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             set_cookie = headers.get("set-cookie")
             assert set_cookie is not None
-            (k, _v) = set_cookie.split(";")[0].split("=")
+            (k, v) = set_cookie.split(";")[0].split("=")
             self.assertEqual(k, "edgedb-session")
+            new_session_token = jwt.JWT(key=signing_key, jwt=v)
+            new_session_claims = json.loads(new_session_token.claims)
+            self.assertTrue(
+                new_session_claims.get("exp") > session_claims.get("exp")
+            )
