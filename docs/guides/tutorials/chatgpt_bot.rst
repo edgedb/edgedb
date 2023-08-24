@@ -262,7 +262,7 @@ connect. To get that, run this command:
 Copy what it logs out. Open the ``.env.local`` file in your text editor and add
 this to it:
 
-.. code-block::
+.. code-block:: typescript
 
     EDGEDB_DSN=<your-dsn>
     EDGEDB_CLIENT_TLS_SECURITY="insecure"
