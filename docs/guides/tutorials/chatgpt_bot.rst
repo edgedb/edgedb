@@ -639,18 +639,18 @@ tasks we need to perform.
     }
 
     async function walk(dir: string): Promise<string[]> {
-      // ...
+      // …
     }
 
     async function prepareSectionsData(
       sectionPaths: string[]
     ): Promise<Section[]> {
-      // ...
+      // …
     }
 
 
     async function storeEmbeddings() {
-      // ...
+      // …
     }
 
     (async function main() {
@@ -1250,7 +1250,7 @@ writing some configuration.
         …
     }
 
-    // other functions that are called inside POST handler...
+    // other functions that are called inside POST handler
 
 
 The first imports are templates from the ``common-tags`` library we installed
@@ -1850,9 +1850,9 @@ our handler route while also sending the user's query.
     +         eventSource.stream();
     +     };
     +
-    +     handleError() { ... }
-    +     handleMessage() { ... }
-      ...
+    +     handleError() { … }
+    +     handleMessage() { … }
+      …
 
 Note that we save a reference to the ``eventSource`` object. We need this in
 case a user submits a new question while answer to the previous one is still
