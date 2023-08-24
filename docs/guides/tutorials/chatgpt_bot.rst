@@ -119,7 +119,8 @@ Run this wherever you would like to create the new directory for this project.
     ✔ Would you like to customize the default import alias? … No / Yes
     Creating a new Next.js app in /<path>/<to>/<project>/docs-chatbot.
 
-Choose "Yes" to all except "Would you like to use \`src/\` directory?".
+Choose "Yes" for all questions except "Would you like to use \`src/\`
+directory?" and "Would you like to customize the default import alias?"
 
 Once bootstrapping is complete, you should see a success message:
 
