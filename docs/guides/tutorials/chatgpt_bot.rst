@@ -489,7 +489,7 @@ and the embedding, which is of the custom scalar type we created in the
 previous step.
 
 We've also added an index inside the ``Section`` type to speed up queries. In
-order to work properly, the index should correspond to the
+order for this to work properly, the index should correspond to the
 ``cosine_similarity`` function we're going to use to find sections related to
 the user's question. That corresponding index is ``ivfflat_cosine``.
 
