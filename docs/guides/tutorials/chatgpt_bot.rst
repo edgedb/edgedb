@@ -1835,8 +1835,7 @@ the ``page.tsx`` file to use the client component. We do that by adding the
 
     "use client";
 
-Feel free to copy/paste the following HTML with Tailwind classes in order to
-have a ready-made UI, or you can write your own from scratch.
+Now we build a simple UI for the chatbot.
 
 .. code-block:: typescript
     :caption: app/page.tsx
@@ -1930,17 +1929,14 @@ have a ready-made UI, or you can write your own from scratch.
         );
     }
 
-We have created an input field where the user can enter a question. When they
-submit, we show a loading indicator while we wait for the first answer chunk
-from OpenAI. When the first chunk arrives, we start streaming the answer to the
-user. In case of an error, we show an error message to the user.
+We have created an input field where the user can enter a question. The text
+the user types in the input field is captured as ``prompt``. ``question`` is
+the submitted prompt that we show under the input when user submits their
+question. We clear the input and delete the prompt when user submits it, but
+keep the ``question`` value so the user can reference it.
 
-The text the user types in the input field is captured as ``prompt``.
-``question`` is the submitted prompt that we show under the input when user
-submits their question. We clear the input and delete the prompt when user
-submits it, but keep the ``question`` value so the user can reference it.
-
-Let's write the form submission handler function.
+Let's look at the fleshed-out form submission handler function that we stubbed
+in earlier:
 
 .. code-block:: typescript
     :caption: app/page.tsx
@@ -2004,8 +2000,8 @@ This extends the native ``EventStream`` by adding a payload to the constructor.
 We also added the ``stream`` function to it which is used to activate the
 stream in the sse.js library.
 
-Now, we can import ``SSE`` in ``page.tsx`` and use it to open a connection to
-our handler route while also sending the user's query.
+This allows us to import ``SSE`` in ``page.tsx`` and use it to open a
+connection to our handler route while also sending the user's query.
 
 .. code-block:: typescript-diff
     :caption: app/page.tsx
@@ -2056,7 +2052,7 @@ from it. We just need to write handlers for those events so the UI knows what
 to do with them. We will get the answer as part of a message event, and if an
 error is returned, the server will send an error event to the client.
 
-Let's write these handlers.
+Let's break down these handlers.
 
 .. code-block:: typescript
     :caption: app/page.tsx
