@@ -799,7 +799,7 @@ Since OpenAI's embeddings API can take not only a *single* string but also an
 *array* of strings, we can leverage this to batch up all our content and
 generate the embeddings with a single request! You can see that single API call
 when we set ``embeddingResponse`` to the result of the call to
-``openai.createEmbedding``, specifying the model and passing the entire array
+``openai.embeddings.create``, specifying the model and passing the entire array
 of contents.
 
 Now, it's time to put those embeddings into our section objects by iterating
