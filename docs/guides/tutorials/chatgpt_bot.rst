@@ -1236,6 +1236,11 @@ resources, but the downside is that it doesn't support native Node.js APIs.
 We'll start by importing the modules we will need in the handler and
 writing some configuration.
 
+.. note::
+
+    Like before, you may want to read along for understanding and copy/paste
+    the completed route at the end of this section.
+
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
 
