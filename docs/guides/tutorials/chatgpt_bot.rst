@@ -690,26 +690,22 @@ and sort them.
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
+    …
     async function walk(dir: string): Promise<string[]> {
-      const immediateFiles = await fs.readdir(dir);
+      const entries = await fs.readdir(dir, { withFileTypes: true });
 
-      const recursiveFiles: string[][] = await Promise.all(
-        immediateFiles.map(async (file: any) => {
-          const path = join(dir, file);
-          const stats = await fs.stat(path);
-          if (stats.isDirectory()) return walk(path);
-          else if (stats.isFile()) return [path];
-          else return [];
-        })
-      );
-
-      const flattenedFiles: string[] = recursiveFiles.reduce(
-        (all, folderContents) => all.concat(folderContents),
-        []
-      );
-
-      return flattenedFiles.sort((a, b) => a.localeCompare(b));
+      return (
+        await Promise.all(
+          entries.map((entry) => {
+            const path = join(dir, entry.name);
+            if (entry.isFile()) return [path];
+            else if (entry.isDirectory()) return walk(path);
+            return [];
+          })
+        )
+      ).flat();
     }
+    …
 
 The output it produces looks like this:
 
