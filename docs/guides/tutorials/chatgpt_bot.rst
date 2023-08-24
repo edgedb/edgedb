@@ -140,6 +140,8 @@ Update the ``compilerOptions`` object by setting the ``baseUrl`` property to
 the root with ``"baseUrl": "."``. Later when we add modules to the root of the
 project, this will make it easier to import them.
 
+.. lint-off
+
 .. code-block:: json-diff
     :caption: tsconfig.json
 
@@ -173,6 +175,8 @@ project, this will make it easier to import them.
         "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
         "exclude": ["node_modules"]
       }
+
+.. lint-on
 
 Now, we'll create an instance of EdgeDB for our project, but first, we need to
 install EdgeDB!
@@ -334,8 +338,8 @@ calls go wrong. Create a file ``app/constants.ts`` and fill it with this:
 
     export const errors = {
       flagged: `OpenAI has declined to answer your question due to their
-              [usage-policies](https://openai.com/policies/usage-policies). Please try
-              another question.`,
+              [usage-policies](https://openai.com/policies/usage-policies).
+              Please try another question.`,
       default: "There was an error processing your request. Please try again.",
     };
 
@@ -594,8 +598,8 @@ need to run the query builder generator.
 Answer "y" when asked about adding the query builder to ``.gitignore``.
 
 This generator gives us a code-first way to write fully-typed EdgeQL queries
-with TypeScript. After running the generator, you should see a new ``edgeql-js``
-folder inside ``dbschema``.
+with TypeScript. After running the generator, you should see a new
+``edgeql-js`` folder inside ``dbschema``.
 
 Finally, we're ready to create embeddings for all sections and store them in
 the database we created earlier. Let's make a ``generate-embeddings.ts`` file
@@ -742,7 +746,8 @@ generate the embeddings. Let's walk through it one piece at a time.
 
       for (const path of sectionPaths) {
         const content = await fs.readFile(path, "utf8");
-        // OpenAI recommends replacing newlines with spaces for best results (specific to embeddings)
+        // OpenAI recommends replacing newlines with spaces for best results
+        // when generating embeddings
         const contentTrimmed = content.replace(/\n/g, " ");
         contents.push(contentTrimmed);
         sections.push({
@@ -854,7 +859,8 @@ Here's the entire function assembled:
 
       for (const path of sectionPaths) {
         const content = await fs.readFile(path, "utf8");
-        // OpenAI recommends replacing newlines with spaces for best results (specific to embeddings)
+        // OpenAI recommends replacing newlines with spaces for best results
+        // when generating embeddings
         const contentTrimmed = content.replace(/\n/g, " ");
         contents.push(contentTrimmed);
         sections.push({
@@ -1039,7 +1045,8 @@ into your ``generate-embeddings.ts`` file.
 
       for (const path of sectionPaths) {
         const content = await fs.readFile(path, "utf8");
-        // OpenAI recommends replacing newlines with spaces for best results (specific to embeddings)
+        // OpenAI recommends replacing newlines with spaces for best results
+        // when generating embeddings
         const contentTrimmed = content.replace(/\n/g, " ");
         contents.push(contentTrimmed);
         sections.push({
@@ -1469,8 +1476,8 @@ The query takes a few parameters:
   must be very similar to the question while values closer to ``1.0`` allow for
   more variance.
 * ``matchCount``: Maximum number of sections to return
-* ``minContentLength``: Minimum number of characters the sections should have in
-  order to be considered
+* ``minContentLength``: Minimum number of characters the sections should have
+  in order to be considered
 
 We write a select query by calling ``e.select`` and passing it the type we want
 to select (``e.Section``). We return from that function an object representing
@@ -1837,6 +1844,8 @@ the ``page.tsx`` file to use the client component. We do that by adding the
 
 Now we build a simple UI for the chatbot.
 
+.. lint-off
+
 .. code-block:: typescript
     :caption: app/page.tsx
 
@@ -1928,6 +1937,8 @@ Now we build a simple UI for the chatbot.
             </div>
         );
     }
+
+.. lint-on
 
 We have created an input field where the user can enter a question. The text
 the user types in the input field is captured as ``prompt``. ``question`` is
@@ -2095,6 +2106,8 @@ The completed UI
 Put all that together, and you have this (which can be copy/pasted to
 ``app/page.tsx``):
 
+.. lint-off
+
 .. code-block:: typescript
     :caption: app/page.tsx
 
@@ -2236,6 +2249,8 @@ Put all that together, and you have this (which can be copy/pasted to
         </div>
       );
     }
+
+.. lint-on
 
 With that, the UI can now get answers from the Next.js route. The build is
 complete, and it's time to try it out!
