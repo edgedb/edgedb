@@ -2004,7 +2004,6 @@ This allows us to import ``SSE`` in ``page.tsx`` and use it to open a
 connection to our handler route while also sending the user's query.
 
 .. code-block:: typescript-diff
-    :caption: app/page.tsx
 
       "use client";
 
