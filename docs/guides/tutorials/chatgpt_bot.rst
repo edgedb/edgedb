@@ -2006,12 +2006,12 @@ connection to our handler route while also sending the user's query.
 .. code-block:: typescript-diff
 
       "use client";
-
+     
     - import { useState } from "react";
     + import { useState, useRef } from "react";
     + import { SSE } from "sse.js";
       import { errors } from "./constants";
-
+     
       export default function Home() {
     +     const eventSourceRef = useRef<SSE>();
     +
@@ -2020,7 +2020,7 @@ connection to our handler route while also sending the user's query.
           const [answer, setAnswer] = useState<string>("");
           const [isLoading, setIsLoading] = useState(false);
           const [error, setError] = useState<string | undefined>(undefined);
-
+     
           const handleSubmit = () => {};
     +
     +     const generateAnswer = async (query: string) => {
