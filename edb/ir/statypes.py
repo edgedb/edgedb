@@ -24,6 +24,7 @@ import dataclasses
 import functools
 import re
 import struct
+import datetime
 
 import immutables
 
@@ -335,6 +336,9 @@ class Duration(ScalarType):
         if ret == ['PT']:
             ret.append('0S')
         return ''.join(ret)
+
+    def to_timedelta(self) -> datetime.timedelta:
+        return datetime.timedelta(microseconds=self.to_microseconds())
 
     def to_backend_str(self) -> str:
         return f'{self.to_microseconds()}us'
