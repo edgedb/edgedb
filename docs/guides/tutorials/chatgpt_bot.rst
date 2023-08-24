@@ -1100,7 +1100,6 @@ Let's add a script to ``package.json`` that will invoke and execute
 ``generate-embeddings.ts``.
 
 .. code-block:: json-diff
-    :caption: package.json
 
       {
         "name": "docs-chatbot",
