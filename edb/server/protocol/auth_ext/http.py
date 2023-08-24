@@ -29,6 +29,7 @@ from jwcrypto import jwk, jwt
 from edb import errors as edb_errors
 from edb.common import debug
 from edb.common import markup
+from edb.ir import statypes
 
 from . import oauth
 from . import errors
@@ -81,12 +82,13 @@ class Router:
                         provider_id=provider_id,
                         base_url=test_url,
                     )
-                    session = await client.handle_callback(code)
+                    identity = await client.handle_callback(code)
+                    session_token = self._make_session_token(identity.id)
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = redirect_to
-                    response.custom_headers["Set-Cookie"] = (
-                        f"edgedb-session={session.token}; HttpOnly; Secure; SameSite=Strict"
-                    )
+                    response.custom_headers[
+                        "Set-Cookie"
+                    ] = f"edgedb-session={session_token}; HttpOnly; Secure; SameSite=Strict"
 
                 case _:
                     raise errors.NotFound("Unknown OAuth endpoint")
@@ -151,6 +153,31 @@ class Router:
         )
         state_token.make_signed_token(signing_key)
         return state_token.serialize()
+
+    def _make_session_token(self, identity_id: str) -> str:
+        markup.dump(self.db.db_config)
+        signing_key = self._get_auth_signing_key()
+        auth_expiration_time = util.get_config(
+            self.db.db_config,
+            "ext::auth::AuthConfig::token_time_to_live",
+            statypes.Duration
+        )
+        expires_in_microseconds = datetime.timedelta(
+            microseconds=auth_expiration_time.to_microseconds()
+        )
+        expires_at = datetime.datetime.utcnow() + expires_in_microseconds
+
+        claims = {
+            "iss": self.base_path,
+            "sub": identity_id,
+            "exp": expires_at.astimezone().timestamp(),
+        }
+        session_token = jwt.JWT(
+            header={"alg": "HS256"},
+            claims=claims,
+        )
+        session_token.make_signed_token(signing_key)
+        return session_token.serialize()
 
     def _get_from_claims(self, state: str, key: str) -> str:
         signing_key = self._get_auth_signing_key()

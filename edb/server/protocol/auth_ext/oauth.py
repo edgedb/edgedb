@@ -19,13 +19,14 @@
 
 import urllib.parse
 import json
-
 import httpx
-from edb.server.protocol import execute
-from edb.common import markup
-
+import base64
+import datetime
 
 from typing import Any
+from jwcrypto import jwt, jwk
+from edb.server.protocol import execute
+from edb.common import markup
 
 from . import errors, util, data
 
@@ -80,16 +81,14 @@ class Client:
             state=state, redirect_uri=redirect_uri
         )
 
-    async def handle_callback(self, code: str) -> data.Session:
+    async def handle_callback(self, code: str) -> data.Identity:
         token = await self.provider.exchange_code(code)
         user_info = await self.provider.fetch_user_info(token)
 
-        session = await self._handle_identity(user_info)
+        return await self._handle_identity(user_info)
 
-        return session
-
-    async def _handle_identity(self, user_info: data.UserInfo) -> data.Session:
-        """Update or create an identity and session"""
+    async def _handle_identity(self, user_info: data.UserInfo) -> data.Identity:
+        """Update or create an identity"""
 
         r = await execute.parse_execute_json(
             db=self.db,
@@ -98,40 +97,26 @@ with
   iss := <str>$issuer_url,
   sub := <str>$provider_id,
   email := <optional str>$email,
-  now := std::datetime_of_statement(),
-  expires_in := std::assert_single(
-    cfg::Config.extensions[is ext::auth::AuthConfig]
-      .token_time_to_live
-  ),
 
-  Identity := insert ext::auth::Identity {
-    iss := iss,
-    sub := sub,
-    email := email,
-  } unless conflict on ((.iss, .sub)) else (
-    update ext::auth::Identity set {
-        email := email
-    }
-  ),
-  Session := (
-    insert ext::auth::Session {
-        # TODO: token: use JWT
-        token := <str>std::uuid_generate_v4(),
-        created_at := now,
-        expires_at := now + expires_in,
-        identity := Identity,
-    }
-  )
-select Session { * };""",
+select (insert ext::auth::Identity {
+  iss := iss,
+  sub := sub,
+  email := email,
+} unless conflict on ((.iss, .sub)) else (
+  update ext::auth::Identity set {
+    email := email
+  }
+)) { * };""",
             variables={
                 "issuer_url": self.provider.issuer_url,
                 "provider_id": user_info.sub,
                 "email": user_info.email,
             },
         )
-        results = json.loads(r.decode())
-        assert len(results) == 1
-        return data.Session(**results[0])
+        result_json = json.loads(r.decode())
+        assert len(result_json) == 1
+
+        return data.Identity(**result_json[0])
 
     def _get_provider_config(self, provider_id: str) -> tuple[str, str, str]:
         provider_client_config = util.get_config(

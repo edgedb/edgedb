@@ -157,6 +157,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::auth_signing_key := <str>'{'a' * 32}';
         """,
+        """
+        CONFIGURE CURRENT DATABASE SET
+        ext::auth::AuthConfig::token_time_to_live := <duration>'336 hours';
+        """,
         (
             f"""
             CONFIGURE CURRENT DATABASE
@@ -425,6 +429,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 path="callback",
             )
 
+            print(f"body={_data!r}")
             self.assertEqual(status, 302)
 
             location = headers.get("location")
@@ -466,18 +471,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(len(identity), 1)
 
-            session = await self.con.query(
-                """
-                SELECT ext::auth::Session { token, identity: { id } }
-                """
-            )
-            self.assertEqual(len(session), 1)
-            self.assertEqual(session[0].identity.id, identity[0].id)
-
             set_cookie = headers.get("set-cookie")
             assert set_cookie is not None
-            cookie_value = set_cookie.split(";")[0]
-            self.assertEqual(cookie_value, f"edgedb-session={session[0].token}")
+            (k, _v) = set_cookie.split(";")[0].split("=")
+            self.assertEqual(k, "edgedb-session")
 
             mock_provider.register_route_handler(*user_request)(
                 (
@@ -492,7 +489,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     200,
                 )
             )
-            self.http_con_request(
+            (_, headers, _) = self.http_con_request(
                 http_con,
                 {"state": state_token.serialize(), "code": "abc123"},
                 path="callback",
@@ -509,11 +506,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(len(same_identity), 1)
             self.assertEqual(identity[0].id, same_identity[0].id)
 
-            new_sessions = await self.con.query(
-                """
-                SELECT ext::auth::Session { identity: { id } }
-                """
-            )
-            self.assertEqual(len(new_sessions), 2)
-            self.assertEqual(new_sessions[0].identity.id, same_identity[0].id)
-            self.assertEqual(new_sessions[1].identity.id, same_identity[0].id)
+            set_cookie = headers.get("set-cookie")
+            assert set_cookie is not None
+            (k, _v) = set_cookie.split(";")[0].split("=")
+            self.assertEqual(k, "edgedb-session")

@@ -63,24 +63,20 @@ class UserInfo:
 
 
 @dataclasses.dataclass
-class Session:
-    """
-    Session data.
-    """
-
+class Identity:
     id: str
-    token: str
-    expires_at: str
-    created_at: str
+    sub: str
+    iss: str
+    email: str | None
 
     def __str__(self) -> str:
-        return self.token
+        return self.id
 
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"id={self.id!r} "
-            f"token={self.token!r} "
-            f"expires_at={self.expires_at!r} "
-            f"created_at={self.created_at!r})"
+            f"sub={self.sub!r} "
+            f"iss={self.iss!r} "
+            f"email={self.email!r})"
         )
