@@ -1852,6 +1852,26 @@ complete, and it's time to try it out!
 Testing it out
 ==============
 
+Since we're using the Edge runtime which doesn't have file system access, we
+we need to tell our app explicitly how to access the database. We'll do that by
+providing a DSN. To get it, run this command inside your project:
+
+.. code-block:: bash
+
+    $ edgedb instance credentials --insecure-dsn
+
+Copy the value to the clipboard. Now, we need to add it to our environment.
+Open ``.env.local`` and add your DSN like this:
+
+.. code-block:: -diff
+    :caption: .env.local
+
+      OPENAI_API_KEY="<my-openai-api-key>"
+      EDGEDB_CLIENT_TLS_SECURITY="insecure"
+    + EDGEDB_DSN=<your-dsn>
+
+replacing ``<your-dsn>`` with the pasted value.
+
 You should now be able to run the project with ``npm run dev`` to test it. If
 you used our example documentation, the chatbot will know a few things about
 EdgeDB along with whatever it was trained on (which would have been relatively
