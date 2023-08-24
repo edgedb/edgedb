@@ -445,6 +445,9 @@ the top of the file (above ``module default {``):
     :caption: dbschema/default.esdl
 
     using extension pgvector;
+    module default {
+      # Schema will go here
+    }
 
 We are able to store embeddings and find similar embeddings in the EdgeDB
 database because of the ``pgvector`` extension. In order to use it in our
