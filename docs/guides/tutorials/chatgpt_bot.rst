@@ -267,7 +267,7 @@ this to it:
     EDGEDB_DSN=<your-dsn>
     EDGEDB_CLIENT_TLS_SECURITY="insecure"
 
-Instead of ``<your-dsn>`` paste in the value you copied earlier.
+Replace ``<your-dsn>`` with the value you copied earlier.
 
 We're going to be using the EdgeDB HTTP client a bit later to connect to our
 database, but it requires a trusted TLS/SSL certificate. Local development
