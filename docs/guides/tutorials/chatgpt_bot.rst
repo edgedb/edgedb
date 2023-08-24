@@ -546,11 +546,7 @@ tasks we need to perform.
     }
 
     (async function main() {
-      try {
-        await storeEmbeddings();
-      } catch (err) {
-        console.error("Error while trying to regenerate all embeddings.", err);
-      }
+      await storeEmbeddings();
     })();
 
 
@@ -894,29 +890,30 @@ Let's add a script to ``package.json`` that will invoke and execute
           "build": "next build",
           "start": "next start",
           "lint": "next lint",
-    +     "embeddings": "tsx generate-embeddings.ts"
+    +     "embeddings": "tsx generate-embeddings.ts",
         },
         "dependencies": {
+          "next": "^13.4.19",
+          "react": "18.2.0",
+          "react-dom": "18.2.0",
+          "sse.js": "^0.6.1",
+          "typescript": "5.1.6",
+          "edgedb": "^1.3.4",
+          "openai": "^4.0.1"
+        },
+        "devDependencies": {
           "@types/node": "20.4.8",
           "@types/react": "18.2.18",
           "@types/react-dom": "18.2.7",
+          "@edgedb/generate": "^0.3.3",
+          "dotenv": "^16.3.1",
+          "gpt-tokenizer": "^2.1.1",
+          "tsx": "^3.12.7",
           "autoprefixer": "10.4.14",
           "eslint": "8.46.0",
           "eslint-config-next": "13.4.13",
-          "next": "13.4.19",
           "postcss": "8.4.27",
-          "react": "18.2.0",
-          "react-dom": "18.2.0",
-          "tailwindcss": "3.3.3",
-          "typescript": "5.1.6"
-        },
-        "devDependencies": {
-          "@edgedb/generate": "^0.3.3",
-          "dotenv": "^16.3.1",
-          "edgedb": "^1.3.4",
-          "gpt-tokenizer": "^2.1.1",
-          "openai": "^4.0.1",
-          "tsx": "^3.12.7"
+          "tailwindcss": "3.3.3"
         }
       }
 
@@ -1026,13 +1023,11 @@ writing some configuration.
     import { errors } from "../../constants";
     import { initOpenAIClient } from "@/utils";
 
-    export const config = { runtime: "edge" };
+    export const runtime = "edge";
 
     const openai = initOpenAIClient();
 
-    const client = edgedb.createHttpClient({
-      tlsSecurity: process.env.EDGEDB_CLIENT_TLS_SECURITY
-    });
+    const client = edgedb.createHttpClient();
 
     export async function POST(req: Request) {
         …
@@ -1053,12 +1048,10 @@ Next.js will use the Edge runtime instead of the default Node.js runtime.
 We need to use ``createHttpClient`` to connect to the EdgeDB client. The HTTP
 client defaults to using HTTPS which needs a trusted TLS/SSL certificate. Local
 development instances use self signed certificates, and using HTTPS with these
-certificates will result in an error. To work around this error, we use HTTP
-instead by passing ``{ tlsSecurity: "insecure" }`` when creating the client.
-Bear in mind that this is only for local development, and you should always use
-TLS in production. Instead of hardcoding the ``tlsSecurity`` value in our code,
-let's add another environment variable to ``.env.local`` file so we can easily
-change this value per environment.
+certificates will result in an error. To work around this error, we will allow
+the client to ignore TLS. Bear in mind that this is only for local development,
+and you should always use TLS in production. We do this by adding another
+environment variable to ``.env.local`` file:
 
 .. code-block:: -diff
     :caption: .env.local
@@ -1352,13 +1345,15 @@ it. With that you can give it some personality that it will bake into every
 response. We'll combine all of these parts in a function called
 ``createFullPrompt``.
 
+.. lint-off
+
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
 
     function createFullPrompt(query: string, context: string) {
         const systemMessage = `
-            As an enthusiastic EdgeDB expert keen to assist, respond to questions in
-            markdown, referencing the given EdgeDB sections.
+            As an enthusiastic EdgeDB expert keen to assist, respond to questions
+            referencing the given EdgeDB sections.
 
             If unable to help based on documentation, respond with:
             "Sorry, I don't know how to help with that."`;
@@ -1374,6 +1369,8 @@ response. We'll combine all of these parts in a function called
             ${query}
             """`;
     }
+
+.. lint-on
 
 This function takes the question (as ``query``) and the related documentation
 (as ``context``), combines them with a system message, and formats it all
