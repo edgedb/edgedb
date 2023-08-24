@@ -891,13 +891,12 @@ everything together with the ``storeEmbeddings`` function.
 Storing the ``Section`` objects
 -------------------------------
 
-.. TODO: Still need to edit this section
-
-Again, we'll break this function apart and walk through it.
+Again, we'll break the ``storeEmbeddings`` function apart and walk through it.
 
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
+    …
     async function storeEmbeddings() {
       const client = edgedb.createClient();
 
@@ -906,6 +905,25 @@ Again, we'll break this function apart and walk through it.
       console.log(`Discovered ${sectionPaths.length} sections`);
 
       const sections = await prepareSectionsData(sectionPaths);
+
+      // The rest of the function
+    }
+    …
+
+We create our EdgeDB client and get our documentation paths by calling
+``walk``. We also log out some debug information showing how many sections were
+discovered. Then, we prep our ``Section`` objects by calling the
+``prepareSectionData`` function we just wrote and passing in the documentation
+paths.
+
+Next, we'll store this data.
+
+.. code-block:: typescript
+    :caption: generate-embeddings.ts
+
+    …
+    async function storeEmbeddings() {
+      // The parts we just talked about
 
       // Delete old data from the DB.
       await e.delete(e.Section).run(client);
@@ -924,10 +942,20 @@ Again, we'll break this function apart and walk through it.
       await query.run(client, { sections });
       console.log("Embedding generation complete");
     }
+    …
+
+The comments do a good job of explaining here, but lets go into a little more
+detail. First, we build and run a query that deletes all ``Section`` types
+currently in the database. Then, we build another query that will insert the
+new ``Section`` data we just prepared. We await a call to that query's ``run``
+method, passing in the sections we just prepared.
+
+Here's what the whole function looks like:
 
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
+    …
     async function storeEmbeddings() {
       const client = edgedb.createClient();
 
