@@ -1031,7 +1031,7 @@ writing some configuration.
     const openai = initOpenAIClient();
 
     const client = edgedb.createHttpClient({
-      tlsSecurity: process.env.TLS_SECURITY
+      tlsSecurity: process.env.EDGEDB_CLIENT_TLS_SECURITY
     });
 
     export async function POST(req: Request) {
@@ -1064,7 +1064,7 @@ change this value per environment.
     :caption: .env.local
 
       OPENAI_API_KEY="<my-openai-api-key>"
-    + TLS_SECURITY = "insecure"
+    + EDGEDB_CLIENT_TLS_SECURITY="insecure"
 
 We're ready now to write the handler function for HTTP POST requests. To do
 this in Next.js, you export a function named for the request method you want it
