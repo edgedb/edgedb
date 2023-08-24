@@ -251,9 +251,9 @@ Create a ``.env.local`` file in the root of your new Next.js project.
 
 We're going to add a couple of variables to that file to configure EdgeDB.
 We'll need to run a command on our new instance to get the value for one of
-those. Since the runtime we're using in our Next.js project does not have file
-system access, we need to provide a DSN to tell the project how to connect. To
-get that, run this command:
+those. Since the runtime we'll be using in our Next.js project does not have
+file system access, we need to provide a DSN to tell the project how to
+connect. To get that, run this command:
 
 .. code-block:: bash
 
