@@ -1149,10 +1149,10 @@ After the script finishes, open the EdgeDB UI.
 
 .. code-block:: bash
 
-  $ egdedb ui
+  $ edgedb ui
 
-Switch to the Data Explorer, and you should see that the database has been
-updated with the embeddings and other relevant data.
+Open your "edgedb" database and switch to the Data Explorer tab. You should see
+that the database has been updated with the embeddings and other relevant data.
 
 
 Answering user questions
