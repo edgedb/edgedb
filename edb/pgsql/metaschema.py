@@ -6397,7 +6397,7 @@ def _build_data_source(
 
 
 def _escape_like(s: str) -> str:
-    return s.replace('%', '\\%').replace('_', '\\_').replace('\\', '\\\\')
+    return s.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
 
 def _generate_config_type_view(

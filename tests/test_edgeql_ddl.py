@@ -15989,14 +15989,14 @@ class TestDDLNonIsolated(tb.DDLTestCase):
 
     async def _extension_test_05(self, in_tx):
         await self.con.execute('''
-            create extension conf
+            create extension _conf
         ''')
 
         Q = '''
             select cfg::%s {
-                conf := assert_single(.extensions[is ext::conf::Config] {
+                conf := assert_single(.extensions[is ext::_conf::Config] {
                     config_name,
-                    objs: { name, value, [is ext::conf::SubObj].extra,
+                    objs: { name, value, [is ext::_conf::SubObj].extra,
                             tname := .__type__.name }
                           order by .name,
                 })
@@ -16017,7 +16017,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
 
         if not in_tx:
             await self.con.execute('''
-                configure instance set ext::conf::Config::config_name :=
+                configure instance set ext::_conf::Config::config_name :=
                     "instance";
             ''')
             await _check(
@@ -16026,7 +16026,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             )
 
         await self.con.execute('''
-            configure current database set ext::conf::Config::config_name :=
+            configure current database set ext::_conf::Config::config_name :=
                 "test";
         ''')
 
@@ -16046,7 +16046,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         async with self.assertRaisesRegexTx(
                 edgedb.UnsupportedFeatureError, ""):
             await self.con.execute('''
-                configure session set ext::conf::Config::config_name :=
+                configure session set ext::_conf::Config::config_name :=
                     "session!";
             ''')
 
@@ -16056,7 +16056,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             )
 
             await self.con.execute('''
-                configure session reset ext::conf::Config::config_name;
+                configure session reset ext::_conf::Config::config_name;
             ''')
 
         await _check(
@@ -16065,19 +16065,19 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         )
 
         await self.con.execute('''
-            configure current database insert ext::conf::Obj {
+            configure current database insert ext::_conf::Obj {
                 name := '1',
                 value := 'foo',
             };
         ''')
         await self.con.execute('''
-            configure current database insert ext::conf::Obj {
+            configure current database insert ext::_conf::Obj {
                 name := '2',
                 value := 'bar',
             };
         ''')
         await self.con.execute('''
-            configure current database insert ext::conf::SubObj {
+            configure current database insert ext::_conf::SubObj {
                 name := '3',
                 value := 'baz',
                 extra := 42,
@@ -16085,17 +16085,17 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         ''')
 
         await self.con.execute('''
-            configure current database set ext::conf::Config::config_name :=
+            configure current database set ext::_conf::Config::config_name :=
                 "ready";
         ''')
 
         await _check(
             config_name='ready',
             objs=[
-                dict(name='1', value='foo', tname='ext::conf::Obj'),
-                dict(name='2', value='bar', tname='ext::conf::Obj'),
+                dict(name='1', value='foo', tname='ext::_conf::Obj'),
+                dict(name='2', value='bar', tname='ext::_conf::Obj'),
                 dict(name='3', value='baz', extra=42,
-                     tname='ext::conf::SubObj'),
+                     tname='ext::_conf::SubObj'),
             ],
         )
 
@@ -16114,20 +16114,20 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                         db_data = data['databases'][self.get_database_name()]
                         config = db_data['config']
                         assert (
-                            config['ext::conf::Config::config_name'] == 'ready'
+                            config['ext::_conf::Config::config_name'] == 'ready'
                         )
 
             self.assertEqual(
                 sorted(
-                    config['ext::conf::Config::objs'],
+                    config['ext::_conf::Config::objs'],
                     key=lambda x: x['name'],
                 ),
                 [
-                    {'_tname': 'ext::conf::Obj',
+                    {'_tname': 'ext::_conf::Obj',
                      'name': '1', 'value': 'foo'},
-                    {'_tname': 'ext::conf::Obj',
+                    {'_tname': 'ext::_conf::Obj',
                      'name': '2', 'value': 'bar'},
-                    {'_tname': 'ext::conf::SubObj',
+                    {'_tname': 'ext::_conf::SubObj',
                      'name': '3', 'value': 'baz', 'extra': 42},
                 ],
             )
@@ -16136,17 +16136,17 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             describe current database config
         ''')
         test_expected = textwrap.dedent('''\
-        CONFIGURE CURRENT DATABASE SET ext::conf::Config::config_name := \
+        CONFIGURE CURRENT DATABASE SET ext::_conf::Config::config_name := \
 'ready';
-        CONFIGURE CURRENT DATABASE INSERT ext::conf::Obj {
+        CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
             name := '1',
             value := 'foo',
         };
-        CONFIGURE CURRENT DATABASE INSERT ext::conf::Obj {
+        CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
             name := '2',
             value := 'bar',
         };
-        CONFIGURE CURRENT DATABASE INSERT ext::conf::SubObj {
+        CONFIGURE CURRENT DATABASE INSERT ext::_conf::SubObj {
             extra := 42,
             name := '3',
             value := 'baz',
@@ -16155,7 +16155,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         self.assertEqual(val, test_expected)
 
         await self.con.execute('''
-            configure current database reset ext::conf::Obj
+            configure current database reset ext::_conf::Obj
             filter .value like 'ba%'
         ''')
 
@@ -16167,7 +16167,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         )
 
         await self.con.execute('''
-            configure current database reset ext::conf::Obj
+            configure current database reset ext::_conf::Obj
         ''')
 
         await _check(
@@ -16176,7 +16176,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         )
 
         await self.con.execute('''
-            configure current database reset ext::conf::Config::config_name;
+            configure current database reset ext::_conf::Config::config_name;
         ''')
         if not in_tx:
             await _check(
@@ -16185,7 +16185,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             )
 
             await self.con.execute('''
-                configure instance reset ext::conf::Config::config_name;
+                configure instance reset ext::_conf::Config::config_name;
             ''')
 
         await _check(
@@ -16198,7 +16198,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             try:
                 await con2.query('select 1')
                 await self.con.execute('''
-                    CONFIGURE CURRENT DATABASE INSERT ext::conf::Obj {
+                    CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
                         name := 'fail',
                         value := '',
                     };
@@ -16209,7 +16209,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                     edgedb.ConstraintViolationError, ""
                 ):
                     await self.con.execute('''
-                        CONFIGURE CURRENT DATABASE INSERT ext::conf::Obj {
+                        CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
                             name := 'fail',
                             value := '',
                         };
@@ -16231,12 +16231,12 @@ class TestDDLNonIsolated(tb.DDLTestCase):
     async def test_edgeql_ddl_extensions_05(self):
         # Test config extension
         await self.con.execute('''
-        create extension package conf VERSION '1.0' {
-          set ext_module := "ext::conf";
+        create extension package _conf VERSION '1.0' {
+          set ext_module := "ext::_conf";
           set sql_extensions := [];
-          create module ext::conf;
+          create module ext::_conf;
 
-          create type ext::conf::Obj extending cfg::ConfigObject {
+          create type ext::_conf::Obj extending cfg::ConfigObject {
               create required property name -> std::str {
                   set readonly := true;
                   create constraint std::exclusive;
@@ -16245,14 +16245,14 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                   set readonly := true;
               };
           };
-          create type ext::conf::SubObj extending ext::conf::Obj {
+          create type ext::_conf::SubObj extending ext::_conf::Obj {
               create required property extra -> int64 {
                   set readonly := true;
               };
           };
 
-          create type ext::conf::Config extending cfg::ExtensionConfig {
-              create multi link objs -> ext::conf::Obj;
+          create type ext::_conf::Config extending cfg::ExtensionConfig {
+              create multi link objs -> ext::_conf::Obj;
 
               create property config_name -> std::str {
                   set default := "";
@@ -16271,12 +16271,12 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 await self._extension_test_05(in_tx=False)
             finally:
                 await self.con.execute('''
-                    drop extension conf
+                    drop extension _conf
                 ''')
         finally:
             try:
                 await self.con.execute('''
-                    drop extension package conf VERSION '1.0';
+                    drop extension package _conf VERSION '1.0';
                     drop type Test;
                 ''')
             except Exception:
