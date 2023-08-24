@@ -58,6 +58,9 @@ class CompositeTypeSpec:
 class CompositeType:
     _tspec: CompositeTypeSpec
 
+    def to_json_value(self) -> dict[str, Any]:
+        raise NotImplementedError
+
 
 class ScalarType:
     def __init__(self, val: str, /) -> None:

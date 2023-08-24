@@ -26,7 +26,6 @@ import immutables
 from edb import errors
 
 from edb.ir import statypes
-from edb.server.config import types as configtypes
 
 from edb.common import debug
 from edb.common import markup
@@ -45,7 +44,7 @@ class ImmutableEncoder(json.JSONEncoder):
             return obj.to_iso8601()
         if isinstance(obj, statypes.ConfigMemory):
             return obj.to_str()
-        if isinstance(obj, configtypes.CompositeConfigType):
+        if isinstance(obj, statypes.CompositeType):
             return obj.to_json_value()
         return super().default(obj)
 
