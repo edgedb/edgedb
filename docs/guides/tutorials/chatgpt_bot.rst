@@ -474,11 +474,12 @@ type.
       }
     }
 
-With the extension active, we may now add vector properties when defining our
-type. However, in order to be able to use indexes, the vectors in question need
-to be a of a fixed length. This can be achieved by creating a custom scalar
-extending the vector and specifying the desired length. OpenAI embeddings have
-length of 1,536, so that's what we use in our schema for this custom scalar.
+With the extension active, we may now add properties to our object types using
+the included ext::pgvector::vector data type. However, in order to be able to
+use indexes, the vectors in question need to be a of a fixed length. This can
+be achieved by creating a custom scalar extending the vector and specifying the
+desired length. OpenAI embeddings have length of 1,536, so that's what we use
+in our schema for this custom scalar.
 
 Now, the ``Section`` type:
 
