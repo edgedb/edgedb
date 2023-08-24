@@ -678,6 +678,9 @@ Then we have a few function definitions:
 
 * ``storeEmbeddings`` coordinates everything.
 
+To finish the script, we await a call to our coordinating function which kicks
+off everything else as needed.
+
 
 Getting section paths
 ---------------------
