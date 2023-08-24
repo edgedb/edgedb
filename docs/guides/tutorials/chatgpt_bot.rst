@@ -484,9 +484,9 @@ Now, the ``Section`` type:
       }
     …
 
-The ``Section`` contains properties to store the path to the file, the content,
-a count of tokens, and the embedding, which is of the custom scalar type we
-created in the previous step.
+The ``Section`` contains properties to store the content, a count of tokens,
+and the embedding, which is of the custom scalar type we created in the
+previous step.
 
 We've also added an index inside the ``Section`` type to speed up queries. In
 order to work properly, the index should correspond to the
