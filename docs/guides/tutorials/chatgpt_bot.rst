@@ -1160,7 +1160,7 @@ Answering user questions
 
 Now that we have the content's embeddings stored, we can start working on the
 handler for user questions. The user will submit a question to our server, and
-the handler will send them and answer back. We will define a route and an HTTP
+the handler will send them an answer back. We will define a route and an HTTP
 request handler for this task. Thanks to the power of Next.js, we can do all of
 this within our project using a `route handler`_.
 
@@ -1170,7 +1170,7 @@ this within our project using a `route handler`_.
 As we write our handler, one important consideration is that answers can be
 quite long. We could wait on the server side to get the whole answer from
 OpenAI and then send it to the client, but that would feel slow to the user.
-OpenAI supports streaming, so instead we can send answer to the client in
+OpenAI supports streaming, so instead we can send the answer to the client in
 chunks, as they arrive to the server. With this approach, the user doesn't have
 to wait for the entire response before they start getting feedback and our API
 seems faster.
@@ -1178,7 +1178,7 @@ seems faster.
 In order to stream responses, we will use the browser's `server-sent events
 (SSE) API`_. Server-sent events enables a client to receive automatic updates
 from a server via an HTTP connection, and describes how servers can initiate
-data transmission towards clients once an initial client connection has been
+data transmissions to clients once an initial client connection has been
 established. The client sends a request and with that request initiates a
 connection with our server. With that connection established, the server will
 send data back to the client in chunks until all of the data is sent, at which
@@ -1200,7 +1200,7 @@ handlers should be written inside an ``app/api`` folder. Every route should
 have its own folder within that, and the handlers should be defined inside a
 ``route.ts`` file inside the route's folder.
 
-Let's generate a new folder for the answer generation route inside ``app/api``.
+Let's create a new folder for the answer generation route inside ``app/api``.
 
 .. code-block:: bash
 
@@ -1219,11 +1219,12 @@ question and related sections.
 Let's talk briefly about runtimes. In the context of Next.js, "runtime" refers
 to the set of libraries, APIs, and general functionality available to your code
 during execution. Next.js supports `Node.js and Edge runtimes`_. (The "Edge"
-runtime is coincidentally named but is not related to EdgeDB.) Streaming is
-supported within both runtimes, but the implementation is a bit simpler when
-using Edge, so that's what we will use here. The Edge runtime is based on Web
-APIs. It has very low latency thanks to its minimal use of resources, but the
-downside is that it doesn't support native Node.js APIs.
+runtime is coincidentally named but is not related to EdgeDB.)
+
+Streaming is supported within both runtimes, but the implementation is a bit
+simpler when using Edge, so that's what we will use here. The Edge runtime is
+based on Web APIs. It has very low latency thanks to its minimal use of
+resources, but the downside is that it doesn't support native Node.js APIs.
 
 .. lint-off
 
@@ -1259,12 +1260,11 @@ writing some configuration.
 
 The first imports are templates from the ``common-tags`` library we installed
 earlier. Then, we import the EdgeDB binding. The third import is the query
-builder we described previously. We also import our errors and our Open AI API
-client.
+builder we described previously. We also import our errors and our OpenAI API
+client initializer function.
 
-By exporting ``runtime``, we override Next.js runtime default for this handler
-so that Next.js will use the Edge runtime instead of the default Node.js
-runtime.
+By exporting ``runtime``, we override the Next.js default for this handler so
+that Next.js will use the Edge runtime instead of the default Node.js runtime.
 
 We're ready now to write the handler function for HTTP POST requests. To do
 this in Next.js, you export a function named for the request method you want it
@@ -1336,7 +1336,7 @@ build toward an answer.
 With the input fully prepared, we call the chat completions API using the
 previously generated prompt, and we stream the response we get from OpenAI
 to the user. In order to use streaming we need to provide the appropriate
-``content-type`` header: ``"text/event-stream"``. (You'll see that in the
+``content-type`` header: ``"text/event-stream"``. (You can see that in the
 options object passed to the ``Response`` constructor.)
 
 To keep things simple, we've wrapped most of these in a single
