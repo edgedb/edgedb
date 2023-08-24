@@ -729,6 +729,7 @@ generate the embeddings. Let's walk through it one piece at a time.
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
+    …
     async function prepareSectionsData(
       sectionPaths: string[]
     ): Promise<Section[]> {
@@ -748,6 +749,7 @@ generate the embeddings. Let's walk through it one piece at a time.
       }
       // The rest of the function
     }
+    …
 
 We start with a parameter: an array of section paths. We create a couple of
 empty arrays for storing information about our sections (which will later
@@ -766,6 +768,7 @@ Onto the next bit!
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
+    …
     async function prepareSectionsData(
       sectionPaths: string[]
     ): Promise<Section[]> {
@@ -778,6 +781,7 @@ Onto the next bit!
 
       // The rest
     }
+    …
 
 Now, we generate embeddings from the content. We need to be careful about how
 we approach the API calls to generate the embeddings since they could have a
@@ -799,6 +803,7 @@ through the response data.
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
+    …
     async function prepareSectionsData(
       sectionPaths: string[]
     ): Promise<Section[]> {
@@ -810,6 +815,7 @@ through the response data.
 
       return sections;
     }
+    …
 
 One downside to this one-shot embedding generation approach is that we do not
 get back token counts with the result. Token counts are important because they
@@ -834,6 +840,7 @@ Here's the entire function assembled:
 .. code-block:: typescript
     :caption: generate-embeddings.ts
 
+    …
     async function prepareSectionsData(
       sectionPaths: string[]
     ): Promise<Section[]> {
@@ -863,6 +870,7 @@ Here's the entire function assembled:
 
       return sections;
     }
+    …
 
 .. note::
 
