@@ -58,12 +58,12 @@ syntactic and semantic similarity. For instance, synonyms are closer to each
 other, and words that often appear in similar contexts are grouped together.
 
 When using embeddings we are not training the language model. Instead we're
-creating embeddings vectors for every piece of documentation which will later
-help us find which documentation likely answers a user's question. When a
-user asks a question, we create a new embedding for that question and
-compare it against the embeddings generated from our documentation to find
-the most similar embeddings. The answer is generated using the content that
-corresponds to these similar embeddings.
+creating embedding vectors for every piece of documentation which will later
+help us find which documentation likely answers a user's question. When a user
+asks a question, we create a new embedding for that question and compare it
+against the embeddings generated from our documentation to find the most
+similar embeddings. The answer is generated using the content that corresponds
+to these similar embeddings.
 
 With that out of the way, let's walk through how the pieces fit together.
 
@@ -84,7 +84,7 @@ Each time a user asks a question, our app will:
 1. query the database for the documentation sections most relevant to
    the question using a similarity function
 2. inject these sections as a context into the prompt — together with user's
-   question — and submit this request to the OpenAI
+   question — and submit this request to OpenAI
 3. stream the OpenAI response back to the user in real time
 
 
