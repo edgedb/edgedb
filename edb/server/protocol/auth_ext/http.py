@@ -158,7 +158,6 @@ class Router:
         return state_token.serialize()
 
     def _make_session_token(self, identity_id: str) -> str:
-        markup.dump(self.db.db_config)
         signing_key = self._get_auth_signing_key()
         auth_expiration_time = util.get_config(
             self.db.db_config,
