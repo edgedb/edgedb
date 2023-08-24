@@ -16231,36 +16231,6 @@ class TestDDLNonIsolated(tb.DDLTestCase):
     async def test_edgeql_ddl_extensions_05(self):
         # Test config extension
         await self.con.execute('''
-        create extension package _conf VERSION '1.0' {
-          set ext_module := "ext::_conf";
-          set sql_extensions := [];
-          create module ext::_conf;
-
-          create type ext::_conf::Obj extending cfg::ConfigObject {
-              create required property name -> std::str {
-                  set readonly := true;
-                  create constraint std::exclusive;
-              };
-              create required property value -> std::str {
-                  set readonly := true;
-              };
-          };
-          create type ext::_conf::SubObj extending ext::_conf::Obj {
-              create required property extra -> int64 {
-                  set readonly := true;
-              };
-          };
-
-          create type ext::_conf::Config extending cfg::ExtensionConfig {
-              create multi link objs -> ext::_conf::Obj;
-
-              create property config_name -> std::str {
-                  set default := "";
-              };
-          };
-        };
-        ''')
-        await self.con.execute('''
             create type Test;
         ''')
 
@@ -16274,13 +16244,9 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                     drop extension _conf
                 ''')
         finally:
-            try:
-                await self.con.execute('''
-                    drop extension package _conf VERSION '1.0';
-                    drop type Test;
-                ''')
-            except Exception:
-                pass
+            await self.con.execute('''
+                drop type Test;
+            ''')
 
     async def test_edgeql_ddl_reindex(self):
         await self.con.execute('''
