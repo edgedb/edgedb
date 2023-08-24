@@ -164,10 +164,10 @@ class Router:
             "ext::auth::AuthConfig::token_time_to_live",
             statypes.Duration
         )
-        expires_in_microseconds = datetime.timedelta(
+        expires_in = datetime.timedelta(
             microseconds=auth_expiration_time.to_microseconds()
         )
-        expires_at = datetime.datetime.utcnow() + expires_in_microseconds
+        expires_at = datetime.datetime.utcnow() + expires_in
 
         claims = {
             "iss": self.base_path,
