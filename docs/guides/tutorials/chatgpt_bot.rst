@@ -1947,7 +1947,7 @@ Let's write the form submission handler function.
 
       setIsLoading(true);
       setQuestion(prompt);
-      setAnswer(""");
+      setAnswer("");
       setPrompt("");
       generateAnswer(prompt);
     };
