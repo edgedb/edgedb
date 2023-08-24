@@ -715,10 +715,9 @@ The output it produces looks like this:
 .. code-block:: typescript
 
     [
-      'docs/datamodel/introspection/functions.md',
-      'docs/edgeql/index.md',
-      'docs/edgeql/index1.md',
-      'docs/edgeql/index2.md'
+      'docs/edgeql/design-goals.md',
+      'docs/edgeql/overview.md',
+      'docs/edgeql/try-edgeql.md',
     ]
 
 
