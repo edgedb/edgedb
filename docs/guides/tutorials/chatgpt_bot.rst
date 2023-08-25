@@ -1481,8 +1481,8 @@ The query takes a few parameters:
   this case, these will be the questions's embeddings we just generated.
 * ``matchThreshold``: Similarity threshold. Only matches with a similarity
   score below this threshold will be returned. This will be a number between
-  ``0.0`` and ``1.0``. Values closer to ``0.0`` mean the documentation sections
-  must be very similar to the question while values closer to ``1.0`` allow for
+  ``0.0`` and ``2.0``. Values closer to ``0.0`` mean the documentation sections
+  must be very similar to the question while values closer to ``2.0`` allow for
   more variance.
 * ``matchCount``: Maximum number of sections to return
 * ``minContentLength``: Minimum number of characters the sections should have
