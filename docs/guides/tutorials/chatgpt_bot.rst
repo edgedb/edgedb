@@ -1672,7 +1672,7 @@ Now, let's take a look at the whole thing. Copy and paste this into your
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
 
-    import { codeBlock, oneLineTrim } from "common-tags";
+    import { stripIndents, oneLineTrim } from "common-tags";
     import * as edgedb from "edgedb";
     import e from "dbschema/edgeql-js";
     import { errors } from "../../constants";
@@ -1811,7 +1811,7 @@ Now, let's take a look at the whole thing. Copy and paste this into your
             If unable to help based on documentation, respond
             with: "Sorry, I don't know how to help with that."`;
 
-      return codeBlock`
+      return stripIndents`
             ${oneLineTrim`${systemMessage}`}
 
             EdgeDB sections: """
