@@ -904,12 +904,6 @@ Here's the entire function assembled:
     *not* to save token counts in the database and to instead count section
     tokens later on the client after we find the relevant sections.
 
-    We have other options for counting early too. Another tool you can use to
-    count tokens in advance is `tiktoken
-    <https://github.com/openai/tiktoken>`_. This is OpenAI's Python tokenizer
-    and would give the more accurate result over the Node alternative, but
-    using ``gpt-tokenizer`` is more straightforward for our use case.
-
 Now that we have sections ready to be stored in the database, let's tie
 everything together with the ``storeEmbeddings`` function.
 
