@@ -3937,21 +3937,27 @@ def process_set_as_fts_search(
                         name=('pg_catalog', 'regconfig')
                     ),
                 )
-                # TODO: This call gets replicated.
-                #       Should it reside in a subquery?
+
+                # create a dummy path id for a dummy object
                 parsed_query_pg = pgast.FuncCall(
                     name=('edgedb', 'fts_parse_query'),
                     args=[query_pg, lang_pg]
                 )
+                parsed_query_id = create_subrel_for_expr(
+                    parsed_query_pg, an_id=obj_id, ctx=inner_ctx
+                )
+                parsed_query = pathctx.get_path_var(
+                    inner_ctx.rel, parsed_query_id, aspect='value', env=ctx.env
+                )
 
                 score_pg = pgast.FuncCall(
                     name=('pg_catalog', 'ts_rank'),
-                    args=[fts_document, parsed_query_pg]
+                    args=[fts_document, parsed_query]
                 )
                 where_clause = pgast.Expr(
                     lexpr=fts_document,
                     name='@@',
-                    rexpr=parsed_query_pg
+                    rexpr=parsed_query
                 )
 
             pathctx.put_path_var(
@@ -4020,4 +4026,54 @@ def process_set_as_fts_search(
     )
 
     return new_stmt_set_rvar(ir_set, ctx.rel, aspects=aspects, ctx=ctx)
+
+
+def create_subrel_for_expr(
+    expr: pgast.BaseExpr,
+    *,
+    alias: str = 'expr',
+    an_id: irast.PathId,
+    ctx: context.CompilerContextLevel
+) -> irast.PathId:
+    """
+    Creates a dummy relation that contains the given expression.
+    That expr should not use any references to other relvars, since it will be
+    computed a new a context.
+
+    an_id should be a path id of an object, does not matter which.
+    """
+
+    # create a dummy path id for a dummy object
+    el_name = sn.QualName('__dummy__', '__object__')
+    dummy_obj_ptrref = irast.SpecialPointerRef(
+        name=el_name,
+        shortname=el_name,
+        out_source=an_id.target,
+        out_target=an_id.target,
+        out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
+    )
+    dummy_obj_id = an_id.extend(ptrref=dummy_obj_ptrref)
+
+    el_name = sn.QualName('__dummy__', alias)
+    query_ptrref = irast.SpecialPointerRef(
+        name=el_name,
+        shortname=el_name,
+        out_source=an_id.target,
+        out_target=an_id.target,
+        out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
+    )
+    expr_id = dummy_obj_id.extend(ptrref=query_ptrref)
+
+    with ctx.subrel() as newctx:
+
+        # register the expression
+        pathctx.put_path_var(newctx.rel, expr_id, expr, aspect='value')
+
+        # include the subrel in the parent
+        new_rvar = relctx.rvar_for_rel(newctx.rel, ctx=ctx)
+        relctx.include_rvar(
+            ctx.rel, new_rvar, dummy_obj_id, aspects=('source',), ctx=ctx
+        )
+
+    return expr_id
 
