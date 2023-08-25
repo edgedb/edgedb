@@ -593,13 +593,12 @@ libraries that will help us.
 
 .. code-block:: bash
 
+    $ npm install openai edgedb
     $ npm install \
-        openai \
-        dotenv \
-        tsx \
-        edgedb \
         @edgedb/generate \
         gpt-tokenizer \
+        dotenv \
+        tsx \
         --save-dev
 
 The ``@edgedb/generate`` package provides a set of code generation tools that
@@ -1139,27 +1138,29 @@ Let's add a script to ``package.json`` that will invoke and execute
     +     "embeddings": "tsx generate-embeddings.ts"
         },
         "dependencies": {
+          "common-tags": "^1.8.2",
+          "edgedb": "^1.3.5",
           "next": "^13.4.19",
+          "openai": "^4.0.1",
           "react": "18.2.0",
           "react-dom": "18.2.0",
           "sse.js": "^0.6.1",
-          "typescript": "5.1.6",
-          "edgedb": "^1.3.5",
-          "openai": "^4.0.1"
+          "typescript": "5.1.6"
         },
         "devDependencies": {
+          "@edgedb/generate": "^0.3.3",
+          "@types/common-tags": "^1.8.1",
           "@types/node": "20.4.8",
           "@types/react": "18.2.18",
           "@types/react-dom": "18.2.7",
-          "@edgedb/generate": "^0.3.3",
-          "dotenv": "^16.3.1",
-          "gpt-tokenizer": "^2.1.1",
-          "tsx": "^3.12.7",
           "autoprefixer": "10.4.14",
+          "dotenv": "^16.3.1",
           "eslint": "8.46.0",
           "eslint-config-next": "13.4.13",
+          "gpt-tokenizer": "^2.1.1",
           "postcss": "8.4.27",
-          "tailwindcss": "3.3.3"
+          "tailwindcss": "3.3.3",
+          "tsx": "^3.12.7"
         }
       }
 
@@ -1237,7 +1238,8 @@ when we create the prompt from user's question and related sections.
 
 .. code-block:: bash
 
-    $ npm install common-tags @types/common-tags
+    $ npm install common-tags
+    $ npm install @types/common-tags --save-dev
 
 Let's talk briefly about runtimes. In the context of Next.js, "runtime" refers
 to the set of libraries, APIs, and general functionality available to your code
@@ -1998,7 +2000,7 @@ the `sse.js <https://npm.io/package/sse.js>`_ package, so let's install it.
 
 .. code-block:: bash
 
-    $ npm install sse.js --save
+    $ npm install sse.js
 
 This package doesn't have a corresponding types package, so we need to add them
 manually. Let's create a new folder named ``types`` in the project root and
