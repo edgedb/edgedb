@@ -152,19 +152,10 @@ class MockAuthProvider:
 class TestHttpExtAuth(tb.ExtAuthTestCase):
     TRANSACTION_ISOLATION = False
 
-    SETUP = [
-        f"""
-        CONFIGURE CURRENT DATABASE
-        SET xxx_auth_signing_key := <str>'{"a" * 32}';
-        """,
-        f"""
-        CONFIGURE CURRENT DATABASE
-        SET xxx_github_client_secret := <str>'{"b" * 32}';
-        """,
-        f"""
-        CONFIGURE CURRENT DATABASE
-        SET xxx_github_client_id := <str>'{uuid.uuid4()}';
-        """,
+    EXTENSION_CONFIG = [
+        ("ext::auth::AuthConfig::auth_signing_key", f"<str>'{'a' * 32}'"),
+        ("ext::auth::AuthConfig::github_client_secret", f"<str>'{'b' * 32}'"),
+        ("ext::auth::AuthConfig::github_client_id", f"<str>'{uuid.uuid4()}'"),
     ]
 
     def http_con_send_request(self, *args, headers=None, **kwargs):
@@ -184,11 +175,21 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     async def test_http_auth_ext_github_authorize_01(self):
         with MockAuthProvider(), self.http_con() as http_con:
             client_id = await self.con.query_single(
-                """SELECT assert_single(cfg::Config.xxx_github_client_id);"""
+                """
+                SELECT assert_single(
+                    cfg::Config.extensions[is ext::auth::AuthConfig]
+                        .github_client_id
+                );
+                """
             )
 
             auth_signing_key = await self.con.query_single(
-                """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
+                """
+                SELECT assert_single(
+                    cfg::Config.extensions[is ext::auth::AuthConfig]
+                        .auth_signing_key
+                );
+                """
             )
 
             _, headers, status = self.http_con_request(
@@ -224,7 +225,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     async def test_http_auth_ext_github_callback_missing_provider_01(self):
         with MockAuthProvider(), self.http_con() as http_con:
             auth_signing_key = await self.con.query_single(
-                """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
+                """
+                SELECT assert_single(
+                    cfg::Config.extensions[is ext::auth::AuthConfig]
+                        .auth_signing_key
+                );
+                """
             )
 
             expires_at = datetime.datetime.utcnow() + datetime.timedelta(
@@ -283,7 +289,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     async def test_http_auth_ext_github_unknown_provider_01(self):
         with MockAuthProvider(), self.http_con() as http_con:
             auth_signing_key = await self.con.query_single(
-                """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
+                """
+                SELECT assert_single(
+                    cfg::Config.extensions[is ext::auth::AuthConfig]
+                        .auth_signing_key
+                );
+                """
             )
 
             expires_at = datetime.datetime.utcnow() + datetime.timedelta(
@@ -314,11 +325,19 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     async def test_http_auth_ext_github_callback_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
             client_id = await self.con.query_single(
-                """SELECT assert_single(cfg::Config.xxx_github_client_id);"""
+                """
+                SELECT assert_single(
+                    cfg::Config.extensions[is ext::auth::AuthConfig]
+                        .github_client_id
+                );
+                """
             )
             client_secret = await self.con.query_single(
                 """
-                SELECT assert_single(cfg::Config.xxx_github_client_secret);
+                SELECT assert_single(
+                    cfg::Config.extensions[is ext::auth::AuthConfig]
+                        .github_client_secret
+                );
                 """
             )
 
@@ -355,7 +374,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             auth_signing_key = await self.con.query_single(
-                """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
+                """
+                SELECT assert_single(
+                    cfg::Config.extensions[is ext::auth::AuthConfig]
+                        .auth_signing_key
+                );
+                """
             )
 
             expires_at = datetime.datetime.utcnow() + datetime.timedelta(
