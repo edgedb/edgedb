@@ -486,6 +486,22 @@ class BaseServer:
             schema_class_layout=self._schema_class_layout,
         )
 
+    async def introspect_db_config(self, conn: pgcon.PGConnection) -> bytes:
+        return await conn.sql_fetch_val(self.get_sys_query("dbconfig"))
+
+    def _parse_db_config(
+        self, db_config_json: bytes, user_schema: s_schema.Schema
+    ) -> Mapping[str, config.SettingValue]:
+        spec = config.ChainedSpec(
+            self._config_settings,
+            config.load_ext_spec_from_schema(
+                user_schema,
+                self.get_std_schema(),
+            ),
+        )
+
+        return config.from_json(spec, db_config_json)
+
     async def get_dbnames(self, syscon):
         dbs_query = self.get_sys_query('listdbs')
         json_data = await syscon.sql_fetch_val(dbs_query)
@@ -1150,8 +1166,8 @@ class Server(BaseServer):
                     )
                     user_schema = await self._tenant.introspect_user_schema(
                         conn, global_schema)
-                    config = await self._tenant.introspect_db_config(
-                        conn, user_schema)
+                    config_json = await self.introspect_db_config(conn)
+                    db_config = self._parse_db_config(config_json, user_schema)
                     try:
                         logger.info("repairing database '%s'", dbname)
                         sql += bootstrap.prepare_repair_patch(
@@ -1161,7 +1177,7 @@ class Server(BaseServer):
                             global_schema,
                             self._schema_class_layout,
                             self._tenant.get_backend_runtime_params(),
-                            config,
+                            db_config,
                         )
                     except errors.EdgeDBError as e:
                         if isinstance(e, errors.InternalServerError):

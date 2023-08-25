@@ -750,23 +750,6 @@ class Tenant(ha_base.ClusterProtocol):
             global_schema = self.get_global_schema()
         return await self._server.introspect_user_schema(conn, global_schema)
 
-    async def introspect_db_config(
-        self, conn: pgcon.PGConnection, user_schema: s_schema.Schema
-    ) -> Mapping[str, config.SettingValue]:
-        result = await conn.sql_fetch_val(
-            self._server.get_sys_query("dbconfig")
-        )
-        # XXX: are we hoping to not use the user_schema in the server?
-        spec = config.ChainedSpec(
-            self._server._config_settings,
-            config.load_ext_spec_from_schema(
-                user_schema,
-                self._server.get_std_schema(),
-            ),
-        )
-
-        return config.from_json(spec, result)
-
     async def _introspect_extensions(
         self, conn: pgcon.PGConnection
     ) -> set[str]:
@@ -842,7 +825,10 @@ class Tenant(ha_base.ClusterProtocol):
             )
             backend_ids = json.loads(backend_ids_json)
 
-            db_config = await self.introspect_db_config(conn, user_schema)
+            db_config_json = await self._server.introspect_db_config(conn)
+            db_config = self._server._parse_db_config(
+                db_config_json, user_schema
+            )  # TODO: will be done in the compiler
             extensions = await self._introspect_extensions(conn)
 
             # GOTCHA: we will move introspect_user_schema() to the compiler
