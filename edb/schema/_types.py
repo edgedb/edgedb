@@ -16,77 +16,54 @@ UUID: Type[uuid.UUID] = uuidgen.UUID
 
 
 TYPE_IDS = {
-    sn.name_from_string('anytype'): UUID(
-        '00000000-0000-0000-0000-000000000001'
-    ),
-    sn.name_from_string('anytuple'): UUID(
-        '00000000-0000-0000-0000-000000000002'
-    ),
-    sn.name_from_string('anyobject'): UUID(
-        '00000000-0000-0000-0000-000000000003'
-    ),
-    sn.name_from_string('std'): UUID('00000000-0000-0000-0000-0000000000f0'),
-    sn.name_from_string('empty-tuple'): UUID(
-        '00000000-0000-0000-0000-0000000000ff'
-    ),
-    sn.name_from_string('std::uuid'): UUID(
-        '00000000-0000-0000-0000-000000000100'
-    ),
-    sn.name_from_string('std::str'): UUID(
-        '00000000-0000-0000-0000-000000000101'
-    ),
-    sn.name_from_string('std::bytes'): UUID(
-        '00000000-0000-0000-0000-000000000102'
-    ),
-    sn.name_from_string('std::int16'): UUID(
-        '00000000-0000-0000-0000-000000000103'
-    ),
-    sn.name_from_string('std::int32'): UUID(
-        '00000000-0000-0000-0000-000000000104'
-    ),
-    sn.name_from_string('std::int64'): UUID(
-        '00000000-0000-0000-0000-000000000105'
-    ),
-    sn.name_from_string('std::float32'): UUID(
-        '00000000-0000-0000-0000-000000000106'
-    ),
-    sn.name_from_string('std::float64'): UUID(
-        '00000000-0000-0000-0000-000000000107'
-    ),
-    sn.name_from_string('std::decimal'): UUID(
-        '00000000-0000-0000-0000-000000000108'
-    ),
-    sn.name_from_string('std::bool'): UUID(
-        '00000000-0000-0000-0000-000000000109'
-    ),
-    sn.name_from_string('std::datetime'): UUID(
-        '00000000-0000-0000-0000-00000000010a'
-    ),
-    sn.name_from_string('std::duration'): UUID(
-        '00000000-0000-0000-0000-00000000010e'
-    ),
-    sn.name_from_string('std::json'): UUID(
-        '00000000-0000-0000-0000-00000000010f'
-    ),
-    sn.name_from_string('std::bigint'): UUID(
-        '00000000-0000-0000-0000-000000000110'
-    ),
-    sn.name_from_string('cal::local_datetime'): UUID(
-        '00000000-0000-0000-0000-00000000010b'
-    ),
-    sn.name_from_string('cal::local_date'): UUID(
-        '00000000-0000-0000-0000-00000000010c'
-    ),
-    sn.name_from_string('cal::local_time'): UUID(
-        '00000000-0000-0000-0000-00000000010d'
-    ),
-    sn.name_from_string('cal::relative_duration'): UUID(
-        '00000000-0000-0000-0000-000000000111'
-    ),
-    sn.name_from_string('cal::date_duration'): UUID(
-        '00000000-0000-0000-0000-000000000112'
-    ),
-    sn.name_from_string('cfg::memory'): UUID(
-        '00000000-0000-0000-0000-000000000130'
-    ),
+    sn.name_from_string('anytype'):
+        UUID('00000000-0000-0000-0000-000000000001'),
+    sn.name_from_string('anytuple'):
+        UUID('00000000-0000-0000-0000-000000000002'),
+    sn.name_from_string('anyobject'):
+        UUID('00000000-0000-0000-0000-000000000003'),
+    sn.name_from_string('std'):
+        UUID('00000000-0000-0000-0000-0000000000f0'),
+    sn.name_from_string('empty-tuple'):
+        UUID('00000000-0000-0000-0000-0000000000ff'),
+    sn.name_from_string('std::uuid'):
+        UUID('00000000-0000-0000-0000-000000000100'),
+    sn.name_from_string('std::str'):
+        UUID('00000000-0000-0000-0000-000000000101'),
+    sn.name_from_string('std::bytes'):
+        UUID('00000000-0000-0000-0000-000000000102'),
+    sn.name_from_string('std::int16'):
+        UUID('00000000-0000-0000-0000-000000000103'),
+    sn.name_from_string('std::int32'):
+        UUID('00000000-0000-0000-0000-000000000104'),
+    sn.name_from_string('std::int64'):
+        UUID('00000000-0000-0000-0000-000000000105'),
+    sn.name_from_string('std::float32'):
+        UUID('00000000-0000-0000-0000-000000000106'),
+    sn.name_from_string('std::float64'):
+        UUID('00000000-0000-0000-0000-000000000107'),
+    sn.name_from_string('std::decimal'):
+        UUID('00000000-0000-0000-0000-000000000108'),
+    sn.name_from_string('std::bool'):
+        UUID('00000000-0000-0000-0000-000000000109'),
+    sn.name_from_string('std::datetime'):
+        UUID('00000000-0000-0000-0000-00000000010a'),
+    sn.name_from_string('std::duration'):
+        UUID('00000000-0000-0000-0000-00000000010e'),
+    sn.name_from_string('std::json'):
+        UUID('00000000-0000-0000-0000-00000000010f'),
+    sn.name_from_string('std::bigint'):
+        UUID('00000000-0000-0000-0000-000000000110'),
+    sn.name_from_string('cal::local_datetime'):
+        UUID('00000000-0000-0000-0000-00000000010b'),
+    sn.name_from_string('cal::local_date'):
+        UUID('00000000-0000-0000-0000-00000000010c'),
+    sn.name_from_string('cal::local_time'):
+        UUID('00000000-0000-0000-0000-00000000010d'),
+    sn.name_from_string('cal::relative_duration'):
+        UUID('00000000-0000-0000-0000-000000000111'),
+    sn.name_from_string('cal::date_duration'):
+        UUID('00000000-0000-0000-0000-000000000112'),
+    sn.name_from_string('cfg::memory'):
+        UUID('00000000-0000-0000-0000-000000000130'),
 }

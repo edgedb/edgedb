@@ -383,15 +383,12 @@ def sdl_to_ddl(
 
     ctx = LayoutTraceContext(schema, frozenset(mod for mod in documents))
 
-    ctx.objects[s_name.QualName('std', 'anytype')] = schema.get_global(
-        s_pseudo.PseudoType, 'anytype'
-    )
-    ctx.objects[s_name.QualName('std', 'anytuple')] = schema.get_global(
-        s_pseudo.PseudoType, 'anytuple'
-    )
-    ctx.objects[s_name.QualName('std', 'anyobject')] = schema.get_global(
-        s_pseudo.PseudoType, 'anyobject'
-    )
+    ctx.objects[s_name.QualName('std', 'anytype')] = (
+        schema.get_global(s_pseudo.PseudoType, 'anytype'))
+    ctx.objects[s_name.QualName('std', 'anytuple')] = (
+        schema.get_global(s_pseudo.PseudoType, 'anytuple'))
+    ctx.objects[s_name.QualName('std', 'anyobject')] = (
+        schema.get_global(s_pseudo.PseudoType, 'anyobject'))
 
     for module_name, declarations in documents.items():
         ctx.set_module(module_name)
