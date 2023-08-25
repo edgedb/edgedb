@@ -708,8 +708,7 @@ Getting section paths
 
 In order to get the sections' content, we first need to know where the files
 are that need to be read. The ``walk`` function finds them for us and returns
-all the paths. It will build an array of all paths relative to the project root
-and sort them.
+all the paths. It builds an array of all paths relative to the project root.
 
 .. code-block:: typescript
     :caption: generate-embeddings.ts
