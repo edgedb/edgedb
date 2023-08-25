@@ -30,22 +30,36 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create constraint exclusive on ((.iss, .sub))
     };
 
+    create type ext::auth::ClientConfig extending cfg::ConfigObject {
+        create required property name: std::str {
+            set readonly := true;
+            create annotation std::description := "Auth provider name";
+        };
+
+        create required property url: std::str {
+            set readonly := true;
+            create annotation std::description := "Authorization server URL";
+        };
+
+        create required property secret: std::str {
+            set readonly := true;
+            create annotation std::description :=
+                "Secret provided by auth provider";
+        };
+
+        create required property client_id: std::str {
+            set readonly := true;
+            create annotation std::description :=
+                "ID for client provided by auth provider";
+        };
+    };
+
     create type ext::auth::AuthConfig extending cfg::ExtensionConfig {
         create property auth_signing_key -> std::str {
             create annotation std::description :=
-                'The signing key used for auth extension. Must be at \
-                least 32 characters long.';
-            set default := '00000000000000000000000000000000';
-        };
-
-        create property github_client_secret -> std::str {
-            create annotation std::description := 'Secret key provided by GitHub';
-            set default := '00000000000000000000000000000000';
-        };
-
-        create property github_client_id -> std::str {
-            create annotation std::description := 'ID provided by GitHub';
-            set default := '00000000000000000000000000000000';
+                "The signing key used for auth extension. Must be at \
+                least 32 characters long.";
+            set default := "00000000000000000000000000000000";
         };
     };
 };
