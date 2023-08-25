@@ -1201,13 +1201,12 @@ to wait for the entire response before they start getting feedback and our API
 seems faster.
 
 In order to stream responses, we will use the browser's `server-sent events
-(SSE) API`_. Server-sent events enables a client to receive automatic updates
-from a server via an HTTP connection, and describes how servers can initiate
-data transmissions to clients once an initial client connection has been
+(SSE) API`_. Server-sent events enable a client to receive automatic updates
+from a server via an HTTP connection, and describes how the server maintains
+data transmissions to a client once an initial client connection has been
 established. The client sends a request and with that request initiates a
-connection with our server. With that connection established, the server will
-send data back to the client in chunks until all of the data is sent, at which
-point it closes the connection.
+connection with the server. The server then sends data back to the client in
+chunks until all of the data is sent, at which point it closes the connection.
 
 .. lint-off
 
