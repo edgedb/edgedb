@@ -262,11 +262,11 @@ Create a ``.env.local`` file in the root of your new Next.js project.
 
 We're going to add a couple of variables to that file to configure the EdgeDB
 client. We'll need to run a command on our new instance to get the value for
-one of those. Since we'll be using the [Edge
-Runtime](https://nextjs.org/docs/app/api-reference/edge) in our Next.js
-project, the edgedb-js client won't be able to access the Node.js filesystem
-APIs it usually uses to automatically find your instance, so we need to
-provide the DSN for the instance instead. To get that, run this command:
+one of those. Since we'll be using the `Edge runtime
+<https://nextjs.org/docs/app/api-reference/edge>`_ in our Next.js project, the
+edgedb-js client won't be able to access the Node.js filesystem APIs it usually
+uses to automatically find your instance, so we need to provide the DSN for the
+instance instead. To get that, run this command:
 
 .. code-block:: bash
 
