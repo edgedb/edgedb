@@ -153,8 +153,7 @@ will make it easier to import them.
 
       {
         "compilerOptions": {
-    -     "target": "es5",
-    +     "target": "es6",
+          "target": "es6",
           "lib": ["dom", "dom.iterable", "esnext"],
           "allowJs": true,
           "skipLibCheck": true,
@@ -1487,15 +1486,15 @@ In the above code, we use EdgeDB's TypeScript query builder to create a query.
 The query takes a few parameters:
 
 * ``target``: Embedding array to compare against to find related sections. In
-  this case, these will be the questions's embeddings we just generated.
+  this case, these will be the questions's embeddings we just generated,
 * ``matchThreshold``: Similarity threshold. Only matches with a similarity
   score below this threshold will be returned. This will be a number between
   ``0.0`` and ``1.0``. Values closer to ``0.0`` mean the documentation sections
   must be very similar to the question while values closer to ``1.0`` allow for
-  more variance.
-* ``matchCount``: Maximum number of sections to return
+  more variance,
+* ``matchCount``: Maximum number of sections to return,
 * ``minContentLength``: Minimum number of characters the sections should have
-  in order to be considered
+  in order to be considered.
 
 We write a select query by calling ``e.select`` and passing it the type we want
 to select (``e.Section``). We return from that function an object representing
@@ -1553,12 +1552,12 @@ parameter) and returns the related documentation sections.
 
 We start by running the query and passing in some values for the parameters:
 
-- the question embeddings that were passed to the function
-- a ``matchThreshold`` value of ``0.3``. You can tinker with this if you don't
-  like the results.
-- a ``matchCount``. We've chosen ``8`` here which represents the most sections
-  we'll get back.
-- a ``minContentLength`` of 20 tokens
+- the question embeddings that were passed to the function,
+- a ``matchThreshold`` value of ``0.3``, you can tinker with this if you don't
+  like the results,
+- a ``matchCount``: we've chosen ``8`` here which represents the most sections
+  we'll get back,
+- a ``minContentLength`` of 20 characters.
 
 We then iterate through the sections that came back to prepare them to send on
 to the chat completions API. This involves incrementing the token count for the
@@ -1649,15 +1648,16 @@ Let's take a look at the options we're sending through:
 
 * ``max_tokens``: Maximum number of tokens to use for the answer.
 
-* ``temperature``: Number between 0 and 2. From `OpenAI's description of
-  temperature`_: "Higher values like 0.8 will make the output more random,
-  while lower values like 0.2 will make it more focused and deterministic."
+* ``temperature``: Number between 0 and 2. From `OpenAI's create chat
+  completion endpoint documentation`_: "Higher values like 0.8 will make the
+  output more random, while lower values like 0.2 will make it more focused and
+  deterministic."
 
 * ``stream``: Setting this to ``true`` will have the API stream the response
 
 .. lint-off
 
-.. _OpenAI's description of temperature:
+.. _OpenAI's create chat completion endpoint documentation:
   https://platform.openai.com/docs/api-reference/chat/create#chat/create-temperature
 
 .. lint-on
