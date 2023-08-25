@@ -103,6 +103,7 @@ def is_anytuple(typeref: irast.TypeRef) -> bool:
     """Return True if *typeref* describes the ``anytuple`` generic type."""
     return isinstance(typeref, irast.AnyTupleRef)
 
+
 def is_anyobject(typeref: irast.TypeRef) -> bool:
     """Return True if *typeref* describes the ``anyobject`` generic type."""
     return isinstance(typeref, irast.AnyObjectRef)

@@ -139,8 +139,10 @@ class PseudoType(
         if self.is_any(schema):
             return concrete_type
         if self.is_anyobject(schema):
-            if (not concrete_type.is_object_type() or
-                    concrete_type.is_polymorphic(schema)):
+            if (
+                not concrete_type.is_object_type()
+                or concrete_type.is_polymorphic(schema)
+            ):
                 return None
             else:
                 return concrete_type

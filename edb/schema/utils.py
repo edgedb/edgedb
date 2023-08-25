@@ -363,6 +363,7 @@ def ast_to_type_shell(
 
     elif isinstance(node.maintype, qlast.AnyObject):
         from . import pseudo as s_pseudo
+
         return s_pseudo.PseudoTypeShell(
             name=sn.UnqualName('anyobject'),
             sourcectx=node.maintype.context,

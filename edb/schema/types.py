@@ -302,8 +302,7 @@ class Type(
 
     def find_generic(self, schema: s_schema.Schema) -> Optional[Type]:
         return self.find_predicate(
-            lambda x: x.is_any(schema) or x.is_anyobject(schema),
-            schema
+            lambda x: x.is_any(schema) or x.is_anyobject(schema), schema
         )
 
     def contains_object(self, schema: s_schema.Schema) -> bool:
@@ -3016,9 +3015,8 @@ class InheritingTypeCommand(
         is_derived: bool,
     ) -> None:
         for base in bases.objects(schema):
-            if (
-                base.find_generic(schema) != None
-                or (base.is_free_object_type(schema) and not is_derived)
+            if base.find_generic(schema) != None or (
+                base.is_free_object_type(schema) and not is_derived
             ):
                 base_type_name = base.get_displayname(schema)
                 shell = shells.get(base.get_name(schema))
