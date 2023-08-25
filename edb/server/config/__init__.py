@@ -31,6 +31,7 @@ from .ops import value_from_json, value_to_json_value, coerce_single_value
 from .spec import (
     Spec, FlatSpec, ChainedSpec, Setting,
     load_spec_from_schema, load_ext_spec_from_schema,
+    load_ext_settings_from_schema,
 )
 from .types import ConfigType, CompositeConfigType
 
@@ -43,6 +44,7 @@ __all__ = (
     'ConfigScope', 'OpCode', 'Operation',
     'ConfigType', 'CompositeConfigType',
     'load_spec_from_schema', 'load_ext_spec_from_schema',
+    'load_ext_settings_from_schema',
     'get_compilation_config',
     'coerce_single_value',
 )

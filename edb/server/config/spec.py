@@ -194,12 +194,18 @@ def load_spec_from_schema(
         cfg = schema.get('cfg::Config', type=s_objtypes.ObjectType)
         settings.extend(_load_spec_from_type(schema, cfg))
 
+    settings.extend(load_ext_settings_from_schema(schema))
+
+    return FlatSpec(*settings)
+
+
+def load_ext_settings_from_schema(schema: s_schema.Schema) -> list[Setting]:
+    settings = []
     ext_cfg = schema.get('cfg::ExtensionConfig', type=s_objtypes.ObjectType)
     for ecfg in ext_cfg.descendants(schema):
         if not ecfg.get_abstract(schema):
             settings.extend(_load_spec_from_type(schema, ecfg))
-
-    return FlatSpec(*settings)
+    return settings
 
 
 def load_ext_spec_from_schema(

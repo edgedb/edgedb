@@ -159,6 +159,7 @@ cdef class Database:
         object reflection_cache,
         object backend_ids,
         object extensions,
+        object ext_config_settings,
     ):
         self.name = name
 
@@ -181,7 +182,8 @@ cdef class Database:
         else:
             self.user_schema = pickle.loads(user_schema_pickled)
         self.user_schema_pickled = user_schema_pickled
-        self._user_config_spec = None
+        if ext_config_settings is not None:
+            self.user_config_spec = config.FlatSpec(*ext_config_settings)
         self.reflection_cache = reflection_cache
         self.backend_ids = backend_ids
         self.extensions = extensions
@@ -201,6 +203,7 @@ cdef class Database:
         self,
         new_schema_pickled,
         extensions,
+        ext_config_settings,
         reflection_cache=None,
         backend_ids=None,
         db_config=None,
@@ -213,6 +216,7 @@ cdef class Database:
         self.user_schema = pickle.loads(new_schema_pickled)
         self.user_schema_pickled = new_schema_pickled
         self.extensions = extensions
+        self.user_config_spec = config.FlatSpec(*ext_config_settings)
 
         if backend_ids is not None:
             self.backend_ids = backend_ids
@@ -222,22 +226,12 @@ cdef class Database:
             self.db_config = db_config
         self._invalidate_caches()
 
-    cdef get_user_config_spec(self):
-        if self._user_config_spec is None:
-            self._user_config_spec = config.load_ext_spec_from_schema(
-                self.user_schema,
-                self._index._std_schema,
-            )
-        return self._user_config_spec
-
     cdef _update_backend_ids(self, new_types):
         self.backend_ids.update(new_types)
 
     cdef _invalidate_caches(self):
         self._eql_to_compiled.clear()
         self._sql_to_compiled.clear()
-        # XXX: FIXME: Only invalidate when spec actually changes?
-        self._user_config_spec = None
 
     cdef _clear_state_serializers(self):
         self._state_serializers.clear()
@@ -465,14 +459,9 @@ cdef class DatabaseConnectionView:
 
     cdef get_user_config_spec(self):
         if self._in_tx:
-            if self._in_tx_user_config_spec is None:
-                self._in_tx_user_config_spec = config.load_ext_spec_from_schema(
-                    self.get_user_schema(),
-                    self._db._index._std_schema,
-                )
             return self._in_tx_user_config_spec
         else:
-            return self._db.get_user_config_spec()
+            return self._db.user_config_spec
 
     cpdef get_config_spec(self):
         return config.ChainedSpec(
@@ -828,7 +817,7 @@ cdef class DatabaseConnectionView:
         self._in_tx_global_schema = self._db._index._global_schema
         self._in_tx_global_schema_pickled = \
             self._db._index._global_schema_pickled
-        self._in_tx_user_config_spec = self._db.get_user_config_spec()
+        self._in_tx_user_config_spec = self._db.user_config_spec
         self._in_tx_state_serializer = self._state_serializer
 
     cdef _apply_in_tx(self, query_unit):
@@ -843,8 +832,9 @@ cdef class DatabaseConnectionView:
         if query_unit.user_schema is not None:
             self._in_tx_user_schema_pickled = query_unit.user_schema
             self._in_tx_user_schema = None
-            # XXX: FIXME: Only invalidate when spec actually changes?
-            self._in_tx_user_config_spec = None
+            self._in_tx_user_config_spec = config.FlatSpec(
+                *query_unit.ext_config_settings
+            )
         if query_unit.global_schema is not None:
             self._in_tx_global_schema_pickled = query_unit.global_schema
             self._in_tx_global_schema = None
@@ -877,6 +867,7 @@ cdef class DatabaseConnectionView:
                 self._db._set_and_signal_new_user_schema(
                     query_unit.user_schema,
                     query_unit.extensions,
+                    query_unit.ext_config_settings,
                     pickle.loads(query_unit.cached_reflection)
                         if query_unit.cached_reflection is not None
                         else None
@@ -918,6 +909,7 @@ cdef class DatabaseConnectionView:
                 self._db._set_and_signal_new_user_schema(
                     query_unit.user_schema,
                     query_unit.extensions,
+                    query_unit.ext_config_settings,
                     pickle.loads(query_unit.cached_reflection)
                         if query_unit.cached_reflection is not None
                         else None
@@ -951,6 +943,7 @@ cdef class DatabaseConnectionView:
         self,
         user_schema,
         extensions,
+        ext_config_settings,
         global_schema,
         roles,
         cached_reflection,
@@ -968,6 +961,7 @@ cdef class DatabaseConnectionView:
             self._db._set_and_signal_new_user_schema(
                 user_schema,
                 extensions,
+                ext_config_settings,
                 pickle.loads(cached_reflection)
                     if cached_reflection is not None
                     else None
@@ -1261,6 +1255,7 @@ cdef class DatabaseIndex:
         reflection_cache,
         backend_ids,
         extensions,
+        ext_config_settings,
     ):
         cdef Database db
         db = self._dbs.get(dbname)
@@ -1268,6 +1263,7 @@ cdef class DatabaseIndex:
             db._set_and_signal_new_user_schema(
                 user_schema_pickled,
                 extensions,
+                ext_config_settings,
                 reflection_cache,
                 backend_ids,
                 db_config,
@@ -1284,6 +1280,7 @@ cdef class DatabaseIndex:
                 reflection_cache=reflection_cache,
                 backend_ids=backend_ids,
                 extensions=extensions,
+                ext_config_settings=ext_config_settings,
             )
             self._dbs[dbname] = db
 

@@ -315,6 +315,7 @@ class QueryUnit:
     user_schema: Optional[bytes] = None
     cached_reflection: Optional[bytes] = None
     extensions: Optional[set[str]] = None
+    ext_config_settings: Optional[list[config.Setting]] = None
 
     # If present, represents the future global schema state
     # after the command is run. The schema is pickled.

@@ -2289,7 +2289,9 @@ def _try_compile(
             if comp.user_schema is not None:
                 final_user_schema = comp.user_schema
                 unit.user_schema = pickle.dumps(comp.user_schema, -1)
-                unit.extensions = _extract_extension_names(comp.user_schema)
+                unit.extensions, unit.ext_config_settings = (
+                    _extract_extensions(ctx, comp.user_schema)
+                )
             if comp.cached_reflection is not None:
                 unit.cached_reflection = \
                     pickle.dumps(comp.cached_reflection, -1)
@@ -2310,7 +2312,9 @@ def _try_compile(
             if comp.user_schema is not None:
                 final_user_schema = comp.user_schema
                 unit.user_schema = pickle.dumps(comp.user_schema, -1)
-                unit.extensions = _extract_extension_names(comp.user_schema)
+                unit.extensions, unit.ext_config_settings = (
+                    _extract_extensions(ctx, comp.user_schema)
+                )
             if comp.cached_reflection is not None:
                 unit.cached_reflection = \
                     pickle.dumps(comp.cached_reflection, -1)
@@ -2344,7 +2348,9 @@ def _try_compile(
             if comp.user_schema is not None:
                 final_user_schema = comp.user_schema
                 unit.user_schema = pickle.dumps(comp.user_schema, -1)
-                unit.extensions = _extract_extension_names(comp.user_schema)
+                unit.extensions, unit.ext_config_settings = (
+                    _extract_extensions(ctx, comp.user_schema)
+                )
             if comp.cached_reflection is not None:
                 unit.cached_reflection = \
                     pickle.dumps(comp.cached_reflection, -1)
@@ -2857,11 +2863,22 @@ def _hash_sql(sql: bytes, **kwargs: bytes) -> bytes:
     return h.hexdigest().encode('latin1')
 
 
-def _extract_extension_names(user_schema: s_schema.Schema) -> set[str]:
-    return {
+def _extract_extensions(
+    ctx: CompileContext, user_schema: s_schema.Schema
+) -> tuple[set[str], list[config.Setting]]:
+    # XXX: Do we need to return None if extensions/config_spec didn't change?
+    names = {
         ext.get_name(user_schema).name
         for ext in user_schema.get_objects(type=s_ext.Extension)
     }
+    if names:
+        schema = s_schema.ChainedSchema(
+            ctx.compiler_state.std_schema, user_schema, s_schema.EMPTY_SCHEMA
+        )
+        settings = config.load_ext_settings_from_schema(schema)
+    else:
+        settings = []
+    return names, settings
 
 
 def _extract_roles(

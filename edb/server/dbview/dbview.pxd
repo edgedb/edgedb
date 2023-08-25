@@ -80,7 +80,7 @@ cdef class Database:
         object _views
         object _introspection_lock
         object _state_serializers
-        object _user_config_spec
+        object user_config_spec
 
         readonly str name
         readonly object dbver
@@ -92,7 +92,6 @@ cdef class Database:
         readonly object extensions
 
     cdef schedule_config_update(self)
-    cdef get_user_config_spec(self)
 
     cdef _invalidate_caches(self)
     cdef _clear_state_serializers(self)
@@ -104,6 +103,7 @@ cdef class Database:
         self,
         new_schema_pickled,
         extensions,
+        ext_config_settings,
         reflection_cache=?,
         backend_ids=?,
         db_config=?,
@@ -193,6 +193,7 @@ cdef class DatabaseConnectionView:
         self,
         user_schema,
         extensions,
+        ext_config_settings,
         global_schema,
         roles,
         cached_reflection,

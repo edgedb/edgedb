@@ -826,9 +826,18 @@ class Tenant(ha_base.ClusterProtocol):
             backend_ids = json.loads(backend_ids_json)
 
             db_config_json = await self._server.introspect_db_config(conn)
+
             db_config = self._server._parse_db_config(
                 db_config_json, user_schema
             )  # TODO: will be done in the compiler
+            ext_config_settings = config.load_ext_settings_from_schema(
+                s_schema.ChainedSchema(
+                    self._server.get_std_schema(),
+                    user_schema,
+                    s_schema.EMPTY_SCHEMA,
+                )
+            )  # TODO: will be done in the compiler
+
             extensions = await self._introspect_extensions(conn)
 
             # GOTCHA: we will move introspect_user_schema() to the compiler
@@ -843,6 +852,7 @@ class Tenant(ha_base.ClusterProtocol):
                 reflection_cache=reflection_cache,
                 backend_ids=backend_ids,
                 extensions=extensions,
+                ext_config_settings=ext_config_settings,
             )
         finally:
             self.release_pgcon(dbname, conn)
@@ -872,6 +882,7 @@ class Tenant(ha_base.ClusterProtocol):
                         reflection_cache=None,
                         backend_ids=None,
                         extensions=extensions,
+                        ext_config_settings=None,
                     )
         finally:
             self.release_pgcon(dbname, conn)
