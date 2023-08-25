@@ -1230,14 +1230,13 @@ Let's create a new folder for the answer generation route inside ``app/api``.
     $ mkdir app/api && cd app/api
     $ mkdir generate-answer && touch generate-answer/route.ts
 
-As the final setup step, we will install the ``common-tags`` NPM package which
-gives us some useful template tags to make it easier to generate HTML from our
-route handler. We will use it later when we create the prompt from user's
-question and related sections.
+We also need to install the ``common-tags`` NPM package (and its corresponding
+types package) which gives us some useful template tags that we will use later
+when we create the prompt from user's question and related sections.
 
 .. code-block:: bash
 
-    $ npm install common-tags
+    $ npm install common-tags @types/common-tags
 
 Let's talk briefly about runtimes. In the context of Next.js, "runtime" refers
 to the set of libraries, APIs, and general functionality available to your code
@@ -2033,12 +2032,12 @@ connection to our handler route while also sending the user's query.
 .. code-block:: typescript-diff
 
       "use client";
-     
+
     - import { useState } from "react";
     + import { useState, useRef } from "react";
     + import { SSE } from "sse.js";
       import { errors } from "./constants";
-     
+
       export default function Home() {
     +     const eventSourceRef = useRef<SSE>();
     +
@@ -2047,7 +2046,7 @@ connection to our handler route while also sending the user's query.
           const [answer, setAnswer] = useState<string>("");
           const [isLoading, setIsLoading] = useState(false);
           const [error, setError] = useState<string | undefined>(undefined);
-     
+
           const handleSubmit = () => {};
     +
     +     const generateAnswer = async (query: string) => {
