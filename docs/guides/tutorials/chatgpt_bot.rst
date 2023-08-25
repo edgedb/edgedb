@@ -1266,7 +1266,7 @@ writing some configuration.
 .. code-block:: typescript
     :caption: app/api/generate-answer/route.ts
 
-    import { codeBlock, oneLineTrim } from "common-tags";
+    import { stripIndents, oneLineTrim } from "common-tags";
     import * as edgedb from "edgedb";
     import e from "dbschema/edgeql-js";
     import { errors } from "../../constants";
