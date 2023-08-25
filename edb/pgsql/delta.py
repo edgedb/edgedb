@@ -69,6 +69,7 @@ from edb.common import uuidgen
 from edb.common import parsing
 from edb.common.typeutils import not_none
 
+from edb.ir import ast as irast
 from edb.ir import pathid as irpathid
 from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
@@ -3591,6 +3592,18 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         sql_res = compiler.compile_ir_to_sql_tree(ir.expr, singleton_mode=True)
         exprs = astutils.maybe_unpack_row(sql_res.ast)
 
+        # FTS
+        if root_name == sn.QualName('fts', 'textsearch'):
+            return cls.create_fts_index(
+                index,
+                root_code,
+                sql_exprs,
+                predicate_src,
+                sql_kwarg_exprs,
+                schema,
+                context
+            )
+        
         table_name = common.get_backend_name(schema, subject, catenate=False)
 
         module_name = index.get_name(schema).module
@@ -3598,64 +3611,94 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             index.id, module_name, catenate=False)
 
         sql_exprs = [codegen.generate_source(e) for e in exprs]
+        pg_index = dbops.Index(
+            name=index_name[1],
+            table_name=table_name,  # type: ignore
+            exprs=sql_exprs,
+            unique=False, inherit=True,    
+            predicate=predicate_src,
+            metadata={
+                'schemaname': str(index.get_name(schema)),
+                'code': root_code,
+                'kwargs': sql_kwarg_exprs,
+            }
+        )
+        return dbops.CreateIndex(pg_index)
 
+    @classmethod
+    def create_fts_index(
+        cls,
+        index: s_indexes.Index,
+        root_code: str,
+        sql_exprs: Sequence[str],
+        predicate_src: Optional[str],
+        sql_kwarg_exprs: Dict[str, str],
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> dbops.Command:
         ops = dbops.CommandGroup()
-        with_clause: Dict[str, str] | None = None
 
-        # FTS
-        if root_name == sn.QualName('fts', 'textsearch'):
+        subject = index.get_subject(schema)
+        assert subject
+        table_name = common.get_backend_name(schema, subject, catenate=False)
 
-            from edb.common import debug
-            if debug.flags.zombodb:
-                # TODO: create a function for specifing which columns to index
-                #       (see zombo docs on creating indexes)
+        module_name = index.get_name(schema).module
+        index_name = common.get_index_backend_name(
+            index.id, module_name, catenate=False)
 
-                sql_exprs = [f'{qi(table_name[1])}.*']
-                root_code = 'zombodb ((__col__))'
-                with_clause = {
-                    'url': ql('http://localhost:9200/')
-                }
+        with_clause: Dict[str, str] = {}
 
-            else:
-                # create a generated column __fts_document__
-                alter_table = dbops.AlterTable(table_name)
+        from edb.common import debug
+        if debug.flags.zombodb:
+            # TODO: create a function for specifing which columns to index
+            #       (see zombo docs on creating indexes)
 
-                default_lang = "'english'"
-                language = sql_kwarg_exprs.get('language', default_lang)
+            sql_exprs = [f'{qi(table_name[1])}.*']
+            root_code = 'zombodb ((__col__))'
+            with_clause = {
+                'url': ql('http://localhost:9200/')
+            }
 
-                document_exprs = []
-                for sql_expr in sql_exprs:
-                    weight = "'A'"
-                    document_exprs.append(
-                        f'''
-                        setweight(
-                            to_tsvector(
-                                {language}::pg_catalog.regconfig,
-                                COALESCE({sql_expr}, '')
-                            ),
-                            {weight}
-                        )
-                    '''
+        else:
+            # create a generated column __fts_document__
+            alter_table = dbops.AlterTable(table_name)
+
+            default_lang = "'english'"
+            language = sql_kwarg_exprs.get('language', default_lang)
+
+            document_exprs = []
+            for sql_expr in sql_exprs:
+                weight = "'A'"
+                document_exprs.append(
+                    f'''
+                    setweight(
+                        to_tsvector(
+                            {language}::pg_catalog.regconfig,
+                            COALESCE({sql_expr}, '')
+                        ),
+                        {weight}
                     )
-
-                generated_as = dbops.GeneratedConstraint(
-                    constraint_name='__fts_gen_doc__',
-                    expr=' || '.join(document_exprs)
+                '''
                 )
 
-                fts_document = dbops.Column(
-                    name=f'__fts_document__',
-                    type='pg_catalog.tsvector',
-                    constraints=[generated_as]
-                )
-                alter_table.add_operation(
-                    dbops.AlterTableAddColumn(fts_document)
-                )
+            generated_as = dbops.GeneratedConstraint(
+                constraint_name='__fts_gen_doc__',
+                expr=' || '.join(document_exprs)
+            )
 
-                # use a reference to the new column in the index instead
-                sql_exprs = ['__fts_document__']
+            fts_document = dbops.Column(
+                name=f'__fts_document__',
+                type='pg_catalog.tsvector',
+                constraints=[generated_as]
+            )
+            alter_table.add_operation(
+                dbops.AlterTableAddColumn(fts_document)
+            )
 
-                ops.add_command(alter_table)
+            # use a reference to the new column in the index instead
+            sql_exprs = ['__fts_document__']
+
+            ops.add_command(alter_table)
 
         pg_index = dbops.Index(
             name=index_name[1],
@@ -4710,7 +4753,6 @@ class PointerMetaCommand(
         - Result is SQL string that contain a single SELECT statement that
           has a single value column.
         """
-        from edb.ir import ast as irast
         old_ptr_stor_info = types.get_pointer_storage_info(
             pointer, schema=orig_schema)
         ptr_table = old_ptr_stor_info.table_type == 'link'
