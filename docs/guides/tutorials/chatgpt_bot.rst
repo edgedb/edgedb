@@ -1138,18 +1138,15 @@ Let's add a script to ``package.json`` that will invoke and execute
     +     "embeddings": "tsx generate-embeddings.ts"
         },
         "dependencies": {
-          "common-tags": "^1.8.2",
           "edgedb": "^1.3.5",
           "next": "^13.4.19",
           "openai": "^4.0.1",
           "react": "18.2.0",
           "react-dom": "18.2.0",
-          "sse.js": "^0.6.1",
           "typescript": "5.1.6"
         },
         "devDependencies": {
           "@edgedb/generate": "^0.3.3",
-          "@types/common-tags": "^1.8.1",
           "@types/node": "20.4.8",
           "@types/react": "18.2.18",
           "@types/react-dom": "18.2.7",
