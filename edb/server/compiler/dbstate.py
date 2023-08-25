@@ -148,7 +148,6 @@ class DDLQuery(BaseQuery):
     create_db: Optional[str] = None
     drop_db: Optional[str] = None
     create_db_template: Optional[str] = None
-    has_role_ddl: bool = False
     ddl_stmt_id: Optional[str] = None
     config_ops: List[config.Operation] = (
         dataclasses.field(default_factory=list))
@@ -233,9 +232,6 @@ class QueryUnit:
 
     # True if this unit contains SET commands.
     has_set: bool = False
-
-    # True if this unit contains ALTER/DROP/CREATE ROLE commands.
-    has_role_ddl: bool = False
 
     # If tx_id is set, it means that the unit
     # starts a new transaction.
@@ -323,6 +319,7 @@ class QueryUnit:
     # If present, represents the future global schema state
     # after the command is run. The schema is pickled.
     global_schema: Optional[bytes] = None
+    roles: immutables.Map[str, immutables.Map[str, Any]] | None = None
 
     is_explain: bool = False
     query_asts: Any = None

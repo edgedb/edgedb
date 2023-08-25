@@ -356,7 +356,6 @@ cdef class DatabaseConnectionView:
         self._in_tx_modaliases = None
         self._in_tx_savepoints = []
         self._in_tx_with_ddl = False
-        self._in_tx_with_role_ddl = False
         self._in_tx_with_sysconfig = False
         self._in_tx_with_dbconfig = False
         self._in_tx_with_set = False
@@ -831,8 +830,6 @@ cdef class DatabaseConnectionView:
             self._in_tx_with_dbconfig = True
         if query_unit.has_set:
             self._in_tx_with_set = True
-        if query_unit.has_role_ddl:
-            self._in_tx_with_role_ddl = True
         if query_unit.user_schema is not None:
             self._in_tx_user_schema_pickled = query_unit.user_schema
             self._in_tx_user_schema = None
@@ -888,9 +885,7 @@ cdef class DatabaseConnectionView:
                 side_effects |= SideEffects.GlobalSchemaChanges
                 self._db._index.update_global_schema(
                     pickle.loads(query_unit.global_schema))
-            if query_unit.has_role_ddl:
-                side_effects |= SideEffects.RoleChanges
-                self._db.tenant.fetch_roles()
+                self._db.tenant.set_roles(query_unit.roles)
         else:
             if new_types:
                 self._in_tx_new_types.update(new_types)
@@ -931,9 +926,7 @@ cdef class DatabaseConnectionView:
                 side_effects |= SideEffects.GlobalSchemaChanges
                 self._db._index.update_global_schema(
                     pickle.loads(query_unit.global_schema))
-                self._db.tenant.fetch_roles()
-            if self._in_tx_with_role_ddl:
-                side_effects |= SideEffects.RoleChanges
+                self._db.tenant.set_roles(query_unit.roles)
 
             self._reset_tx_state()
 
@@ -947,7 +940,12 @@ cdef class DatabaseConnectionView:
         return side_effects
 
     cdef commit_implicit_tx(
-        self, user_schema, extensions, global_schema, cached_reflection
+        self,
+        user_schema,
+        extensions,
+        global_schema,
+        roles,
+        cached_reflection,
     ):
         assert self._in_tx
         side_effects = 0
@@ -979,9 +977,7 @@ cdef class DatabaseConnectionView:
             side_effects |= SideEffects.GlobalSchemaChanges
             self._db._index.update_global_schema(
                 pickle.loads(global_schema))
-            self._db.tenant.fetch_roles()
-        if self._in_tx_with_role_ddl:
-            side_effects |= SideEffects.RoleChanges
+            self._db.tenant.set_roles(roles)
 
         self._reset_tx_state()
         return side_effects
