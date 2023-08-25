@@ -499,7 +499,7 @@ Now, the ``Section`` type:
         required tokens: int16;
         required embedding: OpenAIEmbedding;
 
-        index ext::pgvector::ivfflat_cosine(lists := 3)
+        index ext::pgvector::ivfflat_cosine(lists := 1)
           on (.embedding);
       }
     }
@@ -513,10 +513,9 @@ order for this to work properly, the index should correspond to the
 ``cosine_similarity`` function we're going to use to find sections related to
 the user's question. That corresponding index is ``ivfflat_cosine``.
 
-We are using the value ``3`` for the ``lists`` parameter because best practice
+We are using the value ``1`` for the ``lists`` parameter because we will have
+very few items in our database — three, to be exact 😅. Best practice
 is to use the number of objects divided by 1,000 for up to 1,000,000 objects.
-Our database will have around 3,000 total objects which falls well under that
-threshold.
 
 In our case indexing does not have much impact, but if you plan to store and
 query a large number of entries, you'll see performance gains by adding this
@@ -538,7 +537,7 @@ Put that all together, and your entire schema file should look like this:
         required tokens: int16;
         required embedding: OpenAIEmbedding;
 
-        index ext::pgvector::ivfflat_cosine(lists := 3)
+        index ext::pgvector::ivfflat_cosine(lists := 1)
           on (.embedding);
       }
     }
