@@ -135,13 +135,6 @@ def get_path_var(
         rel = rel.query
 
     if flavor == 'normal':
-        # Check if we already have a var, before remapping the path_id.
-        # This is useful for serialized aspect disambiguation in tuples,
-        # since process_set_as_tuple() records serialized vars with
-        # original path_id.
-        if (path_id, aspect) in rel.path_namespace:
-            return rel.path_namespace[path_id, aspect]
-
         if rel.view_path_id_map:
             path_id = map_path_id(path_id, rel.view_path_id_map)
 
@@ -1191,24 +1184,16 @@ def _get_path_output(
     if isinstance(ref, pgast.TupleVarBase):
         elements = []
         for el in ref.elements:
-            el_path_id = reverse_map_path_id(
-                el.path_id, rel.view_path_id_map)
+            element = _get_path_output(
+                rel, el.path_id, aspect=aspect,
+                disable_output_fusion=disable_output_fusion,
+                flavor=flavor,
+                allow_nullable=allow_nullable, env=env)
 
-            try:
-                # Similarly to get_path_var(), check for outer path_id
-                # first for tuple serialized var disambiguation.
-                element = _get_path_output(
-                    rel, el_path_id, aspect=aspect,
-                    disable_output_fusion=disable_output_fusion,
-                    flavor=flavor,
-                    allow_nullable=allow_nullable, env=env)
-            except LookupError:
-                element = get_path_output(
-                    rel, el_path_id, aspect=aspect,
-                    disable_output_fusion=disable_output_fusion,
-                    flavor=flavor,
-                    allow_nullable=allow_nullable, env=env)
-
+            # We need to reverse the mapping for the element path in
+            # the output TupleVar, since it will be used *outside*
+            # this rel, and so without the map applied.
+            el_path_id = reverse_map_path_id(el.path_id, rel.view_path_id_map)
             elements.append(pgast.TupleElement(
                 path_id=el_path_id, val=element, name=element))
 

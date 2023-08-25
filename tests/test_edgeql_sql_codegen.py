@@ -271,3 +271,13 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             count,
             1,
             f"ORDER BY subquery not optimized out")
+
+    def test_codegen_tuples_no_extra_serialized(self):
+        sql = self._compile('''
+            select (select (1, 'foo'))
+       ''')
+
+        self.assertNotIn(
+            "0_serialized~1", sql,
+            "pointless extra query outputs",
+        )
