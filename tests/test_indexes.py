@@ -248,18 +248,15 @@ class TestIndexes(tb.DDLTestCase):
     async def test_index_07(self):
         with self.assertRaisesRegex(
             edgedb.SchemaError,
-            r"index.+fts::textsearch\(language:='english'\)"
+            r"index.+fts::textsearch"
             r".+of object type 'default::Foo' already exists"
         ):
             await self.con.execute(r"""
                 create type Foo{
                     create property val -> str;
-                    create index fts::textsearch(language := 'english')
-                        on (.val);
-                    create index fts::textsearch(language := 'spanish')
-                        on (.val);
-                    create index fts::textsearch(language := 'english')
-                        on (.val);
+                    create index fts::textsearch on (.val);
+                    create index fts::textsearch on (.val);
+                    create index fts::textsearch on (.val);
                 };
             """)
 
@@ -268,8 +265,7 @@ class TestIndexes(tb.DDLTestCase):
             # setup delta
             create type ObjIndex3 {
                 create property name -> str;
-                create index fts::textsearch(language := 'english')
-                    on (.name);
+                create index fts::textsearch on (.name);
             };
         """)
 
@@ -289,7 +285,7 @@ class TestIndexes(tb.DDLTestCase):
             [{
                 'indexes': [{
                     'name': 'fts::textsearch',
-                    'kwargs': [{'name': 'language', 'expr': '\'english\''}],
+                    'kwargs': [],
                     'expr': '.name',
                     'abstract': False,
                 }]
@@ -299,8 +295,7 @@ class TestIndexes(tb.DDLTestCase):
     async def test_index_09(self):
         await self.con.execute(r"""
             # setup delta
-            create abstract index MyIndex(language := 'english')
-                extending fts::textsearch;
+            create abstract index MyIndex extending fts::textsearch;
 
             create type ObjIndex4 {
                 create property name -> str;
@@ -352,15 +347,11 @@ class TestIndexes(tb.DDLTestCase):
             """,
             [{
                 'name': 'default::MyIndex',
-                'kwargs': [{'name': 'language', 'expr': '\'english\''}],
+                'kwargs': [],
                 'abstract': True,
                 'ancestors': [{
                     'name': 'fts::textsearch',
-                    'params': [{
-                        'name': 'language',
-                        'type_name': 'std::str',
-                        'default': None,
-                    }],
+                    'params': [],
                     'abstract': True,
                 }],
             }],

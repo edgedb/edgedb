@@ -19,7 +19,7 @@
 
 CREATE MODULE fts;
 
-CREATE ABSTRACT INDEX fts::textsearch(named only language: std::str) {
+CREATE ABSTRACT INDEX fts::textsearch {
     CREATE ANNOTATION std::description :=
         "Full-text search index based on the Postgres's GIN index.";
     SET code := 'gin (__col__)';

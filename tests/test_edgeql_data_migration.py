@@ -11450,22 +11450,20 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
 
     async def test_edgeql_migration_abstract_index_01(self):
         await self.migrate(r"""
-            abstract index MyIndex(language := 'english')
-                extending fts::textsearch;
+            abstract index MyIndex extending fts::textsearch;
             type Base {
                 property name -> str;
                 index MyIndex on (.name);
-                index fts::textsearch(language:='english') on (.name);
+                index fts::textsearch on (.name);
             };
         """)
 
         await self.migrate(r"""
-            abstract index MyIndex(language := 'english')
-                extending fts::textsearch;
+            abstract index MyIndex extending fts::textsearch;
             type Base {
                 property name -> str;
                 index MyIndex on (.name);
-                index fts::textsearch(language:='english') on (.name);
+                index fts::textsearch on (.name);
             };
             type Child extending Base;
         """)
@@ -11478,25 +11476,23 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             ''')
 
         await self.migrate(r"""
-            abstract index MyIndex(language := 'german')
-                extending fts::textsearch;
+            abstract index MyIndex extending fts::textsearch;
             type Base {
                 property name -> str;
                 index MyIndex on (.name);
-                index fts::textsearch(language:='english') on (.name);
+                index fts::textsearch on (.name);
             };
             type Child extending Base;
         """)
 
         await self.migrate(r"""
-            abstract index MyIndex(language := 'german')
-                extending fts::textsearch {
+            abstract index MyIndex extending fts::textsearch {
               annotation title := "test";
             }
             type Base {
                 property name -> str;
                 index MyIndex on (.name);
-                index fts::textsearch(language:='english') on (.name) {
+                index fts::textsearch on (.name) {
                    annotation description := "test";
                 };
             };
