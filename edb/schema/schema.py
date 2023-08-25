@@ -66,6 +66,7 @@ STD_MODULES = (
     sn.UnqualName('std::_test'),
     sn.UnqualName('fts'),
     sn.UnqualName('ext'),
+    sn.UnqualName('std::enc'),
 )
 
 # Specifies the order of processing of files and directories in lib/
@@ -77,6 +78,7 @@ STD_SOURCES = (
     sn.UnqualName('cfg'),
     sn.UnqualName('cal'),
     sn.UnqualName('ext'),
+    sn.UnqualName('enc'),
     sn.UnqualName('pg'),
 )
 TESTMODE_SOURCES = (

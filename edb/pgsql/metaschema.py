@@ -4187,6 +4187,38 @@ class UuidGenerateV5Function(dbops.Function):
         )
 
 
+class PadBase64StringFunction(dbops.Function):
+    text = r"""
+        WITH
+            l AS (SELECT pg_catalog.length("s") % 4 AS r),
+            p AS (
+                SELECT
+                    (CASE WHEN l.r > 0 THEN repeat('=', (4 - l.r))
+                    ELSE '' END) AS p
+                FROM
+                    l
+            )
+        SELECT
+            "s" || p.p
+        FROM
+            p
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'pad_base64_string'),
+            args=[
+                ('s', ('text',)),
+            ],
+            returns=('text',),
+            volatility='immutable',
+            language='sql',
+            strict=True,
+            parallel_safe=True,
+            text=self.text,
+        )
+
+
 async def bootstrap(
     conn: PGConnection,
     config_spec: edbconfig.Spec,
@@ -4303,6 +4335,7 @@ async def bootstrap(
         dbops.CreateFunction(FTSParseQueryFunction()),
         dbops.CreateFunction(FTSNormalizeWeightFunction()),
         dbops.CreateFunction(FTSNormalizeDocFunction()),
+        dbops.CreateFunction(PadBase64StringFunction()),
     ]
     commands = dbops.CommandGroup()
     commands.add_commands(cmds)

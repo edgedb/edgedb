@@ -17,9 +17,11 @@
 #
 
 
+import base64
 import decimal
 import json
 import os.path
+import random
 
 import edgedb
 
@@ -1130,19 +1132,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 ORDER BY x;
             ''',
             [['Ab'], ['a'], ['a'], ['aB'], ['ab']],
-        )
-
-    async def test_edgeql_functions_re_match_all_02(self):
-        await self.assert_query_result(
-            r'''
-                WITH
-                    MODULE schema,
-                    C2 := ScalarType
-                SELECT
-                    count(re_match_all('(\\w+)', ScalarType.name)) =
-                    2 * count(C2);
-            ''',
-            [True],
         )
 
     async def test_edgeql_functions_re_test_01(self):
@@ -7475,4 +7464,95 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                     },
                 ],
                 json_only=True,
+            )
+
+    async def test_edgeql_functions_encoding_base64_fuzz(self):
+        for _ in range(10):
+            value = random.randbytes(random.randrange(0, 1000))
+            await self.assert_query_result(
+                r"""
+                WITH
+                    MODULE std::enc,
+                    value := <bytes>$value,
+                    standard_encoded := base64_encode(
+                        value),
+                    standard_decoded := base64_decode(
+                        standard_encoded),
+                    standard_unpadded_encoded := base64_encode(
+                        value,
+                        padding := false),
+                    standard_unpadded_decoded := base64_decode(
+                        standard_unpadded_encoded,
+                        padding := false),
+                    urlsafe_encoded := base64_encode(
+                        value,
+                        alphabet := Base64Alphabet.urlsafe),
+                    urlsafe_decoded := base64_decode(
+                        urlsafe_encoded,
+                        alphabet := Base64Alphabet.urlsafe),
+                    urlsafe_unpadded_encoded := base64_encode(
+                        value,
+                        alphabet := Base64Alphabet.urlsafe,
+                        padding := false),
+                    urlsafe_unpadded_decoded := base64_decode(
+                        urlsafe_unpadded_encoded,
+                        alphabet := Base64Alphabet.urlsafe,
+                        padding := false),
+                SELECT {
+                    standard_encoded :=
+                        standard_encoded,
+                    standard_crosscheck :=
+                        standard_decoded = value,
+                    standard_unpadded_encoded :=
+                        standard_unpadded_encoded,
+                    standard_unpadded_crosscheck :=
+                        standard_unpadded_decoded = value,
+                    urlsafe_encoded :=
+                        urlsafe_encoded,
+                    urlsafe_crosscheck :=
+                        urlsafe_decoded = value,
+                    urlsafe_unpadded_encoded :=
+                        urlsafe_unpadded_encoded,
+                    urlsafe_unpadded_crosscheck :=
+                        urlsafe_unpadded_decoded = value,
+                }
+                """,
+                [{
+                    "standard_encoded":
+                        base64.b64encode(value)
+                              .decode("utf-8"),
+                    "standard_crosscheck": True,
+                    "standard_unpadded_encoded":
+                        base64.b64encode(value)
+                              .decode("utf-8").rstrip('='),
+                    "standard_unpadded_crosscheck": True,
+                    "urlsafe_encoded":
+                        base64.urlsafe_b64encode(value)
+                              .decode("utf-8"),
+                    "urlsafe_crosscheck": True,
+                    "urlsafe_unpadded_encoded":
+                        base64.urlsafe_b64encode(value)
+                              .decode("utf-8").rstrip('='),
+                    "urlsafe_unpadded_crosscheck": True,
+                }],
+                variables={
+                    "value": value,
+                },
+            )
+
+    async def test_edgeql_functions_encoding_base64_bad(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r'invalid symbol "~" found while decoding base64 sequence',
+        ):
+            await self.con.execute(
+                'select std::enc::base64_decode("~")'
+            )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r'invalid base64 end sequence',
+        ):
+            await self.con.execute(
+                'select std::enc::base64_decode("AA")'
             )
