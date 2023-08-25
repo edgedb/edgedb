@@ -173,19 +173,8 @@ class ObjectRef(BaseObjectRef):
 
 
 class PseudoObjectRef(BaseObjectRef):
-    __abstract_node__ = True
-
-
-class AnyType(PseudoObjectRef):
-    pass
-
-
-class AnyTuple(PseudoObjectRef):
-    pass
-
-
-class AnyObject(PseudoObjectRef):
-    pass
+    # anytype, anytuple or anyobject
+    name: str
 
 
 class Anchor(Expr):
