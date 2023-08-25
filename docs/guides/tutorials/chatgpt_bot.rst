@@ -1597,7 +1597,7 @@ response. We'll combine all of these parts in a function called
             If unable to help based on documentation, respond
             with: "Sorry, I don't know how to help with that."`;
 
-        return codeBlock`
+        return stripIndents`
             ${oneLineTrim`${systemMessage}`}
 
             EdgeDB sections: """
