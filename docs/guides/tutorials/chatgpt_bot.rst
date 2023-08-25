@@ -2280,9 +2280,9 @@ EdgeQL along with whatever it was trained on.
 
 Some questions you might try:
 
-- "What is EdgeDB?"
-- "Who is EdgeDB for?"
-- "How should I get started with EdgeDB?"
+- "What is EdgeQL?"
+- "Who is EdgeQL for?"
+- "How should I get started with EdgeQL?"
 
 If you don't like the responses you're getting, here are a few things you might
 try tweaking:
