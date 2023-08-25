@@ -2903,7 +2903,6 @@ class SubclassableObject(Object):
         parent: Union[SubclassableObject, Tuple[SubclassableObject, ...]],
     ) -> bool:
         from . import types as s_types
-        from . import objtypes as s_objtypes
         if isinstance(parent, tuple):
             return any(self.issubclass(schema, p) for p in parent)
         if (

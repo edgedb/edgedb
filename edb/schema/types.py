@@ -3015,7 +3015,7 @@ class InheritingTypeCommand(
         is_derived: bool,
     ) -> None:
         for base in bases.objects(schema):
-            if base.find_generic(schema) != None or (
+            if base.find_generic(schema) is not None or (
                 base.is_free_object_type(schema) and not is_derived
             ):
                 base_type_name = base.get_displayname(schema)
