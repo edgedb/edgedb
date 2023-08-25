@@ -6,8 +6,7 @@ create type Post {
 
     create property body -> str;
 
-    create index fts::textsearch(language := 'english')
-            on (.title);    
+    create index fts::textsearch on (.title);
 };
 
 insert Post {

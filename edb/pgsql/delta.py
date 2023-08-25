@@ -3664,8 +3664,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             # create a generated column __fts_document__
             alter_table = dbops.AlterTable(table_name)
 
-            default_lang = "'english'"
-            language = sql_kwarg_exprs.get('language', default_lang)
+            language = "'english'"
 
             document_exprs = []
             for sql_expr in sql_exprs:
