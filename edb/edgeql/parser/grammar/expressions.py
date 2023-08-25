@@ -1944,6 +1944,9 @@ class SimpleTypeName(Nonterm):
     def reduce_ANYTUPLE(self, *kids):
         self.val = qlast.TypeName(maintype=qlast.AnyTuple())
 
+    def reduce_ANYOBJECT(self, *kids):
+        self.val = qlast.TypeName(maintype=qlast.AnyObject())
+
 
 class SimpleTypeNameList(ListNonterm, element=SimpleTypeName,
                          separator=tokens.T_COMMA):

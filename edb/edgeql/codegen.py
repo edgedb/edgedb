@@ -732,6 +732,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_AnyType(self, node: qlast.AnyType) -> None:
         self.write('anytype')
 
+    def visit_AnyObject(self, node: qlast.AnyObject) -> None:
+        self.write('anyobject')
+
     def visit_AnyTuple(self, node: qlast.AnyTuple) -> None:
         self.write('anytuple')
 

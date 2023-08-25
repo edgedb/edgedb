@@ -361,6 +361,13 @@ def ast_to_type_shell(
             sourcectx=node.maintype.context,
         )  # type: ignore
 
+    elif isinstance(node.maintype, qlast.AnyObject):
+        from . import pseudo as s_pseudo
+        return s_pseudo.PseudoTypeShell(
+            name=sn.UnqualName('anyobject'),
+            sourcectx=node.maintype.context,
+        )  # type: ignore
+
     assert isinstance(node.maintype, qlast.ObjectRef)
 
     return ast_objref_to_type_shell(
@@ -502,6 +509,8 @@ def typeref_to_ast(
         result = qlast.TypeName(name=_name, maintype=qlast.AnyType())
     elif isinstance(t, s_types.Type) and t.is_anytuple(schema):
         result = qlast.TypeName(name=_name, maintype=qlast.AnyTuple())
+    elif isinstance(t, s_types.Type) and t.is_anyobject(schema):
+        result = qlast.TypeName(name=_name, maintype=qlast.AnyObject())
     elif isinstance(t, s_types.Tuple) and t.is_named(schema):
         result = qlast.TypeName(
             name=_name,
@@ -582,6 +591,8 @@ def shell_to_ast(
             qlref = qlast.AnyType()
         elif t.name.name == 'anytuple':
             qlref = qlast.AnyTuple()
+        elif t.name.name == 'anyobject':
+            qlref = qlast.AnyObject()
         else:
             raise AssertionError(f'unexpected pseudo type shell: {t.name!r}')
         result = qlast.TypeName(name=_name, maintype=qlref)

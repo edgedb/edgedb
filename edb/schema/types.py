@@ -250,6 +250,9 @@ class Type(
     def is_anytuple(self, schema: s_schema.Schema) -> bool:
         return False
 
+    def is_anyobject(self, schema: s_schema.Schema) -> bool:
+        return False
+
     def is_scalar(self) -> bool:
         return False
 
@@ -297,11 +300,11 @@ class Type(
     ) -> bool:
         return bool(self.find_predicate(pred, schema))
 
-    def find_any(self, schema: s_schema.Schema) -> Optional[Type]:
-        return self.find_predicate(lambda x: x.is_any(schema), schema)
-
-    def contains_any(self, schema: s_schema.Schema) -> bool:
-        return self.contains_predicate(lambda x: x.is_any(schema), schema)
+    def find_generic(self, schema: s_schema.Schema) -> Optional[Type]:
+        return self.find_predicate(
+            lambda x: x.is_any(schema) or x.is_anyobject(schema),
+            schema
+        )
 
     def contains_object(self, schema: s_schema.Schema) -> bool:
         return self.contains_predicate(lambda x: x.is_object_type(), schema)
@@ -332,6 +335,8 @@ class Type(
             raise TypeError('expected a polymorphic type as a second argument')
 
         if poly.is_any(schema):
+            return True
+        if poly.is_anyobject(schema) and self.is_object_type():
             return True
 
         return self._test_polymorphic(schema, poly)
@@ -1028,6 +1033,9 @@ class Collection(Type, s_abc.Collection):
     ) -> bool:
         if isinstance(parent, Type) and parent.is_any(schema):
             return True
+        if isinstance(parent, Type) and parent.is_anyobject(schema):
+            if isinstance(self, Type) and self.is_object_type():
+                return True
 
         if parent.__class__ is not self.__class__:
             return False
@@ -3009,7 +3017,7 @@ class InheritingTypeCommand(
     ) -> None:
         for base in bases.objects(schema):
             if (
-                base.contains_any(schema)
+                base.find_generic(schema) != None
                 or (base.is_free_object_type(schema) and not is_derived)
             ):
                 base_type_name = base.get_displayname(schema)

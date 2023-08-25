@@ -2903,13 +2903,20 @@ class SubclassableObject(Object):
         parent: Union[SubclassableObject, Tuple[SubclassableObject, ...]],
     ) -> bool:
         from . import types as s_types
+        from . import objtypes as s_objtypes
         if isinstance(parent, tuple):
             return any(self.issubclass(schema, p) for p in parent)
-        else:
-            if isinstance(parent, s_types.Type) and parent.is_any(schema):
-                return True
-            else:
-                return self._issubclass(schema, parent)
+        if (
+            isinstance(parent, s_types.Type)
+            and parent.is_anyobject(schema)
+            and isinstance(self, s_types.Type)
+            and self.is_object_type()
+        ):
+            return True
+        if isinstance(parent, s_types.Type) and parent.is_any(schema):
+            return True
+
+        return self._issubclass(schema, parent)
 
 
 InheritingObjectT = TypeVar('InheritingObjectT', bound='InheritingObject')

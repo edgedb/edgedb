@@ -184,6 +184,10 @@ class AnyTuple(PseudoObjectRef):
     pass
 
 
+class AnyObject(PseudoObjectRef):
+    pass
+
+
 class Anchor(Expr):
     __abstract_node__ = True
     name: str
