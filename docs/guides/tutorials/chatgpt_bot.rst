@@ -2284,8 +2284,7 @@ You should now be able to run the project to test it.
     $ npm run dev
 
 If you used our example documentation, the chatbot will know a few things about
-EdgeDB along with whatever it was trained on (which would have been relatively
-early in EdgeDB's development as of the time of this tutorial's publication).
+EdgeQL along with whatever it was trained on.
 
 Some questions you might try:
 
