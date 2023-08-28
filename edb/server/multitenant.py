@@ -86,6 +86,7 @@ class MultiTenantServer(server.BaseServer):
         self,
         config_file: pathlib.Path,
         *,
+        compiler_pool_tenant_cache_size: int,
         sys_config: Mapping[str, config.SettingValue],
         backend_settings: Mapping[str, str],
         sys_queries: Mapping[str, bytes],
@@ -96,6 +97,7 @@ class MultiTenantServer(server.BaseServer):
         self._config_file = config_file
         self._sys_config = sys_config
         self._backend_settings = backend_settings
+        self._compiler_pool_tenant_cache_size = compiler_pool_tenant_cache_size
 
         self._tenants_by_sslobj = weakref.WeakKeyDictionary()
         self._tenants_conf = {}
@@ -325,6 +327,11 @@ class MultiTenantServer(server.BaseServer):
             for name, tenant in self._tenants.items()
         }
         return parent
+
+    def _get_compiler_args(self) -> dict[str, Any]:
+        args = super()._get_compiler_args()
+        args["cache_size"] = self._compiler_pool_tenant_cache_size
+        return args
 
 
 async def run_server(

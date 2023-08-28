@@ -123,7 +123,6 @@ class BaseServer:
         compiler_pool_size,
         compiler_pool_mode: srvargs.CompilerPoolMode,
         compiler_pool_addr,
-        compiler_pool_tenant_cache_size,
         nethosts,
         netport,
         listen_sockets: tuple[socket.socket, ...] = (),
@@ -167,7 +166,6 @@ class BaseServer:
         self._compiler_pool_size = compiler_pool_size
         self._compiler_pool_mode = compiler_pool_mode
         self._compiler_pool_addr = compiler_pool_addr
-        self._compiler_pool_tenant_cache_size = compiler_pool_tenant_cache_size
 
         self._listen_sockets = listen_sockets
         if listen_sockets:
@@ -441,8 +439,6 @@ class BaseServer:
         )
         if self._compiler_pool_mode == srvargs.CompilerPoolMode.Remote:
             args['address'] = self._compiler_pool_addr
-        elif self._compiler_pool_mode == srvargs.CompilerPoolMode.MultiTenant:
-            args["cache_size"] = self._compiler_pool_tenant_cache_size
         return args
 
     async def _destroy_compiler_pool(self):
