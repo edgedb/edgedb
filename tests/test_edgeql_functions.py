@@ -3098,6 +3098,35 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 await self.con.query(
                     r'''SELECT to_str(<cal::local_time>'15:01:22', '');''',)
 
+    async def test_edgeql_functions_string_bytes_conversion(self):
+        string = "Паляниця"
+
+        await self.assert_query_result(
+            r'''
+            WITH
+                input := <bytes>$input,
+                string := to_str(input),
+                binary := to_bytes(string),
+            SELECT
+                binary = input;
+            ''',
+            {True},
+            variables={
+                "input": string.encode("utf-8"),
+            },
+        )
+
+    async def test_edgeql_functions_string_bytes_conversion_error(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'invalid byte sequence for encoding "UTF8": 0x00',
+        ):
+            await self.con.execute(
+                r'''
+                SELECT to_str(b'\x00')
+                ''',
+            )
+
     async def test_edgeql_functions_array_join_01(self):
         await self.assert_query_result(
             r'''SELECT array_join(['one', 'two', 'three'], ', ');''',
