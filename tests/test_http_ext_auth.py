@@ -339,6 +339,29 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         """,
     ]
 
+    @classmethod
+    def get_setup_script(cls):
+        res = super().get_setup_script()
+
+        import os.path
+
+        # HACK: As a debugging cycle hack, when RELOAD is true, we reload the
+        # extension package from the file, so we can test without a bootstrap.
+        RELOAD = True
+
+        if RELOAD:
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            with open(os.path.join(root, 'edb/lib/ext/auth.edgeql')) as f:
+                contents = f.read()
+            to_add = '''
+                drop extension package auth version '1.0';
+                create extension pgcrypto;
+            ''' + contents
+            splice = '__internal_testmode := true;'
+            res = res.replace(splice, splice + to_add)
+
+        return res
+
     def http_con_send_request(self, *args, headers=None, **kwargs):
         """Inject a test header.
 
