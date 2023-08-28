@@ -186,6 +186,7 @@ def _init_parsers():
         allow_rebuild=devmode.is_in_dev_mode(),
         paralellize=True,
         grammars=[
+            ql_grammar.block,
             ql_grammar.fragment,
         ]
     )
