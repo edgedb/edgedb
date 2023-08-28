@@ -199,9 +199,6 @@ class AbstractPool:
             )
         self._dbindex = dbindex
 
-    def remove_dbindex(self, client_id: int):
-        pass
-
     @functools.lru_cache(maxsize=None)
     def _get_init_args(self):
         init_args = self._get_init_args_uncached()
@@ -1315,7 +1312,7 @@ class MultiTenantPool(FixedPool):
         # not currently used
         pass
 
-    def remove_dbindex(self, client_id: int):
+    def drop_tenant(self, client_id: int):
         for worker in self._workers.values():
             worker.invalidate(client_id)
 
