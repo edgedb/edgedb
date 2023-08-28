@@ -158,6 +158,29 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         ("ext::auth::AuthConfig::github_client_id", f"<str>'{uuid.uuid4()}'"),
     ]
 
+    @classmethod
+    def get_setup_script(cls):
+        res = super().get_setup_script()
+
+        import os.path
+
+        # HACK: As a debugging cycle hack, when RELOAD is true, we reload the
+        # extension package from the file, so we can test without a bootstrap.
+        RELOAD = True
+
+        if RELOAD:
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            with open(os.path.join(root, 'edb/lib/ext/auth.edgeql')) as f:
+                contents = f.read()
+            to_add = '''
+                drop extension package auth version '1.0';
+                create extension pgcrypto;
+            ''' + contents
+            splice = '__internal_testmode := true;'
+            res = res.replace(splice, splice + to_add)
+
+        return res
+
     def http_con_send_request(self, *args, headers=None, **kwargs):
         """Inject a test header.
 
@@ -399,10 +422,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             key_bytes = base64.b64encode(auth_signing_key.encode())
             key = jwk.JWK(k=key_bytes.decode(), kty="oct")
             state_token.make_signed_token(key)
+            signed_token = state_token.serialize()
 
             _data, headers, status = self.http_con_request(
                 http_con,
-                {"state": state_token.serialize(), "code": "abc123"},
+                {"state": signed_token, "code": "abc123"},
                 path="callback",
             )
 
