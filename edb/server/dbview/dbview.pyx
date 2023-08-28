@@ -40,6 +40,7 @@ from edb.schema import schema as s_schema
 from edb.server import compiler, defines, config, metrics
 from edb.server.compiler import dbstate, enums, sertypes
 from edb.pgsql import dbops
+from edb.server.compiler_pool import state as compiler_state_mod
 
 cimport cython
 
@@ -232,6 +233,7 @@ cdef class Database:
     cdef _invalidate_caches(self):
         self._eql_to_compiled.clear()
         self._sql_to_compiled.clear()
+        self._index.invalidate_caches()
 
     cdef _clear_state_serializers(self):
         self._state_serializers.clear()
@@ -1200,6 +1202,7 @@ cdef class DatabaseIndex:
         self._factory = sertypes.StateSerializerFactory(
             std_schema, sys_config_spec)
         self.update_sys_config(sys_config)
+        self._cached_compiler_args = None
 
     def count_connections(self, dbname: str):
         try:
@@ -1222,6 +1225,7 @@ cdef class DatabaseIndex:
         self._sys_config = sys_config
         self._comp_sys_config = config.get_compilation_config(
             sys_config, spec=self._sys_config_spec)
+        self.invalidate_caches()
 
     def has_db(self, dbname):
         return dbname in self._dbs
@@ -1245,6 +1249,7 @@ cdef class DatabaseIndex:
     def update_global_schema(self, global_schema_pickled):
         self._global_schema = pickle.loads(global_schema_pickled)
         self._global_schema_pickled = global_schema_pickled
+        self.invalidate_caches()
 
     def register_db(
         self,
@@ -1367,3 +1372,23 @@ cdef class DatabaseIndex:
     def remove_view(self, view: DatabaseConnectionView):
         db = self.get_db(view.dbname)
         return (<Database>db)._remove_view(view)
+
+    cdef invalidate_caches(self):
+        self._cached_compiler_args = None
+
+    def get_cached_compiler_args(self):
+        if self._cached_compiler_args is None:
+            dbs = immutables.Map()
+            for db in self._dbs.values():
+                dbs = dbs.set(
+                    db.name,
+                    compiler_state_mod.PickledDatabaseState(
+                        user_schema_pickled=db.user_schema_pickled,
+                        reflection_cache=db.reflection_cache,
+                        database_config=db.db_config,
+                    )
+                )
+            self._cached_compiler_args = (
+                dbs, self._global_schema_pickled, self._comp_sys_config
+            )
+        return self._cached_compiler_args

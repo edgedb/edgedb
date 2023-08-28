@@ -69,6 +69,9 @@ cdef class DatabaseIndex:
         object _factory
         object _default_sysconfig
         object _sys_config_spec
+        object _cached_compiler_args
+
+    cdef invalidate_caches(self)
 
 
 cdef class Database:

@@ -175,57 +175,34 @@ class Worker(BaseWorker):
 class AbstractPool:
     _dbindex: dbview.DatabaseIndex | None = None
 
-    def __init__(
-        self,
-        *,
-        loop,
-        backend_runtime_params: pgparams.BackendRuntimeParams,
-        std_schema,
-        refl_schema,
-        schema_class_layout,
-        **kwargs,
-    ):
+    def __init__(self, *, loop, **kwargs):
         self._loop = loop
+        self._init_args = self._init(kwargs)
 
-        self._backend_runtime_params = backend_runtime_params
-        self._std_schema = std_schema
-        self._refl_schema = refl_schema
-        self._schema_class_layout = schema_class_layout
+    def _init(self, kwargs: dict[str, Any]) -> None:
+        self._backend_runtime_params = kwargs["backend_runtime_params"]
+        self._std_schema = kwargs["std_schema"]
+        self._refl_schema = kwargs["refl_schema"]
+        self._schema_class_layout = kwargs["schema_class_layout"]
         self._dbindex = kwargs.get("dbindex")
 
-    @functools.lru_cache(maxsize=None)
     def _get_init_args(self):
-        init_args = self._get_init_args_uncached()
-        pickled_args = self._get_pickled_init_args(init_args)
-        return init_args, pickled_args
-
-    def _get_init_args_uncached(self) -> Any:
         assert self._dbindex is not None
-        dbs: immutables.Map[str, state.PickledDatabaseState] = immutables.Map()
-        for db in self._dbindex.iter_dbs():
-            dbs = dbs.set(
-                db.name,
-                state.PickledDatabaseState(
-                    user_schema_pickled=db.user_schema_pickled,
-                    reflection_cache=db.reflection_cache,
-                    database_config=db.db_config,
-                )
-            )
+        return self._make_init_args(*self._dbindex.get_cached_compiler_args())
 
+    @functools.lru_cache(1)
+    def _make_init_args(self, dbs, global_schema_pickled, system_config):
         init_args = (
             dbs,
             self._backend_runtime_params,
             self._std_schema,
             self._refl_schema,
             self._schema_class_layout,
-            self._dbindex.get_global_schema_pickled(),
-            self._dbindex.get_compilation_system_config(),
+            global_schema_pickled,
+            system_config,
         )
-        return init_args
-
-    def _get_pickled_init_args(self, init_args):
         pickled_args = pickle.dumps(init_args, -1)
-        return pickled_args
+        return init_args, pickled_args
 
     async def start(self):
         raise NotImplementedError
@@ -1092,19 +1069,22 @@ class RemotePool(AbstractPool):
             if worker.done():
                 (await worker).close()
 
-    def _get_pickled_init_args(self, init_args):
-        (
+    @functools.lru_cache(1)
+    def _make_init_args(self, dbs, global_schema_pickled, system_config):
+        init_args = (
             dbs,
-            backend_runtime_params,
-            std_schema,
-            refl_schema,
-            schema_class_layout,
+            self._backend_runtime_params,
+            self._std_schema,
+            self._refl_schema,
+            self._schema_class_layout,
             global_schema_pickled,
             system_config,
-        ) = init_args
-        std_args = (std_schema, refl_schema, schema_class_layout)
-        client_args = (dbs, backend_runtime_params)
-        return (
+        )
+        std_args = (
+            self._std_schema, self._refl_schema, self._schema_class_layout
+        )
+        client_args = (dbs, self._backend_runtime_params)
+        return init_args, (
             pickle.dumps(std_args, -1),
             pickle.dumps(client_args, -1),
             global_schema_pickled,
@@ -1307,13 +1287,15 @@ class MultiTenantPool(FixedPool):
         for worker in self._workers.values():
             worker.invalidate(client_id)
 
-    def _get_init_args_uncached(self):
-        return (
+    @functools.cache
+    def _get_init_args(self):
+        init_args = (
             self._backend_runtime_params,
             self._std_schema,
             self._refl_schema,
             self._schema_class_layout,
         )
+        return init_args, pickle.dumps(init_args, -1)
 
     def _weighter(self, client_id: int, worker: MultiTenantWorker):
         tenant_schema = worker.get_tenant_schema(client_id)
