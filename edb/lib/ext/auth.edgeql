@@ -55,6 +55,11 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     };
 
     create type ext::auth::AuthConfig extending cfg::ExtensionConfig {
+        create multi link providers -> ext::auth::ClientConfig {
+            create annotation std::description :=
+                "Configuration for auth provider clients";
+        };
+
         create property auth_signing_key -> std::str {
             create annotation std::description :=
                 "The signing key used for auth extension. Must be at \
