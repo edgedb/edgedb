@@ -31,7 +31,13 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     };
 
     create type ext::auth::ClientConfig extending cfg::ConfigObject {
-        create required property name: std::str {
+        create required property provider_id: std::str {
+            set readonly := true;
+            create annotation std::description :=
+                "ID of the auth provider";
+        };
+
+        create required property provider_name: std::str {
             set readonly := true;
             create annotation std::description := "Auth provider name";
         };
