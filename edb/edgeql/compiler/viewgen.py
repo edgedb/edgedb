@@ -1601,11 +1601,11 @@ def _normalize_view_ptr_expr(
             # so that the alias delta machinery can pick them up.
             ctx.env.created_schema_objects.add(ptr_target)
 
-        anytype = ptr_target.find_any(ctx.env.schema)
-        if anytype is not None:
+        generic_type = ptr_target.find_generic(ctx.env.schema)
+        if generic_type is not None:
             raise errors.QueryError(
                 'expression returns value of indeterminate type',
-                context=ctx.env.type_origins.get(anytype),
+                context=ctx.env.type_origins.get(generic_type),
             )
 
         # Validate that the insert/update expression is

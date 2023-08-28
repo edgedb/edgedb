@@ -114,14 +114,13 @@ class TraceContextBase:
     def get_ref_name(self, ref: qlast.BaseObjectRef) -> s_name.QualName:
         if isinstance(ref, qlast.ObjectRef):
             return self.get_local_name(ref)
-        elif isinstance(ref, qlast.AnyType):
+        elif isinstance(ref, qlast.PseudoObjectRef):
             # We pretend `anytype` has a fully-qualified name here, because
             # the tracing machinery really wants to work with fully-qualified
             # names and wants to distinguish between objects from the standard
-            # library and the user-defines ones.  Ditto for `anytuple` below.
-            return s_name.QualName('std', 'anytype')
-        elif isinstance(ref, qlast.AnyTuple):
-            return s_name.QualName('std', 'anytuple')
+            # library and the user-defines ones.
+            # Ditto for `anytuple` and `anyobject`.
+            return s_name.QualName('std', ref.name)
         else:
             raise TypeError(
                 "ObjectRef expected "
@@ -384,6 +383,8 @@ def sdl_to_ddl(
         schema.get_global(s_pseudo.PseudoType, 'anytype'))
     ctx.objects[s_name.QualName('std', 'anytuple')] = (
         schema.get_global(s_pseudo.PseudoType, 'anytuple'))
+    ctx.objects[s_name.QualName('std', 'anyobject')] = (
+        schema.get_global(s_pseudo.PseudoType, 'anyobject'))
 
     for module_name, declarations in documents.items():
         ctx.set_module(module_name)

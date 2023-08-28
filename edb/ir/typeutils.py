@@ -104,12 +104,17 @@ def is_anytuple(typeref: irast.TypeRef) -> bool:
     return isinstance(typeref, irast.AnyTupleRef)
 
 
+def is_anyobject(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes the ``anyobject`` generic type."""
+    return isinstance(typeref, irast.AnyObjectRef)
+
+
 def is_generic(typeref: irast.TypeRef) -> bool:
     """Return True if *typeref* describes a generic type."""
     if is_collection(typeref):
         return any(is_generic(st) for st in typeref.subtypes)
     else:
-        return is_any(typeref) or is_anytuple(typeref)
+        return is_any(typeref) or is_anytuple(typeref) or is_anyobject(typeref)
 
 
 def is_abstract(typeref: irast.TypeRef) -> bool:
@@ -243,6 +248,12 @@ def type_to_typeref(
 
     if t.is_anytuple(schema):
         result = irast.AnyTupleRef(
+            id=t.id,
+            name_hint=name_hint,
+            orig_name_hint=orig_name_hint,
+        )
+    elif t.is_anyobject(schema):
+        result = irast.AnyObjectRef(
             id=t.id,
             name_hint=name_hint,
             orig_name_hint=orig_name_hint,
@@ -437,6 +448,9 @@ def ir_typeref_to_type(
     """
     if is_anytuple(typeref):
         return schema, s_pseudo.PseudoType.get(schema, 'anytuple')
+
+    if is_anyobject(typeref):
+        return schema, s_pseudo.PseudoType.get(schema, 'anyobject')
 
     elif is_any(typeref):
         return schema, s_pseudo.PseudoType.get(schema, 'anytype')

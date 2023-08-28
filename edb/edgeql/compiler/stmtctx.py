@@ -237,7 +237,7 @@ def fini_expression(
         not in_polymorphic_func
         and not ctx.env.options.allow_generic_type_output
     ):
-        anytype = expr_type.find_any(ctx.env.schema)
+        anytype = expr_type.find_generic(ctx.env.schema)
         if anytype is not None:
             raise errors.QueryError(
                 'expression returns value of indeterminate type',

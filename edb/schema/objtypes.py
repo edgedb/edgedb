@@ -354,6 +354,13 @@ class ObjectType(
         else:
             return None
 
+    def _test_polymorphic(
+        self, schema: s_schema.Schema, other: s_types.Type
+    ) -> bool:
+        if other.is_anyobject(schema):
+            return True
+        return False
+
 
 def get_or_create_union_type(
     schema: s_schema.Schema,

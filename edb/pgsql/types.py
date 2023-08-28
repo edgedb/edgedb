@@ -329,7 +329,7 @@ def pg_type_from_ir_typeref(
         else:
             return ('record',)
 
-    elif irtyputils.is_any(ir_typeref):
+    elif irtyputils.is_any(ir_typeref) or irtyputils.is_anyobject(ir_typeref):
         return ('anyelement',)
 
     else:

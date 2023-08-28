@@ -292,6 +292,14 @@ def __infer_anytupleref(
 
 
 @_infer_type.register
+def __infer_anyobjectref(
+    ir: irast.AnyObjectRef,
+    env: context.Environment,
+) -> s_types.Type:
+    return s_pseudo.PseudoType.get(env.schema, 'anyobject')
+
+
+@_infer_type.register
 def __infer_typeref(
     ir: irast.TypeRef,
     env: context.Environment,

@@ -158,6 +158,7 @@ pub const CURRENT_RESERVED_KEYWORDS: phf::Set<&str> = phf_set!(
     "and",
     "anytuple",
     "anytype",
+    "anyobject",
     "by",
     "commit",
     "configure",

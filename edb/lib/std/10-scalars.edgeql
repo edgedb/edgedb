@@ -21,6 +21,8 @@ CREATE PSEUDO TYPE `anytype`;
 
 CREATE PSEUDO TYPE `anytuple`;
 
+CREATE PSEUDO TYPE `anyobject`;
+
 CREATE ABSTRACT SCALAR TYPE std::anyscalar;
 
 CREATE ABSTRACT SCALAR TYPE std::anypoint EXTENDING std::anyscalar;

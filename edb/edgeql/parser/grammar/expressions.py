@@ -1939,10 +1939,19 @@ class SimpleTypeName(Nonterm):
         self.val = qlast.TypeName(maintype=kids[0].val)
 
     def reduce_ANYTYPE(self, *kids):
-        self.val = qlast.TypeName(maintype=qlast.AnyType())
+        self.val = qlast.TypeName(
+            maintype=qlast.PseudoObjectRef(name='anytype')
+        )
 
     def reduce_ANYTUPLE(self, *kids):
-        self.val = qlast.TypeName(maintype=qlast.AnyTuple())
+        self.val = qlast.TypeName(
+            maintype=qlast.PseudoObjectRef(name='anytuple')
+        )
+
+    def reduce_ANYOBJECT(self, *kids):
+        self.val = qlast.TypeName(
+            maintype=qlast.PseudoObjectRef(name='anyobject')
+        )
 
 
 class SimpleTypeNameList(ListNonterm, element=SimpleTypeName,
