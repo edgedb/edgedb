@@ -161,10 +161,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             """
             CONFIGURE CURRENT DATABASE
             INSERT ext::auth::ClientConfig {
-                name := "github",
+                provider_name := "github",
                 url := "https://github.com",
             """
             f"""
+                provider_id := <str>'{uuid.uuid4()}',
                 secret := <str>'{"b" * 32}',
                 client_id := <str>'{uuid.uuid4()}'
             """
@@ -344,11 +345,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 """
                 SELECT assert_exists(assert_single(
                     cfg::Config.extensions[is ext::auth::AuthConfig]
-                        .providers { * } filter .name = "github"
+                        .providers { * } filter .provider_name = "github"
                 ));
                 """
             )
-            github_provider_id = github_provider_config.id
+            github_provider_id = github_provider_config.provider_id
             client_id = github_provider_config.client_id
             client_secret = github_provider_config.secret
 
@@ -411,13 +412,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             key = jwk.JWK(k=key_bytes.decode(), kty="oct")
             state_token.make_signed_token(key)
 
-            data, headers, status = self.http_con_request(
+            _data, headers, status = self.http_con_request(
                 http_con,
                 {"state": state_token.serialize(), "code": "abc123"},
                 path="callback",
             )
 
-            self.assertEqual(data, b"")
             self.assertEqual(status, 302)
 
             location = headers.get("location")

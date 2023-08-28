@@ -57,14 +57,11 @@ class Router:
         try:
             match args:
                 case ("authorize",):
-                    # TODO: this is ambiguous whether it's a name or ID which
-                    # is useful now, but we'll need to pivot to ID sooner than
-                    # later and then rename all of this to provider_id
-                    provider = _get_search_param(
+                    provider_id = _get_search_param(
                         request.url.query.decode("ascii"), "provider"
                     )
                     client = oauth.Client(
-                        db=self.db, provider=provider, base_url=test_url
+                        db=self.db, provider_id=provider_id, base_url=test_url
                     )
                     authorize_url = client.get_authorize_url(
                         redirect_uri=self._get_callback_url(),
@@ -78,11 +75,11 @@ class Router:
                     query = request.url.query.decode("ascii")
                     state = _get_search_param(query, "state")
                     code = _get_search_param(query, "code")
-                    provider = self._get_from_claims(state, "provider")
+                    provider_id = self._get_from_claims(state, "provider")
                     redirect_to = self._get_from_claims(state, "redirect_to")
                     client = oauth.Client(
                         db=self.db,
-                        provider=provider,
+                        provider_id=provider_id,
                         base_url=test_url,
                     )
                     await client.handle_callback(code)

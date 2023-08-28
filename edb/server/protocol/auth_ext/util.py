@@ -17,7 +17,7 @@
 #
 
 
-from typing import TypeVar, Type, Mapping, overload
+from typing import TypeVar, Type, Mapping, overload, Any
 
 from edb.server.config.ops import SettingValue
 from . import errors
@@ -25,6 +25,12 @@ from . import errors
 T = TypeVar("T")
 
 SettingsMap = Mapping[str, SettingValue]
+
+
+def maybe_get_config_unchecked(
+    db_config: SettingsMap, key: str
+) -> Any:
+    return db_config.get(key, (None, None, None, None))[1]
 
 
 @overload
@@ -42,7 +48,7 @@ def maybe_get_config(db_config: SettingsMap, key: str) -> str | None:
 def maybe_get_config(
     db_config: SettingsMap, key: str, expected_type: Type[object] = str
 ) -> object:
-    value = db_config.get(key, (None, None, None, None))[1]
+    value = maybe_get_config_unchecked(db_config, key)
 
     if value is None:
         return None
@@ -70,6 +76,18 @@ def get_config(
     db_config: SettingsMap, key: str, expected_type: Type[object] = str
 ) -> object:
     value = maybe_get_config(db_config, key, expected_type)
+    if value is None:
+        raise errors.MissingConfiguration(
+            key=key,
+            description="Missing configuration value",
+        )
+    return value
+
+
+def get_config_unchecked(
+    db_config: SettingsMap, key: str
+) -> Any:
+    value = maybe_get_config_unchecked(db_config, key)
     if value is None:
         raise errors.MissingConfiguration(
             key=key,
