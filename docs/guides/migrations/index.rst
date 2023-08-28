@@ -12,3 +12,4 @@ Migration Patterns
     proptype
     proptolink
     reqlink
+    recovering
