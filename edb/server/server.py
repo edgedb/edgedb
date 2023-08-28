@@ -416,7 +416,7 @@ class BaseServer:
     def _get_backend_runtime_params(self) -> pgparams.BackendRuntimeParams:
         raise NotImplementedError
 
-    def _create_compiler_pool(self) -> compiler_pool.AbstractPool:
+    def _get_compiler_args(self) -> dict[str, Any]:
         # Force Postgres version in BackendRuntimeParams to be the
         # minimal supported, because the compiler does not rely on
         # the version, and not pinning it would make the remote compiler
@@ -443,8 +443,7 @@ class BaseServer:
             args['address'] = self._compiler_pool_addr
         elif self._compiler_pool_mode == srvargs.CompilerPoolMode.MultiTenant:
             args["cache_size"] = self._compiler_pool_tenant_cache_size
-        self._compiler_pool = compiler_pool.create_compiler_pool(**args)
-        return self._compiler_pool
+        return args
 
     async def _destroy_compiler_pool(self):
         if self._compiler_pool is not None:
@@ -859,7 +858,9 @@ class BaseServer:
             self._request_stats_logger()
         )
 
-        await self._create_compiler_pool().start()
+        self._compiler_pool = await compiler_pool.create_compiler_pool(
+            **self._get_compiler_args()
+        )
 
         await self._before_start_servers()
         self._servers, actual_port, listen_addrs = await self._start_servers(
@@ -1466,7 +1467,9 @@ class Server(BaseServer):
         """Run the script specified in *startup_script* and exit immediately"""
         if self._startup_script is None:
             raise AssertionError('startup script is not defined')
-        await self._create_compiler_pool().start()
+        self._compiler_pool = await compiler_pool.create_compiler_pool(
+            **self._get_compiler_args()
+        )
         try:
             await binary.run_script(
                 server=self,
@@ -1527,10 +1530,10 @@ class Server(BaseServer):
     def _get_backend_runtime_params(self) -> pgparams.BackendRuntimeParams:
         return self._tenant.get_backend_runtime_params()
 
-    def _create_compiler_pool(self) -> compiler_pool.AbstractPool:
-        pool = super()._create_compiler_pool()
-        self._tenant.attach_to_compiler(pool)
-        return pool
+    def _get_compiler_args(self) -> dict[str, Any]:
+        rv = super()._get_compiler_args()
+        rv.update(self._tenant.get_compiler_args())
+        return rv
 
 
 def _cleanup_wildcard_addrs(

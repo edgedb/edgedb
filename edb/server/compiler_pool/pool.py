@@ -173,7 +173,7 @@ class Worker(BaseWorker):
 
 
 class AbstractPool:
-    _dbindex: dbview.DatabaseIndex
+    _dbindex: dbview.DatabaseIndex | None = None
 
     def __init__(
         self,
@@ -191,13 +191,7 @@ class AbstractPool:
         self._std_schema = std_schema
         self._refl_schema = refl_schema
         self._schema_class_layout = schema_class_layout
-
-    def add_dbindex(self, client_id: int, dbindex: dbview.DatabaseIndex):
-        if hasattr(self, "_dbindex"):
-            raise NotImplementedError(
-                f"{self.__class__} doesn't support multi-tenant"
-            )
-        self._dbindex = dbindex
+        self._dbindex = kwargs.get("dbindex")
 
     @functools.lru_cache(maxsize=None)
     def _get_init_args(self):
@@ -206,6 +200,7 @@ class AbstractPool:
         return init_args, pickled_args
 
     def _get_init_args_uncached(self) -> Any:
+        assert self._dbindex is not None
         dbs: immutables.Map[str, state.PickledDatabaseState] = immutables.Map()
         for db in self._dbindex.iter_dbs():
             dbs = dbs.set(
@@ -1308,10 +1303,6 @@ class MultiTenantPool(FixedPool):
     def cache_size(self) -> int:
         return self._cache_size
 
-    def add_dbindex(self, client_id: int, dbindex: dbview.DatabaseIndex):
-        # not currently used
-        pass
-
     def drop_tenant(self, client_id: int):
         for worker in self._workers.values():
             worker.invalidate(client_id)
@@ -1507,7 +1498,7 @@ class MultiTenantPool(FixedPool):
         ), callback
 
 
-def create_compiler_pool(
+async def create_compiler_pool(
     *,
     runstate_dir: str,
     pool_size: int,
@@ -1520,7 +1511,7 @@ def create_compiler_pool(
 ) -> AbstractPool:
     assert issubclass(pool_class, AbstractPool)
     loop = asyncio.get_running_loop()
-    return pool_class(
+    pool = pool_class(
         loop=loop,
         pool_size=pool_size,
         runstate_dir=runstate_dir,
@@ -1530,3 +1521,6 @@ def create_compiler_pool(
         schema_class_layout=schema_class_layout,
         **kwargs,
     )
+
+    await pool.start()
+    return pool
