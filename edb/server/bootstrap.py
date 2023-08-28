@@ -30,6 +30,7 @@ import pickle
 import re
 import struct
 import textwrap
+import types
 
 from edb import buildmeta
 from edb import errors
@@ -953,6 +954,10 @@ async def _make_stdlib(
     testmode: bool,
     global_ids: Mapping[str, uuid.UUID],
 ) -> StdlibBits:
+    from edb.edgeql.parser import grammar as ql_grammar
+
+    init_parsers(grammars=[ql_grammar.block])
+
     schema: s_schema.Schema = s_schema.ChainedSchema(
         s_schema.EMPTY_SCHEMA,
         s_schema.EMPTY_SCHEMA,
@@ -1194,6 +1199,17 @@ def _get_cache_dir() -> pathlib.Path | None:
         return pathlib.Path(specified_cache_dir)
     else:
         return None
+
+
+def init_parsers(grammars: list[types.ModuleType]) -> None:
+    # Initialize parsers that are used in the server process.
+    from edb.edgeql import parser as ql_parser
+
+    ql_parser.preload(
+        allow_rebuild=devmode.is_in_dev_mode(),
+        paralellize=True,
+        grammars=grammars,
+    )
 
 
 def read_data_cache(

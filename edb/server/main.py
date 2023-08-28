@@ -177,20 +177,6 @@ async def _init_cluster(
     return new_instance
 
 
-def _init_parsers():
-    # Initialize parsers that are used in the server process.
-    from edb.edgeql import parser as ql_parser
-    from edb.edgeql.parser import grammar as ql_grammar
-
-    ql_parser.preload(
-        allow_rebuild=devmode.is_in_dev_mode(),
-        paralellize=True,
-        grammars=[
-            ql_grammar.fragment,
-        ]
-    )
-
-
 async def _run_server(
     cluster,
     args: srvargs.ServerConfig,
@@ -393,6 +379,8 @@ async def run_server(
     do_setproctitle: bool=False,
     runstate_dir: pathlib.Path,
 ) -> None:
+    from edb.server import bootstrap as server_bootstrap
+    from edb.edgeql.parser import grammar as ql_grammar
     from . import server as server_mod
     global server
     server = server_mod
@@ -424,7 +412,11 @@ async def run_server(
 
         debugpy.listen(38782)
 
-    _init_parsers()
+    server_bootstrap.init_parsers(
+        grammars=[
+            ql_grammar.fragment,
+        ]
+    )
 
     pg_cluster_init_by_us = False
 
