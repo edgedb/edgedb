@@ -147,7 +147,15 @@ def parse(
         message, span = error
         position = qltokenizer.inflate_position(source.text(), span)
 
-        raise errors.EdgeQLSyntaxError(message, position=position)
+        pcontext = parsing.ParserContext(
+            'query',
+            source.text(),
+            start=position[2],
+            end=position[3] or position[2],
+            context_lines=10,
+        )
+        raise errors.EdgeQLSyntaxError(
+            message, position=position, context=pcontext)
 
     return _cst_to_ast(
         result.out(),
