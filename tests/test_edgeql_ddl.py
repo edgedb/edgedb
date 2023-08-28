@@ -4876,6 +4876,15 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 USING (assert_exists(foo));
             """)
 
+    async def test_edgeql_ddl_function_37(self):
+        await self.con.execute(r"""
+            CREATE SCALAR TYPE myenum37 EXTENDING enum<foo, bar>;
+            CREATE FUNCTION enumfunc(
+                enumparam: myenum37 = myenum37.foo
+            ) -> myenum37
+            USING (enumparam);
+        """)
+
     async def test_edgeql_ddl_function_rename_01(self):
         await self.con.execute("""
             CREATE FUNCTION foo(s: str) -> str {
