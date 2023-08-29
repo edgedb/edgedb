@@ -34,23 +34,28 @@ Migrations in the file system are named sequentially starting from
 
 .. code-block:: edgeql
 
-    CREATE MIGRATION <name>
-        ONTO <parent.name>
+    CREATE MIGRATION m1rsm66e5pvh5ets2yznutintmqnxluzvgbocspi6umd3ht64e4naq
+                     # ☝️ Replace with migration name
+        ONTO m1l5esbbycsyqcnx6udxx24riavvyvkskchtekwe7jqx5mmiyli54a
+             # ☝️ Replace with parent migration name
     {
-      <script>
+      # script
+      # ☝️ Replace with migration script
     };
 
 or if this is the first migration:
 
 .. code-block:: edgeql
 
-    CREATE MIGRATION <name>
+    CREATE MIGRATION m1l5esbbycsyqcnx6udxx24riavvyvkskchtekwe7jqx5mmiyli54a
+                     # ☝️ Replace with migration name
         ONTO initial
     {
-      <script>
+      # script
+      # ☝️ Replace with migration script
     };
 
-Replace ``<name>``, ``<script>``, and ``<parent.name>`` with the values from
+Replace the name, script, and parent name with the values from
 your ``Migration`` query results.
 
 You can identify the first migration in your query results as the one with no
