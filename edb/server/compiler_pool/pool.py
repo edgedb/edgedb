@@ -555,6 +555,22 @@ class AbstractPool:
         finally:
             self._release_worker(worker)
 
+    async def parse_global_schema(
+        self,
+        *args,
+        **kwargs,
+    ):
+        worker = await self._acquire_worker()
+        try:
+            return await worker.call(
+                'parse_global_schema',
+                *args,
+                **kwargs
+            )
+
+        finally:
+            self._release_worker(worker)
+
     async def describe_database_dump(
         self,
         *args,

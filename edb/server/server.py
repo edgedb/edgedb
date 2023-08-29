@@ -1168,10 +1168,8 @@ class Server(BaseServer):
                 if last_repair:
                     from . import bootstrap
 
-                    global_schema = (
-                        await self._tenant.introspect_global_schema(conn)
-                    )
-                    user_schema = await self._tenant.introspect_user_schema(
+                    global_schema = await self.introspect_global_schema(conn)
+                    user_schema = await self.introspect_user_schema(
                         conn, global_schema)
                     config_json = await self.introspect_db_config(conn)
                     db_config = self._parse_db_config(config_json, user_schema)

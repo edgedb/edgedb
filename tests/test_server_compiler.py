@@ -399,7 +399,7 @@ class TestCompilerPool(tbs.TestCase):
                 dbindex=dbview.DatabaseIndex(
                     unittest.mock.MagicMock(),
                     std_schema=self._std_schema,
-                    global_schema=None,
+                    global_schema_pickled=pickle.dumps(None, -1),
                     sys_config={},
                     default_sysconfig=immutables.Map(),
                     sys_config_spec=config.load_spec_from_schema(

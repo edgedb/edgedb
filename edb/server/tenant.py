@@ -25,6 +25,7 @@ import functools
 import json
 import logging
 import pathlib
+import pickle
 import struct
 import sys
 import time
@@ -311,8 +312,22 @@ class Tenant(ha_base.ClusterProtocol):
             )
             self._instance_data = immutables.Map(json.loads(result))
             await self._fetch_roles(syscon)
+            if self._server.get_compiler_pool() is None:
+                # Parse global schema in I/O process if this is done only once
+                global_schema_pickled = pickle.dumps(
+                    await self._server.introspect_global_schema(syscon), -1
+                )
+                data = None
+            else:
+                # Multi-tenant server defers the parsing into the compiler
+                data = await self._server.introspect_global_schema_json(syscon)
+                compiler_pool = self._server.get_compiler_pool()
 
-        global_schema = await self.introspect_global_schema()
+        if data is not None:
+            global_schema_pickled = (
+                await compiler_pool.parse_global_schema(data)
+            )
+
         sys_config = await self._load_sys_config()
         default_sysconfig = await self._load_sys_config("sysconfig_default")
         await self._load_reported_config()
@@ -320,7 +335,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._dbindex = dbview.DatabaseIndex(
             self,
             std_schema=self._server.get_std_schema(),
-            global_schema=global_schema,
+            global_schema_pickled=global_schema_pickled,
             sys_config=sys_config,
             default_sysconfig=default_sysconfig,
             sys_config_spec=self._server._config_settings,  # TODO
@@ -931,16 +946,6 @@ class Tenant(ha_base.ClusterProtocol):
             self._server._config_settings, sys_config_json  # TODO
         )
 
-    async def introspect_global_schema(
-        self,
-        conn: pgcon.PGConnection | None = None,
-    ) -> s_schema.Schema:
-        if conn is not None:
-            return await self._server.introspect_global_schema(conn)
-        else:
-            async with self.use_sys_pgcon() as syscon:
-                return await self._server.introspect_global_schema(syscon)
-
     async def _reintrospect_global_schema(self) -> None:
         if not self._initing and not self._running:
             logger.warning(
@@ -949,16 +954,12 @@ class Tenant(ha_base.ClusterProtocol):
             )
             return
         async with self.use_sys_pgcon() as syscon:
-            new_global_schema = await self.introspect_global_schema(syscon)
+            data = await self._server.introspect_global_schema_json(syscon)
             await self._fetch_roles(syscon)
-
+        compiler_pool = self._server.get_compiler_pool()
+        global_schema_pickled = await compiler_pool.parse_global_schema(data)
         assert self._dbindex is not None
-
-        # GOTCHA: we will move introspect_global_schema() to the compiler
-        # so that we don't need this pickle.dumps+loads here.
-        import pickle
-
-        self._dbindex.update_global_schema(pickle.dumps(new_global_schema, -1))
+        self._dbindex.update_global_schema(global_schema_pickled)
 
     def populate_sys_auth(self) -> None:
         assert self._dbindex is not None

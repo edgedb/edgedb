@@ -1184,7 +1184,7 @@ cdef class DatabaseIndex:
         tenant,
         *,
         std_schema,
-        global_schema,
+        global_schema_pickled,
         sys_config,
         default_sysconfig,  # system config without system override
         sys_config_spec,
@@ -1193,8 +1193,8 @@ cdef class DatabaseIndex:
         self._server = tenant.server
         self._tenant = tenant
         self._std_schema = std_schema
-        self._global_schema = global_schema
-        self._global_schema_pickled = pickle.dumps(global_schema, -1)
+        self._global_schema = pickle.loads(global_schema_pickled)
+        self._global_schema_pickled = global_schema_pickled
         self._default_sysconfig = default_sysconfig
         self._sys_config_spec = sys_config_spec
         # TODO: This factory will probably need to become per-db once

@@ -971,6 +971,10 @@ class Compiler:
         )
         return config.from_json(spec, db_config_json)
 
+    def parse_global_schema(self, global_schema_json: bytes) -> bytes:
+        global_schema = self.parse_json_schema(global_schema_json, None)
+        return pickle.dumps(global_schema, -1)
+
     def describe_database_dump(
         self,
         user_schema_json: bytes,
