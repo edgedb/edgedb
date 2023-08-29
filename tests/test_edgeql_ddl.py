@@ -8669,6 +8669,18 @@ type default::Foo {
                     create required link identity: ext::auth::Identity;
                     create constraint exclusive on ((.identity, .primary));
                 };
+
+                create scalar type ext::auth::JWTAlgo extending enum<RS256>;
+
+                create function ext::auth::_jwt_check_signature(
+                    algo: ext::auth::JWTAlgo = ext::auth::JWTAlgo.RS256,
+                ) -> bool
+                {
+                    set volatility := 'Immutable';
+                    using (
+                        algo = ext::auth::JWTAlgo.RS256
+                    );
+                };
             }
         """)
 
