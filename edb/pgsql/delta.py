@@ -3495,9 +3495,12 @@ class IndexCommand(MetaCommand):
     @classmethod
     def fts_update_name(
         cls,
-        tbl_name: str,
+        tbl_name: Tuple[str, str],
     ) -> Tuple[str, ...]:
-        return (common.edgedb_name_to_pg_name(tbl_name + '_ftsupdate'),)
+        return (
+            tbl_name[0],
+            common.edgedb_name_to_pg_name(tbl_name[1] + '_ftsupdate'),
+        )
 
     @classmethod
     def fts_trigger_name(
@@ -3505,6 +3508,26 @@ class IndexCommand(MetaCommand):
         tbl_name: str,
     ) -> str:
         return common.edgedb_name_to_pg_name(tbl_name + '_ftstrigger')
+
+    @classmethod
+    def fts_zombo_type_name(
+        cls,
+        tbl_name: Tuple[str, str],
+    ) -> Tuple[str, ...]:
+        return (
+            tbl_name[0],
+            common.edgedb_name_to_pg_name(tbl_name[1] + '_zombo_type'),
+        )
+    
+    @classmethod
+    def fts_zombo_func_name(
+        cls,
+        tbl_name: Tuple[str, str],
+    ) -> Tuple[str, ...]:
+        return (
+            tbl_name[0],
+            common.edgedb_name_to_pg_name(tbl_name[1] + '_zombo_func'),
+        )
 
 
 
@@ -3682,7 +3705,46 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             # TODO: create a function for specifing which columns to index
             #       (see zombo docs on creating indexes)
 
-            index_exprs = [f'{qi(table_name[1])}.*']
+            zombo_type_name = cls.fts_zombo_type_name(table_name)
+            ops.add_command(dbops.CreateCompositeType(dbops.CompositeType(
+                name=zombo_type_name,
+                columns=[
+                    dbops.Column(
+                        name=f'field{index}',
+                        type='text',
+                    )
+                    for index, _ in enumerate(exprs)
+                ]
+            )))
+
+            document_exprs = []
+            for expr in exprs:
+                if isinstance(expr, pg_ast.SearchableString):
+                    language = expr.language
+                    text: pg_ast.BaseExpr = expr.text
+                else:
+                    language = pg_ast.StringConstant(val='english')
+                    text = expr
+
+                text_sql = codegen.generate_source(text)
+                _language_sql = codegen.generate_source(language)
+
+                document_exprs.append(text_sql)
+
+            zombo_func_name = cls.fts_zombo_func_name(table_name)
+            ops.add_command(dbops.CreateFunction(dbops.Function(
+                name=zombo_func_name,
+                args=[
+                    ('new', table_name)
+                ],
+                returns=zombo_type_name,
+                text=f'''
+                SELECT 
+                    ROW({','.join(document_exprs)})::{q(*zombo_type_name)};
+                '''
+            )))
+
+            index_exprs = [f'{q(*zombo_func_name)}({qi(table_name[1])}.*)']
             root_code = 'zombodb ((__col__))'
             with_clause = {
                 'url': ql('http://localhost:9200/')
@@ -3707,7 +3769,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 weight = "'A'"
                 if isinstance(expr, pg_ast.SearchableString):
                     language = expr.language
-                    text: pg_ast.BaseExpr = expr.text
+                    text = expr.text
                 else:
                     language = pg_ast.StringConstant(val='english')
                     text = expr
@@ -3728,7 +3790,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 )
             document_sql = ' || '.join(document_exprs)
 
-            func_name = cls.fts_update_name(table_name[1])
+            func_name = cls.fts_update_name(table_name)
             function = dbops.Function(
                 name=func_name,
                 text=f'''
@@ -3832,26 +3894,37 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
 
         # FTS
         if index.has_base_with_name(schema, sn.QualName('fts', 'textsearch')):
-            
-            ops.add_command(dbops.DropTrigger(dbops.Trigger(
-                cls.fts_trigger_name(table_name[1]),
-                table_name=table_name,
-                events=(),
-                procedure=''
-            )))
+            from edb.common import debug
 
-            ops.add_command(dbops.DropFunction(
-                cls.fts_update_name(table_name[1]),
-                (),
-            ))
+            if debug.flags.zombodb:
+                zombo_func_name = cls.fts_zombo_func_name(table_name)
+                ops.add_command(dbops.DropFunction(
+                    zombo_func_name,
+                    args=[table_name]
+                ))
+                
+                zombo_type_name = cls.fts_zombo_type_name(table_name)
+                ops.add_command(dbops.DropCompositeType(zombo_type_name))                
+            else:
+                ops.add_command(dbops.DropTrigger(dbops.Trigger(
+                    cls.fts_trigger_name(table_name[1]),
+                    table_name=table_name,
+                    events=(),
+                    procedure=''
+                )))
 
-            fts_document = dbops.Column(
-                name=f'__fts_document__',
-                type=('pg_catalog', 'tsvector'),
-            )
-            alter_table = dbops.AlterTable(table_name)
-            alter_table.add_operation(dbops.AlterTableDropColumn(fts_document))
-            ops.add_command(alter_table)
+                ops.add_command(dbops.DropFunction(
+                    cls.fts_update_name(table_name),
+                    (),
+                ))
+
+                fts_document = dbops.Column(
+                    name=f'__fts_document__',
+                    type=('pg_catalog', 'tsvector'),
+                )
+                alter_table = dbops.AlterTable(table_name)
+                alter_table.add_operation(dbops.AlterTableDropColumn(fts_document))
+                ops.add_command(alter_table)
 
         return ops
 
