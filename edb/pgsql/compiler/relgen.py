@@ -4077,3 +4077,11 @@ def create_subrel_for_expr(
 
     return expr_id
 
+@_special_case('fts::with_language')
+def process_set_as_fts_with_language(
+    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+) -> SetRVars:
+    # TODO: this should probably be caught eariler
+    raise errors.InvalidReferenceError(
+        "fts::with_language can only be used within an index expressions"
+    )

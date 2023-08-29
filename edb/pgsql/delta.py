@@ -3598,7 +3598,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             return cls.create_fts_index(
                 index,
                 root_code,
-                sql_exprs,
+                exprs,
                 predicate_src,
                 sql_kwarg_exprs,
                 schema,
@@ -3631,7 +3631,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         cls,
         index: s_indexes.Index,
         root_code: str,
-        sql_exprs: Sequence[str],
+        exprs: Sequence[pg_ast.Base],
         predicate_src: Optional[str],
         sql_kwarg_exprs: Dict[str, str],
         schema: s_schema.Schema,
@@ -3664,17 +3664,25 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             # create a generated column __fts_document__
             alter_table = dbops.AlterTable(table_name)
 
-            language = "'english'"
-
             document_exprs = []
-            for sql_expr in sql_exprs:
+            for expr in exprs:
                 weight = "'A'"
+                if isinstance(expr, pg_ast.SearchableString):
+                    language = expr.language
+                    text: pg_ast.Base = expr.text
+                else:
+                    language = pg_ast.StringConstant(val='english')
+                    text = expr
+
+                text_sql = codegen.generate_source(text)
+                language_sql = codegen.generate_source(language)
+
                 document_exprs.append(
                     f'''
                     setweight(
                         to_tsvector(
-                            {language}::pg_catalog.regconfig,
-                            COALESCE({sql_expr}, '')
+                            {language_sql}::pg_catalog.regconfig,
+                            COALESCE({text_sql}, '')
                         ),
                         {weight}
                     )
