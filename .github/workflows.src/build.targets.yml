@@ -1,3 +1,11 @@
+publications:
+    - name: prod
+      suffix: ""
+      server: ""
+    - name: beta
+      suffix: -beta
+      server: package-upload.edgedb.net
+
 targets:
     linux:
         - name: debian-buster-x86_64
