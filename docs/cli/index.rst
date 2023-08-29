@@ -144,7 +144,7 @@ The ``cli.toml`` has the following structure. All fields are optional:
     edgedb_watch
     edgedb_migration/index
     edgedb_migrate
-    edgedb_database_create
+    edgedb_database/index
     edgedb_describe/index
     edgedb_list
     edgedb_query
