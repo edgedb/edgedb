@@ -387,6 +387,8 @@ class CompilerState:
 
     @functools.cached_property
     def state_serializer_factory(self) -> sertypes.StateSerializerFactory:
+        # TODO: This factory will probably need to become per-db once
+        # config spec differs between databases. See also #5836.
         return sertypes.StateSerializerFactory(
             self.std_schema, self.config_spec
         )
@@ -992,6 +994,20 @@ class Compiler:
             )
         )
         return pickle.dumps(user_schema, -1), db_config, ext_config_settings
+
+    def make_state_serializer(
+        self,
+        protocol_version: defines.ProtocolVersion,
+        user_schema_pickled: bytes,
+        global_schema_pickled: bytes,
+    ) -> sertypes.StateSerializer:
+        user_schema = pickle.loads(user_schema_pickled)
+        global_schema = pickle.loads(global_schema_pickled)
+        return self.state.state_serializer_factory.make(
+            user_schema,
+            global_schema,
+            protocol_version,
+        )
 
     def describe_database_dump(
         self,

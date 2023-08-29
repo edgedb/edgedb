@@ -310,6 +310,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         msg_buf.end_message()
         buf.write_buffer(msg_buf)
 
+        if self.get_dbview().get_state_serializer() is None:
+            await self.get_dbview().reload_state_serializer()
         buf.write_buffer(self.make_state_data_description_msg())
 
         self.write(buf)
@@ -875,6 +877,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         cdef:
             bytes eql
             dbview.QueryRequestInfo query_req
+            dbview.DatabaseConnectionView _dbview
             WriteBuffer parse_complete
             WriteBuffer buf
 
@@ -882,6 +885,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.ignore_headers()
 
+        _dbview = self.get_dbview()
+        if _dbview.get_state_serializer() is None:
+            await _dbview.reload_state_serializer()
         query_req = self.parse_execute_request()
         compiled = await self._parse(query_req)
 
@@ -908,14 +914,15 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.ignore_headers()
 
+        _dbview = self.get_dbview()
+        if _dbview.get_state_serializer() is None:
+            await _dbview.reload_state_serializer()
         query_req = self.parse_execute_request()
         in_tid = self.buffer.read_bytes(16)
         out_tid = self.buffer.read_bytes(16)
         args = self.buffer.read_len_prefixed_bytes()
 
         self.buffer.finish_message()
-
-        _dbview = self.get_dbview()
 
         if (
             self._last_anon_compiled is not None and
@@ -1517,6 +1524,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             raise errors.ProtocolError(
                 'RESTORE must not be executed while in transaction'
             )
+        if _dbview.get_state_serializer() is None:
+            await _dbview.reload_state_serializer()
 
         self.reject_headers()
         self.buffer.read_int16()  # discard -j level

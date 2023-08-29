@@ -66,7 +66,6 @@ cdef class DatabaseIndex:
         object _std_schema
         object _global_schema
         object _global_schema_pickled
-        object _factory
         object _default_sysconfig
         object _sys_config_spec
         object _cached_compiler_args
@@ -97,7 +96,6 @@ cdef class Database:
     cdef schedule_config_update(self)
 
     cdef _invalidate_caches(self)
-    cdef _clear_state_serializers(self)
     cdef _cache_compiled_query(self, key, query_unit)
     cdef _new_view(self, query_cache, protocol_version)
     cdef _remove_view(self, view)

@@ -235,9 +235,6 @@ cdef class Database:
         self._sql_to_compiled.clear()
         self._index.invalidate_caches()
 
-    cdef _clear_state_serializers(self):
-        self._state_serializers.clear()
-
     cdef _cache_compiled_query(self, key, compiled: dbstate.QueryUnitGroup):
         assert compiled.cacheable
 
@@ -273,13 +270,7 @@ cdef class Database:
         self._views.remove(view)
 
     cdef get_state_serializer(self, protocol_version):
-        if protocol_version not in self._state_serializers:
-            self._state_serializers[protocol_version] = self._index._factory.make(
-                self.user_schema,
-                self._index._global_schema,
-                protocol_version,
-            )
-        return self._state_serializers[protocol_version]
+        return self._state_serializers.get(protocol_version)
 
     cdef set_state_serializer(self, protocol_version, serializer):
         old_serializer = self._state_serializers.get(protocol_version)
@@ -321,6 +312,7 @@ cdef class DatabaseConnectionView:
         self._globals = DEFAULT_GLOBALS
         self._session_state_db_cache = None
         self._session_state_cache = None
+        self._state_serializer = db.get_state_serializer(protocol_version)
 
         if db.name == defines.EDGEDB_SYSTEM_DB:
             # Make system database read-only.
@@ -430,20 +422,8 @@ cdef class DatabaseConnectionView:
 
     cdef get_state_serializer(self):
         if self._in_tx:
-            if self._in_tx_state_serializer is None:
-                # DDL in transaction, recalculate the state descriptor
-                self._in_tx_state_serializer = self._db._index._factory.make(
-                    self.get_user_schema(),
-                    self.get_global_schema(),
-                    self._protocol_version,
-                )
             return self._in_tx_state_serializer
         else:
-            if self._state_serializer is None:
-                # Executed a DDL, recalculate the state descriptor
-                self._state_serializer = self._db.get_state_serializer(
-                    self._protocol_version
-                )
             return self._state_serializer
 
     cdef set_state_serializer(self, new_serializer):
@@ -679,9 +659,6 @@ cdef class DatabaseConnectionView:
         return serializer.type_id, serializer.encode(state)
 
     cdef decode_state(self, type_id, data):
-        if not self._in_tx:
-            # make sure we start clean
-            self._state_serializer = None
         serializer = self.get_state_serializer()
         self._command_state_serializer = serializer
 
@@ -1176,6 +1153,20 @@ cdef class DatabaseConnectionView:
                     msg,
                 )
 
+    async def reload_state_serializer(self):
+        # This should only happen once when a different protocol version is
+        # used after schema change, or non-current version of protocol is used
+        # for the first time after database introspection.  Because such cases
+        # are rare, we'd rather do it lazily here than enumerating all protocol
+        # versions making several serializers in every schema change.
+        compiler_pool = self._db._index._server.get_compiler_pool()
+        state_serializer = await compiler_pool.make_state_serializer(
+            self._protocol_version,
+            self.get_user_schema_pickled(),
+            self.get_global_schema_pickled(),
+        )
+        self.set_state_serializer(state_serializer)
+
 
 cdef class DatabaseIndex:
 
@@ -1197,10 +1188,6 @@ cdef class DatabaseIndex:
         self._global_schema_pickled = global_schema_pickled
         self._default_sysconfig = default_sysconfig
         self._sys_config_spec = sys_config_spec
-        # TODO: This factory will probably need to become per-db once
-        # config spec differs between databases.
-        self._factory = sertypes.StateSerializerFactory(
-            std_schema, sys_config_spec)
         self.update_sys_config(sys_config)
         self._cached_compiler_args = None
 
@@ -1273,9 +1260,6 @@ cdef class DatabaseIndex:
                 backend_ids,
                 db_config,
             )
-            # Make sure we will re-make the state serializers,
-            # see also comments in describe_database_restore()
-            db._clear_state_serializers()
         else:
             db = Database(
                 self,
