@@ -233,7 +233,7 @@ class MultiSchemaPool(pool_mod.FixedPool):
         (
             std_args_pickled,
             client_args_pickled,
-            global_schema_pickled,
+            global_schema_pickle,
             system_config_pickled,
         ) = init_args_pickled
         dbs, backend_runtime_params = pickle.loads(client_args_pickled)
@@ -263,14 +263,14 @@ class MultiSchemaPool(pool_mod.FixedPool):
                 (
                     dbname,
                     PickledState(
-                        state.user_schema_pickled,
+                        state.user_schema_pickle,
                         pickle.dumps(state.reflection_cache, -1),
                         pickle.dumps(state.database_config, -1),
                     ),
                 )
                 for dbname, state in dbs.items()
             ),
-            global_schema_pickled,
+            global_schema_pickle,
             system_config_pickled,
             (),
         )

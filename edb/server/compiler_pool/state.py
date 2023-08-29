@@ -39,7 +39,7 @@ DatabasesState = immutables.Map[str, DatabaseState]
 
 
 class PickledDatabaseState(typing.NamedTuple):
-    user_schema_pickled: bytes
+    user_schema_pickle: bytes
     reflection_cache: ReflectionCache
     database_config: immutables.Map[str, config.SettingValue]
 

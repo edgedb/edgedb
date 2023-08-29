@@ -264,9 +264,9 @@ class Tenant(ha_base.ClusterProtocol):
         else:
             return self._report_config_data[(1, 0)]
 
-    def get_global_schema_pickled(self) -> bytes:
+    def get_global_schema_pickle(self) -> bytes:
         assert self._dbindex is not None
-        return self._dbindex.get_global_schema_pickled()
+        return self._dbindex.get_global_schema_pickle()
 
     def get_db(self, *, dbname: str) -> dbview.Database:
         assert self._dbindex is not None
@@ -309,7 +309,7 @@ class Tenant(ha_base.ClusterProtocol):
             await self._fetch_roles(syscon)
             if self._server.get_compiler_pool() is None:
                 # Parse global schema in I/O process if this is done only once
-                global_schema_pickled = pickle.dumps(
+                global_schema_pickle = pickle.dumps(
                     await self._server.introspect_global_schema(syscon), -1
                 )
                 data = None
@@ -319,7 +319,7 @@ class Tenant(ha_base.ClusterProtocol):
                 compiler_pool = self._server.get_compiler_pool()
 
         if data is not None:
-            global_schema_pickled = (
+            global_schema_pickle = (
                 await compiler_pool.parse_global_schema(data)
             )
 
@@ -330,7 +330,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._dbindex = dbview.DatabaseIndex(
             self,
             std_schema=self._server.get_std_schema(),
-            global_schema_pickled=global_schema_pickled,
+            global_schema_pickle=global_schema_pickle,
             sys_config=sys_config,
             default_sysconfig=default_sysconfig,
             sys_config_spec=self._server._config_settings,  # TODO
@@ -835,12 +835,12 @@ class Tenant(ha_base.ClusterProtocol):
 
         compiler_pool = self._server.get_compiler_pool()
         parsed_db = await compiler_pool.parse_user_schema_db_config(
-            user_schema_json, db_config_json, self.get_global_schema_pickled()
+            user_schema_json, db_config_json, self.get_global_schema_pickle()
         )
         assert self._dbindex is not None
         db = self._dbindex.register_db(
             dbname,
-            user_schema_pickled=parsed_db.user_schema_pickled,
+            user_schema_pickle=parsed_db.user_schema_pickle,
             db_config=parsed_db.database_config,
             reflection_cache=reflection_cache,
             backend_ids=backend_ids,
@@ -872,7 +872,7 @@ class Tenant(ha_base.ClusterProtocol):
                 if not self._dbindex.has_db(dbname):
                     self._dbindex.register_db(
                         dbname,
-                        user_schema_pickled=None,
+                        user_schema_pickle=None,
                         db_config=None,
                         reflection_cache=None,
                         backend_ids=None,
@@ -938,9 +938,9 @@ class Tenant(ha_base.ClusterProtocol):
             data = await self._server.introspect_global_schema_json(syscon)
             await self._fetch_roles(syscon)
         compiler_pool = self._server.get_compiler_pool()
-        global_schema_pickled = await compiler_pool.parse_global_schema(data)
+        global_schema_pickle = await compiler_pool.parse_global_schema(data)
         assert self._dbindex is not None
-        self._dbindex.update_global_schema(global_schema_pickled)
+        self._dbindex.update_global_schema(global_schema_pickle)
 
     def populate_sys_auth(self) -> None:
         assert self._dbindex is not None

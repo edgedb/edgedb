@@ -472,7 +472,7 @@ class SQLQueryUnit:
 
 @dataclasses.dataclass
 class ParsedDatabase:
-    user_schema_pickled: bytes
+    user_schema_pickle: bytes
     database_config: immutables.Map[str, config.SettingValue]
     ext_config_settings: list[config.Setting]
 

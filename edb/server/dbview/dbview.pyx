@@ -155,7 +155,7 @@ cdef class Database:
         DatabaseIndex index,
         str name,
         *,
-        bytes user_schema_pickled,
+        bytes user_schema_pickle,
         object db_config,
         object reflection_cache,
         object backend_ids,
@@ -178,7 +178,7 @@ cdef class Database:
             maxsize=defines._MAX_QUERIES_CACHE)
 
         self.db_config = db_config
-        self.user_schema_pickled = user_schema_pickled
+        self.user_schema_pickle = user_schema_pickle
         if ext_config_settings is not None:
             self.user_config_spec = config.FlatSpec(*ext_config_settings)
         self.reflection_cache = reflection_cache
@@ -198,19 +198,19 @@ cdef class Database:
 
     cdef _set_and_signal_new_user_schema(
         self,
-        new_schema_pickled,
+        new_schema_pickle,
         extensions,
         ext_config_settings,
         reflection_cache=None,
         backend_ids=None,
         db_config=None,
     ):
-        if new_schema_pickled is None:
+        if new_schema_pickle is None:
             raise AssertionError('new_schema is not supposed to be None')
 
         self.dbver = next_dbver()
 
-        self.user_schema_pickled = new_schema_pickled
+        self.user_schema_pickle = new_schema_pickle
         self.extensions = extensions
         self.user_config_spec = config.FlatSpec(*ext_config_settings)
 
@@ -286,9 +286,9 @@ cdef class Database:
         return len(self._eql_to_compiled) + len(self._sql_to_compiled)
 
     async def introspection(self):
-        if self.user_schema_pickled is None:
+        if self.user_schema_pickle is None:
             async with self._introspection_lock:
-                if self.user_schema_pickled is None:
+                if self.user_schema_pickle is None:
                     await self.tenant.introspect_db(self.name)
 
 
@@ -347,8 +347,8 @@ cdef class DatabaseConnectionView:
         self._in_tx_with_sysconfig = False
         self._in_tx_with_dbconfig = False
         self._in_tx_with_set = False
-        self._in_tx_user_schema_pickled = None
-        self._in_tx_global_schema_pickled = None
+        self._in_tx_user_schema_pickle = None
+        self._in_tx_global_schema_pickle = None
         self._in_tx_new_types = {}
         self._in_tx_user_config_spec = None
         self._in_tx_state_serializer = None
@@ -514,17 +514,17 @@ cdef class DatabaseConnectionView:
         else:
             return self._modaliases
 
-    def get_user_schema_pickled(self):
+    def get_user_schema_pickle(self):
         if self._in_tx:
-            return self._in_tx_user_schema_pickled
+            return self._in_tx_user_schema_pickle
         else:
-            return self._db.user_schema_pickled
+            return self._db.user_schema_pickle
 
-    def get_global_schema_pickled(self):
+    def get_global_schema_pickle(self):
         if self._in_tx:
-            return self._in_tx_global_schema_pickled
+            return self._in_tx_global_schema_pickle
         else:
-            return self._db._index._global_schema_pickled
+            return self._db._index._global_schema_pickle
 
     def resolve_backend_type_id(self, type_id):
         type_id = str(type_id)
@@ -766,9 +766,9 @@ cdef class DatabaseConnectionView:
         self._in_tx_globals = self._globals
         self._in_tx_db_config = self._db.db_config
         self._in_tx_modaliases = self._modaliases
-        self._in_tx_user_schema_pickled = self._db.user_schema_pickled
-        self._in_tx_global_schema_pickled = \
-            self._db._index._global_schema_pickled
+        self._in_tx_user_schema_pickle = self._db.user_schema_pickle
+        self._in_tx_global_schema_pickle = \
+            self._db._index._global_schema_pickle
         self._in_tx_user_config_spec = self._db.user_config_spec
         self._in_tx_state_serializer = self._state_serializer
 
@@ -782,12 +782,12 @@ cdef class DatabaseConnectionView:
         if query_unit.has_set:
             self._in_tx_with_set = True
         if query_unit.user_schema is not None:
-            self._in_tx_user_schema_pickled = query_unit.user_schema
+            self._in_tx_user_schema_pickle = query_unit.user_schema
             self._in_tx_user_config_spec = config.FlatSpec(
                 *query_unit.ext_config_settings
             )
         if query_unit.global_schema is not None:
-            self._in_tx_global_schema_pickled = query_unit.global_schema
+            self._in_tx_global_schema_pickle = query_unit.global_schema
 
     cdef start_implicit(self, query_unit):
         if self._tx_error:
@@ -1048,8 +1048,8 @@ cdef class DatabaseConnectionView:
             else:
                 result = await compiler_pool.compile(
                     self.dbname,
-                    self.get_user_schema_pickled(),
-                    self.get_global_schema_pickled(),
+                    self.get_user_schema_pickle(),
+                    self.get_global_schema_pickle(),
                     self.reflection_cache,
                     self.get_database_config(),
                     self.get_compilation_system_config(),
@@ -1077,8 +1077,8 @@ cdef class DatabaseConnectionView:
     async def interpret_backend_error(self, exc):
         compiler_pool = self._db._index._server.get_compiler_pool()
         return await compiler_pool.interpret_backend_error(
-            self.get_user_schema_pickled(),
-            self.get_global_schema_pickled(),
+            self.get_user_schema_pickle(),
+            self.get_global_schema_pickle(),
             exc.fields,
             False,
         )
@@ -1133,8 +1133,8 @@ cdef class DatabaseConnectionView:
         compiler_pool = self._db._index._server.get_compiler_pool()
         state_serializer = await compiler_pool.make_state_serializer(
             self._protocol_version,
-            self.get_user_schema_pickled(),
-            self.get_global_schema_pickled(),
+            self.get_user_schema_pickle(),
+            self.get_global_schema_pickle(),
         )
         self.set_state_serializer(state_serializer)
 
@@ -1146,7 +1146,7 @@ cdef class DatabaseIndex:
         tenant,
         *,
         std_schema,
-        global_schema_pickled,
+        global_schema_pickle,
         sys_config,
         default_sysconfig,  # system config without system override
         sys_config_spec,
@@ -1155,7 +1155,7 @@ cdef class DatabaseIndex:
         self._server = tenant.server
         self._tenant = tenant
         self._std_schema = std_schema
-        self._global_schema_pickled = global_schema_pickled
+        self._global_schema_pickle = global_schema_pickle
         self._default_sysconfig = default_sysconfig
         self._sys_config_spec = sys_config_spec
         self.update_sys_config(sys_config)
@@ -1197,18 +1197,18 @@ cdef class DatabaseIndex:
     def maybe_get_db(self, dbname):
         return self._dbs.get(dbname)
 
-    def get_global_schema_pickled(self):
-        return self._global_schema_pickled
+    def get_global_schema_pickle(self):
+        return self._global_schema_pickle
 
-    def update_global_schema(self, global_schema_pickled):
-        self._global_schema_pickled = global_schema_pickled
+    def update_global_schema(self, global_schema_pickle):
+        self._global_schema_pickle = global_schema_pickle
         self.invalidate_caches()
 
     def register_db(
         self,
         dbname,
         *,
-        user_schema_pickled,
+        user_schema_pickle,
         db_config,
         reflection_cache,
         backend_ids,
@@ -1219,7 +1219,7 @@ cdef class DatabaseIndex:
         db = self._dbs.get(dbname)
         if db is not None:
             db._set_and_signal_new_user_schema(
-                user_schema_pickled,
+                user_schema_pickle,
                 extensions,
                 ext_config_settings,
                 reflection_cache,
@@ -1230,7 +1230,7 @@ cdef class DatabaseIndex:
             db = Database(
                 self,
                 dbname,
-                user_schema_pickled=user_schema_pickled,
+                user_schema_pickle=user_schema_pickle,
                 db_config=db_config,
                 reflection_cache=reflection_cache,
                 backend_ids=backend_ids,
@@ -1334,12 +1334,12 @@ cdef class DatabaseIndex:
                 dbs = dbs.set(
                     db.name,
                     compiler_state_mod.PickledDatabaseState(
-                        user_schema_pickled=db.user_schema_pickled,
+                        user_schema_pickle=db.user_schema_pickle,
                         reflection_cache=db.reflection_cache,
                         database_config=db.db_config,
                     )
                 )
             self._cached_compiler_args = (
-                dbs, self._global_schema_pickled, self._comp_sys_config
+                dbs, self._global_schema_pickle, self._comp_sys_config
             )
         return self._cached_compiler_args

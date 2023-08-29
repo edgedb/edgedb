@@ -64,7 +64,7 @@ def __init_worker__(
         std_schema,
         refl_schema,
         schema_class_layout,
-        global_schema_pickled,
+        global_schema_pickle,
         system_config,
     ) = pickle.loads(init_args_pickled)
 
@@ -77,8 +77,8 @@ def __init_worker__(
                     name=dbname,
                     user_schema=(
                         None  # type: ignore
-                        if db.user_schema_pickled is None
-                        else pickle.loads(db.user_schema_pickled)
+                        if db.user_schema_pickle is None
+                        else pickle.loads(db.user_schema_pickle)
                     ),
                     reflection_cache=db.reflection_cache,
                     database_config=db.database_config,
@@ -89,7 +89,7 @@ def __init_worker__(
     )
     BACKEND_RUNTIME_PARAMS = backend_runtime_params
     STD_SCHEMA = std_schema
-    GLOBAL_SCHEMA = pickle.loads(global_schema_pickled)
+    GLOBAL_SCHEMA = pickle.loads(global_schema_pickle)
     INSTANCE_CONFIG = system_config
 
     COMPILER = compiler.new_compiler(

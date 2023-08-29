@@ -981,9 +981,9 @@ class Compiler:
         self,
         user_schema_json: bytes,
         db_config_json: bytes,
-        global_schema_pickled: bytes,
+        global_schema_pickle: bytes,
     ) -> dbstate.ParsedDatabase:
-        global_schema = pickle.loads(global_schema_pickled)
+        global_schema = pickle.loads(global_schema_pickle)
         user_schema = self.parse_json_schema(user_schema_json, global_schema)
         db_config = self.parse_db_config(db_config_json, user_schema)
         ext_config_settings = config.load_ext_settings_from_schema(
@@ -999,7 +999,7 @@ class Compiler:
             defines.CURRENT_PROTOCOL,
         )
         return dbstate.ParsedDatabase(
-            user_schema_pickled=pickle.dumps(user_schema, -1),
+            user_schema_pickle=pickle.dumps(user_schema, -1),
             database_config=db_config,
             ext_config_settings=ext_config_settings,
             protocol_version=defines.CURRENT_PROTOCOL,
@@ -1009,11 +1009,11 @@ class Compiler:
     def make_state_serializer(
         self,
         protocol_version: defines.ProtocolVersion,
-        user_schema_pickled: bytes,
-        global_schema_pickled: bytes,
+        user_schema_pickle: bytes,
+        global_schema_pickle: bytes,
     ) -> sertypes.StateSerializer:
-        user_schema = pickle.loads(user_schema_pickled)
-        global_schema = pickle.loads(global_schema_pickled)
+        user_schema = pickle.loads(user_schema_pickle)
+        global_schema = pickle.loads(global_schema_pickle)
         return self.state.state_serializer_factory.make(
             user_schema,
             global_schema,
@@ -1105,8 +1105,8 @@ class Compiler:
 
     def describe_database_restore(
         self,
-        user_schema_pickled: bytes,
-        global_schema_pickled: bytes,
+        user_schema_pickle: bytes,
+        global_schema_pickle: bytes,
         dump_server_ver_str: str,
         dump_catalog_version: Optional[int],
         schema_ddl: bytes,
@@ -1129,8 +1129,8 @@ class Compiler:
         dump_catalog_version = dump_catalog_version or 0
 
         state = dbstate.CompilerConnectionState(
-            user_schema=pickle.loads(user_schema_pickled),
-            global_schema=pickle.loads(global_schema_pickled),
+            user_schema=pickle.loads(user_schema_pickle),
+            global_schema=pickle.loads(global_schema_pickle),
             modaliases=DEFAULT_MODULE_ALIASES_MAP,
             session_config=EMPTY_MAP,
             database_config=EMPTY_MAP,

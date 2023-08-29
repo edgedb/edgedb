@@ -188,8 +188,8 @@ async def handle_request(
             if static_exc is errormech.SchemaRequired:
                 compiler_pool = tenant.server.get_compiler_pool()
                 ex = await compiler_pool.interpret_backend_error(
-                    db.user_schema_pickled,
-                    tenant.get_global_schema_pickled(),
+                    db.user_schema_pickle,
+                    tenant.get_global_schema_pickle(),
                     ex.fields,
                     True,
                 )
@@ -225,8 +225,8 @@ async def compile(
     compiler_pool = server.get_compiler_pool()
     return await compiler_pool.compile_graphql(
         db.name,
-        db.user_schema_pickled,
-        tenant.get_global_schema_pickled(),
+        db.user_schema_pickle,
+        tenant.get_global_schema_pickle(),
         db.reflection_cache,
         db.db_config,
         db._index.get_compilation_system_config(),
