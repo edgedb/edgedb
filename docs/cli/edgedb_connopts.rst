@@ -53,8 +53,8 @@ Connection flags
     ``admin`` parameters.
 
 :cli:synopsis:`--admin`
-    Connect to a password-less Unix socket (specified by the ``unix_path`` with
-    superuser privileges by default.
+    Connect to a password-less Unix socket (specified by the ``unix-path``)
+    with superuser privileges by default.
 
 :cli:synopsis:`-u <username>, --user=<username>`
     Connect to the database as the user :cli:synopsis:`<username>`.
