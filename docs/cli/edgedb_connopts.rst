@@ -44,18 +44,29 @@ Connection flags
 
 :cli:synopsis:`-P <port>, --port=<port>`
     Specifies the TCP port on which the server is listening for connections.
-    Defaults to the value of the ``EDGEDB_PORT`` environment variable or, 
+    Defaults to the value of the ``EDGEDB_PORT`` environment variable or,
     if not set, to ``5656``.
+
+:cli:synopsis:`--unix-path /path/to/socket`
+    Specifies a path to a Unix socket for an EdgeDB connection. If the path is
+    a directory, the actual path will be computed using the ``port`` and
+    ``admin`` parameters.
+
+:cli:synopsis:`--admin`
+    Connect to a password-less Unix socket (specified by the ``unix-path``)
+    with superuser privileges by default.
 
 :cli:synopsis:`-u <username>, --user=<username>`
     Connect to the database as the user :cli:synopsis:`<username>`.
     Defaults to the value of the ``EDGEDB_USER`` environment variable, or,
-    if not set, to the login name of the current OS user.
+    if not set, ``edgedb``.
 
 :cli:synopsis:`-d <dbname>, --database=<dbname>`
-    Specifies the name of the database to connect to.  Default to the value
-    of the ``EDGEDB_DATABASE`` environment variable, or, if not set, to
-    the calculated value of :cli:synopsis:`<username>`.
+    Specifies the name of the database to connect to. Defaults to the value of
+    the ``EDGEDB_DATABASE`` environment variable. If that variable isn't set,
+    local instances will default to ``edgedb`` while remote instances will
+    default to the name provided when the link was created. This also includes
+    EdgeDB Cloud instance links created via :ref:`ref_cli_edgedb_project_init`.
 
 :cli:synopsis:`--password | --no-password`
     If :cli:synopsis:`--password` is specified, force ``edgedb`` to prompt
@@ -95,14 +106,19 @@ Connection flags
     ``insecure``
         Disable all TLS security measures.
 
+:cli:synopsis:`--secret-key <key>`
+    Specifies the secret key to use for authentication with EdgeDB Cloud
+    instances.
+
 :cli:synopsis:`--wait-until-available=<wait_time>`
     In case EdgeDB connection can't be established, keep retrying up
-    to :cli:synopsis:`<wait_time>` (e.g. ``30s``).
+    to :cli:synopsis:`<wait_time>` (e.g. ``30s``). The
+    :cli:synopsis:`<timeout>` value must be given using time units (e.g.
+    ``hr``, ``min``, ``sec``, ``ms``, etc.).
 
 :cli:synopsis:`--connect-timeout=<timeout>`
-    Specifies a :cli:synopsis:`<timeout>` period. In case EdgeDB
-    doesn't respond for this period the command will fail (or retry if
+    Specifies a :cli:synopsis:`<timeout>` period. In the event EdgeDB doesn't
+    respond in this period, the command will fail (or retry if
     :cli:synopsis:`--wait-until-available` is also specified). The
-    :cli:synopsis:`<timeout>` value must be given using time units
-    (e.g. ``hr``, ``min``, ``sec``, ``ms``, etc.). The default
-    value is ``10s``.
+    :cli:synopsis:`<timeout>` value must be given using time units (e.g.
+    ``hr``, ``min``, ``sec``, ``ms``, etc.). The default value is ``10s``.
