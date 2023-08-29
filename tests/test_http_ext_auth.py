@@ -187,14 +187,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_github_authorize_01(self):
         with MockAuthProvider(), self.http_con() as http_con:
-            client_id = await self.con.query_single(
+            github_provider_config = await self.con.query_single(
                 """
-                SELECT assert_single(
+                SELECT assert_exists(assert_single(
                     cfg::Config.extensions[is ext::auth::AuthConfig]
-                        .github_client_id
-                );
+                        .providers { * } filter .provider_name = "github"
+                ));
                 """
             )
+            client_id = github_provider_config.client_id
 
             auth_signing_key = await self.con.query_single(
                 """
