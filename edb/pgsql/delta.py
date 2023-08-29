@@ -3491,7 +3491,21 @@ class CompositeMetaCommand(MetaCommand):
 
 
 class IndexCommand(MetaCommand):
-    pass
+
+    @classmethod
+    def fts_update_name(
+        cls,
+        tbl_name: str,
+    ) -> Tuple[str, ...]:
+        return (common.edgedb_name_to_pg_name(tbl_name + '_ftsupdate'),)
+
+    @classmethod
+    def fts_trigger_name(
+        cls,
+        tbl_name: str,
+    ) -> str:
+        return common.edgedb_name_to_pg_name(tbl_name + '_ftstrigger')
+
 
 
 class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
@@ -3589,21 +3603,21 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         if root_code is None:
             raise AssertionError(f'index {root_name} is missing the code')
 
-        sql_res = compiler.compile_ir_to_sql_tree(ir.expr, singleton_mode=True)
-        exprs = astutils.maybe_unpack_row(sql_res.ast)
-
         # FTS
         if root_name == sn.QualName('fts', 'textsearch'):
             return cls.create_fts_index(
                 index,
                 root_code,
-                exprs,
+                ir.expr,
                 predicate_src,
                 sql_kwarg_exprs,
                 schema,
                 context
             )
         
+        sql_res = compiler.compile_ir_to_sql_tree(ir.expr, singleton_mode=True)
+        exprs = astutils.maybe_unpack_row(sql_res.ast)
+
         table_name = common.get_backend_name(schema, subject, catenate=False)
 
         module_name = index.get_name(schema).module
@@ -3630,21 +3644,36 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         cls,
         index: s_indexes.Index,
         root_code: str,
-        exprs: Sequence[pg_ast.Base],
+        index_expr: irast.Set,
         predicate_src: Optional[str],
         sql_kwarg_exprs: Dict[str, str],
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> dbops.Command:
+        from .compiler import astutils
+
         ops = dbops.CommandGroup()
 
         subject = index.get_subject(schema)
-        assert subject
+        assert isinstance(subject, s_types.Type)
         table_name = common.get_backend_name(schema, subject, catenate=False)
 
         module_name = index.get_name(schema).module
         index_name = common.get_index_backend_name(
             index.id, module_name, catenate=False)
+
+        subject_id = irast.PathId.from_type(schema, subject)
+        sql_res = compiler.compile_ir_to_sql_tree(
+            index_expr,
+            singleton_mode=True,
+            external_rvars={
+                (subject_id, 'source'): pg_ast.RelRangeVar(
+                    alias=pg_ast.Alias(aliasname='NEW'),
+                    relation=pg_ast.Relation(name='NEW')
+                )
+            }
+        )
+        exprs = astutils.maybe_unpack_row(sql_res.ast)
 
         with_clause: Dict[str, str] = {}
 
@@ -3653,22 +3682,32 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             # TODO: create a function for specifing which columns to index
             #       (see zombo docs on creating indexes)
 
-            sql_exprs = [f'{qi(table_name[1])}.*']
+            index_exprs = [f'{qi(table_name[1])}.*']
             root_code = 'zombodb ((__col__))'
             with_clause = {
                 'url': ql('http://localhost:9200/')
             }
 
         else:
-            # create a generated column __fts_document__
-            alter_table = dbops.AlterTable(table_name)
+            # create column __fts_document__
 
+            fts_document = dbops.Column(
+                name=f'__fts_document__',
+                type='pg_catalog.tsvector'
+            )
+            alter_table = dbops.AlterTable(table_name)
+            alter_table.add_operation(
+                dbops.AlterTableAddColumn(fts_document)
+            )
+            ops.add_command(alter_table)
+
+            # create the update function
             document_exprs = []
             for expr in exprs:
                 weight = "'A'"
                 if isinstance(expr, pg_ast.SearchableString):
                     language = expr.language
-                    text: pg_ast.Base = expr.text
+                    text: pg_ast.BaseExpr = expr.text
                 else:
                     language = pg_ast.StringConstant(val='english')
                     text = expr
@@ -3687,30 +3726,42 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                     )
                 '''
                 )
+            document_sql = ' || '.join(document_exprs)
 
-            generated_as = dbops.GeneratedConstraint(
-                constraint_name='__fts_gen_doc__',
-                expr=' || '.join(document_exprs)
+            func_name = cls.fts_update_name(table_name[1])
+            function = dbops.Function(
+                name=func_name,
+                text=f'''
+                    BEGIN
+                        NEW.__fts_document__ := ({document_sql});
+                        RETURN NEW;
+                    END;
+                ''',
+                volatility='immutable',
+                returns='trigger',
+                language='plpgsql',
             )
+            ops.add_command(dbops.CreateFunction(function))
 
-            fts_document = dbops.Column(
-                name=f'__fts_document__',
-                type='pg_catalog.tsvector',
-                constraints=[generated_as]
+            # create trigger to update the __fts_document__
+            trigger_name = cls.fts_trigger_name(table_name[1])
+            trigger = dbops.Trigger(
+                name=trigger_name,
+                table_name=table_name,
+                events=('insert', 'update'),
+                timing='before',
+                procedure=func_name
             )
-            alter_table.add_operation(
-                dbops.AlterTableAddColumn(fts_document)
-            )
+            ops.add_command(dbops.CreateTrigger(trigger))
 
             # use a reference to the new column in the index instead
-            sql_exprs = ['__fts_document__']
+            index_exprs = ['__fts_document__']
 
-            ops.add_command(alter_table)
 
         pg_index = dbops.Index(
             name=index_name[1],
             table_name=table_name,  # type: ignore
-            exprs=sql_exprs,
+            exprs=index_exprs,
             unique=False,
             inherit=True,
             with_clause=with_clause,
@@ -3775,11 +3826,25 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
         pg_index = dbops.Index(
             name=orig_idx_name[1], table_name=table_name, inherit=True)
         index_exists = dbops.IndexExists(
-            (table_name[0], pg_index.name_in_catalog))
+            (table_name[0], pg_index.name_in_catalog)
+        )
         ops.add_command(dbops.DropIndex(pg_index, conditions=(index_exists,)))
 
         # FTS
         if index.has_base_with_name(schema, sn.QualName('fts', 'textsearch')):
+            
+            ops.add_command(dbops.DropTrigger(dbops.Trigger(
+                cls.fts_trigger_name(table_name[1]),
+                table_name=table_name,
+                events=(),
+                procedure=''
+            )))
+
+            ops.add_command(dbops.DropFunction(
+                cls.fts_update_name(table_name[1]),
+                (),
+            ))
+
             fts_document = dbops.Column(
                 name=f'__fts_document__',
                 type=('pg_catalog', 'tsvector'),

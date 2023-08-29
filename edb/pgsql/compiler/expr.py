@@ -788,11 +788,19 @@ def _compile_set_in_singleton_mode(
                 raise errors.UnsupportedFeatureError(
                     'unexpectedly long path in simple expr')
 
+            # In most cases, we don't need to reference the rvar (since there 
+            # will be only one in scope), but sometimes we do (for example NEW
+            # in trigger functions).
+            rvar_name = []
+            if src := ctx.env.external_rvars.get((source.path_id, 'source')):
+                rvar_name = [src.alias.aliasname]
+
+            # compile column name
             ptr_stor_info = pg_types.get_ptrref_storage_info(
                 ptrref, resolve_type=False)
 
             colref = pgast.ColumnRef(
-                name=[ptr_stor_info.column_name],
+                name=rvar_name + [ptr_stor_info.column_name],
                 nullable=node.rptr.dir_cardinality.can_be_zero())
         else:
             name = [common.edgedb_name_to_pg_name(str(node.typeref.id))]
