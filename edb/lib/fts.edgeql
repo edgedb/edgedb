@@ -29,11 +29,17 @@ CREATE SCALAR TYPE fts::searchable_str {
     SET transient := true;
 };
 
-## Functions
-## ---------
+CREATE FUNCTION fts::with_language(
+    text: std::str,
+    language: std::str,
+) -> fts::searchable_str {
+    CREATE ANNOTATION std::description :=
+        'Adds language information to a string';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
 
-CREATE FUNCTION
-fts::search(
+CREATE FUNCTION fts::search(
     object: anyobject,
     query: std::str,
     named only language: std::str,

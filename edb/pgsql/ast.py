@@ -1225,3 +1225,9 @@ class CopyStmt(Statement):
     options: CopyOptions
 
     where_clause: typing.Optional[BaseExpr] = None
+
+
+class SearchableString(BaseExpr):
+    text: BaseExpr
+
+    language: BaseExpr

@@ -173,8 +173,7 @@ def type_has_stable_oid(typ: s_types.Type) -> bool:
 def get_scalar_base(
     schema: s_schema.Schema, scalar: s_scalars.ScalarType
 ) -> Tuple[str, ...]:
-    base = base_type_name_map.get(scalar.id)
-    if base is not None:
+    if base := base_type_name_map.get(scalar.id):
         return base
 
     for ancestor in scalar.get_ancestors(schema).objects(schema):

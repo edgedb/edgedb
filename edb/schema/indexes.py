@@ -74,7 +74,10 @@ def is_index_valid_for_type(
                 )
             )
         case 'fts::textsearch':
-            return is_subclass_or_tuple(expr_type, 'std::str', schema)
+            return (
+                is_subclass_or_tuple(expr_type, 'std::str', schema) or
+                is_subclass_or_tuple(expr_type, 'fts::searchable_str', schema)
+            )
         case 'pg::gist':
             return expr_type.is_range() or expr_type.is_multirange()
         case 'pg::spgist':
