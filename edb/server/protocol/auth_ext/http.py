@@ -65,7 +65,7 @@ class Router:
                     )
                     authorize_url = client.get_authorize_url(
                         redirect_uri=self._get_callback_url(),
-                        state=self._make_state_claims(provider),
+                        state=self._make_state_claims(provider_id),
                     )
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = authorize_url
