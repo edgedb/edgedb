@@ -110,7 +110,7 @@ cdef class Database:
         db_config=?,
     )
     cdef get_state_serializer(self, protocol_version)
-    cdef set_state_serializer(self, protocol_version, serializer)
+    cpdef set_state_serializer(self, protocol_version, serializer)
 
 
 cdef class DatabaseConnectionView:

@@ -470,6 +470,16 @@ class SQLQueryUnit:
     """If frontend_only is True, only issue CommandComplete with this tag."""
 
 
+@dataclasses.dataclass
+class ParsedDatabase:
+    user_schema_pickled: bytes
+    database_config: immutables.Map[str, config.SettingValue]
+    ext_config_settings: list[config.Setting]
+
+    protocol_version: defines.ProtocolVersion
+    state_serializer: sertypes.StateSerializer
+
+
 SQLSettings = immutables.Map[Optional[str], Optional[str | list[str]]]
 DEFAULT_SQL_SETTINGS: SQLSettings = immutables.Map()
 DEFAULT_SQL_FE_SETTINGS: SQLSettings = immutables.Map({

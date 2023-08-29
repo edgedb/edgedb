@@ -272,7 +272,7 @@ cdef class Database:
     cdef get_state_serializer(self, protocol_version):
         return self._state_serializers.get(protocol_version)
 
-    cdef set_state_serializer(self, protocol_version, serializer):
+    cpdef set_state_serializer(self, protocol_version, serializer):
         old_serializer = self._state_serializers.get(protocol_version)
         if (
             old_serializer is None or
@@ -1272,6 +1272,7 @@ cdef class DatabaseIndex:
                 ext_config_settings=ext_config_settings,
             )
             self._dbs[dbname] = db
+        return db
 
     def unregister_db(self, dbname):
         self._dbs.pop(dbname)

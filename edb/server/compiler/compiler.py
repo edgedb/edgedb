@@ -963,7 +963,7 @@ class Compiler:
 
     def parse_db_config(
         self, db_config_json: bytes, user_schema: s_schema.Schema
-    ) -> Mapping[str, config.SettingValue]:
+    ) -> immutables.Map[str, config.SettingValue]:
         spec = config.ChainedSpec(
             self.state.config_spec,
             config.load_ext_spec_from_schema(
@@ -982,7 +982,7 @@ class Compiler:
         user_schema_json: bytes,
         db_config_json: bytes,
         global_schema_pickled: bytes,
-    ) -> tuple[bytes, Mapping[str, config.SettingValue], list[config.Setting]]:
+    ) -> dbstate.ParsedDatabase:
         global_schema = pickle.loads(global_schema_pickled)
         user_schema = self.parse_json_schema(user_schema_json, global_schema)
         db_config = self.parse_db_config(db_config_json, user_schema)
@@ -993,7 +993,18 @@ class Compiler:
                 s_schema.EMPTY_SCHEMA,
             )
         )
-        return pickle.dumps(user_schema, -1), db_config, ext_config_settings
+        state_serializer = self.state.state_serializer_factory.make(
+            user_schema,
+            global_schema,
+            defines.CURRENT_PROTOCOL,
+        )
+        return dbstate.ParsedDatabase(
+            user_schema_pickled=pickle.dumps(user_schema, -1),
+            database_config=db_config,
+            ext_config_settings=ext_config_settings,
+            protocol_version=defines.CURRENT_PROTOCOL,
+            state_serializer=state_serializer,
+        )
 
     def make_state_serializer(
         self,

@@ -834,22 +834,22 @@ class Tenant(ha_base.ClusterProtocol):
             self.release_pgcon(dbname, conn)
 
         compiler_pool = self._server.get_compiler_pool()
-        (
-            user_schema_pickled,
-            db_config,
-            ext_config_settings,
-        ) = await compiler_pool.parse_user_schema_db_config(
+        parsed_db = await compiler_pool.parse_user_schema_db_config(
             user_schema_json, db_config_json, self.get_global_schema_pickled()
         )
         assert self._dbindex is not None
-        self._dbindex.register_db(
+        db = self._dbindex.register_db(
             dbname,
-            user_schema_pickled=user_schema_pickled,
-            db_config=db_config,
+            user_schema_pickled=parsed_db.user_schema_pickled,
+            db_config=parsed_db.database_config,
             reflection_cache=reflection_cache,
             backend_ids=backend_ids,
             extensions=extensions,
-            ext_config_settings=ext_config_settings,
+            ext_config_settings=parsed_db.ext_config_settings,
+        )
+        db.set_state_serializer(
+            parsed_db.protocol_version,
+            parsed_db.state_serializer,
         )
 
     async def _early_introspect_db(self, dbname: str) -> None:
