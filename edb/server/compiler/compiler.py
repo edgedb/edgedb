@@ -1078,8 +1078,8 @@ class Compiler:
 
     def describe_database_restore(
         self,
-        user_schema: s_schema.Schema,
-        global_schema: s_schema.Schema,
+        user_schema_pickled: bytes,
+        global_schema_pickled: bytes,
         dump_server_ver_str: str,
         dump_catalog_version: Optional[int],
         schema_ddl: bytes,
@@ -1102,8 +1102,8 @@ class Compiler:
         dump_catalog_version = dump_catalog_version or 0
 
         state = dbstate.CompilerConnectionState(
-            user_schema=user_schema,
-            global_schema=global_schema,
+            user_schema=pickle.loads(user_schema_pickled),
+            global_schema=pickle.loads(global_schema_pickled),
             modaliases=DEFAULT_MODULE_ALIASES_MAP,
             session_config=EMPTY_MAP,
             database_config=EMPTY_MAP,

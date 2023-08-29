@@ -1526,8 +1526,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         server = self.server
         compiler_pool = server.get_compiler_pool()
 
-        global_schema = _dbview.get_global_schema()
-        user_schema = _dbview.get_user_schema()
+        global_schema_pickled = _dbview.get_global_schema_pickled()
+        user_schema_pickled = _dbview.get_user_schema_pickled()
 
         dump_server_ver_str = None
         cat_ver = None
@@ -1595,8 +1595,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
             schema_sql_units, restore_blocks, tables = \
                 await compiler_pool.describe_database_restore(
-                    user_schema,
-                    global_schema,
+                    user_schema_pickled,
+                    global_schema_pickled,
                     dump_server_ver_str,
                     cat_ver,
                     schema_ddl,
