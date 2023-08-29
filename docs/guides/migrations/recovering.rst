@@ -50,7 +50,8 @@ or if this is the first migration:
       <script>
     };
 
-Replace ``<name>`` and ``<script>`` with the values from your ``Migration`` query results.
+Replace ``<name>``, ``<script>``, and ``<parent.name>`` with the values from
+your ``Migration`` query results.
 
 You can identify the first migration in your query results as the one with no
 object linked on ``parents``. Order the other migrations by chaining the links.
