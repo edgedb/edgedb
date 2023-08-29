@@ -15,10 +15,13 @@ Destroy the contents of a :ref:`database <ref_datamodel_databases>`
 Description
 ===========
 
-The database deleted will be one of these values: the value passed for the
+``edgedb database wipe`` is a terminal command equivalent to
+:eql:stmt:`reset schema to initial`.
+
+The database wiped will be one of these values: the value passed for the
 ``--database``/``-d`` option, the value of ``EDGEDB_DATABASE``, or ``edgedb``.
-The contents of the database will be destroyed but the database itself will be
-preserved.
+The contents of the database will be destroyed and the schema reset to its
+state before any migrations, but the database itself will be preserved.
 
 
 Options
