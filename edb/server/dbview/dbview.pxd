@@ -64,7 +64,6 @@ cdef class DatabaseIndex:
         object _sys_config
         object _comp_sys_config
         object _std_schema
-        object _global_schema
         object _global_schema_pickled
         object _default_sysconfig
         object _sys_config_spec
@@ -87,7 +86,6 @@ cdef class Database:
         readonly str name
         readonly object dbver
         readonly object db_config
-        readonly object user_schema
         readonly bytes user_schema_pickled
         readonly object reflection_cache
         readonly object backend_ids
@@ -147,10 +145,8 @@ cdef class DatabaseConnectionView:
         object _in_tx_db_config
         object _in_tx_savepoints
         object _in_tx_user_schema_pickled
-        object _in_tx_user_schema
         object _in_tx_user_config_spec
         object _in_tx_global_schema_pickled
-        object _in_tx_global_schema
         object _in_tx_new_types
         int _in_tx_dbver
         bint _in_tx

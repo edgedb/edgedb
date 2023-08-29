@@ -178,10 +178,6 @@ cdef class Database:
             maxsize=defines._MAX_QUERIES_CACHE)
 
         self.db_config = db_config
-        if user_schema_pickled is None:
-            self.user_schema = None
-        else:
-            self.user_schema = pickle.loads(user_schema_pickled)
         self.user_schema_pickled = user_schema_pickled
         if ext_config_settings is not None:
             self.user_config_spec = config.FlatSpec(*ext_config_settings)
@@ -214,7 +210,6 @@ cdef class Database:
 
         self.dbver = next_dbver()
 
-        self.user_schema = pickle.loads(new_schema_pickled)
         self.user_schema_pickled = new_schema_pickled
         self.extensions = extensions
         self.user_config_spec = config.FlatSpec(*ext_config_settings)
@@ -352,9 +347,7 @@ cdef class DatabaseConnectionView:
         self._in_tx_with_sysconfig = False
         self._in_tx_with_dbconfig = False
         self._in_tx_with_set = False
-        self._in_tx_user_schema = None
         self._in_tx_user_schema_pickled = None
-        self._in_tx_global_schema = None
         self._in_tx_global_schema_pickled = None
         self._in_tx_new_types = {}
         self._in_tx_user_config_spec = None
@@ -521,29 +514,11 @@ cdef class DatabaseConnectionView:
         else:
             return self._modaliases
 
-    def get_user_schema(self):
-        if self._in_tx:
-            if self._in_tx_user_schema is None:
-                self._in_tx_user_schema = pickle.loads(
-                    self._in_tx_user_schema_pickled)
-            return self._in_tx_user_schema
-        else:
-            return self._db.user_schema
-
     def get_user_schema_pickled(self):
         if self._in_tx:
             return self._in_tx_user_schema_pickled
         else:
             return self._db.user_schema_pickled
-
-    def get_global_schema(self):
-        if self._in_tx:
-            if self._in_tx_global_schema is None:
-                self._in_tx_global_schema = pickle.loads(
-                    self._in_tx_global_schema_pickled)
-            return self._in_tx_global_schema
-        else:
-            return self._db._index._global_schema
 
     def get_global_schema_pickled(self):
         if self._in_tx:
@@ -791,9 +766,7 @@ cdef class DatabaseConnectionView:
         self._in_tx_globals = self._globals
         self._in_tx_db_config = self._db.db_config
         self._in_tx_modaliases = self._modaliases
-        self._in_tx_user_schema = self._db.user_schema
         self._in_tx_user_schema_pickled = self._db.user_schema_pickled
-        self._in_tx_global_schema = self._db._index._global_schema
         self._in_tx_global_schema_pickled = \
             self._db._index._global_schema_pickled
         self._in_tx_user_config_spec = self._db.user_config_spec
@@ -810,13 +783,11 @@ cdef class DatabaseConnectionView:
             self._in_tx_with_set = True
         if query_unit.user_schema is not None:
             self._in_tx_user_schema_pickled = query_unit.user_schema
-            self._in_tx_user_schema = None
             self._in_tx_user_config_spec = config.FlatSpec(
                 *query_unit.ext_config_settings
             )
         if query_unit.global_schema is not None:
             self._in_tx_global_schema_pickled = query_unit.global_schema
-            self._in_tx_global_schema = None
 
     cdef start_implicit(self, query_unit):
         if self._tx_error:
@@ -1184,7 +1155,6 @@ cdef class DatabaseIndex:
         self._server = tenant.server
         self._tenant = tenant
         self._std_schema = std_schema
-        self._global_schema = pickle.loads(global_schema_pickled)
         self._global_schema_pickled = global_schema_pickled
         self._default_sysconfig = default_sysconfig
         self._sys_config_spec = sys_config_spec
@@ -1227,14 +1197,10 @@ cdef class DatabaseIndex:
     def maybe_get_db(self, dbname):
         return self._dbs.get(dbname)
 
-    def get_global_schema(self):
-        return self._global_schema
-
     def get_global_schema_pickled(self):
         return self._global_schema_pickled
 
     def update_global_schema(self, global_schema_pickled):
-        self._global_schema = pickle.loads(global_schema_pickled)
         self._global_schema_pickled = global_schema_pickled
         self.invalidate_caches()
 
