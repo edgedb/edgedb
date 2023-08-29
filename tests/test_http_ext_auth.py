@@ -158,19 +158,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         ext::auth::AuthConfig::auth_signing_key := <str>'{'a' * 32}';
         """,
         (
-            """
+            f"""
             CONFIGURE CURRENT DATABASE
-            INSERT ext::auth::ClientConfig {
+            INSERT ext::auth::ClientConfig {{
                 provider_name := "github",
                 url := "https://github.com",
-            """
-            f"""
                 provider_id := <str>'{uuid.uuid4()}',
                 secret := <str>'{"b" * 32}',
                 client_id := <str>'{uuid.uuid4()}'
-            """
-            """
-            };
+            }};
             """
         )
     ]
