@@ -62,14 +62,11 @@ Connection flags
     if not set, ``edgedb``.
 
 :cli:synopsis:`-d <dbname>, --database=<dbname>`
-    Specifies the name of the database to connect to. Defaults to the value
-    of the ``EDGEDB_DATABASE`` environment variable, or, if not set,
-    ``edgedb``.
-
-    .. note::
-
-        For EdgeDB Cloud instances, the default database value will be the one
-        set when the project was initialized.
+    Specifies the name of the database to connect to. Defaults to the value of
+    the ``EDGEDB_DATABASE`` environment variable. If that variable isn't set,
+    local instances will default to ``edgedb`` while remote instances will
+    default to the name provided when the link was created. This also includes
+    EdgeDB Cloud instance links created via :ref:`ref_cli_edgedb_project_init`.
 
 :cli:synopsis:`--password | --no-password`
     If :cli:synopsis:`--password` is specified, force ``edgedb`` to prompt
