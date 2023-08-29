@@ -16,11 +16,11 @@ Using the migration tools is the recommended way to make schema changes.
     :maxdepth: 3
     :hidden:
 
-    edgedb_migration_create
     edgedb_migration_apply
+    edgedb_migration_create
+    edgedb_migration_edit
     edgedb_migration_log
     edgedb_migration_status
-    edgedb_migration_edit
     edgedb_migration_upgrade_check
 
 Setup
@@ -38,13 +38,15 @@ and treat them as a single SDL document.
 .. list-table::
     :class: funcoptable
 
-    * - :ref:`ref_cli_edgedb_migration_create`
-      - Create a migration script
     * - :ref:`ref_cli_edgedb_migration_apply`
       - Bring current database to the latest or a specified revision
+    * - :ref:`ref_cli_edgedb_migration_create`
+      - Create a migration script
+    * - :ref:`ref_cli_edgedb_migration_edit`
+      - Edit migration file
     * - :ref:`ref_cli_edgedb_migration_log`
       - Show all migration versions
     * - :ref:`ref_cli_edgedb_migration_status`
       - Show current migration state
-    * - :ref:`ref_cli_edgedb_migration_edit`
-      - Edit migration file
+    * - :ref:`ref_cli_edgedb_migration_upgrade_check`
+      - Checks your schema against a different EdgeDB version.
