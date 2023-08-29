@@ -23,7 +23,6 @@ import httpx
 
 
 from typing import Any
-from edb.server.config import types
 
 from . import errors, util, data
 
@@ -88,9 +87,7 @@ class Client:
         ...
 
     def _get_provider_config(self, provider_id: str) -> tuple[str, str, str]:
-        provider_client_config: frozenset[
-            types.CompositeConfigType
-        ] = util.get_config(
+        provider_client_config = util.get_config(
             self.db_config, "ext::auth::AuthConfig::providers", frozenset
         )
         provider_name: str | None = None
