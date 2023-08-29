@@ -27,6 +27,6 @@ an :ref:`ref_reference_edgedb_toml` file in the project directory.
     * - :ref:`ref_cli_edgedb_project_info`
       - Get various metadata about the project
     * - :ref:`ref_cli_edgedb_project_unlink`
-      - Clean-up the project configuration
+      - Remove project association with an instance
     * - :ref:`ref_cli_edgedb_project_upgrade`
       - Upgrade EdgeDB instance used for the current project
