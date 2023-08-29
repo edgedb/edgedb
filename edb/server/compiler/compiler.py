@@ -975,6 +975,24 @@ class Compiler:
         global_schema = self.parse_json_schema(global_schema_json, None)
         return pickle.dumps(global_schema, -1)
 
+    def parse_user_schema_db_config(
+        self,
+        user_schema_json: bytes,
+        db_config_json: bytes,
+        global_schema_pickled: bytes,
+    ) -> tuple[bytes, Mapping[str, config.SettingValue], list[config.Setting]]:
+        global_schema = pickle.loads(global_schema_pickled)
+        user_schema = self.parse_json_schema(user_schema_json, global_schema)
+        db_config = self.parse_db_config(db_config_json, user_schema)
+        ext_config_settings = config.load_ext_settings_from_schema(
+            s_schema.ChainedSchema(
+                self.state.std_schema,
+                user_schema,
+                s_schema.EMPTY_SCHEMA,
+            )
+        )
+        return pickle.dumps(user_schema, -1), db_config, ext_config_settings
+
     def describe_database_dump(
         self,
         user_schema_json: bytes,

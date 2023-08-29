@@ -471,7 +471,7 @@ class BaseServer:
     ) -> bytes:
         return await conn.sql_fetch_val(self._local_intro_query)
 
-    async def introspect_user_schema(
+    async def _introspect_user_schema(
         self,
         conn: pgcon.PGConnection,
         global_schema: s_schema.Schema,
@@ -1169,7 +1169,7 @@ class Server(BaseServer):
                     from . import bootstrap
 
                     global_schema = await self.introspect_global_schema(conn)
-                    user_schema = await self.introspect_user_schema(
+                    user_schema = await self._introspect_user_schema(
                         conn, global_schema)
                     config_json = await self.introspect_db_config(conn)
                     db_config = self._parse_db_config(config_json, user_schema)

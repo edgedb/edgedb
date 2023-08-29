@@ -571,6 +571,22 @@ class AbstractPool:
         finally:
             self._release_worker(worker)
 
+    async def parse_user_schema_db_config(
+        self,
+        *args,
+        **kwargs,
+    ):
+        worker = await self._acquire_worker()
+        try:
+            return await worker.call(
+                'parse_user_schema_db_config',
+                *args,
+                **kwargs,
+            )
+
+        finally:
+            self._release_worker(worker)
+
     async def describe_database_dump(
         self,
         *args,

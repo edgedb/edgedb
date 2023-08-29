@@ -35,7 +35,6 @@ import immutables
 from edb import errors
 from edb.common import retryloop
 from edb.common import taskgroup
-from edb.schema import schema as s_schema
 
 from . import args as srvargs
 from . import config
@@ -264,10 +263,6 @@ class Tenant(ha_base.ClusterProtocol):
             return self._report_config_data[(2, 0)]
         else:
             return self._report_config_data[(1, 0)]
-
-    def get_global_schema(self) -> s_schema.FlatSchema:
-        assert self._dbindex is not None
-        return self._dbindex.get_global_schema()
 
     def get_global_schema_pickled(self) -> bytes:
         assert self._dbindex is not None
@@ -755,15 +750,6 @@ class Tenant(ha_base.ClusterProtocol):
                 raise
         return conn
 
-    async def introspect_user_schema(
-        self,
-        conn: pgcon.PGConnection,
-        global_schema: s_schema.Schema | None = None,
-    ) -> s_schema.Schema:
-        if global_schema is None:
-            global_schema = self.get_global_schema()
-        return await self._server.introspect_user_schema(conn, global_schema)
-
     async def _introspect_extensions(
         self, conn: pgcon.PGConnection
     ) -> set[str]:
@@ -801,7 +787,9 @@ class Tenant(ha_base.ClusterProtocol):
             return
 
         try:
-            user_schema = await self.introspect_user_schema(conn)
+            user_schema_json = (
+                await self._server.introspect_user_schema_json(conn)
+            )
 
             reflection_cache_json = await conn.sql_fetch_val(
                 b"""
@@ -841,35 +829,28 @@ class Tenant(ha_base.ClusterProtocol):
 
             db_config_json = await self._server.introspect_db_config(conn)
 
-            db_config = self._server._parse_db_config(
-                db_config_json, user_schema
-            )  # TODO: will be done in the compiler
-            ext_config_settings = config.load_ext_settings_from_schema(
-                s_schema.ChainedSchema(
-                    self._server.get_std_schema(),
-                    user_schema,
-                    s_schema.EMPTY_SCHEMA,
-                )
-            )  # TODO: will be done in the compiler
-
             extensions = await self._introspect_extensions(conn)
-
-            # GOTCHA: we will move introspect_user_schema() to the compiler
-            # so that we don't need this pickle.dumps+loads here.
-            import pickle
-
-            assert self._dbindex is not None
-            self._dbindex.register_db(
-                dbname,
-                user_schema_pickled=pickle.dumps(user_schema, -1),
-                db_config=db_config,
-                reflection_cache=reflection_cache,
-                backend_ids=backend_ids,
-                extensions=extensions,
-                ext_config_settings=ext_config_settings,
-            )
         finally:
             self.release_pgcon(dbname, conn)
+
+        compiler_pool = self._server.get_compiler_pool()
+        (
+            user_schema_pickled,
+            db_config,
+            ext_config_settings,
+        ) = await compiler_pool.parse_user_schema_db_config(
+            user_schema_json, db_config_json, self.get_global_schema_pickled()
+        )
+        assert self._dbindex is not None
+        self._dbindex.register_db(
+            dbname,
+            user_schema_pickled=user_schema_pickled,
+            db_config=db_config,
+            reflection_cache=reflection_cache,
+            backend_ids=backend_ids,
+            extensions=extensions,
+            ext_config_settings=ext_config_settings,
+        )
 
     async def _early_introspect_db(self, dbname: str) -> None:
         """We need to always introspect the extensions for each database.
