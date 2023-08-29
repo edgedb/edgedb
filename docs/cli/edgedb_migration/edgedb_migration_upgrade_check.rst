@@ -9,7 +9,7 @@ Checks your schema against a different EdgeDB version.
 
 .. cli:synopsis::
 
-    edgedb migration update-check [<options>]
+    edgedb migration upgrade-check [<options>]
 
 .. note::
 
