@@ -4081,7 +4081,7 @@ def create_subrel_for_expr(
 def process_set_as_fts_with_language(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
-    # TODO: this should probably be caught eariler
+    [a, b] = _compile_call_args(ir_set, ctx=ctx)
     raise errors.InvalidReferenceError(
-        "fts::with_language can only be used within an index expressions"
+        "fts::with_language can only be used within index expressions"
     )
