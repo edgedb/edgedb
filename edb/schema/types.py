@@ -138,6 +138,10 @@ class Type(
         int,
         default=None, inheritable=False)
 
+    # True for types that cannot be persistently stored.
+    # See fts::searchable_str for an example.
+    transient = so.SchemaField(bool, default=False)
+
     def compare(
         self,
         other: so.Object,
