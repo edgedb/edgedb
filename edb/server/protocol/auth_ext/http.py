@@ -132,7 +132,7 @@ class Router:
 
     def _get_auth_signing_key(self) -> jwk.JWK:
         auth_signing_key = util.get_config(
-            self.db.db_config, "xxx_auth_signing_key"
+            self.db.db_config, "ext::auth::AuthConfig::auth_signing_key"
         )
         key_bytes = base64.b64encode(auth_signing_key.encode())
 

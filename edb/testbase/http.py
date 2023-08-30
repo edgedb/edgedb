@@ -37,6 +37,7 @@ bag = assert_data_shape.bag
 
 
 class BaseHttpExtensionTest(server.QueryTestCase):
+    EXTENSION_CONFIG: List[tuple[str, str]] = []
 
     @classmethod
     def get_extension_name(cls):
@@ -60,6 +61,14 @@ class BaseHttpExtensionTest(server.QueryTestCase):
         cls.loop.run_until_complete(
             cls.con.execute(f'CREATE EXTENSION {extname};')
         )
+        for key, val in cls.EXTENSION_CONFIG:
+            cls.loop.run_until_complete(
+                cls.con.execute(
+                    f"""
+                    CONFIGURE CURRENT DATABASE SET {key} := {val};
+                    """
+                )
+            )
 
     @classmethod
     def tearDownClass(cls):
