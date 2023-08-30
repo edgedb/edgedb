@@ -1079,7 +1079,11 @@ async def _amend_stdlib(
     ddl_text: str,
     stdlib: StdlibBits,
 ) -> Tuple[StdlibBits, str]:
-    schema = stdlib.stdschema
+    schema = s_schema.ChainedSchema(
+        s_schema.EMPTY_SCHEMA,
+        stdlib.stdschema,
+        stdlib.global_schema,
+    )
     reflschema = stdlib.reflschema
 
     topblock = dbops.PLTopBlock()
@@ -1101,14 +1105,15 @@ async def _amend_stdlib(
         plans.append(plan)
 
     compiler = edbcompiler.new_compiler(
-        std_schema=schema,
+        std_schema=schema.get_top_schema(),
         reflection_schema=reflschema,
         schema_class_layout=stdlib.classlayout,  # type: ignore
     )
 
     compilerctx = edbcompiler.new_compiler_context(
         compiler_state=compiler.state,
-        user_schema=schema
+        user_schema=schema.get_top_schema(),
+        global_schema=schema.get_global_schema(),
     )
     for plan in plans:
         edbcompiler.compile_schema_storage_in_delta(
@@ -1119,7 +1124,11 @@ async def _amend_stdlib(
 
     sqltext = topblock.to_string()
 
-    return stdlib._replace(stdschema=schema, reflschema=reflschema), sqltext
+    return stdlib._replace(
+        stdschema=schema.get_top_schema(),
+        global_schema=schema.get_global_schema(),
+        reflschema=reflschema,
+    ), sqltext
 
 
 def _compile_intro_queries_stdlib(
