@@ -72,6 +72,7 @@ class BaseCluster:
     ):
         self._edgedb_cmd = [sys.executable, '-m', 'edb.server.main']
 
+        self._edgedb_cmd.append('--instance-name=_localtest')
         self._edgedb_cmd.append('--tls-cert-mode=generate_self_signed')
         self._edgedb_cmd.append('--jose-key-mode=generate')
 

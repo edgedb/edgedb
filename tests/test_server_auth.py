@@ -277,7 +277,7 @@ class TestServerAuth(tb.ConnectedTestCase):
                 [],
                 [("roles", ["edgedb"])],
                 [("databases", ["edgedb"])],
-                [("instances", ["_localdev"])],
+                [("instances", ["_localtest"])],
             ]
 
             for params in good_keys:
