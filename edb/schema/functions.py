@@ -1417,6 +1417,39 @@ class Function(
                         )
                     )
 
+                if not all(
+                    new_p.get_typemod(schema)
+                    == ext_p.get_typemod(schema)
+                    for new_p, ext_p in zip(new_params, ext_params)
+                ):
+                    # And also _all_ parameter names must match due to
+                    # current implementation constraints.
+                    my_sig = self.get_signature_as_str(schema)
+                    other_sig = f.get_signature_as_str(schema)
+                    raise errors.UnsupportedFeatureError(
+                        f'cannot create the `{my_sig}` '
+                        f'function: overloading an object type-receiving '
+                        f'function with differences in the type modifiers of '
+                        f'parameters is not supported',
+                        context=srcctx,
+                        details=(
+                            f"Other function is defined as `{other_sig}`"
+                        )
+                    )
+
+                if (
+                    new_params[this_diff_param].get_typemod(schema) !=
+                    ft.TypeModifier.SingletonType
+                ):
+                    my_sig = self.get_signature_as_str(schema)
+                    raise errors.UnsupportedFeatureError(
+                        f'cannot create the `{my_sig}` function: '
+                        f'object type-receiving '
+                        f'functions may not be overloaded on an OPTIONAL '
+                        f'parameter',
+                        context=srcctx,
+                    )
+
                 diff_param = this_diff_param
                 overloads.append(f)
 
