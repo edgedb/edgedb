@@ -72,6 +72,9 @@ class BaseCluster:
     ):
         self._edgedb_cmd = [sys.executable, '-m', 'edb.server.main']
 
+        if "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" not in os.environ:
+            self._edgedb_cmd.append('--instance-name=localtest')
+
         self._edgedb_cmd.append('--tls-cert-mode=generate_self_signed')
         self._edgedb_cmd.append('--jose-key-mode=generate')
 
