@@ -4044,16 +4044,6 @@ def create_subrel_for_expr(
     """
 
     # create a dummy path id for a dummy object
-    el_name = sn.QualName('__dummy__', '__object__')
-    dummy_obj_ptrref = irast.SpecialPointerRef(
-        name=el_name,
-        shortname=el_name,
-        out_source=an_id.target,
-        out_target=an_id.target,
-        out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
-    )
-    dummy_obj_id = an_id.extend(ptrref=dummy_obj_ptrref)
-
     el_name = sn.QualName('__dummy__', alias)
     query_ptrref = irast.SpecialPointerRef(
         name=el_name,
@@ -4062,7 +4052,7 @@ def create_subrel_for_expr(
         out_target=an_id.target,
         out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
     )
-    expr_id = dummy_obj_id.extend(ptrref=query_ptrref)
+    expr_id = an_id.extend(ptrref=query_ptrref)
 
     with ctx.subrel() as newctx:
 
@@ -4072,7 +4062,7 @@ def create_subrel_for_expr(
         # include the subrel in the parent
         new_rvar = relctx.rvar_for_rel(newctx.rel, ctx=ctx)
         relctx.include_rvar(
-            ctx.rel, new_rvar, dummy_obj_id, aspects=('source',), ctx=ctx
+            ctx.rel, new_rvar, expr_id, aspects=('value',), ctx=ctx
         )
 
     return expr_id
@@ -4081,7 +4071,6 @@ def create_subrel_for_expr(
 def process_set_as_fts_with_language(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
-    [a, b] = _compile_call_args(ir_set, ctx=ctx)
     raise errors.InvalidReferenceError(
         "fts::with_language can only be used within index expressions"
     )
