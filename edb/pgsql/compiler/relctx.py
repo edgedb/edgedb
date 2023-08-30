@@ -416,7 +416,6 @@ def new_empty_rvar(
     nullrel = pgast.NullRelation(
         path_id=ir_set.path_id, type_or_ptr_ref=ir_set.typeref)
     rvar = rvar_for_rel(nullrel, ctx=ctx)
-    pathctx.put_rvar_path_bond(rvar, ir_set.path_id)
     return rvar
 
 
