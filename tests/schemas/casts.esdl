@@ -39,6 +39,7 @@ type Test {
     property p_float64 -> float64;
     property p_bigint -> bigint;
     property p_decimal -> decimal;
+    property p_tup -> tuple<test: str>;
 }
 
 type JSONTest {
