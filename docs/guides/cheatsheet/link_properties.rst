@@ -12,6 +12,10 @@ Links can contain **properties**. These are distinct from links themselves
 link. Due to how they're persisted under the hood, link properties have a few
 additional constraints: they're always *single* and *optional*.
 
+In thinking about how to use link properties, keep in mind that they are link
+**properties**, not link **links**. This means they can contain only primitive
+data (scalars, enums, arrays, or tuples).
+
 .. note::
 
   In practice, link properties are best used with many-to-many relationships
