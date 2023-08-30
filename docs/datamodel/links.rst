@@ -395,6 +395,37 @@ the *nature/strength* of the relationship.
       }
     }
 
+.. note::
+
+    The divide between "link" and "property" is important when it comes to
+    understanding what link properties can do. They are link **properties**,
+    not link **links**. This means link properties can contain only primitive
+    data — data of any of the :ref:`scalar types <ref_datamodel_scalars>` like
+    ``str``, ``int32``, or ``bool``, :ref:`enums <ref_datamodel_enums>`,
+    :ref:`arrays <ref_datamodel_arrays>`, and :ref:`tuples
+    <ref_datamodel_tuples>`. They cannot contain links to other objects.
+
+    That means this would not work:
+
+    .. code-block::
+        :version-lt: 3.0
+
+        type Person {
+          property name -> str;
+          multi link friends -> Person {
+            link introduced_by -> Person;
+          }
+        }
+
+    .. code-block::
+
+        type Person {
+          name: str;
+          multi friends: Person {
+            introduced_by: Person;
+          }
+        }
+
 Above, we model a family tree with a single ``Person`` type. The ``Person.
 family_members`` link is a many-to-many relation; each ``family_members`` link
 can contain a string ``relationship`` describing the relationship of the two
