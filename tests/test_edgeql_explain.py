@@ -1211,7 +1211,29 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                 analyze (execute := "hell yeah") select User
             ''')
 
-    def get_gist_index_expected_res(self, fname, plan_type):
+    def assert_index_in_plan(self, data, propname, message='Index test'):
+        # First we check the plan_type as there are a couple of valid options
+        # here: IndexScan and BitmapHeapScan, but they have different
+        # substructure to check.
+        self.assert_plan(
+            data,
+            {
+                'fine_grained': {
+                    'pipeline': [dict()]
+                }
+            },
+            message=message,
+        )
+        plan_type = data['fine_grained']['pipeline'][0]['plan_type']
+        self.assert_plan(
+            data['fine_grained'],
+            self.get_gist_index_expected_res(
+                propname, plan_type, message=message
+            ),
+            message=message,
+        )
+
+    def get_gist_index_expected_res(self, fname, plan_type, message=None):
         if plan_type == 'IndexScan':
             return {
                 "pipeline": [
@@ -1258,7 +1280,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                     },
                 ],
             }
-        elif plan_type == 'BitmapIndexScan':
+        elif plan_type == 'BitmapHeapScan':
             return {
                 "pipeline": [
                     {
@@ -1297,63 +1319,49 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                     },
                 ],
             }
+        else:
+            self.fail(
+                f'{message}: "plan_type" expected to be "IndexScan" or '
+                f'"BitmapHeapScan", got {plan_type!r}'
+            )
 
     async def test_edgeql_explain_ranges_contains_01(self):
         res = await self.explain('''
             select RangeTest {id, rval}
             filter contains(.rval, 295)
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rval', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rval')
 
         res = await self.explain('''
             select RangeTest {id, mval}
             filter contains(.mval, 295)
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mval', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mval')
 
         res = await self.explain('''
             select RangeTest {id, rdate}
             filter contains(.rdate, <cal::local_date>'2000-01-05')
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rdate')
 
         res = await self.explain('''
             select RangeTest {id, mdate}
             filter contains(.mdate, <cal::local_date>'2000-01-05')
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mdate')
 
-    @unittest.skip("this test flakes: #5922")
     async def test_edgeql_explain_ranges_contains_02(self):
         res = await self.explain('''
             select RangeTest {id, rval}
             filter contains(.rval, range(295, 299))
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rval', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rval')
 
         res = await self.explain('''
             select RangeTest {id, mval}
             filter contains(.mval, range(295, 299))
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mval', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mval')
 
         res = await self.explain('''
             select RangeTest {id, rdate}
@@ -1363,10 +1371,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                       <cal::local_date>'2000-01-10')
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rdate')
 
         res = await self.explain('''
             select RangeTest {id, mdate}
@@ -1376,12 +1381,8 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                       <cal::local_date>'2000-01-10')
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mdate')
 
-    @unittest.skip("this test flakes: #5922")
     async def test_edgeql_explain_ranges_contains_03(self):
         res = await self.explain('''
             select RangeTest {id, mval}
@@ -1393,10 +1394,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                 ])
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mval', 'IndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mval')
 
         res = await self.explain('''
             select RangeTest {id, mdate}
@@ -1410,10 +1408,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                 ])
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mdate')
 
     async def test_edgeql_explain_ranges_overlaps_01(self):
         # The field is the first arg in `overlaps`
@@ -1421,19 +1416,13 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             select RangeTest {id, rval}
             filter overlaps(.rval, range(295, 299))
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rval', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rval')
 
         res = await self.explain('''
             select RangeTest {id, mval}
             filter overlaps(.mval, range(295, 299))
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mval', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mval')
 
         res = await self.explain('''
             select RangeTest {id, rdate}
@@ -1443,10 +1432,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                       <cal::local_date>'2000-01-10'),
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rdate')
 
         res = await self.explain('''
             select RangeTest {id, mdate}
@@ -1456,10 +1442,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                       <cal::local_date>'2000-01-10'),
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mdate')
 
     async def test_edgeql_explain_ranges_overlaps_02(self):
         # The field is the second arg in `overlaps`
@@ -1467,19 +1450,13 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             select RangeTest {id, rval}
             filter overlaps(range(295, 299), .rval)
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rval', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rval')
 
         res = await self.explain('''
             select RangeTest {id, mval}
             filter overlaps(range(295, 299), .mval)
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mval', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mval')
 
         res = await self.explain('''
             select RangeTest {id, rdate}
@@ -1489,10 +1466,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                 .rdate,
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rdate')
 
         res = await self.explain('''
             select RangeTest {id, mdate}
@@ -1502,10 +1476,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                 .mdate,
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mdate')
 
     async def test_edgeql_explain_ranges_adjacent_01(self):
         # The field is the first arg in `adjacent`
@@ -1513,19 +1484,13 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             select RangeTest {id, rval}
             filter adjacent(.rval, range(295, 299))
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rval', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rval')
 
         res = await self.explain('''
             select RangeTest {id, mval}
             filter adjacent(.mval, range(295, 299))
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mval', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mval')
 
         res = await self.explain('''
             select RangeTest {id, rdate}
@@ -1535,10 +1500,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                       <cal::local_date>'2000-01-10'),
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rdate')
 
         res = await self.explain('''
             select RangeTest {id, mdate}
@@ -1548,10 +1510,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                       <cal::local_date>'2000-01-10'),
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mdate')
 
     async def test_edgeql_explain_ranges_adjacent_02(self):
         # The field is the second arg in `adjacent`
@@ -1559,19 +1518,13 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             select RangeTest {id, rval}
             filter adjacent(range(295, 299), .rval)
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rval', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rval')
 
         res = await self.explain('''
             select RangeTest {id, mval}
             filter adjacent(range(295, 299), .mval)
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mval', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mval')
 
         res = await self.explain('''
             select RangeTest {id, rdate}
@@ -1581,10 +1534,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                 .rdate,
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rdate')
 
         res = await self.explain('''
             select RangeTest {id, mdate}
@@ -1594,10 +1544,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                 .mdate,
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mdate')
 
     async def test_edgeql_explain_ranges_strictly_below_01(self):
         # The field is the first arg in `strictly_below`
@@ -1605,19 +1552,13 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             select RangeTest {id, rval}
             filter strictly_below(.rval, range(-50, 50))
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rval', 'IndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rval')
 
         res = await self.explain('''
             select RangeTest {id, mval}
             filter strictly_below(.mval, range(-50, 50))
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mval', 'IndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mval')
 
         res = await self.explain('''
             select RangeTest {id, rdate}
@@ -1627,10 +1568,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                       <cal::local_date>'2012-02-10'),
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rdate', 'IndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rdate')
 
         res = await self.explain('''
             select RangeTest {id, mdate}
@@ -1640,10 +1578,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                       <cal::local_date>'2012-02-10'),
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mdate', 'IndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mdate')
 
     async def test_edgeql_explain_ranges_strictly_below_02(self):
         # The field is the second arg in `strictly_below`
@@ -1651,19 +1586,13 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             select RangeTest {id, rval}
             filter strictly_below(range(-50, 50), .rval)
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rval', 'IndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rval')
 
         res = await self.explain('''
             select RangeTest {id, mval}
             filter strictly_below(range(-50, 50), .mval)
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mval', 'IndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mval')
 
         res = await self.explain('''
             select RangeTest {id, rdate}
@@ -1673,10 +1602,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                 .rdate,
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rdate')
 
         res = await self.explain('''
             select RangeTest {id, mdate}
@@ -1686,10 +1612,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                 .mdate,
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mdate')
 
     async def test_edgeql_explain_ranges_strictly_above_01(self):
         # The field is the first arg in `strictly_above`
@@ -1697,19 +1620,13 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             select RangeTest {id, rval}
             filter strictly_above(.rval, range(-50, 50))
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rval', 'IndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rval')
 
         res = await self.explain('''
             select RangeTest {id, mval}
             filter strictly_above(.mval, range(-50, 50))
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mval', 'IndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mval')
 
         res = await self.explain('''
             select RangeTest {id, rdate}
@@ -1719,10 +1636,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                       <cal::local_date>'2012-02-10'),
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rdate')
 
         res = await self.explain('''
             select RangeTest {id, mdate}
@@ -1732,10 +1646,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                       <cal::local_date>'2012-02-10'),
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mdate')
 
     async def test_edgeql_explain_ranges_strictly_above_02(self):
         # The field is the second arg in `strictly_above`
@@ -1743,19 +1654,13 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             select RangeTest {id, rval}
             filter strictly_above(range(-50, 50), .rval)
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rval', 'IndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rval')
 
         res = await self.explain('''
             select RangeTest {id, mval}
             filter strictly_above(range(-50, 50), .mval)
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mval', 'IndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mval')
 
         res = await self.explain('''
             select RangeTest {id, rdate}
@@ -1765,10 +1670,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                 .rdate,
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rdate', 'IndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rdate')
 
         res = await self.explain('''
             select RangeTest {id, mdate}
@@ -1778,10 +1680,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                 .mdate,
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mdate', 'IndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mdate')
 
     async def test_edgeql_explain_ranges_bounded_below_01(self):
         # The field is the first arg in `bounded_below`
@@ -1789,19 +1688,13 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             select RangeTest {id, rval}
             filter bounded_below(.rval, range(-50, 50))
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rval', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rval')
 
         res = await self.explain('''
             select RangeTest {id, mval}
             filter bounded_below(.mval, range(-50, 50))
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mval', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mval')
 
         res = await self.explain('''
             select RangeTest {id, rdate}
@@ -1811,10 +1704,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                       <cal::local_date>'2015-02-10'),
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rdate')
 
         res = await self.explain('''
             select RangeTest {id, mdate}
@@ -1824,10 +1714,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                       <cal::local_date>'2015-02-10'),
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mdate', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mdate')
 
     async def test_edgeql_explain_ranges_bounded_above_01(self):
         # The field is the first arg in `bounded_above`
@@ -1835,19 +1722,13 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             select RangeTest {id, rval}
             filter bounded_above(.rval, range(-50, 50))
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rval', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rval')
 
         res = await self.explain('''
             select RangeTest {id, mval}
             filter bounded_above(.mval, range(-50, 50))
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mval', 'BitmapIndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mval')
 
         res = await self.explain('''
             select RangeTest {id, rdate}
@@ -1857,10 +1738,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                       <cal::local_date>'2012-02-10'),
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('rdate', 'IndexScan'),
-        )
+        self.assert_index_in_plan(res, 'rdate')
 
         res = await self.explain('''
             select RangeTest {id, mdate}
@@ -1870,10 +1748,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                       <cal::local_date>'2012-02-10'),
             )
         ''')
-        self.assert_plan(
-            res['fine_grained'],
-            self.get_gist_index_expected_res('mdate', 'IndexScan'),
-        )
+        self.assert_index_in_plan(res, 'mdate')
 
     async def test_edgeql_explain_json_contains_01(self):
         res = await self.explain('''
