@@ -612,12 +612,12 @@ class ParamScalar(ParamTransType):
 
 @dataclasses.dataclass(eq=False)
 class ParamTuple(ParamTransType):
-    typs: tuple[ParamTransType, ...]
+    typs: tuple[tuple[typing.Optional[str], ParamTransType], ...]
 
     def flatten(self) -> tuple[typing.Any, ...]:
         return (
             (int(qltypes.TypeTag.TUPLE), self.idx)
-            + tuple(x.flatten() for x in self.typs)
+            + tuple(x.flatten() for _, x in self.typs)
         )
 
 
