@@ -4707,6 +4707,32 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     USING ('bar');
             """)
 
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"cannot create the .* function: overloading an object "
+            r"type-receiving function with differences in the type modifiers "
+            r"of parameters is not supported",
+        ):
+            await self.con.execute(r"""
+                CREATE FUNCTION func32_a(obj: Foo, a: int32) -> str
+                    USING ('foo');
+                CREATE FUNCTION func32_a(obj: Bar, a: OPTIONAL int32) -> str
+                    USING ('bar');
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"cannot create the .* function: object "
+            r"type-receiving functions may not be overloaded on an OPTIONAL "
+            r"parameter"
+        ):
+            await self.con.execute(r"""
+                CREATE FUNCTION func32_a(obj: OPTIONAL Foo) -> str
+                    USING ('foo');
+                CREATE FUNCTION func32_a(obj: OPTIONAL Bar) -> str
+                    USING ('bar');
+            """)
+
     async def test_edgeql_ddl_function_33(self):
         await self.con.execute(r"""
             CREATE TYPE Parent;
