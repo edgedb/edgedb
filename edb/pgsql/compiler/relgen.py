@@ -339,7 +339,7 @@ class _SimpleSpecialCaseFunc(Protocol):
 _SIMPLE_SPECIAL_FUNCTIONS: dict[str, _SimpleSpecialCaseFunc] = {}
 
 
-def _simple_special_case(name: str) -> Callable[
+def simple_special_case(name: str) -> Callable[
     [_SimpleSpecialCaseFunc], _SimpleSpecialCaseFunc
 ]:
     def func(f: _SimpleSpecialCaseFunc) -> _SimpleSpecialCaseFunc:
@@ -4091,11 +4091,3 @@ def create_subrel_for_expr(
         )
 
     return expr_id
-
-@_special_case('fts::with_language')
-def process_set_as_fts_with_language(
-    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
-) -> SetRVars:
-    raise errors.InvalidReferenceError(
-        "fts::with_language can only be used within index expressions"
-    )
