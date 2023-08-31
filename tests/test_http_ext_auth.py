@@ -228,9 +228,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_github_authorize_01(self):
         with MockAuthProvider(), self.http_con() as http_con:
-            provider_config = await self.get_client_config_by_provider(
-                "github"
-            )
+            provider_config = await self.get_client_config_by_provider("github")
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
 
@@ -254,7 +252,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             state = qs.get("state")
             assert state is not None
 
-            signed_token = jwt.JWT(key=signing_key, algs=["HS256"], jwt=state[0])
+            signed_token = jwt.JWT(
+                key=signing_key, algs=["HS256"], jwt=state[0]
+            )
             claims = json.loads(signed_token.claims)
             self.assertEqual(claims.get("provider"), provider_id)
             self.assertEqual(claims.get("iss"), self.http_addr)
@@ -289,9 +289,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_github_callback_wrong_key_01(self):
         with MockAuthProvider(), self.http_con() as http_con:
-            provider_config = await self.get_client_config_by_provider(
-                "github"
-            )
+            provider_config = await self.get_client_config_by_provider("github")
             provider_id = provider_config.provider_id
             signing_key = jwk.JWK(
                 k=base64.b64encode(("abcd" * 8).encode()).decode(), kty="oct"
@@ -329,9 +327,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": "beepboopbeep",
                 "exp": expires_at.astimezone().timestamp(),
             }
-            state_token = self.generate_state_value(
-                state_claims, signing_key
-            )
+            state_token = self.generate_state_value(state_claims, signing_key)
 
             _, _, status = self.http_con_request(
                 http_con,
@@ -343,9 +339,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_github_callback_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
-            provider_config = await self.get_client_config_by_provider(
-                "github"
-            )
+            provider_config = await self.get_client_config_by_provider("github")
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
             client_secret = provider_config.secret
@@ -391,9 +385,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "exp": expires_at.astimezone().timestamp(),
                 "redirect_to": f"{self.http_addr}/some/path",
             }
-            state_token = self.generate_state_value(
-                state_claims, signing_key
-            )
+            state_token = self.generate_state_value(state_claims, signing_key)
 
             data, headers, status = self.http_con_request(
                 http_con,
@@ -501,9 +493,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_github_callback_failure_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
-            provider_config = await self.get_client_config_by_provider(
-                "github"
-            )
+            provider_config = await self.get_client_config_by_provider("github")
             provider_id = provider_config.provider_id
 
             now = datetime.datetime.utcnow()
@@ -563,9 +553,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_github_callback_failure_02(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
-            provider_config = await self.get_client_config_by_provider(
-                "github"
-            )
+            provider_config = await self.get_client_config_by_provider("github")
             provider_id = provider_config.provider_id
 
             now = datetime.datetime.utcnow()
@@ -619,6 +607,3 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 url.query,
                 "error=access_denied",
             )
-
-
-
