@@ -247,6 +247,11 @@ def run_codegen(
     codegen = pgcodegen.SQLSourceGenerator(pretty=pretty, reordered=reordered)
     try:
         codegen.visit(qtree)
+    except RecursionError:
+        # Don't try to wrap and add context to a recursion error,
+        # since the context might easily be too deeply recursive to
+        # process further down the pipe.
+        raise
     except pgcodegen.SQLSourceGeneratorError as e:  # pragma: no cover
         ctx = pgcodegen.SQLSourceGeneratorContext(
             qtree, codegen.result)
