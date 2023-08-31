@@ -529,7 +529,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 {
                     "state": state_token,
                     "error": "access_denied",
-                    "error_description": "The user has denied your application access",
+                    "error_description": (
+                        "The user has denied your application access"
+                    ),
                 },
                 path="callback",
             )
