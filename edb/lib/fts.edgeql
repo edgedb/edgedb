@@ -31,7 +31,7 @@ CREATE SCALAR TYPE fts::searchable_str {
 
 CREATE FUNCTION fts::with_language(
     text: std::str,
-    language: std::str,
+    language: anyenum,
 ) -> fts::searchable_str {
     CREATE ANNOTATION std::description :=
         'Adds language information to a string';
@@ -48,8 +48,116 @@ CREATE FUNCTION fts::search(
     score: float32,
 >
 {
-    CREATE ANNOTATION std::description :=
-        'Return true if the document matches the FTS query.';
+    CREATE ANNOTATION std::description := '
+        Search an object using its fts::textsearch index.
+        Returns objects that match the specified query and the matching score
+    ';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
+};
+
+CREATE SCALAR TYPE fts::PGLanguage
+    EXTENDING enum<
+        Simple,
+        Arabic,
+        Armenian,
+        Basque,
+        Catalan,
+        Danish,
+        Dutch,
+        English,
+        Finnish,
+        French,
+        German,
+        Greek,
+        Hindi,
+        Hungarian,
+        Indonesian,
+        Irish,
+        Italian,
+        Lithuanian,
+        Nepali,
+        Norwegian,
+        Portuguese,
+        Romanian,
+        Russian,
+        Serbian,
+        Spanish,
+        Swedish,
+        Tamil,
+        Turkish,
+        Yiddis,
+    > {
+    CREATE ANNOTATION std::description :=
+        'Languages supported by PostgreSQL FTS';
+};
+
+CREATE SCALAR TYPE fts::ElasticLanguage
+    EXTENDING enum<
+        Arabic,
+        Armenian,
+        Basque,
+        Brazilian,
+        Bulgarian,
+        Catalan,
+        Chinese,
+        Cjk,
+        Czech,
+        Danish,
+        Dutch,
+        English,
+        Finnish,
+        French,
+        Galician,
+        German,
+        Greek,
+        Hindi,
+        Hungarian,
+        Indonesian,
+        Irish,
+        Italian,
+        Latvian,
+        Norwegian,
+        Persian,
+        Portuguese,
+        Romanian,
+        Russian,
+        Sorani,
+        Spanish,
+        Swedish,
+        Turkish,
+        Thai,
+    > {
+    CREATE ANNOTATION std::description :=
+        'Languages supported by ElasticSearch';
+};
+
+CREATE SCALAR TYPE fts::Language
+    EXTENDING enum<
+        Arabic,
+        Armenian,
+        Basque,
+        Catalan,
+        Danish,
+        Dutch,
+        English,
+        Finnish,
+        French,
+        German,
+        Greek,
+        Hindi,
+        Hungarian,
+        Indonesian,
+        Irish,
+        Italian,
+        Norwegian,
+        Portuguese,
+        Romanian,
+        Russian,
+        Spanish,
+        Swedish,
+        Turkish,
+    > {
+    CREATE ANNOTATION std::description :=
+        'Languages supported by both PostgreSQL FTS and ElasticSearch';
 };

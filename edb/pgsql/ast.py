@@ -1231,3 +1231,4 @@ class SearchableString(BaseExpr):
     text: BaseExpr
 
     language: BaseExpr
+    language_domain: typing.Set[str]

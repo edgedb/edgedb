@@ -467,3 +467,14 @@ def contains_set_of_op(ir: irast.Base) -> bool:
     flt = (lambda n: any(x == ft.TypeModifier.SetOfType
                          for x in n.params_typemods))
     return bool(ast.find_children(ir, irast.Call, flt, terminate_early=True))
+
+
+def as_const(ir: irast.Base) -> Optional[irast.BaseConstant]:
+    match ir:
+        case irast.BaseConstant():
+            return ir
+        case irast.TypeCast():
+            return as_const(ir.expr)
+        case irast.Set() if ir.expr:
+            return as_const(ir.expr)
+    return None
