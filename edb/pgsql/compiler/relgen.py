@@ -3929,6 +3929,20 @@ def process_set_as_fts_search(
                     aspect='value',
                     ctx=newctx,
                 )
+                # assert isinstance(ctid, pgast.ColumnRef)
+                # rvar_ref = ctid.name[0]
+                # assert isinstance(rvar_ref, str)
+                # zombo_func = pgast.FuncCall(
+                #     name=('edgedbpub', 'd7224ef9-468a-11ee-86e7-f7464f0de8c2_zombo_func'),
+                #     args=[
+                #         pgast.TypeCast(
+                #             arg=pgast.ColumnRef(name=(rvar_ref,)),
+                #             type_name=pgast.TypeName(
+                #                 name=('edgedbpub', 'd7191afb-468a-11ee-9000-ef83593022b3'),
+                #             )
+                #         ),
+                #     ]
+                # )
 
                 score_pg = pgast.FuncCall(
                     name= ('zdb', 'score'),

@@ -3703,34 +3703,33 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
 
         from edb.common import debug
         if debug.flags.zombodb:
-            # TODO: create a function for specifing which columns to index
-            #       (see zombo docs on creating indexes)
-
             zombo_type_name = cls.fts_zombo_type_name(table_name)
             ops.add_command(dbops.CreateCompositeType(dbops.CompositeType(
                 name=zombo_type_name,
                 columns=[
                     dbops.Column(
-                        name=f'field{index}',
+                        name=f'field{idx}',
                         type='text',
                     )
-                    for index, _ in enumerate(exprs)
+                    for idx, _ in enumerate(exprs)
                 ]
             )))
 
+            type_mappings: List[Tuple[str, str]] = []
             document_exprs = []
-            for expr in exprs:
-                if isinstance(expr, pg_ast.SearchableString):
-                    language = expr.language
-                    text: pg_ast.BaseExpr = expr.text
-                else:
-                    language = pg_ast.StringConstant(val='english')
-                    text = expr
+            for idx, expr in enumerate(exprs):
+                assert isinstance(expr, pg_ast.SearchableString)
 
-                text_sql = codegen.generate_source(text)
-                _language_sql = codegen.generate_source(language)
+                text_sql = codegen.generate_source(expr.text)
+
+                if len(expr.language_domain) != 1:
+                    raise errors.UnsupportedFeatureError(
+                        'zombo fts indexes support only exactly one language'
+                    )
+                language = next(iter(expr.language_domain))
 
                 document_exprs.append(text_sql)
+                type_mappings.append((f'field{idx}', language))
 
             zombo_func_name = cls.fts_zombo_func_name(table_name)
             ops.add_command(dbops.CreateFunction(dbops.Function(
@@ -3744,6 +3743,15 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                     ROW({','.join(document_exprs)})::{q(*zombo_type_name)};
                 '''
             )))
+
+            for col_name, analyzer in type_mappings:
+                mapping = f'{{"type": "text", "analyzer": "{analyzer}"}}'
+
+                ops.add_command(dbops.Query(f"""PERFORM zdb.define_field_mapping(
+                    {ql(q(*table_name))}::regclass,
+                    {ql(col_name)}::text,
+                    {ql(mapping)}::json
+                )"""))
 
             index_exprs = [f'{q(*zombo_func_name)}({qi(table_name[1])}.*)']
             root_code = 'zombodb ((__col__))'
