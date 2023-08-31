@@ -2391,14 +2391,15 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
             if (
                 isinstance(self.classname, sn.QualName)
+                and (modname := self.classname.get_module_name())
                 and (
-                    (modname := self.classname.get_module_name())
+                    (modroot := sn.UnqualName(modname.name.partition('::')[0]))
                     in s_schema.STD_MODULES
                 )
             ):
                 raise errors.SchemaDefinitionError(
                     f'cannot {self._delta_action} {self.get_verbosename()}: '
-                    f'module {modname} is read-only',
+                    f'module {modroot} is read-only',
                     context=self.source_context)
 
     def get_verbosename(self, parent: Optional[str] = None) -> str:
