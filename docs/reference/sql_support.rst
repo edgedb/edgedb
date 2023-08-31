@@ -30,6 +30,19 @@ You'll then be prompted for a password. If you don't have it, you can run
 command returns. (It's the string between the second colon and the "at" symbol:
 ``edgedb://edgedb:PASSWORD_IS_HERE@<host>:<port>/<database>``)
 
+.. warning::
+
+    Connecting to an EdgeDB Cloud instance via a Postgres client requires SNI
+    support which was introduced in libpq v14. If a Postgres client uses your
+    system's libpq (``psql`` does), you can connect as long as your libpq
+    version is 14+. To check your version, run ``psql --version`` or
+    ``pg_config --version``.
+
+    If you're on Windows and these do not work for you, you can instead
+    navigate to ``bin`` under your Postgres installation location, right-click
+    ``libpq.dll``, click "Properties," and find the version on the "Details"
+    tab.
+
 This works well to test SQL support, but if you are going to be using it on an
 ongoing basis, you may want to create a new role and use it to authenticate
 your SQL clients. Set a password when you create your role. Then, use the role
