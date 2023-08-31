@@ -158,6 +158,37 @@ pg_oid_typeref = irast.TypeRef(
     sql_type='pg_catalog.oid',
 )
 
+pg_langs = {
+    'simple',
+    'arabic',
+    'armenian',
+    'basque',
+    'catalan',
+    'danish',
+    'dutch',
+    'english',
+    'finnish',
+    'french',
+    'german',
+    'greek',
+    'hindi',
+    'hungarian',
+    'indonesian',
+    'irish',
+    'italian',
+    'lithuanian',
+    'nepali',
+    'norwegian',
+    'portuguese',
+    'romanian',
+    'russian',
+    'serbian',
+    'spanish',
+    'swedish',
+    'tamil',
+    'turkish',
+    'yiddis',
+}
 
 def is_builtin_scalar(
     schema: s_schema.Schema, scalar: s_scalars.ScalarType

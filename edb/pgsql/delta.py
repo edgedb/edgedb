@@ -3776,15 +3776,14 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             document_exprs = []
             for expr in exprs:
                 weight = "'A'"
-                if isinstance(expr, pg_ast.SearchableString):
-                    language = expr.language
-                    text = expr.text
-                else:
-                    language = pg_ast.StringConstant(val='english')
-                    text = expr
+                assert isinstance(expr, pg_ast.SearchableString)
 
-                text_sql = codegen.generate_source(text)
-                language_sql = codegen.generate_source(language)
+                unsupported = expr.language_domain.difference(types.pg_langs)
+                if len(unsupported) > 0:
+                    _raise_unsupported_language_error(unsupported)
+
+                text_sql = codegen.generate_source(expr.text)
+                language_sql = codegen.generate_source(expr.language)
 
                 document_exprs.append(
                     f'''
@@ -3861,6 +3860,22 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         self.pgops.add(self.create_index(index, schema, context))
 
         return schema
+
+
+def _raise_unsupported_language_error(
+    unsupported: Collection[str],
+) -> None:
+    unsupported = list(unsupported)
+    unsupported.sort()
+        
+    msg = 'Full text search language'
+    if len(unsupported) > 1:
+        msg += 's'
+
+    msg += ' ' + ', '.join(f'`{l}`' for l in unsupported)
+    msg += ' not supported'
+
+    raise errors.UnsupportedFeatureError(msg)
 
 
 # mypy claims that _cmd_from_ast in IndexCommand is incompatible with

@@ -19,6 +19,8 @@
 
 import os.path
 
+import edgedb
+
 from edb.testbase import server as tb
 
 
@@ -292,3 +294,36 @@ class TestEdgeQLFTS(tb.QueryTestCase):
                 "rank": 9.999999682655224e-21
             }]
         )
+
+    async def test_edgeql_fts_language_01(self):
+        await self.con.execute(
+            '''
+            type MyLangs extends Enum<English, PigLatin, Esperanto>;
+
+            create type Doc1 {
+                create required property x -> str;
+
+                create index fts::textsearch on (
+                    fts::with_language(.x, MyLangs.English)
+                );
+            }
+            create type Doc2 {
+                create required property x -> str;
+            }
+            '''
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            "`piglatin`, `esperanto`",
+        ):
+            # In this case, language is not a constant, so we fallback to all
+            # possible values of the enum. This then fails because some of them
+            # are not supported by postgres.
+            await self.con.execute("""
+                alter type Doc2 create index fts::textsearch on (
+                    fts::with_language(.x,
+                        MyLangs.English if .x == 'blah' else MyLangs.PigLatin
+                    )
+                );
+            """)
