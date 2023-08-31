@@ -475,7 +475,7 @@ class Environment:
 
     aliases: aliases.AliasGenerator
     output_format: Optional[OutputFormat]
-    use_named_params: bool
+    use_named_params: Optional[tuple[str, ...]]
     ptrref_source_visibility: Dict[irast.BasePointerRef, bool]
     expected_cardinality_one: bool
     ignore_object_shapes: bool
@@ -496,7 +496,7 @@ class Environment:
         self,
         *,
         output_format: Optional[OutputFormat],
-        use_named_params: bool,
+        use_named_params: Optional[tuple[str, ...]],
         expected_cardinality_one: bool,
         ignore_object_shapes: bool,
         singleton_mode: bool,

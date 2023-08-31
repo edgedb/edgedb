@@ -5060,7 +5060,7 @@ def _make_json_caster(
 
     cast_sql_res = compiler.compile_ir_to_sql_tree(
         cast_ir,
-        use_named_params=True,
+        use_named_params=(),
         singleton_mode=True,
     )
     cast_sql = codegen.generate_source(cast_sql_res.ast)

@@ -126,9 +126,9 @@ def compile_Parameter(
     params = [p for p in ctx.env.query_params if p.name == expr.name]
     param = params[0] if params else None
 
-    if not is_decimal and ctx.env.use_named_params:
+    if not is_decimal and ctx.env.use_named_params is not None:
         result = pgast.ColumnRef(
-            name=(expr.name, ),
+            name=ctx.env.use_named_params + (expr.name,),
             nullable=not expr.required,
         )
     elif param and param.sub_params:

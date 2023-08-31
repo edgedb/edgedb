@@ -57,7 +57,7 @@ def compile_ir_to_sql_tree(
     ignore_shapes: bool = False,
     explicit_top_cast: Optional[irast.TypeRef] = None,
     singleton_mode: bool = False,
-    use_named_params: bool = False,
+    use_named_params: Optional[tuple[str, ...]] = None,
     expected_cardinality_one: bool = False,
     expand_inhviews: bool = False,
     external_rvars: Optional[
