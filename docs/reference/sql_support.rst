@@ -32,10 +32,11 @@ command returns. (It's the string between the second colon and the "at" symbol:
 
 .. warning::
 
-    Connecting to EdgeDB via a Postgres client requires SNI support which was
-    introduced in libpq v14. If a Postgres client uses your system's libpq
-    (``psql`` does), you can connect as long as your libpq version is 14+. To
-    check your version, run ``psql --version`` or ``pg_config --version``.
+    Connecting to an EdgeDB Cloud instance via a Postgres client requires SNI
+    support which was introduced in libpq v14. If a Postgres client uses your
+    system's libpq (``psql`` does), you can connect as long as your libpq
+    version is 14+. To check your version, run ``psql --version`` or
+    ``pg_config --version``.
 
     If you're on Windows and these do not work for you, you can instead
     navigate to ``bin`` under your Postgres installation location, right-click
