@@ -56,7 +56,11 @@ def generate(
 
     try:
         generator.visit(node)
-
+    except RecursionError:
+        # Don't try to wrap and add context to a recursion error,
+        # since the context might easily be too deeply recursive to
+        # process further down the pipe.
+        raise
     except GeneratorError as error:
         ctx = GeneratorContext(node, generator.result)
         exceptions.add_context(error, ctx)

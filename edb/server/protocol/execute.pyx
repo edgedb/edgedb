@@ -37,6 +37,7 @@ from edb.edgeql import qltypes
 from edb.server import compiler
 from edb.server import config
 from edb.server import defines as edbdef
+from edb.server.compiler import errormech
 from edb.server.dbview cimport dbview
 from edb.server.protocol cimport args_ser
 from edb.server.protocol cimport frontend
@@ -582,3 +583,49 @@ cdef bytes _encode_args(list args):
                 out_buf.write_bytes(jval)
 
     return bytes(out_buf)
+
+
+def interpret_error(
+    exc: Exception,
+    *,
+    get_schema: object,
+    tenant: object,
+    from_graphql: bool=False,
+) -> tuple[Exception, type]:
+
+    if isinstance(exc, RecursionError):
+        exc = errors.UnsupportedFeatureError(
+            "query too deeply nested: the query caused the compiler "
+            "stack to overflow",
+        )
+
+    elif isinstance(exc, pgerror.BackendError):
+        try:
+            static_exc = errormech.static_interpret_backend_error(exc.fields)
+
+            # only use the backend if schema is required
+            if static_exc is errormech.SchemaRequired:
+                exc = errormech.interpret_backend_error(
+                    get_schema(),
+                    exc.fields,
+                    from_graphql=from_graphql,
+                )
+            elif isinstance(static_exc, (
+                    errors.DuplicateDatabaseDefinitionError,
+                    errors.UnknownDatabaseError)):
+                tenant_id = tenant.tenant_id
+                message = static_exc.args[0].replace(f'{tenant_id}_', '')
+                exc = type(static_exc)(message)
+            else:
+                exc = static_exc
+
+        except Exception as e:
+            exc = RuntimeError(
+                'unhandled error while calling interpret_backend_error(); '
+                'run with EDGEDB_DEBUG_SERVER to debug.')
+
+    exc_type = type(exc)
+    if not issubclass(exc_type, errors.EdgeDBError):
+        exc_type = errors.InternalServerError
+
+    return exc, exc_type

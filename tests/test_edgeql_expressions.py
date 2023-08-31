@@ -9626,3 +9626,14 @@ aa \
             """,
             [R'aaaa\q\n'],
         )
+
+    async def test_edgeql_overflow_error(self):
+        body = 'x+' * 1600 + '0'
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            "query too deeply nested",
+        ):
+            await self.con.query(f'''
+                with x := 1337, select {body}
+            ''')

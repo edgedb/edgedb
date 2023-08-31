@@ -180,25 +180,17 @@ async def handle_request(
         if issubclass(ex_type, gql_errors.GraphQLError):
             # XXX Fix this when LSP "location" objects are implemented
             ex_type = errors.QueryError
-        elif issubclass(ex_type, pgerrors.BackendError):
-            static_exc = errormech.static_interpret_backend_error(
-                ex.fields, from_graphql=True)
-
-            # only use the backend if schema is required
-            if static_exc is errormech.SchemaRequired:
-                ex = errormech.interpret_backend_error(
-                    s_schema.ChainedSchema(
-                        tenant.server.get_std_schema(),
-                        db.user_schema,
-                        tenant.get_global_schema(),
-                    ),
-                    ex.fields,
-                    from_graphql=True,
+        else:
+            def _get_schema():
+                return s_schema.ChainedSchema(
+                    tenant.server.get_std_schema(),
+                    db.user_schema,
+                    tenant.get_global_schema(),
                 )
-            else:
-                ex = static_exc
 
-            ex_type = type(ex)
+            ex, ex_type = execute.interpret_error(
+                ex, get_schema=_get_schema, tenant=tenant
+            )
 
         err_dct = {
             'message': f'{ex_type.__name__}: {ex}',
