@@ -812,15 +812,13 @@ def _compile_set_in_singleton_mode(
         return colref
 
 
-@relgen.simple_special_case('fts::with_language')
-def compile_fts_with_language(
-    expr: irast.FunctionCall,
-    *,
+@dispatch.compile.register(irast.SearchableString)
+def compile_SearchableString(
+    expr: irast.SearchableString, *,
     ctx: context.CompilerContextLevel
 ) -> pgast.BaseExpr:
-    ([text, language], _) = _compile_call_args(expr, ctx=ctx)
-
     return pgast.SearchableString(
-        text=text,
-        language=language,
+        text=dispatch.compile(expr.text, ctx=ctx),
+        language=dispatch.compile(expr.language, ctx=ctx),
+        language_domain=expr.language_domain
     )

@@ -1246,3 +1246,12 @@ class ConfigReset(ConfigCommand):
 class ConfigInsert(ConfigCommand):
 
     expr: Set
+
+
+class SearchableString(Expr):
+
+    text: Set
+
+    language: Set
+
+    language_domain: typing.Set[str]

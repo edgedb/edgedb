@@ -307,8 +307,32 @@ def compile_FunctionCall(
         global_args=global_args,
     )
 
-    ir_set = setgen.ensure_set(fcall, typehint=rtype, path_id=path_id, ctx=ctx)
+    # Apply special function handling
+    if special_func := _SPECIAL_FUNCTIONS.get(str(func_name)):
+        res = special_func(fcall, ctx=ctx)
+    else:
+        res = fcall
+
+    ir_set = setgen.ensure_set(res, typehint=rtype, path_id=path_id, ctx=ctx)
     return stmt.maybe_add_view(ir_set, ctx=ctx)
+
+
+class _SpecialCaseFunc(Protocol):
+    def __call__(
+        self, call: irast.FunctionCall, *, ctx: context.ContextLevel
+    ) -> irast.Expr:
+        pass
+
+_SPECIAL_FUNCTIONS: dict[str, _SpecialCaseFunc] = {}
+
+def _simple_special_case(name: str) -> Callable[
+    [_SpecialCaseFunc], _SpecialCaseFunc
+]:
+    def func(f: _SpecialCaseFunc) -> _SpecialCaseFunc:
+        _SPECIAL_FUNCTIONS[name] = f
+        return f
+
+    return func
 
 
 #: A dictionary of conditional callables and the indices
@@ -898,3 +922,38 @@ def finalize_args(
                           is_default=barg.is_default))
 
     return args, typemods
+
+
+@_simple_special_case('fts::with_language')
+def compile_fts_with_language(
+    call: irast.FunctionCall, *, ctx: context.ContextLevel
+) -> irast.Expr:
+    # language has already been typechecked to be an enum
+    language = call.args[1].expr
+    assert language.typeref
+    mat_ty_id = language.typeref.id
+    ty = ctx.env.schema.get_by_id(mat_ty_id, type=s_scalars.ScalarType)
+    assert ty
+
+    language_domain = set() # languages that the fts index needs to support
+    if irutils.is_const(language):
+        # language is constant
+        # -> determine its only value at compile time
+        lang_const = irutils.as_const(language)
+        assert lang_const
+        language_domain.add(str(lang_const.value).lower())
+    
+    else:
+        # language is not constant
+        # -> use all possible values of the enum
+
+        enum_values = ty.get_enum_values(ctx.env.schema)
+        assert enum_values
+        for enum_value in enum_values:
+            language_domain.add(enum_value.lower())
+
+    return irast.SearchableString(
+        text=call.args[0].expr,
+        language=language,
+        language_domain=language_domain,
+    )
