@@ -1187,6 +1187,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_PLATFORM_LIBC: ""
@@ -1212,6 +1213,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-buster@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1235,7 +1237,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_PLATFORM_LIBC: ""
@@ -1261,7 +1263,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-buster@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1288,6 +1290,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_PLATFORM_LIBC: ""
@@ -1313,6 +1316,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-buster@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1336,7 +1340,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_PLATFORM_LIBC: ""
@@ -1362,7 +1366,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-buster@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1389,6 +1393,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_PLATFORM_LIBC: ""
@@ -1414,6 +1419,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1437,7 +1443,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_PLATFORM_LIBC: ""
@@ -1463,7 +1469,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1490,6 +1496,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_PLATFORM_LIBC: ""
@@ -1515,6 +1522,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1538,7 +1546,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_PLATFORM_LIBC: ""
@@ -1564,7 +1572,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1591,6 +1599,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_PLATFORM_LIBC: ""
@@ -1616,6 +1625,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bookworm@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1639,7 +1649,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_PLATFORM_LIBC: ""
@@ -1665,7 +1675,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bookworm@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1692,6 +1702,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_PLATFORM_LIBC: ""
@@ -1717,6 +1728,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bookworm@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1740,7 +1752,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_PLATFORM_LIBC: ""
@@ -1766,7 +1778,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bookworm@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1793,6 +1805,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_PLATFORM_LIBC: ""
@@ -1818,6 +1831,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1841,7 +1855,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_PLATFORM_LIBC: ""
@@ -1867,7 +1881,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1894,6 +1908,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_PLATFORM_LIBC: ""
@@ -1919,6 +1934,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1942,7 +1958,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_PLATFORM_LIBC: ""
@@ -1968,7 +1984,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1995,6 +2011,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_PLATFORM_LIBC: ""
@@ -2020,6 +2037,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2043,7 +2061,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_PLATFORM_LIBC: ""
@@ -2069,7 +2087,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2096,6 +2114,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_PLATFORM_LIBC: ""
@@ -2121,6 +2140,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2144,7 +2164,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_PLATFORM_LIBC: ""
@@ -2170,7 +2190,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2197,6 +2217,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_PLATFORM_LIBC: ""
@@ -2222,6 +2243,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2245,7 +2267,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_PLATFORM_LIBC: ""
@@ -2271,7 +2293,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2298,6 +2320,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_PLATFORM_LIBC: ""
@@ -2323,6 +2346,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2346,7 +2370,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_PLATFORM_LIBC: ""
@@ -2372,7 +2396,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2399,6 +2423,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
         PKG_PLATFORM_LIBC: ""
@@ -2424,6 +2449,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-7@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2447,7 +2473,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
         PKG_PLATFORM_LIBC: ""
@@ -2473,7 +2499,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-7@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2500,6 +2526,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_PLATFORM_LIBC: ""
@@ -2525,6 +2552,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-8@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2548,7 +2576,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_PLATFORM_LIBC: ""
@@ -2574,7 +2602,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-8@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2601,6 +2629,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_PLATFORM_LIBC: ""
@@ -2626,6 +2655,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-8@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2649,7 +2679,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_PLATFORM_LIBC: ""
@@ -2675,7 +2705,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-8@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2702,6 +2732,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_PLATFORM_LIBC: ""
@@ -2727,6 +2758,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/rockylinux-9@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2750,7 +2782,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_PLATFORM_LIBC: ""
@@ -2776,7 +2808,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/rockylinux-9@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2803,6 +2835,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_PLATFORM_LIBC: ""
@@ -2828,6 +2861,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/rockylinux-9@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2851,7 +2885,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_PLATFORM_LIBC: ""
@@ -2877,7 +2911,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/rockylinux-9@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2904,6 +2938,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_LIBC: ""
@@ -2929,6 +2964,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-x86_64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2952,7 +2988,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_LIBC: ""
@@ -2978,7 +3014,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-x86_64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -3005,6 +3041,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_PLATFORM_LIBC: ""
@@ -3030,6 +3067,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-aarch64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -3053,7 +3091,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_PLATFORM_LIBC: ""
@@ -3079,7 +3117,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-aarch64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -3106,6 +3144,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_LIBC: "musl"
@@ -3131,6 +3170,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-x86_64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -3154,7 +3194,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_LIBC: "musl"
@@ -3180,7 +3220,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-x86_64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -3207,6 +3247,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_PLATFORM_LIBC: "musl"
@@ -3232,6 +3273,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-aarch64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -3255,7 +3297,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_PLATFORM_LIBC: "musl"
@@ -3281,7 +3323,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-aarch64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: package-upload.edgedb.net
+        PACKAGE_SERVER: package-upload.edgedb.net:22
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"

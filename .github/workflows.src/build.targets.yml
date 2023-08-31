@@ -1,10 +1,10 @@
 publications:
     - name: prod
       suffix: ""
-      server: ""
+      server: upload-packages.edgedb.com:2222
     - name: beta
       suffix: -beta
-      server: package-upload.edgedb.net
+      server: package-upload.edgedb.net:22
 
 targets:
     linux:
