@@ -2393,6 +2393,9 @@ class CreateScalarType(ScalarTypeMetaCommand,
         else:
             ops = dbops.CommandGroup()
 
+            if scalar.get_transient(schema):
+                return ops
+
             base = types.get_scalar_base(schema, scalar)
 
             new_domain_name = types.pg_type_from_scalar(schema, scalar)

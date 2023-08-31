@@ -1480,6 +1480,7 @@ async def _init_stdlib(
             FILTER
                 .builtin
                 AND NOT (.abstract ?? False)
+                AND NOT (.transient ?? False)
                 AND schema::Type IS schema::ScalarType | schema::Tuple
             SET {
                 backend_id := sys::_get_pg_type_for_edgedb_type(
@@ -1503,6 +1504,7 @@ async def _init_stdlib(
             FILTER
                 .builtin
                 AND NOT (.abstract ?? False)
+                AND NOT (.transient ?? False)
             SET {
                 backend_id := sys::_get_pg_type_for_edgedb_type(
                     .id,
