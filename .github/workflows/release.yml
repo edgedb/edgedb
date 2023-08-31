@@ -1173,6 +1173,7 @@ jobs:
 
 
 
+
   publish-debian-buster-x86_64:
     needs: [collect]
     runs-on: ubuntu-latest
@@ -1186,6 +1187,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_PLATFORM_LIBC: ""
@@ -1211,6 +1213,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-buster@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1220,6 +1223,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-debian-buster-x86_64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-debian-buster-x86_64
+        path: artifacts/debian-buster
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "buster"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-debian-buster-x86_64:
+    needs: [publish-beta-debian-buster-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-debian-buster-x86_64
+        path: artifacts/debian-buster
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: debian-buster
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-buster@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "buster"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-debian-buster-aarch64:
@@ -1235,6 +1290,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_PLATFORM_LIBC: ""
@@ -1260,6 +1316,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-buster@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1269,6 +1326,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-debian-buster-aarch64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-debian-buster-aarch64
+        path: artifacts/debian-buster
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "buster"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-debian-buster-aarch64:
+    needs: [publish-beta-debian-buster-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-debian-buster-aarch64
+        path: artifacts/debian-buster
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: debian-buster
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-buster@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "buster"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-debian-bullseye-x86_64:
@@ -1284,6 +1393,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_PLATFORM_LIBC: ""
@@ -1309,6 +1419,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1318,6 +1429,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-debian-bullseye-x86_64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-debian-bullseye-x86_64
+        path: artifacts/debian-bullseye
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bullseye"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-debian-bullseye-x86_64:
+    needs: [publish-beta-debian-bullseye-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-debian-bullseye-x86_64
+        path: artifacts/debian-bullseye
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: debian-bullseye
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bullseye"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-debian-bullseye-aarch64:
@@ -1333,6 +1496,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_PLATFORM_LIBC: ""
@@ -1358,6 +1522,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1367,6 +1532,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-debian-bullseye-aarch64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-debian-bullseye-aarch64
+        path: artifacts/debian-bullseye
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bullseye"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-debian-bullseye-aarch64:
+    needs: [publish-beta-debian-bullseye-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-debian-bullseye-aarch64
+        path: artifacts/debian-bullseye
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: debian-bullseye
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bullseye"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-debian-bookworm-x86_64:
@@ -1382,6 +1599,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_PLATFORM_LIBC: ""
@@ -1407,6 +1625,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bookworm@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1416,6 +1635,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-debian-bookworm-x86_64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-debian-bookworm-x86_64
+        path: artifacts/debian-bookworm
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bookworm"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-debian-bookworm-x86_64:
+    needs: [publish-beta-debian-bookworm-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-debian-bookworm-x86_64
+        path: artifacts/debian-bookworm
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: debian-bookworm
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bookworm@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bookworm"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-debian-bookworm-aarch64:
@@ -1431,6 +1702,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_PLATFORM_LIBC: ""
@@ -1456,6 +1728,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bookworm@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1465,6 +1738,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-debian-bookworm-aarch64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-debian-bookworm-aarch64
+        path: artifacts/debian-bookworm
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bookworm"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-debian-bookworm-aarch64:
+    needs: [publish-beta-debian-bookworm-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-debian-bookworm-aarch64
+        path: artifacts/debian-bookworm
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: debian-bookworm
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bookworm@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bookworm"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-ubuntu-bionic-x86_64:
@@ -1480,6 +1805,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_PLATFORM_LIBC: ""
@@ -1505,6 +1831,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1514,6 +1841,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-ubuntu-bionic-x86_64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-ubuntu-bionic-x86_64
+        path: artifacts/ubuntu-bionic
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "bionic"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-ubuntu-bionic-x86_64:
+    needs: [publish-beta-ubuntu-bionic-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-ubuntu-bionic-x86_64
+        path: artifacts/ubuntu-bionic
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-bionic
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "bionic"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-ubuntu-bionic-aarch64:
@@ -1529,6 +1908,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_PLATFORM_LIBC: ""
@@ -1554,6 +1934,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1563,6 +1944,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-ubuntu-bionic-aarch64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-ubuntu-bionic-aarch64
+        path: artifacts/ubuntu-bionic
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "bionic"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-ubuntu-bionic-aarch64:
+    needs: [publish-beta-ubuntu-bionic-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-ubuntu-bionic-aarch64
+        path: artifacts/ubuntu-bionic
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-bionic
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "bionic"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-ubuntu-focal-x86_64:
@@ -1578,6 +2011,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_PLATFORM_LIBC: ""
@@ -1603,6 +2037,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1612,6 +2047,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-ubuntu-focal-x86_64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-ubuntu-focal-x86_64
+        path: artifacts/ubuntu-focal
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "focal"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-ubuntu-focal-x86_64:
+    needs: [publish-beta-ubuntu-focal-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-ubuntu-focal-x86_64
+        path: artifacts/ubuntu-focal
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-focal
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "focal"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-ubuntu-focal-aarch64:
@@ -1627,6 +2114,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_PLATFORM_LIBC: ""
@@ -1652,6 +2140,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1661,6 +2150,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-ubuntu-focal-aarch64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-ubuntu-focal-aarch64
+        path: artifacts/ubuntu-focal
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "focal"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-ubuntu-focal-aarch64:
+    needs: [publish-beta-ubuntu-focal-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-ubuntu-focal-aarch64
+        path: artifacts/ubuntu-focal
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-focal
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "focal"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-ubuntu-jammy-x86_64:
@@ -1676,6 +2217,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_PLATFORM_LIBC: ""
@@ -1701,6 +2243,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1710,6 +2253,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-ubuntu-jammy-x86_64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-ubuntu-jammy-x86_64
+        path: artifacts/ubuntu-jammy
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "jammy"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-ubuntu-jammy-x86_64:
+    needs: [publish-beta-ubuntu-jammy-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-ubuntu-jammy-x86_64
+        path: artifacts/ubuntu-jammy
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-jammy
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "jammy"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-ubuntu-jammy-aarch64:
@@ -1725,6 +2320,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_PLATFORM_LIBC: ""
@@ -1750,6 +2346,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1759,6 +2356,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-ubuntu-jammy-aarch64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-ubuntu-jammy-aarch64
+        path: artifacts/ubuntu-jammy
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "jammy"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-ubuntu-jammy-aarch64:
+    needs: [publish-beta-ubuntu-jammy-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-ubuntu-jammy-aarch64
+        path: artifacts/ubuntu-jammy
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-jammy
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "jammy"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-centos-7-x86_64:
@@ -1774,6 +2423,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
         PKG_PLATFORM_LIBC: ""
@@ -1799,6 +2449,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-7@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1808,6 +2459,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-centos-7-x86_64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-centos-7-x86_64
+        path: artifacts/centos-7
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "centos"
+        PKG_PLATFORM_VERSION: "7"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-centos-7-x86_64:
+    needs: [publish-beta-centos-7-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-centos-7-x86_64
+        path: artifacts/centos-7
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: centos-7
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-7@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "centos"
+        PKG_PLATFORM_VERSION: "7"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-centos-8-x86_64:
@@ -1823,6 +2526,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_PLATFORM_LIBC: ""
@@ -1848,6 +2552,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-8@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1857,6 +2562,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-centos-8-x86_64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-centos-8-x86_64
+        path: artifacts/centos-8
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "centos"
+        PKG_PLATFORM_VERSION: "8"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-centos-8-x86_64:
+    needs: [publish-beta-centos-8-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-centos-8-x86_64
+        path: artifacts/centos-8
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: centos-8
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-8@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "centos"
+        PKG_PLATFORM_VERSION: "8"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-centos-8-aarch64:
@@ -1872,6 +2629,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_PLATFORM_LIBC: ""
@@ -1897,6 +2655,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-8@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1906,6 +2665,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-centos-8-aarch64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-centos-8-aarch64
+        path: artifacts/centos-8
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "centos"
+        PKG_PLATFORM_VERSION: "8"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-centos-8-aarch64:
+    needs: [publish-beta-centos-8-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-centos-8-aarch64
+        path: artifacts/centos-8
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: centos-8
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-8@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "centos"
+        PKG_PLATFORM_VERSION: "8"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-rockylinux-9-x86_64:
@@ -1921,6 +2732,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_PLATFORM_LIBC: ""
@@ -1946,6 +2758,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/rockylinux-9@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1955,6 +2768,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-rockylinux-9-x86_64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-rockylinux-9-x86_64
+        path: artifacts/rockylinux-9
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "rockylinux"
+        PKG_PLATFORM_VERSION: "9"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-rockylinux-9-x86_64:
+    needs: [publish-beta-rockylinux-9-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-rockylinux-9-x86_64
+        path: artifacts/rockylinux-9
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: rockylinux-9
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/rockylinux-9@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "rockylinux"
+        PKG_PLATFORM_VERSION: "9"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-rockylinux-9-aarch64:
@@ -1970,6 +2835,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_PLATFORM_LIBC: ""
@@ -1995,6 +2861,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/rockylinux-9@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2004,6 +2871,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-rockylinux-9-aarch64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-rockylinux-9-aarch64
+        path: artifacts/rockylinux-9
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "rockylinux"
+        PKG_PLATFORM_VERSION: "9"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-rockylinux-9-aarch64:
+    needs: [publish-beta-rockylinux-9-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-rockylinux-9-aarch64
+        path: artifacts/rockylinux-9
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: rockylinux-9
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/rockylinux-9@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "rockylinux"
+        PKG_PLATFORM_VERSION: "9"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-linux-x86_64:
@@ -2019,6 +2938,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_LIBC: ""
@@ -2044,6 +2964,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-x86_64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2053,6 +2974,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-linux-x86_64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-linux-x86_64
+        path: artifacts/linux-x86_64
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-linux-x86_64:
+    needs: [publish-beta-linux-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-linux-x86_64
+        path: artifacts/linux-x86_64
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: linux-x86_64
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-x86_64@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-linux-aarch64:
@@ -2068,6 +3041,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_PLATFORM_LIBC: ""
@@ -2093,6 +3067,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-aarch64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2102,6 +3077,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-linux-aarch64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-linux-aarch64
+        path: artifacts/linux-aarch64
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "aarch64"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-linux-aarch64:
+    needs: [publish-beta-linux-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-linux-aarch64
+        path: artifacts/linux-aarch64
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: linux-aarch64
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-aarch64@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "aarch64"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-linuxmusl-x86_64:
@@ -2117,6 +3144,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_LIBC: "musl"
@@ -2142,6 +3170,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-x86_64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2151,6 +3180,58 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-linuxmusl-x86_64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-linuxmusl-x86_64
+        path: artifacts/linuxmusl-x86_64
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        PKG_PLATFORM_LIBC: "musl"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-linuxmusl-x86_64:
+    needs: [publish-beta-linuxmusl-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-linuxmusl-x86_64
+        path: artifacts/linuxmusl-x86_64
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: linuxmusl-x86_64
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-x86_64@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-linuxmusl-aarch64:
@@ -2166,6 +3247,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_PLATFORM_LIBC: "musl"
@@ -2191,6 +3273,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-aarch64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2200,6 +3283,57 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-beta-linuxmusl-aarch64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-linuxmusl-aarch64
+        path: artifacts/linuxmusl-aarch64
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "aarch64"
+        PKG_PLATFORM_LIBC: "musl"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-beta-linuxmusl-aarch64:
+    needs: [publish-beta-linuxmusl-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-linuxmusl-aarch64
+        path: artifacts/linuxmusl-aarch64
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: linuxmusl-aarch64
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-aarch64@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PACKAGE_SERVER: package-upload.edgedb.net:22
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "aarch64"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
 
 
 
