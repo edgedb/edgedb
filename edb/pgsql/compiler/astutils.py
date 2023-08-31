@@ -553,9 +553,10 @@ def compile_typeref(expr: irast.TypeRef) -> pgast.BaseExpr:
 
     return result
 
+
 def maybe_unpack_row(expr: pgast.Base) -> Sequence[pgast.BaseExpr]:
     assert isinstance(expr, pgast.BaseExpr)
     if isinstance(expr, pgast.ImplicitRowExpr):
         return expr.args
-    else:    
+    else:
         return (expr,)

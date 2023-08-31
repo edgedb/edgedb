@@ -31,7 +31,7 @@ class Constraint(base.DBObject):
     def __init__(
         self,
         subject_name: Sequence[str | pgast.Star],
-        constraint_name: Optional[str]=None
+        constraint_name: Optional[str] = None,
     ):
         self._subject_name = subject_name
         self._constraint_name = constraint_name

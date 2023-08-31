@@ -94,7 +94,7 @@ class CompositeDBObject(base.DBObject):
     def __init__(
         self,
         name: Sequence[str],
-        columns: Iterable[tables.Column] | None = None
+        columns: Iterable[tables.Column] | None = None,
     ):
         super().__init__()
         self.name = name

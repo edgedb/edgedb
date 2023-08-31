@@ -69,7 +69,6 @@ from edb.common import uuidgen
 from edb.common import parsing
 from edb.common.typeutils import not_none
 
-from edb.ir import ast as irast
 from edb.ir import pathid as irpathid
 from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils

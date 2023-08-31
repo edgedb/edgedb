@@ -107,7 +107,9 @@ class CompositeTypeAttributeExists(base.Condition):
 
 
 class CreateCompositeType(ddl.SchemaObjectOperation):
-    def __init__(self, type: CompositeType, *, conditions=None, neg_conditions=None):
+    def __init__(
+        self, type: CompositeType, *, conditions=None, neg_conditions=None
+    ):
         super().__init__(
             type.name, conditions=conditions, neg_conditions=neg_conditions
         )
