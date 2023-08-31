@@ -584,7 +584,9 @@ def interpret_error(
 
     elif isinstance(exc, pgerror.BackendError):
         try:
-            static_exc = errormech.static_interpret_backend_error(exc.fields)
+            static_exc = errormech.static_interpret_backend_error(
+                exc.fields, from_graphql=from_graphql
+            )
 
             # only use the backend if schema is required
             if static_exc is errormech.SchemaRequired:

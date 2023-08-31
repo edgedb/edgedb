@@ -189,7 +189,7 @@ async def handle_request(
                 )
 
             ex, ex_type = execute.interpret_error(
-                ex, get_schema=_get_schema, server=server
+                ex, get_schema=_get_schema, server=server, from_graphql=True
             )
 
         err_dct = {
