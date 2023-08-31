@@ -654,9 +654,6 @@ def compile_FunctionCall(
         raise errors.UnsupportedFeatureError(
             'set returning functions are not supported in simple expressions')
 
-    if str(expr.func_shortname) == 'fts::with_language':
-        return compile_fts_with_language(expr, ctx=ctx)
-
     args, maybe_null = _compile_call_args(expr, ctx=ctx)
 
     if expr.has_empty_variadic and expr.variadic_param_type is not None:
@@ -814,6 +811,8 @@ def _compile_set_in_singleton_mode(
 
         return colref
 
+
+@relgen.simple_special_case('fts::with_language')
 def compile_fts_with_language(
     expr: irast.FunctionCall,
     *,
