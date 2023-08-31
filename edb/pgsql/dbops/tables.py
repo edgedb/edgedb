@@ -116,6 +116,7 @@ class Column(base.DBObject):
         type: str | tuple[str, str],
         required: bool = False,
         default: Optional[str] = None,
+        constraints: Sequence[ColumnConstraint] = (),
         readonly: bool = False,
         comment: Optional[str] = None,
     ):
@@ -123,16 +124,24 @@ class Column(base.DBObject):
         self.type = type
         self.required = required
         self.default = default
+        self.constraints = constraints
         self.readonly = readonly
         self.comment = comment
 
+    def add_constraint(self, constraint: ColumnConstraint):
+        self.constraints = list(self.constraints) + [constraint]
+
     def code(self, _context, short: bool = False):
-        code = "{} {}".format(qi(self.name), self.type)
+        code = f"{qi(self.name)} {self.type}"
         if not short:
-            default = 'DEFAULT {}'.format(
-                self.default) if self.default is not None else ''
-            code += ' {} {}'.format(
-                'NOT NULL' if self.required else '', default)
+            if self.required:
+                code += ' NOT NULL'
+
+            if self.default is not None:
+                code += f' DEFAULT {self.default}'
+
+            for c in self.constraints:
+                code += ' ' + c.code()
         return code
 
     def generate_extra(self, block, alter_table):
@@ -160,6 +169,26 @@ class TableColumn(base.DBObject):
             self.table_name[0], self.table_name[1], self.column.name)
 
 
+class ColumnConstraint:
+    def __init__(self, constraint_name: str):
+        self.constraint_name = constraint_name
+
+    def code(self) -> str:
+        raise NotImplementedError()
+
+
+class GeneratedConstraint(ColumnConstraint):
+    def __init__(self, constraint_name: str, expr: str):
+        super().__init__(constraint_name)
+        self.expr = expr
+
+    def code(self) -> str:
+        return (
+            f'CONSTRAINT {self.constraint_name} '
+            f'GENERATED ALWAYS AS ({self.expr}) STORED'
+        )
+
+
 class TableConstraint(constraints.Constraint):
     def generate_extra(self, block):
         pass
@@ -172,7 +201,9 @@ class TableConstraint(constraints.Constraint):
 
 
 class PrimaryKey(TableConstraint):
-    def __init__(self, table_name, columns):
+    def __init__(
+        self, table_name: Sequence[str], columns: Sequence[str | pgast.Star]
+    ):
         super().__init__(table_name)
         self.columns = columns
 
@@ -182,7 +213,9 @@ class PrimaryKey(TableConstraint):
 
 
 class UniqueConstraint(TableConstraint):
-    def __init__(self, table_name, columns):
+    def __init__(
+        self, table_name: Sequence[str], columns: Sequence[str | pgast.Star]
+    ):
         super().__init__(table_name)
         self.columns = columns
 

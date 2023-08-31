@@ -3491,6 +3491,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ):
+        from .compiler import astutils
+
         subject = index.get_subject(schema)
         assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
 
@@ -3506,21 +3508,13 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             apply_query_rewrites=False,
         )
 
-        index_sexpr = index.get_expr(schema)
+        index_sexpr: Optional[s_expr.Expression] = index.get_expr(schema)
         assert index_sexpr
         index_expr = index_sexpr.ensure_compiled(
             schema=schema,
             options=options,
         )
         ir = index_expr.irast
-
-        sql_res = compiler.compile_ir_to_sql_tree(ir.expr, singleton_mode=True)
-        if isinstance(sql_res.ast, pg_ast.ImplicitRowExpr):
-            sql_exprs = [
-                codegen.generate_source(el) for el in sql_res.ast.args
-            ]
-        else:
-            sql_exprs = [codegen.generate_source(sql_res.ast)]
 
         except_expr = index.get_except_expr(schema)
         if except_expr:
@@ -3538,7 +3532,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
 
         sql_kwarg_exprs = dict()
         # Get the name of the root index that this index implements
-        orig_name = sn.shortname_from_fullname(index.get_name(schema))
+        orig_name: sn.Name = sn.shortname_from_fullname(index.get_name(schema))
+        root_name: sn.Name
         root_code: str | None
         if orig_name == s_indexes.DEFAULT_INDEX:
             root_name = orig_name
@@ -3580,20 +3575,26 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 sql = codegen.generate_source(kw_sql_tree)
                 sql_kwarg_exprs[name] = sql
 
+        if root_code is None:
+            raise AssertionError(f'index {root_name} is missing the code')
+
+        sql_res = compiler.compile_ir_to_sql_tree(ir.expr, singleton_mode=True)
+        exprs = astutils.maybe_unpack_row(sql_res.ast)
+
         table_name = common.get_backend_name(schema, subject, catenate=False)
 
         module_name = index.get_name(schema).module
         index_name = common.get_index_backend_name(
             index.id, module_name, catenate=False)
 
-        if root_code is None:
-            raise AssertionError(f'index {root_name} is missing the code')
+        sql_exprs = [codegen.generate_source(e) for e in exprs]
 
         pg_index = dbops.Index(
             name=index_name[1],
             table_name=table_name,  # type: ignore
             exprs=sql_exprs,
-            unique=False, inherit=True,
+            unique=False,
+            inherit=True,
             predicate=predicate_src,
             metadata={
                 'schemaname': str(index.get_name(schema)),
@@ -3636,18 +3637,25 @@ class AlterIndex(IndexCommand, adapts=s_indexes.AlterIndex):
 
 class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
     @classmethod
-    def delete_index(cls, index, schema, context):
+    def delete_index(
+        cls,
+        index: s_indexes.Index,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ):
         subject = index.get_subject(schema)
+        assert subject
         table_name = common.get_backend_name(
             schema, subject, catenate=False)
         module_name = index.get_name(schema).module
         orig_idx_name = common.get_index_backend_name(
             index.id, module_name, catenate=False)
-        index = dbops.Index(
+        pg_index = dbops.Index(
             name=orig_idx_name[1], table_name=table_name, inherit=True)
         index_exists = dbops.IndexExists(
-            (table_name[0], index.name_in_catalog))
-        return dbops.DropIndex(index, conditions=(index_exists,))
+            (table_name[0], pg_index.name_in_catalog)
+        )
+        return dbops.DropIndex(pg_index, conditions=(index_exists,))
 
     def apply(
         self,
