@@ -8382,7 +8382,7 @@ aa \
 
         async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
-            "query too deeply nested",
+            "caused the compiler stack to overflow",
         ):
             await self.con.query(f'''
                 with x := 1337, select {body}

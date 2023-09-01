@@ -578,8 +578,12 @@ def interpret_error(
 
     if isinstance(exc, RecursionError):
         exc = errors.UnsupportedFeatureError(
-            "query too deeply nested: the query caused the compiler "
-            "stack to overflow",
+            "The query caused the compiler "
+            "stack to overflow. It is likely too deeply nested.",
+            hint=(
+                "If the query does not contain deep nesting, "
+                "this may be a bug."
+            ),
         )
 
     elif isinstance(exc, pgerror.BackendError):
