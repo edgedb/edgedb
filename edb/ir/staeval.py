@@ -102,8 +102,14 @@ def evaluate_TypeCast(
         schema, ir_cast.from_type)
     schema, to_type = irtyputils.ir_typeref_to_type(
         schema, ir_cast.from_type)
-    schema_type_to_python_type(from_type, schema)
-    schema_type_to_python_type(to_type, schema)
+
+    if (
+        not isinstance(from_type, s_scalars.ScalarType)
+        or not isinstance(to_type, s_scalars.ScalarType)
+    ):
+        raise UnsupportedExpressionError('object cast not supported')
+    scalar_type_to_python_type(from_type, schema)
+    scalar_type_to_python_type(to_type, schema)
     evaluate(ir_cast.expr, schema)
     return ir_cast
 
@@ -370,6 +376,10 @@ def scalar_type_to_python_type(
 T_spec = TypeVar('T_spec', bound=statypes.CompositeTypeSpec)
 
 
+class _Missing:
+    pass
+
+
 def object_type_to_spec(
     objtype: s_objtypes.ObjectType,
     schema: s_schema.Schema,
@@ -382,6 +392,9 @@ def object_type_to_spec(
 ) -> T_spec:
     if _memo is None:
         _memo = {}
+    # Prevent infinite recursion
+    _memo[objtype] = _Missing
+
     default: Any
     fields = {}
 
@@ -396,6 +409,8 @@ def object_type_to_spec(
 
         if isinstance(ptype, s_objtypes.ObjectType):
             pytype = _memo.get(ptype)
+            if pytype is _Missing:
+                raise UnsupportedExpressionError()
             if pytype is None:
                 pytype = object_type_to_spec(
                     ptype, schema, spec_class=spec_class,

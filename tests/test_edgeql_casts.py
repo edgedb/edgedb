@@ -2439,6 +2439,17 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             [[]],
         )
 
+    async def test_edgeql_casts_json_15(self):
+        # At one point, a cast from an object inside a binary
+        # operation triggered an infinite loop in staeval if the
+        # object had a self link.
+        await self.con.execute('''
+            create type Z { create link z -> Z; };
+        ''')
+        await self.con.query('''
+            select <json>Z union <json>Z;
+        ''')
+
     async def test_edgeql_casts_assignment_01(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""
