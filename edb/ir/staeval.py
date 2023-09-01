@@ -217,7 +217,12 @@ def _evaluate_union(
     for arg in opcall.args:
         val = evaluate(arg.expr, schema=schema)
         if isinstance(val, irast.ConstantSet):
-            elements.extend(val.elements)
+            for el in val.elements:
+                if isinstance(el, irast.Parameter):
+                    raise UnsupportedExpressionError(
+                        f'{el!r} not supported in UNION',
+                        context=opcall.context)
+                elements.append(el)
         elif isinstance(val, irast.EmptySet):
             empty_set = val
         elif isinstance(val, irast.BaseConstant):

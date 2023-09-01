@@ -30,6 +30,7 @@ from edb.common import context as ctx_utils
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
+from edb.ir import utils as irutils
 
 from edb.schema import abc as s_abc
 from edb.schema import constraints as s_constr
@@ -183,7 +184,10 @@ def compile_Set(
                     left=l, right=r, rebalanced=True, context=c),
                 expr.context
             )
-            return dispatch.compile(bigunion, ctx=ctx)
+            res = dispatch.compile(bigunion, ctx=ctx)
+            if cres := try_constant_set(res):
+                res = setgen.ensure_set(cres, ctx=ctx)
+            return res
     else:
         return setgen.new_empty_set(
             alias=ctx.aliases.get('e'),
@@ -633,3 +637,31 @@ def collect_binop(expr: qlast.BinOp) -> List[qlast.Expr]:
             elements.append(el)
 
     return elements
+
+
+def try_constant_set(expr: irast.Base) -> Optional[irast.ConstantSet]:
+    elements = []
+
+    stack: list[Optional[irast.Base]] = [expr]
+    while stack:
+        el = stack.pop()
+        if isinstance(el, irast.Set):
+            stack.append(el.expr)
+        elif (
+            isinstance(el, irast.OperatorCall)
+            and str(el.func_shortname) == 'std::UNION'
+        ):
+            stack.extend([el.args[1].expr.expr, el.args[0].expr.expr])
+        elif el and irutils.is_trivial_select(el):
+            stack.append(el.result)
+        elif isinstance(el, (irast.BaseConstant, irast.Parameter)):
+            elements.append(el)
+        else:
+            return None
+
+    if elements:
+        return irast.ConstantSet(
+            elements=tuple(elements), typeref=elements[0].typeref
+        )
+    else:
+        return None

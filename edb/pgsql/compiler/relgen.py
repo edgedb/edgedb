@@ -2202,6 +2202,7 @@ def process_set_as_const_set(
         vals = [dispatch.compile(v, ctx=subctx) for v in expr.elements]
         vals_rel = subctx.rel
         vals_rel.values = [pgast.ImplicitRowExpr(args=[v]) for v in vals]
+        vals_rel.nullable = any(v.nullable for v in vals)
 
     vals_rvar = relctx.new_rel_rvar(ir_set, vals_rel, ctx=ctx)
     relctx.include_rvar(ctx.rel, vals_rvar, ir_set.path_id, ctx=ctx)
