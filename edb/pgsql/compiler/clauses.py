@@ -397,7 +397,7 @@ def fini_toplevel(
     stmt.ctes[:0] = list(ctx.param_ctes.values())
     stmt.ctes[:0] = list(ctx.type_ctes.values())
 
-    if ctx.env.use_named_params is None:
+    if ctx.env.named_param_prefix is None:
         # Adding unused parameters into a CTE
 
         # Find the used parameters by searching the query, so we don't
@@ -438,7 +438,7 @@ def populate_argmap(
     for map_extra in (False, True):
         for param in params:
             if (
-                ctx.env.use_named_params is not None
+                ctx.env.named_param_prefix is not None
                 and not param.name.isdecimal()
             ):
                 continue
