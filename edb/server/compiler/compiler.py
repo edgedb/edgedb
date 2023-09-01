@@ -387,6 +387,8 @@ class CompilerState:
 
     @functools.cached_property
     def state_serializer_factory(self) -> sertypes.StateSerializerFactory:
+        # TODO: This factory will probably need to become per-db once
+        # config spec differs between databases. See also #5836.
         return sertypes.StateSerializerFactory(
             self.std_schema, self.config_spec
         )
@@ -919,13 +921,115 @@ class Compiler:
 
         return compile(ctx=ctx, source=source), ctx.state
 
+    def interpret_backend_error(
+        self,
+        user_schema: bytes,
+        global_schema: bytes,
+        error_fields: dict[str, str],
+        from_graphql: bool,
+    ) -> errors.EdgeDBError:
+        from . import errormech
+
+        schema = s_schema.ChainedSchema(
+            self.state.std_schema,
+            pickle.loads(user_schema),
+            pickle.loads(global_schema),
+        )
+        rv: errors.EdgeDBError = errormech.interpret_backend_error(
+            schema, error_fields, from_graphql=from_graphql
+        )
+        return rv
+
+    def parse_json_schema(
+        self,
+        schema_json: bytes,
+        base_schema: s_schema.Schema | None,
+    ) -> s_schema.Schema:
+        if base_schema is None:
+            base_schema = self.state.std_schema
+        else:
+            base_schema = s_schema.ChainedSchema(
+                self.state.std_schema,
+                s_schema.EMPTY_SCHEMA,
+                base_schema,
+            )
+
+        return s_refl.parse_into(
+            base_schema=base_schema,
+            schema=s_schema.EMPTY_SCHEMA,
+            data=schema_json,
+            schema_class_layout=self.state.schema_class_layout,
+        )
+
+    def parse_db_config(
+        self, db_config_json: bytes, user_schema: s_schema.Schema
+    ) -> immutables.Map[str, config.SettingValue]:
+        spec = config.ChainedSpec(
+            self.state.config_spec,
+            config.load_ext_spec_from_schema(
+                user_schema,
+                self.state.std_schema,
+            ),
+        )
+        return config.from_json(spec, db_config_json)
+
+    def parse_global_schema(self, global_schema_json: bytes) -> bytes:
+        global_schema = self.parse_json_schema(global_schema_json, None)
+        return pickle.dumps(global_schema, -1)
+
+    def parse_user_schema_db_config(
+        self,
+        user_schema_json: bytes,
+        db_config_json: bytes,
+        global_schema_pickle: bytes,
+    ) -> dbstate.ParsedDatabase:
+        global_schema = pickle.loads(global_schema_pickle)
+        user_schema = self.parse_json_schema(user_schema_json, global_schema)
+        db_config = self.parse_db_config(db_config_json, user_schema)
+        ext_config_settings = config.load_ext_settings_from_schema(
+            s_schema.ChainedSchema(
+                self.state.std_schema,
+                user_schema,
+                s_schema.EMPTY_SCHEMA,
+            )
+        )
+        state_serializer = self.state.state_serializer_factory.make(
+            user_schema,
+            global_schema,
+            defines.CURRENT_PROTOCOL,
+        )
+        return dbstate.ParsedDatabase(
+            user_schema_pickle=pickle.dumps(user_schema, -1),
+            database_config=db_config,
+            ext_config_settings=ext_config_settings,
+            protocol_version=defines.CURRENT_PROTOCOL,
+            state_serializer=state_serializer,
+        )
+
+    def make_state_serializer(
+        self,
+        protocol_version: defines.ProtocolVersion,
+        user_schema_pickle: bytes,
+        global_schema_pickle: bytes,
+    ) -> sertypes.StateSerializer:
+        user_schema = pickle.loads(user_schema_pickle)
+        global_schema = pickle.loads(global_schema_pickle)
+        return self.state.state_serializer_factory.make(
+            user_schema,
+            global_schema,
+            protocol_version,
+        )
+
     def describe_database_dump(
         self,
-        user_schema: s_schema.Schema,
-        global_schema: s_schema.Schema,
-        database_config: immutables.Map[str, config.SettingValue],
+        user_schema_json: bytes,
+        global_schema_json: bytes,
+        db_config_json: bytes,
         protocol_version: defines.ProtocolVersion,
     ) -> DumpDescriptor:
+        global_schema = self.parse_json_schema(global_schema_json, None)
+        user_schema = self.parse_json_schema(user_schema_json, global_schema)
+        database_config = self.parse_db_config(db_config_json, user_schema)
         schema = s_schema.ChainedSchema(
             self.state.std_schema,
             user_schema,
@@ -1001,8 +1105,8 @@ class Compiler:
 
     def describe_database_restore(
         self,
-        user_schema: s_schema.Schema,
-        global_schema: s_schema.Schema,
+        user_schema_pickle: bytes,
+        global_schema_pickle: bytes,
         dump_server_ver_str: str,
         dump_catalog_version: Optional[int],
         schema_ddl: bytes,
@@ -1025,8 +1129,8 @@ class Compiler:
         dump_catalog_version = dump_catalog_version or 0
 
         state = dbstate.CompilerConnectionState(
-            user_schema=user_schema,
-            global_schema=global_schema,
+            user_schema=pickle.loads(user_schema_pickle),
+            global_schema=pickle.loads(global_schema_pickle),
             modaliases=DEFAULT_MODULE_ALIASES_MAP,
             session_config=EMPTY_MAP,
             database_config=EMPTY_MAP,
@@ -2234,7 +2338,9 @@ def _try_compile(
             if comp.user_schema is not None:
                 final_user_schema = comp.user_schema
                 unit.user_schema = pickle.dumps(comp.user_schema, -1)
-                unit.extensions = _extract_extension_names(comp.user_schema)
+                unit.extensions, unit.ext_config_settings = (
+                    _extract_extensions(ctx, comp.user_schema)
+                )
             if comp.cached_reflection is not None:
                 unit.cached_reflection = \
                     pickle.dumps(comp.cached_reflection, -1)
@@ -2255,7 +2361,9 @@ def _try_compile(
             if comp.user_schema is not None:
                 final_user_schema = comp.user_schema
                 unit.user_schema = pickle.dumps(comp.user_schema, -1)
-                unit.extensions = _extract_extension_names(comp.user_schema)
+                unit.extensions, unit.ext_config_settings = (
+                    _extract_extensions(ctx, comp.user_schema)
+                )
             if comp.cached_reflection is not None:
                 unit.cached_reflection = \
                     pickle.dumps(comp.cached_reflection, -1)
@@ -2289,7 +2397,9 @@ def _try_compile(
             if comp.user_schema is not None:
                 final_user_schema = comp.user_schema
                 unit.user_schema = pickle.dumps(comp.user_schema, -1)
-                unit.extensions = _extract_extension_names(comp.user_schema)
+                unit.extensions, unit.ext_config_settings = (
+                    _extract_extensions(ctx, comp.user_schema)
+                )
             if comp.cached_reflection is not None:
                 unit.cached_reflection = \
                     pickle.dumps(comp.cached_reflection, -1)
@@ -2802,11 +2912,22 @@ def _hash_sql(sql: bytes, **kwargs: bytes) -> bytes:
     return h.hexdigest().encode('latin1')
 
 
-def _extract_extension_names(user_schema: s_schema.Schema) -> set[str]:
-    return {
+def _extract_extensions(
+    ctx: CompileContext, user_schema: s_schema.Schema
+) -> tuple[set[str], list[config.Setting]]:
+    # XXX: Do we need to return None if extensions/config_spec didn't change?
+    names = {
         ext.get_name(user_schema).name
         for ext in user_schema.get_objects(type=s_ext.Extension)
     }
+    if names:
+        schema = s_schema.ChainedSchema(
+            ctx.compiler_state.std_schema, user_schema, s_schema.EMPTY_SCHEMA
+        )
+        settings = config.load_ext_settings_from_schema(schema)
+    else:
+        settings = []
+    return names, settings
 
 
 def _extract_roles(

@@ -194,27 +194,26 @@ class MultiSchemaPool(pool_mod.FixedPool):
     _clients: typing.Dict[int, ClientSchema]
 
     def __init__(self, cache_size, *, secret, **kwargs):
-        super().__init__(
-            backend_runtime_params=None,
-            std_schema=None,
-            refl_schema=None,
-            schema_class_layout=None,
-            **kwargs,
-        )
+        super().__init__(**kwargs)
         self._catalog_version = None
         self._inited = asyncio.Event()
         self._cache_size = cache_size
         self._clients = {}
         self._secret = secret
 
-    def _get_init_args_uncached(self):
+    def _init(self, kwargs: dict[str, typing.Any]) -> None:
+        # this is deferred to _init_server()
+        pass
+
+    @functools.cache
+    def _get_init_args(self):
         init_args = (
             self._backend_runtime_params,
             self._std_schema,
             self._refl_schema,
             self._schema_class_layout,
         )
-        return init_args
+        return init_args, pickle.dumps(init_args, -1)
 
     async def _attach_worker(self, pid: int):
         if not self._running:
@@ -234,7 +233,7 @@ class MultiSchemaPool(pool_mod.FixedPool):
         (
             std_args_pickled,
             client_args_pickled,
-            global_schema_pickled,
+            global_schema_pickle,
             system_config_pickled,
         ) = init_args_pickled
         dbs, backend_runtime_params = pickle.loads(client_args_pickled)
@@ -264,14 +263,14 @@ class MultiSchemaPool(pool_mod.FixedPool):
                 (
                     dbname,
                     PickledState(
-                        pickle.dumps(state.user_schema, -1),
+                        state.user_schema_pickle,
                         pickle.dumps(state.reflection_cache, -1),
                         pickle.dumps(state.database_config, -1),
                     ),
                 )
                 for dbname, state in dbs.items()
             ),
-            global_schema_pickled,
+            global_schema_pickle,
             system_config_pickled,
             (),
         )

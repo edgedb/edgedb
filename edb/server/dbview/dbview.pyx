@@ -40,6 +40,7 @@ from edb.schema import schema as s_schema
 from edb.server import compiler, defines, config, metrics
 from edb.server.compiler import dbstate, enums, sertypes
 from edb.pgsql import dbops
+from edb.server.compiler_pool import state as compiler_state_mod
 
 cimport cython
 
@@ -154,11 +155,12 @@ cdef class Database:
         DatabaseIndex index,
         str name,
         *,
-        object user_schema,
+        bytes user_schema_pickle,
         object db_config,
         object reflection_cache,
         object backend_ids,
         object extensions,
+        object ext_config_settings,
     ):
         self.name = name
 
@@ -176,8 +178,9 @@ cdef class Database:
             maxsize=defines._MAX_QUERIES_CACHE)
 
         self.db_config = db_config
-        self.user_schema = user_schema
-        self._user_config_spec = None
+        self.user_schema_pickle = user_schema_pickle
+        if ext_config_settings is not None:
+            self.user_config_spec = config.FlatSpec(*ext_config_settings)
         self.reflection_cache = reflection_cache
         self.backend_ids = backend_ids
         self.extensions = extensions
@@ -195,19 +198,21 @@ cdef class Database:
 
     cdef _set_and_signal_new_user_schema(
         self,
-        new_schema,
+        new_schema_pickle,
         extensions,
+        ext_config_settings,
         reflection_cache=None,
         backend_ids=None,
         db_config=None,
     ):
-        if new_schema is None:
+        if new_schema_pickle is None:
             raise AssertionError('new_schema is not supposed to be None')
 
         self.dbver = next_dbver()
 
-        self.user_schema = new_schema
+        self.user_schema_pickle = new_schema_pickle
         self.extensions = extensions
+        self.user_config_spec = config.FlatSpec(*ext_config_settings)
 
         if backend_ids is not None:
             self.backend_ids = backend_ids
@@ -217,25 +222,13 @@ cdef class Database:
             self.db_config = db_config
         self._invalidate_caches()
 
-    cdef get_user_config_spec(self):
-        if self._user_config_spec is None:
-            self._user_config_spec = config.load_ext_spec_from_schema(
-                self.user_schema,
-                self._index._std_schema,
-            )
-        return self._user_config_spec
-
     cdef _update_backend_ids(self, new_types):
         self.backend_ids.update(new_types)
 
     cdef _invalidate_caches(self):
         self._eql_to_compiled.clear()
         self._sql_to_compiled.clear()
-        # XXX: FIXME: Only invalidate when spec actually changes?
-        self._user_config_spec = None
-
-    cdef _clear_state_serializers(self):
-        self._state_serializers.clear()
+        self._index.invalidate_caches()
 
     cdef _cache_compiled_query(self, key, compiled: dbstate.QueryUnitGroup):
         assert compiled.cacheable
@@ -272,15 +265,9 @@ cdef class Database:
         self._views.remove(view)
 
     cdef get_state_serializer(self, protocol_version):
-        if protocol_version not in self._state_serializers:
-            self._state_serializers[protocol_version] = self._index._factory.make(
-                self.user_schema,
-                self._index._global_schema,
-                protocol_version,
-            )
-        return self._state_serializers[protocol_version]
+        return self._state_serializers.get(protocol_version)
 
-    cdef set_state_serializer(self, protocol_version, serializer):
+    cpdef set_state_serializer(self, protocol_version, serializer):
         old_serializer = self._state_serializers.get(protocol_version)
         if (
             old_serializer is None or
@@ -299,9 +286,9 @@ cdef class Database:
         return len(self._eql_to_compiled) + len(self._sql_to_compiled)
 
     async def introspection(self):
-        if self.user_schema is None:
+        if self.user_schema_pickle is None:
             async with self._introspection_lock:
-                if self.user_schema is None:
+                if self.user_schema_pickle is None:
                     await self.tenant.introspect_db(self.name)
 
 
@@ -320,6 +307,7 @@ cdef class DatabaseConnectionView:
         self._globals = DEFAULT_GLOBALS
         self._session_state_db_cache = None
         self._session_state_cache = None
+        self._state_serializer = db.get_state_serializer(protocol_version)
 
         if db.name == defines.EDGEDB_SYSTEM_DB:
             # Make system database read-only.
@@ -359,10 +347,8 @@ cdef class DatabaseConnectionView:
         self._in_tx_with_sysconfig = False
         self._in_tx_with_dbconfig = False
         self._in_tx_with_set = False
-        self._in_tx_user_schema = None
-        self._in_tx_user_schema_pickled = None
-        self._in_tx_global_schema = None
-        self._in_tx_global_schema_pickled = None
+        self._in_tx_user_schema_pickle = None
+        self._in_tx_global_schema_pickle = None
         self._in_tx_new_types = {}
         self._in_tx_user_config_spec = None
         self._in_tx_state_serializer = None
@@ -429,20 +415,8 @@ cdef class DatabaseConnectionView:
 
     cdef get_state_serializer(self):
         if self._in_tx:
-            if self._in_tx_state_serializer is None:
-                # DDL in transaction, recalculate the state descriptor
-                self._in_tx_state_serializer = self._db._index._factory.make(
-                    self.get_user_schema(),
-                    self.get_global_schema(),
-                    self._protocol_version,
-                )
             return self._in_tx_state_serializer
         else:
-            if self._state_serializer is None:
-                # Executed a DDL, recalculate the state descriptor
-                self._state_serializer = self._db.get_state_serializer(
-                    self._protocol_version
-                )
             return self._state_serializer
 
     cdef set_state_serializer(self, new_serializer):
@@ -460,14 +434,9 @@ cdef class DatabaseConnectionView:
 
     cdef get_user_config_spec(self):
         if self._in_tx:
-            if self._in_tx_user_config_spec is None:
-                self._in_tx_user_config_spec = config.load_ext_spec_from_schema(
-                    self.get_user_schema(),
-                    self._db._index._std_schema,
-                )
             return self._in_tx_user_config_spec
         else:
-            return self._db.get_user_config_spec()
+            return self._db.user_config_spec
 
     cpdef get_config_spec(self):
         return config.ChainedSpec(
@@ -545,33 +514,17 @@ cdef class DatabaseConnectionView:
         else:
             return self._modaliases
 
-    def get_user_schema(self):
+    def get_user_schema_pickle(self):
         if self._in_tx:
-            if self._in_tx_user_schema_pickled:
-                self._in_tx_user_schema = pickle.loads(
-                    self._in_tx_user_schema_pickled)
-                self._in_tx_user_schema_pickled = None
-            return self._in_tx_user_schema
+            return self._in_tx_user_schema_pickle
         else:
-            return self._db.user_schema
+            return self._db.user_schema_pickle
 
-    def get_global_schema(self):
+    def get_global_schema_pickle(self):
         if self._in_tx:
-            if self._in_tx_global_schema_pickled:
-                self._in_tx_global_schema = pickle.loads(
-                    self._in_tx_global_schema_pickled)
-                self._in_tx_global_schema_pickled = None
-            return self._in_tx_global_schema
+            return self._in_tx_global_schema_pickle
         else:
-            return self._db._index._global_schema
-
-    def get_schema(self):
-        user_schema = self.get_user_schema()
-        return s_schema.ChainedSchema(
-            self._db._index._std_schema,
-            user_schema,
-            self._db._index._global_schema,
-        )
+            return self._db._index._global_schema_pickle
 
     def resolve_backend_type_id(self, type_id):
         type_id = str(type_id)
@@ -681,9 +634,6 @@ cdef class DatabaseConnectionView:
         return serializer.type_id, serializer.encode(state)
 
     cdef decode_state(self, type_id, data):
-        if not self._in_tx:
-            # make sure we start clean
-            self._state_serializer = None
         serializer = self.get_state_serializer()
         self._command_state_serializer = serializer
 
@@ -816,9 +766,10 @@ cdef class DatabaseConnectionView:
         self._in_tx_globals = self._globals
         self._in_tx_db_config = self._db.db_config
         self._in_tx_modaliases = self._modaliases
-        self._in_tx_user_schema = self._db.user_schema
-        self._in_tx_global_schema = self._db._index._global_schema
-        self._in_tx_user_config_spec = self._db.get_user_config_spec()
+        self._in_tx_user_schema_pickle = self._db.user_schema_pickle
+        self._in_tx_global_schema_pickle = \
+            self._db._index._global_schema_pickle
+        self._in_tx_user_config_spec = self._db.user_config_spec
         self._in_tx_state_serializer = self._state_serializer
 
     cdef _apply_in_tx(self, query_unit):
@@ -831,13 +782,12 @@ cdef class DatabaseConnectionView:
         if query_unit.has_set:
             self._in_tx_with_set = True
         if query_unit.user_schema is not None:
-            self._in_tx_user_schema_pickled = query_unit.user_schema
-            self._in_tx_user_schema = None
-            # XXX: FIXME: Only invalidate when spec actually changes?
-            self._in_tx_user_config_spec = None
+            self._in_tx_user_schema_pickle = query_unit.user_schema
+            self._in_tx_user_config_spec = config.FlatSpec(
+                *query_unit.ext_config_settings
+            )
         if query_unit.global_schema is not None:
-            self._in_tx_global_schema_pickled = query_unit.global_schema
-            self._in_tx_global_schema = None
+            self._in_tx_global_schema_pickle = query_unit.global_schema
 
     cdef start_implicit(self, query_unit):
         if self._tx_error:
@@ -865,8 +815,9 @@ cdef class DatabaseConnectionView:
             if query_unit.user_schema is not None:
                 self._in_tx_dbver = next_dbver()
                 self._db._set_and_signal_new_user_schema(
-                    pickle.loads(query_unit.user_schema),
+                    query_unit.user_schema,
                     query_unit.extensions,
+                    query_unit.ext_config_settings,
                     pickle.loads(query_unit.cached_reflection)
                         if query_unit.cached_reflection is not None
                         else None
@@ -883,8 +834,7 @@ cdef class DatabaseConnectionView:
                 side_effects |= SideEffects.DatabaseChanges
             if query_unit.global_schema is not None:
                 side_effects |= SideEffects.GlobalSchemaChanges
-                self._db._index.update_global_schema(
-                    pickle.loads(query_unit.global_schema))
+                self._db._index.update_global_schema(query_unit.global_schema)
                 self._db.tenant.set_roles(query_unit.roles)
         else:
             if new_types:
@@ -907,8 +857,9 @@ cdef class DatabaseConnectionView:
                 self._db._update_backend_ids(self._in_tx_new_types)
             if query_unit.user_schema is not None:
                 self._db._set_and_signal_new_user_schema(
-                    pickle.loads(query_unit.user_schema),
+                    query_unit.user_schema,
                     query_unit.extensions,
+                    query_unit.ext_config_settings,
                     pickle.loads(query_unit.cached_reflection)
                         if query_unit.cached_reflection is not None
                         else None
@@ -924,8 +875,7 @@ cdef class DatabaseConnectionView:
                 side_effects |= SideEffects.DatabaseConfigChanges
             if query_unit.global_schema is not None:
                 side_effects |= SideEffects.GlobalSchemaChanges
-                self._db._index.update_global_schema(
-                    pickle.loads(query_unit.global_schema))
+                self._db._index.update_global_schema(query_unit.global_schema)
                 self._db.tenant.set_roles(query_unit.roles)
 
             self._reset_tx_state()
@@ -943,6 +893,7 @@ cdef class DatabaseConnectionView:
         self,
         user_schema,
         extensions,
+        ext_config_settings,
         global_schema,
         roles,
         cached_reflection,
@@ -958,8 +909,9 @@ cdef class DatabaseConnectionView:
             self._db._update_backend_ids(self._in_tx_new_types)
         if user_schema is not None:
             self._db._set_and_signal_new_user_schema(
-                pickle.loads(user_schema),
+                user_schema,
                 extensions,
+                ext_config_settings,
                 pickle.loads(cached_reflection)
                     if cached_reflection is not None
                     else None
@@ -975,8 +927,7 @@ cdef class DatabaseConnectionView:
             side_effects |= SideEffects.DatabaseConfigChanges
         if global_schema is not None:
             side_effects |= SideEffects.GlobalSchemaChanges
-            self._db._index.update_global_schema(
-                pickle.loads(global_schema))
+            self._db._index.update_global_schema(global_schema)
             self._db.tenant.set_roles(roles)
 
         self._reset_tx_state()
@@ -1097,8 +1048,8 @@ cdef class DatabaseConnectionView:
             else:
                 result = await compiler_pool.compile(
                     self.dbname,
-                    self.get_user_schema(),
-                    self.get_global_schema(),
+                    self.get_user_schema_pickle(),
+                    self.get_global_schema_pickle(),
                     self.reflection_cache,
                     self.get_database_config(),
                     self.get_compilation_system_config(),
@@ -1122,6 +1073,15 @@ cdef class DatabaseConnectionView:
         unit_group, self._last_comp_state, self._last_comp_state_id = result
 
         return unit_group
+
+    async def interpret_backend_error(self, exc):
+        compiler_pool = self._db._index._server.get_compiler_pool()
+        return await compiler_pool.interpret_backend_error(
+            self.get_user_schema_pickle(),
+            self.get_global_schema_pickle(),
+            exc.fields,
+            False,
+        )
 
     cdef check_capabilities(
         self,
@@ -1164,6 +1124,20 @@ cdef class DatabaseConnectionView:
                     msg,
                 )
 
+    async def reload_state_serializer(self):
+        # This should only happen once when a different protocol version is
+        # used after schema change, or non-current version of protocol is used
+        # for the first time after database introspection.  Because such cases
+        # are rare, we'd rather do it lazily here than enumerating all protocol
+        # versions making several serializers in every schema change.
+        compiler_pool = self._db._index._server.get_compiler_pool()
+        state_serializer = await compiler_pool.make_state_serializer(
+            self._protocol_version,
+            self.get_user_schema_pickle(),
+            self.get_global_schema_pickle(),
+        )
+        self.set_state_serializer(state_serializer)
+
 
 cdef class DatabaseIndex:
 
@@ -1172,7 +1146,7 @@ cdef class DatabaseIndex:
         tenant,
         *,
         std_schema,
-        global_schema,
+        global_schema_pickle,
         sys_config,
         default_sysconfig,  # system config without system override
         sys_config_spec,
@@ -1181,14 +1155,11 @@ cdef class DatabaseIndex:
         self._server = tenant.server
         self._tenant = tenant
         self._std_schema = std_schema
-        self._global_schema = global_schema
+        self._global_schema_pickle = global_schema_pickle
         self._default_sysconfig = default_sysconfig
         self._sys_config_spec = sys_config_spec
-        # TODO: This factory will probably need to become per-db once
-        # config spec differs between databases.
-        self._factory = sertypes.StateSerializerFactory(
-            std_schema, sys_config_spec)
         self.update_sys_config(sys_config)
+        self._cached_compiler_args = None
 
     def count_connections(self, dbname: str):
         try:
@@ -1211,6 +1182,7 @@ cdef class DatabaseIndex:
         self._sys_config = sys_config
         self._comp_sys_config = config.get_compilation_config(
             sys_config, spec=self._sys_config_spec)
+        self.invalidate_caches()
 
     def has_db(self, dbname):
         return dbname in self._dbs
@@ -1225,46 +1197,48 @@ cdef class DatabaseIndex:
     def maybe_get_db(self, dbname):
         return self._dbs.get(dbname)
 
-    def get_global_schema(self):
-        return self._global_schema
+    def get_global_schema_pickle(self):
+        return self._global_schema_pickle
 
-    def update_global_schema(self, global_schema):
-        self._global_schema = global_schema
+    def update_global_schema(self, global_schema_pickle):
+        self._global_schema_pickle = global_schema_pickle
+        self.invalidate_caches()
 
     def register_db(
         self,
         dbname,
         *,
-        user_schema,
+        user_schema_pickle,
         db_config,
         reflection_cache,
         backend_ids,
         extensions,
+        ext_config_settings,
     ):
         cdef Database db
         db = self._dbs.get(dbname)
         if db is not None:
             db._set_and_signal_new_user_schema(
-                user_schema,
+                user_schema_pickle,
                 extensions,
+                ext_config_settings,
                 reflection_cache,
                 backend_ids,
                 db_config,
             )
-            # Make sure we will re-make the state serializers,
-            # see also comments in describe_database_restore()
-            db._clear_state_serializers()
         else:
             db = Database(
                 self,
                 dbname,
-                user_schema=user_schema,
+                user_schema_pickle=user_schema_pickle,
                 db_config=db_config,
                 reflection_cache=reflection_cache,
                 backend_ids=backend_ids,
                 extensions=extensions,
+                ext_config_settings=ext_config_settings,
             )
             self._dbs[dbname] = db
+        return db
 
     def unregister_db(self, dbname):
         self._dbs.pop(dbname)
@@ -1349,3 +1323,23 @@ cdef class DatabaseIndex:
     def remove_view(self, view: DatabaseConnectionView):
         db = self.get_db(view.dbname)
         return (<Database>db)._remove_view(view)
+
+    cdef invalidate_caches(self):
+        self._cached_compiler_args = None
+
+    def get_cached_compiler_args(self):
+        if self._cached_compiler_args is None:
+            dbs = immutables.Map()
+            for db in self._dbs.values():
+                dbs = dbs.set(
+                    db.name,
+                    compiler_state_mod.PickledDatabaseState(
+                        user_schema_pickle=db.user_schema_pickle,
+                        reflection_cache=db.reflection_cache,
+                        database_config=db.db_config,
+                    )
+                )
+            self._cached_compiler_args = (
+                dbs, self._global_schema_pickle, self._comp_sys_config
+            )
+        return self._cached_compiler_args

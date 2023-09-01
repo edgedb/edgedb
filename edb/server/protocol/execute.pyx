@@ -208,12 +208,13 @@ async def execute_script(
         bytes state = None, orig_state = None
         ssize_t sent = 0
         bint in_tx, sync, no_sync
-        object user_schema, extensions, cached_reflection, global_schema
+        object user_schema, extensions, ext_config_settings, cached_reflection
+        object global_schema, roles
         WriteBuffer bind_data
         int dbver = dbv.dbver
         bint parse
 
-    user_schema = extensions = cached_reflection = None
+    user_schema = extensions = ext_config_settings = cached_reflection = None
     global_schema = roles = None
     unit_group = compiled.query_unit_group
 
@@ -288,6 +289,7 @@ async def execute_script(
                 if query_unit.user_schema:
                     user_schema = query_unit.user_schema
                     extensions = query_unit.extensions
+                    ext_config_settings = query_unit.ext_config_settings
                     cached_reflection = query_unit.cached_reflection
 
                 if query_unit.global_schema:
@@ -354,6 +356,7 @@ async def execute_script(
             side_effects = dbv.commit_implicit_tx(
                 user_schema,
                 extensions,
+                ext_config_settings,
                 global_schema,
                 roles,
                 cached_reflection,
