@@ -69,13 +69,7 @@ def evaluate_to_python_val(
     ir: irast.Base,
     schema: s_schema.Schema,
 ) -> Any:
-    const: EvaluationResult
-    if isinstance(ir, irast.Set) and isinstance(ir.expr, irast.TypeCast):
-        # Special case for type casts.
-        # We cannot fold them, but can eval to Python
-        const = ir.expr
-    else:
-        const = evaluate(ir, schema=schema)
+    const = evaluate(ir, schema=schema)
     return const_to_python(const, schema=schema)
 
 
