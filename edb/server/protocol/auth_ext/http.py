@@ -74,7 +74,27 @@ class Router:
                 case ("callback",):
                     query = request.url.query.decode("ascii")
                     state = _get_search_param(query, "state")
-                    code = _get_search_param(query, "code")
+                    try:
+                        code = _get_search_param(query, "code")
+                    except errors.InvalidData:
+                        error = _get_search_param(query, "error")
+                        error_description = _maybe_get_search_param(
+                            query, "error_description"
+                        )
+                        redirect_to = self._get_from_claims(
+                            state, "redirect_to"
+                        )
+                        response.status = http.HTTPStatus.FOUND
+                        params = {
+                            "error": error,
+                        }
+                        if error_description is not None:
+                            params["error_description"] = error_description
+                        response.custom_headers[
+                            "Location"
+                        ] = f"{redirect_to}?{urllib.parse.urlencode(params)}"
+                        return
+
                     provider_id = self._get_from_claims(state, "provider")
                     redirect_to = self._get_from_claims(state, "redirect_to")
                     client = oauth.Client(
@@ -86,9 +106,7 @@ class Router:
                     session_token = self._make_session_token(identity.id)
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = redirect_to
-                    response.custom_headers[
-                        "Set-Cookie"
-                    ] = (
+                    response.custom_headers["Set-Cookie"] = (
                         f"edgedb-session={session_token}; "
                         f"HttpOnly; Secure; SameSite=Strict"
                     )
@@ -162,7 +180,7 @@ class Router:
         auth_expiration_time = util.get_config(
             self.db.db_config,
             "ext::auth::AuthConfig::token_time_to_live",
-            statypes.Duration
+            statypes.Duration,
         )
         expires_in = auth_expiration_time.to_timedelta()
         expires_at = datetime.datetime.utcnow() + expires_in
