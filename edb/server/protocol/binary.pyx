@@ -1160,7 +1160,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         exc_code = None
 
-        exc, exc_type = self.interpret_error(exc)
+        exc = self.interpret_error(exc)
+        exc_type = type(exc)
 
         fields = {}
         if isinstance(exc, errors.EdgeDBError):
@@ -1850,7 +1851,7 @@ async def run_script(
         else:
             await conn._execute(compiled, b'', use_prep_stmt=0)
     except Exception as e:
-        exc, _ = conn.interpret_error(e)
+        exc = conn.interpret_error(e)
         if isinstance(exc, errors.EdgeDBError):
             raise exc from None
         else:

@@ -214,7 +214,7 @@ async def execute(db, server, queries: list):
                     if debug.flags.server:
                         markup.dump(ex)
 
-                    ex, ex_type = p_execute.interpret_error(
+                    ex = p_execute.interpret_error(
                         ex,
                         get_schema=lambda: dbv.get_schema(),
                         server=server,
@@ -222,7 +222,7 @@ async def execute(db, server, queries: list):
 
                     result.append({
                         'kind': 'error',
-                        'error': [ex_type.__name__, str(ex), {}],
+                        'error': [type(ex).__name__, str(ex), {}],
                     })
 
                     break

@@ -574,7 +574,7 @@ def interpret_error(
     get_schema: object,
     server: object,
     from_graphql: bool=False,
-) -> tuple[Exception, type]:
+) -> Exception:
 
     if isinstance(exc, RecursionError):
         exc = errors.UnsupportedFeatureError(
@@ -609,8 +609,12 @@ def interpret_error(
                 'unhandled error while calling interpret_backend_error(); '
                 'run with EDGEDB_DEBUG_SERVER to debug.')
 
-    exc_type = type(exc)
-    if not issubclass(exc_type, errors.EdgeDBError):
-        exc_type = errors.InternalServerError
+    if not isinstance(exc, errors.EdgeDBError):
+        nexc = errors.InternalServerError(
+            f'{type(exc).__name__}: {exc}').with_traceback(exc.__traceback__)
+        formatted = getattr(exc, '__formatted_error__', None)
+        if formatted:
+            nexc.__formatted_error__ = formatted
+        exc = nexc
 
-    return exc, exc_type
+    return exc
