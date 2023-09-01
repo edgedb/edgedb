@@ -29,7 +29,6 @@ from edb import errors
 from edb.common import context as ctx_utils
 
 from edb.ir import ast as irast
-from edb.ir import staeval as ireval
 from edb.ir import typeutils as irtyputils
 
 from edb.schema import abc as s_abc
@@ -316,18 +315,8 @@ def compile_IfElse(
 def compile_UnaryOp(
         expr: qlast.UnaryOp, *, ctx: context.ContextLevel) -> irast.Set:
 
-    result = func.compile_operator(
+    return func.compile_operator(
         expr, op_name=expr.op, qlargs=[expr.operand], ctx=ctx)
-
-    try:
-        result = setgen.ensure_set(
-            ireval.evaluate(result, schema=ctx.env.schema),
-            ctx=ctx,
-        )
-    except ireval.UnsupportedExpressionError:
-        pass
-
-    return result
 
 
 @dispatch.compile.register(qlast.GlobalExpr)
