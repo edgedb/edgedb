@@ -536,8 +536,11 @@ def output_format(
     output_format: OutputFormat,
 ) -> Generator[None, None, None]:
     original_output_format = ctx.env.output_format
+    original_ignore_object_shapes = ctx.env.ignore_object_shapes
     ctx.env.output_format = output_format
+    ctx.env.ignore_object_shapes = False
     try:
         yield
     finally:
         ctx.env.output_format = original_output_format
+        ctx.env.ignore_object_shapes = original_ignore_object_shapes

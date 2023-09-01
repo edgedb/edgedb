@@ -1663,6 +1663,15 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             for obj in res:
                 self.assertEqual(obj[0], obj[1])
 
+    async def test_edgeql_volatility_in_func_01(self):
+        await self.con.execute('''
+            create function foo() -> float64 using (
+              with Z := Obj { v := random() },
+              select sum(Z.v)
+            );
+        ''')
+        await self.con.query('select foo()')
+
     async def test_edgeql_volatility_errors_01(self):
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
