@@ -18,12 +18,11 @@
 
 
 import urllib.parse
-
+import json
 import httpx
-from edb.server.protocol import execute
-
 
 from typing import Any
+from edb.server.protocol import execute
 
 from . import errors, util, data
 
@@ -78,24 +77,24 @@ class Client:
             state=state, redirect_uri=redirect_uri
         )
 
-    async def handle_callback(self, code: str) -> None:
+    async def handle_callback(self, code: str) -> data.Identity:
         token = await self.provider.exchange_code(code)
         user_info = await self.provider.fetch_user_info(token)
 
-        await self._handle_identity(user_info)
+        return await self._handle_identity(user_info)
 
-    async def _handle_identity(self, user_info: data.UserInfo) -> None:
+    async def _handle_identity(self, user_info: data.UserInfo) -> data.Identity:
         """Update or create an identity"""
 
-        await execute.parse_execute_json(
+        r = await execute.parse_execute_json(
             db=self.db,
             query="""\
 with
   iss := <str>$issuer_url,
   sub := <str>$provider_id,
-  email := <optional str>$email
+  email := <optional str>$email,
 
-insert ext::auth::Identity {
+select (insert ext::auth::Identity {
   iss := iss,
   sub := sub,
   email := email,
@@ -103,13 +102,17 @@ insert ext::auth::Identity {
   update ext::auth::Identity set {
     email := email
   }
-);""",
+)) { * };""",
             variables={
                 "issuer_url": self.provider.issuer_url,
                 "provider_id": user_info.sub,
                 "email": user_info.email,
             },
         )
+        result_json = json.loads(r.decode())
+        assert len(result_json) == 1
+
+        return data.Identity(**result_json[0])
 
     def _get_provider_config(self, provider_id: str) -> tuple[str, str, str]:
         provider_client_config = util.get_config(
