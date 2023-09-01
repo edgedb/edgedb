@@ -17,4 +17,60 @@
 #
 
 
-CREATE EXTENSION PACKAGE auth VERSION '1.0';
+CREATE EXTENSION PACKAGE auth VERSION '1.0' {
+    set ext_module := "ext::auth";
+
+    create module ext::auth;
+
+    create type ext::auth::Identity {
+        create required property iss: std::str;
+        create required property sub: std::str;
+        create property email: std::str;
+
+        create constraint exclusive on ((.iss, .sub))
+    };
+
+    create type ext::auth::ClientConfig extending cfg::ConfigObject {
+        create required property provider_id: std::str {
+            set readonly := true;
+            create annotation std::description :=
+                "ID of the auth provider";
+        };
+
+        create required property provider_name: std::str {
+            set readonly := true;
+            create annotation std::description := "Auth provider name";
+        };
+
+        create required property url: std::str {
+            set readonly := true;
+            create annotation std::description := "Authorization server URL";
+        };
+
+        create required property secret: std::str {
+            set readonly := true;
+            create annotation std::description :=
+                "Secret provided by auth provider";
+        };
+
+        create required property client_id: std::str {
+            set readonly := true;
+            create annotation std::description :=
+                "ID for client provided by auth provider";
+        };
+    };
+
+    create type ext::auth::AuthConfig extending cfg::ExtensionConfig {
+        create multi link providers -> ext::auth::ClientConfig {
+            create annotation std::description :=
+                "Configuration for auth provider clients";
+        };
+
+        create property auth_signing_key -> std::str {
+            create annotation std::description :=
+                "The signing key used for auth extension. Must be at \
+                least 32 characters long.";
+            set default := "00000000000000000000000000000000";
+        };
+    };
+};

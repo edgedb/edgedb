@@ -17,7 +17,6 @@
 #
 
 
-import asyncio
 import urllib.parse
 
 import httpx
@@ -49,7 +48,7 @@ class HttpClient(httpx.AsyncClient):
 
 
 class Client:
-    def __init__(self, db: Any, provider: str, base_url: str | None = None):
+    def __init__(self, db: Any, provider_id: str, base_url: str | None = None):
         self.db = db
         self.db_config = db.db_config
 
@@ -57,12 +56,17 @@ class Client:
             *args, edgedb_test_url=base_url, **kwargs
         )
 
-        match provider:
+        (provider_name, client_id, client_secret) = self._get_provider_config(
+            provider_id
+        )
+
+        match provider_name:
             case "github":
                 from . import github
 
                 self.provider = github.GitHubProvider(
-                    *self._get_client_credientials("github"),
+                    client_id=client_id,
+                    client_secret=client_secret,
                     http_factory=http_factory,
                 )
             case _:
@@ -75,25 +79,30 @@ class Client:
 
     async def handle_callback(self, code: str) -> None:
         token = await self.provider.exchange_code(code)
+        user_info = await self.provider.fetch_user_info(token)
 
-        async with asyncio.TaskGroup() as g:
-            user_info_t = g.create_task(self.provider.fetch_user_info(token))
-            emails_t = g.create_task(self.provider.fetch_emails(token))
-        user_info = user_info_t.result()
-        emails = emails_t.result()
+        await self._handle_identity(user_info)
 
-        await self._handle_identity(user_info, emails)
-
-    async def _handle_identity(
-        self, user_info: data.UserInfo, emails: list[data.Email]
-    ) -> None:
+    async def _handle_identity(self, user_info: data.UserInfo) -> None:
         ...
 
-    def _get_client_credientials(self, client_name: str) -> tuple[str, str]:
-        client_id = util.get_config(
-            self.db_config, f"xxx_{client_name}_client_id"
+    def _get_provider_config(self, provider_id: str) -> tuple[str, str, str]:
+        provider_client_config = util.get_config(
+            self.db_config, "ext::auth::AuthConfig::providers", frozenset
         )
-        client_secret = util.get_config(
-            self.db_config, f"xxx_{client_name}_client_secret"
-        )
-        return client_id, client_secret
+        provider_name: str | None = None
+        client_id: str | None = None
+        client_secret: str | None = None
+        for cfg in provider_client_config:
+            if cfg.provider_id == provider_id:
+                provider_name = cfg.provider_name
+                client_id = cfg.client_id
+                client_secret = cfg.secret
+        r = (provider_name, client_id, client_secret)
+        match r:
+            case (str(_), str(_), str(_)):
+                return r
+            case _:
+                raise errors.InvalidData(
+                    f"Invalid provider configuration: {provider_id}"
+                )

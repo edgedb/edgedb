@@ -60,12 +60,3 @@ class UserInfo:
             f"email={self.email!r} "
             f"preferred_username={self.preferred_username!r})"
         )
-
-
-@dataclasses.dataclass
-class Email:
-    """Email address"""
-
-    address: str
-    is_verified: bool
-    is_primary: bool
