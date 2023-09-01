@@ -50,7 +50,7 @@ class GoogleProvider(base.BaseProvider):
             "response_type": "code",
         }
         encoded = urllib.parse.urlencode(params)
-        return f"{self.issuer}/o/oauth2/v2/auth?{encoded}"
+        return f"{self.issuer_url}/o/oauth2/v2/auth?{encoded}"
 
     async def exchange_code(self, code: str) -> str:
         data = {
@@ -65,8 +65,7 @@ class GoogleProvider(base.BaseProvider):
                 "/token",
                 json=data,
             )
-            token = resp.json()["access_token"]
-            self.id_token = resp.json()["id_token"]
+            token = resp.json()["id_token"]
 
             return token
 
@@ -78,7 +77,7 @@ class GoogleProvider(base.BaseProvider):
 
         # Load the token as a JWT object and verify it directly
         jwk_set = jwk.JWKSet.from_json(keyset)
-        id_token_verified = jwt.JWT(key=jwk_set, jwt=self.id_token)
+        id_token_verified = jwt.JWT(key=jwk_set, jwt=token)
         payload = json.loads(id_token_verified.claims)
         if payload["iss"] != self.issuer_url:
             raise errors.InvalidData("Invalid value for iss in id_token")
