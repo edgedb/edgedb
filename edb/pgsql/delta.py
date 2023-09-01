@@ -1241,7 +1241,8 @@ class FunctionCommand(MetaCommand):
             explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
                 schema, func.get_return_type(schema)),
             output_format=compiler.OutputFormat.NATIVE,
-            use_named_params=True)
+            named_param_prefix=self.get_pgname(func, schema)[-1:],
+        )
 
         return codegen.generate_source(sql_res.ast)
 
@@ -1366,7 +1367,7 @@ class FunctionCommand(MetaCommand):
                 explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
                     schema, func.get_return_type(schema)),
                 output_format=compiler.OutputFormat.NATIVE,
-                use_named_params=True,
+                named_param_prefix=self.get_pgname(func, schema)[-1:],
                 backend_runtime_params=context.backend_runtime_params,
             )
             body = codegen.generate_source(sql_res.ast)
