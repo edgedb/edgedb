@@ -152,19 +152,23 @@ class MockAuthProvider:
 class TestHttpExtAuth(tb.ExtAuthTestCase):
     TRANSACTION_ISOLATION = False
 
-    SETUP = [
+    EXTENSION_SETUP = [
         f"""
-        CONFIGURE CURRENT DATABASE
-        SET xxx_auth_signing_key := <str>'{"a" * 32}';
+        CONFIGURE CURRENT DATABASE SET
+        ext::auth::AuthConfig::auth_signing_key := <str>'{'a' * 32}';
         """,
-        f"""
-        CONFIGURE CURRENT DATABASE
-        SET xxx_github_client_secret := <str>'{"b" * 32}';
-        """,
-        f"""
-        CONFIGURE CURRENT DATABASE
-        SET xxx_github_client_id := <str>'{uuid.uuid4()}';
-        """,
+        (
+            f"""
+            CONFIGURE CURRENT DATABASE
+            INSERT ext::auth::ClientConfig {{
+                provider_name := "github",
+                url := "https://github.com",
+                provider_id := <str>'{uuid.uuid4()}',
+                secret := <str>'{"b" * 32}',
+                client_id := <str>'{uuid.uuid4()}'
+            }};
+            """
+        ),
     ]
 
     def http_con_send_request(self, *args, headers=None, **kwargs):
@@ -183,16 +187,28 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_github_authorize_01(self):
         with MockAuthProvider(), self.http_con() as http_con:
-            client_id = await self.con.query_single(
-                """SELECT assert_single(cfg::Config.xxx_github_client_id);"""
+            github_provider_config = await self.con.query_single(
+                """
+                SELECT assert_exists(assert_single(
+                    cfg::Config.extensions[is ext::auth::AuthConfig]
+                        .providers { * } filter .provider_name = "github"
+                ));
+                """
             )
+            github_provider_id = github_provider_config.provider_id
+            client_id = github_provider_config.client_id
 
             auth_signing_key = await self.con.query_single(
-                """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
+                """
+                SELECT assert_single(
+                    cfg::Config.extensions[is ext::auth::AuthConfig]
+                        .auth_signing_key
+                );
+                """
             )
 
             _, headers, status = self.http_con_request(
-                http_con, {"provider": "github"}, path="authorize"
+                http_con, {"provider": github_provider_id}, path="authorize"
             )
 
             self.assertEqual(status, 302)
@@ -213,7 +229,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             key = jwk.JWK(k=key_bytes.decode(), kty="oct")
             signed_token = jwt.JWT(key=key, algs=["HS256"], jwt=state[0])
             claims = json.loads(signed_token.claims)
-            self.assertEqual(claims.get("provider"), "github")
+            self.assertEqual(claims.get("provider"), github_provider_id)
             self.assertEqual(claims.get("iss"), self.http_addr)
 
             self.assertEqual(
@@ -224,7 +240,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     async def test_http_auth_ext_github_callback_missing_provider_01(self):
         with MockAuthProvider(), self.http_con() as http_con:
             auth_signing_key = await self.con.query_single(
-                """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
+                """
+                SELECT assert_single(
+                    cfg::Config.extensions[is ext::auth::AuthConfig]
+                        .auth_signing_key
+                );
+                """
             )
 
             expires_at = datetime.datetime.utcnow() + datetime.timedelta(
@@ -253,6 +274,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_github_callback_wrong_key_01(self):
         with MockAuthProvider(), self.http_con() as http_con:
+            github_provider_config = await self.con.query_single(
+                """
+                SELECT assert_exists(assert_single(
+                    cfg::Config.extensions[is ext::auth::AuthConfig]
+                        .providers { * } filter .provider_name = "github"
+                ));
+                """
+            )
+            github_provider_id = github_provider_config.provider_id
             auth_signing_key = "abcd" * 8
 
             expires_at = datetime.datetime.utcnow() + datetime.timedelta(
@@ -260,7 +290,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             missing_provider_state_claims = {
                 "iss": self.http_addr,
-                "provider": "github",
+                "provider": github_provider_id,
                 "exp": expires_at.astimezone().timestamp(),
             }
             state_token = jwt.JWT(
@@ -283,7 +313,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     async def test_http_auth_ext_github_unknown_provider_01(self):
         with MockAuthProvider(), self.http_con() as http_con:
             auth_signing_key = await self.con.query_single(
-                """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
+                """
+                SELECT assert_single(
+                    cfg::Config.extensions[is ext::auth::AuthConfig]
+                        .auth_signing_key
+                );
+                """
             )
 
             expires_at = datetime.datetime.utcnow() + datetime.timedelta(
@@ -313,14 +348,17 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_github_callback_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
-            client_id = await self.con.query_single(
-                """SELECT assert_single(cfg::Config.xxx_github_client_id);"""
-            )
-            client_secret = await self.con.query_single(
+            github_provider_config = await self.con.query_single(
                 """
-                SELECT assert_single(cfg::Config.xxx_github_client_secret);
+                SELECT assert_exists(assert_single(
+                    cfg::Config.extensions[is ext::auth::AuthConfig]
+                        .providers { * } filter .provider_name = "github"
+                ));
                 """
             )
+            github_provider_id = github_provider_config.provider_id
+            client_id = github_provider_config.client_id
+            client_secret = github_provider_config.secret
 
             now = datetime.datetime.utcnow().isoformat()
             token_request = (
@@ -354,27 +392,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-            emails_request = ("GET", "https://api.github.com", "/user/emails")
-            mock_provider.register_route_handler(*emails_request)(
-                (
-                    [
-                        {
-                            "email": "octocat@example.com",
-                            "verified": True,
-                            "primary": True,
-                        },
-                        {
-                            "email": "octocat+2@example.com",
-                            "verified": False,
-                            "primary": False,
-                        },
-                    ],
-                    200,
-                )
-            )
-
             auth_signing_key = await self.con.query_single(
-                """SELECT assert_single(cfg::Config.xxx_auth_signing_key);"""
+                """
+                SELECT assert_single(
+                    cfg::Config.extensions[is ext::auth::AuthConfig]
+                        .auth_signing_key
+                );
+                """
             )
 
             expires_at = datetime.datetime.utcnow() + datetime.timedelta(
@@ -382,7 +406,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             state_claims = {
                 "iss": self.http_addr,
-                "provider": "github",
+                "provider": str(github_provider_id),
                 "exp": expires_at.astimezone().timestamp(),
                 "redirect_to": f"{self.http_addr}/some/path",
             }
@@ -429,12 +453,5 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(len(requests_for_user), 1)
             self.assertEqual(
                 requests_for_user[0]["headers"]["authorization"],
-                "Bearer github_access_token",
-            )
-
-            requests_for_emails = mock_provider.requests[emails_request]
-            self.assertEqual(len(requests_for_emails), 1)
-            self.assertEqual(
-                requests_for_emails[0]["headers"]["authorization"],
                 "Bearer github_access_token",
             )

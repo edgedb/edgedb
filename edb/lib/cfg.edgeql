@@ -163,24 +163,6 @@ ALTER TYPE cfg::AbstractConfig {
             'Whether inserts are allowed to set the \'id\' property.';
     };
 
-    # XXX: Remove these and move to extension config mechanism when ready
-    CREATE PROPERTY xxx_auth_signing_key -> std::str {
-        CREATE ANNOTATION std::description :=
-            'The signing key used for auth extension. Must be at \
-            least 32 characters long.';
-        SET default := '00000000000000000000000000000000';
-    };
-
-    CREATE PROPERTY xxx_github_client_secret -> std::str {
-        CREATE ANNOTATION std::description := 'Secret key provided by GitHub';
-        SET default := '00000000000000000000000000000000';
-    };
-
-    CREATE PROPERTY xxx_github_client_id -> std::str {
-        CREATE ANNOTATION std::description := 'ID provided by GitHub';
-        SET default := '00000000000000000000000000000000';
-    };
-
     # Exposed backend settings follow.
     # When exposing a new setting, remember to modify
     # the _read_sys_config function to select the value

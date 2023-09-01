@@ -26,8 +26,8 @@ from . import data
 
 class GitHubProvider(base.BaseProvider):
     def __init__(self, *args, **kwargs):
-        super().__init__("github", *args, **kwargs)
-        self.auth_domain = "https://github.com"
+        super().__init__("github", "https://github.com", *args, **kwargs)
+        self.auth_domain = self.issuer_url
         self.api_domain = "https://api.github.com"
         self.auth_client = functools.partial(
             self.http_factory, base_url=self.auth_domain
@@ -84,24 +84,3 @@ class GitHubProvider(base.BaseProvider):
                     payload.get("updated_at")
                 ),
             )
-
-    async def fetch_emails(self, token: str) -> list[data.Email]:
-        async with self.api_client() as client:
-            resp = await client.get(
-                "/user/emails",
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Accept": "application/vnd.github+json",
-                    "X-GitHub-Api-Version": "2022-11-28",
-                },
-            )
-            payload = resp.json()
-
-            return [
-                data.Email(
-                    address=d["email"],
-                    is_verified=d["verified"],
-                    is_primary=d["primary"],
-                )
-                for d in payload
-            ]

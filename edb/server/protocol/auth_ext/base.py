@@ -23,9 +23,16 @@ from . import data
 
 class BaseProvider:
     def __init__(
-        self, name: str, client_id: str, client_secret: str, *, http_factory
+        self,
+        name: str,
+        issuer_url: str,
+        client_id: str,
+        client_secret: str,
+        *,
+        http_factory,
     ):
         self.name = name
+        self.issuer_url = issuer_url
         self.client_id = client_id
         self.client_secret = client_secret
         self.http_factory = http_factory
@@ -39,10 +46,5 @@ class BaseProvider:
     async def fetch_user_info(self, token: str) -> data.UserInfo:
         raise NotImplementedError
 
-    async def fetch_emails(self, token: str) -> list[data.Email]:
-        raise NotImplementedError
-
     def _maybe_isoformat_to_timestamp(self, value: str | None) -> float | None:
-        return (
-            datetime.fromisoformat(value).timestamp() if value else None
-        )
+        return datetime.fromisoformat(value).timestamp() if value else None
