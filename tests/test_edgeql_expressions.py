@@ -3552,6 +3552,17 @@ class TestExpressions(tb.QueryTestCase):
             [[1]],
         )
 
+    async def test_edgeql_expr_array_27(self):
+        # Big array with nontrivial elements
+        N = 350
+        body = '0+1, ' * N
+
+        await self.assert_query_result(
+            f'select [{body}]',
+            [[1] * N],
+            json_only=True,
+        )
+
     async def test_edgeql_expr_coalesce_01(self):
         await self.assert_query_result(
             r'''SELECT <int64>{} ?? 4 ?? 5;''',

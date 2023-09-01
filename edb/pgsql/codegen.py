@@ -721,42 +721,44 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_JoinExpr(self, node: pgast.JoinExpr) -> None:
         self.visit(node.larg)
-        if node.rarg is not None:
+        for join in node.joins:
             self.new_lines = 1
-            if not node.quals and not node.using_clause:
+            if not join.quals and not join.using_clause:
                 join_type = 'CROSS'
             else:
-                join_type = node.type.upper()
+                join_type = join.type.upper()
             if join_type == 'INNER':
                 self.write('JOIN ')
             else:
                 self.write(join_type + ' JOIN ')
+            # XXX
             nested_join = (
-                isinstance(node.rarg, pgast.JoinExpr)
-                and node.rarg.rarg is not None
+                isinstance(join.rarg, pgast.JoinExpr)
+                and join.rarg.joins
+                # and node.rarg.rarg is not None
             )
             if nested_join:
                 self.write('(')
                 self.new_lines = 1
                 self.indentation += 1
-            self.visit(node.rarg)
+            self.visit(join.rarg)
             if nested_join:
                 self.indentation -= 1
                 self.new_lines = 1
                 self.write(')')
-            if node.quals is not None:
+            if join.quals is not None:
                 if not nested_join:
                     self.indentation += 1
                     self.new_lines = 1
                     self.write('ON ')
                 else:
                     self.write(' ON ')
-                self.visit(node.quals)
+                self.visit(join.quals)
                 if not nested_join:
                     self.indentation -= 1
-            elif node.using_clause:
+            elif join.using_clause:
                 self.write(" USING (")
-                self.visit_list(node.using_clause)
+                self.visit_list(join.using_clause)
                 self.write(")")
 
     def visit_Expr(self, node: pgast.Expr) -> None:

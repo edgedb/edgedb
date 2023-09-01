@@ -158,15 +158,19 @@ def _resolve_JoinExpr(
     larg = resolve_BaseRangeVar(range_var.larg, ctx=ctx)
     ltable = ctx.scope.tables[len(ctx.scope.tables) - 1]
 
-    rarg = resolve_BaseRangeVar(range_var.rarg, ctx=ctx)
+    assert len(range_var.joins) == 1, (
+        "pg resolver should always produce non-flattened joins")
+    join = range_var.joins[0]
+
+    rarg = resolve_BaseRangeVar(join.rarg, ctx=ctx)
     rtable = ctx.scope.tables[len(ctx.scope.tables) - 1]
 
     quals: Optional[pgast.BaseExpr] = None
-    if range_var.quals:
-        quals = dispatch.resolve(range_var.quals, ctx=ctx)
+    if join.quals:
+        quals = dispatch.resolve(join.quals, ctx=ctx)
 
-    if range_var.using_clause:
-        for c in range_var.using_clause:
+    if join.using_clause:
+        for c in join.using_clause:
             with ctx.child() as subctx:
                 subctx.scope.tables = [ltable]
                 l_expr = dispatch.resolve(c, ctx=subctx)
@@ -183,10 +187,12 @@ def _resolve_JoinExpr(
             )
 
     return pgast.JoinExpr(
-        type=range_var.type,
         larg=larg,
-        rarg=rarg,
-        quals=quals,
+        joins=[pgast.JoinClause(
+            type=join.type,
+            rarg=rarg,
+            quals=quals,
+        )],
     )
 
 
