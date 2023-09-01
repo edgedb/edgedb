@@ -151,7 +151,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_14(self):
         """
-        SELECT 1 + (distinct {2, 3})
+        SELECT 1 + {2, 3}
 % OK %
         UNIQUE
         """
@@ -179,7 +179,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_18(self):
         """
-        SELECT (1, distinct {'a', 'b'})
+        SELECT (1, {'a', 'b'})
 % OK %
         UNIQUE
         """
@@ -193,7 +193,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_20(self):
         """
-        SELECT [1, distinct {1, 2}]
+        SELECT [1, {1, 2}]
 % OK %
         UNIQUE
         """
@@ -293,7 +293,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_32(self):
         """
-        SELECT <str>(distinct {1, 2, 3})
+        SELECT <str>{1, 2, 3}
 % OK %
         UNIQUE
         """
@@ -477,7 +477,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_55a(self):
         """
-        FOR x IN (distinct {'fire', 'water'})
+        FOR x IN {'fire', 'water'}
         UNION (
             SELECT Card
             FILTER .element = x
@@ -488,7 +488,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_55b(self):
         """
-        FOR letter IN (distinct {'I', 'B'})
+        FOR letter IN {'I', 'B'}
         UNION (
             SELECT Card
             FILTER .name[0] = letter
@@ -501,7 +501,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
         """
         SELECT User {
             wishlist := (
-                FOR x IN (distinct {'fire', 'water'})
+                FOR x IN {'fire', 'water'}
                 UNION (
                     SELECT Card
                     FILTER .element = x
@@ -739,7 +739,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_77(self):
         """
-        for x in (distinct {1, 2}) union { foo := 10 }
+        for x in {1, 2} union { foo := 10 }
 % OK %
         UNIQUE
         """
@@ -747,28 +747,28 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
     def test_edgeql_ir_mult_inference_78(self):
         """
         with F := { foo := 10 }
-        for x in (distinct {1, 2}) union F
+        for x in {1, 2} union F
 % OK %
         DUPLICATE
         """
 
     def test_edgeql_ir_mult_inference_79(self):
         """
-        for x in (distinct {1, 2, 3}) union (with z := x, select z)
+        for x in {1, 2, 3} union (with z := x, select z)
 % OK %
         UNIQUE
         """
 
     def test_edgeql_ir_mult_inference_80(self):
         """
-        for x in (distinct {1,2}) union (for y in (distinct {3, 4}) union x)
+        for x in {1,2} union (for y in {3, 4} union x)
 % OK %
         DUPLICATE
         """
 
     def test_edgeql_ir_mult_inference_81(self):
         """
-        for x in (distinct {1,2}) union (for y in (distinct {3, 4}) union y)
+        for x in {1,2} union (for y in {3, 4} union y)
 % OK %
         DUPLICATE
         """
