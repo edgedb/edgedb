@@ -358,6 +358,7 @@ def __infer_oper_call(
     scope_tree: irast.ScopeTreeNode,
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
+    card = cardinality.infer_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
     mult: List[inf_ctx.MultiplicityInfo] = []
     cards: List[qltypes.Cardinality] = []
     for arg in ir.args:
@@ -432,7 +433,7 @@ def __infer_oper_call(
         else:
             return UNIQUE
     elif op_name == 'std::IF':
-        # If the cardinality of the condition is more than UNIQUE, then
+        # If the cardinality of the condition is more than ONE, then
         # the multiplicity cannot be inferred.
         if cards[1].is_single():
             # Now it's just a matter of the multiplicity of the
@@ -442,11 +443,13 @@ def __infer_oper_call(
             return DUPLICATE
     elif op_name == 'std::??':
         return _max_multiplicity((mult[0], mult[1]))
-    else:
-        # The rest of the operators (other than UNION, DISTINCT, or
-        # IF..ELSE). We can ignore the SET OF args because the results
-        # are actually proportional to the element-wise args in our
-        # operators.
+    elif card.is_single():
+        return UNIQUE
+    elif op_name in ('std::++', 'std::+'):
+        # Operators known to be injective.
+        # Basically just done to avoid breaking backward compatability
+        # more than was necessary, because we used to *always* use this
+        # path, which was wrong.
         result = _max_multiplicity(mult)
         if result.is_duplicate():
             return result
@@ -460,6 +463,9 @@ def __infer_oper_call(
             return DUPLICATE
         else:
             return result
+    else:
+        # Everything else.
+        return DUPLICATE
 
 
 @_infer_multiplicity.register
