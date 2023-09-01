@@ -310,6 +310,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         msg_buf.end_message()
         buf.write_buffer(msg_buf)
 
+        if self.get_dbview().get_state_serializer() is None:
+            await self.get_dbview().reload_state_serializer()
         buf.write_buffer(self.make_state_data_description_msg())
 
         self.write(buf)
@@ -875,6 +877,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         cdef:
             bytes eql
             dbview.QueryRequestInfo query_req
+            dbview.DatabaseConnectionView _dbview
             WriteBuffer parse_complete
             WriteBuffer buf
 
@@ -882,6 +885,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.ignore_headers()
 
+        _dbview = self.get_dbview()
+        if _dbview.get_state_serializer() is None:
+            await _dbview.reload_state_serializer()
         query_req = self.parse_execute_request()
         compiled = await self._parse(query_req)
 
@@ -908,14 +914,15 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.ignore_headers()
 
+        _dbview = self.get_dbview()
+        if _dbview.get_state_serializer() is None:
+            await _dbview.reload_state_serializer()
         query_req = self.parse_execute_request()
         in_tid = self.buffer.read_bytes(16)
         out_tid = self.buffer.read_bytes(16)
         args = self.buffer.read_len_prefixed_bytes()
 
         self.buffer.finish_message()
-
-        _dbview = self.get_dbview()
 
         if (
             self._last_anon_compiled is not None and
@@ -1084,7 +1091,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.get_dbview().tx_error()
             self.buffer.finish_message()
 
-            self.write_error(ex)
+            ex, ex_type = await self.interpret_error(ex)
+
+            self.write_error(ex, ex_type)
             self.flush()
 
             if isinstance(ex, errors.ServerOfflineError):
@@ -1124,10 +1133,13 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             else:
                 self.buffer.discard_message()
 
-    cdef write_error(self, exc):
+    cdef write_error(self, exc, exc_type=None):
         cdef:
             WriteBuffer buf
             int16_t fields_len
+
+        if not exc_type:
+            exc_type = type(exc)
 
         if self.debug and not isinstance(exc, errors.BackendUnavailableError):
             self.debug_print('EXCEPTION', type(exc).__name__, exc)
@@ -1147,8 +1159,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         })
 
         exc_code = None
-
-        exc, exc_type = self.interpret_error(exc)
 
         fields = {}
         if isinstance(exc, errors.EdgeDBError):
@@ -1189,11 +1199,13 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.write(buf)
 
-    cdef interpret_error(self, exc):
-        return execute.interpret_error(
+    async def interpret_error(self, exc):
+        dbv = self.get_dbview()
+        return await execute.interpret_error(
             exc,
-            get_schema=lambda: self.get_dbview().get_schema(),
-            tenant=self.tenant,
+            dbv._db,
+            global_schema_pickle=dbv.get_global_schema_pickle(),
+            user_schema_pickle=dbv.get_user_schema_pickle(),
         )
 
     cdef write_status(self, bytes name, bytes value):
@@ -1329,16 +1341,18 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 ''',
             )
 
-            user_schema = await tenant.introspect_user_schema(pgcon)
-            global_schema = await tenant.introspect_global_schema(pgcon)
-            db_config = await tenant.introspect_db_config(pgcon, user_schema)
+            user_schema_json = await server.introspect_user_schema_json(pgcon)
+            global_schema_json = (
+                await server.introspect_global_schema_json(pgcon)
+            )
+            db_config_json = await server.introspect_db_config(pgcon)
             dump_protocol = self.max_protocol
 
             schema_ddl, schema_dynamic_ddl, schema_ids, blocks = (
                 await compiler_pool.describe_database_dump(
-                    user_schema,
-                    global_schema,
-                    db_config,
+                    user_schema_json,
+                    global_schema_json,
+                    db_config_json,
                     dump_protocol,
                 )
             )
@@ -1492,6 +1506,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             raise errors.ProtocolError(
                 'RESTORE must not be executed while in transaction'
             )
+        if _dbview.get_state_serializer() is None:
+            await _dbview.reload_state_serializer()
 
         self.reject_headers()
         self.buffer.read_int16()  # discard -j level
@@ -1501,8 +1517,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         server = self.server
         compiler_pool = server.get_compiler_pool()
 
-        global_schema = _dbview.get_global_schema()
-        user_schema = _dbview.get_user_schema()
+        global_schema_pickle = _dbview.get_global_schema_pickle()
+        user_schema_pickle = _dbview.get_user_schema_pickle()
 
         dump_server_ver_str = None
         cat_ver = None
@@ -1570,8 +1586,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
             schema_sql_units, restore_blocks, tables = \
                 await compiler_pool.describe_database_restore(
-                    user_schema,
-                    global_schema,
+                    user_schema_pickle,
+                    global_schema_pickle,
                     dump_server_ver_str,
                     cat_ver,
                     schema_ddl,
@@ -1847,7 +1863,7 @@ async def run_script(
         else:
             await conn._execute(compiled, b'', use_prep_stmt=0)
     except Exception as e:
-        exc, _ = conn.interpret_error(e)
+        exc, _ = await conn.interpret_error(e)
         if isinstance(exc, errors.EdgeDBError):
             raise exc from None
         else:

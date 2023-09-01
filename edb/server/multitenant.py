@@ -45,6 +45,7 @@ from . import defines
 from . import pgcluster
 from . import server
 from . import tenant as edbtenant
+from .compiler_pool import pool as compiler_pool
 from .pgcon import errors as pgerrors
 
 logger = logging.getLogger("edb.server")
@@ -85,6 +86,7 @@ class MultiTenantServer(server.BaseServer):
         self,
         config_file: pathlib.Path,
         *,
+        compiler_pool_tenant_cache_size: int,
         sys_config: Mapping[str, config.SettingValue],
         backend_settings: Mapping[str, str],
         sys_queries: Mapping[str, bytes],
@@ -95,6 +97,7 @@ class MultiTenantServer(server.BaseServer):
         self._config_file = config_file
         self._sys_config = sys_config
         self._backend_settings = backend_settings
+        self._compiler_pool_tenant_cache_size = compiler_pool_tenant_cache_size
 
         self._tenants_by_sslobj = weakref.WeakKeyDictionary()
         self._tenants_conf = {}
@@ -262,6 +265,10 @@ class MultiTenantServer(server.BaseServer):
             tenant.stop_accepting_connections()
             tenant.stop()
             await tenant.wait_stopped()
+            assert isinstance(
+                self._compiler_pool, compiler_pool.MultiTenantPool
+            )
+            self._compiler_pool.drop_tenant(tenant.client_id)
         finally:
             tenant.terminate_sys_pgcon()
 
@@ -320,6 +327,11 @@ class MultiTenantServer(server.BaseServer):
             for name, tenant in self._tenants.items()
         }
         return parent
+
+    def _get_compiler_args(self) -> dict[str, Any]:
+        args = super()._get_compiler_args()
+        args["cache_size"] = self._compiler_pool_tenant_cache_size
+        return args
 
 
 async def run_server(

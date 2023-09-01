@@ -315,6 +315,7 @@ class QueryUnit:
     user_schema: Optional[bytes] = None
     cached_reflection: Optional[bytes] = None
     extensions: Optional[set[str]] = None
+    ext_config_settings: Optional[list[config.Setting]] = None
 
     # If present, represents the future global schema state
     # after the command is run. The schema is pickled.
@@ -467,6 +468,16 @@ class SQLQueryUnit:
 
     command_tag: bytes = b""
     """If frontend_only is True, only issue CommandComplete with this tag."""
+
+
+@dataclasses.dataclass
+class ParsedDatabase:
+    user_schema_pickle: bytes
+    database_config: immutables.Map[str, config.SettingValue]
+    ext_config_settings: list[config.Setting]
+
+    protocol_version: defines.ProtocolVersion
+    state_serializer: sertypes.StateSerializer
 
 
 SQLSettings = immutables.Map[Optional[str], Optional[str | list[str]]]

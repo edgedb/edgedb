@@ -209,12 +209,13 @@ async def execute_script(
         bytes state = None, orig_state = None
         ssize_t sent = 0
         bint in_tx, sync, no_sync
-        object user_schema, extensions, cached_reflection, global_schema
+        object user_schema, extensions, ext_config_settings, cached_reflection
+        object global_schema, roles
         WriteBuffer bind_data
         int dbver = dbv.dbver
         bint parse
 
-    user_schema = extensions = cached_reflection = None
+    user_schema = extensions = ext_config_settings = cached_reflection = None
     global_schema = roles = None
     unit_group = compiled.query_unit_group
 
@@ -289,6 +290,7 @@ async def execute_script(
                 if query_unit.user_schema:
                     user_schema = query_unit.user_schema
                     extensions = query_unit.extensions
+                    ext_config_settings = query_unit.ext_config_settings
                     cached_reflection = query_unit.cached_reflection
 
                 if query_unit.global_schema:
@@ -355,6 +357,7 @@ async def execute_script(
             side_effects = dbv.commit_implicit_tx(
                 user_schema,
                 extensions,
+                ext_config_settings,
                 global_schema,
                 roles,
                 cached_reflection,
@@ -585,11 +588,12 @@ cdef bytes _encode_args(list args):
     return bytes(out_buf)
 
 
-def interpret_error(
+async def interpret_error(
     exc: Exception,
+    db: dbview.Database,
     *,
-    get_schema: object,
-    tenant: object,
+    global_schema_pickle: object=None,
+    user_schema_pickle: object=None,
     from_graphql: bool=False,
 ) -> tuple[Exception, type]:
 
@@ -607,21 +611,33 @@ def interpret_error(
 
             # only use the backend if schema is required
             if static_exc is errormech.SchemaRequired:
-                exc = errormech.interpret_backend_error(
-                    get_schema(),
-                    exc.fields,
-                    from_graphql=from_graphql,
+                user_schema_pickle = (
+                    user_schema_pickle or db.user_schema_pickle)
+                global_schema_pickle = (
+                    global_schema_pickle or db._index._global_schema_pickle
                 )
+                compiler_pool = db._index._server.get_compiler_pool()
+                exc = await compiler_pool.interpret_backend_error(
+                    user_schema_pickle,
+                    global_schema_pickle,
+                    exc.fields,
+                    from_graphql,
+                )
+
             elif isinstance(static_exc, (
                     errors.DuplicateDatabaseDefinitionError,
                     errors.UnknownDatabaseError)):
-                tenant_id = tenant.tenant_id
+                tenant_id = db.tenant.tenant_id
                 message = static_exc.args[0].replace(f'{tenant_id}_', '')
                 exc = type(static_exc)(message)
             else:
                 exc = static_exc
 
         except Exception as e:
+            from edb.common import debug
+            if debug.flags.server:
+                debug.dump(e)
+
             exc = RuntimeError(
                 'unhandled error while calling interpret_backend_error(); '
                 'run with EDGEDB_DEBUG_SERVER to debug.')

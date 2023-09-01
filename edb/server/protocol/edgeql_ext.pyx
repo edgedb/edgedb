@@ -50,8 +50,6 @@ async def handle_request(
     list args,
     object tenant,
 ):
-    server = tenant.server
-
     if args != []:
         response.body = b'Unknown path'
         response.status = http.HTTPStatus.NOT_FOUND
@@ -135,16 +133,7 @@ async def handle_request(
         if debug.flags.server:
             markup.dump(ex)
 
-        def _get_schema():
-            return s_schema.ChainedSchema(
-                db._index._std_schema,
-                db.user_schema,
-                db._index._global_schema,
-            )
-
-        ex, ex_type = execute.interpret_error(
-            ex, get_schema=_get_schema, tenant=tenant
-        )
+        ex, ex_type = await execute.interpret_error(ex, db)
 
         err_dct = {
             'message': str(ex),

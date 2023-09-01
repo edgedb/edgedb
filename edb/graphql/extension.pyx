@@ -181,15 +181,8 @@ async def handle_request(
             # XXX Fix this when LSP "location" objects are implemented
             ex_type = errors.QueryError
         else:
-            def _get_schema():
-                return s_schema.ChainedSchema(
-                    tenant.server.get_std_schema(),
-                    db.user_schema,
-                    tenant.get_global_schema(),
-                )
-
-            ex, ex_type = execute.interpret_error(
-                ex, get_schema=_get_schema, tenant=tenant, from_graphql=True
+            ex, ex_type = await execute.interpret_error(
+                ex, db, from_graphql=True
             )
 
         err_dct = {
@@ -219,8 +212,8 @@ async def compile(
     compiler_pool = server.get_compiler_pool()
     return await compiler_pool.compile_graphql(
         db.name,
-        db.user_schema,
-        tenant.get_global_schema(),
+        db.user_schema_pickle,
+        tenant.get_global_schema_pickle(),
         db.reflection_cache,
         db.db_config,
         db._index.get_compilation_system_config(),

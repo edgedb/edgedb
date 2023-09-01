@@ -25,6 +25,7 @@ import functools
 import json
 import logging
 import pathlib
+import pickle
 import struct
 import sys
 import time
@@ -34,7 +35,6 @@ import immutables
 from edb import errors
 from edb.common import retryloop
 from edb.common import taskgroup
-from edb.schema import schema as s_schema
 
 from . import args as srvargs
 from . import config
@@ -43,7 +43,6 @@ from . import dbview
 from . import defines
 from . import metrics
 from . import pgcon
-from .compiler_pool import pool as compiler_pool
 from .ha import adaptive as adaptive_ha
 from .ha import base as ha_base
 from .pgcon import errors as pgcon_errors
@@ -265,9 +264,9 @@ class Tenant(ha_base.ClusterProtocol):
         else:
             return self._report_config_data[(1, 0)]
 
-    def get_global_schema(self) -> s_schema.FlatSchema:
+    def get_global_schema_pickle(self) -> bytes:
         assert self._dbindex is not None
-        return self._dbindex.get_global_schema()
+        return self._dbindex.get_global_schema_pickle()
 
     def get_db(self, *, dbname: str) -> dbview.Database:
         assert self._dbindex is not None
@@ -308,8 +307,22 @@ class Tenant(ha_base.ClusterProtocol):
             )
             self._instance_data = immutables.Map(json.loads(result))
             await self._fetch_roles(syscon)
+            if self._server.get_compiler_pool() is None:
+                # Parse global schema in I/O process if this is done only once
+                global_schema_pickle = pickle.dumps(
+                    await self._server.introspect_global_schema(syscon), -1
+                )
+                data = None
+            else:
+                # Multi-tenant server defers the parsing into the compiler
+                data = await self._server.introspect_global_schema_json(syscon)
+                compiler_pool = self._server.get_compiler_pool()
 
-        global_schema = await self.introspect_global_schema()
+        if data is not None:
+            global_schema_pickle = (
+                await compiler_pool.parse_global_schema(data)
+            )
+
         sys_config = await self._load_sys_config()
         default_sysconfig = await self._load_sys_config("sysconfig_default")
         await self._load_reported_config()
@@ -317,7 +330,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._dbindex = dbview.DatabaseIndex(
             self,
             std_schema=self._server.get_std_schema(),
-            global_schema=global_schema,
+            global_schema_pickle=global_schema_pickle,
             sys_config=sys_config,
             default_sysconfig=default_sysconfig,
             sys_config_spec=self._server._config_settings,  # TODO
@@ -737,32 +750,6 @@ class Tenant(ha_base.ClusterProtocol):
                 raise
         return conn
 
-    async def introspect_user_schema(
-        self,
-        conn: pgcon.PGConnection,
-        global_schema: s_schema.Schema | None = None,
-    ) -> s_schema.Schema:
-        if global_schema is None:
-            global_schema = self.get_global_schema()
-        return await self._server.introspect_user_schema(conn, global_schema)
-
-    async def introspect_db_config(
-        self, conn: pgcon.PGConnection, user_schema: s_schema.Schema
-    ) -> Mapping[str, config.SettingValue]:
-        result = await conn.sql_fetch_val(
-            self._server.get_sys_query("dbconfig")
-        )
-        # XXX: are we hoping to not use the user_schema in the server?
-        spec = config.ChainedSpec(
-            self._server._config_settings,
-            config.load_ext_spec_from_schema(
-                user_schema,
-                self._server.get_std_schema(),
-            ),
-        )
-
-        return config.from_json(spec, result)
-
     async def _introspect_extensions(
         self, conn: pgcon.PGConnection
     ) -> set[str]:
@@ -800,7 +787,9 @@ class Tenant(ha_base.ClusterProtocol):
             return
 
         try:
-            user_schema = await self.introspect_user_schema(conn)
+            user_schema_json = (
+                await self._server.introspect_user_schema_json(conn)
+            )
 
             reflection_cache_json = await conn.sql_fetch_val(
                 b"""
@@ -838,20 +827,30 @@ class Tenant(ha_base.ClusterProtocol):
             )
             backend_ids = json.loads(backend_ids_json)
 
-            db_config = await self.introspect_db_config(conn, user_schema)
-            extensions = await self._introspect_extensions(conn)
+            db_config_json = await self._server.introspect_db_config(conn)
 
-            assert self._dbindex is not None
-            self._dbindex.register_db(
-                dbname,
-                user_schema=user_schema,
-                db_config=db_config,
-                reflection_cache=reflection_cache,
-                backend_ids=backend_ids,
-                extensions=extensions,
-            )
+            extensions = await self._introspect_extensions(conn)
         finally:
             self.release_pgcon(dbname, conn)
+
+        compiler_pool = self._server.get_compiler_pool()
+        parsed_db = await compiler_pool.parse_user_schema_db_config(
+            user_schema_json, db_config_json, self.get_global_schema_pickle()
+        )
+        assert self._dbindex is not None
+        db = self._dbindex.register_db(
+            dbname,
+            user_schema_pickle=parsed_db.user_schema_pickle,
+            db_config=parsed_db.database_config,
+            reflection_cache=reflection_cache,
+            backend_ids=backend_ids,
+            extensions=extensions,
+            ext_config_settings=parsed_db.ext_config_settings,
+        )
+        db.set_state_serializer(
+            parsed_db.protocol_version,
+            parsed_db.state_serializer,
+        )
 
     async def _early_introspect_db(self, dbname: str) -> None:
         """We need to always introspect the extensions for each database.
@@ -873,11 +872,12 @@ class Tenant(ha_base.ClusterProtocol):
                 if not self._dbindex.has_db(dbname):
                     self._dbindex.register_db(
                         dbname,
-                        user_schema=None,
+                        user_schema_pickle=None,
                         db_config=None,
                         reflection_cache=None,
                         backend_ids=None,
                         extensions=extensions,
+                        ext_config_settings=None,
                     )
         finally:
             self.release_pgcon(dbname, conn)
@@ -927,16 +927,6 @@ class Tenant(ha_base.ClusterProtocol):
             self._server._config_settings, sys_config_json  # TODO
         )
 
-    async def introspect_global_schema(
-        self,
-        conn: pgcon.PGConnection | None = None,
-    ) -> s_schema.Schema:
-        if conn is not None:
-            return await self._server.introspect_global_schema(conn)
-        else:
-            async with self.use_sys_pgcon() as syscon:
-                return await self._server.introspect_global_schema(syscon)
-
     async def _reintrospect_global_schema(self) -> None:
         if not self._initing and not self._running:
             logger.warning(
@@ -945,10 +935,12 @@ class Tenant(ha_base.ClusterProtocol):
             )
             return
         async with self.use_sys_pgcon() as syscon:
-            new_global_schema = await self.introspect_global_schema(syscon)
-            assert self._dbindex is not None
-            self._dbindex.update_global_schema(new_global_schema)
+            data = await self._server.introspect_global_schema_json(syscon)
             await self._fetch_roles(syscon)
+        compiler_pool = self._server.get_compiler_pool()
+        global_schema_pickle = await compiler_pool.parse_global_schema(data)
+        assert self._dbindex is not None
+        self._dbindex.update_global_schema(global_schema_pickle)
 
     def populate_sys_auth(self) -> None:
         assert self._dbindex is not None
@@ -1356,6 +1348,6 @@ class Tenant(ha_base.ClusterProtocol):
 
         return obj
 
-    def attach_to_compiler(self, compiler: compiler_pool.AbstractPool):
+    def get_compiler_args(self) -> dict[str, Any]:
         assert self._dbindex is not None
-        compiler.add_dbindex(self.client_id, self._dbindex)
+        return {"dbindex": self._dbindex}

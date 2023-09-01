@@ -64,10 +64,12 @@ cdef class DatabaseIndex:
         object _sys_config
         object _comp_sys_config
         object _std_schema
-        object _global_schema
-        object _factory
+        object _global_schema_pickle
         object _default_sysconfig
         object _sys_config_spec
+        object _cached_compiler_args
+
+    cdef invalidate_caches(self)
 
 
 cdef class Database:
@@ -79,35 +81,34 @@ cdef class Database:
         object _views
         object _introspection_lock
         object _state_serializers
-        object _user_config_spec
+        object user_config_spec
 
         readonly str name
         readonly object dbver
         readonly object db_config
-        readonly object user_schema
+        readonly bytes user_schema_pickle
         readonly object reflection_cache
         readonly object backend_ids
         readonly object extensions
 
     cdef schedule_config_update(self)
-    cdef get_user_config_spec(self)
 
     cdef _invalidate_caches(self)
-    cdef _clear_state_serializers(self)
     cdef _cache_compiled_query(self, key, query_unit)
     cdef _new_view(self, query_cache, protocol_version)
     cdef _remove_view(self, view)
     cdef _update_backend_ids(self, new_types)
     cdef _set_and_signal_new_user_schema(
         self,
-        new_schema,
+        new_schema_pickle,
         extensions,
+        ext_config_settings,
         reflection_cache=?,
         backend_ids=?,
         db_config=?,
     )
     cdef get_state_serializer(self, protocol_version)
-    cdef set_state_serializer(self, protocol_version, serializer)
+    cpdef set_state_serializer(self, protocol_version, serializer)
 
 
 cdef class DatabaseConnectionView:
@@ -143,11 +144,9 @@ cdef class DatabaseConnectionView:
         object _txid
         object _in_tx_db_config
         object _in_tx_savepoints
-        object _in_tx_user_schema_pickled
-        object _in_tx_user_schema
+        object _in_tx_user_schema_pickle
         object _in_tx_user_config_spec
-        object _in_tx_global_schema_pickled
-        object _in_tx_global_schema
+        object _in_tx_global_schema_pickle
         object _in_tx_new_types
         int _in_tx_dbver
         bint _in_tx
@@ -191,6 +190,7 @@ cdef class DatabaseConnectionView:
         self,
         user_schema,
         extensions,
+        ext_config_settings,
         global_schema,
         roles,
         cached_reflection,

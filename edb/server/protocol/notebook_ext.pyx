@@ -162,8 +162,8 @@ async def execute(db, tenant, queries: list):
     compiler_pool = tenant.server.get_compiler_pool()
     units = await compiler_pool.compile_notebook(
         dbv.dbname,
-        dbv.get_user_schema(),
-        dbv.get_global_schema(),
+        dbv.get_user_schema_pickle(),
+        dbv.get_global_schema_pickle(),
         dbv.reflection_cache,
         dbv.get_database_config(),
         dbv.get_compilation_system_config(),
@@ -215,10 +215,11 @@ async def execute(db, tenant, queries: list):
                     if debug.flags.server:
                         markup.dump(ex)
 
-                    ex, ex_type = p_execute.interpret_error(
+                    ex, ex_type = await p_execute.interpret_error(
                         ex,
-                        get_schema=lambda: dbv.get_schema(),
-                        tenant=tenant,
+                        dbv._db,
+                        global_schema_pickle=dbv.get_global_schema_pickle(),
+                        user_schema_pickle=dbv.get_user_schema_pickle(),
                     )
 
                     result.append({

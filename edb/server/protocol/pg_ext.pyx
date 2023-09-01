@@ -368,7 +368,7 @@ cdef class PgConnection(frontend.FrontendConnection):
     cdef is_in_tx(self):
         return self._dbview.in_tx()
 
-    cdef write_error(self, exc):
+    cdef write_error(self, exc, exc_type=None):
         cdef WriteBuffer buf
 
         if self.debug and not isinstance(exc, errors.BackendUnavailableError):
@@ -1403,8 +1403,8 @@ cdef class PgConnection(frontend.FrontendConnection):
         compiler_pool = self.server.get_compiler_pool()
         result = await compiler_pool.compile_sql(
             self.dbname,
-            self.database.user_schema,
-            self.database._index._global_schema,
+            self.database.user_schema_pickle,
+            self.database._index._global_schema_pickle,
             self.database.reflection_cache,
             self.database.db_config,
             self.database._index.get_compilation_system_config(),

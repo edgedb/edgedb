@@ -320,7 +320,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
     async def main_step(self, char mtype):
         raise NotImplementedError
 
-    cdef write_error(self, exc):
+    cdef write_error(self, exc, exc_type=None):
         raise NotImplementedError
 
     async def main(self):
