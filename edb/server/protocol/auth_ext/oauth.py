@@ -20,6 +20,7 @@
 import urllib.parse
 import json
 import httpx
+import httpx_cache
 
 from typing import Any
 from edb.server.protocol import execute
@@ -34,7 +35,8 @@ class HttpClient(httpx.AsyncClient):
         if edgedb_test_url:
             self.edgedb_orig_base_url = urllib.parse.quote(base_url, safe='')
             base_url = edgedb_test_url
-        super().__init__(*args, base_url=base_url, **kwargs)
+        cache = httpx_cache.AsyncCacheControlTransport()
+        super().__init__(*args, base_url=base_url, transport=cache, **kwargs)
 
     async def post(self, path, *args, **kwargs):
         if self.edgedb_orig_base_url:
