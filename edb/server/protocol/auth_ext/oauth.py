@@ -20,6 +20,7 @@
 import urllib.parse
 
 import httpx
+from edb.server.protocol import execute
 
 
 from typing import Any
@@ -84,7 +85,31 @@ class Client:
         await self._handle_identity(user_info)
 
     async def _handle_identity(self, user_info: data.UserInfo) -> None:
-        ...
+        """Update or create an identity"""
+
+        await execute.parse_execute_json(
+            db=self.db,
+            query="""\
+with
+  iss := <str>$issuer_url,
+  sub := <str>$provider_id,
+  email := <optional str>$email
+
+insert ext::auth::Identity {
+  iss := iss,
+  sub := sub,
+  email := email,
+} unless conflict on ((.iss, .sub)) else (
+  update ext::auth::Identity set {
+    email := email
+  }
+);""",
+            variables={
+                "issuer_url": self.provider.issuer_url,
+                "provider_id": user_info.sub,
+                "email": user_info.email,
+            },
+        )
 
     def _get_provider_config(self, provider_id: str) -> tuple[str, str, str]:
         provider_client_config = util.get_config(
