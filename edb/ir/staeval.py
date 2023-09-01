@@ -69,13 +69,7 @@ def evaluate_to_python_val(
     ir: irast.Base,
     schema: s_schema.Schema,
 ) -> Any:
-    const: EvaluationResult
-    if isinstance(ir, irast.Set) and isinstance(ir.expr, irast.TypeCast):
-        # Special case for type casts.
-        # We cannot fold them, but can eval to Python
-        const = ir.expr
-    else:
-        const = evaluate(ir, schema=schema)
+    const = evaluate(ir, schema=schema)
     return const_to_python(const, schema=schema)
 
 
@@ -361,8 +355,9 @@ def scalar_type_to_python_type(
     schema: s_schema.Schema,
 ) -> type:
     for basetype_name, pytype in typemap.items():
-        basetype = schema.get(basetype_name, type=s_obj.InheritingObject)
-        if stype.issubclass(schema, basetype):
+        basetype = schema.get(
+            basetype_name, type=s_scalars.ScalarType, default=None)
+        if basetype and stype.issubclass(schema, basetype):
             return pytype
 
     if stype.is_enum(schema):
