@@ -69,7 +69,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
     cdef _after_idling(self)
     cdef _main_task_created(self)
     cdef _main_task_stopped_normally(self)
-    cdef write_error(self, exc, exc_type=?)
+    cdef write_error(self, exc)
     cdef stop_connection(self)
     cdef abort_pinned_pgcon(self)
     cdef is_in_tx(self)

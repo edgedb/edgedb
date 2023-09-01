@@ -176,14 +176,14 @@ async def handle_request(
         if debug.flags.server:
             markup.dump(ex)
 
-        ex_type = type(ex)
-        if issubclass(ex_type, gql_errors.GraphQLError):
+        if isinstance(ex, gql_errors.GraphQLError):
             # XXX Fix this when LSP "location" objects are implemented
             ex_type = errors.QueryError
         else:
-            ex, ex_type = await execute.interpret_error(
+            ex = await execute.interpret_error(
                 ex, db, from_graphql=True
             )
+            ex_type = type(ex)
 
         err_dct = {
             'message': f'{ex_type.__name__}: {ex}',

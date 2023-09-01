@@ -215,7 +215,7 @@ async def execute(db, tenant, queries: list):
                     if debug.flags.server:
                         markup.dump(ex)
 
-                    ex, ex_type = await p_execute.interpret_error(
+                    ex = await p_execute.interpret_error(
                         ex,
                         dbv._db,
                         global_schema_pickle=dbv.get_global_schema_pickle(),
@@ -224,7 +224,7 @@ async def execute(db, tenant, queries: list):
 
                     result.append({
                         'kind': 'error',
-                        'error': [ex_type.__name__, str(ex), {}],
+                        'error': [type(ex).__name__, str(ex), {}],
                     })
 
                     break

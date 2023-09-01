@@ -133,12 +133,12 @@ async def handle_request(
         if debug.flags.server:
             markup.dump(ex)
 
-        ex, ex_type = await execute.interpret_error(ex, db)
+        ex = await execute.interpret_error(ex, db)
 
         err_dct = {
             'message': str(ex),
-            'type': str(ex_type.__name__),
-            'code': ex_type.get_code(),
+            'type': str(type(ex).__name__),
+            'code': ex.get_code(),
         }
 
         response.body = json.dumps({'error': err_dct}).encode()

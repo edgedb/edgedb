@@ -368,7 +368,7 @@ cdef class PgConnection(frontend.FrontendConnection):
     cdef is_in_tx(self):
         return self._dbview.in_tx()
 
-    cdef write_error(self, exc, exc_type=None):
+    cdef write_error(self, exc):
         cdef WriteBuffer buf
 
         if self.debug and not isinstance(exc, errors.BackendUnavailableError):

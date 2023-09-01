@@ -1091,9 +1091,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.get_dbview().tx_error()
             self.buffer.finish_message()
 
-            ex, ex_type = await self.interpret_error(ex)
+            ex = await self.interpret_error(ex)
 
-            self.write_error(ex, ex_type)
+            self.write_error(ex)
             self.flush()
 
             if isinstance(ex, errors.ServerOfflineError):
@@ -1133,15 +1133,16 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             else:
                 self.buffer.discard_message()
 
-    cdef write_error(self, exc, exc_type=None):
+    cdef write_error(self, exc):
         cdef:
             WriteBuffer buf
             int16_t fields_len
 
-        if not exc_type:
-            exc_type = type(exc)
-            if not issubclass(exc_type, errors.EdgeDBError):
-                exc_type = errors.InternalServerError
+        exc_type = type(exc)
+        # Not all calls to write_error went through interpret_error, so we
+        # do this check here also.
+        if not issubclass(exc_type, errors.EdgeDBError):
+            exc_type = errors.InternalServerError
 
         if self.debug and not isinstance(exc, errors.BackendUnavailableError):
             self.debug_print('EXCEPTION', type(exc).__name__, exc)
@@ -1865,7 +1866,7 @@ async def run_script(
         else:
             await conn._execute(compiled, b'', use_prep_stmt=0)
     except Exception as e:
-        exc, _ = await conn.interpret_error(e)
+        exc = await conn.interpret_error(e)
         if isinstance(exc, errors.EdgeDBError):
             raise exc from None
         else:
