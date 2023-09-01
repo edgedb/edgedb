@@ -469,6 +469,7 @@ def _build_object_mutation_shape(
             issubclass(mcls, (s_scalars.ScalarType, s_types.Collection))
             and not issubclass(mcls, s_types.CollectionExprAlias)
             and not cmd.get_attribute_value('abstract')
+            and not cmd.get_attribute_value('transient')
         ):
             kind = f'"schema::{mcls.__name__}"'
 
