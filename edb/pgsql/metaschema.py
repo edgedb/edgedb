@@ -5349,7 +5349,7 @@ def _make_json_caster(
 
     cast_sql, _ = compiler.compile_ir_to_sql(
         cast_ir,
-        use_named_params=True,
+        named_param_prefix=(),
         singleton_mode=True,
     )
 

@@ -4901,6 +4901,25 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 USING (assert_exists(foo));
             """)
 
+    async def test_edgeql_ddl_function_37(self):
+        obj = await self.con.query_single('''
+            create type X;
+            create function getUser(id: uuid) -> set of X {
+                using(
+                    select X filter .id = id
+                )
+            };
+            insert X;
+            insert X;
+        ''')
+        val = await self.con.query_single(
+            '''
+                select count(getUser(<uuid>$0))
+            ''',
+            obj.id,
+        )
+        self.assertEqual(val, 1)
+
     async def test_edgeql_ddl_function_rename_01(self):
         await self.con.execute("""
             CREATE FUNCTION foo(s: str) -> str {
