@@ -1074,15 +1074,6 @@ cdef class DatabaseConnectionView:
 
         return unit_group
 
-    # async def interpret_backend_error(self, exc):
-    #     compiler_pool = self._db._index._server.get_compiler_pool()
-    #     return await compiler_pool.interpret_backend_error(
-    #         self.get_user_schema_pickle(),
-    #         self.get_global_schema_pickle(),
-    #         exc.fields,
-    #         False,
-    #     )
-
     cdef check_capabilities(
         self,
         query_capabilities,
