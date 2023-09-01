@@ -1140,6 +1140,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         if not exc_type:
             exc_type = type(exc)
+            if not issubclass(exc_type, errors.EdgeDBError):
+                exc_type = errors.InternalServerError
 
         if self.debug and not isinstance(exc, errors.BackendUnavailableError):
             self.debug_print('EXCEPTION', type(exc).__name__, exc)
