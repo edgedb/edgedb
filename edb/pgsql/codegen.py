@@ -703,11 +703,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 self.write('JOIN ')
             else:
                 self.write(join_type + ' JOIN ')
-            # XXX
             nested_join = (
                 isinstance(join.rarg, pgast.JoinExpr)
                 and join.rarg.joins
-                # and node.rarg.rarg is not None
             )
             if nested_join:
                 self.write('(')
