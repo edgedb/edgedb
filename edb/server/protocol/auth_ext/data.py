@@ -60,3 +60,23 @@ class UserInfo:
             f"email={self.email!r} "
             f"preferred_username={self.preferred_username!r})"
         )
+
+
+@dataclasses.dataclass
+class Identity:
+    id: str
+    sub: str
+    iss: str
+    email: str | None
+
+    def __str__(self) -> str:
+        return self.id
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"id={self.id!r} "
+            f"sub={self.sub!r} "
+            f"iss={self.iss!r} "
+            f"email={self.email!r})"
+        )
