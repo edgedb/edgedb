@@ -891,13 +891,9 @@ class RangeFunction(BaseRangeVar):
     functions: typing.List[FuncCall]
 
 
-class JoinExpr(BaseRangeVar):
-
+class JoinClause(BaseRangeVar):
     # Type of join
     type: str
-
-    # Left subtree
-    larg: BaseRangeVar
     # Right subtree
     rarg: BaseRangeVar
     # USING clause, if any
@@ -905,16 +901,31 @@ class JoinExpr(BaseRangeVar):
     # Qualifiers on join, if any
     quals: typing.Optional[BaseExpr] = None
 
-    def copy(self):
-        result = self.__class__()
-        result.copyfrom(self)
-        return result
 
-    def copyfrom(self, other):
-        self.larg = other.larg
-        self.rarg = other.rarg
-        self.quals = other.quals
-        self.type = other.type
+class JoinExpr(BaseRangeVar):
+    # Left subtree
+    larg: BaseRangeVar
+    # Join clauses
+    # We represent joins as being N-ary to avoid recursing too deeply
+    joins: list[JoinClause]
+
+    @classmethod
+    def make_inplace(
+        cls, *,
+        larg: BaseRangeVar,
+        type: str,
+        rarg: BaseRangeVar,
+        using_clause: typing.Optional[typing.List[ColumnRef]] = None,
+        quals: typing.Optional[BaseExpr] = None,
+    ) -> JoinExpr:
+        clause = JoinClause(
+            type=type, rarg=rarg, using_clause=using_clause, quals=quals
+        )
+        if isinstance(larg, JoinExpr):
+            larg.joins.append(clause)
+            return larg
+        else:
+            return JoinExpr(larg=larg, joins=[clause])
 
 
 class SubLink(ImmutableBaseExpr):

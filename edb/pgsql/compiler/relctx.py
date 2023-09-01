@@ -1319,7 +1319,7 @@ def _plain_join(
         larg = query.from_clause[0]
         rarg = right_rvar
 
-        query.from_clause[0] = pgast.JoinExpr(
+        query.from_clause[0] = pgast.JoinExpr.make_inplace(
             type=join_type, larg=larg, rarg=rarg, quals=condition)
 
 
@@ -1362,7 +1362,7 @@ def _lateral_union_join(
         larg = query.from_clause[0]
         rarg = right_rvar
 
-        query.from_clause[0] = pgast.JoinExpr(
+        query.from_clause[0] = pgast.JoinExpr.make_inplace(
             type='cross', larg=larg, rarg=rarg)
 
 

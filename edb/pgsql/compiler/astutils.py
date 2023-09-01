@@ -168,7 +168,8 @@ def each_base_rvar(rvar: pgast.BaseRangeVar) -> Iterator[pgast.BaseRangeVar]:
     while stack:
         rvar = stack.pop()
         if isinstance(rvar, pgast.JoinExpr):
-            stack.append(rvar.rarg)
+            for clause in reversed(rvar.joins):
+                stack.append(clause.rarg)
             stack.append(rvar.larg)
         else:
             yield rvar
