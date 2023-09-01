@@ -37,6 +37,7 @@ from edb.edgeql import qltypes
 from edb.server import compiler
 from edb.server import config
 from edb.server import defines as edbdef
+from edb.server.compiler import errormech
 from edb.server.dbview cimport dbview
 from edb.server.protocol cimport args_ser
 from edb.server.protocol cimport frontend
@@ -585,3 +586,72 @@ cdef bytes _encode_args(list args):
                 out_buf.write_bytes(jval)
 
     return bytes(out_buf)
+
+
+async def interpret_error(
+    exc: Exception,
+    db: dbview.Database,
+    *,
+    global_schema_pickle: object=None,
+    user_schema_pickle: object=None,
+    from_graphql: bool=False,
+) -> Exception:
+
+    if isinstance(exc, RecursionError):
+        exc = errors.UnsupportedFeatureError(
+            "The query caused the compiler "
+            "stack to overflow. It is likely too deeply nested.",
+            hint=(
+                "If the query does not contain deep nesting, "
+                "this may be a bug."
+            ),
+        )
+
+    elif isinstance(exc, pgerror.BackendError):
+        try:
+            static_exc = errormech.static_interpret_backend_error(
+                exc.fields, from_graphql=from_graphql
+            )
+
+            # only use the backend if schema is required
+            if static_exc is errormech.SchemaRequired:
+                user_schema_pickle = (
+                    user_schema_pickle or db.user_schema_pickle)
+                global_schema_pickle = (
+                    global_schema_pickle or db._index._global_schema_pickle
+                )
+                compiler_pool = db._index._server.get_compiler_pool()
+                exc = await compiler_pool.interpret_backend_error(
+                    user_schema_pickle,
+                    global_schema_pickle,
+                    exc.fields,
+                    from_graphql,
+                )
+
+            elif isinstance(static_exc, (
+                    errors.DuplicateDatabaseDefinitionError,
+                    errors.UnknownDatabaseError)):
+                tenant_id = db.tenant.tenant_id
+                message = static_exc.args[0].replace(f'{tenant_id}_', '')
+                exc = type(static_exc)(message)
+            else:
+                exc = static_exc
+
+        except Exception as e:
+            from edb.common import debug
+            if debug.flags.server:
+                debug.dump(e)
+
+            exc = RuntimeError(
+                'unhandled error while calling interpret_backend_error(); '
+                'run with EDGEDB_DEBUG_SERVER to debug.')
+
+    if not isinstance(exc, errors.EdgeDBError):
+        nexc = errors.InternalServerError(
+            f'{type(exc).__name__}: {exc}').with_traceback(exc.__traceback__)
+        formatted = getattr(exc, '__formatted_error__', None)
+        if formatted:
+            nexc.__formatted_error__ = formatted
+        exc = nexc
+
+    return exc
