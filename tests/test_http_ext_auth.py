@@ -455,3 +455,43 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 requests_for_user[0]["headers"]["authorization"],
                 "Bearer github_access_token",
             )
+
+            identity = await self.con.query(
+                """
+                SELECT ext::auth::Identity
+                FILTER .sub = '1'
+                AND .iss = 'https://github.com'
+                AND .email = 'octocat@example.com'
+                """
+            )
+            self.assertEqual(len(identity), 1)
+
+            mock_provider.register_route_handler(*user_request)(
+                (
+                    {
+                        "id": 1,
+                        "login": "octocat",
+                        "name": "monalisa octocat",
+                        "email": "octocat+2@example.com",
+                        "avatar_url": "http://example.com/example.jpg",
+                        "updated_at": now,
+                    },
+                    200,
+                )
+            )
+            self.http_con_request(
+                http_con,
+                {"state": state_token.serialize(), "code": "abc123"},
+                path="callback",
+            )
+
+            same_identity = await self.con.query(
+                """
+                SELECT ext::auth::Identity
+                FILTER .sub = '1'
+                AND .iss = 'https://github.com'
+                AND .email = 'octocat+2@example.com'
+                """
+            )
+            self.assertEqual(len(same_identity), 1)
+            self.assertEqual(identity[0].id, same_identity[0].id)
