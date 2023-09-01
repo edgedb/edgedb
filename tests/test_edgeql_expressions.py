@@ -9608,11 +9608,7 @@ aa \
             FOR Z IN {(Object,)} UNION Z;
         """, __typenames__=True)
 
-    async def test_edgeql_no_const_folding_str_concat(self):
-        await self.con.execute("""
-            CONFIGURE SESSION SET __internal_no_const_folding := true;
-        """)
-
+    async def test_edgeql_str_concat(self):
         await self.assert_query_result(
             r"""
                 SELECT 'aaaa' ++ 'bbbb';

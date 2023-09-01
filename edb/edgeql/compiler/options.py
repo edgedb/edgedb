@@ -52,9 +52,6 @@ class GlobalCompilerOptions:
     #: Whether to allow specifying 'id' explicitly in INSERT
     allow_user_specified_id: bool = False
 
-    #: Enables constant folding optimization (enabled by default).
-    constant_folding: bool = True
-
     #: Force types of all parameters to std::json
     json_parameters: bool = False
 

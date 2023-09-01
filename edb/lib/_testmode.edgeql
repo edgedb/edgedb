@@ -73,13 +73,6 @@ ALTER TYPE cfg::AbstractConfig {
         SET default := 0;
     };
 
-
-    CREATE PROPERTY __internal_no_const_folding -> std::bool {
-        CREATE ANNOTATION cfg::internal := 'true';
-        CREATE ANNOTATION cfg::affects_compilation := 'true';
-        SET default := false;
-    };
-
     CREATE PROPERTY __internal_testmode -> std::bool {
         CREATE ANNOTATION cfg::internal := 'true';
         SET default := false;

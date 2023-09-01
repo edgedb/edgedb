@@ -426,14 +426,14 @@ class TestServerConfig(tb.QueryTestCase):
                 edgedb.ConfigurationError,
                 'invalid setting value type'):
             await self.con.execute('''
-                CONFIGURE SESSION SET __internal_no_const_folding := 1;
+                CONFIGURE SESSION SET __internal_sess_testvalue := 'test';
             ''')
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 'cannot be executed in a transaction block'):
             await self.con.execute('''
-                CONFIGURE SESSION SET __internal_no_const_folding := false;
+                CONFIGURE SESSION SET __internal_sess_testvalue := 10;
                 CONFIGURE INSTANCE SET __internal_testvalue := 1;
             ''')
 
@@ -442,7 +442,7 @@ class TestServerConfig(tb.QueryTestCase):
                 'cannot be executed in a transaction block'):
             await self.con.execute('''
                 CONFIGURE INSTANCE SET __internal_testvalue := 1;
-                CONFIGURE SESSION SET __internal_no_const_folding := false;
+                CONFIGURE SESSION SET __internal_sess_testvalue := 10;
             ''')
 
         with self.assertRaisesRegex(
