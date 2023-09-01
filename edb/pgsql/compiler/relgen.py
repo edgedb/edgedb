@@ -2110,24 +2110,24 @@ def process_set_as_type_cast(
     inner_set = expr.expr
     is_json_cast = expr.to_type.id == s_obj.get_known_type_id('std::json')
 
-    with ctx.new() as subctx:
+    # Are we casting by compiling the innards in json mode?
+    implicit_cast = (
+        is_json_cast
+        and not irtyputils.is_range(inner_set.typeref)
+        and (irtyputils.is_collection(inner_set.typeref)
+             or irtyputils.is_object(inner_set.typeref))
+    )
+    fmt_ctx = (
+        context.output_format(ctx, context.OutputFormat.JSONB) if implicit_cast
+        else contextlib.nullcontext()
+    )
+
+    with fmt_ctx, ctx.new() as subctx:
         pathctx.put_path_id_map(ctx.rel, ir_set.path_id, inner_set.path_id)
 
-        if (is_json_cast
-                and not irtyputils.is_range(inner_set.typeref)
-                and (irtyputils.is_collection(inner_set.typeref)
-                     or irtyputils.is_object(inner_set.typeref))):
-            subctx.expr_exposed = True
-            # XXX: this is necessary until pathctx is converted
-            #      to use context levels instead of using env
-            #      directly.
-            orig_output_format = subctx.env.output_format
-            subctx.env.output_format = context.OutputFormat.JSONB
-            implicit_cast = True
-        else:
-            implicit_cast = False
-
         if implicit_cast:
+            subctx.expr_exposed = True
+
             set_expr = dispatch.compile(inner_set, ctx=subctx)
 
             serialized: Optional[pgast.BaseExpr] = (
@@ -2148,9 +2148,8 @@ def process_set_as_type_cast(
                 pathctx.put_path_serialized_var(
                     stmt, inner_set.path_id, serialized, force=True
                 )
-
-            subctx.env.output_format = orig_output_format
         else:
+            # Rely on the simple implementation of TypeCast
             set_expr = dispatch.compile(expr, ctx=subctx)
 
             # A proper path var mapping way would be to wrap
