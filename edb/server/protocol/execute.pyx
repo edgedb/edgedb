@@ -37,11 +37,13 @@ from edb.edgeql import qltypes
 from edb.server import compiler
 from edb.server import config
 from edb.server import defines as edbdef
+from edb.server.compiler import errormech
 from edb.server.dbview cimport dbview
 from edb.server.protocol cimport args_ser
 from edb.server.protocol cimport frontend
 from edb.server.pgproto.pgproto cimport WriteBuffer
 from edb.server.pgcon cimport pgcon
+from edb.server.pgcon import errors as pgerror
 
 
 cdef object FMT_NONE = compiler.OutputFormat.NONE
@@ -564,3 +566,59 @@ cdef bytes _encode_args(list args):
                 out_buf.write_bytes(jval)
 
     return bytes(out_buf)
+
+
+def interpret_error(
+    exc: Exception,
+    *,
+    get_schema: object,
+    server: object,
+    from_graphql: bool=False,
+) -> Exception:
+
+    if isinstance(exc, RecursionError):
+        exc = errors.UnsupportedFeatureError(
+            "The query caused the compiler "
+            "stack to overflow. It is likely too deeply nested.",
+            hint=(
+                "If the query does not contain deep nesting, "
+                "this may be a bug."
+            ),
+        )
+
+    elif isinstance(exc, pgerror.BackendError):
+        try:
+            static_exc = errormech.static_interpret_backend_error(
+                exc.fields, from_graphql=from_graphql
+            )
+
+            # only use the backend if schema is required
+            if static_exc is errormech.SchemaRequired:
+                exc = errormech.interpret_backend_error(
+                    get_schema(),
+                    exc.fields,
+                    from_graphql=from_graphql,
+                )
+            elif isinstance(static_exc, (
+                    errors.DuplicateDatabaseDefinitionError,
+                    errors.UnknownDatabaseError)):
+                tenant_id = server.get_tenant_id()
+                message = static_exc.args[0].replace(f'{tenant_id}_', '')
+                exc = type(static_exc)(message)
+            else:
+                exc = static_exc
+
+        except Exception as e:
+            exc = RuntimeError(
+                'unhandled error while calling interpret_backend_error(); '
+                'run with EDGEDB_DEBUG_SERVER to debug.')
+
+    if not isinstance(exc, errors.EdgeDBError):
+        nexc = errors.InternalServerError(
+            f'{type(exc).__name__}: {exc}').with_traceback(exc.__traceback__)
+        formatted = getattr(exc, '__formatted_error__', None)
+        if formatted:
+            nexc.__formatted_error__ = formatted
+        exc = nexc
+
+    return exc

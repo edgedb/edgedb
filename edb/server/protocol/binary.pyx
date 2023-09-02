@@ -1160,20 +1160,15 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         exc_code = None
 
-        if isinstance(exc, pgerror.BackendError):
-            exc = self.interpret_backend_error(exc)
+        exc = self.interpret_error(exc)
+        exc_type = type(exc)
 
         fields = {}
-        if (isinstance(exc, errors.EdgeDBError) and
-                type(exc) is not errors.EdgeDBError):
-            exc_code = exc.get_code()
+        if isinstance(exc, errors.EdgeDBError):
             fields.update(exc._attrs)
 
-        internal_error_code = errors.InternalServerError.get_code()
-        if not exc_code:
-            exc_code = internal_error_code
-
-        if (exc_code == internal_error_code
+        exc_code = exc_type.get_code()
+        if (exc_type is errors.InternalServerError
                 and not fields.get(base_errors.FIELD_HINT)):
             fields[base_errors.FIELD_HINT] = (
                 f'This is most likely a bug in EdgeDB. '
@@ -1207,32 +1202,12 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.write(buf)
 
-    cdef interpret_backend_error(self, exc):
-        try:
-            static_exc = errormech.static_interpret_backend_error(
-                exc.fields)
-
-            # only use the backend if schema is required
-            if static_exc is errormech.SchemaRequired:
-                exc = errormech.interpret_backend_error(
-                    self.get_dbview().get_schema(),
-                    exc.fields
-                )
-            elif isinstance(static_exc, (
-                    errors.DuplicateDatabaseDefinitionError,
-                    errors.UnknownDatabaseError)):
-                tenant_id = self.server.get_tenant_id()
-                message = static_exc.args[0].replace(f'{tenant_id}_', '')
-                exc = type(static_exc)(message)
-            else:
-                exc = static_exc
-
-        except Exception:
-            exc = RuntimeError(
-                'unhandled error while calling interpret_backend_error(); '
-                'run with EDGEDB_DEBUG_SERVER to debug.')
-
-        return exc
+    cdef interpret_error(self, exc):
+        return execute.interpret_error(
+            exc,
+            get_schema=lambda: self.get_dbview().get_schema(),
+            server=self.server,
+        )
 
     cdef write_status(self, bytes name, bytes value):
         cdef:
@@ -1875,8 +1850,8 @@ async def run_script(
             await conn._execute_script(compiled, b'')
         else:
             await conn._execute(compiled, b'', use_prep_stmt=0)
-    except pgerror.BackendError as e:
-        exc = conn.interpret_backend_error(e)
+    except Exception as e:
+        exc = conn.interpret_error(e)
         if isinstance(exc, errors.EdgeDBError):
             raise exc from None
         else:

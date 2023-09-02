@@ -189,7 +189,9 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest):
                     {
                         'kind': 'error',
                         'error': [
-                            'Error', 'array index 2 is out of bounds', {}
+                            'InvalidValueError',
+                            'array index 2 is out of bounds',
+                            {},
                         ]
                     }
                 ]

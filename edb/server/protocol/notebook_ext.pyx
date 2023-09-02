@@ -214,15 +214,15 @@ async def execute(db, server, queries: list):
                     if debug.flags.server:
                         markup.dump(ex)
 
-                    # TODO: copy proper error reporting from edgecon
-                    if not issubclass(type(ex), errors.EdgeDBError):
-                        ex_type = 'Error'
-                    else:
-                        ex_type = type(ex).__name__
+                    ex = p_execute.interpret_error(
+                        ex,
+                        get_schema=lambda: dbv.get_schema(),
+                        server=server,
+                    )
 
                     result.append({
                         'kind': 'error',
-                        'error': [ex_type, str(ex), {}],
+                        'error': [type(ex).__name__, str(ex), {}],
                     })
 
                     break
