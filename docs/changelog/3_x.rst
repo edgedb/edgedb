@@ -1060,3 +1060,63 @@ receive support for a year and a half after their initial release.
 
 * Modestly speed up type creation in large schemas
   (:eql:gh:`#5814`)
+
+3.3
+===
+* Fix creating roles in transactions
+  (:eql:gh:`#5925`)
+
+* Fix database check in JWT authentication
+  (:eql:gh:`#5928`)
+
+* Create extensions conditionally
+  (:eql:gh:`#5894`)
+
+* Stop putting deletes of self before alters of self in when making schema
+  deltas
+  (:eql:gh:`#5897`)
+
+* Fix dropping of extensions with nontrivial schemas
+  (:eql:gh:`#5897`)
+
+* Fix healthchecks on single-database instances
+  (:eql:gh:`#5900`)
+
+* Fix a bug in SQL name resolving
+  (:eql:gh:`#5860`)
+
+* Add hacky support for pgadmin
+  (:eql:gh:`#5877`)
+
+* Fix some issues with nontrivial function parameter defaults
+  (:eql:gh:`#5970`)
+
+* Fix named-tuple params that also appear in the schema
+  (:eql:gh:`#5964`)
+
+* Disallow more broken sorts of function overloads
+  (:eql:gh:`#5992`)
+
+* Prevent user modifications to extension modules
+  (:eql:gh:`#5993`)
+
+* Fix use of certain empty sets from multiple optional arguments
+  (:eql:gh:`#5990`)
+
+* Fix a casting bug.
+
+* Do not stack overflow on long arrays and similar
+  (:eql:gh:`#6004`)
+
+* Fix collisions between function parameters named id and the property
+  (:eql:gh:`#6000`)
+
+* Fix an infinite recursion when casting object->json in some cases
+  (:eql:gh:`#6007`)
+
+* Fix object to json casts inside functions
+  (:eql:gh:`#6016`)
+
+* Produce better errors on compiler stack overflows and properly interpret
+  errors raised from SQL when using HTTP protocols
+  (:eql:gh:`#6005`)
