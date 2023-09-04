@@ -1080,7 +1080,7 @@ async def _amend_stdlib(
     stdlib: StdlibBits,
 ) -> Tuple[StdlibBits, str]:
     schema = s_schema.ChainedSchema(
-        s_schema.EMPTY_SCHEMA,
+        s_schema.FlatSchema(),
         stdlib.stdschema,
         stdlib.global_schema,
     )
