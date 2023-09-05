@@ -127,6 +127,10 @@ class OpenIDConfig:
     op_policy_uri: Optional[str]
     op_tos_uri: Optional[str]
 
+    def __init__(self, **kwargs):
+        for field in dataclasses.fields(self):
+            setattr(self, field.name, kwargs.get(field.name))
+
     def __str__(self) -> str:
         return self.issuer
 
