@@ -22,21 +22,32 @@ import os.path
 from edb.testbase import server as tb
 
 
-class TestEdgeQLFTS(tb.QueryTestCase):
+class TestEdgeQLFTSQuery(tb.QueryTestCase):
+    '''Tests for fts::search.
+
+    This is intended to test the FTS query language as well as result scoring.
+    '''
+
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'fts.esdl')
+                          'fts0.esdl')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'fts_setup.edgeql')
+                         'fts_setup0.edgeql')
 
-    async def test_edgeql_fts_test_01(self):
+    async def test_edgeql_fts_search_01(self):
         # At least one of "drink" or "poison" should appear in text.
         await self.assert_query_result(
             r'''
-            select Paragraph {number, text}
-            filter fts::test('drink poison', Paragraph);
+            select fts::search(
+                Paragraph,
+                'drink poison',
+                language := 'English'
+            ).object {
+                number,
+                text,
+            };
             ''',
-            [{
+            tb.bag([{
                 "number": 15,
                 "text":
                     "There seemed to be no use in waiting by the little "
@@ -74,17 +85,23 @@ class TestEdgeQLFTS(tb.QueryTestCase):
                     "cherry-tart, custard, pine-apple, roast turkey, "
                     "toffee, and hot buttered toast,) she very soon "
                     "finished it off."
-            }]
+            }])
         )
 
-    async def test_edgeql_fts_test_02(self):
+    async def test_edgeql_fts_search_02(self):
         # At least one of "drink" or "me" should appear in text.
         await self.assert_query_result(
             r'''
-            select Paragraph {number, text}
-            filter fts::test('drink me', Paragraph);
+            select fts::search(
+                Paragraph,
+                'drink me',
+                language := 'English'
+            ).object {
+                number,
+                text,
+            };
             ''',
-            [{
+            tb.bag([{
                 "number": 15,
                 "text":
                     "There seemed to be no use in waiting by the little "
@@ -113,16 +130,21 @@ class TestEdgeQLFTS(tb.QueryTestCase):
                     "had never forgotten that, if you drink much from a "
                     "bottle marked “poison,” it is almost certain to "
                     "disagree with you, sooner or later."
-            }]
+            }])
         )
 
-    async def test_edgeql_fts_test_03(self):
+    async def test_edgeql_fts_search_03(self):
         # Both "drink" and "poison" should appear in text.
         await self.assert_query_result(
             r'''
-            select Paragraph {number, text}
-            filter fts::test(
-                'drink AND poison', Paragraph);
+            select fts::search(
+                Paragraph,
+                'drink AND poison',
+                language := 'English'
+            ).object {
+                number,
+                text,
+            };
             ''',
             [{
                 "number": 16,
@@ -147,8 +169,14 @@ class TestEdgeQLFTS(tb.QueryTestCase):
         # Same sematics as above
         await self.assert_query_result(
             r'''
-            select Paragraph {number, text}
-            filter fts::test('drink "poison"', Paragraph);
+            select fts::search(
+                Paragraph,
+                'drink "poison"',
+                language := 'English'
+            ).object {
+                number,
+                text,
+            };
             ''',
             [{
                 "number": 16,
@@ -170,125 +198,112 @@ class TestEdgeQLFTS(tb.QueryTestCase):
             }]
         )
 
-    async def test_edgeql_fts_rich_01(self):
+    async def test_edgeql_fts_search_04(self):
         # Search for top 3 best matches for words "white", "rabbit", "gloves",
         # "watch".
         await self.assert_query_result(
             r'''
-            with q := 'white rabbit gloves watch'
-            select Paragraph {
+            with x := (
+                select fts::search(
+                    Paragraph,
+                    'white rabbit gloves watch',
+                    language := 'English'
+                )
+                order by .score desc
+                limit 3
+            )
+            select x.object {
                 number,
-                fts := fts::match(
-                    q,
-                    .text,
-                    language := 'english',
-                    highlight_opts := 'default',
-                ),
-            } {
-                number,
-                rank := .fts.rank,
-                hl := .fts.highlights[0],
-            }
-            order by .rank desc limit 3;
+                rank := x.score,
+            };
             ''',
             [{
-                "hl":
-                    "<b>White</b> <b>Rabbit</b> returning, splendidly "
-                    "dressed, with a pair of <b>white</b> kid <b>gloves</b> "
-                    "in one hand",
+                # "hl":
+                #     "<b>White</b> <b>Rabbit</b> returning, splendidly "
+                #     "dressed, with a pair of <b>white</b> kid <b>gloves</b> "
+                #     "in one hand",
                 "number": 8,
-                "rank": 0.6037054061889648,
+                "rank": 0.6037054,
             }, {
-                "hl":
-                    "<b>Rabbit</b>’s little <b>white</b> kid <b>gloves</b> "
-                    "while she was talking. “How _can_ I have done",
+                # "hl":
+                #     "<b>Rabbit</b>’s little <b>white</b> kid <b>gloves</b> "
+                #     "while she was talking. “How _can_ I have done",
                 "number": 14,
-                "rank": 0.4559453129768371,
+                "rank": 0.4559453,
             }, {
-                "hl":
-                    "<b>Rabbit</b> actually _took a <b>watch</b> out of its "
-                    "waistcoat-pocket_, and looked at it, and then",
+                # "hl":
+                #     "<b>Rabbit</b> actually _took a <b>watch</b> out of its "
+                #     "waistcoat-pocket_, and looked at it, and then",
                 "number": 3,
-                "rank": 0.4063401818275452,
+                "rank": 0.40634018,
             }]
         )
 
-    async def test_edgeql_fts_rich_02(self):
+    async def test_edgeql_fts_search_05(self):
         # Search for top 3 best matches for either one of phrases "golden key"
         # or "white rabbit".
         await self.assert_query_result(
             r'''
-            with q := '"golden key" OR "white rabbit"'
-            select Paragraph {
+            with x := (
+                select fts::search(
+                    Paragraph,
+                    '"golden key" OR "white rabbit"',
+                    language := 'English'
+                )
+                order by .score desc
+                limit 3
+            )
+            select x.object {
                 number,
-                fts := fts::match(
-                    q,
-                    .text,
-                    language := 'english',
-                    highlight_opts := 'default',
-                ),
-            } {
-                number,
-                rank := .fts.rank,
-                hl := .fts.highlights[0],
-            }
-            order by .rank desc limit 3;
+                rank := x.score,
+            };
             ''',
             [{
-                "hl":
-                    "<b>White</b> <b>Rabbit</b> returning, splendidly "
-                    "dressed, with a pair of <b>white</b> kid gloves in one "
-                    "hand",
+                # "hl":
+                #     "<b>White</b> <b>Rabbit</b> returning, splendidly "
+                #     "dressed, with a pair of <b>white</b> kid gloves in one "
+                #     "hand",
                 "number": 8,
-                "rank": 0.4137281775474548
+                "rank": 0.41372818,
             }, {
-                "hl":
-                    "<b>golden</b> <b>key</b>, and Alice’s first thought "
-                    "was that it might belong to one of the doors",
+                # "hl":
+                #     "<b>golden</b> <b>key</b>, and Alice’s first thought "
+                #     "was that it might belong to one of the doors",
                 "number": 13,
-                "rank": 0.3968413174152374
+                "rank": 0.39684132,
             }, {
-                "hl":
-                    "<b>White</b> <b>Rabbit</b> was still in sight, "
-                    "hurrying down it. There was not a moment to be lost",
+                # "hl":
+                #     "<b>White</b> <b>Rabbit</b> was still in sight, "
+                #     "hurrying down it. There was not a moment to be lost",
                 "number": 11,
-                "rank": 0.34195899963378906
+                "rank": 0.341959,
             }]
         )
 
-    async def test_edgeql_fts_rich_03(self):
+    async def test_edgeql_fts_search_06(self):
         # Search for top 3 best matches for "drink" and "poison". However,
         # there's only one paragraph (number 16 as we know from earlier tests)
-        # that actually contains both of those words. So we expect the ranking
-        # to reflect poor matches of the top 3.
+        # that actually contains both of those words.
         await self.assert_query_result(
             r'''
-            with q := 'drink AND poison'
-            select Paragraph {
-                number,
-                fts := fts::match(
-                    q,
-                    .text,
-                    language := 'english',
-                ),
-            } {
+            with x := (
+                select fts::search(
+                    Paragraph,
+                    'drink AND poison',
+                    language := 'English'
+                )
+                order by .score desc
+                limit 3
+            )
+            select x.object {
                 number,
                 ch := .chapter.number,
-                rank := .fts.rank,
-            }
-            order by .rank desc then .ch then .number limit 3;
+                rank := x.score,
+            };
             ''',
             [{
                 "ch": 1,
                 "number": 16,
-                "rank": 0.8530858159065247
-            }, {
-                "ch": 1,
-                "number": 1,
-                "rank": 9.999999682655224e-21
-            }, {
-                "ch": 1,
-                "number": 2,
-                "rank": 9.999999682655224e-21
+                "rank": 0.8530858,
             }]
         )
