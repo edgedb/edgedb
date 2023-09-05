@@ -71,8 +71,16 @@ class Client:
                     client_secret=client_secret,
                     http_factory=http_factory,
                 )
+            case "google":
+                from . import google
+
+                self.provider = google.GoogleProvider(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    http_factory=http_factory,
+                )
             case _:
-                raise errors.InvalidData("Invalid provider: {provider}")
+                raise errors.InvalidData(f"Invalid provider: {provider_name}")
 
     async def get_authorize_url(self, state: str, redirect_uri: str) -> str:
         return await self.provider.get_code_url(
@@ -134,5 +142,6 @@ select (insert ext::auth::Identity {
                 return r
             case _:
                 raise errors.InvalidData(
-                    f"Invalid provider configuration: {provider_id}"
+                    f"Invalid provider configuration: {provider_id}\n"
+                    f"providers={provider_client_config!r}"
                 )
