@@ -17,7 +17,7 @@
 #
 
 import uuid
-import urllib
+import urllib.parse
 import json
 
 from jwcrypto import jwt, jwk
@@ -82,11 +82,14 @@ class OpenIDProvider(BaseProvider):
         }
 
         token_endpoint = urllib.parse.urlparse(oidc_config.token_endpoint)
-        async with self.http_factory(base_url=token_endpoint.netloc) as client:
+        async with self.http_factory(
+            base_url=f"{token_endpoint.scheme}://{token_endpoint.netloc}"
+        ) as client:
             resp = await client.post(
                 token_endpoint.path,
                 json=data,
             )
+            from edb.common import markup
             token = resp.json()["id_token"]
 
             return token
@@ -95,12 +98,13 @@ class OpenIDProvider(BaseProvider):
         # Retrieve JWK Set
         oidc_config = await self._get_oidc_config()
         jwks_uri = urllib.parse.urlparse(oidc_config.jwks_uri)
-        async with self.http_factory(base_url=jwks_uri.netloc) as client:
+        async with self.http_factory(
+            base_url=f"{jwks_uri.scheme}://{jwks_uri.netloc}"
+        ) as client:
             r = await client.get(jwks_uri.path)
-        keyset = r.json()
 
         # Load the token as a JWT object and verify it directly
-        jwk_set = jwk.JWKSet.from_json(keyset)
+        jwk_set = jwk.JWKSet.from_json(r.text)
         id_token_verified = jwt.JWT(key=jwk_set, jwt=token)
         payload = json.loads(id_token_verified.claims)
         if payload["iss"] != self.issuer_url:
