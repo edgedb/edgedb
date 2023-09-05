@@ -638,12 +638,24 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 (
                     {
                         "issuer": "https://accounts.google.com",
-                        "authorization_endpoint": "https://accounts.google.com/o/oauth2/v2/auth",
-                        "device_authorization_endpoint": "https://oauth2.googleapis.com/device/code",
-                        "token_endpoint": "https://oauth2.googleapis.com/token",
-                        "userinfo_endpoint": "https://openidconnect.googleapis.com/v1/userinfo",
-                        "revocation_endpoint": "https://oauth2.googleapis.com/revoke",
-                        "jwks_uri": "https://www.googleapis.com/oauth2/v3/certs",
+                        "authorization_endpoint": (
+                            "https://accounts.google.com/o/oauth2/v2/auth"
+                        ),
+                        "device_authorization_endpoint": (
+                            "https://oauth2.googleapis.com/device/code"
+                        ),
+                        "token_endpoint": (
+                            "https://oauth2.googleapis.com/token"
+                        ),
+                        "userinfo_endpoint": (
+                            "https://openidconnect.googleapis.com/v1/userinfo"
+                        ),
+                        "revocation_endpoint": (
+                            "https://oauth2.googleapis.com/revoke"
+                        ),
+                        "jwks_uri": (
+                            "https://www.googleapis.com/oauth2/v3/certs"
+                        ),
                         "response_types_supported": [
                             "code",
                             "token",
@@ -712,7 +724,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "aud": client_id,
                 "exp": (now + datetime.timedelta(minutes=5)).timestamp(),
                 "iat": now.timestamp(),
-                "email": "test@example.com"
+                "email": "test@example.com",
             }
             id_token = jwt.JWT(header={"alg": "RS256"}, claims=id_token_claims)
             id_token.make_signed_token(k)

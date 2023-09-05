@@ -89,7 +89,6 @@ class OpenIDProvider(BaseProvider):
                 token_endpoint.path,
                 json=data,
             )
-            from edb.common import markup
             token = resp.json()["id_token"]
 
             return token

@@ -25,7 +25,7 @@ import httpx_cache
 from typing import Any
 from edb.server.protocol import execute
 
-from . import errors, util, data
+from . import errors, util, data, base
 
 
 class HttpClient(httpx.AsyncClient):
@@ -50,6 +50,8 @@ class HttpClient(httpx.AsyncClient):
 
 
 class Client:
+    provider: base.BaseProvider
+
     def __init__(self, db: Any, provider_id: str, base_url: str | None = None):
         self.db = db
         self.db_config = db.db_config
