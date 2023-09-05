@@ -36,7 +36,7 @@ class GitHubProvider(base.BaseProvider):
             self.http_factory, base_url=self.api_domain
         )
 
-    def get_code_url(self, state: str, redirect_uri: str) -> str:
+    async def get_code_url(self, state: str, redirect_uri: str) -> str:
         params = {
             "client_id": self.client_id,
             "scope": "read:user user:email",

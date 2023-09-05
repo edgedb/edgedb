@@ -37,7 +37,7 @@ class BaseProvider:
         self.client_secret = client_secret
         self.http_factory = http_factory
 
-    def get_code_url(self, state: str, redirect_uri: str) -> str:
+    async def get_code_url(self, state: str, redirect_uri: str) -> str:
         raise NotImplementedError
 
     async def exchange_code(self, code: str) -> str:

@@ -74,8 +74,8 @@ class Client:
             case _:
                 raise errors.InvalidData("Invalid provider: {provider}")
 
-    def get_authorize_url(self, state: str, redirect_uri: str) -> str:
-        return self.provider.get_code_url(
+    async def get_authorize_url(self, state: str, redirect_uri: str) -> str:
+        return await self.provider.get_code_url(
             state=state, redirect_uri=redirect_uri
         )
 
