@@ -116,4 +116,7 @@ class OpenIDProvider(BaseProvider):
         )
 
     async def _get_oidc_config(self):
-        raise NotImplementedError
+        client = self.http_factory(base_url=self.issuer_url)
+        response = await client.get('/.well-known/openid-configuration')
+        config = response.json()
+        return data.OpenIDConfig(**config)

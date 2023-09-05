@@ -17,7 +17,7 @@
 #
 
 
-from . import base, data
+from . import base
 
 
 class GoogleProvider(base.OpenIDProvider):
@@ -25,9 +25,3 @@ class GoogleProvider(base.OpenIDProvider):
         super().__init__(
             "google", "https://accounts.google.com", *args, **kwargs
         )
-
-    async def _get_oidc_config(self):
-        client = self.http_factory(base_url=self.issuer_url)
-        response = await client.get('/.well-known/openid-configuration')
-        config = response.json()
-        return data.OpenIDConfig(**config)
