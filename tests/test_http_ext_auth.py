@@ -171,6 +171,16 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             client_id := <str>'{uuid.uuid4()}'
         }};
         """,
+        f"""
+        CONFIGURE CURRENT DATABASE
+        INSERT ext::auth::ClientConfig {{
+            provider_name := "google",
+            url := "https://accounts.google.com",
+            provider_id := <str>'{uuid.uuid4()}',
+            secret := <str>'{"c" * 32}',
+            client_id := <str>'{uuid.uuid4()}'
+        }};
+        """,
     ]
 
     def http_con_send_request(self, *args, headers=None, **kwargs):
@@ -608,4 +618,170 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(
                 url.query,
                 "error=access_denied",
+            )
+
+    async def test_http_auth_ext_google_callback_01(self):
+        with MockAuthProvider() as mock_provider, self.http_con() as http_con:
+            provider_config = await self.get_client_config_by_provider("google")
+            provider_id = provider_config.provider_id
+            client_id = provider_config.client_id
+            client_secret = provider_config.secret
+
+            now = datetime.datetime.utcnow()
+
+            discovery_request = (
+                "GET",
+                "https://accounts.google.com",
+                "/.well-known/openid-configuration",
+            )
+            mock_provider.register_route_handler(*discovery_request)(
+                (
+                    {
+                        "issuer": "https://accounts.google.com",
+                        "authorization_endpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+                        "device_authorization_endpoint": "https://oauth2.googleapis.com/device/code",
+                        "token_endpoint": "https://oauth2.googleapis.com/token",
+                        "userinfo_endpoint": "https://openidconnect.googleapis.com/v1/userinfo",
+                        "revocation_endpoint": "https://oauth2.googleapis.com/revoke",
+                        "jwks_uri": "https://www.googleapis.com/oauth2/v3/certs",
+                        "response_types_supported": [
+                            "code",
+                            "token",
+                            "id_token",
+                            "code token",
+                            "code id_token",
+                            "token id_token",
+                            "code token id_token",
+                            "none",
+                        ],
+                        "subject_types_supported": ["public"],
+                        "id_token_signing_alg_values_supported": ["RS256"],
+                        "scopes_supported": ["openid", "email", "profile"],
+                        "token_endpoint_auth_methods_supported": [
+                            "client_secret_post",
+                            "client_secret_basic",
+                        ],
+                        "claims_supported": [
+                            "aud",
+                            "email",
+                            "email_verified",
+                            "exp",
+                            "family_name",
+                            "given_name",
+                            "iat",
+                            "iss",
+                            "locale",
+                            "name",
+                            "picture",
+                            "sub",
+                        ],
+                        "code_challenge_methods_supported": ["plain", "S256"],
+                    },
+                    200,
+                )
+            )
+
+            token_request = (
+                "POST",
+                "https://oauth2.googleapis.com",
+                "/token",
+            )
+            mock_provider.register_route_handler(*token_request)(
+                (
+                    {
+                        "access_token": "google_access_token",
+                        "scope": "openid",
+                        "token_type": "bearer",
+                    },
+                    200,
+                )
+            )
+
+            jwks_request = (
+                "GET",
+                "https://www.googleapis.com",
+                "/oauth2/v3/certs"
+            )
+            # Generate a JWK Set
+            k = jwk.JWK.generate(kty='RSA', size=4096)
+            ks = jwk.JWKSet()
+            ks.add(k)
+            jwk_set_json = ks.export_public()
+
+            mock_provider.register_route_handler(*jwks_request)(
+                (
+                    json.loads(jwk_set_json),
+                    200,
+                )
+            )
+
+            signing_key = await self.get_signing_key()
+
+            expires_at = now + datetime.timedelta(minutes=5)
+            state_claims = {
+                "iss": self.http_addr,
+                "provider": str(provider_id),
+                "exp": expires_at.astimezone().timestamp(),
+                "redirect_to": f"{self.http_addr}/some/path",
+            }
+            state_token = self.generate_state_value(state_claims, signing_key)
+
+            data, headers, status = self.http_con_request(
+                http_con,
+                {"state": state_token, "code": "abc123"},
+                path="callback",
+            )
+
+            self.assertEqual(data, b"")
+            self.assertEqual(status, 302)
+
+            location = headers.get("location")
+            assert location is not None
+            server_url = urllib.parse.urlparse(self.http_addr)
+            url = urllib.parse.urlparse(location)
+            self.assertEqual(url.scheme, server_url.scheme)
+            self.assertEqual(url.hostname, server_url.hostname)
+            self.assertEqual(url.path, f"{server_url.path}/some/path")
+
+            requests_for_discovery = mock_provider.requests[discovery_request]
+            self.assertEqual(len(requests_for_discovery), 1)
+
+            requests_for_token = mock_provider.requests[token_request]
+            self.assertEqual(len(requests_for_token), 1)
+            self.assertEqual(
+                requests_for_token[0]["body"],
+                json.dumps(
+                    {
+                        "grant_type": "authorization_code",
+                        "code": "abc123",
+                        "client_id": client_id,
+                        "client_secret": client_secret,
+                    }
+                ),
+            )
+
+            identity = await self.con.query(
+                """
+                SELECT ext::auth::Identity
+                FILTER .sub = '1'
+                AND .iss = 'https://accounts.google.com'
+                AND .email = 'test@example.com'
+                """
+            )
+            self.assertEqual(len(identity), 1)
+
+            set_cookie = headers.get("set-cookie")
+            assert set_cookie is not None
+            (k, v) = set_cookie.split(";")[0].split("=")
+            self.assertEqual(k, "edgedb-session")
+            session_token = jwt.JWT(key=signing_key, jwt=v)
+            session_claims = json.loads(session_token.claims)
+            self.assertEqual(session_claims.get("sub"), str(identity[0].id))
+            self.assertEqual(session_claims.get("iss"), str(self.http_addr))
+            tomorrow = now + datetime.timedelta(hours=25)
+            self.assertTrue(
+                session_claims.get("exp") > now.astimezone().timestamp()
+            )
+            self.assertTrue(
+                session_claims.get("exp") < tomorrow.astimezone().timestamp()
             )
