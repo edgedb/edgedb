@@ -35,6 +35,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             set readonly := true;
             create annotation std::description :=
                 "ID of the auth provider";
+            create constraint exclusive;
         };
 
         create required property provider_name: std::str {
