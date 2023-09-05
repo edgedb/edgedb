@@ -681,36 +681,50 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-            token_request = (
-                "POST",
-                "https://oauth2.googleapis.com",
-                "/token",
-            )
-            mock_provider.register_route_handler(*token_request)(
-                (
-                    {
-                        "access_token": "google_access_token",
-                        "scope": "openid",
-                        "token_type": "bearer",
-                    },
-                    200,
-                )
-            )
-
             jwks_request = (
                 "GET",
                 "https://www.googleapis.com",
-                "/oauth2/v3/certs"
+                "/oauth2/v3/certs",
             )
             # Generate a JWK Set
             k = jwk.JWK.generate(kty='RSA', size=4096)
             ks = jwk.JWKSet()
             ks.add(k)
-            jwk_set_json = ks.export_public()
+            jwk_set: dict[str, Any] = ks.export(
+                private_keys=False, as_dict=True
+            )
 
             mock_provider.register_route_handler(*jwks_request)(
                 (
-                    json.loads(jwk_set_json),
+                    jwk_set,
+                    200,
+                )
+            )
+
+            token_request = (
+                "POST",
+                "https://oauth2.googleapis.com",
+                "/token",
+            )
+            id_token_claims = {
+                "iss": "https://accounts.google.com",
+                "sub": "1",
+                "aud": client_id,
+                "exp": (now + datetime.timedelta(minutes=5)).timestamp(),
+                "iat": now.timestamp(),
+                "email": "test@example.com"
+            }
+            id_token = jwt.JWT(header={"alg": "RS256"}, claims=id_token_claims)
+            id_token.make_signed_token(k)
+
+            mock_provider.register_route_handler(*token_request)(
+                (
+                    {
+                        "access_token": "google_access_token",
+                        "id_token": id_token.serialize(),
+                        "scope": "openid",
+                        "token_type": "bearer",
+                    },
                     200,
                 )
             )
@@ -732,6 +746,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 path="callback",
             )
 
+            print(f"data={data}")
             self.assertEqual(data, b"")
             self.assertEqual(status, 302)
 
@@ -744,7 +759,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.path, f"{server_url.path}/some/path")
 
             requests_for_discovery = mock_provider.requests[discovery_request]
-            self.assertEqual(len(requests_for_discovery), 1)
+            self.assertEqual(len(requests_for_discovery), 2)
 
             requests_for_token = mock_provider.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
