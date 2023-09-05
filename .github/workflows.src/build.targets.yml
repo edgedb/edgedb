@@ -1,3 +1,8 @@
+publications:
+    - name: prod
+      suffix: ""
+      server: upload-packages.edgedb.com:2222
+
 targets:
     linux:
         - name: debian-buster-x86_64

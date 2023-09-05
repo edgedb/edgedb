@@ -11,4 +11,4 @@ on:
       - nightly
 
 jobs:
-  <<- workflow(targets, subdist="nightly") ->>
+  <<- workflow(targets, publications, subdist="nightly") ->>

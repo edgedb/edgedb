@@ -1,4 +1,4 @@
-<% macro workflow(targets, subdist="", publish_all=False) %>
+<% macro workflow(targets, publications, subdist="", publish_all=False) %>
   prep:
     runs-on: ubuntu-latest
     outputs:
@@ -165,7 +165,8 @@
 <% endif %>
 <% for tgt in targets.linux %>
 <% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
-  publish-<< tgt.name >>:
+<% for publish in publications %>
+  publish<< publish.suffix>>-<< tgt.name >>:
     needs: [<% if publish_all %>collect<% else %>test-<< tgt.name >><% endif %>]
     runs-on: ubuntu-latest
 
@@ -179,15 +180,16 @@
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         <%- if subdist != "" %>
-        PKG_SUBDIST: "<< subdist >>"
-        <%- endif %>
+        PKG_SUBDIST: "<< subdist >>"<%- endif %>
+        <%- if publish.server != "" %>
+        PACKAGE_SERVER: << publish.server >><%- endif %>
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-  check-published-<< tgt.name >>:
-    needs: [publish-<< tgt.name >>]
+  check-published<<publish.suffix>>-<< tgt.name >>:
+    needs: [publish<< publish.suffix >>-<< tgt.name >>]
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
 
     steps:
@@ -207,8 +209,9 @@
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         <%- if subdist != "" %>
-        PKG_SUBDIST: "<< subdist >>"
-        <%- endif %>
+        PKG_SUBDIST: "<< subdist >>"<%- endif %>
+        <%- if publish.server != "" %>
+        PACKAGE_SERVER: << publish.server >><%- endif %>
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -218,6 +221,7 @@
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+<% endfor %>
 <% endfor %>
 <% for tgt in targets.macos %>
 <% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>

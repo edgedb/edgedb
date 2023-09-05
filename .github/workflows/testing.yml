@@ -1219,6 +1219,7 @@ jobs:
 
 
 
+
   publish-debian-buster-x86_64:
     needs: [collect]
     runs-on: ubuntu-latest
@@ -1233,6 +1234,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_PLATFORM_LIBC: ""
@@ -1259,6 +1261,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1268,6 +1271,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-debian-buster-aarch64:
@@ -1284,6 +1289,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_PLATFORM_LIBC: ""
@@ -1310,6 +1316,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1319,6 +1326,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-debian-bullseye-x86_64:
@@ -1335,6 +1344,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_PLATFORM_LIBC: ""
@@ -1361,6 +1371,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1370,6 +1381,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-debian-bullseye-aarch64:
@@ -1386,6 +1399,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_PLATFORM_LIBC: ""
@@ -1412,6 +1426,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1421,6 +1436,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-debian-bookworm-x86_64:
@@ -1437,6 +1454,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_PLATFORM_LIBC: ""
@@ -1463,6 +1481,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1472,6 +1491,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-debian-bookworm-aarch64:
@@ -1488,6 +1509,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_PLATFORM_LIBC: ""
@@ -1514,6 +1536,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1523,6 +1546,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-ubuntu-bionic-x86_64:
@@ -1539,6 +1564,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_PLATFORM_LIBC: ""
@@ -1565,6 +1591,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1574,6 +1601,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-ubuntu-bionic-aarch64:
@@ -1590,6 +1619,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_PLATFORM_LIBC: ""
@@ -1616,6 +1646,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1625,6 +1656,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-ubuntu-focal-x86_64:
@@ -1641,6 +1674,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_PLATFORM_LIBC: ""
@@ -1667,6 +1701,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1676,6 +1711,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-ubuntu-focal-aarch64:
@@ -1692,6 +1729,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_PLATFORM_LIBC: ""
@@ -1718,6 +1756,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1727,6 +1766,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-ubuntu-jammy-x86_64:
@@ -1743,6 +1784,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_PLATFORM_LIBC: ""
@@ -1769,6 +1811,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1778,6 +1821,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-ubuntu-jammy-aarch64:
@@ -1794,6 +1839,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_PLATFORM_LIBC: ""
@@ -1820,6 +1866,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1829,6 +1876,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-centos-7-x86_64:
@@ -1845,6 +1894,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
         PKG_PLATFORM_LIBC: ""
@@ -1871,6 +1921,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1880,6 +1931,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-centos-8-x86_64:
@@ -1896,6 +1949,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_PLATFORM_LIBC: ""
@@ -1922,6 +1976,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1931,6 +1986,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-centos-8-aarch64:
@@ -1947,6 +2004,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_PLATFORM_LIBC: ""
@@ -1973,6 +2031,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1982,6 +2041,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-rockylinux-9-x86_64:
@@ -1998,6 +2059,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_PLATFORM_LIBC: ""
@@ -2024,6 +2086,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2033,6 +2096,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-rockylinux-9-aarch64:
@@ -2049,6 +2114,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_PLATFORM_LIBC: ""
@@ -2075,6 +2141,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2084,6 +2151,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-linux-x86_64:
@@ -2100,6 +2169,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_LIBC: ""
@@ -2126,6 +2196,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2135,6 +2206,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-linux-aarch64:
@@ -2151,6 +2224,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_PLATFORM_LIBC: ""
@@ -2177,6 +2251,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2186,6 +2261,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-linuxmusl-x86_64:
@@ -2202,6 +2279,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_LIBC: "musl"
@@ -2228,6 +2306,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2237,6 +2316,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-linuxmusl-aarch64:
@@ -2253,6 +2334,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_PLATFORM_LIBC: "musl"
@@ -2279,6 +2361,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: upload-packages.edgedb.com:2222
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2288,6 +2371,7 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
 
 
 
