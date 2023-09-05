@@ -31,16 +31,13 @@ class GoogleProvider(base.BaseProvider):
         super().__init__(
             "google", "https://accounts.google.com", *args, **kwargs
         )
-        self.auth_domain = "https://oauth2.googleapis.com/"
         self.api_domain = "https://www.googleapis.com"
-        self.auth_client = functools.partial(
-            self.http_factory, base_url=self.auth_domain
-        )
         self.api_client = functools.partial(
             self.http_factory, base_url=self.api_domain
         )
 
-    def get_code_url(self, state: str, redirect_uri: str) -> str:
+    async def get_code_url(self, state: str, redirect_uri: str) -> str:
+        oidc_config = await self._get_oidc_config()
         params = {
             "client_id": self.client_id,
             "scope": "openid profile email",
@@ -50,9 +47,10 @@ class GoogleProvider(base.BaseProvider):
             "response_type": "code",
         }
         encoded = urllib.parse.urlencode(params)
-        return f"{self.issuer_url}/o/oauth2/v2/auth?{encoded}"
+        return f"{oidc_config.authorization_endpoint}?{encoded}"
 
     async def exchange_code(self, code: str) -> str:
+        oidc_config = await self._get_oidc_config()
         data = {
             "grant_type": "authorization_code",
             "code": code,
@@ -60,9 +58,10 @@ class GoogleProvider(base.BaseProvider):
             "client_secret": self.client_secret,
         }
 
-        async with self.auth_client() as client:
+        token_endpoint = urllib.parse.urlparse(oidc_config.token_endpoint)
+        async with self.http_factory(base_url=token_endpoint.netloc) as client:
             resp = await client.post(
-                "/token",
+                token_endpoint.path,
                 json=data,
             )
             token = resp.json()["id_token"]
@@ -71,8 +70,10 @@ class GoogleProvider(base.BaseProvider):
 
     async def fetch_user_info(self, token: str) -> data.UserInfo:
         # Retrieve Google's JWKs
-        async with self.api_client() as client:
-            r = await client.get('/oauth2/v3/certs')
+        oidc_config = await self._get_oidc_config()
+        jwks_uri = urllib.parse.urlparse(oidc_config.jwks_uri)
+        async with self.http_factory(base_url=jwks_uri.netloc) as client:
+            r = await client.get(jwks_uri.path)
         keyset = r.json()
 
         # Load the token as a JWT object and verify it directly
@@ -90,3 +91,9 @@ class GoogleProvider(base.BaseProvider):
             email=payload.get("email"),
             picture=payload.get("picture"),
         )
+
+    async def _get_oidc_config(self):
+        client = self.http_factory(base_url=self.issuer_url)
+        response = await client.get('/.well-known/openid-configuration')
+        config = response.json()
+        return data.OpenIDConfig(**config)
