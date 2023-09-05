@@ -6,26 +6,31 @@ module default {
 
     abstract type Text {
         required property text -> str;
-        # index fts::textsearch(language := 'english') on (.text);
+        # index fts::textsearch on (.text);
     }
 
     type Chapter extending Ordered {
         required property title -> str;
 
         multi link paragraphs := .<chapter[is Paragraph];
+        index fts::textsearch on (.title);
     }
 
     type Paragraph extending Ordered, Text {
         required link chapter -> Chapter;
+        index fts::textsearch on (.text);
     }
 
-    type Quote extending Text;
+    type Quote extending Text {
+        index fts::textsearch on (.text);
+    }
 
     type Comment extending Text {
         required property comment -> str;
 
         # A computed str that can also be searched
         property comp_comment := 'Someone commented: ' ++ .comment;
+        index fts::textsearch on (.comp_comment);
     }
 }
 };
