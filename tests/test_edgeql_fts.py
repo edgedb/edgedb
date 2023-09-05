@@ -307,3 +307,248 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                 "rank": 0.8530858,
             }]
         )
+
+
+class TestEdgeQLFTSFeatures(tb.QueryTestCase):
+    '''Tests for FTS features.
+
+    This is intended to test the various FTS schema features.
+    '''
+
+    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
+                          'fts1.esdl')
+
+    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
+                         'fts_setup1.edgeql')
+
+    async def test_edgeql_fts_inheritance_01(self):
+        # Test the fts search on a bunch of types that inherit from one
+        # another.
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                Text,
+                'rabbit run around the world',
+                language := 'English'
+            ).object {
+                text,
+                type := .__type__.name,
+            }
+            ''',
+            tb.bag([
+                {
+                    'text': 'hello world',
+                    'type': 'default::Text'
+                },
+                {
+                    'text': 'running and jumping fox',
+                    'type': 'default::Text'
+                },
+                {
+                    'text': 'the fox chases the rabbit',
+                    'type': 'default::FancyQuotedText'
+                },
+                {
+                    'text': 'the rabbit is fast',
+                    'type': 'default::FancyQuotedText'
+                },
+                {
+                    'text': 'the world is big',
+                    'type': 'default::QuotedText'
+                },
+            ])
+        )
+
+    async def test_edgeql_fts_inheritance_02(self):
+        # Test the fts search on a bunch of types that inherit from one
+        # another.
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                Text,
+                'foxy world',
+                language := 'English'
+            ).object {
+                text,
+                type := .__type__.name,
+            }
+            ''',
+            tb.bag([
+                {
+                    'text': 'hello world',
+                    'type': 'default::Text'
+                },
+                {
+                    'text': 'elaborate and foxy',
+                    'type': 'default::FancyText'
+                },
+                {
+                    'text': 'the world is big',
+                    'type': 'default::QuotedText'
+                },
+            ])
+        )
+
+    async def test_edgeql_fts_inheritance_03(self):
+        # Test the fts search on a bunch of types that inherit from one
+        # another.
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                FancyText,
+                'fancy chase',
+                language := 'English'
+            ).object {
+                text,
+                type := .__type__.name,
+            }
+            ''',
+            tb.bag([
+                {
+                    'text': 'fancy hello',
+                    'type': 'default::FancyText'
+                },
+                {
+                    'text': 'the fox chases the rabbit',
+                    'type': 'default::FancyQuotedText'
+                },
+            ])
+        )
+
+    async def test_edgeql_fts_inheritance_04(self):
+        # Test the fts search on a bunch of types that inherit from one
+        # another.
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                FancyQuotedText,
+                'fancy chase',
+                language := 'English'
+            ).object {
+                text,
+                type := .__type__.name,
+            }
+            ''',
+            [
+                {
+                    'text': 'the fox chases the rabbit',
+                    'type': 'default::FancyQuotedText'
+                },
+            ]
+        )
+
+    async def test_edgeql_fts_multifield_01(self):
+        # Test the fts search on a several fields.
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                Post,
+                'angry',
+                language := 'English'
+            ).object {
+                title,
+                body,
+            }
+            ''',
+            tb.bag([
+                {
+                    'title': 'angry reply',
+                    'body': "No! Wrong! It's blue!",
+                },
+                {
+                    'title': 'random stuff',
+                    'body': 'angry giraffes',
+                },
+            ])
+        )
+
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                Post,
+                'reply',
+                language := 'English'
+            ).object {
+                title,
+                body,
+            }
+            ''',
+            tb.bag([
+                {
+                    'title': 'angry reply',
+                    'body': "No! Wrong! It's blue!",
+                },
+                {
+                    'title': 'helpful reply',
+                    'body': "That's Rayleigh scattering for you",
+                },
+            ])
+        )
+
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                Post,
+                'sky',
+                language := 'English'
+            ).object {
+                title,
+                body,
+            }
+            ''',
+            [
+                {
+                    'title': 'first post',
+                    'body': 'The sky is so red.',
+                },
+            ]
+        )
+
+    async def test_edgeql_fts_computed_01(self):
+        # Test the fts search on a computed property.
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                Description,
+                'red',
+                language := 'English'
+            ).object {
+                text,
+            }
+            ''',
+            tb.bag([
+                {'text': 'Item #1: red umbrella'},
+                {'text': 'Item #2: red and white candy cane'},
+            ])
+        )
+
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                Description,
+                '2 or 3',
+                language := 'English'
+            ).object {
+                text,
+            }
+            ''',
+            tb.bag([
+                {'text': 'Item #2: red and white candy cane'},
+                {'text': 'Item #3: fancy pants'},
+            ])
+        )
+
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                Description,
+                'item AND fancy',
+                language := 'English'
+            ).object {
+                text,
+            }
+            ''',
+            [
+                {'text': 'Item #3: fancy pants'},
+            ]
+        )
