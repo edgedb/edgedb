@@ -36,6 +36,50 @@ HTTP_TEST_PORT: contextvars.ContextVar[str] = contextvars.ContextVar(
     'HTTP_TEST_PORT'
 )
 
+GOOGLE_DISCOVERY_DOCUMENT = {
+    "issuer": "https://accounts.google.com",
+    "authorization_endpoint": ("https://accounts.google.com/o/oauth2/v2/auth"),
+    "device_authorization_endpoint": (
+        "https://oauth2.googleapis.com/device/code"
+    ),
+    "token_endpoint": ("https://oauth2.googleapis.com/token"),
+    "userinfo_endpoint": ("https://openidconnect.googleapis.com/v1/userinfo"),
+    "revocation_endpoint": ("https://oauth2.googleapis.com/revoke"),
+    "jwks_uri": ("https://www.googleapis.com/oauth2/v3/certs"),
+    "response_types_supported": [
+        "code",
+        "token",
+        "id_token",
+        "code token",
+        "code id_token",
+        "token id_token",
+        "code token id_token",
+        "none",
+    ],
+    "subject_types_supported": ["public"],
+    "id_token_signing_alg_values_supported": ["RS256"],
+    "scopes_supported": ["openid", "email", "profile"],
+    "token_endpoint_auth_methods_supported": [
+        "client_secret_post",
+        "client_secret_basic",
+    ],
+    "claims_supported": [
+        "aud",
+        "email",
+        "email_verified",
+        "exp",
+        "family_name",
+        "given_name",
+        "iat",
+        "iss",
+        "locale",
+        "name",
+        "picture",
+        "sub",
+    ],
+    "code_challenge_methods_supported": ["plain", "S256"],
+}
+
 
 class MockHttpServerHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -636,59 +680,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             mock_provider.register_route_handler(*discovery_request)(
                 (
-                    {
-                        "issuer": "https://accounts.google.com",
-                        "authorization_endpoint": (
-                            "https://accounts.google.com/o/oauth2/v2/auth"
-                        ),
-                        "device_authorization_endpoint": (
-                            "https://oauth2.googleapis.com/device/code"
-                        ),
-                        "token_endpoint": (
-                            "https://oauth2.googleapis.com/token"
-                        ),
-                        "userinfo_endpoint": (
-                            "https://openidconnect.googleapis.com/v1/userinfo"
-                        ),
-                        "revocation_endpoint": (
-                            "https://oauth2.googleapis.com/revoke"
-                        ),
-                        "jwks_uri": (
-                            "https://www.googleapis.com/oauth2/v3/certs"
-                        ),
-                        "response_types_supported": [
-                            "code",
-                            "token",
-                            "id_token",
-                            "code token",
-                            "code id_token",
-                            "token id_token",
-                            "code token id_token",
-                            "none",
-                        ],
-                        "subject_types_supported": ["public"],
-                        "id_token_signing_alg_values_supported": ["RS256"],
-                        "scopes_supported": ["openid", "email", "profile"],
-                        "token_endpoint_auth_methods_supported": [
-                            "client_secret_post",
-                            "client_secret_basic",
-                        ],
-                        "claims_supported": [
-                            "aud",
-                            "email",
-                            "email_verified",
-                            "exp",
-                            "family_name",
-                            "given_name",
-                            "iat",
-                            "iss",
-                            "locale",
-                            "name",
-                            "picture",
-                            "sub",
-                        ],
-                        "code_challenge_methods_supported": ["plain", "S256"],
-                    },
+                    GOOGLE_DISCOVERY_DOCUMENT,
                     200,
                 )
             )
@@ -812,3 +804,56 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertTrue(
                 session_claims.get("exp") < tomorrow.astimezone().timestamp()
             )
+
+    async def test_http_auth_ext_google_authorize_01(self):
+        with MockAuthProvider() as mock_provider, self.http_con() as http_con:
+            provider_config = await self.get_client_config_by_provider("google")
+            provider_id = provider_config.provider_id
+            client_id = provider_config.client_id
+
+            discovery_request = (
+                "GET",
+                "https://accounts.google.com",
+                "/.well-known/openid-configuration",
+            )
+            mock_provider.register_route_handler(*discovery_request)(
+                (
+                    GOOGLE_DISCOVERY_DOCUMENT,
+                    200,
+                )
+            )
+
+            signing_key = await self.get_signing_key()
+
+            _, headers, status = self.http_con_request(
+                http_con, {"provider": provider_id}, path="authorize"
+            )
+
+            self.assertEqual(status, 302)
+
+            location = headers.get("location")
+            assert location is not None
+            url = urllib.parse.urlparse(location)
+            qs = urllib.parse.parse_qs(url.query, keep_blank_values=True)
+            self.assertEqual(url.scheme, "https")
+            self.assertEqual(url.hostname, "accounts.google.com")
+            self.assertEqual(url.path, "/o/oauth2/v2/auth")
+            self.assertEqual(qs.get("scope"), ["openid profile email"])
+
+            state = qs.get("state")
+            assert state is not None
+
+            signed_token = jwt.JWT(
+                key=signing_key, algs=["HS256"], jwt=state[0]
+            )
+            claims = json.loads(signed_token.claims)
+            self.assertEqual(claims.get("provider"), provider_id)
+            self.assertEqual(claims.get("iss"), self.http_addr)
+
+            self.assertEqual(
+                qs.get("redirect_uri"), [f"{self.http_addr}/callback"]
+            )
+            self.assertEqual(qs.get("client_id"), [client_id])
+
+            requests_for_discovery = mock_provider.requests[discovery_request]
+            self.assertEqual(len(requests_for_discovery), 1)
