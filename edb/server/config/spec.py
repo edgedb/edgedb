@@ -57,6 +57,7 @@ class Setting:
     report: bool = False
     affects_compilation: bool = False
     enum_values: Optional[Sequence[str]] = None
+    required: bool = True
 
     def __post_init__(self) -> None:
         if (self.type not in SETTING_TYPES and
@@ -86,9 +87,15 @@ class Setting:
                     f'should not have defaults')
 
         else:
-            if (not self.backend_setting and
-                    isinstance(self.type, type) and
-                    not isinstance(self.default, self.type)):
+            if (
+                not self.backend_setting
+                and isinstance(self.type, type)
+                and (
+                    (self.default and not isinstance(self.default, self.type))
+                    or (self.default is None and self.required)
+                )
+
+            ):
                 raise ValueError(
                     f'invalid config setting {self.name!r}: '
                     f'the default {self.default!r} '
@@ -257,6 +264,7 @@ def _load_spec_from_type(
         set_of = ptr_card.is_multi()
         backend_setting = attributes.get(
             sn.QualName('cfg', 'backend_setting'), None)
+        required = p.get_required(schema)
 
         deflt_expr = p.get_default(schema)
         if deflt_expr is not None:
@@ -267,7 +275,7 @@ def _load_spec_from_type(
         else:
             if set_of:
                 deflt = frozenset()
-            elif backend_setting is None:
+            elif backend_setting is None and required:
                 raise RuntimeError(f'cfg::Config.{pn} has no default')
             else:
                 deflt = None
@@ -295,6 +303,7 @@ def _load_spec_from_type(
                 if isinstance(ptype, s_scalars.ScalarType)
                 else None
             ),
+            required=required,
         )
 
         settings.append(setting)

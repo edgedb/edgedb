@@ -1214,6 +1214,8 @@ def const_ast_from_python(val: Any) -> qlast.Expr:
         )
     elif isinstance(val, (set, frozenset)):
         return qlast.Set(elements=[const_ast_from_python(x) for x in val])
+    elif val is None:
+        return qlast.Set(elements=[])
     else:
         raise ValueError(f'unexpected constant type: {type(val)!r}')
 

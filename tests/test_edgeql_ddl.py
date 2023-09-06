@@ -16053,7 +16053,9 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             select cfg::%s {
                 conf := assert_single(.extensions[is ext::_conf::Config] {
                     config_name,
-                    objs: { name, value, [is ext::_conf::SubObj].extra,
+                    opt_value,
+                    objs: { name, value, opt_value,
+                            [is ext::_conf::SubObj].extra,
                             tname := .__type__.name }
                           order by .name,
                 })
@@ -16089,6 +16091,18 @@ class TestDDLNonIsolated(tb.DDLTestCase):
 
         await _check(
             config_name='test',
+            opt_value=None,
+            objs=[],
+        )
+
+        await self.con.execute('''
+            configure current database set ext::_conf::Config::opt_value :=
+                "opt!";
+        ''')
+
+        await _check(
+            config_name='test',
+            opt_value='opt!',
             objs=[],
         )
 
@@ -16131,6 +16145,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             configure current database insert ext::_conf::Obj {
                 name := '2',
                 value := 'bar',
+                opt_value := 'opt.',
             };
         ''')
         await self.con.execute('''
@@ -16149,10 +16164,12 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         await _check(
             config_name='ready',
             objs=[
-                dict(name='1', value='foo', tname='ext::_conf::Obj'),
-                dict(name='2', value='bar', tname='ext::_conf::Obj'),
+                dict(name='1', value='foo', tname='ext::_conf::Obj',
+                     opt_value=None),
+                dict(name='2', value='bar', tname='ext::_conf::Obj',
+                     opt_value='opt.'),
                 dict(name='3', value='baz', extra=42,
-                     tname='ext::_conf::SubObj'),
+                     tname='ext::_conf::SubObj', opt_value=None),
             ],
         )
 
@@ -16181,11 +16198,12 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 ),
                 [
                     {'_tname': 'ext::_conf::Obj',
-                     'name': '1', 'value': 'foo'},
+                     'name': '1', 'value': 'foo', 'opt_value': None},
                     {'_tname': 'ext::_conf::Obj',
-                     'name': '2', 'value': 'bar'},
+                     'name': '2', 'value': 'bar', 'opt_value': 'opt.'},
                     {'_tname': 'ext::_conf::SubObj',
-                     'name': '3', 'value': 'baz', 'extra': 42},
+                     'name': '3', 'value': 'baz', 'extra': 42,
+                     'opt_value': None},
                 ],
             )
 
@@ -16201,6 +16219,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         };
         CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
             name := '2',
+            opt_value := 'opt.',
             value := 'bar',
         };
         CONFIGURE CURRENT DATABASE INSERT ext::_conf::SubObj {
@@ -16208,6 +16227,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             name := '3',
             value := 'baz',
         };
+        CONFIGURE CURRENT DATABASE SET ext::_conf::Config::opt_value := 'opt!';
         ''')
         self.assertEqual(val, test_expected)
 
@@ -16226,9 +16246,13 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         await self.con.execute('''
             configure current database reset ext::_conf::Obj
         ''')
+        await self.con.execute('''
+            configure current database reset ext::_conf::Config::opt_value;
+        ''')
 
         await _check(
             config_name='ready',
+            opt_value=None,
             objs=[],
         )
 
