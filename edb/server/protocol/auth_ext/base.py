@@ -20,6 +20,7 @@ import uuid
 import urllib.parse
 import json
 
+from typing import Union
 from jwcrypto import jwt, jwk
 from datetime import datetime
 
@@ -45,10 +46,12 @@ class BaseProvider:
     async def get_code_url(self, state: str, redirect_uri: str) -> str:
         raise NotImplementedError
 
-    async def exchange_code(self, code: str) -> str:
+    async def exchange_code(self, code: str) -> data.OAuthAccessTokenResponse:
         raise NotImplementedError
 
-    async def fetch_user_info(self, token: str) -> data.UserInfo:
+    async def fetch_user_info(
+        self, token_response: data.OAuthAccessTokenResponse
+    ) -> data.UserInfo:
         raise NotImplementedError
 
     def _maybe_isoformat_to_timestamp(self, value: str | None) -> float | None:
@@ -72,14 +75,10 @@ class OpenIDProvider(BaseProvider):
         encoded = urllib.parse.urlencode(params)
         return f"{oidc_config.authorization_endpoint}?{encoded}"
 
-    async def exchange_code(self, code: str) -> str:
+    async def exchange_code(
+        self, code: str
+    ) -> data.OpenIDConnectAccessTokenResponse:
         oidc_config = await self._get_oidc_config()
-        data = {
-            "grant_type": "authorization_code",
-            "code": code,
-            "client_id": self.client_id,
-            "client_secret": self.client_secret,
-        }
 
         token_endpoint = urllib.parse.urlparse(oidc_config.token_endpoint)
         async with self.http_factory(
@@ -87,13 +86,29 @@ class OpenIDProvider(BaseProvider):
         ) as client:
             resp = await client.post(
                 token_endpoint.path,
-                json=data,
+                json={
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
+                },
             )
-            token = resp.json()["id_token"]
+            json = resp.json()
 
-            return token
+            return data.OpenIDConnectAccessTokenResponse(**json)
 
-    async def fetch_user_info(self, token: str) -> data.UserInfo:
+    async def fetch_user_info(
+        self, token_response: data.OAuthAccessTokenResponse
+    ) -> data.UserInfo:
+        if not isinstance(
+            token_response, data.OpenIDConnectAccessTokenResponse
+        ):
+            raise TypeError(
+                "token_response must be of type "
+                "OpenIDConnectAccessTokenResponse"
+            )
+        id_token = token_response.id_token
+
         # Retrieve JWK Set
         oidc_config = await self._get_oidc_config()
         jwks_uri = urllib.parse.urlparse(oidc_config.jwks_uri)
@@ -104,7 +119,7 @@ class OpenIDProvider(BaseProvider):
 
         # Load the token as a JWT object and verify it directly
         jwk_set = jwk.JWKSet.from_json(r.text)
-        id_token_verified = jwt.JWT(key=jwk_set, jwt=token)
+        id_token_verified = jwt.JWT(key=jwk_set, jwt=id_token)
         payload = json.loads(id_token_verified.claims)
         if payload["iss"] != self.issuer_url:
             raise errors.InvalidData("Invalid value for iss in id_token")

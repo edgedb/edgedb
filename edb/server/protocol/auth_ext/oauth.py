@@ -90,8 +90,8 @@ class Client:
         )
 
     async def handle_callback(self, code: str) -> data.Identity:
-        token = await self.provider.exchange_code(code)
-        user_info = await self.provider.fetch_user_info(token)
+        response = await self.provider.exchange_code(code)
+        user_info = await self.provider.fetch_user_info(response)
 
         return await self._handle_identity(user_info)
 
