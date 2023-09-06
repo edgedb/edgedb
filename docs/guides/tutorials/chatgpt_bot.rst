@@ -153,8 +153,8 @@ will make it easier to import them.
 
       {
         "compilerOptions": {
-    - "target": "es5",
-    + "target": "es6",
+    -     "target": "es5",
+    +     "target": "es6",
           "lib": ["dom", "dom.iterable", "esnext"],
           "allowJs": true,
           "skipLibCheck": true,
