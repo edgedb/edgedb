@@ -185,11 +185,12 @@ class Router:
         expires_in = auth_expiration_time.to_timedelta()
         expires_at = datetime.datetime.utcnow() + expires_in
 
-        claims = {
+        claims: dict[str, Any] = {
             "iss": self.base_path,
             "sub": identity_id,
-            "exp": expires_at.astimezone().timestamp(),
         }
+        if expires_in.total_seconds() != 0:
+            claims["exp"] = expires_at.astimezone().timestamp()
         session_token = jwt.JWT(
             header={"alg": "HS256"},
             claims=claims,
