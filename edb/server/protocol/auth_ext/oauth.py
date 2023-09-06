@@ -88,6 +88,13 @@ class Client:
                     client_secret=client_secret,
                     http_factory=http_factory,
                 )
+            case "apple":
+                from . import apple
+                self.provider = apple.AppleProvider(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    http_factory=http_factory,
+                )
             case _:
                 raise errors.InvalidData(f"Invalid provider: {provider_name}")
 
