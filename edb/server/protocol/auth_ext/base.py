@@ -117,12 +117,17 @@ class OpenIDProvider(BaseProvider):
             r = await client.get(jwks_uri.path)
 
         # Load the token as a JWT object and verify it directly
-        jwk_set = jwk.JWKSet.from_json(r.text)
-        id_token_verified = jwt.JWT(key=jwk_set, jwt=id_token)
-        payload = json.loads(id_token_verified.claims)
-        if payload["iss"] != self.issuer_url:
+        try:
+            jwk_set = jwk.JWKSet.from_json(r.text)
+            id_token_verified = jwt.JWT(key=jwk_set, jwt=id_token)
+            payload = json.loads(id_token_verified.claims)
+        except Exception as e:
+            raise errors.MisconfiguredProvider(
+                "Failed to parse ID token with provider keyset"
+            ) from e
+        if payload.get("iss") != self.issuer_url:
             raise errors.InvalidData("Invalid value for iss in id_token")
-        if payload["aud"] != self.client_id:
+        if payload.get("aud") != self.client_id:
             raise errors.InvalidData("Invalid value for aud in id_token")
 
         return data.UserInfo(

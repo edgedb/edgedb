@@ -76,11 +76,15 @@ class Router:
                     state = _get_search_param(query, "state")
                     try:
                         code = _get_search_param(query, "code")
-                    except errors.InvalidData:
-                        error = _get_search_param(query, "error")
-                        error_description = _maybe_get_search_param(
-                            query, "error_description"
-                        )
+                    except (errors.InvalidData, errors.MisconfiguredProvider) as ex:
+                        if isinstance(ex, errors.MisconfiguredProvider):
+                            error = "misconfigured_provider"
+                            error_description = ex.description
+                        else:
+                            error = _get_search_param(query, "error")
+                            error_description = _maybe_get_search_param(
+                                query, "error_description"
+                            )
                         redirect_to = self._get_from_claims(
                             state, "redirect_to"
                         )
@@ -94,6 +98,7 @@ class Router:
                             "Location"
                         ] = f"{redirect_to}?{urllib.parse.urlencode(params)}"
                         return
+
 
                     provider_id = self._get_from_claims(state, "provider")
                     redirect_to = self._get_from_claims(state, "redirect_to")
