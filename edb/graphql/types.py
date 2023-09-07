@@ -1791,7 +1791,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
                 eql = parse_fragment(f'{self.gql_typename!r}')
             else:
                 # Construct the GraphQL type name from the actual type name.
-                eql = parse_fragment(f'''
+                eql = parse_fragment(fr'''
                     WITH name := {codegen.generate_source(parent)}
                         .__type__.name
                     SELECT (
