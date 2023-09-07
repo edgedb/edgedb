@@ -1798,7 +1798,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_fragment_type_01(self):
+    def test_graphql_functional_fragment_06(self):
         self.assert_graphql_query_result(r"""
             fragment userFrag on User {
                 id,
@@ -1817,7 +1817,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_fragment_type_02(self):
+    def test_graphql_functional_fragment_07(self):
         self.assert_graphql_query_result(r"""
             fragment namedFrag on NamedObject {
                 id,
@@ -1836,7 +1836,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_fragment_type_03(self):
+    def test_graphql_functional_fragment_08(self):
         self.assert_graphql_query_result(r"""
             fragment namedFrag on NamedObject {
                 id,
@@ -1861,7 +1861,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_fragment_type_04(self):
+    def test_graphql_functional_fragment_09(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"Fragment 'userFrag' cannot be spread here "
@@ -1880,7 +1880,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    def test_graphql_functional_fragment_type_05(self):
+    def test_graphql_functional_fragment_10(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"Fragment 'userFrag' cannot be spread here "
@@ -1906,7 +1906,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    def test_graphql_functional_fragment_type_06(self):
+    def test_graphql_functional_fragment_11(self):
         self.assert_graphql_query_result(r"""
             fragment userFrag on User {
                 age
@@ -1940,7 +1940,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         }, sort=lambda x: x['name'])
 
-    def test_graphql_functional_fragment_type_07(self):
+    def test_graphql_functional_fragment_12(self):
         self.assert_graphql_query_result(r"""
             fragment frag on NamedObject {
                 id,
@@ -1973,7 +1973,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         }, sort=lambda x: x['name'])
 
-    def test_graphql_functional_fragment_type_08(self):
+    def test_graphql_functional_fragment_13(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 "Cannot query field 'age' on type 'NamedObject'",
@@ -1992,7 +1992,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    def test_graphql_functional_fragment_type_09(self):
+    def test_graphql_functional_fragment_14(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 "Cannot query field 'age' on type 'NamedObject'",
@@ -2009,7 +2009,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    def test_graphql_functional_fragment_type_10(self):
+    def test_graphql_functional_fragment_15(self):
         self.assert_graphql_query_result(r"""
             fragment namedFrag on NamedObject {
                 id,
@@ -2047,7 +2047,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         }, sort=lambda x: x['name'])
 
-    def test_graphql_functional_fragment_type_11(self):
+    def test_graphql_functional_fragment_16(self):
         self.assert_graphql_query_result(r"""
             fragment namedFrag on NamedObject {
                 id,
@@ -2077,7 +2077,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )
-    def test_graphql_functional_fragment_type_12(self):
+    def test_graphql_functional_fragment_17(self):
         self.assert_graphql_query_result(r"""
             query {
                 NamedObject(order: {name: {dir: ASC}}) {
@@ -2107,7 +2107,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    def test_graphql_functional_fragment_type_13(self):
+    def test_graphql_functional_fragment_18(self):
         # ISSUE #1800
         #
         # After using a typed inline fragment the nested fields or
@@ -2135,7 +2135,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_fragment_type_14(self):
+    def test_graphql_functional_fragment_19(self):
         # ISSUE #1800
         #
         # After using a typed inline fragment the nested fields or
@@ -2165,7 +2165,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_fragment_type_15(self):
+    def test_graphql_functional_fragment_20(self):
         # ISSUE #1800
         #
         # After using a typed inline fragment the nested fields or
@@ -2213,7 +2213,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_fragment_type_16(self):
+    def test_graphql_functional_fragment_21(self):
         # ISSUE #1800
         #
         # After using a typed inline fragment the nested fields or
@@ -2265,7 +2265,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_fragment_type_17(self):
+    def test_graphql_functional_fragment_22(self):
         # ISSUE #1800
         #
         # After using a typed inline fragment the nested fields or
@@ -2295,7 +2295,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_fragment_type_18(self):
+    def test_graphql_functional_fragment_23(self):
         # ISSUE #3514
         #
         # Fragment on the actual type should also work.
@@ -2318,6 +2318,82 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 'profile': {
                     'value': 'special',
                 }
+            }],
+        })
+
+    def test_graphql_functional_fragment_24(self):
+        # ISSUE #5985
+        #
+        # Types from non-default module should be recognized in fragments.
+        self.assert_graphql_query_result(r"""
+            fragment myFrag on other__Foo {
+                id,
+                color,
+            }
+
+            query {
+                other__Foo(filter: {color: {eq: RED}}) {
+                    ... myFrag
+                }
+            }
+        """, {
+            'other__Foo': [{
+                'id': uuid.UUID,
+                'color': 'RED',
+            }],
+        })
+
+        self.assert_graphql_query_result(r"""
+            fragment myFrag on other__Foo_Type {
+                id,
+                color,
+            }
+
+            query {
+                other__Foo(filter: {color: {eq: RED}}) {
+                    ... myFrag
+                }
+            }
+        """, {
+            'other__Foo': [{
+                'id': uuid.UUID,
+                'color': 'RED',
+            }],
+        })
+
+    def test_graphql_functional_fragment_25(self):
+        # ISSUE #5985
+        #
+        # Types from non-default module should be recognized in fragments.
+        self.assert_graphql_query_result(r"""
+            query {
+                other__Foo(filter: {color: {eq: RED}}) {
+                    ... on other__Foo {
+                        id,
+                        color,
+                    }
+                }
+            }
+        """, {
+            'other__Foo': [{
+                'id': uuid.UUID,
+                'color': 'RED',
+            }],
+        })
+
+        self.assert_graphql_query_result(r"""
+            query {
+                other__Foo(filter: {color: {eq: RED}}) {
+                    ... on other__Foo_Type {
+                        id,
+                        color,
+                    }
+                }
+            }
+        """, {
+            'other__Foo': [{
+                'id': uuid.UUID,
+                'color': 'RED',
             }],
         })
 
