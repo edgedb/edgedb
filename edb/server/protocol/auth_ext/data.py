@@ -200,6 +200,5 @@ class OpenIDConnectAccessTokenResponse(OAuthAccessTokenResponse):
             f"token_type={self.token_type!r}, "
             f"expires_in={self.expires_in!r}, "
             f"refresh_token={self.refresh_token!r}, "
-            f"example_parameter={self.example_parameter!r}, "
             f"id_token={self.id_token!r})"
         )

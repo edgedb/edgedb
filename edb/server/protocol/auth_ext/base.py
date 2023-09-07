@@ -20,7 +20,6 @@ import uuid
 import urllib.parse
 import json
 
-from typing import Union
 from jwcrypto import jwt, jwk
 from datetime import datetime
 
