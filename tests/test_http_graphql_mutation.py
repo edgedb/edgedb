@@ -2174,6 +2174,71 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             "Fixed": [data]
         })
 
+    def test_graphql_mutation_insert_typename_01(self):
+        # This tests the typename funcitonality after insertion.
+        # Issue #5985
+        data = {
+            '__typename': 'other__Foo_Type',
+            'select': 'New TypenameTest01',
+            'color': 'GREEN',
+        }
+
+        validation_query = r"""
+            query {
+                __typename
+                other__Foo(filter: {select: {eq: "New TypenameTest01"}}) {
+                    __typename
+                    select
+                    color
+                }
+            }
+        """
+
+        self.assert_graphql_query_result(r"""
+            mutation insert_other__Foo {
+                __typename
+                insert_other__Foo(
+                    data: [{
+                        select: "New TypenameTest01",
+                        color: GREEN,
+                    }]
+                ) {
+                    __typename
+                    select
+                    color
+                }
+            }
+        """, {
+            "__typename": 'Mutation',
+            "insert_other__Foo": [data]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "__typename": 'Query',
+            "other__Foo": [data]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation delete_other__Foo {
+                __typename
+                delete_other__Foo(
+                    filter: {select: {eq: "New TypenameTest01"}}
+                ) {
+                    __typename
+                    select
+                    color
+                }
+            }
+        """, {
+            "__typename": 'Mutation',
+            "delete_other__Foo": [data]
+        })
+
+        # validate that the deletion worked
+        self.assert_graphql_query_result(validation_query, {
+            "other__Foo": []
+        })
+
     def test_graphql_mutation_update_scalars_01(self):
         orig_data = {
             'p_bool': True,
@@ -4810,6 +4875,77 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             }, {
                 'after': 'NestedFoo031',
                 'color': 'BLUE',
+            }]
+        })
+
+    def test_graphql_mutation_update_typename_01(self):
+        # This tests the typename funcitonality after insertion.
+        # Issue #5985
+
+        self.assert_graphql_query_result(r"""
+            mutation insert_other__Foo {
+                __typename
+                insert_other__Foo(
+                    data: [{
+                        select: "Update TypenameTest01",
+                        color: BLUE
+                    }]
+                ) {
+                    __typename
+                    select
+                    color
+                }
+            }
+        """, {
+            "__typename": 'Mutation',
+            "insert_other__Foo": [{
+                '__typename': 'other__Foo_Type',
+                'select': 'Update TypenameTest01',
+                'color': 'BLUE',
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_other__Foo {
+                __typename
+                update_other__Foo(
+                    filter: {select: {eq: "Update TypenameTest01"}}
+                    data: {
+                        color: {set: RED}
+                    }
+                ) {
+                    __typename
+                    select
+                    color
+                }
+            }
+        """, {
+            "__typename": 'Mutation',
+            "update_other__Foo": [{
+                '__typename': 'other__Foo_Type',
+                'select': 'Update TypenameTest01',
+                'color': 'RED',
+            }]
+        })
+
+        # clean up
+        self.assert_graphql_query_result(r"""
+            mutation delete_other__Foo {
+                __typename
+                delete_other__Foo(
+                    filter: {select: {eq: "Update TypenameTest01"}}
+                ) {
+                    __typename
+                    select
+                    color
+                }
+            }
+        """, {
+            "__typename": 'Mutation',
+            "delete_other__Foo": [{
+                '__typename': 'other__Foo_Type',
+                'select': 'Update TypenameTest01',
+                'color': 'RED',
             }]
         })
 
