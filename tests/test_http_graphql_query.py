@@ -2561,6 +2561,22 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
+    def test_graphql_functional_typename_04(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                other__Foo(order: {color: {dir: ASC}}) {
+                    __typename
+                    color
+                }
+            }
+        """, {
+            "other__Foo": [
+                {"__typename": "other__Foo_Type", "color": "RED"},
+                {"__typename": "other__Foo_Type", "color": "GREEN"},
+                {"__typename": "other__Foo_Type", "color": "BLUE"},
+            ]
+        })
+
     def test_graphql_functional_scalars_01(self):
         self.assert_graphql_query_result(r"""
             query {
