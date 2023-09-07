@@ -1169,7 +1169,7 @@ def _get_path_output(
         # The VALUES() construct seems to always expose its
         # value as "column1".
         alias = 'column1'
-        ref = pgast.ColumnRef(name=[alias])
+        ref = pgast.ColumnRef(name=[alias], nullable=rel.nullable)
     else:
         ref = get_path_var(rel, path_id, aspect=aspect, flavor=flavor, env=env)
 

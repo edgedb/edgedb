@@ -495,7 +495,16 @@ def __infer_const_set(
     scope_tree: irast.ScopeTreeNode,
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
-    if len(ir.elements) == len({el.value for el in ir.elements}):
+    # Is it worth doing this? It won't trigger in the common case of having
+    # performed constant extraction.
+    els = set()
+    for el in ir.elements:
+        if isinstance(el, irast.BaseConstant):
+            els.add(el.value)
+        else:
+            return DUPLICATE
+
+    if len(ir.elements) == len(els):
         return UNIQUE
     else:
         return DUPLICATE

@@ -1510,11 +1510,6 @@ def _get_compile_options(
     can_have_implicit_fields = (
         ctx.output_format is enums.OutputFormat.BINARY)
 
-    disable_constant_folding = _get_config_val(
-        ctx,
-        '__internal_no_const_folding',
-    )
-
     return qlcompiler.CompilerOptions(
         modaliases=ctx.state.current_tx().get_modaliases(),
         implicit_tid_in_shapes=(
@@ -1526,7 +1521,6 @@ def _get_compile_options(
         implicit_id_in_shapes=(
             can_have_implicit_fields and ctx.inline_objectids
         ),
-        constant_folding=not disable_constant_folding,
         json_parameters=ctx.json_parameters,
         implicit_limit=ctx.implicit_limit,
         bootstrap_mode=ctx.bootstrap_mode,

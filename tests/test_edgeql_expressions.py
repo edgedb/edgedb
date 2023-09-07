@@ -3223,6 +3223,15 @@ class TestExpressions(tb.QueryTestCase):
             [1, 2, 2, 3],
         )
 
+    async def test_edgeql_expr_set_07(self):
+        await self.assert_query_result(
+            r"""
+                select {<optional int64>$0, <optional int64>$0};
+            """,
+            [],
+            variables=(None,)
+        )
+
     async def test_edgeql_expr_array_01(self):
         await self.assert_query_result(
             r'''SELECT [1];''',
@@ -9619,11 +9628,7 @@ aa \
             FOR Z IN {(Object,)} UNION Z;
         """, __typenames__=True)
 
-    async def test_edgeql_no_const_folding_str_concat(self):
-        await self.con.execute("""
-            CONFIGURE SESSION SET __internal_no_const_folding := true;
-        """)
-
+    async def test_edgeql_str_concat(self):
         await self.assert_query_result(
             r"""
                 SELECT 'aaaa' ++ 'bbbb';
