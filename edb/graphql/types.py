@@ -1428,9 +1428,17 @@ class GQLCoreSchema:
 
             for tname in names:
                 if edb_base is None:
+                    module: Union[s_name.Name, str]
+
                     if '::' in tname:
                         edb_base = self.edb_schema.get(
                             tname,
+                            type=s_types.Type,
+                        )
+                    elif '__' in tname:
+                        # Looks like it's coming from a specific module
+                        edb_base = self.edb_schema.get(
+                            f"{tname.replace('__', '::')}",
                             type=s_types.Type,
                         )
                     else:
