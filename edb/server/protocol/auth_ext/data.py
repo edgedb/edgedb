@@ -117,8 +117,11 @@ class OAuthAccessTokenResponse:
     refresh_token: str
 
     def __init__(self, **kwargs):
+        self._extra_fields = {}
         for field in dataclasses.fields(self):
-            setattr(self, field.name, kwargs.get(field.name))
+            if field.name in kwargs:
+                setattr(self, field.name, kwargs.pop(field.name))
+        self._extra_fields.update(kwargs)
 
 
 @dataclasses.dataclass(repr=False)
@@ -131,6 +134,8 @@ class OpenIDConnectAccessTokenResponse(OAuthAccessTokenResponse):
     id_token: str
 
     def __init__(self, **kwargs):
+        self._extra_fields = {}
         for field in dataclasses.fields(self):
-            setattr(self, field.name, kwargs.get(field.name))
-
+            if field.name in kwargs:
+                setattr(self, field.name, kwargs.pop(field.name))
+        self._extra_fields.update(kwargs)
