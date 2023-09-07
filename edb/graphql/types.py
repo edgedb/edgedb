@@ -2045,20 +2045,24 @@ class GQLMutation(GQLBaseQuery):
         fkey = (name, self.dummy)
         target = None
 
-        op, name = name.split('_', 1)
-        if op in {'delete', 'insert', 'update'}:
+        if name == '__typename':
+            # It's a valid field that doesn't start with a command
             target = super().get_field_type(name)
+        else:
+            op, name = name.split('_', 1)
+            if op in {'delete', 'insert', 'update'}:
+                target = super().get_field_type(name)
 
-            if target is None:
-                module, edb_name = self.get_module_and_name(name)
-                edb_qname = s_name.QualName(module=module, name=edb_name)
-                edb_type = self.edb_schema.get(
-                    edb_qname,
-                    default=None,
-                    type=s_types.Type,
-                )
-                if edb_type is not None:
-                    target = self.convert_edb_to_gql_type(edb_type)
+                if target is None:
+                    module, edb_name = self.get_module_and_name(name)
+                    edb_qname = s_name.QualName(module=module, name=edb_name)
+                    edb_type = self.edb_schema.get(
+                        edb_qname,
+                        default=None,
+                        type=s_types.Type,
+                    )
+                    if edb_type is not None:
+                        target = self.convert_edb_to_gql_type(edb_type)
 
         if target is not None:
             self._fields[fkey] = target
