@@ -85,7 +85,7 @@ class Identity:
 @dataclasses.dataclass
 class OpenIDConfig:
     """
-    OpenID Connect configuration.
+    OpenID Connect configuration. Only includes fields actually in use.
     See:
     - https://openid.net/specs/openid-connect-discovery-1_0.html
     - https://accounts.google.com/.well-known/openid-configuration
@@ -94,38 +94,7 @@ class OpenIDConfig:
     issuer: str
     authorization_endpoint: str
     token_endpoint: str
-    userinfo_endpoint: Optional[str]
     jwks_uri: str
-    registration_endpoint: Optional[str]
-    scopes_supported: Optional[list[str]]
-    response_types_supported: list[str]
-    response_modes_supported: Optional[list[str]]
-    grant_types_supported: Optional[list[str]]
-    acr_values_supported: Optional[list[str]]
-    subject_types_supported: list[str]
-    id_token_signing_alg_values_supported: list[str]
-    id_token_encryption_alg_values_supported: Optional[list[str]]
-    id_token_encryption_enc_values_supported: Optional[list[str]]
-    userinfo_signing_alg_values_supported: Optional[list[str]]
-    userinfo_encryption_alg_values_supported: Optional[list[str]]
-    userinfo_encryption_enc_values_supported: Optional[list[str]]
-    request_object_signing_alg_values_supported: Optional[list[str]]
-    request_object_encryption_alg_values_supported: Optional[list[str]]
-    request_object_encryption_enc_values_supported: Optional[list[str]]
-    token_endpoint_auth_methods_supported: Optional[list[str]]
-    token_endpoint_auth_signing_alg_values_supported: Optional[list[str]]
-    display_values_supported: Optional[list[str]]
-    claim_types_supported: Optional[list[str]]
-    claims_supported: Optional[list[str]]
-    service_documentation: Optional[str]
-    claims_locales_supported: Optional[list[str]]
-    ui_locales_supported: Optional[list[str]]
-    claims_parameter_supported: Optional[bool]
-    request_parameter_supported: Optional[bool]
-    request_uri_parameter_supported: Optional[bool]
-    require_request_uri_registration: Optional[bool]
-    op_policy_uri: Optional[str]
-    op_tos_uri: Optional[str]
 
     def __init__(self, **kwargs):
         for field in dataclasses.fields(self):
@@ -133,19 +102,6 @@ class OpenIDConfig:
 
     def __str__(self) -> str:
         return self.issuer
-
-    def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}("
-            f"issuer={self.issuer!r}, "
-            f"authorization_endpoint={self.authorization_endpoint!r}, "
-            f"token_endpoint={self.token_endpoint!r}, "
-            f"jwks_uri={self.jwks_uri!r}, "
-            f"response_types_supported={self.response_types_supported!r}, "
-            f"subject_types_supported={self.subject_types_supported!r}, "
-            "id_token_signing_alg_values_supported="
-            f"{self.id_token_signing_alg_values_supported!r})"
-        )
 
 
 @dataclasses.dataclass
