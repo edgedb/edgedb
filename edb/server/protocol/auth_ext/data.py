@@ -104,7 +104,7 @@ class OpenIDConfig:
         return self.issuer
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(repr=False)
 class OAuthAccessTokenResponse:
     """
     Access Token Response.
@@ -120,20 +120,8 @@ class OAuthAccessTokenResponse:
         for field in dataclasses.fields(self):
             setattr(self, field.name, kwargs.get(field.name))
 
-    def __str__(self) -> str:
-        return self.access_token
 
-    def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}("
-            f"access_token={self.access_token!r}, "
-            f"token_type={self.token_type!r}, "
-            f"expires_in={self.expires_in!r}, "
-            f"refresh_token={self.refresh_token!r})"
-        )
-
-
-@dataclasses.dataclass
+@dataclasses.dataclass(repr=False)
 class OpenIDConnectAccessTokenResponse(OAuthAccessTokenResponse):
     """
     OpenID Connect Access Token Response.
@@ -146,15 +134,3 @@ class OpenIDConnectAccessTokenResponse(OAuthAccessTokenResponse):
         for field in dataclasses.fields(self):
             setattr(self, field.name, kwargs.get(field.name))
 
-    def __str__(self) -> str:
-        return self.id_token
-
-    def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}("
-            f"access_token={self.access_token!r}, "
-            f"token_type={self.token_type!r}, "
-            f"expires_in={self.expires_in!r}, "
-            f"refresh_token={self.refresh_token!r}, "
-            f"id_token={self.id_token!r})"
-        )
