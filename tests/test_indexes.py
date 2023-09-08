@@ -254,9 +254,12 @@ class TestIndexes(tb.DDLTestCase):
             await self.con.execute(r"""
                 create type Foo{
                     create property val -> str;
-                    create index fts::textsearch on (.val);
-                    create index fts::textsearch on (.val);
-                    create index fts::textsearch on (.val);
+                    create index fts::textsearch on (
+                        fts::with_language(.val, fts::Language.English));
+                    create index fts::textsearch on (
+                        fts::with_language(.val, fts::Language.English));
+                    create index fts::textsearch on (
+                        fts::with_language(.val, fts::Language.English));
                 };
             """)
 
@@ -265,7 +268,9 @@ class TestIndexes(tb.DDLTestCase):
             # setup delta
             create type ObjIndex3 {
                 create property name -> str;
-                create index fts::textsearch on (.name);
+                create index fts::textsearch on (
+                    fts::with_language(.name, fts::Language.English)
+                );
             };
         """)
 

@@ -19,7 +19,7 @@
 
 type Text {
     required text: str;
-    index fts::textsearch on (.text);
+    index fts::textsearch on (fts::with_language(.text, fts::Language.English));
 }
 
 type FancyText extending Text {
@@ -36,7 +36,10 @@ type Post {
     required title: str;
     required body: str;
     # 2 properties are subject to FTS
-    index fts::textsearch on ((.title, .body));
+    index fts::textsearch on ((
+        fts::with_language(.title, fts::Language.English),
+        fts::with_language(.body, fts::Language.English)
+    ));
 }
 
 type Description {
@@ -44,5 +47,7 @@ type Description {
     required raw: str;
     required property text := 'Item #' ++ to_str(.num) ++ ': ' ++ .raw;
     # FTS on a computed property
-    index fts::textsearch on (.text);
+    index fts::textsearch on (
+        fts::with_language(.text, fts::Language.English)
+    );
 }

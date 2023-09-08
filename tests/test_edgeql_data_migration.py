@@ -11454,7 +11454,9 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             type Base {
                 property name -> str;
                 index MyIndex on (.name);
-                index fts::textsearch on (.name);
+                index fts::textsearch on (
+                    fts::with_language(.name, fts::Language.English)
+                );
             };
         """)
 
@@ -11463,7 +11465,9 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             type Base {
                 property name -> str;
                 index MyIndex on (.name);
-                index fts::textsearch on (.name);
+                index fts::textsearch on (
+                    fts::with_language(.name, fts::Language.English)
+                );
             };
             type Child extending Base;
         """)
@@ -11480,7 +11484,9 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             type Base {
                 property name -> str;
                 index MyIndex on (.name);
-                index fts::textsearch on (.name);
+                index fts::textsearch on (
+                    fts::with_language(.name, fts::Language.English)
+                );
             };
             type Child extending Base;
         """)
@@ -11492,7 +11498,9 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             type Base {
                 property name -> str;
                 index MyIndex on (.name);
-                index fts::textsearch on (.name) {
+                index fts::textsearch on (
+                    fts::with_language(.name, fts::Language.English)
+                ) {
                    annotation description := "test";
                 };
             };

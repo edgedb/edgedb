@@ -84,7 +84,9 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
 
                         type Text extending Ordered {
                             required text: str;
-                            index fts::textsearch on (.text);
+                            index fts::textsearch on (
+                                fts::with_language(.text, fts::Language.English)
+                            );
                         }
                     }
                 };
@@ -125,7 +127,9 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
 
                         type Text extending Ordered {
                             required text: str;
-                            index fts::textsearch on (.text);
+                            index fts::textsearch on (
+                                fts::with_language(.text, fts::Language.English)
+                            );
                         }
                     }
                 };
@@ -162,7 +166,9 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                     module default {
                         abstract type Text {
                             required text: str;
-                            index fts::textsearch on (.text);
+                            index fts::textsearch on (
+                                fts::with_language(.text, fts::Language.English)
+                            );
                         }
 
                         type FancyText extending Text {
@@ -203,7 +209,9 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                     module default {
                         type Text {
                             required text: str;
-                            index fts::textsearch on (.text);
+                            index fts::textsearch on (
+                                fts::with_language(.text, fts::Language.English)
+                            );
                         }
                     }
                 };
@@ -242,12 +250,17 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                     module default {
                         abstract type Text {
                             required text: str;
-                            index fts::textsearch on (.text);
+                            index fts::textsearch on (
+                                fts::with_language(.text, fts::Language.English)
+                            );
                         }
 
                         type TitledText extending Text {
                             required title: str;
-                            index fts::textsearch on ((.title, .text));
+                            index fts::textsearch on ((
+                              fts::with_language(.title, fts::Language.English),
+                              fts::with_language(.text, fts::Language.English)
+                            ));
                         }
                     }
                 };
@@ -279,13 +292,18 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                     module default {
                         type Text {
                             required text: str;
-                            index fts::textsearch on (.text);
+                            index fts::textsearch on (
+                                fts::with_language(.text, fts::Language.English)
+                            );
                         }
 
                         type TitledText {
                             required title: str;
                             required text: str;
-                            index fts::textsearch on ((.title, .text));
+                            index fts::textsearch on ((
+                              fts::with_language(.title, fts::Language.English),
+                              fts::with_language(.text, fts::Language.English)
+                            ));
                         }
                     }
                 };
