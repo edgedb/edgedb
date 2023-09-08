@@ -1,7 +1,7 @@
 publications:
     - name: prod
       suffix: ""
-      server: sftp://uploader@package-upload.edgedb.com:22/
+      server: sftp://uploader@package-upload.edgedb.net:22/
 
 targets:
     linux:
