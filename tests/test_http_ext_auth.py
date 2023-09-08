@@ -143,6 +143,34 @@ AZURE_DISCOVERY_DOCUMENT = {
     "rbac_url": "https://pas.windows.net",
 }
 
+APPLE_DISCOVERY_DOCUMENT = {
+    "issuer": "https://appleid.apple.com",
+    "authorization_endpoint": "https://appleid.apple.com/auth/authorize",
+    "token_endpoint": "https://appleid.apple.com/auth/token",
+    "revocation_endpoint": "https://appleid.apple.com/auth/revoke",
+    "jwks_uri": "https://appleid.apple.com/auth/keys",
+    "response_types_supported": ["code"],
+    "response_modes_supported": ["query", "fragment", "form_post"],
+    "subject_types_supported": ["pairwise"],
+    "id_token_signing_alg_values_supported": ["RS256"],
+    "scopes_supported": ["openid", "email", "name"],
+    "token_endpoint_auth_methods_supported": ["client_secret_post"],
+    "claims_supported": [
+        "aud",
+        "email",
+        "email_verified",
+        "exp",
+        "iat",
+        "is_private_email",
+        "iss",
+        "nonce",
+        "nonce_supported",
+        "real_user_status",
+        "sub",
+        "transfer_sub",
+    ],
+}
+
 
 class MockHttpServerHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -293,6 +321,16 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         INSERT ext::auth::ClientConfig {{
             provider_name := "azure",
             url := "https://login.microsoftonline.com/common/v2.0",
+            provider_id := <str>'{uuid.uuid4()}',
+            secret := <str>'{"c" * 32}',
+            client_id := <str>'{uuid.uuid4()}'
+        }};
+        """,
+        f"""
+        CONFIGURE CURRENT DATABASE
+        INSERT ext::auth::ClientConfig {{
+            provider_name := "apple",
+            url := "https://appleid.apple.com",
             provider_id := <str>'{uuid.uuid4()}',
             secret := <str>'{"c" * 32}',
             client_id := <str>'{uuid.uuid4()}'
@@ -1045,6 +1083,173 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 (
                     {
                         "access_token": "azure_access_token",
+                        "id_token": id_token.serialize(),
+                        "scope": "openid",
+                        "token_type": "bearer",
+                    },
+                    200,
+                )
+            )
+
+            signing_key = await self.get_signing_key()
+
+            expires_at = now + datetime.timedelta(minutes=5)
+            state_claims = {
+                "iss": self.http_addr,
+                "provider": str(provider_id),
+                "exp": expires_at.astimezone().timestamp(),
+                "redirect_to": f"{self.http_addr}/some/path",
+            }
+            state_token = self.generate_state_value(state_claims, signing_key)
+
+            data, headers, status = self.http_con_request(
+                http_con,
+                {"state": state_token, "code": "abc123"},
+                path="callback",
+            )
+
+            self.assertEqual(data, b"")
+            self.assertEqual(status, 302)
+
+            location = headers.get("location")
+            assert location is not None
+            server_url = urllib.parse.urlparse(self.http_addr)
+            url = urllib.parse.urlparse(location)
+            self.assertEqual(url.scheme, server_url.scheme)
+            self.assertEqual(url.hostname, server_url.hostname)
+            self.assertEqual(url.path, f"{server_url.path}/some/path")
+
+            requests_for_discovery = mock_provider.requests[discovery_request]
+            self.assertEqual(len(requests_for_discovery), 2)
+
+            requests_for_token = mock_provider.requests[token_request]
+            self.assertEqual(len(requests_for_token), 1)
+            self.assertEqual(
+                requests_for_token[0]["body"],
+                json.dumps(
+                    {
+                        "grant_type": "authorization_code",
+                        "code": "abc123",
+                        "client_id": client_id,
+                        "client_secret": client_secret,
+                    }
+                ),
+            )
+
+    async def test_http_auth_ext_apple_authorize_01(self):
+        with MockAuthProvider() as mock_provider, self.http_con() as http_con:
+            provider_config = await self.get_client_config_by_provider("apple")
+            provider_id = provider_config.provider_id
+            client_id = provider_config.client_id
+
+            discovery_request = (
+                "GET",
+                "https://appleid.apple.com",
+                "/.well-known/openid-configuration",
+            )
+            mock_provider.register_route_handler(*discovery_request)(
+                (
+                    APPLE_DISCOVERY_DOCUMENT,
+                    200,
+                )
+            )
+
+            signing_key = await self.get_signing_key()
+
+            _, headers, status = self.http_con_request(
+                http_con, {"provider": provider_id}, path="authorize"
+            )
+
+            self.assertEqual(status, 302)
+
+            location = headers.get("location")
+            assert location is not None
+            url = urllib.parse.urlparse(location)
+            qs = urllib.parse.parse_qs(url.query, keep_blank_values=True)
+            self.assertEqual(url.scheme, "https")
+            self.assertEqual(url.hostname, "appleid.apple.com")
+            self.assertEqual(url.path, "/auth/authorize")
+            self.assertEqual(qs.get("scope"), ["openid profile name"])
+
+            state = qs.get("state")
+            assert state is not None
+
+            signed_token = jwt.JWT(
+                key=signing_key, algs=["HS256"], jwt=state[0]
+            )
+            claims = json.loads(signed_token.claims)
+            self.assertEqual(claims.get("provider"), provider_id)
+            self.assertEqual(claims.get("iss"), self.http_addr)
+
+            self.assertEqual(
+                qs.get("redirect_uri"), [f"{self.http_addr}/callback"]
+            )
+            self.assertEqual(qs.get("client_id"), [client_id])
+
+            requests_for_discovery = mock_provider.requests[discovery_request]
+            self.assertEqual(len(requests_for_discovery), 1)
+
+    async def test_http_auth_ext_apple_callback_01(self):
+        with MockAuthProvider() as mock_provider, self.http_con() as http_con:
+            provider_config = await self.get_client_config_by_provider("apple")
+            provider_id = provider_config.provider_id
+            client_id = provider_config.client_id
+            client_secret = provider_config.secret
+
+            now = datetime.datetime.utcnow()
+
+            discovery_request = (
+                "GET",
+                "https://appleid.apple.com",
+                "/.well-known/openid-configuration",
+            )
+            mock_provider.register_route_handler(*discovery_request)(
+                (
+                    APPLE_DISCOVERY_DOCUMENT,
+                    200,
+                )
+            )
+
+            jwks_request = (
+                "GET",
+                "https://appleid.apple.com",
+                "/auth/keys",
+            )
+            # Generate a JWK Set
+            k = jwk.JWK.generate(kty='RSA', size=4096)
+            ks = jwk.JWKSet()
+            ks.add(k)
+            jwk_set: dict[str, Any] = ks.export(
+                private_keys=False, as_dict=True
+            )
+
+            mock_provider.register_route_handler(*jwks_request)(
+                (
+                    jwk_set,
+                    200,
+                )
+            )
+
+            token_request = (
+                "POST",
+                "https://appleid.apple.com",
+                "/auth/token",
+            )
+            id_token_claims = {
+                "iss": "https://appleid.apple.com",
+                "sub": "1",
+                "aud": client_id,
+                "exp": (now + datetime.timedelta(minutes=5)).timestamp(),
+                "iat": now.timestamp(),
+                "email": "test@example.com",
+            }
+            id_token = jwt.JWT(header={"alg": "RS256"}, claims=id_token_claims)
+            id_token.make_signed_token(k)
+
+            mock_provider.register_route_handler(*token_request)(
+                (
+                    {
+                        "access_token": "apple_access_token",
                         "id_token": id_token.serialize(),
                         "scope": "openid",
                         "token_type": "bearer",
