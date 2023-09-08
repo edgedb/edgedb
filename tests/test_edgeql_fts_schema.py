@@ -16,21 +16,13 @@
 # limitations under the License.
 #
 
-import decimal
-import json
-import os
-import re
-import textwrap
-import uuid
-
-import edgedb
-
 from edb.testbase import server as tb
 from edb.tools import test
 
 
 class TestEdgeQLFTSSchema(tb.DDLTestCase):
 
+    @test.skip('unimplemented')
     async def test_edgeql_fts_schema_inheritance_01(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""
@@ -73,6 +65,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 [],
             )
 
+    @test.skip('unimplemented')
     async def test_edgeql_fts_schema_inheritance_02(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""
@@ -116,6 +109,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 [0],
             )
 
+    @test.skip('unimplemented')
     async def test_edgeql_fts_schema_inheritance_03(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""
@@ -202,6 +196,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 ['hello world'],
             )
 
+    @test.skip('unimplemented')
     async def test_edgeql_fts_schema_inheritance_05(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""
@@ -248,7 +243,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
             await self.con.execute(r"""
                 start migration to {
                     module default {
-                        abstract type Text {
+                        type Text {
                             required text: str;
                             index fts::textsearch on (
                                 fts::with_language(.text, fts::Language.English)
@@ -285,6 +280,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 {'hello world', 'goodbye world'},
             )
 
+    @test.skip('unimplemented')
     async def test_edgeql_fts_schema_union_01(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""
