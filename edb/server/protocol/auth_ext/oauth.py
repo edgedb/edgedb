@@ -81,6 +81,13 @@ class Client:
                     client_secret=client_secret,
                     http_factory=http_factory,
                 )
+            case "azure":
+                from . import azure
+                self.provider = azure.AzureProvider(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    http_factory=http_factory,
+                )
             case _:
                 raise errors.InvalidData(f"Invalid provider: {provider_name}")
 
