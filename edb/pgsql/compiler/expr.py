@@ -788,7 +788,7 @@ def _compile_set_in_singleton_mode(
                 raise errors.UnsupportedFeatureError(
                     'unexpectedly long path in simple expr')
 
-            # In most cases, we don't need to reference the rvar (since there 
+            # In most cases, we don't need to reference the rvar (since there
             # will be only one in scope), but sometimes we do (for example NEW
             # in trigger functions).
             rvar_name = []

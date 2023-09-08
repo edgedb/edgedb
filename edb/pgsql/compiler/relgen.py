@@ -3241,7 +3241,7 @@ def _compile_arg_null_check(
 def _compile_call_args(
     ir_set: irast.Set,
     *,
-    skip: Set[int] = set(),
+    skip: Collection[int] = (),
     ctx: context.CompilerContextLevel
 ) -> List[pgast.BaseExpr]:
     expr = ir_set.expr
@@ -3256,7 +3256,7 @@ def _compile_call_args(
 
     for i, (ir_arg, typemod) in enumerate(zip(expr.args, expr.params_typemods)):
         if i in skip:
-            continue        
+            continue
         assert ir_arg.multiplicity != qltypes.Multiplicity.UNKNOWN
 
         # Support a mode where we try to compile arguments as pure
@@ -3933,26 +3933,26 @@ def process_set_as_fts_search(
                 # rvar_ref = ctid.name[0]
                 # assert isinstance(rvar_ref, str)
                 # zombo_func = pgast.FuncCall(
-                #     name=('edgedbpub', 'd7224ef9-468a-11ee-86e7-f7464f0de8c2_zombo_func'),
+                #     name=('edgedbpub', ' ... _zombo_func'),
                 #     args=[
                 #         pgast.TypeCast(
                 #             arg=pgast.ColumnRef(name=(rvar_ref,)),
                 #             type_name=pgast.TypeName(
-                #                 name=('edgedbpub', 'd7191afb-468a-11ee-9000-ef83593022b3'),
+                #                 name=('edgedbpub', ' ... '),
                 #             )
                 #         ),
                 #     ]
                 # )
 
                 score_pg = pgast.FuncCall(
-                    name= ('zdb', 'score'),
+                    name=('zdb', 'score'),
                     args=[ctid]
                 )
                 where_clause = pgast.Expr(
                     lexpr=ctid,
                     name='==>',
                     rexpr=query_pg,
-                )                
+                )
             else:
                 el_name = sn.QualName('__object__', '__fts_document__')
                 fts_document_ptrref = irast.SpecialPointerRef(
@@ -4006,11 +4006,11 @@ def process_set_as_fts_search(
                 inner_ctx.rel.where_clause, where_clause
             )
 
-            inner_rvar = relctx.new_rel_rvar(
+            in_rvar = relctx.new_rel_rvar(
                 ir_set, inner_ctx.rel, ctx=newctx
             )
             relctx.include_rvar(
-                newctx.rel, inner_rvar, out_score_id, aspects={'value'}, ctx=newctx
+                newctx.rel, in_rvar, out_score_id, aspects={'value'}, ctx=newctx
             )
 
         obj_id_pg_ref = pathctx.get_rvar_path_var(

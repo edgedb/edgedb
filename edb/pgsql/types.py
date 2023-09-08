@@ -190,6 +190,7 @@ pg_langs = {
     'yiddis',
 }
 
+
 def is_builtin_scalar(
     schema: s_schema.Schema, scalar: s_scalars.ScalarType
 ) -> bool:

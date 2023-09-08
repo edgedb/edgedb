@@ -323,7 +323,9 @@ class _SpecialCaseFunc(Protocol):
     ) -> irast.Expr:
         pass
 
+
 _SPECIAL_FUNCTIONS: dict[str, _SpecialCaseFunc] = {}
+
 
 def _simple_special_case(name: str) -> Callable[
     [_SpecialCaseFunc], _SpecialCaseFunc
@@ -935,14 +937,14 @@ def compile_fts_with_language(
     ty = ctx.env.schema.get_by_id(mat_ty_id, type=s_scalars.ScalarType)
     assert ty
 
-    language_domain = set() # languages that the fts index needs to support
+    language_domain = set()  # languages that the fts index needs to support
     if irutils.is_const(language):
         # language is constant
         # -> determine its only value at compile time
         lang_const = irutils.as_const(language)
         assert lang_const
         language_domain.add(str(lang_const.value).lower())
-    
+
     else:
         # language is not constant
         # -> use all possible values of the enum
