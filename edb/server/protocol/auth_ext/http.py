@@ -64,7 +64,7 @@ class Router:
                     client = oauth.Client(
                         db=self.db, provider_id=provider_id, base_url=test_url
                     )
-                    authorize_url = client.get_authorize_url(
+                    authorize_url = await client.get_authorize_url(
                         redirect_uri=self._get_callback_url(),
                         state=self._make_state_claims(provider_id),
                     )
@@ -76,11 +76,19 @@ class Router:
                     state = _get_search_param(query, "state")
                     try:
                         code = _get_search_param(query, "code")
-                    except errors.InvalidData:
-                        error = _get_search_param(query, "error")
-                        error_description = _maybe_get_search_param(
-                            query, "error_description"
-                        )
+                    except (
+                        errors.InvalidData,
+                        errors.MisconfiguredProvider,
+                    ) as ex:
+                        error_description = None
+                        if isinstance(ex, errors.MisconfiguredProvider):
+                            error = "misconfigured_provider"
+                            error_description = ex.description
+                        else:
+                            error = _get_search_param(query, "error")
+                            error_description = _maybe_get_search_param(
+                                query, "error_description"
+                            )
                         redirect_to = self._get_from_claims(
                             state, "redirect_to"
                         )

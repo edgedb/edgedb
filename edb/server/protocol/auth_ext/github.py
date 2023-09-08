@@ -20,8 +20,7 @@
 import urllib.parse
 import functools
 
-from . import base
-from . import data
+from . import base, data
 
 
 class GitHubProvider(base.BaseProvider):
@@ -36,7 +35,7 @@ class GitHubProvider(base.BaseProvider):
             self.http_factory, base_url=self.api_domain
         )
 
-    def get_code_url(self, state: str, redirect_uri: str) -> str:
+    async def get_code_url(self, state: str, redirect_uri: str) -> str:
         params = {
             "client_id": self.client_id,
             "scope": "read:user user:email",
@@ -46,31 +45,32 @@ class GitHubProvider(base.BaseProvider):
         encoded = urllib.parse.urlencode(params)
         return f"{self.auth_domain}/login/oauth/authorize?{encoded}"
 
-    async def exchange_code(self, code: str) -> str:
-        data = {
-            "grant_type": "authorization_code",
-            "code": code,
-            "client_id": self.client_id,
-            "client_secret": self.client_secret,
-        }
-
+    async def exchange_code(self, code: str) -> data.OAuthAccessTokenResponse:
         async with self.auth_client() as client:
             resp = await client.post(
                 "/login/oauth/access_token",
-                json=data,
+                json={
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
+                },
             )
-            token = resp.json()["access_token"]
+            json = resp.json()
 
-            return token
+            return data.OAuthAccessTokenResponse(**json)
 
-    async def fetch_user_info(self, token: str) -> data.UserInfo:
+    async def fetch_user_info(
+        self, token_response: data.OAuthAccessTokenResponse
+    ) -> data.UserInfo:
         async with self.api_client() as client:
             resp = await client.get(
                 "/user",
                 headers={
-                    "Authorization": f"Bearer {token}",
+                    "Authorization": f"Bearer {token_response.access_token}",
                     "Accept": "application/vnd.github+json",
                     "X-GitHub-Api-Version": "2022-11-28",
+                    "Cache-Control": "no-store",
                 },
             )
             payload = resp.json()

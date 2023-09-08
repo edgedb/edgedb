@@ -74,3 +74,20 @@ class InvalidData(AuthExtError):
 
     def __str__(self) -> str:
         return self.description
+
+
+class MisconfiguredProvider(AuthExtError):
+    """Data received from the auth provider is invalid."""
+
+    def __init__(self, description: str):
+        self.description = description
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"description={self.description!r}"
+            ")"
+        )
+
+    def __str__(self) -> str:
+        return self.description

@@ -20,11 +20,12 @@
 import urllib.parse
 import json
 import httpx
+import httpx_cache
 
 from typing import Any
 from edb.server.protocol import execute
 
-from . import errors, util, data
+from . import errors, util, data, base
 
 
 class HttpClient(httpx.AsyncClient):
@@ -34,7 +35,8 @@ class HttpClient(httpx.AsyncClient):
         if edgedb_test_url:
             self.edgedb_orig_base_url = urllib.parse.quote(base_url, safe='')
             base_url = edgedb_test_url
-        super().__init__(*args, base_url=base_url, **kwargs)
+        cache = httpx_cache.AsyncCacheControlTransport()
+        super().__init__(*args, base_url=base_url, transport=cache, **kwargs)
 
     async def post(self, path, *args, **kwargs):
         if self.edgedb_orig_base_url:
@@ -48,6 +50,8 @@ class HttpClient(httpx.AsyncClient):
 
 
 class Client:
+    provider: base.BaseProvider
+
     def __init__(self, db: Any, provider_id: str, base_url: str | None = None):
         self.db = db
         self.db_config = db.db_config
@@ -69,17 +73,39 @@ class Client:
                     client_secret=client_secret,
                     http_factory=http_factory,
                 )
-            case _:
-                raise errors.InvalidData("Invalid provider: {provider}")
+            case "google":
+                from . import google
 
-    def get_authorize_url(self, state: str, redirect_uri: str) -> str:
-        return self.provider.get_code_url(
+                self.provider = google.GoogleProvider(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    http_factory=http_factory,
+                )
+            case "azure":
+                from . import azure
+                self.provider = azure.AzureProvider(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    http_factory=http_factory,
+                )
+            case "apple":
+                from . import apple
+                self.provider = apple.AppleProvider(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    http_factory=http_factory,
+                )
+            case _:
+                raise errors.InvalidData(f"Invalid provider: {provider_name}")
+
+    async def get_authorize_url(self, state: str, redirect_uri: str) -> str:
+        return await self.provider.get_code_url(
             state=state, redirect_uri=redirect_uri
         )
 
     async def handle_callback(self, code: str) -> data.Identity:
-        token = await self.provider.exchange_code(code)
-        user_info = await self.provider.fetch_user_info(token)
+        response = await self.provider.exchange_code(code)
+        user_info = await self.provider.fetch_user_info(response)
 
         return await self._handle_identity(user_info)
 
@@ -132,5 +158,6 @@ select (insert ext::auth::Identity {
                 return r
             case _:
                 raise errors.InvalidData(
-                    f"Invalid provider configuration: {provider_id}"
+                    f"Invalid provider configuration: {provider_id}\n"
+                    f"providers={provider_client_config!r}"
                 )
