@@ -205,6 +205,7 @@ class EdgeQL:
         "true",
     )
     type_builtins = (
+        "Base64Alphabet",
         "BaseObject",
         "FreeObject",
         "JsonEmpty",
@@ -236,6 +237,7 @@ class EdgeQL:
         "local_date",
         "local_datetime",
         "local_time",
+        "multirange",
         "range",
         "relative_duration",
         "sequence",
@@ -246,6 +248,7 @@ class EdgeQL:
     module_builtins = (
         "cal",
         "cfg",
+        "enc",
         "ext",
         "fts",
         "math",
@@ -369,6 +372,7 @@ class EdgeQL:
         "sum",
         "time_get",
         "to_bigint",
+        "to_bytes",
         "to_date_duration",
         "to_datetime",
         "to_decimal",
