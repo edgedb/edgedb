@@ -74,9 +74,8 @@ def is_index_valid_for_type(
                 )
             )
         case 'fts::textsearch':
-            return (
-                is_subclass_or_tuple(expr_type, 'std::str', schema) or
-                is_subclass_or_tuple(expr_type, 'fts::searchable_str', schema)
+            return is_subclass_or_tuple(
+                expr_type, 'fts::searchable_str', schema
             )
         case 'pg::gist':
             return expr_type.is_range() or expr_type.is_multirange()
@@ -329,6 +328,55 @@ class Index(
                 kwargs[kwname] = val
 
         return kwargs
+
+    def is_effective_fts(
+        self,
+        schema: s_schema.Schema,
+    ) -> Tuple[bool, bool]:
+        """
+        Returns true for fts indexes that are
+        the *effective* fts index of their subject.
+        """
+
+        subject = self.get_subject(schema)
+        assert isinstance(subject, IndexableSubject)
+        subject_name = subject.get_displayname(schema)
+        indexes: so.ObjectIndexByFullname[Index] = subject.get_indexes(schema)
+
+        fts_name = sn.QualName('fts', 'textsearch')
+        fts_indexes = [
+            ind
+            for ind in indexes.objects(schema)
+            if ind.has_base_with_name(schema, fts_name)
+        ]
+
+        defined_on_subject = [
+            ind 
+            for ind in fts_indexes
+            if ind.get_subject(schema) == subject
+        ]
+
+        if len(defined_on_subject) > 0:
+            if len(defined_on_subject) > 1:
+                raise errors.SchemaDefinitionError(
+                    f'multiple {fts_name} indexes defined for {subject_name}'
+                )
+            is_effective = self == defined_on_subject[0]
+            overrides = len(fts_indexes) > 2
+
+        else:
+            # there are not fts indexes defined on the subject
+            # inhereted ones are in effect
+
+            if len(fts_indexes) > 1:
+                raise errors.SchemaDefinitionError(
+                    f'multiple {fts_name} indexes inhereted for {subject_name}'
+                )
+
+            is_effective = self == fts_indexes[0]
+            overrides = False
+
+        return (is_effective, overrides)
 
 
 IndexableSubject_T = TypeVar('IndexableSubject_T', bound='IndexableSubject')
@@ -1001,11 +1049,19 @@ class CreateIndex(
             expr_type = comp_expr.irast.stype
 
             if not is_index_valid_for_type(root, expr_type, comp_expr.schema):
+                hint = None
+                if str(name) == 'fts::textsearch':
+                    hint = (
+                        'fts::searchable_str can be constructed with '
+                        'fts::with_language(str, anyenum)'
+                    )
+
                 raise errors.SchemaDefinitionError(
                     f'index expression ({expr.text}) '
                     f'is not of a valid type for the '
                     f'{self.scls.get_verbosename(comp_expr.schema)}',
-                    context=self.source_context
+                    context=self.source_context,
+                    details=hint,
                 )
 
     def get_resolved_attributes(
