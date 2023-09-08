@@ -138,21 +138,21 @@ The ``cli.toml`` has the following structure. All fields are optional:
     edgedb_connopts
     network
     edgedb
-    edgedb_dump
-    edgedb_restore
-    edgedb_configure
-    edgedb_watch
-    edgedb_migration/index
-    edgedb_migrate
-    edgedb_database_create
-    edgedb_describe/index
-    edgedb_list
-    edgedb_query
     edgedb_analyze
-    edgedb_ui
-    edgedb_info
-    edgedb_project/index
-    edgedb_instance/index
-    edgedb_server/index
-    edgedb_cloud/index
+    edgedb_configure
     edgedb_cli_upgrade
+    edgedb_cloud/index
+    edgedb_database/index
+    edgedb_describe/index
+    edgedb_dump
+    edgedb_info
+    edgedb_instance/index
+    edgedb_list
+    edgedb_migrate
+    edgedb_migration/index
+    edgedb_project/index
+    edgedb_query
+    edgedb_restore
+    edgedb_server/index
+    edgedb_ui
+    edgedb_watch

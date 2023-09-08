@@ -209,6 +209,10 @@ class AnyTupleRef(TypeRef):
     pass
 
 
+class AnyObjectRef(TypeRef):
+    pass
+
+
 class BasePointerRef(ImmutableBase):
     __abstract_node__ = True
 
@@ -612,12 +616,12 @@ class ParamScalar(ParamTransType):
 
 @dataclasses.dataclass(eq=False)
 class ParamTuple(ParamTransType):
-    typs: tuple[ParamTransType, ...]
+    typs: tuple[tuple[typing.Optional[str], ParamTransType], ...]
 
     def flatten(self) -> tuple[typing.Any, ...]:
         return (
             (int(qltypes.TypeTag.TUPLE), self.idx)
-            + tuple(x.flatten() for x in self.typs)
+            + tuple(x.flatten() for _, x in self.typs)
         )
 
 
@@ -779,7 +783,7 @@ class BytesConstant(BaseConstant):
 
 class ConstantSet(ConstExpr, ImmutableExpr):
 
-    elements: typing.Tuple[BaseConstant, ...]
+    elements: typing.Tuple[BaseConstant | Parameter, ...]
 
 
 class Parameter(ImmutableExpr):
@@ -1216,6 +1220,9 @@ class ConfigCommand(Command, Expr):
     is_system_config: bool
     globals: typing.Optional[typing.List[Global]] = None
     scope_tree: typing.Optional[ScopeTreeNode] = None
+
+    params: typing.List[Param] = ast.field(factory=list)
+    schema: typing.Optional[s_schema.Schema] = None
 
 
 class ConfigSet(ConfigCommand):

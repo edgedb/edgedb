@@ -470,7 +470,7 @@ def compile_alias_expr(
 
     context.cache_value((expr, classname), ir)
 
-    return ir  # type: ignore
+    return ir
 
 
 def define_alias(

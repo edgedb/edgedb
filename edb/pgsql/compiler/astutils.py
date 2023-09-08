@@ -87,11 +87,7 @@ def tuple_getattr(
     if irtyputils.is_persistent_tuple(tuple_typeref):
         set_expr = pgast.Indirection(
             arg=tuple_val,
-            indirection=[
-                pgast.ColumnRef(
-                    name=[attr],
-                ),
-            ],
+            indirection=[pgast.RecordIndirectionOp(name=attr)],
         )
     else:
         set_expr = pgast.SelectStmt(
@@ -172,7 +168,8 @@ def each_base_rvar(rvar: pgast.BaseRangeVar) -> Iterator[pgast.BaseRangeVar]:
     while stack:
         rvar = stack.pop()
         if isinstance(rvar, pgast.JoinExpr):
-            stack.append(rvar.rarg)
+            for clause in reversed(rvar.joins):
+                stack.append(clause.rarg)
             stack.append(rvar.larg)
         else:
             yield rvar
@@ -556,3 +553,13 @@ def compile_typeref(expr: irast.TypeRef) -> pgast.BaseExpr:
         )
 
     return result
+
+
+def maybe_unpack_row(expr: pgast.Base) -> Sequence[pgast.BaseExpr]:
+    assert isinstance(expr, pgast.BaseExpr)
+    match expr:
+        case pgast.ImplicitRowExpr():
+            return expr.args
+        case pgast.RowExpr():
+            return expr.args
+    return (expr,)

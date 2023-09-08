@@ -29,7 +29,6 @@ import edgedb
 
 from edb.common import secretkey
 from edb.schema import defines as s_def
-from edb.server import cluster as edb_cluster
 from edb.testbase import server as tb
 
 
@@ -38,6 +37,10 @@ class TestServerAuth(tb.ConnectedTestCase):
     PARALLELISM_GRANULARITY = 'system'
     TRANSACTION_ISOLATION = False
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "cannot use CONFIGURE INSTANCE in multi-tenant mode",
+    )
     async def test_server_auth_01(self):
         if not self.has_create_role:
             self.skipTest('create role is not supported by the backend')
@@ -237,7 +240,7 @@ class TestServerAuth(tb.ConnectedTestCase):
         if not self.has_create_role:
             self.skipTest("create role is not supported by the backend")
 
-        if not isinstance(self.cluster, edb_cluster.Cluster):
+        if not hasattr(self.cluster, "get_jws_key"):
             raise unittest.SkipTest("test not supported on remote cluster")
 
         jwk = self.cluster.get_jws_key()
@@ -274,7 +277,7 @@ class TestServerAuth(tb.ConnectedTestCase):
                 [],
                 [("roles", ["edgedb"])],
                 [("databases", ["edgedb"])],
-                [("instances", ["_localdev"])],
+                [("instances", ["localtest"])],
             ]
 
             for params in good_keys:
@@ -311,6 +314,10 @@ class TestServerAuth(tb.ConnectedTestCase):
                 CONFIGURE INSTANCE RESET Auth FILTER .comment = 'test'
             """)
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "cannot use CONFIGURE INSTANCE in multi-tenant mode",
+    )
     async def test_server_auth_jwt_2(self):
         jwk_fd, jwk_file = tempfile.mkstemp()
 
@@ -382,3 +389,25 @@ class TestServerAuth(tb.ConnectedTestCase):
                 'authentication failed: revoked key',
             ):
                 await sd.connect(secret_key=sk)
+
+    async def test_server_auth_in_transaction(self):
+        if not self.has_create_role:
+            self.skipTest('create role is not supported by the backend')
+
+        async with self.con.transaction():
+            await self.con.query('''
+                CREATE SUPERUSER ROLE foo {
+                    SET password := 'foo-pass';
+                };
+            ''')
+
+        try:
+            conn = await self.connect(
+                user='foo',
+                password='foo-pass',
+            )
+            await conn.aclose()
+        finally:
+            await self.con.query('''
+                DROP ROLE foo;
+            ''')

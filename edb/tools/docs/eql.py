@@ -718,14 +718,15 @@ class EQLFunctionDirective(BaseEQLDirective):
 
             return fullname
 
-        from edb.edgeql.parser import parser as edgeql_parser
+        from edb.edgeql import parser as edgeql_parser
+        from edb.edgeql.parser import grammar as edgeql_grammar
         from edb.edgeql import ast as ql_ast
         from edb.edgeql import codegen as ql_gen
         from edb.edgeql import qltypes
 
-        parser = edgeql_parser.EdgeQLBlockParser()
         try:
-            astnode = parser.parse(
+            astnode = edgeql_parser.parse(
+                edgeql_grammar.block,
                 f'create function {sig} using SQL function "xxx";')[0]
         except Exception as ex:
             raise self.error(
@@ -792,13 +793,14 @@ class EQLConstraintDirective(BaseEQLDirective):
 
             return fullname
 
-        from edb.edgeql.parser import parser as edgeql_parser
+        from edb.edgeql import parser as edgeql_parser
+        from edb.edgeql.parser import grammar as edgeql_grammar
         from edb.edgeql import ast as ql_ast
         from edb.edgeql import codegen as ql_gen
 
-        parser = edgeql_parser.EdgeQLBlockParser()
         try:
-            astnode = parser.parse(
+            astnode = edgeql_parser.parse(
+                edgeql_grammar.block,
                 f'create abstract constraint {sig};')[0]
         except Exception as ex:
             raise self.error(
@@ -987,9 +989,11 @@ class EdgeQLDomain(s_domains.Domain):
         'keyword': EQLKeywordDirective,
         'operator': EQLOperatorDirective,
         'synopsis': EQLSynopsisDirective,
+        'struct': EQLStructElement,
+
+        # TODO: Move to edb domain
         'react-element': EQLReactElement,
         'section-intro-page': EQLSectionIntroPage,
-        'struct': EQLStructElement,
     }
 
     roles = {
@@ -1001,6 +1005,8 @@ class EdgeQLDomain(s_domains.Domain):
         'op': s_roles.XRefRole(),
         'op-desc': EQLOperatorDescXRef(),
         'stmt': s_roles.XRefRole(),
+
+        # TODO: Move to edb domain
         'gh': GitHubLinkRole(),
     }
 
@@ -1208,6 +1214,7 @@ def setup_domain(app):
 
     app.add_lexer("edgeql", EdgeQLLexer)
     app.add_lexer("edgeql-repl", EdgeQLLexer)
+    app.add_lexer("edgeql-runnable", EdgeQLLexer)
     app.add_lexer("edgeql-synopsis", EdgeQLLexer)
     app.add_lexer("edgeql-result", pygments.lexers.special.TextLexer)
 

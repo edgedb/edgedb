@@ -32,151 +32,151 @@ def get_status(ql: qlast.Base) -> bytes:
 
 
 @get_status.register(qlast.CreateObject)
-def _ddl_create(ql):
+def _ddl_create(ql: qlast.CreateObject) -> bytes:
     return f'CREATE {ql.object_class}'.encode()
 
 
 @get_status.register(qlast.AlterObject)
-def _ddl_alter(ql):
+def _ddl_alter(ql: qlast.AlterObject) -> bytes:
     return f'ALTER {ql.object_class}'.encode()
 
 
 @get_status.register(qlast.DropObject)
-def _ddl_drop(ql):
+def _ddl_drop(ql: qlast.DropObject) -> bytes:
     return f'DROP {ql.object_class}'.encode()
 
 
 @get_status.register(qlast.StartMigration)
-def _ddl_migr_start(ql):
+def _ddl_migr_start(ql: qlast.Base) -> bytes:
     return b'START MIGRATION'
 
 
 @get_status.register(qlast.CreateMigration)
-def _ddl_migr_create(ql):
+def _ddl_migr_create(ql: qlast.Base) -> bytes:
     return b'CREATE MIGRATION'
 
 
 @get_status.register(qlast.CommitMigration)
-def _ddl_migr_commit(ql):
+def _ddl_migr_commit(ql: qlast.Base) -> bytes:
     return b'COMMIT MIGRATION'
 
 
 @get_status.register(qlast.DropMigration)
-def _ddl_migr_drop(ql):
+def _ddl_migr_drop(ql: qlast.Base) -> bytes:
     return b'DROP MIGRATION'
 
 
 @get_status.register(qlast.AlterMigration)
-def _ddl_migr_alter(ql):
+def _ddl_migr_alter(ql: qlast.Base) -> bytes:
     return b'ALTER MIGRATION'
 
 
 @get_status.register(qlast.AbortMigration)
-def _ddl_migr_abort(ql):
+def _ddl_migr_abort(ql: qlast.Base) -> bytes:
     return b'ABORT MIGRATION'
 
 
 @get_status.register(qlast.PopulateMigration)
-def _ddl_migr_populate(ql):
+def _ddl_migr_populate(ql: qlast.Base) -> bytes:
     return b'POPULATE MIGRATION'
 
 
 @get_status.register(qlast.DescribeCurrentMigration)
-def _ddl_migr_describe_current(ql):
+def _ddl_migr_describe_current(ql: qlast.Base) -> bytes:
     return b'DESCRIBE CURRENT MIGRATION'
 
 
 @get_status.register(qlast.AlterCurrentMigrationRejectProposed)
-def _ddl_migr_alter_current(ql):
+def _ddl_migr_alter_current(ql: qlast.Base) -> bytes:
     return b'ALTER CURRENT MIGRATION'
 
 
 @get_status.register(qlast.StartMigrationRewrite)
-def _ddl_migr_rw_start(ql):
+def _ddl_migr_rw_start(ql: qlast.Base) -> bytes:
     return b'START MIGRATION REWRITE'
 
 
 @get_status.register(qlast.CommitMigrationRewrite)
-def _ddl_migr_rw_commit(ql):
+def _ddl_migr_rw_commit(ql: qlast.Base) -> bytes:
     return b'COMMIT MIGRATION REWRITE'
 
 
 @get_status.register(qlast.AbortMigrationRewrite)
-def _ddl_migr_rw_abort(ql):
+def _ddl_migr_rw_abort(ql: qlast.Base) -> bytes:
     return b'ABORT MIGRATION REWRITE'
 
 
 @get_status.register(qlast.ResetSchema)
-def _ddl_migr_reset_schema(ql):
+def _ddl_migr_reset_schema(ql: qlast.Base) -> bytes:
     return b'RESET SCHEMA'
 
 
 @get_status.register(qlast.SelectQuery)
 @get_status.register(qlast.GroupQuery)
 @get_status.register(qlast.ForQuery)
-def _select(ql):
+def _select(ql: qlast.Base) -> bytes:
     return b'SELECT'
 
 
 @get_status.register(qlast.InsertQuery)
-def _insert(ql):
+def _insert(ql: qlast.Base) -> bytes:
     return b'INSERT'
 
 
 @get_status.register(qlast.UpdateQuery)
-def _update(ql):
+def _update(ql: qlast.Base) -> bytes:
     return b'UPDATE'
 
 
 @get_status.register(qlast.DeleteQuery)
-def _delete(ql):
+def _delete(ql: qlast.Base) -> bytes:
     return b'DELETE'
 
 
 @get_status.register(qlast.StartTransaction)
-def _tx_start(ql):
+def _tx_start(ql: qlast.Base) -> bytes:
     return b'START TRANSACTION'
 
 
 @get_status.register(qlast.CommitTransaction)
-def _tx_commit(ql):
+def _tx_commit(ql: qlast.Base) -> bytes:
     return b'COMMIT TRANSACTION'
 
 
 @get_status.register(qlast.RollbackTransaction)
-def _tx_rollback(ql):
+def _tx_rollback(ql: qlast.Base) -> bytes:
     return b'ROLLBACK TRANSACTION'
 
 
 @get_status.register(qlast.DeclareSavepoint)
-def _tx_sp_declare(ql):
+def _tx_sp_declare(ql: qlast.Base) -> bytes:
     return b'DECLARE SAVEPOINT'
 
 
 @get_status.register(qlast.RollbackToSavepoint)
-def _tx_sp_rollback(ql):
+def _tx_sp_rollback(ql: qlast.Base) -> bytes:
     return b'ROLLBACK TO SAVEPOINT'
 
 
 @get_status.register(qlast.ReleaseSavepoint)
-def _tx_sp_release(ql):
+def _tx_sp_release(ql: qlast.Base) -> bytes:
     return b'RELEASE SAVEPOINT'
 
 
 @get_status.register(qlast.SessionSetAliasDecl)
-def _sess_set_alias(ql):
+def _sess_set_alias(ql: qlast.Base) -> bytes:
     return b'SET ALIAS'
 
 
 @get_status.register(qlast.SessionResetAliasDecl)
 @get_status.register(qlast.SessionResetModule)
 @get_status.register(qlast.SessionResetAllAliases)
-def _sess_reset_alias(ql):
+def _sess_reset_alias(ql: qlast.Base) -> bytes:
     return b'RESET ALIAS'
 
 
 @get_status.register(qlast.ConfigOp)
-def _sess_set_config(ql):
+def _sess_set_config(ql: qlast.ConfigOp) -> bytes:
     if ql.scope == qltypes.ConfigScope.GLOBAL:
         if isinstance(ql, qlast.ConfigSet):
             return b'SET GLOBAL'
@@ -187,20 +187,20 @@ def _sess_set_config(ql):
 
 
 @get_status.register(qlast.DescribeStmt)
-def _describe(ql):
+def _describe(ql: qlast.Base) -> bytes:
     return f'DESCRIBE'.encode()
 
 
 @get_status.register(qlast.Rename)
-def _rename(ql):
+def _rename(ql: qlast.Base) -> bytes:
     return f'RENAME'.encode()
 
 
 @get_status.register(qlast.ExplainStmt)
-def _explain(ql):
+def _explain(ql: qlast.Base) -> bytes:
     return b'ANALYZE QUERY'
 
 
 @get_status.register(qlast.AdministerStmt)
-def _administer(ql):
+def _administer(ql: qlast.Base) -> bytes:
     return b'ADMINISTER'

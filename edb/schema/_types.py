@@ -20,6 +20,8 @@ TYPE_IDS = {
         UUID('00000000-0000-0000-0000-000000000001'),
     sn.name_from_string('anytuple'):
         UUID('00000000-0000-0000-0000-000000000002'),
+    sn.name_from_string('anyobject'):
+        UUID('00000000-0000-0000-0000-000000000003'),
     sn.name_from_string('std'):
         UUID('00000000-0000-0000-0000-0000000000f0'),
     sn.name_from_string('empty-tuple'):

@@ -318,7 +318,7 @@ def ast_to_type_shell(
                 e.set_source_context(node.context)
                 raise e
 
-        elif issubclass(coll, s_types.Range):
+        elif issubclass(coll, (s_types.Range, s_types.MultiRange)):
             for st in node.subtypes:
                 subtypes_list.append(
                     ast_to_type_shell(
@@ -347,17 +347,10 @@ def ast_to_type_shell(
                 e.set_source_context(node.context)
                 raise e
 
-    elif isinstance(node.maintype, qlast.AnyType):
+    elif isinstance(node.maintype, qlast.PseudoObjectRef):
         from . import pseudo as s_pseudo
         return s_pseudo.PseudoTypeShell(
-            name=sn.UnqualName('anytype'),
-            sourcectx=node.maintype.context,
-        )  # type: ignore
-
-    elif isinstance(node.maintype, qlast.AnyTuple):
-        from . import pseudo as s_pseudo
-        return s_pseudo.PseudoTypeShell(
-            name=sn.UnqualName('anytuple'),
+            name=sn.UnqualName(node.maintype.name),
             sourcectx=node.maintype.context,
         )  # type: ignore
 
@@ -499,9 +492,17 @@ def typeref_to_ast(
     result: qlast.TypeExpr
 
     if isinstance(t, s_types.Type) and t.is_any(schema):
-        result = qlast.TypeName(name=_name, maintype=qlast.AnyType())
+        result = qlast.TypeName(
+            name=_name, maintype=qlast.PseudoObjectRef(name='anytype')
+        )
     elif isinstance(t, s_types.Type) and t.is_anytuple(schema):
-        result = qlast.TypeName(name=_name, maintype=qlast.AnyTuple())
+        result = qlast.TypeName(
+            name=_name, maintype=qlast.PseudoObjectRef(name='anytuple')
+        )
+    elif isinstance(t, s_types.Type) and t.is_anyobject(schema):
+        result = qlast.TypeName(
+            name=_name, maintype=qlast.PseudoObjectRef(name='anyobject')
+        )
     elif isinstance(t, s_types.Tuple) and t.is_named(schema):
         result = qlast.TypeName(
             name=_name,
@@ -514,7 +515,8 @@ def typeref_to_ast(
                 for sn, st in t.iter_subtypes(schema)
             ]
         )
-    elif isinstance(t, (s_types.Array, s_types.Tuple, s_types.Range)):
+    elif isinstance(t, (s_types.Array, s_types.Tuple,
+                        s_types.Range, s_types.MultiRange)):
         # Here the concrete type Array is used because t.get_schema_name()
         # is used, which is not defined for more generic collections and abcs
         result = qlast.TypeName(
@@ -577,13 +579,11 @@ def shell_to_ast(
     qlref: qlast.BaseObjectRef
 
     if isinstance(t, s_pseudo.PseudoTypeShell):
-        if t.name.name == 'anytype':
-            qlref = qlast.AnyType()
-        elif t.name.name == 'anytuple':
-            qlref = qlast.AnyTuple()
-        else:
+        if t.name.name not in {'anytype', 'anytuple', 'anyobject'}:
             raise AssertionError(f'unexpected pseudo type shell: {t.name!r}')
-        result = qlast.TypeName(name=_name, maintype=qlref)
+        result = qlast.TypeName(
+            name=_name, maintype=qlast.PseudoObjectRef(name=t.name.name)
+        )
     elif isinstance(t, s_types.TupleTypeShell):
         if t.is_named():
             result = qlast.TypeName(
@@ -623,6 +623,17 @@ def shell_to_ast(
             name=_name,
             maintype=qlast.ObjectRef(
                 name='range',
+            ),
+            subtypes=[
+                shell_to_ast(schema, st)
+                for st in t.get_subtypes(schema)
+            ]
+        )
+    elif isinstance(t, s_types.MultiRangeTypeShell):
+        result = qlast.TypeName(
+            name=_name,
+            maintype=qlast.ObjectRef(
+                name='multirange',
             ),
             subtypes=[
                 shell_to_ast(schema, st)
@@ -1188,6 +1199,23 @@ def const_ast_from_python(val: Any) -> qlast.Expr:
             ),
             expr=qlast.StringConstant(value=val.to_iso8601()),
         )
+    elif isinstance(val, statypes.CompositeType):
+        return qlast.InsertQuery(
+            subject=name_to_ast_ref(sn.name_from_string(val._tspec.name)),
+            shape=[
+                qlast.ShapeElement(
+                    expr=qlast.Path(steps=[qlast.Ptr(ptr=qlast.ObjectRef(
+                        name=ptr
+                    ))]),
+                    compexpr=const_ast_from_python(getattr(val, ptr)),
+                )
+                for ptr in val._tspec.fields
+            ],
+        )
+    elif isinstance(val, (set, frozenset)):
+        return qlast.Set(elements=[const_ast_from_python(x) for x in val])
+    elif val is None:
+        return qlast.Set(elements=[])
     else:
         raise ValueError(f'unexpected constant type: {type(val)!r}')
 
@@ -1229,6 +1257,8 @@ def get_config_type_shape(
 
             ptype = p.get_target(schema)
             assert ptype is not None
+            if str(ptype.get_name(schema)) == 'cfg::AbstractConfig':
+                continue
 
             if isinstance(ptype, s_objtypes.ObjectType):
                 subshape = get_config_type_shape(

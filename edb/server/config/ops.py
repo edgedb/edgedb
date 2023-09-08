@@ -20,7 +20,6 @@ from __future__ import annotations
 
 
 import base64
-import dataclasses
 import json
 from typing import *
 
@@ -62,18 +61,63 @@ if TYPE_CHECKING:
     SettingsMap = immutables.Map[str, SettingValue]
 
 
+T_type = TypeVar('T_type', bound=type)
+
+
+def _issubclass(
+    typ: type | types.ConfigTypeSpec, parent: T_type
+) -> TypeGuard[T_type]:
+    return isinstance(typ, type) and issubclass(typ, parent)
+
+
 def coerce_single_value(setting: spec.Setting, value: Any) -> Any:
-    if isinstance(value, setting.type):
+    if isinstance(setting.type, type) and isinstance(value, setting.type):
         return value
     elif (isinstance(value, str) and
-          issubclass(setting.type, statypes.Duration)):
+          _issubclass(setting.type, statypes.Duration)):
         return statypes.Duration(value)
     elif (isinstance(value, (str, int)) and
-          issubclass(setting.type, statypes.ConfigMemory)):
+          _issubclass(setting.type, statypes.ConfigMemory)):
         return statypes.ConfigMemory(value)
     else:
         raise errors.ConfigurationError(
             f'invalid value type for the {setting.name!r} setting')
+
+
+def coerce_object_set(
+    spec: spec.Spec, setting: spec.Setting, values: Any
+) -> Any:
+    assert isinstance(setting.type, types.ConfigTypeSpec)
+    new_values = set()
+    for jv in values:
+        new_value = types.CompositeConfigType.from_pyvalue(
+            jv, spec=spec, tspec=setting.type,
+        )
+
+        if new_value in new_values:
+            _report_constraint_error(setting)
+        new_values.add(new_value)
+
+    return frozenset(new_values)
+
+
+def _report_constraint_error(setting: spec.Setting) -> NoReturn:
+    assert isinstance(setting.type, types.ConfigTypeSpec)
+
+    props = []
+    for f in setting.type.fields.values():
+        if f.unique:
+            props.append(f.name)
+
+    if len(props) > 1:
+        props_s = f' ({", ".join(props)}) violate'
+    else:
+        props_s = f'.{props[0]} violates'
+
+    raise errors.ConstraintViolationError(
+        f'{setting.type.__name__}{props_s} '
+        f'exclusivity constraint'
+    )
 
 
 class Operation(NamedTuple):
@@ -92,10 +136,15 @@ class Operation(NamedTuple):
 
     def coerce_value(self, spec: spec.Spec, setting: spec.Setting, *,
                      allow_missing: bool = False):
-        if issubclass(setting.type, types.ConfigType):
+        if isinstance(setting.type, types.ConfigTypeSpec):
             try:
-                return setting.type.from_pyvalue(
-                    self.value, spec=spec, allow_missing=allow_missing)
+                if setting.set_of and self.opcode is OpCode.CONFIG_SET:
+                    return coerce_object_set(spec, setting, self.value)
+                else:
+                    return types.CompositeConfigType.from_pyvalue(
+                        self.value, spec=spec, tspec=setting.type,
+                        allow_missing=allow_missing,
+                    )
             except (ValueError, TypeError):
                 raise errors.ConfigurationError(
                     f'invalid value type for the {setting.name!r} setting')
@@ -146,21 +195,9 @@ class Operation(NamedTuple):
             value = self.coerce_global_value(allow_missing=allow_missing)
 
         if self.opcode is OpCode.CONFIG_SET:
-            if setting and issubclass(setting.type, types.ConfigType):
-                raise errors.InternalServerError(
-                    f'unexpected CONFIGURE SET on a non-primitive '
-                    f'configuration parameter: {self.setting_name}'
-                )
-
             storage = self._set_value(storage, value)
 
         elif self.opcode is OpCode.CONFIG_RESET:
-            if setting and issubclass(setting.type, types.ConfigType):
-                raise errors.InternalServerError(
-                    f'unexpected CONFIGURE RESET on a non-primitive '
-                    f'configuration parameter: {self.setting_name}'
-                )
-
             try:
                 storage = storage.delete(self.setting_name)
             except KeyError:
@@ -168,7 +205,7 @@ class Operation(NamedTuple):
 
         elif self.opcode is OpCode.CONFIG_ADD:
             assert setting
-            if not issubclass(setting.type, types.ConfigType):
+            if not isinstance(setting.type, types.ConfigTypeSpec):
                 raise errors.InternalServerError(
                     f'unexpected CONFIGURE SET += on a primitive '
                     f'configuration parameter: {self.setting_name}'
@@ -181,27 +218,14 @@ class Operation(NamedTuple):
                 exist_value = setting.default
 
             if value in exist_value:
-                props = []
-                for f in dataclasses.fields(setting.type):
-                    if f.compare:
-                        props.append(f.name)
-
-                if len(props) > 1:
-                    props_s = f' ({", ".join(props)}) violate'
-                else:
-                    props_s = f'.{props[0]} violates'
-
-                raise errors.ConstraintViolationError(
-                    f'{setting.type.__name__}{props_s} '
-                    f'exclusivity constraint'
-                )
+                _report_constraint_error(setting)
 
             new_value = exist_value | {value}
             storage = self._set_value(storage, new_value)
 
         elif self.opcode is OpCode.CONFIG_REM:
             assert setting
-            if not issubclass(setting.type, types.ConfigType):
+            if not isinstance(setting.type, types.ConfigTypeSpec):
                 raise errors.InternalServerError(
                     f'unexpected CONFIGURE SET -= on a primitive '
                     f'configuration parameter: {self.setting_name}'
@@ -257,18 +281,20 @@ def spec_to_json(spec: spec.Spec):
     dct = {}
 
     for setting in spec.values():
-        if issubclass(setting.type, str):
+        if _issubclass(setting.type, str):
             typeid = s_obj.get_known_type_id('std::str')
-        elif issubclass(setting.type, bool):
+        elif _issubclass(setting.type, bool):
             typeid = s_obj.get_known_type_id('std::bool')
-        elif issubclass(setting.type, int):
+        elif _issubclass(setting.type, int):
             typeid = s_obj.get_known_type_id('std::int64')
-        elif issubclass(setting.type, types.ConfigType):
+        elif _issubclass(setting.type, types.ConfigType):
             typeid = setting.type.get_edgeql_typeid()
-        elif issubclass(setting.type, statypes.Duration):
+        elif _issubclass(setting.type, statypes.Duration):
             typeid = s_obj.get_known_type_id('std::duration')
-        elif issubclass(setting.type, statypes.ConfigMemory):
+        elif _issubclass(setting.type, statypes.ConfigMemory):
             typeid = s_obj.get_known_type_id('cfg::memory')
+        elif isinstance(setting.type, types.ConfigTypeSpec):
+            typeid = types.CompositeConfigType.get_edgeql_typeid()
         else:
             raise RuntimeError(
                 f'cannot serialize type for config setting {setting.name}')
@@ -292,16 +318,16 @@ def spec_to_json(spec: spec.Spec):
 
 def value_to_json_value(setting: spec.Setting, value: Any):
     if setting.set_of:
-        if issubclass(setting.type, types.ConfigType):
+        if isinstance(setting.type, types.ConfigTypeSpec):
             return [v.to_json_value() for v in value]
         else:
             return list(value)
     else:
-        if issubclass(setting.type, types.ConfigType):
+        if isinstance(setting.type, types.ConfigTypeSpec):
             return value.to_json_value()
-        elif issubclass(setting.type, statypes.Duration) and value is not None:
+        elif _issubclass(setting.type, statypes.Duration) and value is not None:
             return value.to_iso8601()
-        elif (issubclass(setting.type, statypes.ConfigMemory) and
+        elif (_issubclass(setting.type, statypes.ConfigMemory) and
                 value is not None):
             return value.to_str()
         else:
@@ -310,17 +336,23 @@ def value_to_json_value(setting: spec.Setting, value: Any):
 
 def value_from_json_value(spec: spec.Spec, setting: spec.Setting, value: Any):
     if setting.set_of:
-        if issubclass(setting.type, types.ConfigType):
+        if isinstance(setting.type, types.ConfigTypeSpec):
             return frozenset(
-                setting.type.from_json_value(v, spec=spec) for v in value)
+                types.CompositeConfigType.from_pyvalue(
+                    v, spec=spec, tspec=setting.type,
+                )
+                for v in value
+            )
         else:
             return frozenset(value)
     else:
-        if issubclass(setting.type, types.ConfigType):
-            return setting.type.from_json_value(value, spec=spec)
-        elif issubclass(setting.type, statypes.Duration):
+        if isinstance(setting.type, types.ConfigTypeSpec):
+            return types.CompositeConfigType.from_pyvalue(
+                value, spec=spec, tspec=setting.type,
+            )
+        elif _issubclass(setting.type, statypes.Duration):
             return statypes.Duration.from_iso8601(value)
-        elif issubclass(setting.type, statypes.ConfigMemory):
+        elif _issubclass(setting.type, statypes.ConfigMemory):
             return statypes.ConfigMemory(value)
         else:
             return value
@@ -330,12 +362,9 @@ def value_from_json(spec, setting, value: str):
     return value_from_json_value(spec, setting, json.loads(value))
 
 
-def value_to_edgeql_const(setting: spec.Setting, value: Any) -> str:
-    if isinstance(setting.type, types.ConfigType):
-        raise NotImplementedError(
-            'cannot render non-scalar configuration value'
-        )
-
+def value_to_edgeql_const(
+    type: type | types.ConfigTypeSpec, value: Any
+) -> str:
     ql = s_utils.const_ast_from_python(value)
     return qlcodegen.generate_source(ql)
 
@@ -364,7 +393,7 @@ def to_json(
     return json.dumps(dct)
 
 
-def from_json(spec: spec.Spec, js: str) -> SettingsMap:
+def from_json(spec: spec.Spec, js: str | bytes) -> SettingsMap:
     base: SettingsMap = immutables.Map()
     with base.mutate() as mm:
         dct = json.loads(js)
@@ -376,8 +405,9 @@ def from_json(spec: spec.Spec, js: str) -> SettingsMap:
         for key, value in dct.items():
             setting = spec.get(key)
             if setting is None:
-                raise errors.ConfigurationError(
-                    f'invalid JSON: unknown setting name {key!r}')
+                # If the setting isn't in the spec, that's probably because
+                # we've downgraded minor versions. Don't worry about it.
+                continue
 
             mm[key] = SettingValue(
                 name=key,
@@ -396,10 +426,18 @@ def to_edgeql(
     stmts = []
 
     for name, value in storage.items():
+        if name not in spec:
+            continue
         setting = spec[name]
-        val = value_to_edgeql_const(setting, value.value)
-        stmt = f'CONFIGURE {value.scope.to_edgeql()} SET {name} := {val};'
-        stmts.append(stmt)
+        if isinstance(setting.type, types.ConfigTypeSpec):
+            for x in value.value:
+                val = value_to_edgeql_const(setting.type, x)
+                stmt = f'CONFIGURE {value.scope.to_edgeql()}\n{val};'
+                stmts.append(stmt)
+        else:
+            val = value_to_edgeql_const(setting.type, value.value)
+            stmt = f'CONFIGURE {value.scope.to_edgeql()} SET {name} := {val};'
+            stmts.append(stmt)
 
     return '\n'.join(stmts)
 

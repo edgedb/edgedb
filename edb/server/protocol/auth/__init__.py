@@ -27,7 +27,7 @@ from edb.common import markup
 from . import scram
 
 
-async def handle_request(request, response, path_parts, server):
+async def handle_request(request, response, path_parts, tenant):
     try:
         if path_parts == ["token"]:
             if not request.authorization:
@@ -40,7 +40,7 @@ async def handle_request(request, response, path_parts, server):
             ).partition(" ")
 
             if scheme.lower().startswith("scram"):
-                scram.handle_request(scheme, auth_str, response, server)
+                scram.handle_request(scheme, auth_str, response, tenant)
             else:
                 response.body = b"Unsupported authentication scheme"
                 response.status = http.HTTPStatus.UNAUTHORIZED

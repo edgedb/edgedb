@@ -238,7 +238,7 @@ The following options are available:
 
     .. versionadded:: 3.0
 
-        As of EdgeDB 3.0, the ``extended`` clause is now a sub-declaration of
+        As of EdgeDB 3.0, the ``extending`` clause is now a sub-declaration of
         the link and included inside the curly braces rather than an option as
         in earlier versions.
 

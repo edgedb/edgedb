@@ -2666,6 +2666,96 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }]
         })
 
+    def test_graphql_functional_range_01(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                RangeTest(order: {name: {dir: ASC}}) {
+                    name
+                    rval
+                    mval
+                    rdate
+                    mdate
+                }
+            }
+        """, {
+            "RangeTest": [
+                {
+                    "name": "missing boundaries",
+                    "rval": {
+                        "empty": True,
+                    },
+                    "mval": [
+                        {
+                            "lower": None,
+                            "upper": None,
+                            "inc_lower": False,
+                            "inc_upper": False,
+                        }
+                    ],
+                    "rdate": {
+                        "empty": True,
+                    },
+                    "mdate": [
+                        {
+                            "lower": None,
+                            "upper": None,
+                            "inc_lower": False,
+                            "inc_upper": False,
+                        },
+                    ]
+                },
+                {
+                    "name": "test01",
+                    "rval": {
+                        "lower": -1.3,
+                        "upper": 1.2,
+                        "inc_lower": True,
+                        "inc_upper": False
+                    },
+                    "mval": [
+                        {
+                            "lower": None,
+                            "upper": -10,
+                            "inc_lower": False,
+                            "inc_upper": False
+                        },
+                        {
+                            "lower": -1.3,
+                            "upper": 1.2,
+                            "inc_lower": True,
+                            "inc_upper": False
+                        },
+                        {
+                            "lower": 10,
+                            "upper": None,
+                            "inc_lower": True,
+                            "inc_upper": False
+                        }
+                    ],
+                    "rdate": {
+                        "lower": "2018-01-23",
+                        "upper": "2023-07-25",
+                        "inc_lower": True,
+                        "inc_upper": False
+                    },
+                    "mdate": [
+                        {
+                            "lower": "2018-01-23",
+                            "upper": "2023-07-25",
+                            "inc_lower": True,
+                            "inc_upper": False
+                        },
+                        {
+                            "lower": "2025-11-22",
+                            "upper": None,
+                            "inc_lower": True,
+                            "inc_upper": False
+                        }
+                    ]
+                }
+            ]
+        })
+
     def test_graphql_functional_duplicates_01(self):
         self.assert_graphql_query_result(r"""
             query {

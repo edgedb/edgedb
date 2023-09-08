@@ -83,8 +83,17 @@ CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
     };
 };
 
+CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject;
 
-CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
+CREATE ABSTRACT TYPE cfg::ExtensionConfig EXTENDING cfg::ConfigObject {
+    CREATE REQUIRED SINGLE LINK cfg -> cfg::AbstractConfig {
+        CREATE DELEGATED CONSTRAINT std::exclusive;
+    };
+};
+
+ALTER TYPE cfg::AbstractConfig {
+    CREATE MULTI LINK extensions := .<cfg[IS cfg::ExtensionConfig];
+
     CREATE REQUIRED PROPERTY session_idle_timeout -> std::duration {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::report := 'true';
@@ -154,6 +163,24 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
             'Whether inserts are allowed to set the \'id\' property.';
     };
 
+    # XXX: Remove these and move to extension config mechanism when ready
+    CREATE PROPERTY xxx_auth_signing_key -> std::str {
+        CREATE ANNOTATION std::description :=
+            'The signing key used for auth extension. Must be at \
+            least 32 characters long.';
+        SET default := '00000000000000000000000000000000';
+    };
+
+    CREATE PROPERTY xxx_github_client_secret -> std::str {
+        CREATE ANNOTATION std::description := 'Secret key provided by GitHub';
+        SET default := '00000000000000000000000000000000';
+    };
+
+    CREATE PROPERTY xxx_github_client_id -> std::str {
+        CREATE ANNOTATION std::description := 'ID provided by GitHub';
+        SET default := '00000000000000000000000000000000';
+    };
+
     # Exposed backend settings follow.
     # When exposing a new setting, remember to modify
     # the _read_sys_config function to select the value
@@ -172,6 +199,14 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
         CREATE ANNOTATION std::description :=
             'The amount of memory used by internal query operations such as \
             sorting.';
+    };
+
+    CREATE PROPERTY maintenance_work_mem -> cfg::memory {
+        CREATE ANNOTATION cfg::system := 'true';
+        CREATE ANNOTATION cfg::backend_setting := '"maintenance_work_mem"';
+        CREATE ANNOTATION std::description :=
+            'The amount of memory used by operations such as \
+            CREATE INDEX.';
     };
 
     CREATE PROPERTY effective_cache_size -> cfg::memory {
@@ -212,7 +247,6 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
         CREATE CONSTRAINT std::min_value(1);
         SET default := 100;
     };
-
 };
 
 
@@ -247,26 +281,6 @@ cfg::_quote(text: std::str) -> std::str
         SELECT replace(quote_literal(text), '''''', '\\''')
     $$
 };
-
-CREATE FUNCTION
-cfg::_describe_system_config_as_ddl() -> str
-{
-    # The results won't change within a single statement.
-    SET volatility := 'Stable';
-    SET internal := true;
-    USING SQL FUNCTION 'edgedb._describe_system_config_as_ddl';
-};
-
-
-CREATE FUNCTION
-cfg::_describe_database_config_as_ddl() -> str
-{
-    # The results won't change within a single statement.
-    SET volatility := 'Stable';
-    SET internal := true;
-    USING SQL FUNCTION 'edgedb._describe_database_config_as_ddl';
-};
-
 
 CREATE CAST FROM std::int64 TO cfg::memory {
     SET volatility := 'Immutable';

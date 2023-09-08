@@ -13,10 +13,8 @@ Client Libraries
 * `Go <go/index>`_
 * `Rust <rust/index>`_
 * `.NET <dotnet/index>`_
-
-**Community-Maintained Clients**
-
-* `Elixir <https://github.com/nsidnev/edgedb-elixir>`_
+* `Java <java/index>`_
+* `Elixir <elixir/index>`_
 
 **HTTP Protocols**
 
@@ -35,6 +33,7 @@ Client Libraries
     rust/index
     dart/index
     dotnet/index
+    java/index
+    elixir/index
     http/index
     graphql/index
-

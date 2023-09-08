@@ -24,7 +24,6 @@ from __future__ import annotations
 from .base import *  # NOQA
 from .config import *  # type: ignore  # NOQA
 from .ddl import *  # NOQA
-from .dml import *  # NOQA
 from .databases import *  # NOQA
 from .domains import *  # NOQA
 from .enums import *  # NOQA

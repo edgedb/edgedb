@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from edb.common import parsing
+
 from .expressions import Nonterm
 from .expressions import *  # NOQA
 from .precedence import *  # NOQA
@@ -28,8 +30,10 @@ from .tokens import *  # NOQA
 class ExpressionFragment(Nonterm):
     "%start"
 
+    @parsing.inline(0)
     def reduce_ExprStmt_EOF(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_Expr_EOF(self, *kids):
-        self.val = kids[0].val
+        pass

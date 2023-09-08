@@ -413,12 +413,51 @@ def _get_set_rvar(
     return process_set_as_root(ir_set, ctx=ctx)
 
 
+def _get_source_rvar(
+    ir_set: irast.Set,
+    scope_stmt: pgast.SelectStmt,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
+    is_optional = (
+        ctx.scope_tree.is_optional(ir_set.path_id) or
+        ir_set.path_id in ctx.force_optional
+    )
+
+    if not is_optional:
+        rvar = relctx.new_root_rvar(ir_set, lateral=True, ctx=ctx)
+        relctx.include_rvar(
+            scope_stmt, rvar, path_id=ir_set.path_id, ctx=ctx
+        )
+    else:
+        # If the path is optional in the context we are in, then we
+        # need to put optional wrapping around the join with the base table.
+        with ctx.subrel() as subctx:
+            stmt, optrel = prepare_optional_rel(
+                ir_set=ir_set, stmt=subctx.rel, ctx=subctx)
+            subctx.pending_query = subctx.rel = stmt
+
+            rvar = relctx.new_root_rvar(ir_set, lateral=True, ctx=subctx)
+            rvars = new_source_set_rvar(ir_set, rvar)
+            rvars = finalize_optional_rel(
+                ir_set, optrel=optrel, rvars=rvars, ctx=subctx)
+
+            rvar = _include_rvars(rvars, scope_stmt=scope_stmt, ctx=ctx)
+
+    return rvar
+
+
 def ensure_source_rvar(
     ir_set: irast.Set,
     stmt: pgast.Query,
     *,
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
+    """Make sure that a source aspect is available for ir_set.
+
+    If no aspect is available, compile it. If value/identity is available
+    but source is not, select from the base relation and join it in.
+    """
 
     rvar = relctx.maybe_get_path_rvar(
         stmt, ir_set.path_id, aspect='source', ctx=ctx)
@@ -442,10 +481,7 @@ def ensure_source_rvar(
                 rvar = relctx.get_path_rvar(
                     scope_stmt, ir_set.path_id, aspect='value', ctx=ctx)
             else:
-                rvar = relctx.new_root_rvar(ir_set, lateral=True, ctx=ctx)
-                relctx.include_rvar(
-                    scope_stmt, rvar, path_id=ir_set.path_id, ctx=ctx
-                )
+                rvar = _get_source_rvar(ir_set, scope_stmt, ctx=ctx)
             pathctx.put_path_rvar(stmt, ir_set.path_id, rvar, aspect='source')
 
     return rvar
@@ -2074,24 +2110,24 @@ def process_set_as_type_cast(
     inner_set = expr.expr
     is_json_cast = expr.to_type.id == s_obj.get_known_type_id('std::json')
 
-    with ctx.new() as subctx:
+    # Are we casting by compiling the innards in json mode?
+    implicit_cast = (
+        is_json_cast
+        and not irtyputils.is_range(inner_set.typeref)
+        and (irtyputils.is_collection(inner_set.typeref)
+             or irtyputils.is_object(inner_set.typeref))
+    )
+    fmt_ctx = (
+        context.output_format(ctx, context.OutputFormat.JSONB) if implicit_cast
+        else contextlib.nullcontext()
+    )
+
+    with fmt_ctx, ctx.new() as subctx:
         pathctx.put_path_id_map(ctx.rel, ir_set.path_id, inner_set.path_id)
 
-        if (is_json_cast
-                and not irtyputils.is_range(inner_set.typeref)
-                and (irtyputils.is_collection(inner_set.typeref)
-                     or irtyputils.is_object(inner_set.typeref))):
-            subctx.expr_exposed = True
-            # XXX: this is necessary until pathctx is converted
-            #      to use context levels instead of using env
-            #      directly.
-            orig_output_format = subctx.env.output_format
-            subctx.env.output_format = context.OutputFormat.JSONB
-            implicit_cast = True
-        else:
-            implicit_cast = False
-
         if implicit_cast:
+            subctx.expr_exposed = True
+
             set_expr = dispatch.compile(inner_set, ctx=subctx)
 
             serialized: Optional[pgast.BaseExpr] = (
@@ -2112,9 +2148,8 @@ def process_set_as_type_cast(
                 pathctx.put_path_serialized_var(
                     stmt, inner_set.path_id, serialized, force=True
                 )
-
-            subctx.env.output_format = orig_output_format
         else:
+            # Rely on the simple implementation of TypeCast
             set_expr = dispatch.compile(expr, ctx=subctx)
 
             # A proper path var mapping way would be to wrap
@@ -2166,6 +2201,7 @@ def process_set_as_const_set(
         vals = [dispatch.compile(v, ctx=subctx) for v in expr.elements]
         vals_rel = subctx.rel
         vals_rel.values = [pgast.ImplicitRowExpr(args=[v]) for v in vals]
+        vals_rel.nullable = any(v.nullable for v in vals)
 
     vals_rvar = relctx.new_rel_rvar(ir_set, vals_rel, ctx=ctx)
     relctx.include_rvar(ctx.rel, vals_rvar, ir_set.path_id, ctx=ctx)
@@ -2225,10 +2261,14 @@ def process_set_as_singleton_assertion(
     assert isinstance(expr, irast.FunctionCall)
     stmt = ctx.rel
 
+    msg_arg = expr.args[0]
     ir_arg = expr.args[1]
     ir_arg_set = ir_arg.expr
 
-    if ir_arg.cardinality.is_single():
+    if (
+        ir_arg.cardinality.is_single()
+        and not msg_arg.cardinality.is_multi()
+    ):
         # If the argument has been statically proven to be a singleton,
         # elide the entire assertion.
         arg_ref = dispatch.compile(ir_arg_set, ctx=ctx)
@@ -2329,10 +2369,14 @@ def process_set_as_existence_assertion(
     assert isinstance(expr, irast.FunctionCall)
     stmt = ctx.rel
 
+    msg_arg = expr.args[0]
     ir_arg = expr.args[1]
     ir_arg_set = ir_arg.expr
 
-    if not ir_arg.cardinality.can_be_zero():
+    if (
+        not ir_arg.cardinality.can_be_zero()
+        and not msg_arg.cardinality.is_multi()
+    ):
         # If the argument has been statically proven to be non empty,
         # elide the entire assertion.
         arg_ref = dispatch.compile(ir_arg_set, ctx=ctx)
@@ -2349,7 +2393,7 @@ def process_set_as_existence_assertion(
         arg_ref = dispatch.compile(ir_arg_set, ctx=newctx)
         arg_val = output.output_as_value(arg_ref, env=newctx.env)
 
-        msg = dispatch.compile(expr.args[0].expr, ctx=newctx)
+        msg = dispatch.compile(msg_arg.expr, ctx=newctx)
 
         set_expr = pgast.FuncCall(
             name=('edgedb', 'raise_on_null'),
@@ -2413,10 +2457,14 @@ def process_set_as_multiplicity_assertion(
     expr = ir_set.expr
     assert isinstance(expr, irast.FunctionCall)
 
+    msg_arg = expr.args[0]
     ir_arg = expr.args[1]
     ir_arg_set = ir_arg.expr
 
-    if not ir_arg.multiplicity.is_duplicate():
+    if (
+        not ir_arg.multiplicity.is_duplicate()
+        and not msg_arg.cardinality.is_multi()
+    ):
         # If the argument has been statically proven to be distinct,
         # elide the entire assertion.
         arg_ref = dispatch.compile(ir_arg_set, ctx=ctx)
@@ -2467,7 +2515,7 @@ def process_set_as_multiplicity_assertion(
                 )
             )
 
-        msg = dispatch.compile(expr.args[0].expr, ctx=newctx)
+        msg = dispatch.compile(msg_arg.expr, ctx=newctx)
 
         do_raise = pgast.FuncCall(
             name=('edgedb', 'raise'),
@@ -2844,6 +2892,36 @@ def process_set_as_std_range(
             ),
         ],
         defresult=non_empty_range,
+    )
+
+    pathctx.put_path_value_var(ctx.rel, ir_set.path_id, set_expr)
+
+    return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
+
+
+@_special_case('std::multirange', only_as_fallback=True)
+def process_set_as_std_multirange(
+    ir_set: irast.Set,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> SetRVars:
+    # Generic multirange constructor implementation
+    #
+    #   std::multirange(
+    #     ranges: array<range<anypoint>>,
+    #   )
+    #
+    #     into
+    #
+    #   <pg_range_type>(variadic ranges)
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
+    ranges = dispatch.compile(expr.args[0].expr, ctx=ctx)
+    pg_type = pg_types.pg_type_from_ir_typeref(expr.typeref)
+    set_expr = pgast.FuncCall(
+        name=pg_type,
+        args=[pgast.VariadicArgument(expr=ranges)]
     )
 
     pathctx.put_path_value_var(ctx.rel, ir_set.path_id, set_expr)

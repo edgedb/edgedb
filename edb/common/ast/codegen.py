@@ -19,12 +19,20 @@
 
 from __future__ import annotations
 from typing import *
+from dataclasses import dataclass
 
 import itertools
 import textwrap
 
 from . import base
 from .visitor import NodeVisitor
+
+
+@dataclass(kw_only=True, eq=False, match_args=False, slots=True, frozen=True)
+class Options:
+    indent_with: str = ' ' * 4
+    add_line_information: bool = False
+    pretty: bool = True
 
 
 class SourceGenerator(NodeVisitor):
@@ -126,6 +134,9 @@ class SourceGenerator(NodeVisitor):
             self.write('# line: %s' % node.lineno)
             self.new_lines = 1
 
+    def finish(self) -> str:
+        return ''.join(self.result)
+
     @classmethod
     def to_source(
         cls,
@@ -138,7 +149,7 @@ class SourceGenerator(NodeVisitor):
         generator = cls(indent_with, add_line_information,  # type: ignore
                         pretty=pretty, **kwargs)
         generator.visit(node)
-        return ''.join(generator.result)
+        return generator.finish()
 
     def indent_text(self, text: str) -> str:
         return textwrap.indent(text, self.indent_with * self.indentation)

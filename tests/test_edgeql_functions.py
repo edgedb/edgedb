@@ -17,9 +17,11 @@
 #
 
 
+import base64
 import decimal
 import json
 import os.path
+import random
 
 import edgedb
 
@@ -1130,19 +1132,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 ORDER BY x;
             ''',
             [['Ab'], ['a'], ['a'], ['aB'], ['ab']],
-        )
-
-    async def test_edgeql_functions_re_match_all_02(self):
-        await self.assert_query_result(
-            r'''
-                WITH
-                    MODULE schema,
-                    C2 := ScalarType
-                SELECT
-                    count(re_match_all('(\\w+)', ScalarType.name)) =
-                    2 * count(C2);
-            ''',
-            [True],
         )
 
     async def test_edgeql_functions_re_test_01(self):
@@ -3097,6 +3086,35 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             async with self.con.transaction():
                 await self.con.query(
                     r'''SELECT to_str(<cal::local_time>'15:01:22', '');''',)
+
+    async def test_edgeql_functions_string_bytes_conversion(self):
+        string = "Паляниця"
+
+        await self.assert_query_result(
+            r'''
+            WITH
+                input := <bytes>$input,
+                string := to_str(input),
+                binary := to_bytes(string),
+            SELECT
+                binary = input;
+            ''',
+            {True},
+            variables={
+                "input": string.encode("utf-8"),
+            },
+        )
+
+    async def test_edgeql_functions_string_bytes_conversion_error(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'invalid byte sequence for encoding "UTF8": 0x00',
+        ):
+            await self.con.execute(
+                r'''
+                SELECT to_str(b'\x00')
+                ''',
+            )
 
     async def test_edgeql_functions_array_join_01(self):
         await self.assert_query_result(
@@ -6451,6 +6469,203 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [False],
         )
 
+    async def test_edgeql_functions_range_contains_09(self):
+        # Test `contains` for numeric multiranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''select contains(
+                        multirange([
+                            range(<{st}>1, <{st}>4),
+                            range(<{st}>7),
+                        ]),
+                        multirange([
+                            range(<{st}>1, <{st}>2),
+                            range(<{st}>8, <{st}>10),
+                        ]),
+                    )
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select contains(
+                        multirange([
+                            range(<{st}>1, <{st}>4),
+                            range(<{st}>7),
+                        ]),
+                        range(<{st}>8),
+                    )
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select contains(
+                        multirange([
+                            range(<{st}>1, <{st}>4),
+                            range(<{st}>7),
+                        ]),
+                        <{st}>3,
+                    )
+                ''',
+                [True],
+            )
+
+    async def test_edgeql_functions_range_contains_10(self):
+        # Test `contains` for datetime multiranges.
+        await self.assert_query_result(
+            f'''select contains(
+                    multirange([
+                        range(<datetime>'2022-06-01T00:00:00Z',
+                              <datetime>'2022-06-10T00:00:00Z'),
+                        range(<datetime>'2022-06-12T00:00:00Z',
+                              <datetime>'2022-06-17T00:00:00Z'),
+                        range(<datetime>'2022-06-20T00:00:00Z'),
+                    ]),
+                    multirange([
+                        range(<datetime>'2022-06-01T00:00:00Z',
+                              <datetime>'2022-06-05T00:00:00Z'),
+                        range(<datetime>'2022-06-21T00:00:00Z',
+                              <datetime>'2022-06-22T00:00:00Z'),
+                    ]),
+                )
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''select contains(
+                    multirange([
+                        range(<datetime>'2022-06-01T00:00:00Z',
+                              <datetime>'2022-06-10T00:00:00Z'),
+                        range(<datetime>'2022-06-12T00:00:00Z',
+                              <datetime>'2022-06-17T00:00:00Z'),
+                        range(<datetime>'2022-06-20T00:00:00Z'),
+                    ]),
+                    range(<datetime>'2022-06-01T00:00:00Z',
+                          <datetime>'2022-06-05T00:00:00Z'),
+                )
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''select contains(
+                    multirange([
+                        range(<datetime>'2022-06-01T00:00:00Z',
+                              <datetime>'2022-06-10T00:00:00Z'),
+                        range(<datetime>'2022-06-12T00:00:00Z',
+                              <datetime>'2022-06-17T00:00:00Z'),
+                        range(<datetime>'2022-06-20T00:00:00Z'),
+                    ]),
+                    <datetime>'2022-06-05T00:00:00Z',
+                )
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''select contains(
+                    multirange([
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-10T00:00:00'),
+                        range(<cal::local_datetime>'2022-06-12T00:00:00',
+                              <cal::local_datetime>'2022-06-17T00:00:00'),
+                        range(<cal::local_datetime>'2022-06-20T00:00:00'),
+                    ]),
+                    multirange([
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-05T00:00:00'),
+                        range(<cal::local_datetime>'2022-06-21T00:00:00',
+                              <cal::local_datetime>'2022-06-22T00:00:00')
+                    ]),
+                )
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''select contains(
+                    multirange([
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-10T00:00:00'),
+                        range(<cal::local_datetime>'2022-06-12T00:00:00',
+                              <cal::local_datetime>'2022-06-17T00:00:00'),
+                        range(<cal::local_datetime>'2022-06-20T00:00:00'),
+                    ]),
+                    range(<cal::local_datetime>'2022-06-01T00:00:00',
+                          <cal::local_datetime>'2022-06-05T00:00:00'),
+                )
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''select contains(
+                    multirange([
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-10T00:00:00'),
+                        range(<cal::local_datetime>'2022-06-12T00:00:00',
+                              <cal::local_datetime>'2022-06-17T00:00:00'),
+                        range(<cal::local_datetime>'2022-06-20T00:00:00'),
+                    ]),
+                    <cal::local_datetime>'2022-06-05T00:00:00',
+                )
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''select contains(
+                    multirange([
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-10'),
+                        range(<cal::local_date>'2022-06-12',
+                              <cal::local_date>'2022-06-17'),
+                        range(<cal::local_date>'2022-06-20'),
+                    ]),
+                    multirange([
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-05'),
+                        range(<cal::local_date>'2022-06-21',
+                              <cal::local_date>'2022-06-22')
+                    ]),
+                )
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''select contains(
+                    multirange([
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-10'),
+                        range(<cal::local_date>'2022-06-12',
+                              <cal::local_date>'2022-06-17'),
+                        range(<cal::local_date>'2022-06-20'),
+                    ]),
+                    range(<cal::local_date>'2022-06-01',
+                          <cal::local_date>'2022-06-05'),
+                )
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''select contains(
+                    multirange([
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-10'),
+                        range(<cal::local_date>'2022-06-12',
+                              <cal::local_date>'2022-06-17'),
+                        range(<cal::local_date>'2022-06-20'),
+                    ]),
+                    <cal::local_date>'2022-06-05',
+                )
+            ''',
+            [True],
+        )
+
     async def test_edgeql_functions_range_overlaps_01(self):
         # Test `overlaps` for numeric ranges.
         for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
@@ -6494,6 +6709,449 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                         range(<{st}>{{}}, <{st}>5),
                         range(<{st}>2));''',
                 [True],
+            )
+
+    async def test_edgeql_functions_range_overlaps_02(self):
+        # Test `overlaps` for numeric multiranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''select overlaps(
+                        multirange([
+                            range(<{st}>1, <{st}>4),
+                            range(<{st}>7),
+                        ]),
+                        multirange([
+                            range(<{st}>0, <{st}>2),
+                            range(<{st}>5, <{st}>6),
+                        ]),
+                    )
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select overlaps(
+                        multirange([
+                            range(<{st}>1, <{st}>4),
+                            range(<{st}>7),
+                        ]),
+                        range(<{st}>8),
+                    )
+                ''',
+                [True],
+            )
+
+    async def test_edgeql_functions_range_adjacent_01(self):
+        # Test `adjacent` for numeric ranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''select adjacent(
+                        range(<{st}>1, <{st}>5),
+                        range(<{st}>5, <{st}>6));''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select adjacent(
+                        range(<{st}>1, <{st}>5),
+                        range(<{st}>4, <{st}>6));''',
+                [False],
+            )
+
+            await self.assert_query_result(
+                f'''select adjacent(
+                        range(<{st}>1),
+                        range(<{st}>0, <{st}>1));''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select adjacent(
+                        range(<{st}>{{}}, <{st}>1),
+                        range(<{st}>1));''',
+                [True],
+            )
+
+    async def test_edgeql_functions_range_adjacent_02(self):
+        # Test `adjacent` for numeric multiranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''select adjacent(
+                        multirange([
+                            range(<{st}>1, <{st}>4),
+                            range(<{st}>7),
+                        ]),
+                        multirange([
+                            range(<{st}>-10, <{st}>-2),
+                            range(<{st}>0, <{st}>1),
+                        ]),
+                    )
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select adjacent(
+                        multirange([
+                            range(<{st}>1, <{st}>4),
+                            range(<{st}>7),
+                        ]),
+                        range(<{st}>{{}}, <{st}>1),
+                    )
+                ''',
+                [True],
+            )
+
+    async def test_edgeql_functions_range_strictly_below_01(self):
+        # Test `strictly_below` for numeric ranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''select strictly_below(
+                        range(<{st}>1, <{st}>4),
+                        range(<{st}>4, <{st}>5));''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select strictly_below(
+                        range(<{st}>1, <{st}>4),
+                        range(<{st}>1, <{st}>5));''',
+                [False],
+            )
+
+            await self.assert_query_result(
+                f'''select strictly_below(
+                        range(<{st}>2, <{st}>3),
+                        range(<{st}>10));''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select strictly_below(
+                        range(<{st}>1),
+                        range(<{st}>{{}}, <{st}>10));''',
+                [False],
+            )
+
+    async def test_edgeql_functions_range_strictly_below_02(self):
+        # Test `strictly_below` for numeric multiranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''select strictly_below(
+                        multirange([
+                            range(<{st}>-10, <{st}>-2),
+                            range(<{st}>1, <{st}>5),
+                        ]),
+                        multirange([
+                            range(<{st}>6, <{st}>9),
+                            range(<{st}>20),
+                        ]),
+                    )
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select strictly_below(
+                        multirange([
+                            range(<{st}>-10, <{st}>-2),
+                            range(<{st}>1, <{st}>5),
+                        ]),
+                        multirange([
+                            range(<{st}>2, <{st}>9),
+                            range(<{st}>20),
+                        ]),
+                    )
+                ''',
+                [False],
+            )
+
+            await self.assert_query_result(
+                f'''select strictly_below(
+                        range(<{st}>{{}}, <{st}>3),
+                        multirange([
+                            range(<{st}>3, <{st}>4),
+                            range(<{st}>7),
+                        ]),
+                    )
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select strictly_below(
+                        multirange([
+                            range(<{st}>1, <{st}>4),
+                            range(<{st}>7),
+                        ]),
+                        range(<{st}>10),
+                    )
+                ''',
+                [False],
+            )
+
+    async def test_edgeql_functions_range_strictly_above_01(self):
+        # Test `strictly_above` for numeric ranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''select strictly_above(
+                        range(<{st}>4, <{st}>5),
+                        range(<{st}>1, <{st}>3));''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select strictly_above(
+                        range(<{st}>1, <{st}>5),
+                        range(<{st}>1, <{st}>3));''',
+                [False],
+            )
+
+            await self.assert_query_result(
+                f'''select strictly_above(
+                        range(<{st}>5),
+                        range(<{st}>2, <{st}>3));''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select strictly_above(
+                        range(<{st}>{{}}, <{st}>10),
+                        range(<{st}>1));''',
+                [False],
+            )
+
+    async def test_edgeql_functions_range_strictly_above_02(self):
+        # Test `strictly_above` for numeric multiranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''select strictly_above(
+                        multirange([
+                            range(<{st}>3, <{st}>4),
+                            range(<{st}>7),
+                        ]),
+                        multirange([
+                            range(<{st}>-10, <{st}>-2),
+                            range(<{st}>1, <{st}>3),
+                        ]),
+                    )
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select strictly_above(
+                        multirange([
+                            range(<{st}>1, <{st}>4),
+                            range(<{st}>7),
+                        ]),
+                        multirange([
+                            range(<{st}>-10, <{st}>-2),
+                            range(<{st}>1, <{st}>3),
+                        ]),
+                    )
+                ''',
+                [False],
+            )
+
+            await self.assert_query_result(
+                f'''select strictly_above(
+                        multirange([
+                            range(<{st}>3, <{st}>4),
+                            range(<{st}>7),
+                        ]),
+                        range(<{st}>{{}}, <{st}>1),
+                    )
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select strictly_above(
+                        range(<{st}>{{}}, <{st}>10),
+                        multirange([
+                            range(<{st}>3, <{st}>4),
+                            range(<{st}>7),
+                        ]),
+                    )
+                ''',
+                [False],
+            )
+
+    async def test_edgeql_functions_range_bounded_above_01(self):
+        # Test `bounded_above` for numeric ranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''select bounded_above(
+                        range(<{st}>1, <{st}>4),
+                        range(<{st}>4, <{st}>5));''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select bounded_above(
+                        range(<{st}>1, <{st}>5),
+                        range(<{st}>2, <{st}>4));''',
+                [False],
+            )
+
+            await self.assert_query_result(
+                f'''select bounded_above(
+                        range(<{st}>2, <{st}>3),
+                        range(<{st}>10));''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select bounded_above(
+                        range(<{st}>1),
+                        range(<{st}>{{}}, <{st}>10));''',
+                [False],
+            )
+
+    async def test_edgeql_functions_range_bounded_above_02(self):
+        # Test `bounded_above` for numeric multiranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''select bounded_above(
+                        multirange([
+                            range(<{st}>-10, <{st}>-2),
+                            range(<{st}>1, <{st}>5),
+                        ]),
+                        multirange([
+                            range(<{st}>6, <{st}>9),
+                            range(<{st}>20),
+                        ]),
+                    )
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select bounded_above(
+                        multirange([
+                            range(<{st}>-10, <{st}>-2),
+                            range(<{st}>20),
+                        ]),
+                        multirange([
+                            range(<{st}>1, <{st}>3),
+                            range(<{st}>6, <{st}>9),
+                        ]),
+                    )
+                ''',
+                [False],
+            )
+
+            await self.assert_query_result(
+                f'''select bounded_above(
+                        multirange([
+                            range(<{st}>1, <{st}>4),
+                            range(<{st}>7),
+                        ]),
+                        range(<{st}>10),
+                    )
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select bounded_above(
+                        range(<{st}>{{}}, <{st}>10),
+                        multirange([
+                            range(<{st}>3, <{st}>4),
+                            range(<{st}>7, <{st}>9),
+                        ]),
+                    )
+                ''',
+                [False],
+            )
+
+    async def test_edgeql_functions_range_bounded_below_01(self):
+        # Test `bounded_below` for numeric ranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''select bounded_below(
+                        range(<{st}>1, <{st}>4),
+                        range(<{st}>1, <{st}>5));''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select bounded_below(
+                        range(<{st}>1, <{st}>4),
+                        range(<{st}>4, <{st}>5));''',
+                [False],
+            )
+
+            await self.assert_query_result(
+                f'''select bounded_below(
+                        range(<{st}>2, <{st}>3),
+                        range(<{st}>1));''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select bounded_below(
+                        range(<{st}>{{}}, <{st}>3),
+                        range(<{st}>1));''',
+                [False],
+            )
+
+    async def test_edgeql_functions_range_bounded_below_02(self):
+        # Test `bounded_below` for numeric multiranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''select bounded_below(
+                        multirange([
+                            range(<{st}>1, <{st}>2),
+                            range(<{st}>4, <{st}>7),
+                        ]),
+                        multirange([
+                            range(<{st}>0, <{st}>9),
+                            range(<{st}>20),
+                        ]),
+                    )
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select bounded_below(
+                        multirange([
+                            range(<{st}>-10, <{st}>-2),
+                            range(<{st}>1, <{st}>5),
+                        ]),
+                        multirange([
+                            range(<{st}>2, <{st}>9),
+                            range(<{st}>20),
+                        ]),
+                    )
+                ''',
+                [False],
+            )
+
+            await self.assert_query_result(
+                f'''select bounded_below(
+                        multirange([
+                            range(<{st}>1, <{st}>4),
+                            range(<{st}>7),
+                        ]),
+                        range(<{st}>1),
+                    )
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select bounded_below(
+                        range(<{st}>{{}}, <{st}>3),
+                        multirange([
+                            range(<{st}>1, <{st}>4),
+                            range(<{st}>7),
+                        ]),
+                    )
+                ''',
+                [False],
             )
 
     async def test_edgeql_functions_range_unpack_01(self):
@@ -6801,3 +7459,129 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                     range(<cal::local_date>{},
                           <cal::local_date>'2022-06-01'));
             """)
+
+    async def test_edgeql_functions_multirange_unpack_01(self):
+        # Test `multirange_unpack` for numeric multiranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''select multirange_unpack(
+                        multirange([
+                            range(<{st}>4, <{st}>8),
+                            range(<{st}>0, <{st}>2),
+                            range(<{st}>10),
+                        ]),
+                    )
+                ''',
+                [
+                    {
+                        "lower": 0,
+                        "inc_lower": True,
+                        "upper": 2,
+                        "inc_upper": False,
+                    },
+                    {
+                        "lower": 4,
+                        "inc_lower": True,
+                        "upper": 8,
+                        "inc_upper": False,
+                    },
+                    {
+                        "lower": 10,
+                        "inc_lower": True,
+                        "upper": None,
+                        "inc_upper": False,
+                    },
+                ],
+                json_only=True,
+            )
+
+    async def test_edgeql_functions_encoding_base64_fuzz(self):
+        for _ in range(10):
+            value = random.randbytes(random.randrange(0, 1000))
+            await self.assert_query_result(
+                r"""
+                WITH
+                    MODULE std::enc,
+                    value := <bytes>$value,
+                    standard_encoded := base64_encode(
+                        value),
+                    standard_decoded := base64_decode(
+                        standard_encoded),
+                    standard_unpadded_encoded := base64_encode(
+                        value,
+                        padding := false),
+                    standard_unpadded_decoded := base64_decode(
+                        standard_unpadded_encoded,
+                        padding := false),
+                    urlsafe_encoded := base64_encode(
+                        value,
+                        alphabet := Base64Alphabet.urlsafe),
+                    urlsafe_decoded := base64_decode(
+                        urlsafe_encoded,
+                        alphabet := Base64Alphabet.urlsafe),
+                    urlsafe_unpadded_encoded := base64_encode(
+                        value,
+                        alphabet := Base64Alphabet.urlsafe,
+                        padding := false),
+                    urlsafe_unpadded_decoded := base64_decode(
+                        urlsafe_unpadded_encoded,
+                        alphabet := Base64Alphabet.urlsafe,
+                        padding := false),
+                SELECT {
+                    standard_encoded :=
+                        standard_encoded,
+                    standard_crosscheck :=
+                        standard_decoded = value,
+                    standard_unpadded_encoded :=
+                        standard_unpadded_encoded,
+                    standard_unpadded_crosscheck :=
+                        standard_unpadded_decoded = value,
+                    urlsafe_encoded :=
+                        urlsafe_encoded,
+                    urlsafe_crosscheck :=
+                        urlsafe_decoded = value,
+                    urlsafe_unpadded_encoded :=
+                        urlsafe_unpadded_encoded,
+                    urlsafe_unpadded_crosscheck :=
+                        urlsafe_unpadded_decoded = value,
+                }
+                """,
+                [{
+                    "standard_encoded":
+                        base64.b64encode(value)
+                              .decode("utf-8"),
+                    "standard_crosscheck": True,
+                    "standard_unpadded_encoded":
+                        base64.b64encode(value)
+                              .decode("utf-8").rstrip('='),
+                    "standard_unpadded_crosscheck": True,
+                    "urlsafe_encoded":
+                        base64.urlsafe_b64encode(value)
+                              .decode("utf-8"),
+                    "urlsafe_crosscheck": True,
+                    "urlsafe_unpadded_encoded":
+                        base64.urlsafe_b64encode(value)
+                              .decode("utf-8").rstrip('='),
+                    "urlsafe_unpadded_crosscheck": True,
+                }],
+                variables={
+                    "value": value,
+                },
+            )
+
+    async def test_edgeql_functions_encoding_base64_bad(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r'invalid symbol "~" found while decoding base64 sequence',
+        ):
+            await self.con.execute(
+                'select std::enc::base64_decode("~")'
+            )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r'invalid base64 end sequence',
+        ):
+            await self.con.execute(
+                'select std::enc::base64_decode("AA")'
+            )

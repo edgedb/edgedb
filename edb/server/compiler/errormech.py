@@ -1,3 +1,5 @@
+# mypy: allow-untyped-defs, allow-incomplete-defs
+
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -65,7 +67,7 @@ class ErrorDetails(NamedTuple):
     table_name: Optional[str] = None
     column_name: Optional[str] = None
     constraint_name: Optional[str] = None
-    errcls: Optional[errors.EdgeDBError] = None
+    errcls: Optional[Type[errors.EdgeDBError]] = None
 
 
 constraint_errors = frozenset({
@@ -99,6 +101,7 @@ directly_mappable = {
     pgerrors.ERROR_INSUFFICIENT_PRIVILEGE: errors.AccessPolicyError,
     pgerrors.ERROR_PROGRAM_LIMIT_EXCEEDED: errors.InvalidValueError,
     pgerrors.ERROR_DATA_EXCEPTION: errors.InvalidValueError,
+    pgerrors.ERROR_CHARACTER_NOT_IN_REPERTOIRE: errors.InvalidValueError,
 }
 
 
@@ -136,7 +139,7 @@ def gql_translate_pgtype_inner(schema, msg):
     """Try to replace any internal pg type name with a GraphQL type name"""
 
     # Mapping base types
-    def base_type_map(name):
+    def base_type_map(name: str) -> str:
         result = gql_types.EDB_TO_GQL_SCALARS_MAP.get(
             str(types.base_type_name_map_r.get(name))
         )

@@ -22,6 +22,9 @@ from __future__ import annotations
 import functools
 import dataclasses
 from typing import *
+from typing import overload
+
+from edb.common.typeutils import not_none
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
@@ -81,6 +84,18 @@ type_to_range_name_map = {
     # correct canonicalization function
     ('edgedb', 'date_t'): ('daterange',),
 }
+
+# Construct a multirange map based on type_to_range_name_map by replacing
+# 'range' with 'multirange' in the names.
+#
+# The multiranges are created automatically when ranges are created. They
+# have the same names except with "multi" in front of the "range".
+type_to_multirange_name_map = {}
+for key, val in type_to_range_name_map.items():
+    *pre, name = val
+    pre.append(name.replace('range', 'multirange'))
+    type_to_multirange_name_map[key] = tuple(pre)
+
 
 base_type_name_map_r = {
     'character varying': sn.QualName('std', 'str'),
@@ -196,6 +211,10 @@ def pg_type_range(tp: Tuple[str, ...]) -> Tuple[str, ...]:
     return type_to_range_name_map[tp]
 
 
+def pg_type_multirange(tp: Tuple[str, ...]) -> Tuple[str, ...]:
+    return type_to_multirange_name_map[tp]
+
+
 def pg_type_from_object(
     schema: s_schema.Schema, obj: s_obj.Object, persistent_tuples: bool = False
 ) -> Tuple[str, ...]:
@@ -208,7 +227,10 @@ def pg_type_from_object(
 
     elif isinstance(obj, s_abc.Tuple):
         if persistent_tuples:
-            return common.get_tuple_backend_name(obj.id, catenate=False)
+            return cast(
+                Tuple[str, ...],
+                common.get_tuple_backend_name(obj.id, catenate=False),
+            )
         else:
             return ('record',)
 
@@ -229,6 +251,15 @@ def pg_type_from_object(
                 schema, obj.get_subtypes(schema)[0],
                 persistent_tuples=persistent_tuples)
             return pg_type_range(tp)
+
+    elif isinstance(obj, s_types.MultiRange):
+        if obj.is_polymorphic(schema):
+            return ('anymultirange',)
+        else:
+            tp = pg_type_from_object(
+                schema, obj.get_subtypes(schema)[0],
+                persistent_tuples=persistent_tuples)
+            return pg_type_multirange(tp)
 
     elif isinstance(obj, s_objtypes.ObjectType):
         return ('uuid',)
@@ -257,7 +288,7 @@ def pg_type_from_ir_typeref(
                 persistent_tuples=persistent_tuples)
             return pg_type_array(tp)
 
-    if irtyputils.is_range(ir_typeref):
+    elif irtyputils.is_range(ir_typeref):
         if (irtyputils.is_generic(ir_typeref)
                 or (irtyputils.is_abstract(ir_typeref.subtypes[0])
                     and irtyputils.is_scalar(ir_typeref.subtypes[0]))):
@@ -269,6 +300,18 @@ def pg_type_from_ir_typeref(
                 persistent_tuples=persistent_tuples)
             return pg_type_range(tp)
 
+    elif irtyputils.is_multirange(ir_typeref):
+        if (irtyputils.is_generic(ir_typeref)
+                or (irtyputils.is_abstract(ir_typeref.subtypes[0])
+                    and irtyputils.is_scalar(ir_typeref.subtypes[0]))):
+            return ('anymultirange',)
+        else:
+            tp = pg_type_from_ir_typeref(
+                ir_typeref.subtypes[0],
+                serialized=serialized,
+                persistent_tuples=persistent_tuples)
+            return pg_type_multirange(tp)
+
     elif irtyputils.is_anytuple(ir_typeref):
         return ('record',)
 
@@ -279,11 +322,14 @@ def pg_type_from_ir_typeref(
             material = ir_typeref
 
         if persistent_tuples or material.in_schema:
-            return common.get_tuple_backend_name(material.id, catenate=False)
+            return cast(
+                Tuple[str, str],
+                common.get_tuple_backend_name(material.id, catenate=False),
+            )
         else:
             return ('record',)
 
-    elif irtyputils.is_any(ir_typeref):
+    elif irtyputils.is_any(ir_typeref) or irtyputils.is_anyobject(ir_typeref):
         return ('anyelement',)
 
     else:
@@ -313,14 +359,14 @@ def pg_type_from_ir_typeref(
             return pg_type
 
 
-TableInfo = Tuple[Tuple[str, ...], str, str]
+TableInfo = Tuple[Tuple[str, str], str, str]
 
 
 def _source_table_info(
     schema: s_schema.Schema, pointer: s_pointers.Pointer
 ) -> TableInfo:
     table = common.get_backend_name(
-        schema, pointer.get_source(schema), catenate=False
+        schema, not_none(pointer.get_source(schema)), catenate=False
     )
     ptr_name = pointer.get_shortname(schema).name
     if ptr_name.startswith('__') or ptr_name == 'id':
@@ -422,6 +468,7 @@ def get_pointer_storage_info(
         table_type = 'ObjectType'
         col_name = pointer.get_shortname(schema).name
     elif is_lprop:
+        assert source
         table = common.get_backend_name(schema, source, catenate=False)
         table_type = 'link'
         if pointer.get_shortname(schema).name == 'source':
@@ -474,7 +521,7 @@ def get_ptrref_storage_info(
 
 
 @overload
-def get_ptrref_storage_info(  # NoQA: F811
+def get_ptrref_storage_info(
     ptrref: irast.BasePointerRef, *,
     resolve_type: bool=...,
     link_bias: bool=...,
@@ -483,7 +530,7 @@ def get_ptrref_storage_info(  # NoQA: F811
     ...
 
 
-def get_ptrref_storage_info(  # NoQA: F811
+def get_ptrref_storage_info(
     ptrref: irast.BasePointerRef,
     *,
     resolve_type: bool = True,

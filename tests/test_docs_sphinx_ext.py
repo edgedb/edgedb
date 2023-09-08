@@ -918,3 +918,30 @@ class TestBlockquote(unittest.TestCase, BaseDomainTest):
 
         with self.assert_fails('title reference'):
             self.build(src, format='html')
+
+    def test_sphinx_edb_collapsed_01(self):
+        src = '''
+        blah
+
+        Foo
+        ===
+
+        bar
+
+        .. edb:collapsed::
+
+            spam
+
+            ham
+
+        blah2
+        '''
+
+        out = self.build(src, format='xml')
+        x = requests_xml.XML(xml=out)
+
+        self.assertEqual(
+            x.xpath('''
+                //container[@collapsed_block="True"]/paragraph/text()
+            '''),
+            ['spam', 'ham'])

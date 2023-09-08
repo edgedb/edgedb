@@ -95,3 +95,19 @@ def _time(o: datetime.time):
 @serialize.register
 def _enum(o: edgedb.EnumValue):
     return str(o)
+
+
+@serialize.register
+def _range(o: edgedb.Range):
+    return {
+        'lower': serialize(o.lower),
+        'inc_lower': o.inc_lower,
+        'upper': serialize(o.upper),
+        'inc_upper': o.inc_upper,
+        'empty': o.is_empty(),
+    }
+
+
+@serialize.register
+def _multirane(o: edgedb.MultiRange):
+    return [serialize(el) for el in o]

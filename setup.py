@@ -546,11 +546,10 @@ class ci_helper(setuptools.Command):
         elif self.type == 'rust':
             rust_hash = hash_dirs([
                 (pkg_dir / 'edgeql-parser', '.rs'),
-                (pkg_dir / 'edgeql-rust', '.rs'),
                 (pkg_dir / 'graphql-rewrite', '.rs'),
             ], extra_files=[
                 pkg_dir / 'edgeql-parser/Cargo.toml',
-                pkg_dir / 'edgeql-rust/Cargo.toml',
+                pkg_dir / 'edgeql-parser/edgeql-parser-python/Cargo.toml',
                 pkg_dir / 'graphql-rewrite/Cargo.toml',
             ])
             print(binascii.hexlify(rust_hash).decode())
@@ -1101,8 +1100,8 @@ setuptools.setup(
     ],
     rust_extensions=[
         setuptools_rust.RustExtension(
-            "edb._edgeql_rust",
-            path="edb/edgeql-rust/Cargo.toml",
+            "edb._edgeql_parser",
+            path="edb/edgeql-parser/edgeql-parser-python/Cargo.toml",
             binding=setuptools_rust.Binding.RustCPython,
         ),
         setuptools_rust.RustExtension(

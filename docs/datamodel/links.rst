@@ -49,8 +49,8 @@ link.
     }
 
 On the other hand, backlinks work in reverse to find objects that link to the
-object, and thus assume  ``multi`` as a default. Use the ``single`` keyword 
-to declare a "to-one" backlink.
+object, and thus assume ``multi`` as a default. Use the ``single`` keyword to
+declare a "to-one" backlink.
 
 .. code-block:: sdl
 
@@ -395,6 +395,37 @@ the *nature/strength* of the relationship.
       }
     }
 
+.. note::
+
+    The divide between "link" and "property" is important when it comes to
+    understanding what link properties can do. They are link **properties**,
+    not link **links**. This means link properties can contain only primitive
+    data — data of any of the :ref:`scalar types <ref_datamodel_scalars>` like
+    ``str``, ``int32``, or ``bool``, :ref:`enums <ref_datamodel_enums>`,
+    :ref:`arrays <ref_datamodel_arrays>`, and :ref:`tuples
+    <ref_datamodel_tuples>`. They cannot contain links to other objects.
+
+    That means this would not work:
+
+    .. code-block::
+        :version-lt: 3.0
+
+        type Person {
+          property name -> str;
+          multi link friends -> Person {
+            link introduced_by -> Person;
+          }
+        }
+
+    .. code-block::
+
+        type Person {
+          name: str;
+          multi friends: Person {
+            introduced_by: Person;
+          }
+        }
+
 Above, we model a family tree with a single ``Person`` type. The ``Person.
 family_members`` link is a many-to-many relation; each ``family_members`` link
 can contain a string ``relationship`` describing the relationship of the two
@@ -553,23 +584,63 @@ deletion policy.
 
 .. note::
 
+    The ``if orphan`` qualifier does not apply globally across all links in the
+    database or across any other links even if they're from the same type.
     Deletion policies using ``if orphan`` will result in the target being
-    deleted *unless it is linked by another object via the same link the policy
-    is on*. This qualifier does not apply globally across all links in the
-    database or across different links even if they're on the same type. For
-    example, a ``Message`` might be linked from both a ``MessageThread`` and a
-    ``Channel``. If the ``MessageThread`` linking to it is deleted, the
-    deletion policy would still result in the ``Message`` being deleted as long
-    as no other ``MessageThread`` objects link to it on that same field. It is
-    orphaned with respect to the ``MessageThread`` type's ``link`` field, even
-    though it is not orphaned globally.
+    deleted unless
 
-    Similarly, if the ``MessageThread`` had two links both linking to messages
-    — maybe the existing ``messages`` link and another called ``related`` to
-    link other related ``Message`` objects that are not in the thread — ``if
-    orphan`` could result in linked messages being deleted even if they were
-    also linked from another ``MessageThread`` object's ``related`` link
-    because they were orphaned with respect to the ``messages`` link.
+    1. it is linked by another object via **the same link the policy is on**,
+       or
+    2. its deletion is restricted by another link's ``on target delete`` policy
+       (which defaults to ``restrict`` unless otherwise specified)
+
+    For example, a ``Message`` might be linked from both a ``MessageThread``
+    and a ``Channel``, which is defined like this:
+
+    .. code-block:: sdl
+
+        type Channel {
+          title: str;
+          multi messages: Message {
+            on target delete allow;
+          }
+        }
+
+    If the ``MessageThread`` linking to the ``Message`` is deleted, the source
+    deletion policy would still result in the ``Message`` being deleted as long
+    as no other ``MessageThread`` objects link to it on their ``messages`` link
+    and the deletion isn't otherwise restricted (e.g., the default policy of
+    ``on target delete restrict`` has been overridden, as in the schema above).
+    The object is deleted despite not being orphaned with respect to *all*
+    links because it *is* orphaned with respect to the ``MessageThread`` type's
+    ``messages`` field, which is the link governed by the deletion policy.
+
+    If the ``Channel`` type's ``messages`` link had the default policy, the
+    outcome would change.
+
+    .. code-block:: sdl-diff
+
+        type Channel {
+          title: str;
+          multi messages: Message {
+      -     on target delete allow;
+          }
+        }
+
+    With this schema change, the ``Message`` object would *not* be deleted, but
+    not because the message isn't globally orphaned. Deletion would be
+    prevented because of the default target deletion policy of ``restrict``
+    which would now be in force on the linking ``Channel`` object's
+    ``messages`` link.
+
+    The limited scope of ``if orphan`` holds true even when the two links to an
+    object are from the same type. If ``MessageThread`` had two different links
+    both linking to messages — maybe the existing ``messages`` link and another
+    called ``related`` used to link other related ``Message`` objects that are
+    not in the thread — ``if orphan`` on a deletion policy on ``message`` could
+    result in linked messages being deleted even if they were also linked from
+    another ``MessageThread`` object's ``related`` link because they were
+    orphaned with respect to the ``messages`` link.
 
 
 .. _ref_datamodel_link_polymorphic:

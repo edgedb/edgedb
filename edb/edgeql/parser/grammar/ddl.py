@@ -53,25 +53,31 @@ _new_nonterm = sdl_nontem_helper._new_nonterm
 
 class DDLStmt(Nonterm):
 
-    def reduce_DatabaseStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_DatabaseStmt(self, *_):
+        pass
 
-    def reduce_RoleStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_RoleStmt(self, *_):
+        pass
 
-    def reduce_ExtensionPackageStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_ExtensionPackageStmt(self, *_):
+        pass
 
-    def reduce_OptWithDDLStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_OptWithDDLStmt(self, *_):
+        pass
 
-    def reduce_MigrationStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_MigrationStmt(self, *_):
+        pass
 
 
 class DDLWithBlock(Nonterm):
-    def reduce_WithBlock(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_WithBlock(self, *_):
+        pass
 
 
 class OptWithDDLStmt(Nonterm):
@@ -79,142 +85,186 @@ class OptWithDDLStmt(Nonterm):
         self.val = kids[1].val
         self.val.aliases = kids[0].val.aliases
 
-    def reduce_WithDDLStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_WithDDLStmt(self, *_):
+        pass
 
 
 class WithDDLStmt(Nonterm):
-    def reduce_InnerDDLStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_InnerDDLStmt(self, *_):
+        pass
 
 
 class InnerDDLStmt(Nonterm):
 
-    def reduce_CreatePseudoTypeStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_CreatePseudoTypeStmt(self, *_):
+        pass
 
-    def reduce_CreateScalarTypeStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_CreateScalarTypeStmt(self, *_):
+        pass
 
-    def reduce_AlterScalarTypeStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_AlterScalarTypeStmt(self, *_):
+        pass
 
-    def reduce_DropScalarTypeStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_DropScalarTypeStmt(self, *_):
+        pass
 
-    def reduce_CreateAnnotationStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_CreateAnnotationStmt(self, *_):
+        pass
 
-    def reduce_AlterAnnotationStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_AlterAnnotationStmt(self, *_):
+        pass
 
-    def reduce_DropAnnotationStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_DropAnnotationStmt(self, *_):
+        pass
 
-    def reduce_CreateObjectTypeStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_CreateObjectTypeStmt(self, *_):
+        pass
 
-    def reduce_AlterObjectTypeStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_AlterObjectTypeStmt(self, *_):
+        pass
 
-    def reduce_DropObjectTypeStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_DropObjectTypeStmt(self, *_):
+        pass
 
-    def reduce_CreateAliasStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_CreateAliasStmt(self, *_):
+        pass
 
-    def reduce_AlterAliasStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_AlterAliasStmt(self, *_):
+        pass
 
-    def reduce_DropAliasStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_DropAliasStmt(self, *_):
+        pass
 
-    def reduce_CreateConstraintStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_CreateConstraintStmt(self, *_):
+        pass
 
-    def reduce_AlterConstraintStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_AlterConstraintStmt(self, *_):
+        pass
 
-    def reduce_DropConstraintStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_DropConstraintStmt(self, *_):
+        pass
 
-    def reduce_CreateLinkStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_CreateLinkStmt(self, *_):
+        pass
 
-    def reduce_AlterLinkStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_AlterLinkStmt(self, *_):
+        pass
 
-    def reduce_DropLinkStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_DropLinkStmt(self, *_):
+        pass
 
-    def reduce_CreatePropertyStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_CreatePropertyStmt(self, *_):
+        pass
 
-    def reduce_AlterPropertyStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_AlterPropertyStmt(self, *_):
+        pass
 
-    def reduce_DropPropertyStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_DropPropertyStmt(self, *_):
+        pass
 
-    def reduce_CreateModuleStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_CreateModuleStmt(self, *_):
+        pass
 
-    def reduce_AlterModuleStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_AlterModuleStmt(self, *_):
+        pass
 
-    def reduce_DropModuleStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_DropModuleStmt(self, *_):
+        pass
 
-    def reduce_CreateFunctionStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_CreateFunctionStmt(self, *_):
+        pass
 
-    def reduce_AlterFunctionStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_AlterFunctionStmt(self, *_):
+        pass
 
-    def reduce_DropFunctionStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_DropFunctionStmt(self, *_):
+        pass
 
-    def reduce_CreateOperatorStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_CreateOperatorStmt(self, *_):
+        pass
 
-    def reduce_AlterOperatorStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_AlterOperatorStmt(self, *_):
+        pass
 
-    def reduce_DropOperatorStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_DropOperatorStmt(self, *_):
+        pass
 
-    def reduce_CreateCastStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_CreateCastStmt(self, *_):
+        pass
 
-    def reduce_AlterCastStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_AlterCastStmt(self, *_):
+        pass
 
-    def reduce_CreateGlobalStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_CreateGlobalStmt(self, *_):
+        pass
 
-    def reduce_AlterGlobalStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_AlterGlobalStmt(self, *_):
+        pass
 
-    def reduce_DropGlobalStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_DropGlobalStmt(self, *_):
+        pass
 
-    def reduce_DropCastStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_DropCastStmt(self, *_):
+        pass
 
-    def reduce_ExtensionStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_ExtensionStmt(self, *_):
+        pass
 
-    def reduce_FutureStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_FutureStmt(self, *_):
+        pass
 
-    def reduce_CreateIndexStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_CreateIndexStmt(self, *_):
+        pass
 
-    def reduce_AlterIndexStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_AlterIndexStmt(self, *_):
+        pass
 
-    def reduce_DropIndexStmt(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_DropIndexStmt(self, *_):
+        pass
 
 
 class InnerDDLStmtBlock(parsing.ListNonterm, element=InnerDDLStmt,
@@ -223,8 +273,9 @@ class InnerDDLStmtBlock(parsing.ListNonterm, element=InnerDDLStmt,
 
 
 class PointerName(Nonterm):
+    @parsing.inline(0)
     def reduce_PtrNodeName(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_DUNDERTYPE(self, *kids):
         self.val = qlast.ObjectRef(name=kids[0].val)
@@ -321,14 +372,17 @@ def commands_block(parent, *commands, opt=True, production_tpl=ProductionTpl):
 
 class NestedQLBlockStmt(Nonterm):
 
+    @parsing.inline(0)
     def reduce_Stmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_OptWithDDLStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_SetFieldStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 class NestedQLBlock(ProductionTpl):
@@ -570,8 +624,9 @@ class AlterSimpleExtending(Nonterm):
     def reduce_DROP_EXTENDING_SimpleTypeNameList(self, *kids):
         self.val = qlast.AlterDropInherit(bases=kids[2].val)
 
+    @parsing.inline(0)
     def reduce_AlterAbstract(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 class AlterExtending(Nonterm):
@@ -582,8 +637,9 @@ class AlterExtending(Nonterm):
     def reduce_DROP_EXTENDING_TypeNameList(self, *kids):
         self.val = qlast.AlterDropInherit(bases=kids[2].val)
 
+    @parsing.inline(0)
     def reduce_AlterAbstract(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 class AlterOwnedStmt(Nonterm):
@@ -639,11 +695,13 @@ class DatabaseName(Nonterm):
 
 class DatabaseStmt(Nonterm):
 
+    @parsing.inline(0)
     def reduce_CreateDatabaseStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_DropDatabaseStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 #
@@ -689,11 +747,13 @@ class DropDatabaseStmt(Nonterm):
 
 class ExtensionPackageStmt(Nonterm):
 
+    @parsing.inline(0)
     def reduce_CreateExtensionPackageStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_DropExtensionPackageStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 #
@@ -757,11 +817,13 @@ class DropExtensionPackageStmt(Nonterm):
 
 class ExtensionStmt(Nonterm):
 
+    @parsing.inline(0)
     def reduce_CreateExtensionStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_DropExtensionStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 #
@@ -808,11 +870,13 @@ class DropExtensionStmt(Nonterm):
 
 class FutureStmt(Nonterm):
 
+    @parsing.inline(0)
     def reduce_CreateFutureStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_DropFutureStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 #
@@ -848,14 +912,17 @@ class DropFutureStmt(Nonterm):
 
 class RoleStmt(Nonterm):
 
+    @parsing.inline(0)
     def reduce_CreateRoleStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_AlterRoleStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_DropRoleStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 #
@@ -867,8 +934,9 @@ class ShortExtending(Nonterm):
 
 
 class OptShortExtending(Nonterm):
+    @parsing.inline(0)
     def reduce_ShortExtending(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_empty(self, *kids):
         self.val = []
@@ -1678,8 +1746,9 @@ class CreateConcretePropertyStmt(Nonterm):
 
 
 class OptAlterUsingClause(Nonterm):
+    @parsing.inline(1)
     def reduce_USING_ParenExpr(self, *kids):
-        self.val = kids[1].val
+        pass
 
     def reduce_empty(self):
         self.val = None
@@ -2662,8 +2731,9 @@ commands_block(
 
 class OptCreateOperatorCommandsBlock(Nonterm):
 
+    @parsing.inline(0)
     def reduce_CreateOperatorCommandsBlock(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_empty(self, *kids):
         self.val = []
@@ -3189,32 +3259,41 @@ class DropGlobalStmt(Nonterm):
 
 class MigrationStmt(Nonterm):
 
+    @parsing.inline(0)
     def reduce_CreateMigrationStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_AlterMigrationStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_AlterCurrentMigrationStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_StartMigrationStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_AbortMigrationStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_PopulateMigrationStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_CommitMigrationStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_DropMigrationStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_ResetSchemaStmt(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 class MigrationBody(typing.NamedTuple):

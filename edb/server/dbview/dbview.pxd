@@ -28,10 +28,8 @@ cpdef enum SideEffects:
     SchemaChanges = 1 << 0
     DatabaseConfigChanges = 1 << 1
     InstanceConfigChanges = 1 << 2
-    RoleChanges = 1 << 3
-    GlobalSchemaChanges = 1 << 4
-    DatabaseChanges = 1 << 5
-    ExtensionChanges = 1 << 6
+    GlobalSchemaChanges = 1 << 3
+    DatabaseChanges = 1 << 4
 
 
 @cython.final
@@ -62,12 +60,16 @@ cdef class DatabaseIndex:
     cdef:
         dict _dbs
         object _server
+        object _tenant
         object _sys_config
         object _comp_sys_config
         object _std_schema
-        object _global_schema
-        object _factory
+        object _global_schema_pickle
         object _default_sysconfig
+        object _sys_config_spec
+        object _cached_compiler_args
+
+    cdef invalidate_caches(self)
 
 
 cdef class Database:
@@ -79,17 +81,17 @@ cdef class Database:
         object _views
         object _introspection_lock
         object _state_serializers
+        object user_config_spec
 
         readonly str name
         readonly object dbver
         readonly object db_config
-        readonly object user_schema
+        readonly bytes user_schema_pickle
         readonly object reflection_cache
         readonly object backend_ids
         readonly object extensions
 
     cdef schedule_config_update(self)
-    cdef schedule_extensions_update(self)
 
     cdef _invalidate_caches(self)
     cdef _cache_compiled_query(self, key, query_unit)
@@ -98,12 +100,15 @@ cdef class Database:
     cdef _update_backend_ids(self, new_types)
     cdef _set_and_signal_new_user_schema(
         self,
-        new_schema,
+        new_schema_pickle,
+        extensions,
+        ext_config_settings,
         reflection_cache=?,
         backend_ids=?,
         db_config=?,
     )
     cdef get_state_serializer(self, protocol_version)
+    cpdef set_state_serializer(self, protocol_version, serializer)
 
 
 cdef class DatabaseConnectionView:
@@ -139,15 +144,13 @@ cdef class DatabaseConnectionView:
         object _txid
         object _in_tx_db_config
         object _in_tx_savepoints
-        object _in_tx_user_schema_pickled
-        object _in_tx_user_schema
-        object _in_tx_global_schema_pickled
-        object _in_tx_global_schema
+        object _in_tx_user_schema_pickle
+        object _in_tx_user_config_spec
+        object _in_tx_global_schema_pickle
         object _in_tx_new_types
         int _in_tx_dbver
         bint _in_tx
         bint _in_tx_with_ddl
-        bint _in_tx_with_role_ddl
         bint _in_tx_with_sysconfig
         bint _in_tx_with_dbconfig
         bint _in_tx_with_set
@@ -184,8 +187,17 @@ cdef class DatabaseConnectionView:
     cdef on_error(self)
     cdef on_success(self, query_unit, new_types)
     cdef commit_implicit_tx(
-        self, user_schema, global_schema, cached_reflection
+        self,
+        user_schema,
+        extensions,
+        ext_config_settings,
+        global_schema,
+        roles,
+        cached_reflection,
     )
+
+    cdef get_user_config_spec(self)
+    cpdef get_config_spec(self)
 
     cpdef get_session_config(self)
     cdef set_session_config(self, new_conf)

@@ -73,13 +73,6 @@ ALTER TYPE cfg::AbstractConfig {
         SET default := 0;
     };
 
-
-    CREATE PROPERTY __internal_no_const_folding -> std::bool {
-        CREATE ANNOTATION cfg::internal := 'true';
-        CREATE ANNOTATION cfg::affects_compilation := 'true';
-        SET default := false;
-    };
-
     CREATE PROPERTY __internal_testmode -> std::bool {
         CREATE ANNOTATION cfg::internal := 'true';
         SET default := false;
@@ -119,6 +112,41 @@ ALTER TYPE cfg::AbstractConfig {
     CREATE PROPERTY __pg_max_connections -> std::int64 {
         CREATE ANNOTATION cfg::internal := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"max_connections"';
+    };
+};
+
+
+# For testing configs defined in extensions
+create extension package _conf VERSION '1.0' {
+    set ext_module := "ext::_conf";
+    set sql_extensions := [];
+    create module ext::_conf;
+
+    create type ext::_conf::Obj extending cfg::ConfigObject {
+        create required property name -> std::str {
+            set readonly := true;
+            create constraint std::exclusive;
+        };
+        create required property value -> std::str {
+            set readonly := true;
+        };
+        create property opt_value -> std::str {
+            set readonly := true;
+        };
+    };
+    create type ext::_conf::SubObj extending ext::_conf::Obj {
+        create required property extra -> int64 {
+            set readonly := true;
+        };
+    };
+
+    create type ext::_conf::Config extending cfg::ExtensionConfig {
+        create multi link objs -> ext::_conf::Obj;
+
+        create property config_name -> std::str {
+            set default := "";
+        };
+        create property opt_value -> std::str;
     };
 };
 

@@ -29,37 +29,18 @@ from edb.server.compiler.explain import pg_tree
 
 
 class TestEdgeQLExplain(tb.QueryTestCase):
-    '''Tests for EXPLAIN'''
+    '''Tests for EXPLAIN.
+
+    This is a good way of testing explain functionality, but also this can be
+    used to test indexes.
+    '''
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'issues.esdl')
+                          'explain.esdl')
 
     SETUP = [
         os.path.join(os.path.dirname(__file__), 'schemas',
-                     'issues_setup.edgeql'),
-        '''
-            alter type User {
-                create link owned_issues := .<owner[is Issue]
-            };
-            # Make the database more populated so that it uses
-            # indexes...
-            for i in range_unpack(range(1, 1000)) union (
-              with u := (insert User { name := <str>i }),
-              for j in range_unpack(range(0, 5)) union (
-                insert Issue {
-                  owner := u,
-                  number := <str>(i*100 + j),
-                  name := "issue " ++ <str>i ++ "/" ++ <str>j,
-                  status := (select Status filter .name = 'Open'),
-                  body := "BUG",
-                }
-            ));
-            update User set {
-              todo += (select .owned_issues filter <int64>.number % 3 = 0)
-            };
-
-            administer statistics_update();
-        '''
+                     'explain_setup.edgeql'),
     ]
 
     def assert_plan(self, data, shape, message=None):
@@ -175,7 +156,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                     "contexts": [
                         {
                             "buffer_idx": 0,
-                            "end": 116,
+                            "end": 115,
                             "start": 74,
                         }
                     ],
@@ -278,7 +259,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                     "contexts": [
                         {
                             "buffer_idx": 0,
-                            "end": 174,
+                            "end": 173,
                             "start": 134,
                         },
                     ],
@@ -1229,6 +1210,592 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             await self.con.query_single('''
                 analyze (execute := "hell yeah") select User
             ''')
+
+    def assert_index_in_plan(self, data, propname, message='Index test'):
+        # First we check the plan_type as there are a couple of valid options
+        # here: IndexScan and BitmapHeapScan, but they have different
+        # substructure to check.
+        self.assert_plan(
+            data,
+            {
+                'fine_grained': {
+                    'pipeline': [dict()]
+                }
+            },
+            message=message,
+        )
+        plan_type = data['fine_grained']['pipeline'][0]['plan_type']
+        self.assert_plan(
+            data['fine_grained'],
+            self.get_gist_index_expected_res(
+                propname, plan_type, message=message
+            ),
+            message=message,
+        )
+
+    def get_gist_index_expected_res(self, fname, plan_type, message=None):
+        if plan_type == 'IndexScan':
+            return {
+                "pipeline": [
+                    {
+                        "plan_type": "IndexScan",
+                        "properties": tb.bag([
+                            {
+                                'important': False,
+                                'title': 'schema',
+                                'type': 'text',
+                                'value': 'edgedbpub',
+                            },
+                            {
+                                'important': False,
+                                'title': 'alias',
+                                'type': 'text',
+                            },
+                            {
+                                'important': True,
+                                'title': 'relation_name',
+                                'type': 'relation',
+                                'value': 'RangeTest',
+                            },
+                            {
+                                'important': True,
+                                'title': 'scan_direction',
+                                'type': 'text',
+                                'value': 'NoMovement',
+                            },
+                            {
+                                'important': True,
+                                'title': 'index_name',
+                                'type': 'index',
+                                'value':
+                                    f"index 'pg::gist' of object type "
+                                    f"'default::RangeTest' on (.{fname})",
+                            },
+                            {
+                                'important': False,
+                                'title': 'index_cond',
+                                'type': 'expr',
+                            },
+                        ]),
+                    },
+                ],
+            }
+        elif plan_type == 'BitmapHeapScan':
+            return {
+                "pipeline": [
+                    {
+                        "plan_type": "BitmapHeapScan",
+                    },
+                ],
+                "subplans": [
+                    {
+                        "pipeline": [
+                            {
+                                "plan_type": "BitmapIndexScan",
+                                "properties": tb.bag([
+                                    {
+                                        'important': False,
+                                        'title': 'parent_relationship',
+                                        'type': 'text',
+                                        'value': 'Outer',
+                                    },
+                                    {
+                                        'important': True,
+                                        'title': 'index_name',
+                                        'type': 'index',
+                                        'value':
+                                            f"index 'pg::gist' of object"
+                                            f" type 'default::RangeTest'"
+                                            f" on (.{fname})",
+                                    },
+                                    {
+                                        'important': False,
+                                        'title': 'index_cond',
+                                        'type': 'expr',
+                                    },
+                                ]),
+                            },
+                        ],
+                    },
+                ],
+            }
+        else:
+            self.fail(
+                f'{message}: "plan_type" expected to be "IndexScan" or '
+                f'"BitmapHeapScan", got {plan_type!r}'
+            )
+
+    async def test_edgeql_explain_ranges_contains_01(self):
+        res = await self.explain('''
+            select RangeTest {id, rval}
+            filter contains(.rval, 295)
+        ''')
+        self.assert_index_in_plan(res, 'rval')
+
+        res = await self.explain('''
+            select RangeTest {id, mval}
+            filter contains(.mval, 295)
+        ''')
+        self.assert_index_in_plan(res, 'mval')
+
+        res = await self.explain('''
+            select RangeTest {id, rdate}
+            filter contains(.rdate, <cal::local_date>'2000-01-05')
+        ''')
+        self.assert_index_in_plan(res, 'rdate')
+
+        res = await self.explain('''
+            select RangeTest {id, mdate}
+            filter contains(.mdate, <cal::local_date>'2000-01-05')
+        ''')
+        self.assert_index_in_plan(res, 'mdate')
+
+    async def test_edgeql_explain_ranges_contains_02(self):
+        res = await self.explain('''
+            select RangeTest {id, rval}
+            filter contains(.rval, range(295, 299))
+        ''')
+        self.assert_index_in_plan(res, 'rval')
+
+        res = await self.explain('''
+            select RangeTest {id, mval}
+            filter contains(.mval, range(295, 299))
+        ''')
+        self.assert_index_in_plan(res, 'mval')
+
+        res = await self.explain('''
+            select RangeTest {id, rdate}
+            filter contains(
+                .rdate,
+                range(<cal::local_date>'2000-01-05',
+                      <cal::local_date>'2000-01-10')
+            )
+        ''')
+        self.assert_index_in_plan(res, 'rdate')
+
+        res = await self.explain('''
+            select RangeTest {id, mdate}
+            filter contains(
+                .mdate,
+                range(<cal::local_date>'2000-01-05',
+                      <cal::local_date>'2000-01-10')
+            )
+        ''')
+        self.assert_index_in_plan(res, 'mdate')
+
+    async def test_edgeql_explain_ranges_contains_03(self):
+        res = await self.explain('''
+            select RangeTest {id, mval}
+            filter contains(
+                .mval,
+                multirange([
+                    range(-299, 297),
+                    range(297, 299),
+                ])
+            )
+        ''')
+        self.assert_index_in_plan(res, 'mval')
+
+        res = await self.explain('''
+            select RangeTest {id, mdate}
+            filter contains(
+                .mdate,
+                multirange([
+                    range(<cal::local_date>'2000-01-05',
+                          <cal::local_date>'2000-01-10'),
+                    range(<cal::local_date>'2010-01-05',
+                          <cal::local_date>'2010-01-10'),
+                ])
+            )
+        ''')
+        self.assert_index_in_plan(res, 'mdate')
+
+    async def test_edgeql_explain_ranges_overlaps_01(self):
+        # The field is the first arg in `overlaps`
+        res = await self.explain('''
+            select RangeTest {id, rval}
+            filter overlaps(.rval, range(295, 299))
+        ''')
+        self.assert_index_in_plan(res, 'rval')
+
+        res = await self.explain('''
+            select RangeTest {id, mval}
+            filter overlaps(.mval, range(295, 299))
+        ''')
+        self.assert_index_in_plan(res, 'mval')
+
+        res = await self.explain('''
+            select RangeTest {id, rdate}
+            filter overlaps(
+                .rdate,
+                range(<cal::local_date>'2000-01-05',
+                      <cal::local_date>'2000-01-10'),
+            )
+        ''')
+        self.assert_index_in_plan(res, 'rdate')
+
+        res = await self.explain('''
+            select RangeTest {id, mdate}
+            filter overlaps(
+                .mdate,
+                range(<cal::local_date>'2000-01-05',
+                      <cal::local_date>'2000-01-10'),
+            )
+        ''')
+        self.assert_index_in_plan(res, 'mdate')
+
+    async def test_edgeql_explain_ranges_overlaps_02(self):
+        # The field is the second arg in `overlaps`
+        res = await self.explain('''
+            select RangeTest {id, rval}
+            filter overlaps(range(295, 299), .rval)
+        ''')
+        self.assert_index_in_plan(res, 'rval')
+
+        res = await self.explain('''
+            select RangeTest {id, mval}
+            filter overlaps(range(295, 299), .mval)
+        ''')
+        self.assert_index_in_plan(res, 'mval')
+
+        res = await self.explain('''
+            select RangeTest {id, rdate}
+            filter overlaps(
+                range(<cal::local_date>'2000-01-05',
+                      <cal::local_date>'2000-01-10'),
+                .rdate,
+            )
+        ''')
+        self.assert_index_in_plan(res, 'rdate')
+
+        res = await self.explain('''
+            select RangeTest {id, mdate}
+            filter overlaps(
+                range(<cal::local_date>'2000-01-05',
+                      <cal::local_date>'2000-01-10'),
+                .mdate,
+            )
+        ''')
+        self.assert_index_in_plan(res, 'mdate')
+
+    async def test_edgeql_explain_ranges_adjacent_01(self):
+        # The field is the first arg in `adjacent`
+        res = await self.explain('''
+            select RangeTest {id, rval}
+            filter adjacent(.rval, range(295, 299))
+        ''')
+        self.assert_index_in_plan(res, 'rval')
+
+        res = await self.explain('''
+            select RangeTest {id, mval}
+            filter adjacent(.mval, range(295, 299))
+        ''')
+        self.assert_index_in_plan(res, 'mval')
+
+        res = await self.explain('''
+            select RangeTest {id, rdate}
+            filter adjacent(
+                .rdate,
+                range(<cal::local_date>'2000-01-05',
+                      <cal::local_date>'2000-01-10'),
+            )
+        ''')
+        self.assert_index_in_plan(res, 'rdate')
+
+        res = await self.explain('''
+            select RangeTest {id, mdate}
+            filter adjacent(
+                .mdate,
+                range(<cal::local_date>'2000-01-05',
+                      <cal::local_date>'2000-01-10'),
+            )
+        ''')
+        self.assert_index_in_plan(res, 'mdate')
+
+    async def test_edgeql_explain_ranges_adjacent_02(self):
+        # The field is the second arg in `adjacent`
+        res = await self.explain('''
+            select RangeTest {id, rval}
+            filter adjacent(range(295, 299), .rval)
+        ''')
+        self.assert_index_in_plan(res, 'rval')
+
+        res = await self.explain('''
+            select RangeTest {id, mval}
+            filter adjacent(range(295, 299), .mval)
+        ''')
+        self.assert_index_in_plan(res, 'mval')
+
+        res = await self.explain('''
+            select RangeTest {id, rdate}
+            filter adjacent(
+                range(<cal::local_date>'2000-01-05',
+                      <cal::local_date>'2000-01-10'),
+                .rdate,
+            )
+        ''')
+        self.assert_index_in_plan(res, 'rdate')
+
+        res = await self.explain('''
+            select RangeTest {id, mdate}
+            filter adjacent(
+                range(<cal::local_date>'2000-01-05',
+                      <cal::local_date>'2000-01-10'),
+                .mdate,
+            )
+        ''')
+        self.assert_index_in_plan(res, 'mdate')
+
+    async def test_edgeql_explain_ranges_strictly_below_01(self):
+        # The field is the first arg in `strictly_below`
+        res = await self.explain('''
+            select RangeTest {id, rval}
+            filter strictly_below(.rval, range(-50, 50))
+        ''')
+        self.assert_index_in_plan(res, 'rval')
+
+        res = await self.explain('''
+            select RangeTest {id, mval}
+            filter strictly_below(.mval, range(-50, 50))
+        ''')
+        self.assert_index_in_plan(res, 'mval')
+
+        res = await self.explain('''
+            select RangeTest {id, rdate}
+            filter strictly_below(
+                .rdate,
+                range(<cal::local_date>'2005-01-05',
+                      <cal::local_date>'2012-02-10'),
+            )
+        ''')
+        self.assert_index_in_plan(res, 'rdate')
+
+        res = await self.explain('''
+            select RangeTest {id, mdate}
+            filter strictly_below(
+                .mdate,
+                range(<cal::local_date>'2005-01-05',
+                      <cal::local_date>'2012-02-10'),
+            )
+        ''')
+        self.assert_index_in_plan(res, 'mdate')
+
+    async def test_edgeql_explain_ranges_strictly_below_02(self):
+        # The field is the second arg in `strictly_below`
+        res = await self.explain('''
+            select RangeTest {id, rval}
+            filter strictly_below(range(-50, 50), .rval)
+        ''')
+        self.assert_index_in_plan(res, 'rval')
+
+        res = await self.explain('''
+            select RangeTest {id, mval}
+            filter strictly_below(range(-50, 50), .mval)
+        ''')
+        self.assert_index_in_plan(res, 'mval')
+
+        res = await self.explain('''
+            select RangeTest {id, rdate}
+            filter strictly_below(
+                range(<cal::local_date>'2005-01-05',
+                      <cal::local_date>'2012-02-10'),
+                .rdate,
+            )
+        ''')
+        self.assert_index_in_plan(res, 'rdate')
+
+        res = await self.explain('''
+            select RangeTest {id, mdate}
+            filter strictly_below(
+                range(<cal::local_date>'2005-01-05',
+                      <cal::local_date>'2012-02-10'),
+                .mdate,
+            )
+        ''')
+        self.assert_index_in_plan(res, 'mdate')
+
+    async def test_edgeql_explain_ranges_strictly_above_01(self):
+        # The field is the first arg in `strictly_above`
+        res = await self.explain('''
+            select RangeTest {id, rval}
+            filter strictly_above(.rval, range(-50, 50))
+        ''')
+        self.assert_index_in_plan(res, 'rval')
+
+        res = await self.explain('''
+            select RangeTest {id, mval}
+            filter strictly_above(.mval, range(-50, 50))
+        ''')
+        self.assert_index_in_plan(res, 'mval')
+
+        res = await self.explain('''
+            select RangeTest {id, rdate}
+            filter strictly_above(
+                .rdate,
+                range(<cal::local_date>'2005-01-05',
+                      <cal::local_date>'2012-02-10'),
+            )
+        ''')
+        self.assert_index_in_plan(res, 'rdate')
+
+        res = await self.explain('''
+            select RangeTest {id, mdate}
+            filter strictly_above(
+                .mdate,
+                range(<cal::local_date>'2005-01-05',
+                      <cal::local_date>'2012-02-10'),
+            )
+        ''')
+        self.assert_index_in_plan(res, 'mdate')
+
+    async def test_edgeql_explain_ranges_strictly_above_02(self):
+        # The field is the second arg in `strictly_above`
+        res = await self.explain('''
+            select RangeTest {id, rval}
+            filter strictly_above(range(-50, 50), .rval)
+        ''')
+        self.assert_index_in_plan(res, 'rval')
+
+        res = await self.explain('''
+            select RangeTest {id, mval}
+            filter strictly_above(range(-50, 50), .mval)
+        ''')
+        self.assert_index_in_plan(res, 'mval')
+
+        res = await self.explain('''
+            select RangeTest {id, rdate}
+            filter strictly_above(
+                range(<cal::local_date>'2005-01-05',
+                      <cal::local_date>'2012-02-10'),
+                .rdate,
+            )
+        ''')
+        self.assert_index_in_plan(res, 'rdate')
+
+        res = await self.explain('''
+            select RangeTest {id, mdate}
+            filter strictly_above(
+                range(<cal::local_date>'2005-01-05',
+                      <cal::local_date>'2012-02-10'),
+                .mdate,
+            )
+        ''')
+        self.assert_index_in_plan(res, 'mdate')
+
+    async def test_edgeql_explain_ranges_bounded_below_01(self):
+        # The field is the first arg in `bounded_below`
+        res = await self.explain('''
+            select RangeTest {id, rval}
+            filter bounded_below(.rval, range(-50, 50))
+        ''')
+        self.assert_index_in_plan(res, 'rval')
+
+        res = await self.explain('''
+            select RangeTest {id, mval}
+            filter bounded_below(.mval, range(-50, 50))
+        ''')
+        self.assert_index_in_plan(res, 'mval')
+
+        res = await self.explain('''
+            select RangeTest {id, rdate}
+            filter bounded_below(
+                .rdate,
+                range(<cal::local_date>'2012-01-05',
+                      <cal::local_date>'2015-02-10'),
+            )
+        ''')
+        self.assert_index_in_plan(res, 'rdate')
+
+        res = await self.explain('''
+            select RangeTest {id, mdate}
+            filter bounded_below(
+                .mdate,
+                range(<cal::local_date>'2012-01-05',
+                      <cal::local_date>'2015-02-10'),
+            )
+        ''')
+        self.assert_index_in_plan(res, 'mdate')
+
+    async def test_edgeql_explain_ranges_bounded_above_01(self):
+        # The field is the first arg in `bounded_above`
+        res = await self.explain('''
+            select RangeTest {id, rval}
+            filter bounded_above(.rval, range(-50, 50))
+        ''')
+        self.assert_index_in_plan(res, 'rval')
+
+        res = await self.explain('''
+            select RangeTest {id, mval}
+            filter bounded_above(.mval, range(-50, 50))
+        ''')
+        self.assert_index_in_plan(res, 'mval')
+
+        res = await self.explain('''
+            select RangeTest {id, rdate}
+            filter bounded_above(
+                .rdate,
+                range(<cal::local_date>'2005-01-05',
+                      <cal::local_date>'2012-02-10'),
+            )
+        ''')
+        self.assert_index_in_plan(res, 'rdate')
+
+        res = await self.explain('''
+            select RangeTest {id, mdate}
+            filter bounded_above(
+                .mdate,
+                range(<cal::local_date>'2005-01-05',
+                      <cal::local_date>'2012-02-10'),
+            )
+        ''')
+        self.assert_index_in_plan(res, 'mdate')
+
+    async def test_edgeql_explain_json_contains_01(self):
+        res = await self.explain('''
+            select JSONTest {id, val}
+            filter contains(.val, <json>(a := 123))
+        ''')
+        self.assert_plan(
+            res['fine_grained']['subplans'][1],
+            {
+                "pipeline": [
+                    {
+                        "plan_type": "BitmapHeapScan",
+                    },
+                ],
+                "subplans": [
+                    {
+                        "pipeline": [
+                            {
+                                "plan_type": "BitmapIndexScan",
+                                "properties": tb.bag([
+                                    {
+                                        'important': False,
+                                        'title': 'parent_relationship',
+                                        'type': 'text',
+                                        'value': 'Outer',
+                                    },
+                                    {
+                                        'important': True,
+                                        'title': 'index_name',
+                                        'type': 'index',
+                                        'value':
+                                            f"index 'pg::gin' of object"
+                                            f" type 'default::JSONTest'"
+                                            f" on (.val)",
+                                    },
+                                    {
+                                        'important': False,
+                                        'title': 'index_cond',
+                                        'type': 'expr',
+                                    },
+                                ]),
+                            },
+                        ],
+                    },
+                ],
+            },
+        )
 
 
 class NameTranslation(unittest.TestCase):

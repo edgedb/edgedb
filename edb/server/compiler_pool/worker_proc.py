@@ -115,7 +115,7 @@ def main(get_handler):
     parser.add_argument("--version-serial", type=int)
     args = parser.parse_args()
 
-    ql_parser.preload(allow_rebuild=False)
+    ql_parser.preload(allow_rebuild=devmode.is_in_dev_mode(), paralellize=True)
     gc.freeze()
 
     listen_for_debugger()

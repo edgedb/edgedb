@@ -17,6 +17,7 @@
 #
 
 import decimal
+import json
 import os
 import re
 import textwrap
@@ -567,6 +568,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             };
         """)
+
+        await self.con.execute(
+            """
+            INSERT TestSelfLink1 { foo1 := 'hello' };
+            """
+        )
 
     async def test_edgeql_ddl_15(self):
         await self.con.execute(r"""
@@ -4330,7 +4337,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_function_20(self):
         with self.assertRaisesRegex(
                 edgedb.EdgeQLSyntaxError,
-                r"Unexpected ';'"):
+                "Unexpected ';'"):
 
             await self.con.execute(r'''
                 CREATE FUNCTION ddlf_20(f: int64) -> int64
@@ -4700,6 +4707,32 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     USING ('bar');
             """)
 
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"cannot create the .* function: overloading an object "
+            r"type-receiving function with differences in the type modifiers "
+            r"of parameters is not supported",
+        ):
+            await self.con.execute(r"""
+                CREATE FUNCTION func32_a(obj: Foo, a: int32) -> str
+                    USING ('foo');
+                CREATE FUNCTION func32_a(obj: Bar, a: OPTIONAL int32) -> str
+                    USING ('bar');
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"cannot create the .* function: object "
+            r"type-receiving functions may not be overloaded on an OPTIONAL "
+            r"parameter"
+        ):
+            await self.con.execute(r"""
+                CREATE FUNCTION func32_a(obj: OPTIONAL Foo) -> str
+                    USING ('foo');
+                CREATE FUNCTION func32_a(obj: OPTIONAL Bar) -> str
+                    USING ('bar');
+            """)
+
     async def test_edgeql_ddl_function_33(self):
         await self.con.execute(r"""
             CREATE TYPE Parent;
@@ -4868,6 +4901,25 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     variadic foo: optional std::int64) -> array<std::int64>
                 USING (assert_exists(foo));
             """)
+
+    async def test_edgeql_ddl_function_37(self):
+        obj = await self.con.query_single('''
+            create type X;
+            create function getUser(id: uuid) -> set of X {
+                using(
+                    select X filter .id = id
+                )
+            };
+            insert X;
+            insert X;
+        ''')
+        val = await self.con.query_single(
+            '''
+                select count(getUser(<uuid>$0))
+            ''',
+            obj.id,
+        )
+        self.assertEqual(val, 1)
 
     async def test_edgeql_ddl_function_rename_01(self):
         await self.con.execute("""
@@ -5974,7 +6026,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                r'cannot change concrete base of a scalar type'):
+                r'cannot change concrete base of scalar type '
+                r'default::Foo from std::str to std::int64'):
             await self.con.execute('''
                 alter scalar type Foo {
                     drop extending str;
@@ -8646,6 +8699,45 @@ type default::Foo {
                 CREATE EXTENSION MyExtension VERSION '3.0';
             """)
 
+    async def test_edgeql_ddl_extension_02(self):
+        await self.con.execute(r"""
+            CREATE EXTENSION PACKAGE TestAuthExtension VERSION '1.0' {
+                set ext_module := "ext::auth";
+
+                create module ext::auth;
+
+                create type ext::auth::Identity {
+                    create required property provider: std::str;
+                };
+
+                create type ext::auth::Email {
+                    create required property primary: std::bool;
+                    create required link identity: ext::auth::Identity;
+                    create constraint exclusive on ((.identity, .primary));
+                };
+
+                create scalar type ext::auth::JWTAlgo extending enum<RS256>;
+
+                create function ext::auth::_jwt_check_signature(
+                    algo: ext::auth::JWTAlgo = ext::auth::JWTAlgo.RS256,
+                ) -> bool
+                {
+                    set volatility := 'Immutable';
+                    using (
+                        algo = ext::auth::JWTAlgo.RS256
+                    );
+                };
+            }
+        """)
+
+        await self.con.execute(r"""
+            CREATE EXTENSION TestAuthExtension;
+        """)
+
+        await self.con.execute(r"""
+            DROP EXTENSION TestAuthExtension;
+        """)
+
     async def test_edgeql_ddl_role_01(self):
         if not self.has_create_role:
             self.skipTest("create role is not supported by the backend")
@@ -10242,6 +10334,43 @@ type default::Foo {
             };
         """)
 
+    async def test_edgeql_ddl_constraint_26(self):
+        await self.con.execute("""
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY val: tuple<int64, int64> {
+                    CREATE CONSTRAINT exclusive ON (.0);
+                };
+                CREATE CONSTRAINT exclusive ON (.val.1);
+                CREATE PROPERTY x: int64;
+                CREATE CONSTRAINT exclusive ON (<str>.x);
+            };
+        """)
+
+        await self.con.execute("""
+            insert Foo { val := (1, 2), x := 3 };
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'val violates exclusivity constraint'):
+            await self.con.execute("""
+                insert Foo { val := (1, -1), x := -1 };
+            """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'Foo violates exclusivity constraint'):
+            await self.con.execute("""
+                insert Foo { val := (-1, 2), x := -1 };
+            """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'Foo violates exclusivity constraint'):
+            await self.con.execute("""
+                insert Foo { val := (-1, -2), x := 3 };
+            """)
+
     async def test_edgeql_ddl_constraint_check_01a(self):
         await self.con.execute(r"""
             create type Foo {
@@ -11301,7 +11430,8 @@ type default::Foo {
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                'enumeration must be the only supertype specified'):
+                "cannot add supertype scalar type 'std::str' to enum type "
+                "default::Color"):
             await self.con.execute('''
                 ALTER SCALAR TYPE Color EXTENDING str FIRST;
             ''')
@@ -11311,8 +11441,7 @@ type default::Foo {
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                'cannot add another enum as supertype, '
-                'use EXTENDING without position qualification'):
+                'cannot add supertype enum<Bad> to enum type default::Color'):
             await self.con.execute('''
                 ALTER SCALAR TYPE Color
                     EXTENDING enum<Bad> LAST;
@@ -11323,7 +11452,7 @@ type default::Foo {
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                'cannot set more than one enum as supertype'):
+                'enum default::Color may not have multiple supertypes'):
             await self.con.execute('''
                 ALTER SCALAR TYPE Color
                     EXTENDING enum<Bad>, enum<AlsoBad>;
@@ -12291,9 +12420,9 @@ type default::Foo {
 
     async def test_edgeql_ddl_index_01(self):
         with self.assertRaisesRegex(
-            edgedb.ResultCardinalityMismatchError,
+            edgedb.SchemaDefinitionError,
             r"possibly more than one element returned by the index expression",
-            _line=4, _col=34
+            _line=4, _col=38
         ):
             await self.con.execute(r"""
                 CREATE TYPE Foo {
@@ -12304,9 +12433,9 @@ type default::Foo {
 
     async def test_edgeql_ddl_index_02(self):
         with self.assertRaisesRegex(
-            edgedb.ResultCardinalityMismatchError,
+            edgedb.SchemaDefinitionError,
             r"possibly more than one element returned by the index expression",
-            _line=5, _col=34
+            _line=5, _col=38
         ):
             await self.con.execute(r"""
                 CREATE TYPE Foo {
@@ -12318,9 +12447,9 @@ type default::Foo {
 
     async def test_edgeql_ddl_index_03(self):
         with self.assertRaisesRegex(
-            edgedb.ResultCardinalityMismatchError,
+            edgedb.SchemaDefinitionError,
             r"possibly more than one element returned by the index expression",
-            _line=5, _col=34
+            _line=5, _col=38
         ):
             await self.con.execute(r"""
                 CREATE TYPE Foo {
@@ -12726,7 +12855,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
         # work, and there is a commented bit below to test that.
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
-                "Unexpected keyword 'global'"):
+                "Unexpected keyword 'GLOBAL'"):
             await self.con.execute('''
                 CREATE MIGRATION
                 {
@@ -15914,3 +16043,330 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             await self.con.execute('''
                 drop extension package ltree_broken VERSION '1.0'
             ''')
+
+    async def _extension_test_05(self, in_tx):
+        await self.con.execute('''
+            create extension _conf
+        ''')
+
+        Q = '''
+            select cfg::%s {
+                conf := assert_single(.extensions[is ext::_conf::Config] {
+                    config_name,
+                    opt_value,
+                    objs: { name, value, opt_value,
+                            [is ext::_conf::SubObj].extra,
+                            tname := .__type__.name }
+                          order by .name,
+                })
+            };
+        '''
+
+        async def _check(_cfg_obj='Config', **kwargs):
+            q = Q % _cfg_obj
+            await self.assert_query_result(
+                q,
+                [{'conf': kwargs}],
+            )
+
+        await _check(
+            config_name='',
+            objs=[],
+        )
+
+        if not in_tx:
+            await self.con.execute('''
+                configure instance set ext::_conf::Config::config_name :=
+                    "instance";
+            ''')
+            await _check(
+                config_name='instance',
+                objs=[],
+            )
+
+        await self.con.execute('''
+            configure current database set ext::_conf::Config::config_name :=
+                "test";
+        ''')
+
+        await _check(
+            config_name='test',
+            opt_value=None,
+            objs=[],
+        )
+
+        await self.con.execute('''
+            configure current database set ext::_conf::Config::opt_value :=
+                "opt!";
+        ''')
+
+        await _check(
+            config_name='test',
+            opt_value='opt!',
+            objs=[],
+        )
+
+        if not in_tx:
+            await _check(
+                'InstanceConfig',
+                config_name='instance',
+                objs=[],
+            )
+
+        # TODO: This should all work, instead!
+        async with self.assertRaisesRegexTx(
+                edgedb.UnsupportedFeatureError, ""):
+            await self.con.execute('''
+                configure session set ext::_conf::Config::config_name :=
+                    "session!";
+            ''')
+
+            await _check(
+                config_name='session!',
+                objs=[],
+            )
+
+            await self.con.execute('''
+                configure session reset ext::_conf::Config::config_name;
+            ''')
+
+        await _check(
+            config_name='test',
+            objs=[],
+        )
+
+        await self.con.execute('''
+            configure current database insert ext::_conf::Obj {
+                name := '1',
+                value := 'foo',
+            };
+        ''')
+        await self.con.execute('''
+            configure current database insert ext::_conf::Obj {
+                name := '2',
+                value := 'bar',
+                opt_value := 'opt.',
+            };
+        ''')
+        await self.con.execute('''
+            configure current database insert ext::_conf::SubObj {
+                name := '3',
+                value := 'baz',
+                extra := 42,
+            };
+        ''')
+
+        await self.con.execute('''
+            configure current database set ext::_conf::Config::config_name :=
+                "ready";
+        ''')
+
+        await _check(
+            config_name='ready',
+            objs=[
+                dict(name='1', value='foo', tname='ext::_conf::Obj',
+                     opt_value=None),
+                dict(name='2', value='bar', tname='ext::_conf::Obj',
+                     opt_value='opt.'),
+                dict(name='3', value='baz', extra=42,
+                     tname='ext::_conf::SubObj', opt_value=None),
+            ],
+        )
+
+        if not in_tx:
+            # Load the in-memory config state via a HTTP debug endpoint
+            # Retry until we see 'ready' is visible
+            async for tr in self.try_until_succeeds(ignore=AssertionError):
+                async with tr:
+                    with self.http_con() as http_con:
+                        rdata, _headers, status = self.http_con_request(
+                            http_con,
+                            prefix="",
+                            path="server-info",
+                        )
+                        data = json.loads(rdata)
+                        db_data = data['databases'][self.get_database_name()]
+                        config = db_data['config']
+                        assert (
+                            config['ext::_conf::Config::config_name'] == 'ready'
+                        )
+
+            self.assertEqual(
+                sorted(
+                    config['ext::_conf::Config::objs'],
+                    key=lambda x: x['name'],
+                ),
+                [
+                    {'_tname': 'ext::_conf::Obj',
+                     'name': '1', 'value': 'foo', 'opt_value': None},
+                    {'_tname': 'ext::_conf::Obj',
+                     'name': '2', 'value': 'bar', 'opt_value': 'opt.'},
+                    {'_tname': 'ext::_conf::SubObj',
+                     'name': '3', 'value': 'baz', 'extra': 42,
+                     'opt_value': None},
+                ],
+            )
+
+        val = await self.con.query_single('''
+            describe current database config
+        ''')
+        test_expected = textwrap.dedent('''\
+        CONFIGURE CURRENT DATABASE SET ext::_conf::Config::config_name := \
+'ready';
+        CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
+            name := '1',
+            value := 'foo',
+        };
+        CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
+            name := '2',
+            opt_value := 'opt.',
+            value := 'bar',
+        };
+        CONFIGURE CURRENT DATABASE INSERT ext::_conf::SubObj {
+            extra := 42,
+            name := '3',
+            value := 'baz',
+        };
+        CONFIGURE CURRENT DATABASE SET ext::_conf::Config::opt_value := 'opt!';
+        ''')
+        self.assertEqual(val, test_expected)
+
+        await self.con.execute('''
+            configure current database reset ext::_conf::Obj
+            filter .value like 'ba%'
+        ''')
+
+        await _check(
+            config_name='ready',
+            objs=[
+                dict(name='1', value='foo'),
+            ],
+        )
+
+        await self.con.execute('''
+            configure current database reset ext::_conf::Obj
+        ''')
+        await self.con.execute('''
+            configure current database reset ext::_conf::Config::opt_value;
+        ''')
+
+        await _check(
+            config_name='ready',
+            opt_value=None,
+            objs=[],
+        )
+
+        await self.con.execute('''
+            configure current database reset ext::_conf::Config::config_name;
+        ''')
+        if not in_tx:
+            await _check(
+                config_name='instance',
+                objs=[],
+            )
+
+            await self.con.execute('''
+                configure instance reset ext::_conf::Config::config_name;
+            ''')
+
+        await _check(
+            config_name='',
+            objs=[],
+        )
+
+        if not in_tx:
+            con2 = await self.connect(database=self.con.dbname)
+            try:
+                await con2.query('select 1')
+                await self.con.execute('''
+                    CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
+                        name := 'fail',
+                        value := '',
+                    };
+                ''')
+
+                # This needs to fail
+                with self.assertRaisesRegex(
+                    edgedb.ConstraintViolationError, ""
+                ):
+                    await self.con.execute('''
+                        CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
+                            name := 'fail',
+                            value := '',
+                        };
+                        insert Test;
+                    ''')
+
+                # The code path by which the above fails is subtle (it
+                # gets triggered by config processing code in the
+                # server). Make sure that the error properly aborts
+                # the whole script.
+                await self.assert_query_result(
+                    'select count(Test)',
+                    [0],
+                )
+
+            finally:
+                await con2.aclose()
+
+    async def test_edgeql_ddl_extensions_05(self):
+        # Test config extension
+        await self.con.execute('''
+            create type Test;
+        ''')
+
+        try:
+            async with self._run_and_rollback():
+                await self._extension_test_05(in_tx=True)
+            try:
+                await self._extension_test_05(in_tx=False)
+            finally:
+                await self.con.execute('''
+                    drop extension _conf
+                ''')
+        finally:
+            await self.con.execute('''
+                drop type Test;
+            ''')
+
+    async def test_edgeql_ddl_reindex(self):
+        await self.con.execute('''
+            create type Tgt;
+            create type Foo {
+                create property foo -> str {
+                    create constraint exclusive;
+                };
+                create property bar -> str;
+                create index on (.foo);
+                create constraint exclusive on ((.foo, .bar));
+                create link tgt -> Tgt {
+                    create property foo -> str;
+                };
+                create link tgts -> Tgt {
+                    create property foo -> str;
+                };
+            };
+            create module test;
+            create type test::Bar extending Foo;
+        ''')
+        await self.con.execute('''
+            administer reindex(Foo)
+        ''')
+        await self.con.execute('''
+            administer reindex(Foo.foo)
+        ''')
+        await self.con.execute('''
+            administer reindex(Foo.bar)
+        ''')
+        await self.con.execute('''
+            administer reindex(Foo.tgt)
+        ''')
+        await self.con.execute('''
+            administer reindex(Foo.tgts)
+        ''')
+        await self.con.execute('''
+            administer reindex(test::Bar)
+        ''')
+        await self.con.execute('''
+            administer reindex(Object)
+        ''')

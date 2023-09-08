@@ -171,6 +171,7 @@ def eval_FuncCall(
 
     if fn_name == "set_config":
         # HACK: allow set_config('search_path', '', false) to support pg_dump
+        # HACK: allow set_config('bytea_output','hex',false) to support pgadmin
         if args := eval_list(expr.args, ctx=ctx):
             name, value, is_local = args
             if (
@@ -184,6 +185,14 @@ def eval_FuncCall(
                     and not is_local.val
                 ):
                     return value
+
+                if (
+                    name.val == "bytea_output"
+                    and value.val == "hex"
+                    and not is_local.val
+                ):
+                    return value
+
         raise errors.QueryError(
             "function set_config is not supported", context=expr.context
         )
@@ -245,6 +254,22 @@ def eval_FuncCall(
             return pgast.FuncCall(name=('edgedbsql', fn_name), args=fn_args)
 
         return pgast.FuncCall(name=('pg_catalog', fn_name), args=fn_args)
+
+    if fn_name == 'pg_table_is_visible':
+        arg_0 = dispatch.resolve(expr.args[0], ctx=ctx)
+
+        # our *_is_visible functions need search_path, passed in as an array
+        arg_1 = pgast.ArrayExpr(
+            elements=[
+                pgast.StringConstant(val=v)
+                for v in ctx.options.search_path
+            ]
+        )
+
+        return pgast.FuncCall(
+            name=('edgedbsql', fn_name),
+            args=[arg_0, arg_1]
+        )
 
     return None
 

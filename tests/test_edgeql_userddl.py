@@ -377,3 +377,43 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                     SET fallback := false;
                 }
             ''')
+
+    async def test_edgeql_userddl_28(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                r"cannot extend system type"):
+            await self.con.execute(r'''
+            create type Foo extending cfg::ConfigObject;
+            ''')
+
+    async def test_edgeql_userddl_29(self):
+        await self.con.execute('''
+            configure session set __internal_testmode := true;
+            create module ext::_test;
+            create type ext::_test::X;
+            configure session reset __internal_testmode;
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaDefinitionError, "module ext is read-only"):
+            await self.con.execute('''
+                create module ext::_test::foo;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaDefinitionError, "module ext is read-only"):
+            await self.con.execute('''
+                create type ext::_test::foo;
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaDefinitionError, "module ext is read-only"):
+            await self.con.execute('''
+                alter type ext::_test::X { create property x -> str };
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaDefinitionError, "module ext is read-only"):
+            await self.con.execute('''
+                drop type ext::_test::X;
+            ''')

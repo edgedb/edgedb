@@ -57,6 +57,7 @@ from edb.edgeql import desugar_group
 from . import astutils
 from . import clauses
 from . import context
+from . import config_desc
 from . import dispatch
 from . import inference
 from . import pathctx
@@ -854,26 +855,16 @@ def compile_DescribeStmt(
 
         elif ql.object is qlast.DescribeGlobal.DatabaseConfig:
             if ql.language is qltypes.DescribeLanguage.DDL:
-                function_call = dispatch.compile(
-                    qlast.FunctionCall(
-                        func=('cfg', '_describe_database_config_as_ddl'),
-                    ),
-                    ctx=ictx)
-                assert isinstance(function_call, irast.Set), function_call
-                stmt.result = function_call
+                stmt.result = config_desc.compile_describe_config(
+                    qltypes.ConfigScope.DATABASE, ctx=ictx)
             else:
                 raise errors.QueryError(
                     f'cannot describe config as {ql.language}')
 
         elif ql.object is qlast.DescribeGlobal.InstanceConfig:
             if ql.language is qltypes.DescribeLanguage.DDL:
-                function_call = dispatch.compile(
-                    qlast.FunctionCall(
-                        func=('cfg', '_describe_system_config_as_ddl'),
-                    ),
-                    ctx=ictx)
-                assert isinstance(function_call, irast.Set), function_call
-                stmt.result = function_call
+                stmt.result = config_desc.compile_describe_config(
+                    qltypes.ConfigScope.INSTANCE, ctx=ictx)
             else:
                 raise errors.QueryError(
                     f'cannot describe config as {ql.language}')
@@ -885,7 +876,6 @@ def compile_DescribeStmt(
                         func=('sys', '_describe_roles_as_ddl'),
                     ),
                     ctx=ictx)
-                assert isinstance(function_call, irast.Set), function_call
                 stmt.result = function_call
             else:
                 raise errors.QueryError(

@@ -78,7 +78,7 @@ async def handle_request(
     object response,
     object db,
     list args,
-    object server,
+    object tenant,
 ):
     if args == ['explore'] and request.method == b'GET':
         response.body = explore.EXPLORE_HTML
@@ -171,33 +171,18 @@ async def handle_request(
     response.content_type = b'application/json'
     try:
         result = await _execute(
-            db, server, query, operation_name, variables, globals)
+            db, tenant, query, operation_name, variables, globals)
     except Exception as ex:
         if debug.flags.server:
             markup.dump(ex)
 
-        ex_type = type(ex)
-        if issubclass(ex_type, gql_errors.GraphQLError):
+        if isinstance(ex, gql_errors.GraphQLError):
             # XXX Fix this when LSP "location" objects are implemented
             ex_type = errors.QueryError
-        elif issubclass(ex_type, pgerrors.BackendError):
-            static_exc = errormech.static_interpret_backend_error(
-                ex.fields, from_graphql=True)
-
-            # only use the backend if schema is required
-            if static_exc is errormech.SchemaRequired:
-                ex = errormech.interpret_backend_error(
-                    s_schema.ChainedSchema(
-                        server._std_schema,
-                        db.user_schema,
-                        server.get_global_schema(),
-                    ),
-                    ex.fields,
-                    from_graphql=True,
-                )
-            else:
-                ex = static_exc
-
+        else:
+            ex = await execute.interpret_error(
+                ex, db, from_graphql=True
+            )
             ex_type = type(ex)
 
         err_dct = {
@@ -215,33 +200,35 @@ async def handle_request(
 
 
 async def compile(
-    db,
-    server,
+    dbview.Database db,
+    tenant,
     query: str,
     tokens: Optional[List[Tuple[int, int, int, str]]],
     substitutions: Optional[Dict[str, Tuple[str, int, int]]],
     operation_name: Optional[str],
     variables: Dict[str, Any],
 ):
+    server = tenant.server
     compiler_pool = server.get_compiler_pool()
     return await compiler_pool.compile_graphql(
         db.name,
-        db.user_schema,
-        server.get_global_schema(),
+        db.user_schema_pickle,
+        tenant.get_global_schema_pickle(),
         db.reflection_cache,
         db.db_config,
-        server.get_compilation_system_config(),
+        db._index.get_compilation_system_config(),
         query,
         tokens,
         substitutions,
         operation_name,
         variables,
+        client_id=tenant.client_id,
     )
 
 
-async def _execute(db, server, query, operation_name, variables, globals):
+async def _execute(db, tenant, query, operation_name, variables, globals):
     dbver = db.dbver
-    query_cache = server._http_query_cache
+    query_cache = tenant.server._http_query_cache
 
     if variables:
         for var_name in variables:
@@ -306,7 +293,7 @@ async def _execute(db, server, query, operation_name, variables, globals):
         if rewritten is not None:
             qug, gql_op = await compile(
                 db,
-                server,
+                tenant,
                 query,
                 rewritten.tokens(gql_lexer.TokenKind),
                 rewritten.substitutions(),
@@ -316,7 +303,7 @@ async def _execute(db, server, query, operation_name, variables, globals):
         else:
             qug, gql_op = await compile(
                 db,
-                server,
+                tenant,
                 query,
                 None,
                 None,
@@ -345,13 +332,13 @@ async def _execute(db, server, query, operation_name, variables, globals):
 
     compiled = dbview.CompiledQuery(query_unit_group=qug)
 
-    dbv = await server.new_dbview(
+    dbv = await tenant.new_dbview(
         dbname=db.name,
         query_cache=False,
         protocol_version=edbdef.CURRENT_PROTOCOL,
     )
 
-    pgcon = await server.acquire_pgcon(db.name)
+    pgcon = await tenant.acquire_pgcon(db.name)
     try:
         return await execute.execute_json(
             pgcon,
@@ -363,4 +350,4 @@ async def _execute(db, server, query, operation_name, variables, globals):
             use_prep_stmt=use_prep_stmt,
         )
     finally:
-        server.release_pgcon(db.name, pgcon)
+        tenant.release_pgcon(db.name, pgcon)

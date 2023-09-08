@@ -19,6 +19,7 @@
 import csv
 import io
 import os.path
+import unittest
 
 from edb.testbase import server as tb
 from edb.tools import test
@@ -153,7 +154,7 @@ class TestSQL(tb.SQLQueryTestCase):
         res = await self.scon.fetch(
             '''
             SELECT * FROM "Movie"
-            JOIN "Genre" g ON "Movie".genre_id = "Genre".id
+            JOIN "Genre" g ON "Movie".genre_id = g.id
             '''
         )
         self.assert_shape(res, 2, 7)
@@ -565,6 +566,26 @@ class TestSQL(tb.SQLQueryTestCase):
         )
         self.assertEqual(res, [['24']])
 
+    async def test_sql_query_38(self):
+        res = await self.squery_values(
+            '''
+            WITH users AS (
+              SELECT 1 as id, NULL as managed_by
+              UNION ALL
+              SELECT 2 as id, 1 as managed_by
+            )
+            SELECT id, (
+              SELECT id FROM users e WHERE id = users.managed_by
+            ) as managed_by
+            FROM users
+            ORDER BY id
+            '''
+        )
+        self.assertEqual(res, [
+            [1, None],
+            [2, 1],
+        ])
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(
@@ -879,7 +900,11 @@ class TestSQL(tb.SQLQueryTestCase):
             "Movie", output=out, format="csv", delimiter="\t"
         )
         out = io.StringIO(out.getvalue().decode("utf-8"))
-        names = set(row[6] for row in csv.reader(out, delimiter="\t"))
+        # FIXME(#5716): Once COPY and information_schema are
+        # harmonized to agree on the order of columns, we should query
+        # information_schema to get the column number instead of
+        # hardcoding it.
+        names = set(row[7] for row in csv.reader(out, delimiter="\t"))
         self.assertEqual(names, {"Forrest Gump", "Saving Private Ryan"})
 
     async def test_sql_query_error_01(self):
@@ -967,3 +992,88 @@ class TestSQL(tb.SQLQueryTestCase):
         ):
             await self.scon.fetch('''SELECT 1 +
                 'foo' FROM "Movie" ORDER BY id''')
+
+    @unittest.skip("this test flakes: #5783")
+    async def test_sql_query_prepare_01(self):
+        await self.scon.execute(
+            """
+            PREPARE ps1(int) AS (
+                SELECT $1
+            )
+            """,
+        )
+
+        res = await self.squery_values(
+            """
+            EXECUTE ps1(100)
+            """,
+        )
+        self.assertEqual(res, [[100]])
+
+        await self.scon.execute(
+            """
+            DEALLOCATE ps1
+            """,
+        )
+
+        with self.assertRaises(
+            asyncpg.InvalidSQLStatementNameError,
+        ):
+            await self.scon.execute(
+                """
+                EXECUTE ps1(101)
+                """,
+            )
+
+        with self.assertRaises(
+            asyncpg.InvalidSQLStatementNameError,
+        ):
+            await self.scon.execute(
+                """
+                DEALLOCATE ps1
+                """,
+            )
+
+        # Prepare again to make sure DEALLOCATE worked
+        await self.scon.execute(
+            """
+            PREPARE ps1(int) AS (
+                SELECT $1 + 4
+            )
+            """,
+        )
+
+        res = await self.squery_values(
+            """
+            EXECUTE ps1(100)
+            """,
+        )
+        self.assertEqual(res, [[104]])
+
+        # Check that simple query works too.
+        res = await self.scon.execute(
+            """
+            EXECUTE ps1(100)
+            """,
+        )
+
+    async def test_sql_query_prepare_error_01(self):
+        query = "PREPARE pserr1 AS (SELECT * FROM \"Movie\" ORDER BY 1 + 'a')"
+        with self.assertRaisesRegex(
+            asyncpg.InvalidTextRepresentationError,
+            "type integer",
+            position=str(len(query) - 3),
+        ):
+            await self.scon.execute(query)
+
+    async def test_sql_query_empty(self):
+        await self.scon.executemany('', args=[])
+
+    async def test_sql_query_pgadmin_hack(self):
+        await self.scon.execute("SET DateStyle=ISO;")
+        await self.scon.execute("SET client_min_messages=notice;")
+        await self.scon.execute(
+            "SELECT set_config('bytea_output','hex',false) FROM pg_settings"
+            " WHERE name = 'bytea_output'; "
+        )
+        await self.scon.execute("SET client_encoding='WIN874';")

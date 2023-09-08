@@ -416,7 +416,6 @@ def new_empty_rvar(
     nullrel = pgast.NullRelation(
         path_id=ir_set.path_id, type_or_ptr_ref=ir_set.typeref)
     rvar = rvar_for_rel(nullrel, ctx=ctx)
-    pathctx.put_rvar_path_bond(rvar, ir_set.path_id)
     return rvar
 
 
@@ -1320,7 +1319,7 @@ def _plain_join(
         larg = query.from_clause[0]
         rarg = right_rvar
 
-        query.from_clause[0] = pgast.JoinExpr(
+        query.from_clause[0] = pgast.JoinExpr.make_inplace(
             type=join_type, larg=larg, rarg=rarg, quals=condition)
 
 
@@ -1363,7 +1362,7 @@ def _lateral_union_join(
         larg = query.from_clause[0]
         rarg = right_rvar
 
-        query.from_clause[0] = pgast.JoinExpr(
+        query.from_clause[0] = pgast.JoinExpr.make_inplace(
             type='cross', larg=larg, rarg=rarg)
 
 
@@ -2018,8 +2017,12 @@ def rvar_for_rel(
     typeref: Optional[irast.TypeRef] = None,
     lateral: bool = False,
     colnames: Optional[List[str]] = None,
-    ctx: context.CompilerContextLevel,
+    ctx: Optional[context.CompilerContextLevel] = None,
+    env: Optional[context.Environment] = None,
 ) -> pgast.PathRangeVar:
+    if ctx:
+        env = ctx.env
+    assert env
 
     rvar: pgast.PathRangeVar
 
@@ -2027,7 +2030,7 @@ def rvar_for_rel(
         colnames = []
 
     if isinstance(rel, pgast.Query):
-        alias = alias or ctx.env.aliases.get(rel.name or 'q')
+        alias = alias or env.aliases.get(rel.name or 'q')
 
         rvar = pgast.RangeSubselect(
             subquery=rel,
@@ -2036,7 +2039,7 @@ def rvar_for_rel(
             typeref=typeref,
         )
     else:
-        alias = alias or ctx.env.aliases.get(rel.name or '')
+        alias = alias or env.aliases.get(rel.name or '')
 
         rvar = pgast.RelRangeVar(
             relation=rel,

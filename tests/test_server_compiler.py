@@ -25,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import unittest.mock
 
 import immutables
 
@@ -33,6 +34,7 @@ from edb.testbase import lang as tb
 from edb.testbase import server as tbs
 from edb.server import args as edbargs
 from edb.server import compiler as edbcompiler
+from edb.server import config
 from edb.server.compiler_pool import amsg
 from edb.server.compiler_pool import pool
 from edb.server.dbview import dbview
@@ -389,18 +391,20 @@ class TestCompilerPool(tbs.TestCase):
             pool_ = await pool.create_compiler_pool(
                 runstate_dir=td,
                 pool_size=2,
-                dbindex=dbview.DatabaseIndex(
-                    None,
-                    std_schema=self._std_schema,
-                    global_schema=None,
-                    sys_config={},
-                    default_sysconfig=immutables.Map(),
-                ),
                 backend_runtime_params=None,
                 std_schema=self._std_schema,
                 refl_schema=self._refl_schema,
                 schema_class_layout=self._schema_class_layout,
                 pool_class=pool_class,
+                dbindex=dbview.DatabaseIndex(
+                    unittest.mock.MagicMock(),
+                    std_schema=self._std_schema,
+                    global_schema_pickle=pickle.dumps(None, -1),
+                    sys_config={},
+                    default_sysconfig=immutables.Map(),
+                    sys_config_spec=config.load_spec_from_schema(
+                        self._std_schema),
+                ),
             )
             # HACK: For adaptive pool, force the creation of a second
             # worker. This is needed to work around issue #4680, where
@@ -434,7 +438,7 @@ class TestCompilerPool(tbs.TestCase):
                     0,
                     edgeql.Source.from_string('SELECT 123'),
                     edbcompiler.OutputFormat.BINARY,
-                    False, 101, False, True, False, (0, 12), True
+                    False, 101, False, True, (1, 0), True
                 ) for _ in range(4)))
             finally:
                 await pool_.stop()

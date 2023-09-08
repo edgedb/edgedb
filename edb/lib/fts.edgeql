@@ -25,6 +25,10 @@ CREATE ABSTRACT INDEX fts::textsearch(named only language: std::str) {
     SET code := 'gin (to_tsvector(__kw_language__, __col__))';
 };
 
+CREATE SCALAR TYPE fts::searchable_str {
+    SET transient := true;
+};
+
 ## Functions
 ## ---------
 

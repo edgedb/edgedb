@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 from typing import *
+from typing import overload
 
 from edb import errors
 
@@ -165,7 +166,7 @@ def _ql_typename_to_type(
 
 
 @overload
-def ptrcls_from_ptrref(  # NoQA: F811
+def ptrcls_from_ptrref(
     ptrref: irast.PointerRef, *,
     ctx: context.ContextLevel,
 ) -> s_pointers.Pointer:
@@ -173,7 +174,7 @@ def ptrcls_from_ptrref(  # NoQA: F811
 
 
 @overload
-def ptrcls_from_ptrref(  # NoQA: F811
+def ptrcls_from_ptrref(
     ptrref: irast.TupleIndirectionPointerRef, *,
     ctx: context.ContextLevel,
 ) -> irast.TupleIndirectionLink:
@@ -181,7 +182,7 @@ def ptrcls_from_ptrref(  # NoQA: F811
 
 
 @overload
-def ptrcls_from_ptrref(  # NoQA: F811
+def ptrcls_from_ptrref(
     ptrref: irast.TypeIntersectionPointerRef, *,
     ctx: context.ContextLevel,
 ) -> irast.TypeIntersectionLink:
@@ -189,14 +190,14 @@ def ptrcls_from_ptrref(  # NoQA: F811
 
 
 @overload
-def ptrcls_from_ptrref(  # NoQA: F811
+def ptrcls_from_ptrref(
     ptrref: irast.BasePointerRef, *,
     ctx: context.ContextLevel,
 ) -> s_pointers.PointerLike:
     ...
 
 
-def ptrcls_from_ptrref(  # NoQA: F811
+def ptrcls_from_ptrref(
     ptrref: irast.BasePointerRef, *,
     ctx: context.ContextLevel,
 ) -> s_pointers.PointerLike:

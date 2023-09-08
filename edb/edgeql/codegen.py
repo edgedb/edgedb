@@ -729,11 +729,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._block_ws(-1)
             self.write(')')
 
-    def visit_AnyType(self, node: qlast.AnyType) -> None:
-        self.write('anytype')
-
-    def visit_AnyTuple(self, node: qlast.AnyTuple) -> None:
-        self.write('anytuple')
+    def visit_PseudoObjectRef(self, node: qlast.PseudoObjectRef) -> None:
+        self.write(node.name)
 
     def visit_TypeCast(self, node: qlast.TypeCast) -> None:
         self.write('<')
@@ -798,10 +795,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('(')
         if node.name is not None:
             self.write(ident_to_str(node.name), ': ')
-        if isinstance(node.maintype, qlast.Path):
-            self.visit(node.maintype)
-        else:
-            self.visit(node.maintype)
+
+        self.visit(node.maintype)
         if node.subtypes is not None:
             self.write('<')
             self.visit_list(node.subtypes, newlines=False)

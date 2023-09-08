@@ -329,7 +329,9 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
 
     _top_xact: RawTransaction | None = None
 
-    def __init__(self, connect_args, *, test_no_tls=False):
+    def __init__(
+        self, connect_args, *, test_no_tls=False, server_hostname=None
+    ):
         super().__init__()
         self._connect_args = connect_args
         self._protocol = None
@@ -340,6 +342,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         )
         self._test_no_tls = test_no_tls
         self._params = None
+        self._server_hostname = server_hostname
         self._log_listeners = set()
 
     def add_log_listener(self, callback):
@@ -364,6 +367,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         con._query_cache = self._query_cache
         con._test_no_tls = self._test_no_tls
         con._params = self._params
+        con._server_hostname = self._server_hostname
         return con
 
     def _get_query_cache(self) -> abstract.QueryCache:
@@ -547,7 +551,10 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             else:
                 try:
                     tr, pr = await loop.create_connection(
-                        protocol_factory, *addr, ssl=self._params.ssl_ctx
+                        protocol_factory,
+                        *addr,
+                        server_hostname=self._server_hostname,
+                        ssl=self._params.ssl_ctx,
                     )
                 except ssl.CertificateError as e:
                     raise con_utils.wrap_error(e) from e
@@ -640,6 +647,7 @@ async def async_connect_test_client(
     test_no_tls: bool = False,
     wait_until_available: int = 30,
     timeout: int = 10,
+    server_hostname: str | None = None,
 ) -> Connection:
     return await Connection(
         {
@@ -659,4 +667,5 @@ async def async_connect_test_client(
             "wait_until_available": wait_until_available,
         },
         test_no_tls=test_no_tls,
+        server_hostname=server_hostname,
     ).ensure_connected()

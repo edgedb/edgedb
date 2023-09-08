@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from edb.common import parsing
+
 from .expressions import Nonterm
 from .precedence import *  # NOQA
 from .tokens import *  # NOQA
@@ -29,5 +31,6 @@ from .ddl import *  # NOQA
 class CreateMigrationBody(Nonterm):
     "%start"
 
+    @parsing.inline(0)
     def reduce_CreateMigrationCommandsBlock_EOF(self, *kids):
-        self.val = kids[0].val
+        pass
