@@ -329,54 +329,18 @@ class Index(
 
         return kwargs
 
-    def is_effective_fts(
+    def is_defined_here(
         self,
         schema: s_schema.Schema,
-    ) -> Tuple[bool, bool]:
+    ) -> bool:
         """
-        Returns true for fts indexes that are
-        the *effective* fts index of their subject.
+        Returns True iff the index has not been inherited from a parent subject,
+        and was originally defined on the subject.
         """
-
-        subject = self.get_subject(schema)
-        assert isinstance(subject, IndexableSubject)
-        subject_name = subject.get_displayname(schema)
-        indexes: so.ObjectIndexByFullname[Index] = subject.get_indexes(schema)
-
-        fts_name = sn.QualName('fts', 'textsearch')
-        fts_indexes = [
-            ind
-            for ind in indexes.objects(schema)
-            if ind.has_base_with_name(schema, fts_name)
-        ]
-
-        defined_on_subject = [
-            ind 
-            for ind in fts_indexes
-            if ind.get_subject(schema) == subject
-        ]
-
-        if len(defined_on_subject) > 0:
-            if len(defined_on_subject) > 1:
-                raise errors.SchemaDefinitionError(
-                    f'multiple {fts_name} indexes defined for {subject_name}'
-                )
-            is_effective = self == defined_on_subject[0]
-            overrides = len(fts_indexes) > 2
-
-        else:
-            # there are not fts indexes defined on the subject
-            # inhereted ones are in effect
-
-            if len(fts_indexes) > 1:
-                raise errors.SchemaDefinitionError(
-                    f'multiple {fts_name} indexes inhereted for {subject_name}'
-                )
-
-            is_effective = self == fts_indexes[0]
-            overrides = False
-
-        return (is_effective, overrides)
+        return all(
+            base.get_abstract(schema)
+            for base in self.get_bases(schema).objects(schema)
+        )
 
 
 IndexableSubject_T = TypeVar('IndexableSubject_T', bound='IndexableSubject')
@@ -1204,3 +1168,50 @@ class RebaseIndex(
     referencing.RebaseReferencedInheritingObject[Index],
 ):
     pass
+
+
+def get_effective_fts_index(
+    subject: IndexableSubject, schema: s_schema.Schema
+) -> Tuple[Optional[Index], bool]:
+    """
+    Returns the effective index of a subject and a boolean indicating
+    if the effective index has overriden any other fts indexes on this subject.
+    """
+    indexes: so.ObjectIndexByFullname[Index] = subject.get_indexes(schema)
+
+    fts_name = sn.QualName('fts', 'textsearch')
+    fts_indexes = [
+        ind
+        for ind in indexes.objects(schema)
+        if ind.has_base_with_name(schema, fts_name)
+    ]
+
+    fts_indexes_defined_here = [
+        ind for ind in fts_indexes if ind.is_defined_here(schema)
+    ]
+
+    if len(fts_indexes_defined_here) > 0:
+        # indexes defined here have priority
+
+        if len(fts_indexes_defined_here) > 1:
+            subject_name = subject.get_displayname(schema)
+            raise errors.SchemaDefinitionError(
+                f'multiple {fts_name} indexes defined for {subject_name}'
+            )
+        effective = fts_indexes_defined_here[0]
+        has_overridden = len(fts_indexes) >= 2
+
+    else:
+        # there are no fts indexes defined on the subject
+        # the inhereted indexes take effect
+
+        if len(fts_indexes) > 1:
+            subject_name = subject.get_displayname(schema)
+            raise errors.SchemaDefinitionError(
+                f'multiple {fts_name} indexes inhereted for {subject_name}'
+            )
+
+        effective = fts_indexes[0]
+        has_overridden = False
+
+    return (effective, has_overridden)

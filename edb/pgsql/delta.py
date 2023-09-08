@@ -77,6 +77,7 @@ from edb.ir import utils as irutils
 from edb.pgsql import common
 from edb.pgsql import dbops
 from edb.pgsql import params
+from edb.pgsql import deltafts
 
 from edb.server import defines as edbdef
 from edb.server import config
@@ -3494,42 +3495,27 @@ class CompositeMetaCommand(MetaCommand):
 class IndexCommand(MetaCommand):
 
     @classmethod
-    def fts_update_name(
+    def get_compile_options(
         cls,
-        tbl_name: Tuple[str, str],
-    ) -> Tuple[str, ...]:
-        return (
-            tbl_name[0],
-            common.edgedb_name_to_pg_name(tbl_name[1] + '_ftsupdate'),
-        )
+        index: s_indexes.Index,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        schema_object_context: Type[so.Object_T],
+    ) -> qlcompiler.CompilerOptions:
+        subject = index.get_subject(schema)
+        assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
 
-    @classmethod
-    def fts_trigger_name(
-        cls,
-        tbl_name: str,
-    ) -> str:
-        return common.edgedb_name_to_pg_name(tbl_name + '_ftstrigger')
+        singletons = [subject]
+        path_prefix_anchor = ql_ast.Subject().name
 
-    @classmethod
-    def fts_zombo_type_name(
-        cls,
-        tbl_name: Tuple[str, str],
-    ) -> Tuple[str, ...]:
-        return (
-            tbl_name[0],
-            common.edgedb_name_to_pg_name(tbl_name[1] + '_zombo_type'),
+        return qlcompiler.CompilerOptions(
+            modaliases=context.modaliases,
+            schema_object_context=schema_object_context,
+            anchors={ql_ast.Subject().name: subject},
+            path_prefix_anchor=path_prefix_anchor,
+            singletons=singletons,
+            apply_query_rewrites=False,
         )
-    
-    @classmethod
-    def fts_zombo_func_name(
-        cls,
-        tbl_name: Tuple[str, str],
-    ) -> Tuple[str, ...]:
-        return (
-            tbl_name[0],
-            common.edgedb_name_to_pg_name(tbl_name[1] + '_zombo_func'),
-        )
-
 
 
 class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
@@ -3542,19 +3528,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
     ):
         from .compiler import astutils
 
-        subject = index.get_subject(schema)
-        assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
-
-        singletons = [subject]
-        path_prefix_anchor = ql_ast.Subject().name
-
-        options = qlcompiler.CompilerOptions(
-            modaliases=context.modaliases,
-            schema_object_context=cls.get_schema_metaclass(),
-            anchors={ql_ast.Subject().name: subject},
-            path_prefix_anchor=path_prefix_anchor,
-            singletons=singletons,
-            apply_query_rewrites=False,
+        options = cls.get_compile_options(
+            index, schema, context, cls.get_schema_metaclass()
         )
 
         index_sexpr: Optional[s_expr.Expression] = index.get_expr(schema)
@@ -3629,19 +3604,22 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
 
         # FTS
         if root_name == sn.QualName('fts', 'textsearch'):
-            return cls.create_fts_index(
+            return deltafts.create_fts_index(
                 index,
                 root_code,
                 ir.expr,
                 predicate_src,
                 sql_kwarg_exprs,
+                options,
                 schema,
                 context
             )
-        
+
         sql_res = compiler.compile_ir_to_sql_tree(ir.expr, singleton_mode=True)
         exprs = astutils.maybe_unpack_row(sql_res.ast)
 
+        subject = index.get_subject(schema)
+        assert subject
         table_name = common.get_backend_name(schema, subject, catenate=False)
 
         module_name = index.get_name(schema).module
@@ -3653,7 +3631,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             name=index_name[1],
             table_name=table_name,  # type: ignore
             exprs=sql_exprs,
-            unique=False, inherit=True,    
+            unique=False, inherit=True,
             predicate=predicate_src,
             metadata={
                 'schemaname': str(index.get_name(schema)),
@@ -3662,188 +3640,6 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             }
         )
         return dbops.CreateIndex(pg_index)
-
-    @classmethod
-    def create_fts_index(
-        cls,
-        index: s_indexes.Index,
-        root_code: str,
-        index_expr: irast.Set,
-        predicate_src: Optional[str],
-        sql_kwarg_exprs: Dict[str, str],
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> dbops.Command:
-        from .compiler import astutils
-
-        ops = dbops.CommandGroup()
-
-        subject = index.get_subject(schema)
-        assert isinstance(subject, s_types.Type)
-        table_name = common.get_backend_name(schema, subject, catenate=False)
-
-        module_name = index.get_name(schema).module
-        index_name = common.get_index_backend_name(
-            index.id, module_name, catenate=False)
-
-        subject_id = irast.PathId.from_type(schema, subject)
-        sql_res = compiler.compile_ir_to_sql_tree(
-            index_expr,
-            singleton_mode=True,
-            external_rvars={
-                (subject_id, 'source'): pg_ast.RelRangeVar(
-                    alias=pg_ast.Alias(aliasname='NEW'),
-                    relation=pg_ast.Relation(name='NEW')
-                )
-            }
-        )
-        exprs = astutils.maybe_unpack_row(sql_res.ast)
-
-        with_clause: Dict[str, str] = {}
-
-        from edb.common import debug
-        if debug.flags.zombodb:
-            zombo_type_name = cls.fts_zombo_type_name(table_name)
-            ops.add_command(dbops.CreateCompositeType(dbops.CompositeType(
-                name=zombo_type_name,
-                columns=[
-                    dbops.Column(
-                        name=f'field{idx}',
-                        type='text',
-                    )
-                    for idx, _ in enumerate(exprs)
-                ]
-            )))
-
-            type_mappings: List[Tuple[str, str]] = []
-            document_exprs = []
-            for idx, expr in enumerate(exprs):
-                assert isinstance(expr, pg_ast.SearchableString)
-
-                text_sql = codegen.generate_source(expr.text)
-
-                if len(expr.language_domain) != 1:
-                    raise errors.UnsupportedFeatureError(
-                        'zombo fts indexes support only exactly one language'
-                    )
-                language = next(iter(expr.language_domain))
-
-                document_exprs.append(text_sql)
-                type_mappings.append((f'field{idx}', language))
-
-            zombo_func_name = cls.fts_zombo_func_name(table_name)
-            ops.add_command(dbops.CreateFunction(dbops.Function(
-                name=zombo_func_name,
-                args=[
-                    ('new', table_name)
-                ],
-                returns=zombo_type_name,
-                text=f'''
-                SELECT 
-                    ROW({','.join(document_exprs)})::{q(*zombo_type_name)};
-                '''
-            )))
-
-            for col_name, analyzer in type_mappings:
-                mapping = f'{{"type": "text", "analyzer": "{analyzer}"}}'
-
-                ops.add_command(dbops.Query(f"""PERFORM zdb.define_field_mapping(
-                    {ql(q(*table_name))}::regclass,
-                    {ql(col_name)}::text,
-                    {ql(mapping)}::json
-                )"""))
-
-            index_exprs = [f'{q(*zombo_func_name)}({qi(table_name[1])}.*)']
-            root_code = 'zombodb ((__col__))'
-            with_clause = {
-                'url': ql('http://localhost:9200/')
-            }
-
-        else:
-            # create column __fts_document__
-
-            fts_document = dbops.Column(
-                name=f'__fts_document__',
-                type='pg_catalog.tsvector'
-            )
-            alter_table = dbops.AlterTable(table_name)
-            alter_table.add_operation(
-                dbops.AlterTableAddColumn(fts_document)
-            )
-            ops.add_command(alter_table)
-
-            # create the update function
-            document_exprs = []
-            for expr in exprs:
-                weight = "'A'"
-                assert isinstance(expr, pg_ast.SearchableString)
-
-                unsupported = expr.language_domain.difference(types.pg_langs)
-                if len(unsupported) > 0:
-                    _raise_unsupported_language_error(unsupported)
-
-                text_sql = codegen.generate_source(expr.text)
-                language_sql = codegen.generate_source(expr.language)
-
-                document_exprs.append(
-                    f'''
-                    setweight(
-                        to_tsvector(
-                            {language_sql}::pg_catalog.regconfig,
-                            COALESCE({text_sql}, '')
-                        ),
-                        {weight}
-                    )
-                '''
-                )
-            document_sql = ' || '.join(document_exprs)
-
-            func_name = cls.fts_update_name(table_name)
-            function = dbops.Function(
-                name=func_name,
-                text=f'''
-                    BEGIN
-                        NEW.__fts_document__ := ({document_sql});
-                        RETURN NEW;
-                    END;
-                ''',
-                volatility='immutable',
-                returns='trigger',
-                language='plpgsql',
-            )
-            ops.add_command(dbops.CreateFunction(function))
-
-            # create trigger to update the __fts_document__
-            trigger_name = cls.fts_trigger_name(table_name[1])
-            trigger = dbops.Trigger(
-                name=trigger_name,
-                table_name=table_name,
-                events=('insert', 'update'),
-                timing='before',
-                procedure=func_name
-            )
-            ops.add_command(dbops.CreateTrigger(trigger))
-
-            # use a reference to the new column in the index instead
-            index_exprs = ['__fts_document__']
-
-
-        pg_index = dbops.Index(
-            name=index_name[1],
-            table_name=table_name,  # type: ignore
-            exprs=index_exprs,
-            unique=False,
-            inherit=True,
-            with_clause=with_clause,
-            predicate=predicate_src,
-            metadata={
-                'schemaname': str(index.get_name(schema)),
-                'code': root_code,
-                'kwargs': sql_kwarg_exprs,
-            }
-        )
-        ops.add_command(dbops.CreateIndex(pg_index))
-        return ops
 
     def _create_begin(
         self,
@@ -3860,22 +3656,6 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         self.pgops.add(self.create_index(index, schema, context))
 
         return schema
-
-
-def _raise_unsupported_language_error(
-    unsupported: Collection[str],
-) -> None:
-    unsupported = list(unsupported)
-    unsupported.sort()
-        
-    msg = 'Full text search language'
-    if len(unsupported) > 1:
-        msg += 's'
-
-    msg += ' ' + ', '.join(f'`{l}`' for l in unsupported)
-    msg += ' not supported'
-
-    raise errors.UnsupportedFeatureError(msg)
 
 
 # mypy claims that _cmd_from_ast in IndexCommand is incompatible with
@@ -3900,8 +3680,6 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ):
-        ops = dbops.CommandGroup()
-
         subject = index.get_subject(schema)
         assert subject
         table_name = common.get_backend_name(
@@ -3914,43 +3692,7 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
         index_exists = dbops.IndexExists(
             (table_name[0], pg_index.name_in_catalog)
         )
-        ops.add_command(dbops.DropIndex(pg_index, conditions=(index_exists,)))
-
-        # FTS
-        if index.has_base_with_name(schema, sn.QualName('fts', 'textsearch')):
-            from edb.common import debug
-
-            if debug.flags.zombodb:
-                zombo_func_name = cls.fts_zombo_func_name(table_name)
-                ops.add_command(dbops.DropFunction(
-                    zombo_func_name,
-                    args=[table_name]
-                ))
-                
-                zombo_type_name = cls.fts_zombo_type_name(table_name)
-                ops.add_command(dbops.DropCompositeType(zombo_type_name))                
-            else:
-                ops.add_command(dbops.DropTrigger(dbops.Trigger(
-                    cls.fts_trigger_name(table_name[1]),
-                    table_name=table_name,
-                    events=(),
-                    procedure=''
-                )))
-
-                ops.add_command(dbops.DropFunction(
-                    cls.fts_update_name(table_name),
-                    (),
-                ))
-
-                fts_document = dbops.Column(
-                    name=f'__fts_document__',
-                    type=('pg_catalog', 'tsvector'),
-                )
-                alter_table = dbops.AlterTable(table_name)
-                alter_table.add_operation(dbops.AlterTableDropColumn(fts_document))
-                ops.add_command(alter_table)
-
-        return ops
+        return dbops.DropIndex(pg_index, conditions=(index_exists,))
 
     def apply(
         self,
@@ -3978,7 +3720,21 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
         if not isinstance(source.op, sd.DeleteObject):
             # We should not drop indexes when the host is being dropped since
             # the indexes are dropped automatically in this case.
-            self.pgops.add(self.delete_index(index, orig_schema, context))
+            drop_index = self.delete_index(index, orig_schema, context)
+        else:
+            drop_index = dbops.CommandGroup()
+
+        # FTS
+        fts_textsearch = sn.QualName('fts', 'textsearch')
+        if index.has_base_with_name(orig_schema, fts_textsearch):
+            options = self.get_compile_options(
+                index, orig_schema, context, self.get_schema_metaclass()
+            )
+            self.pgops.add(deltafts.delete_fts_index(
+                index, drop_index, options, orig_schema, context
+            ))
+        else:
+            self.pgops.add(drop_index)
 
         return schema
 
