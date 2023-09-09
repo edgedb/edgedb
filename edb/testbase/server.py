@@ -232,8 +232,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
             raise
 
     @contextlib.contextmanager
-    def assertRaisesRegex(self, exception, regex, msg=None, 
-                          **kwargs):
+    def assertRaisesRegex(self, exception, regex, msg=None, **kwargs):
         with super().assertRaisesRegex(exception, regex, msg=msg):
             try:
                 yield
