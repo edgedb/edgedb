@@ -1563,23 +1563,6 @@ class PointerCommandOrFragment(
                 if isinstance(source, Pointer):
                     should_set_path_prefix_anchor = False
 
-            # If we are in a link property's default field
-            # do not set path prefix anchor, because link properties
-            # cannot have defaults that reference the object being inserted
-            should_set_path_prefix_anchor = True
-            if field.name == 'default':
-                from .objtypes import ObjectTypeCommandContext
-                from .links import LinkCommandContext
-                from .properties import PropertyCommandContext
-                if (len(context.stack) >= 3 and
-                    isinstance(context.stack[-3],
-                               ObjectTypeCommandContext) and
-                    isinstance(context.stack[-2],
-                               LinkCommandContext) and
-                    isinstance(context.stack[-1],
-                               PropertyCommandContext)):
-                    should_set_path_prefix_anchor = False
-
             return self._compile_expr(
                 schema,
                 context,
