@@ -63,8 +63,6 @@ from edb.common import retryloop
 from edb.common import secretkey
 from edb.common import taskgroup
 
-from edb import errors
-
 from edb.protocol import protocol as test_protocol
 from edb.testbase import serutils
 
