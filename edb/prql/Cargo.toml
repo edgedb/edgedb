@@ -1,0 +1,20 @@
+[package]
+name = "prql"
+license = "MIT/Apache-2.0"
+version = "0.1.0"
+authors = ["MagicStack Inc. <hello@magic.io>"]
+rust-version = "1.59"
+edition = "2021"
+
+[dependencies]
+prql-compiler = "0.9.4"
+serde_json = "1.0.106"
+
+[dependencies.cpython]
+version = "0.7.0"
+features = ["extension-module"]
+
+[lib]
+crate-type = ["lib", "cdylib"]
+name = "edgeql_rust"
+path = "src/lib.rs"
