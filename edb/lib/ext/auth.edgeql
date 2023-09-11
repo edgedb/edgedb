@@ -30,9 +30,11 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create constraint exclusive on ((.iss, .sub))
     };
 
-    create type ext::auth::LocalIdentity {
-        create property password_hash: std::str;
-        create required link identity: ext::auth::Identity;
+    create type ext::auth::PasswordCredential {
+        create required property password_hash: std::str;
+        create required link identity: ext::auth::Identity {
+            create constraint exclusive;
+        };
     };
 
     create type ext::auth::ClientConfig extending cfg::ConfigObject {
