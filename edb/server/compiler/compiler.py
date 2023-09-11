@@ -1370,7 +1370,7 @@ def compile_schema_storage_in_delta(
         context.renames.clear()
         context.early_renames.clear()
 
-    s_refl.write_meta(
+    s_refl.generate_metadata_write_edgeql(
         delta,
         classlayout=ctx.compiler_state.schema_class_layout,
         schema=schema,
