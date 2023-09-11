@@ -11453,8 +11453,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             abstract index MyIndex extending fts::textsearch;
             type Base {
                 property name -> str;
-                index MyIndex on (.name);
-                index fts::textsearch on (
+                index MyIndex on (
                     fts::with_language(.name, fts::Language.English)
                 );
             };
@@ -11464,8 +11463,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             abstract index MyIndex extending fts::textsearch;
             type Base {
                 property name -> str;
-                index MyIndex on (.name);
-                index fts::textsearch on (
+                index MyIndex on (
                     fts::with_language(.name, fts::Language.English)
                 );
             };
@@ -11483,8 +11481,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             abstract index MyIndex extending fts::textsearch;
             type Base {
                 property name -> str;
-                index MyIndex on (.name);
-                index fts::textsearch on (
+                index MyIndex on (
                     fts::with_language(.name, fts::Language.English)
                 );
             };
@@ -11493,16 +11490,13 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
 
         await self.migrate(r"""
             abstract index MyIndex extending fts::textsearch {
-              annotation title := "test";
+                annotation title := "test";
             }
             type Base {
                 property name -> str;
-                index MyIndex on (.name);
-                index fts::textsearch on (
+                index MyIndex on (
                     fts::with_language(.name, fts::Language.English)
-                ) {
-                   annotation description := "test";
-                };
+                );
             };
             type Child extending Base;
         """)

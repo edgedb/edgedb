@@ -608,9 +608,15 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
             type Foo {
                 property val -> str;
-                index fts::textsearch(language:='enlgish') on (.val);
-                index fts::textsearch(language:='italian') on (.val);
-                index fts::textsearch(language:='enlgish') on (.val);
+                index fts::textsearch on (
+                    fts::with_language(.val, fts::Language.English)
+                );
+                index fts::textsearch on (
+                    fts::with_language(.val, fts::Language.Italian)
+                );
+                index fts::textsearch on (
+                    fts::with_language(.val, fts::Language.English)
+                );
             };
         """
 
@@ -6195,7 +6201,9 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property last_name -> str;
                 property name := .first_name ++ ' ' ++ .last_name;
                 # an index on a computable
-                index fts::textsearch(language := 'english') on (.name);
+                index fts::textsearch on (
+                    fts::with_language(.name, fts::Language.English)
+                );
             }
         """])
 

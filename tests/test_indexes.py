@@ -291,7 +291,7 @@ class TestIndexes(tb.DDLTestCase):
                 'indexes': [{
                     'name': 'fts::textsearch',
                     'kwargs': [],
-                    'expr': '.name',
+                    'expr': 'fts::with_language(.name, fts::Language.English)',
                     'abstract': False,
                 }]
             }],
@@ -304,7 +304,9 @@ class TestIndexes(tb.DDLTestCase):
 
             create type ObjIndex4 {
                 create property name -> str;
-                create index MyIndex on (.name);
+                create index MyIndex on (
+                    fts::with_language(.name, fts::Language.English)
+                );
             };
         """)
 
@@ -325,7 +327,7 @@ class TestIndexes(tb.DDLTestCase):
                 'indexes': [{
                     'name': 'default::MyIndex',
                     'kwargs': [],
-                    'expr': '.name',
+                    'expr': 'fts::with_language(.name, fts::Language.English)',
                     'abstract': False,
                 }]
             }],
