@@ -142,6 +142,7 @@ class MockAuthProvider:
         self._address = self._http_server.server_address
         self.has_started.set()
         self._http_server.serve_forever(poll_interval=0.01)
+        self._http_server.server_close()
 
     def __exit__(self, *exc):
         self._http_server.shutdown()
