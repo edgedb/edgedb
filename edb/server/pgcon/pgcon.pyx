@@ -751,7 +751,7 @@ cdef class PGConnection:
                 parse = 0
             else:
                 if self.debug:
-                    self.debug_print(f"discarding ps {stmt_name_to_clean!r}")
+                    self.debug_print(f"discarding ps {stmt_name!r}")
                 outbuf.write_buffer(
                     self.make_clean_stmt_message(stmt_name))
                 del self.prep_stmts[stmt_name]
