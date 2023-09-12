@@ -52,13 +52,22 @@ notation shorthand <ref_dot_notation>`: ``.name``.
       index on (.name);
     }
 
-By indexing on ``User.name``, queries that filter, order, or group by the
-``name`` property will be faster, as the database can look up a name in
-the index instead of scanning through all ``User`` objects sequentially.
+By indexing on ``User.name``, the query planner will have access to that index
+for use when planning queries containing the property in a filter, order, or
+group by. This may result in better performance in these queries as the
+database can look up a name in the index instead of scanning through all
+``User`` objects sequentially, although whether or not to use the index is
+ultimately up to the Postgres query planner.
 
-To see the difference for yourself, try adding the :ref:`analyze
-<ref_cli_edgedb_analyze>` keyword before a query with an index compared
-to one without.
+To see if an index can help your query, try adding the :ref:`analyze
+<ref_cli_edgedb_analyze>` keyword before a query with an index compared to one
+without.
+
+.. note::
+
+    Even if your database is too small now to benefit from an index, it may
+    benefit from one as it continues to grow.
+
 
 Index on an expression
 ----------------------
