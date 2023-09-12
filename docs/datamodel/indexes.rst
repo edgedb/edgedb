@@ -100,9 +100,21 @@ references multiple properties of the enclosing object type.
 Index on multiple properties
 ----------------------------
 
-A *composite index* is an index that references multiple properties. This will
-speed up queries that filter, order, or group on *both properties*. In EdgeDB,
-this is accomplished by indexing on a ``tuple`` of properties.
+A *composite index* is an index that references multiple properties. This can
+speed up queries that filter, order, or group on both properties.
+
+.. note::
+
+    An index on multiple properties may also be used in queries where only a
+    single property in the index is filtered, ordered, or grouped by. It is
+    best to have the properties most likely to be used in this way listed first
+    when you create the index on multiple properties.
+
+    Read `the Postgres documentation on multicolumn indexes
+    <https://www.postgresql.org/docs/current/indexes-multicolumn.html>`_ to
+    learn more about how the query planner uses these indexes.
+
+In EdgeDB, this is index is created by indexing on a ``tuple`` of properties.
 
 .. code-block:: sdl
     :version-lt: 3.0
@@ -121,16 +133,6 @@ this is accomplished by indexing on a ``tuple`` of properties.
       index on ((.name, .email));
     }
 
-.. note::
-
-    An index on multiple properties may also be used in queries where only a
-    single property in the index is filtered, ordered, or grouped by. It is
-    best to have the properties most likely to be used in this way listed first
-    when you create the index on multiple properties.
-
-    Read `the Postgres documentation on multicolumn indexes
-    <https://www.postgresql.org/docs/current/indexes-multicolumn.html>`_ to
-    learn more about how the query planner uses these indexes.
 
 Index on a link property
 ------------------------
@@ -161,6 +163,7 @@ Link properties can also be indexed.
         extending friendship;
       };
     }
+
 
 Specify a Postgres index type
 -----------------------------
@@ -193,6 +196,7 @@ You can use them like this:
       required property name -> str;
       index pg::spgist on (.name);
     };
+
 
 Annotate an index
 -----------------
