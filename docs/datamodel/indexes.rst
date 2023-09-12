@@ -12,8 +12,11 @@ and grouping operations. Indexes help accomplish this in two key ways:
 
 .. note::
 
-    The Postgres query planner decides when to use indexes for a query. For
-    more information on how it does this, read `the Postgres query planner
+    The Postgres query planner decides when to use indexes for a query. In some
+    cases — for example, when tables are small and it would be faster to scan
+    the whole table than to use an index — an applicable index may be ignored.
+
+    For more information on how it does this, read `the Postgres query planner
     documentation
     <https://www.postgresql.org/docs/current/planner-optimizer.html>`_.
 
