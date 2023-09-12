@@ -29,6 +29,7 @@ from jwcrypto import jwk, jwt
 from edb import errors as edb_errors
 from edb.common import debug
 from edb.common import markup
+from edb.ir import statypes
 
 from . import oauth
 from . import errors
@@ -57,38 +58,66 @@ class Router:
         try:
             match args:
                 case ("authorize",):
-                    # TODO: this is ambiguous whether it's a name or ID which
-                    # is useful now, but we'll need to pivot to ID sooner than
-                    # later and then rename all of this to provider_id
-                    provider = _get_search_param(
+                    provider_id = _get_search_param(
                         request.url.query.decode("ascii"), "provider"
                     )
                     client = oauth.Client(
-                        db=self.db, provider=provider, base_url=test_url
+                        db=self.db, provider_id=provider_id, base_url=test_url
                     )
-                    authorize_url = client.get_authorize_url(
+                    authorize_url = await client.get_authorize_url(
                         redirect_uri=self._get_callback_url(),
-                        state=self._make_state_claims(provider),
+                        state=self._make_state_claims(provider_id),
                     )
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = authorize_url
-                    response.close_connection = True
 
                 case ("callback",):
                     query = request.url.query.decode("ascii")
                     state = _get_search_param(query, "state")
-                    code = _get_search_param(query, "code")
-                    provider = self._get_from_claims(state, "provider")
+                    try:
+                        code = _get_search_param(query, "code")
+                    except (
+                        errors.InvalidData,
+                        errors.MisconfiguredProvider,
+                    ) as ex:
+                        error_description = None
+                        if isinstance(ex, errors.MisconfiguredProvider):
+                            error = "misconfigured_provider"
+                            error_description = ex.description
+                        else:
+                            error = _get_search_param(query, "error")
+                            error_description = _maybe_get_search_param(
+                                query, "error_description"
+                            )
+                        redirect_to = self._get_from_claims(
+                            state, "redirect_to"
+                        )
+                        response.status = http.HTTPStatus.FOUND
+                        params = {
+                            "error": error,
+                        }
+                        if error_description is not None:
+                            params["error_description"] = error_description
+                        response.custom_headers[
+                            "Location"
+                        ] = f"{redirect_to}?{urllib.parse.urlencode(params)}"
+                        return
+
+                    provider_id = self._get_from_claims(state, "provider")
                     redirect_to = self._get_from_claims(state, "redirect_to")
                     client = oauth.Client(
                         db=self.db,
-                        provider=provider,
+                        provider_id=provider_id,
                         base_url=test_url,
                     )
-                    await client.handle_callback(code)
+                    identity = await client.handle_callback(code)
+                    session_token = self._make_session_token(identity.id)
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = redirect_to
-                    response.close_connection = True
+                    response.custom_headers["Set-Cookie"] = (
+                        f"edgedb-session={session_token}; "
+                        f"HttpOnly; Secure; SameSite=Strict"
+                    )
 
                 case _:
                     raise errors.NotFound("Unknown OAuth endpoint")
@@ -132,7 +161,7 @@ class Router:
 
     def _get_auth_signing_key(self) -> jwk.JWK:
         auth_signing_key = util.get_config(
-            self.db.db_config, "xxx_auth_signing_key"
+            self.db.db_config, "ext::auth::AuthConfig::auth_signing_key"
         )
         key_bytes = base64.b64encode(auth_signing_key.encode())
 
@@ -153,6 +182,29 @@ class Router:
         )
         state_token.make_signed_token(signing_key)
         return state_token.serialize()
+
+    def _make_session_token(self, identity_id: str) -> str:
+        signing_key = self._get_auth_signing_key()
+        auth_expiration_time = util.get_config(
+            self.db.db_config,
+            "ext::auth::AuthConfig::token_time_to_live",
+            statypes.Duration,
+        )
+        expires_in = auth_expiration_time.to_timedelta()
+        expires_at = datetime.datetime.utcnow() + expires_in
+
+        claims: dict[str, Any] = {
+            "iss": self.base_path,
+            "sub": identity_id,
+        }
+        if expires_in.total_seconds() != 0:
+            claims["exp"] = expires_at.astimezone().timestamp()
+        session_token = jwt.JWT(
+            header={"alg": "HS256"},
+            claims=claims,
+        )
+        session_token.make_signed_token(signing_key)
+        return session_token.serialize()
 
     def _get_from_claims(self, state: str, key: str) -> str:
         signing_key = self._get_auth_signing_key()

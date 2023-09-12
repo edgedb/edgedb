@@ -37,6 +37,7 @@ bag = assert_data_shape.bag
 
 
 class BaseHttpExtensionTest(server.QueryTestCase):
+    EXTENSION_SETUP: List[str] = []
 
     @classmethod
     def get_extension_name(cls):
@@ -60,6 +61,8 @@ class BaseHttpExtensionTest(server.QueryTestCase):
         cls.loop.run_until_complete(
             cls.con.execute(f'CREATE EXTENSION {extname};')
         )
+        for q in cls.EXTENSION_SETUP:
+            cls.loop.run_until_complete(cls.con.execute(q))
 
     @classmethod
     def tearDownClass(cls):

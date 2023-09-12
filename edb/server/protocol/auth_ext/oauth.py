@@ -17,15 +17,15 @@
 #
 
 
-import asyncio
 import urllib.parse
-
+import json
 import httpx
-
+import httpx_cache
 
 from typing import Any
+from edb.server.protocol import execute
 
-from . import errors, util, data
+from . import errors, util, data, base
 
 
 class HttpClient(httpx.AsyncClient):
@@ -35,7 +35,8 @@ class HttpClient(httpx.AsyncClient):
         if edgedb_test_url:
             self.edgedb_orig_base_url = urllib.parse.quote(base_url, safe='')
             base_url = edgedb_test_url
-        super().__init__(*args, base_url=base_url, **kwargs)
+        cache = httpx_cache.AsyncCacheControlTransport()
+        super().__init__(*args, base_url=base_url, transport=cache, **kwargs)
 
     async def post(self, path, *args, **kwargs):
         if self.edgedb_orig_base_url:
@@ -49,7 +50,9 @@ class HttpClient(httpx.AsyncClient):
 
 
 class Client:
-    def __init__(self, db: Any, provider: str, base_url: str | None = None):
+    provider: base.BaseProvider
+
+    def __init__(self, db: Any, provider_id: str, base_url: str | None = None):
         self.db = db
         self.db_config = db.db_config
 
@@ -57,43 +60,104 @@ class Client:
             *args, edgedb_test_url=base_url, **kwargs
         )
 
-        match provider:
+        (provider_name, client_id, client_secret) = self._get_provider_config(
+            provider_id
+        )
+
+        match provider_name:
             case "github":
                 from . import github
 
                 self.provider = github.GitHubProvider(
-                    *self._get_client_credientials("github"),
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    http_factory=http_factory,
+                )
+            case "google":
+                from . import google
+
+                self.provider = google.GoogleProvider(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    http_factory=http_factory,
+                )
+            case "azure":
+                from . import azure
+                self.provider = azure.AzureProvider(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    http_factory=http_factory,
+                )
+            case "apple":
+                from . import apple
+                self.provider = apple.AppleProvider(
+                    client_id=client_id,
+                    client_secret=client_secret,
                     http_factory=http_factory,
                 )
             case _:
-                raise errors.InvalidData("Invalid provider: {provider}")
+                raise errors.InvalidData(f"Invalid provider: {provider_name}")
 
-    def get_authorize_url(self, state: str, redirect_uri: str) -> str:
-        return self.provider.get_code_url(
+    async def get_authorize_url(self, state: str, redirect_uri: str) -> str:
+        return await self.provider.get_code_url(
             state=state, redirect_uri=redirect_uri
         )
 
-    async def handle_callback(self, code: str) -> None:
-        token = await self.provider.exchange_code(code)
+    async def handle_callback(self, code: str) -> data.Identity:
+        response = await self.provider.exchange_code(code)
+        user_info = await self.provider.fetch_user_info(response)
 
-        async with asyncio.TaskGroup() as g:
-            user_info_t = g.create_task(self.provider.fetch_user_info(token))
-            emails_t = g.create_task(self.provider.fetch_emails(token))
-        user_info = user_info_t.result()
-        emails = emails_t.result()
+        return await self._handle_identity(user_info)
 
-        await self._handle_identity(user_info, emails)
+    async def _handle_identity(self, user_info: data.UserInfo) -> data.Identity:
+        """Update or create an identity"""
 
-    async def _handle_identity(
-        self, user_info: data.UserInfo, emails: list[data.Email]
-    ) -> None:
-        ...
+        r = await execute.parse_execute_json(
+            db=self.db,
+            query="""\
+with
+  iss := <str>$issuer_url,
+  sub := <str>$provider_id,
+  email := <optional str>$email,
 
-    def _get_client_credientials(self, client_name: str) -> tuple[str, str]:
-        client_id = util.get_config(
-            self.db_config, f"xxx_{client_name}_client_id"
+select (insert ext::auth::Identity {
+  iss := iss,
+  sub := sub,
+  email := email,
+} unless conflict on ((.iss, .sub)) else (
+  update ext::auth::Identity set {
+    email := email
+  }
+)) { * };""",
+            variables={
+                "issuer_url": self.provider.issuer_url,
+                "provider_id": user_info.sub,
+                "email": user_info.email,
+            },
         )
-        client_secret = util.get_config(
-            self.db_config, f"xxx_{client_name}_client_secret"
+        result_json = json.loads(r.decode())
+        assert len(result_json) == 1
+
+        return data.Identity(**result_json[0])
+
+    def _get_provider_config(self, provider_id: str) -> tuple[str, str, str]:
+        provider_client_config = util.get_config(
+            self.db_config, "ext::auth::AuthConfig::providers", frozenset
         )
-        return client_id, client_secret
+        provider_name: str | None = None
+        client_id: str | None = None
+        client_secret: str | None = None
+        for cfg in provider_client_config:
+            if cfg.provider_id == provider_id:
+                provider_name = cfg.provider_name
+                client_id = cfg.client_id
+                client_secret = cfg.secret
+        r = (provider_name, client_id, client_secret)
+        match r:
+            case (str(_), str(_), str(_)):
+                return r
+            case _:
+                raise errors.InvalidData(
+                    f"Invalid provider configuration: {provider_id}\n"
+                    f"providers={provider_client_config!r}"
+                )
