@@ -109,6 +109,17 @@ this is accomplished by indexing on a ``tuple`` of properties.
       index on ((.name, .email));
     }
 
+.. note::
+
+    An index on multiple properties may also be used in queries where only a
+    single property in the index is filtered, ordered, or grouped by. It is
+    best to have the properties most likely to be used in this way listed first
+    when you create the index on multiple properties.
+
+    Read `the Postgres documentation on multicolumn indexes
+    <https://www.postgresql.org/docs/current/indexes-multicolumn.html>`_ to
+    learn more about how the query planner uses these indexes.
+
 Index on a link property
 ------------------------
 
