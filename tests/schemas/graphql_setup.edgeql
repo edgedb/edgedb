@@ -244,3 +244,9 @@ insert RangeTest {
     # unbounded = everything
     mdate := multirange([range(<cal::local_date>{})]),
 };
+
+insert Fixed;
+
+insert NotEditable {
+    once := 'init',
+};
