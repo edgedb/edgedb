@@ -217,3 +217,14 @@ type ErrorTest {
 
     constraint error_test_constraint on (len(.text) != .val);
 }
+
+type Fixed {
+    property computed := 123;
+}
+
+type NotEditable {
+    property computed := 'a computed value';
+    required once: str {
+        readonly := true;
+    }
+}
