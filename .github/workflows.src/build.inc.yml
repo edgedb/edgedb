@@ -373,7 +373,9 @@
     <%- for tgt in targets.macos %>
       - build-<< tgt.name >>
       - test-<< tgt.name >>
-      - publish-<< tgt.name >>
+    <%- for publish in publications %>
+      - publish<< publish.suffix>>-<< tgt.name >>
+    <%- endfor %>
     <%- endfor %>
       - publish-docker
     runs-on: ubuntu-latest
