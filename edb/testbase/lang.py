@@ -523,7 +523,7 @@ class BaseSchemaTest(BaseDocTest):
             m = re.match(r'^SCHEMA(?:_(\w+))?', name)
             if m:
                 module_name = (m.group(1)
-                               or 'default').lower().replace('__', '.')
+                               or 'default').lower().replace('_', '::')
 
                 if '\n' in val:
                     # Inline schema source
