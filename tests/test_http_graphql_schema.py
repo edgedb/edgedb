@@ -2903,7 +2903,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
             }
         })
 
-    def test_graphql_reflection_01(self):
+    def test_graphql_schema_reflection_01(self):
         # Make sure that FreeObject is not reflected.
         result = self.graphql_query(r"""
             query {
@@ -2943,7 +2943,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
             [t['name'] for t in result['__schema']['mutationType']['fields']]
         )
 
-    def test_graphql_reflection_02(self):
+    def test_graphql_schema_reflection_02(self):
         # Make sure that "id", as well as computed "owner_user" and
         # "owner_name" are not reflected into insert or update
         result = self.graphql_query(r"""
@@ -2971,7 +2971,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                 [t['name'] for t in result['up']['inputFields']]
             )
 
-    def test_graphql_reflection_03(self):
+    def test_graphql_schema_reflection_03(self):
         # Make sure that union type `Profile | Setting` is not reflected at
         # the root of Query or Mutation.
         result = self.graphql_query(r"""
@@ -3007,3 +3007,98 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
             'insert_Profile_OR_Setting',
             [t['name'] for t in result['__schema']['mutationType']['fields']]
         )
+
+    def test_graphql_schema_reflection_04(self):
+        # Make sure that `Fixed` and `NotEditable` types are reflected, but
+        # don't have an "update".
+        result = self.graphql_query(r"""
+            query {
+                __schema {
+                    queryType {
+                        fields {
+                            name
+                        }
+                    }
+                    mutationType {
+                        fields {
+                            name
+                        }
+                    }
+                }
+            }
+        """)
+
+        self.assertIn(
+            'Fixed',
+            [t['name'] for t in result['__schema']['queryType']['fields']]
+        )
+        self.assertIn(
+            'insert_Fixed',
+            [t['name'] for t in result['__schema']['mutationType']['fields']]
+        )
+        self.assertNotIn(
+            'update_Fixed',
+            [t['name'] for t in result['__schema']['mutationType']['fields']]
+        )
+        self.assertIn(
+            'delete_Fixed',
+            [t['name'] for t in result['__schema']['mutationType']['fields']]
+        )
+
+        self.assertIn(
+            'NotEditable',
+            [t['name'] for t in result['__schema']['queryType']['fields']]
+        )
+        self.assertIn(
+            'insert_NotEditable',
+            [t['name'] for t in result['__schema']['mutationType']['fields']]
+        )
+        self.assertNotIn(
+            'update_NotEditable',
+            [t['name'] for t in result['__schema']['mutationType']['fields']]
+        )
+        self.assertIn(
+            'delete_NotEditable',
+            [t['name'] for t in result['__schema']['mutationType']['fields']]
+        )
+
+    def test_graphql_schema_reflection_05(self):
+        # `Fixed` is not supposed to have either "input" or "update" types.
+        self.assert_graphql_query_result(r"""
+            query {
+                in: __type(name: "InsertFixed") {
+                    inputFields {
+                        name
+                    }
+                }
+                up: __type(name: "UpdateFixed") {
+                    inputFields {
+                        name
+                    }
+                }
+            }
+        """, {
+            'in': None,
+            'up': None,
+        })
+
+        # `NotEditable` is only supposed to have "input" type.
+        self.assert_graphql_query_result(r"""
+            query {
+                in: __type(name: "InsertNotEditable") {
+                    inputFields {
+                        name
+                    }
+                }
+                up: __type(name: "UpdateNotEditable") {
+                    inputFields {
+                        name
+                    }
+                }
+            }
+        """, {
+            'in': {
+                'inputFields': [{'name': 'once'}],
+            },
+            'up': None,
+        })

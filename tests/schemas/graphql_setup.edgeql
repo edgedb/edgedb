@@ -209,3 +209,10 @@ INSERT ErrorTest {
     text := ')error(',
     val := 0,
 };
+
+
+insert Fixed;
+
+insert NotEditable {
+    once := 'init',
+};

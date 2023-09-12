@@ -616,6 +616,26 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
+    def test_graphql_functional_query_22(self):
+        # get an object that has a bunch of readonly properties
+        self.assert_graphql_query_result(r"""
+            query {
+                NotEditable {
+                    __typename
+                    id
+                    computed
+                    once
+                }
+            }
+        """, {
+            'NotEditable': [{
+                '__typename': 'NotEditable_Type',
+                'id': uuid.UUID,
+                'computed': 'a computed value',
+                'once': 'init',
+            }],
+        })
+
     def test_graphql_functional_alias_01(self):
         self.assert_graphql_query_result(
             r"""
