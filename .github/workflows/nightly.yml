@@ -2571,11 +2571,9 @@ jobs:
       - build-macos-x86_64
       - test-macos-x86_64
       - publish-macos-x86_64
-      - check-published-macos-x86_64
       - build-macos-aarch64
       - test-macos-aarch64
       - publish-macos-aarch64
-      - check-published-macos-aarch64
       - publish-docker
     runs-on: ubuntu-latest
     permissions:
