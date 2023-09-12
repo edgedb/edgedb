@@ -896,8 +896,20 @@ class Command(
             self.add(command)
 
     def replace(self, existing: Command, new: Command) -> None:  # type: ignore
-        i = self.ops.index(existing)
-        self.ops[i] = new
+        try:
+            i = self.ops.index(existing)
+            self.ops[i] = new
+            return
+        except ValueError:
+            pass
+        try:
+            i = self.before_ops.index(existing)
+            self.before_ops[i] = new
+            return
+        except ValueError:
+            pass
+        i = self.caused_ops.index(existing)
+        self.caused_ops[i] = new
 
     def replace_all(self, commands: Iterable[Command]) -> None:
         self.ops.clear()

@@ -189,9 +189,9 @@ def reconstruct_tree(
             parent_offset = offsets[new_parent] + (offset_within_parent,)
         else:
             parent_offset = (offset_within_parent,)
-        new_parent.add(parent)
         old_parent = parents[parent]
         old_parent.discard(parent)
+        new_parent.add_caused(parent)
         parents[parent] = new_parent
 
         for i in range(slice_start, len(opbranch)):
