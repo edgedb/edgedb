@@ -5,10 +5,22 @@ Indexes
 =======
 
 An index is a data structure used internally to speed up filtering, ordering,
-and grouping operations. Most commonly, indexes are declared within object
-type declarations and reference a particular property; this will speed up
-any query that references that property in a ``filter``, ``order by``, or
-``group`` clause.
+and grouping operations. Indexes help accomplish this in two key ways:
+
+- They are pre-sorted which saves time on costly sort operations on rows.
+- They can be used by the query planner to filter out irrelevant rows.
+
+.. note::
+
+    The Postgres query planner decides when to use indexes for a query. For
+    more information on how it does this, read `the Postgres query planner
+    documentation
+    <https://www.postgresql.org/docs/current/planner-optimizer.html>`_.
+
+Most commonly, indexes are declared within object type declarations and
+reference a particular property. The index can be used to speed up queries
+which reference that property in a ``filter``, ``order by``, or ``group``
+clause.
 
 .. note::
 
@@ -37,8 +49,8 @@ notation shorthand <ref_dot_notation>`: ``.name``.
       index on (.name);
     }
 
-By indexing on ``User.name``, queries that filter, order, or group by the 
-``name`` property will be faster, as the database can look up a name in 
+By indexing on ``User.name``, queries that filter, order, or group by the
+``name`` property will be faster, as the database can look up a name in
 the index instead of scanning through all ``User`` objects sequentially.
 
 To see the difference for yourself, try adding the :ref:`analyze
