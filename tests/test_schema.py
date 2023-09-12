@@ -5102,6 +5102,12 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             global TwoUsers := (User);
         """])
 
+    def test_schema_migrations_equivalence_57c(self):
+        self._assert_migration_equivalence([r"""
+            type X;
+            alias Z := (with lol := X, select count(lol));
+        """])
+
     def test_schema_migrations_equivalence_58(self):
         self._assert_migration_equivalence([r"""
             abstract type C {

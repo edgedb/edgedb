@@ -9678,6 +9678,18 @@ type default::Foo {
             alter alias X using (Bar);
         """)
 
+    async def test_edgeql_ddl_alias_11(self):
+        await self.con.execute(r"""
+            create type X;
+            create alias Z := (with lol := X, select count(lol));
+        """)
+        await self.con.execute(r"""
+            drop alias Z
+        """)
+        await self.con.execute(r"""
+            create alias Z := (with lol := X, select count(lol));
+        """)
+
     async def test_edgeql_ddl_inheritance_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE InhTest01 {
