@@ -71,12 +71,12 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             create annotation std::description :=
                 "The signing key used for auth extension. Must be at \
                 least 32 characters long.";
-            set default := "00000000000000000000000000000000";
         };
 
         create property token_time_to_live -> std::duration {
             create annotation std::description :=
-                'The time after which an auth token expires.';
+                "The time after which an auth token expires. A value of 0 \
+                indicates that the token should never expire.";
             set default := <std::duration>'336 hours';
         };
     };
