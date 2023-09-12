@@ -71,7 +71,6 @@ def create_fts_index(
     else:
         return _create_fts_document(
             index,
-            root_code,
             index_expr,
             predicate_src,
             sql_kwarg_exprs,
@@ -110,7 +109,6 @@ def delete_fts_index(
 
 def _create_fts_document(
     index: s_indexes.Index,
-    root_code: str,
     index_expr: irast.Set,
     predicate_src: Optional[str],
     sql_kwarg_exprs: Dict[str, str],
@@ -119,13 +117,6 @@ def _create_fts_document(
 ) -> dbops.Command:
     subject = index.get_subject(schema)
     assert isinstance(subject, s_types.Type)
-
-    table_name = common.get_backend_name(schema, subject, catenate=False)
-
-    module_name = index.get_name(schema).module
-    index_name = common.get_index_backend_name(
-        index.id, module_name, catenate=False
-    )
 
     subject_id = irast.PathId.from_type(schema, subject)
     sql_res = compiler.compile_ir_to_sql_tree(
@@ -140,118 +131,15 @@ def _create_fts_document(
     )
     exprs = astutils.maybe_unpack_row(sql_res.ast)
 
-    ops = dbops.CommandGroup()
     from edb.common import debug
-
     if debug.flags.zombodb:
-        zombo_type_name = _zombo_type_name(table_name)
-        ops.add_command(
-            dbops.CreateCompositeType(
-                dbops.CompositeType(
-                    name=zombo_type_name,
-                    columns=[
-                        dbops.Column(
-                            name=f'field{idx}',
-                            type='text',
-                        )
-                        for idx, _ in enumerate(exprs)
-                    ],
-                )
-            )
+        return _zombo_create_fts_document(
+            index, exprs, predicate_src, sql_kwarg_exprs, schema
         )
-
-        type_mappings: List[Tuple[str, str]] = []
-        document_exprs = []
-        for idx, expr in enumerate(exprs):
-            assert isinstance(expr, pgast.SearchableString)
-
-            text_sql = codegen.generate_source(expr.text)
-
-            if len(expr.language_domain) != 1:
-                raise errors.UnsupportedFeatureError(
-                    'zombo fts indexes support only exactly one language'
-                )
-            language = next(iter(expr.language_domain))
-
-            document_exprs.append(text_sql)
-            type_mappings.append((f'field{idx}', language))
-
-        zombo_func_name = _zombo_func_name(table_name)
-        ops.add_command(
-            dbops.CreateFunction(
-                dbops.Function(
-                    name=zombo_func_name,
-                    args=[('new', table_name)],
-                    returns=zombo_type_name,
-                    text=f'''
-                    SELECT
-                        ROW({','.join(document_exprs)})::{q(*zombo_type_name)};
-                    ''',
-                )
-            )
-        )
-
-        for col_name, analyzer in type_mappings:
-            mapping = f'{{"type": "text", "analyzer": "{analyzer}"}}'
-
-            ops.add_command(
-                dbops.Query(
-                    f"""PERFORM zdb.define_field_mapping(
-                {ql(q(*table_name))}::regclass,
-                {ql(col_name)}::text,
-                {ql(mapping)}::json
-            )"""
-                )
-            )
-
-        index_exprs = [f'{q(*zombo_func_name)}({qi(table_name[1])}.*)']
-
-        pg_index = dbops.Index(
-            name=index_name[1],
-            table_name=table_name,  # type: ignore
-            exprs=index_exprs,
-            unique=False,
-            inherit=True,
-            with_clause={'url': ql('http://localhost:9200/')},
-            predicate=predicate_src,
-            metadata={
-                'schemaname': str(index.get_name(schema)),
-                'code': 'zombodb ((__col__))',
-                'kwargs': sql_kwarg_exprs,
-            },
-        )
-        ops.add_command(dbops.CreateIndex(pg_index))
-
     else:
-        # create column __fts_document__
-
-        fts_document = dbops.Column(
-            name=f'__fts_document__', type='pg_catalog.tsvector'
+        return _pg_create_fts_document(
+            index, exprs, predicate_src, sql_kwarg_exprs, schema
         )
-        alter_table = dbops.AlterTable(table_name)
-        alter_table.add_operation(dbops.AlterTableAddColumn(fts_document))
-        ops.add_command(alter_table)
-
-        ops.add_command(_pg_create_trigger(table_name, exprs))
-
-        # use a reference to the new column in the index instead
-        index_exprs = ['__fts_document__']
-
-        pg_index = dbops.Index(
-            name=index_name[1],
-            table_name=table_name,  # type: ignore
-            exprs=index_exprs,
-            unique=False,
-            inherit=True,
-            predicate=predicate_src,
-            metadata={
-                'schemaname': str(index.get_name(schema)),
-                'code': root_code,
-                'kwargs': sql_kwarg_exprs,
-            },
-        )
-        ops.add_command(dbops.CreateIndex(pg_index))
-    return ops
 
 
 def _delete_fts_document(
@@ -260,9 +148,7 @@ def _delete_fts_document(
     schema: s_schema.Schema,
     context: sd.CommandContext,
 ) -> dbops.Command:
-    subject = index.get_subject(schema)
-    assert subject
-    table_name = common.get_backend_name(schema, subject, catenate=False)
+    table_name = _index_table_name(index, schema)
 
     ops = dbops.CommandGroup()
     ops.add_command(drop_index)
@@ -294,9 +180,7 @@ def _refresh_fts_document(
     schema: s_schema.Schema,
     context: sd.CommandContext,
 ) -> dbops.Command:
-    subject = index.get_subject(schema)
-    assert isinstance(subject, s_types.Type)
-    table_name = common.get_backend_name(schema, subject, catenate=False)
+    table_name = _index_table_name(index, schema)
 
     # compile the expression
     index_sexpr: Optional[s_expr.Expression] = index.get_expr(schema)
@@ -306,6 +190,8 @@ def _refresh_fts_document(
         options=options,
     )
 
+    subject = index.get_subject(schema)
+    assert isinstance(subject, s_types.Type)
     subject_id = irast.PathId.from_type(schema, subject)
     sql_res = compiler.compile_ir_to_sql_tree(
         index_expr.irast,
@@ -347,7 +233,59 @@ def _raise_unsupported_language_error(
     raise errors.UnsupportedFeatureError(msg)
 
 
+def _index_table_name(
+    index: s_indexes.Index, schema: s_schema.Schema
+) -> Tuple[str, str]:
+    subject = index.get_subject(schema)
+    assert isinstance(subject, s_types.Type)
+    return common.get_backend_name(schema, subject, catenate=False)
+
+
 # --- pg fts ---
+
+
+def _pg_create_fts_document(
+    index: s_indexes.Index,
+    exprs: Sequence[pgast.BaseExpr],
+    predicate_src: Optional[str],
+    sql_kwarg_exprs: Dict[str, str],
+    schema: s_schema.Schema,
+) -> dbops.Command:
+    ops = dbops.CommandGroup()
+
+    # create column __fts_document__
+    table_name = _index_table_name(index, schema)
+
+    module_name = index.get_name(schema).module
+    index_name = common.get_index_backend_name(
+        index.id, module_name, catenate=False
+    )
+
+    fts_document = dbops.Column(
+        name=f'__fts_document__', type='pg_catalog.tsvector'
+    )
+    alter_table = dbops.AlterTable(table_name)
+    alter_table.add_operation(dbops.AlterTableAddColumn(fts_document))
+    ops.add_command(alter_table)
+
+    ops.add_command(_pg_create_trigger(table_name, exprs))
+
+    pg_index = dbops.Index(
+        name=index_name[1],
+        table_name=table_name,  # type: ignore
+        exprs=['__fts_document__'],
+        unique=False,
+        inherit=True,
+        predicate=predicate_src,
+        metadata={
+            'schemaname': str(index.get_name(schema)),
+            'kwargs': sql_kwarg_exprs,
+            # use a reference to the new column in the index instead
+            'code': 'gin (__col__)',
+        },
+    )
+    ops.add_command(dbops.CreateIndex(pg_index))
+    return ops
 
 
 def _pg_create_trigger(
@@ -373,7 +311,7 @@ def _pg_create_trigger(
             f'''
             setweight(
                 to_tsvector(
-                    ({language_sql}::text)::pg_catalog.regconfig,
+                    (({language_sql})::text)::pg_catalog.regconfig,
                     COALESCE({text_sql}, '')
                 ),
                 {weight}
@@ -451,6 +389,101 @@ def _pg_trigger_name(
 
 
 # --- zombo ---
+
+def _zombo_create_fts_document(
+    index: s_indexes.Index,
+    exprs: Sequence[pgast.BaseExpr],
+    predicate_src: Optional[str],
+    sql_kwarg_exprs: Dict[str, str],
+    schema: s_schema.Schema,
+) -> dbops.Command:
+    ops = dbops.CommandGroup()
+
+    table_name = _index_table_name(index, schema)
+
+    module_name = index.get_name(schema).module
+    index_name = common.get_index_backend_name(
+        index.id, module_name, catenate=False
+    )
+
+    zombo_type_name = _zombo_type_name(table_name)
+    ops.add_command(
+        dbops.CreateCompositeType(
+            dbops.CompositeType(
+                name=zombo_type_name,
+                columns=[
+                    dbops.Column(
+                        name=f'field{idx}',
+                        type='text',
+                    )
+                    for idx, _ in enumerate(exprs)
+                ],
+            )
+        )
+    )
+
+    type_mappings: List[Tuple[str, str]] = []
+    document_exprs = []
+    for idx, expr in enumerate(exprs):
+        assert isinstance(expr, pgast.SearchableString)
+
+        text_sql = codegen.generate_source(expr.text)
+
+        if len(expr.language_domain) != 1:
+            raise errors.UnsupportedFeatureError(
+                'zombo fts indexes support only exactly one language'
+            )
+        language = next(iter(expr.language_domain))
+
+        document_exprs.append(text_sql)
+        type_mappings.append((f'field{idx}', language))
+
+    zombo_func_name = _zombo_func_name(table_name)
+    ops.add_command(
+        dbops.CreateFunction(
+            dbops.Function(
+                name=zombo_func_name,
+                args=[('new', table_name)],
+                returns=zombo_type_name,
+                text=f'''
+                SELECT
+                    ROW({','.join(document_exprs)})::{q(*zombo_type_name)};
+                ''',
+            )
+        )
+    )
+
+    for col_name, analyzer in type_mappings:
+        mapping = f'{{"type": "text", "analyzer": "{analyzer}"}}'
+
+        ops.add_command(
+            dbops.Query(
+                f"""PERFORM zdb.define_field_mapping(
+                    {ql(q(*table_name))}::regclass,
+                    {ql(col_name)}::text,
+                    {ql(mapping)}::json
+                )"""
+            )
+        )
+
+    index_exprs = [f'{q(*zombo_func_name)}({qi(table_name[1])}.*)']
+
+    pg_index = dbops.Index(
+        name=index_name[1],
+        table_name=table_name,  # type: ignore
+        exprs=index_exprs,
+        unique=False,
+        inherit=True,
+        with_clause={'url': ql('http://localhost:9200/')},
+        predicate=predicate_src,
+        metadata={
+            'schemaname': str(index.get_name(schema)),
+            'code': 'zombodb ((__col__))',
+            'kwargs': sql_kwarg_exprs,
+        },
+    )
+    ops.add_command(dbops.CreateIndex(pg_index))
+    return ops
 
 
 def _zombo_type_name(

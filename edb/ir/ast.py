@@ -1249,6 +1249,11 @@ class ConfigInsert(ConfigCommand):
 
 
 class SearchableString(Expr):
+    """
+    Text and information on how to search through it.
+
+    Constructed with `fts::with_language`.
+    """
 
     text: Set
 

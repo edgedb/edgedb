@@ -22,7 +22,7 @@ CREATE MODULE fts;
 CREATE ABSTRACT INDEX fts::textsearch {
     CREATE ANNOTATION std::description :=
         "Full-text search index based on the Postgres's GIN index.";
-    SET code := 'gin (__col__)';
+    SET code := ''; # overridden by special case
 };
 
 CREATE SCALAR TYPE fts::searchable_str {
@@ -86,7 +86,7 @@ CREATE SCALAR TYPE fts::PGLanguage
         Swedish,
         Tamil,
         Turkish,
-        Yiddis,
+        Yiddish,
     > {
     CREATE ANNOTATION std::description :=
         'Languages supported by PostgreSQL FTS';

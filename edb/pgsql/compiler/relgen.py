@@ -3244,6 +3244,10 @@ def _compile_call_args(
     skip: Collection[int] = (),
     ctx: context.CompilerContextLevel
 ) -> List[pgast.BaseExpr]:
+    """
+    Compiles function call arguments, whose index is not in `skip`.
+    """
+
     expr = ir_set.expr
     assert isinstance(expr, irast.Call)
 
@@ -3905,98 +3909,22 @@ def process_set_as_fts_search(
         obj_id = obj_ir.path_id
         obj_rvar = ensure_source_rvar(obj_ir, newctx.rel, ctx=newctx)
 
-        [lang_pg, query_pg] = _compile_call_args(ir_set, skip={1}, ctx=newctx)
+        # we skip the object, as it has to be compiled as rvar source
+        lang_pg, query_pg = _compile_call_args(ir_set, skip={1}, ctx=newctx)
 
-        [out_obj_id, out_score_id] = func_call.tuple_path_ids
+        out_obj_id, out_score_id = func_call.tuple_path_ids
 
         with newctx.subrel() as inner_ctx:
             # inner_ctx generates the `SELECT score WHERE test` relation
 
             from edb.common import debug
             if debug.flags.zombodb:
-                el_name = sn.QualName('__object__', 'ctid')
-                ctid_ptrref = irast.SpecialPointerRef(
-                    name=el_name,
-                    shortname=el_name,
-                    out_source=obj_id.target,
-                    out_target=pg_types.pg_oid_typeref,
-                    out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
-                )
-                ctid_id = obj_id.extend(ptrref=ctid_ptrref)
-                ctid = relctx.get_path_var(
-                    newctx.rel,
-                    ctid_id,
-                    aspect='value',
-                    ctx=newctx,
-                )
-                # assert isinstance(ctid, pgast.ColumnRef)
-                # rvar_ref = ctid.name[0]
-                # assert isinstance(rvar_ref, str)
-                # zombo_func = pgast.FuncCall(
-                #     name=('edgedbpub', ' ... _zombo_func'),
-                #     args=[
-                #         pgast.TypeCast(
-                #             arg=pgast.ColumnRef(name=(rvar_ref,)),
-                #             type_name=pgast.TypeName(
-                #                 name=('edgedbpub', ' ... '),
-                #             )
-                #         ),
-                #     ]
-                # )
-
-                score_pg = pgast.FuncCall(
-                    name=('zdb', 'score'),
-                    args=[ctid]
-                )
-                where_clause = pgast.Expr(
-                    lexpr=ctid,
-                    name='==>',
-                    rexpr=query_pg,
+                score_pg, where_clause = _fts_search_inner_zombo(
+                    obj_id, query_pg, lang_pg, ctx, newctx, inner_ctx
                 )
             else:
-                el_name = sn.QualName('__object__', '__fts_document__')
-                fts_document_ptrref = irast.SpecialPointerRef(
-                    name=el_name,
-                    shortname=el_name,
-                    out_source=obj_id.target,
-                    out_target=pg_types.pg_tsvector_typeref,
-                    out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
-                )
-                fts_document_id = obj_id.extend(ptrref=fts_document_ptrref)
-                fts_document = relctx.get_path_var(
-                    newctx.rel,
-                    fts_document_id,
-                    aspect='value',
-                    ctx=newctx,
-                )
-
-                lang_pg = pgast.TypeCast(
-                    arg=lang_pg,
-                    type_name=pgast.TypeName(
-                        name=('pg_catalog', 'regconfig')
-                    ),
-                )
-
-                # create a dummy path id for a dummy object
-                parsed_query_pg = pgast.FuncCall(
-                    name=('edgedb', 'fts_parse_query'),
-                    args=[query_pg, lang_pg]
-                )
-                parsed_query_id = create_subrel_for_expr(
-                    parsed_query_pg, an_id=obj_id, ctx=inner_ctx
-                )
-                parsed_query = pathctx.get_path_var(
-                    inner_ctx.rel, parsed_query_id, aspect='value', env=ctx.env
-                )
-
-                score_pg = pgast.FuncCall(
-                    name=('pg_catalog', 'ts_rank'),
-                    args=[fts_document, parsed_query]
-                )
-                where_clause = pgast.Expr(
-                    lexpr=fts_document,
-                    name='@@',
-                    rexpr=parsed_query
+                score_pg, where_clause = _fts_search_inner_pg(
+                    obj_id, query_pg, lang_pg, ctx, newctx, inner_ctx
                 )
 
             pathctx.put_path_var(
@@ -4067,31 +3995,110 @@ def process_set_as_fts_search(
     return new_stmt_set_rvar(ir_set, ctx.rel, aspects=aspects, ctx=ctx)
 
 
+def _fts_search_inner_pg(
+    obj_id: irast.PathId,
+    query_pg: pgast.BaseExpr,
+    lang_pg: pgast.BaseExpr,
+    ctx: context.CompilerContextLevel,
+    newctx: context.CompilerContextLevel,
+    inner_ctx: context.CompilerContextLevel,
+) -> Tuple[pgast.BaseExpr, pgast.BaseExpr]:
+    el_name = sn.QualName('__object__', '__fts_document__')
+    fts_document_ptrref = irast.SpecialPointerRef(
+        name=el_name,
+        shortname=el_name,
+        out_source=obj_id.target,
+        out_target=pg_types.pg_tsvector_typeref,
+        out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
+    )
+    fts_document_id = obj_id.extend(ptrref=fts_document_ptrref)
+    fts_document = relctx.get_path_var(
+        newctx.rel,
+        fts_document_id,
+        aspect='value',
+        ctx=newctx,
+    )
+
+    lang_pg = pgast.TypeCast(
+        arg=lang_pg,
+        type_name=pgast.TypeName(
+            name=('pg_catalog', 'regconfig')
+        ),
+    )
+
+    parsed_query_pg = pgast.FuncCall(
+        name=('edgedb', 'fts_parse_query'),
+        args=[query_pg, lang_pg]
+    )
+    parsed_query_id = create_subrel_for_expr(
+        parsed_query_pg, ctx=inner_ctx
+    )
+    parsed_query = pathctx.get_path_var(
+        inner_ctx.rel, parsed_query_id, aspect='value', env=ctx.env
+    )
+
+    score_pg = pgast.FuncCall(
+        name=('pg_catalog', 'ts_rank'),
+        args=[fts_document, parsed_query]
+    )
+    where_clause = pgast.Expr(
+        lexpr=fts_document,
+        name='@@',
+        rexpr=parsed_query
+    )
+
+    return score_pg, where_clause
+
+
+def _fts_search_inner_zombo(
+    obj_id: irast.PathId,
+    query_pg: pgast.BaseExpr,
+    _lang_pg: pgast.BaseExpr,
+    _ctx: context.CompilerContextLevel,
+    newctx: context.CompilerContextLevel,
+    _inner_ctx: context.CompilerContextLevel,
+) -> Tuple[pgast.BaseExpr, pgast.BaseExpr]:
+    el_name = sn.QualName('__object__', 'ctid')
+    ctid_ptrref = irast.SpecialPointerRef(
+        name=el_name,
+        shortname=el_name,
+        out_source=obj_id.target,
+        out_target=pg_types.pg_oid_typeref,
+        out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
+    )
+    ctid_id = obj_id.extend(ptrref=ctid_ptrref)
+    ctid = relctx.get_path_var(
+        newctx.rel,
+        ctid_id,
+        aspect='value',
+        ctx=newctx,
+    )
+
+    score_pg = pgast.FuncCall(
+        name=('zdb', 'score'),
+        args=[ctid]
+    )
+    where_clause = pgast.Expr(
+        lexpr=ctid,
+        name='==>',
+        rexpr=query_pg,
+    )
+    return score_pg, where_clause
+
+
 def create_subrel_for_expr(
     expr: pgast.BaseExpr,
     *,
-    alias: str = 'expr',
-    an_id: irast.PathId,
     ctx: context.CompilerContextLevel
 ) -> irast.PathId:
     """
-    Creates a dummy relation that contains the given expression.
+    Creates a sub query relation that contains the given expression.
     That expr should not use any references to other relvars, since it will be
-    computed a new a context.
-
-    an_id should be a path id of an object, does not matter which.
+    computed in a new context.
     """
 
     # create a dummy path id for a dummy object
-    el_name = sn.QualName('__dummy__', alias)
-    query_ptrref = irast.SpecialPointerRef(
-        name=el_name,
-        shortname=el_name,
-        out_source=an_id.target,
-        out_target=an_id.target,
-        out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
-    )
-    expr_id = an_id.extend(ptrref=query_ptrref)
+    expr_id = irast.PathId.new_dummy(ctx.env.aliases.get('dummy'))
 
     with ctx.subrel() as newctx:
 

@@ -187,7 +187,7 @@ pg_langs = {
     'swedish',
     'tamil',
     'turkish',
-    'yiddis',
+    'yiddish',
 }
 
 

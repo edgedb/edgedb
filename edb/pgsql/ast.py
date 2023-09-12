@@ -1239,6 +1239,12 @@ class CopyStmt(Statement):
 
 
 class SearchableString(BaseExpr):
+    """
+    Text and information on how to search through it.
+
+    Constructed with `fts::with_language`.
+    """
+
     text: BaseExpr
 
     language: BaseExpr

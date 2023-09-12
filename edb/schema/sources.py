@@ -165,10 +165,10 @@ class Source(
         from edb.common import debug
         if not debug.flags.zombodb:
             fts_textsearch = sn.QualName('fts', 'textsearch')
-            has_fts_index = False
-            for index in self.get_indexes(schema).objects(schema):
-                if index.has_base_with_name(schema, fts_textsearch):
-                    has_fts_index = True
+            has_fts_index = any(
+                index.has_base_with_name(schema, fts_textsearch)
+                for index in self.get_indexes(schema).objects(schema)
+            )
 
             if has_fts_index:
                 res.append(
