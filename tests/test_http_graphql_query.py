@@ -34,6 +34,9 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     SCHEMA_OTHER = os.path.join(os.path.dirname(__file__), 'schemas',
                                 'graphql_other.esdl')
 
+    SCHEMA_OTHER_DEEP = os.path.join(os.path.dirname(__file__), 'schemas',
+                                     'graphql_schema_other_deep.esdl')
+
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'graphql_setup.edgeql')
 
@@ -633,6 +636,22 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 'id': uuid.UUID,
                 'computed': 'a computed value',
                 'once': 'init',
+            }],
+        })
+
+    def test_graphql_functional_query_23(self):
+        # get an object from a deeply nested module
+        self.assert_graphql_query_result(r"""
+            query {
+                other__deep__NestedMod {
+                    __typename
+                    val
+                }
+            }
+        """, {
+            'other__deep__NestedMod': [{
+                '__typename': 'other__deep__NestedMod_Type',
+                'val': 'in nested module',
             }],
         })
 

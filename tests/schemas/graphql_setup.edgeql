@@ -216,3 +216,7 @@ insert Fixed;
 insert NotEditable {
     once := 'init',
 };
+
+insert other::deep::NestedMod {
+    val := 'in nested module'
+};
