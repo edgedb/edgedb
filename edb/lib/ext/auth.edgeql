@@ -30,7 +30,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create constraint exclusive on ((.iss, .sub))
     };
 
-    create type ext::auth::LocalIdentity {
+    create type ext::auth::LocalIdentity extending ext::auth::Identity {
         create required property handle: std::str {
             create constraint exclusive;
         };
