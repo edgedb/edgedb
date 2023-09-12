@@ -1135,7 +1135,7 @@ class DatabaseTestCase(ConnectedTestCase):
             if m:
                 module_name = (
                     (m.group(1) or cls.DEFAULT_MODULE)
-                    .lower().replace('__', '.')
+                    .lower().replace('_', '::')
                 )
 
                 schema_fn = getattr(cls, name)
