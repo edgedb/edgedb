@@ -420,11 +420,11 @@ class GQLCoreSchema:
             return shortname
         else:
             assert module != '', f'get_gl_name {name=}'
-            return f'{module}__{shortname}'
+            return str(name).replace("::", "__")
 
     def get_input_name(self, inputtype: str, name: str) -> str:
         if '__' in name:
-            module, shortname = name.split('__', 1)
+            module, shortname = name.rsplit('__', 1)
             assert module != '', f'get_input_name {name=}'
             return f'{module}__{inputtype}{shortname}'
         else:
@@ -433,7 +433,7 @@ class GQLCoreSchema:
     def gql_to_edb_name(self, name: str) -> str:
         '''Convert the GraphQL field name into an EdgeDB type/view name.'''
         if '__' in name:
-            return name.replace('__', '::', 1)
+            return name.replace('__', '::')
         else:
             return name
 
@@ -1534,7 +1534,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
         # determine module from name if not already specified
         if '::' in self._name:
-            self._module = self._name.split('::', 1)[0]
+            self._module = self._name.rsplit('::', 1)[0]
         else:
             self._module = None
 
@@ -1642,7 +1642,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
     @property
     def gql_typename(self) -> str:
         name = self.name
-        module, shortname = name.split('::', 1)
+        module, shortname = name.rsplit('::', 1)
 
         if self.edb_base is None:
             # We expect that this is one of the fake objects, that
@@ -1658,7 +1658,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
             return f'{shortname}{suffix}'
         else:
             assert module != '', 'gql_typename ' + module
-            return f'{module}__{shortname}{suffix}'
+            return f'{name.replace("::", "__")}{suffix}'
 
     @property
     def schema(self) -> GQLCoreSchema:
@@ -1797,7 +1797,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
                     SELECT (
                         name[5:] IF name LIKE 'std::%' ELSE
                         name[9:] IF name LIKE 'default::%' ELSE
-                        re_replace(r'(.+?)::(.+$)', r'\1__\2', name)
+                        str_replace(name, '::', '__')
                     ) ++ '_Type'
                 ''')
 
@@ -1885,7 +1885,8 @@ class GQLBaseQuery(GQLBaseType):
         if name in self._std_obj_names:
             return ('std', name)
         elif '__' in name:
-            return tuple(name.split('__', 1))
+            module, name = name.rsplit('__', 1)
+            return (module.replace('__', '::'), name)
         else:
             return ('default', name)
 
