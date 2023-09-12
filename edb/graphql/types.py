@@ -645,6 +645,9 @@ class GQLCoreSchema:
                     args=self._get_query_args(name),
                 )
         elif str(typename) == '__graphql__::Mutation':
+            # Get a list of alias names, so that we don't generate inserts for
+            # them.
+            aliases = {t.name for t in self._gql_objtypes_from_alias.values()}
             for name, gqltype in sorted(self._gql_objtypes.items(),
                                         key=lambda x: x[1].name):
                 # '_edb' prefix indicates an internally generated type
@@ -657,12 +660,15 @@ class GQLCoreSchema:
                     GraphQLList(GraphQLNonNull(gqltype)),
                     args=self._get_query_args(name),
                 )
+                if gname in aliases:
+                    # Aliases can only have delete mutations
+                    continue
+
                 args = self._get_insert_args(name)
-                if args:
-                    fields[f'insert_{gname}'] = GraphQLField(
-                        GraphQLList(GraphQLNonNull(gqltype)),
-                        args=args,
-                    )
+                fields[f'insert_{gname}'] = GraphQLField(
+                    GraphQLList(GraphQLNonNull(gqltype)),
+                    args=args,
+                )
 
             for name, gqliface in sorted(self._gql_interfaces.items(),
                                          key=lambda x: x[1].name):
@@ -673,6 +679,7 @@ class GQLCoreSchema:
                 gname = self.get_gql_name(name)
                 args = self._get_update_args(name)
                 if args:
+                    # If there are no args, there's nothing to update.
                     fields[f'update_{gname}'] = GraphQLField(
                         GraphQLList(GraphQLNonNull(gqliface)),
                         args=args,
@@ -1430,7 +1437,8 @@ class GQLCoreSchema:
                 # only objects that have at least one non-readonly
                 # link/property are eligible
                 pointers = t.get_pointers(self.edb_schema)
-                if any(not p.get_readonly(self.edb_schema)
+                if any(not p.get_readonly(self.edb_schema) and
+                       not p.is_pure_computable(self.edb_schema)
                        for _, p in pointers.items(self.edb_schema)):
                     gqlupdatetype = GraphQLInputObjectType(
                         name=self.get_input_name('Update', gql_name),
@@ -1478,13 +1486,20 @@ class GQLCoreSchema:
             )
             self._gql_objtypes[t_name] = gqltype
 
-            # input object types corresponding to this object (only
-            # real objects can appear as input objects)
-            gqlinserttype = GraphQLInputObjectType(
-                name=self.get_input_name('Insert', gql_name),
-                fields=partial(self.get_insert_fields, t_name),
-            )
-            self._gql_inobjtypes[f'Insert{t_name}'] = gqlinserttype
+            # only objects that have at least one non-computed
+            # link/property are eligible to be input objects
+            pointers = t.get_pointers(self.edb_schema)
+            if any(not p.is_pure_computable(self.edb_schema)
+                   for pname, p in pointers.items(self.edb_schema)
+                   if str(pname) not in {'__type__', 'id'}):
+
+                # input object types corresponding to this object (only
+                # real objects can appear as input objects)
+                gqlinserttype = GraphQLInputObjectType(
+                    name=self.get_input_name('Insert', gql_name),
+                    fields=partial(self.get_insert_fields, t_name),
+                )
+                self._gql_inobjtypes[f'Insert{t_name}'] = gqlinserttype
 
     def get(self, name: str, *, dummy: bool = False) -> GQLBaseType:
         '''Get a special GQL type either by name or based on EdgeDB type.'''

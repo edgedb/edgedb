@@ -225,3 +225,14 @@ type RangeTest {
     rdate: range<cal::local_date>;
     mdate: multirange<cal::local_date>;
 }
+
+type Fixed {
+    property computed := 123;
+}
+
+type NotEditable {
+    property computed := 'a computed value';
+    required once: str {
+        readonly := true;
+    }
+}
