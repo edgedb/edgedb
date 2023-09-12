@@ -230,7 +230,7 @@ jobs:
 
 
   workflow-notifications:
-    if: always()
+    if: failure()
     name: Notify in Slack on failures
     needs:
       - test-conclusion
