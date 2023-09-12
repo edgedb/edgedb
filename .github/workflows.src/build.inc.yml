@@ -362,13 +362,18 @@
       - collect
     <%- else %>
     <%- endif %>
-    <%- for tgt in targets.linux + targets.macos %>
+    <%- for tgt in targets.linux %>
       - build-<< tgt.name >>
       - test-<< tgt.name >>
     <%- for publish in publications %>
       - publish<< publish.suffix>>-<< tgt.name >>
       - check-published<< publish.suffix>>-<< tgt.name >>
     <%- endfor %>
+    <%- endfor %>
+    <%- for tgt in targets.macos %>
+      - build-<< tgt.name >>
+      - test-<< tgt.name >>
+      - publish-<< tgt.name >>
     <%- endfor %>
       - publish-docker
     runs-on: ubuntu-latest
