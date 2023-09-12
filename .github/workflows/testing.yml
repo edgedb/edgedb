@@ -2441,11 +2441,11 @@ jobs:
 
   publish-docker:
     needs:
-      
+
       - check-published-debian-buster-x86_64
-      
+
       - check-published-debian-buster-aarch64
-      
+
     runs-on: ubuntu-latest
 
     steps:
@@ -2526,7 +2526,7 @@ jobs:
 
 
   workflow-notifications:
-    if: always()
+    if: failure()
     name: Notify in Slack on failures
 
     needs:
