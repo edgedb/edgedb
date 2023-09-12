@@ -15990,6 +15990,11 @@ class TestDDLNonIsolated(tb.DDLTestCase):
               set code := ' ((__col__) NULLS FIRST)';
           };
 
+          create type ext::varchar::ParentTest {
+              create property foo -> str;
+          };
+          create type ext::varchar::ChildTest
+              extending ext::varchar::ParentTest;
         };
         ''')
         try:
