@@ -31,9 +31,7 @@ from edb.common import debug
 from edb.common import markup
 from edb.ir import statypes
 
-from . import oauth
-from . import errors
-from . import util
+from . import oauth, local, errors, util
 
 
 class Router:
@@ -119,8 +117,31 @@ class Router:
                         f"HttpOnly; Secure; SameSite=Strict"
                     )
 
+                case ("register",):
+                    content_type = request.content_type
+                    match content_type:
+                        case b"application/x-www-form-urlencoded":
+                            data = {k: v[0] for k, v in urllib.parse.parse_qs(
+                                request.body.decode('ascii')
+                            ).items()}
+                        case b"application/json":
+                            data = json.loads(request.body)
+                        case _:
+                            raise errors.InvalidData(
+                                f"Unsupported Content-Type: {content_type}"
+                            )
+
+                    match data.get("provider"):
+                        case str(provider_id):
+                            client = local.Client(db=self.db, provider_id=provider_id)
+                            await client.register(data)
+                        case _:
+                            raise errors.InvalidData(
+                                'Missing "provider" in register request'
+                            )
+
                 case _:
-                    raise errors.NotFound("Unknown OAuth endpoint")
+                    raise errors.NotFound("Unknown auth endpoint")
 
         except errors.NotFound as ex:
             _fail_with_error(

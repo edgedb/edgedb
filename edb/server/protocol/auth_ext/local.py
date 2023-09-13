@@ -16,10 +16,16 @@
 # limitations under the License.
 #
 
-
-import urllib.parse
+import argon2
+import json
 
 from typing import Any
+from edb.server.protocol import execute
+
+from . import errors, util, data
+
+ph = argon2.PasswordHasher()
+
 
 class Client:
     def __init__(self, db: Any, provider_id: str):
@@ -28,13 +34,12 @@ class Client:
         provider_type = self._get_provider_config(provider_id)
         match provider_type:
             case "password":
-                from . import password
-                self.provider = password.PasswordProvider()
-            _:
-                raise errors.InvalidData(f"Invalid provider: {provider_name}")
+                self.provider = PasswordProvider()
+            case _:
+                raise errors.InvalidData(f"Invalid provider: {provider_type}")
 
     async def register(self, *args, **kwargs):
-        return await self.provider.register(*args, **kwargs)
+        return await self.provider.register(self.db, *args, **kwargs)
 
     async def authenticate(self, *args, **kwargs):
         return await self.provider.authenticate(*args, **kwargs)
@@ -53,8 +58,104 @@ class Client:
         match provider_name:
             case "password":
                 return "password"
-            _:
+            case _:
                 raise errors.InvalidData(
                     f"Invalid provider configuration: {provider_id}\n"
                     f"providers={provider_client_config!r}"
                 )
+
+
+class PasswordProvider:
+    async def register(self, db: Any, input: dict[str, Any]):
+        email = input.get("email")
+
+        match (input.get("handle"), input.get("password")):
+            case (str(h), str(p)):
+                handle = h
+                password = p
+            case _:
+                raise errors.InvalidData(
+                    "Missing 'handle' or 'password' in data"
+                )
+
+        r = await execute.parse_execute_json(
+            db=db,
+            query="""\
+with
+  email := <optional str>$email,
+  handle := <str>$handle,
+  password_hash := <str>$password_hash,
+  identity := (insert ext::auth::LocalIdentity {
+    iss := <str>"local",
+    sub := "",
+    email := email,
+    handle := handle,
+  }),
+  password := (insert ext::auth::PasswordCredential {
+    password_hash := password_hash,
+    identity := identity,
+  }),
+
+select identity { * };""",
+            variables={
+                "email": email,
+                "handle": handle,
+                "password_hash": ph.hash(password),
+            },
+        )
+
+        result_json = json.loads(r.decode())
+        assert len(result_json) == 1
+
+        return data.LocalIdentity(**result_json[0])
+
+    async def authenticate(self, db: Any, input: dict[str, Any]):
+        if 'handle' not in input or 'password' not in input:
+            raise errors.InvalidData("Missing 'handle' or 'password' in data")
+
+        password = input["password"]
+        handle = input["handle"]
+        r = await execute.parse_execute_json(
+            db=db,
+            query="""\
+with
+  handle := <str>$handle,
+select ext::auth::PasswordCredential { password_hash, identity: { * } }
+filter .identity.handle = handle;""",
+            variables={
+                "handle": handle,
+            },
+        )
+
+        password_credential_dicts = json.loads(r.decode())
+        if len(password_credential_dicts) != 1:
+            raise errors.NoIdentityFound()
+        password_credential_dict = password_credential_dicts[0]
+
+        password_hash = password_credential_dict.password_hash
+        if not ph.verify(password_hash, password):
+            raise errors.NoIdentityFound()
+
+        local_identity = data.LocalIdentity(
+            **password_credential_dict["identity"]
+        )
+
+        if ph.check_needs_rehash(password_hash):
+            new_hash = ph.hash(password)
+            await execute.parse_execute_json(
+                db=db,
+                query="""\
+with
+  handle := <str>$handle,
+  new_hash := <str>$new_hash,
+
+update ext::auth::PasswordCredential
+filter .identity.handle = handle
+set { password_hash := new_hash };""",
+                variables={
+                    "handle": local_identity.handle,
+                    "new_hash": new_hash,
+                },
+            )
+
+        return local_identity
