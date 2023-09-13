@@ -19,7 +19,7 @@
 
 CREATE MODULE fts;
 
-CREATE ABSTRACT INDEX fts::textsearch {
+CREATE ABSTRACT INDEX fts::index {
     CREATE ANNOTATION std::description :=
         "Full-text search index based on the Postgres's GIN index.";
     SET code := ''; # overridden by special case
@@ -49,7 +49,7 @@ CREATE FUNCTION fts::search(
 >
 {
     CREATE ANNOTATION std::description := '
-        Search an object using its fts::textsearch index.
+        Search an object using its fts::index index.
         Returns objects that match the specified query and the matching score
     ';
     SET volatility := 'Immutable';

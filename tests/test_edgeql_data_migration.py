@@ -11450,7 +11450,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
 
     async def test_edgeql_migration_abstract_index_01(self):
         await self.migrate(r"""
-            abstract index MyIndex extending fts::textsearch;
+            abstract index MyIndex extending fts::index;
             type Base {
                 property name -> str;
                 index MyIndex on (
@@ -11460,7 +11460,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         """)
 
         await self.migrate(r"""
-            abstract index MyIndex extending fts::textsearch;
+            abstract index MyIndex extending fts::index;
             type Base {
                 property name -> str;
                 index MyIndex on (
@@ -11478,7 +11478,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             ''')
 
         await self.migrate(r"""
-            abstract index MyIndex extending fts::textsearch;
+            abstract index MyIndex extending fts::index;
             type Base {
                 property name -> str;
                 index MyIndex on (
@@ -11489,7 +11489,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         """)
 
         await self.migrate(r"""
-            abstract index MyIndex extending fts::textsearch {
+            abstract index MyIndex extending fts::index {
                 annotation title := "test";
             }
             type Base {

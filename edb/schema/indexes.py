@@ -73,7 +73,7 @@ def is_index_valid_for_type(
                     schema.get('std::json', type=s_scalars.ScalarType),
                 )
             )
-        case 'fts::textsearch':
+        case 'fts::index':
             return is_subclass_or_tuple(
                 expr_type, 'fts::searchable_str', schema
             )
@@ -1014,7 +1014,7 @@ class CreateIndex(
 
             if not is_index_valid_for_type(root, expr_type, comp_expr.schema):
                 hint = None
-                if str(name) == 'fts::textsearch':
+                if str(name) == 'fts::index':
                     hint = (
                         'fts::searchable_str can be constructed with '
                         'fts::with_language(str, anyenum)'
@@ -1179,7 +1179,7 @@ def get_effective_fts_index(
     """
     indexes: so.ObjectIndexByFullname[Index] = subject.get_indexes(schema)
 
-    fts_name = sn.QualName('fts', 'textsearch')
+    fts_name = sn.QualName('fts', 'index')
     fts_indexes = [
         ind
         for ind in indexes.objects(schema)

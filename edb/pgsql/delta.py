@@ -3603,7 +3603,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             raise AssertionError(f'index {root_name} is missing the code')
 
         # FTS
-        if root_name == sn.QualName('fts', 'textsearch'):
+        if root_name == sn.QualName('fts', 'index'):
             return deltafts.create_fts_index(
                 index,
                 root_code,
@@ -3731,7 +3731,7 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
             drop_index = dbops.CommandGroup()
 
         # FTS
-        fts_textsearch = sn.QualName('fts', 'textsearch')
+        fts_textsearch = sn.QualName('fts', 'index')
         if index.has_base_with_name(orig_schema, fts_textsearch):
             options = self.get_compile_options(
                 index, orig_schema, context, self.get_schema_metaclass()

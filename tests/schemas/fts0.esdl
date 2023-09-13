@@ -26,7 +26,7 @@ type Chapter extending Ordered {
 
     multi link paragraphs := .<chapter[is Paragraph];
 
-    index fts::textsearch on (
+    index fts::index on (
         fts::with_language(.title, fts::Language.English)
     );
 }
@@ -36,7 +36,7 @@ type Paragraph extending Ordered {
 
     required property text -> str;
 
-    index fts::textsearch on (
+    index fts::index on (
         fts::with_language(.text, fts::Language.English)
     );
 }

@@ -602,19 +602,19 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.InvalidDefinitionError,
-                  "index 'fts::textsearch' of object type 'test::Foo' "
+                  "index 'fts::index' of object type 'test::Foo' "
                   "was already declared")
     def test_schema_bad_type_17(self):
         """
             type Foo {
                 property val -> str;
-                index fts::textsearch on (
+                index fts::index on (
                     fts::with_language(.val, fts::Language.English)
                 );
-                index fts::textsearch on (
+                index fts::index on (
                     fts::with_language(.val, fts::Language.Italian)
                 );
-                index fts::textsearch on (
+                index fts::index on (
                     fts::with_language(.val, fts::Language.English)
                 );
             };
@@ -6201,7 +6201,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property last_name -> str;
                 property name := .first_name ++ ' ' ++ .last_name;
                 # an index on a computable
-                index fts::textsearch on (
+                index fts::index on (
                     fts::with_language(.name, fts::Language.English)
                 );
             }

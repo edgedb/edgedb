@@ -105,7 +105,7 @@ type Issue extending Named, Owned, Text {
 
     tags: array<str>;
 
-    index fts::textsearch on ((
+    index fts::index on ((
         fts::with_language(.name, fts::Language.English),
         fts::with_language(.body, fts::Language.English),
     ));

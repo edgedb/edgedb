@@ -932,7 +932,7 @@ def compile_fts_search(
     call: irast.FunctionCall, *, ctx: context.ContextLevel
 ) -> irast.Expr:
 
-    # validate that object has fts::textsearch index
+    # validate that object has fts::index index
     object_arg = call.args[1]
     object_typeref = object_arg.expr.typeref 
     object_typeref = object_typeref.material_type or object_typeref

@@ -6,7 +6,7 @@ module default {
 
     abstract type Text {
         required property text -> str;
-        # index fts::textsearch on (
+        # index fts::index on (
         #     fts::with_language(.text, fts::Language.English)
         # );
     }
@@ -15,20 +15,20 @@ module default {
         required property title -> str;
 
         multi link paragraphs := .<chapter[is Paragraph];
-        index fts::textsearch on (
+        index fts::index on (
             fts::with_language(.title, fts::Language.English)
         );
     }
 
     type Paragraph extending Ordered, Text {
         required link chapter -> Chapter;
-        index fts::textsearch on (
+        index fts::index on (
             fts::with_language(.text, fts::Language.English)
         );
     }
 
     type Quote extending Text {
-        index fts::textsearch on (
+        index fts::index on (
             fts::with_language(.text, fts::Language.English)
         );
     }
@@ -38,7 +38,7 @@ module default {
 
         # A computed str that can also be searched
         property comp_comment := 'Someone commented: ' ++ .comment;
-        index fts::textsearch on (
+        index fts::index on (
             fts::with_language(.comp_comment, fts::Language.English)
         );
     }

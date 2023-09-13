@@ -319,7 +319,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
             create type Doc1 {
                 create required property x -> str;
 
-                create index fts::textsearch on (
+                create index fts::index on (
                     fts::with_language(.x, MyLangs.English)
                 );
             };
@@ -337,7 +337,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
             # possible values of the enum. This then fails because some of them
             # are not supported by postgres.
             await self.con.execute("""
-                alter type Doc2 create index fts::textsearch on (
+                alter type Doc2 create index fts::index on (
                     fts::with_language(.x,
                         MyLangs.English if .x = 'blah' else MyLangs.PigLatin
                     )
