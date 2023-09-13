@@ -532,8 +532,7 @@ def _process_delta_params(delta, schema, params):
         debug.header('Delta Plan')
         debug.dump(delta, schema=schema)
 
-    context = sd.CommandContext()
-    context.stdmode = True
+    context = sd.CommandContext(stdmode=True)
 
     if not delta.canonical:
         # Canonicalize
@@ -961,6 +960,7 @@ async def _make_stdlib(
     schema, _ = s_mod.Module.create_in_schema(
         schema,
         name=sn.UnqualName('__derived__'),
+        stdmode=True,
     )
 
     current_block = dbops.PLTopBlock()
@@ -1019,7 +1019,7 @@ async def _make_stdlib(
         if not schema.has_object(obj.id):
             delta = sd.DeltaRoot()
             delta.add(obj.as_shell(reflschema).as_create_delta(reflschema))
-            schema = delta.apply(schema, sd.CommandContext())
+            schema = delta.apply(schema, sd.CommandContext(stdmode=True))
     assert isinstance(schema, s_schema.ChainedSchema)
 
     assert current_block is not None
@@ -1098,8 +1098,7 @@ async def _amend_stdlib(
     topblock = dbops.PLTopBlock()
     plans = []
 
-    context = sd.CommandContext()
-    context.stdmode = True
+    context = sd.CommandContext(stdmode=True)
 
     for ddl_cmd in edgeql.parse_block(ddl_text):
         assert isinstance(ddl_cmd, qlast.DDLCommand)
