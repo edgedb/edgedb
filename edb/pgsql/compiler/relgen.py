@@ -3942,7 +3942,7 @@ def process_set_as_fts_search(
             )
 
         obj_id_pg_ref = pathctx.get_rvar_path_var(
-            obj_rvar, out_obj_id, aspect='value', env=newctx.env
+            obj_rvar, obj_id, aspect='value', env=newctx.env
         )
         score_pg_ref = pathctx.get_path_var(
             newctx.rel, out_score_id, aspect='value', env=newctx.env
