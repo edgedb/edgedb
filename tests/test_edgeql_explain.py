@@ -38,6 +38,12 @@ class TestEdgeQLExplain(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'explain.esdl')
 
+    SCHEMA_BUG5758 = os.path.join(os.path.dirname(__file__), 'schemas',
+                                  'explain_bug5758.esdl')
+
+    SCHEMA_BUG5791 = os.path.join(os.path.dirname(__file__), 'schemas',
+                                  'explain_bug5791.esdl')
+
     SETUP = [
         os.path.join(os.path.dirname(__file__), 'schemas',
                      'explain_setup.edgeql'),
@@ -1796,6 +1802,127 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                 ],
             },
         )
+
+    async def test_edgeql_explain_bug_5758(self):
+        # Issue #5758
+        res = await self.explain('''
+            with
+                module bug5758,
+                user := (select User filter .id =
+                    <uuid>'17b5649c-58b2-11ee-a739-4706f31ed5ab'),
+                track := (select Track filter .id =
+                    <uuid>'81958316-58d4-11ee-a739-9b645ff26c66'),
+                shouldLike := (user not in track.liked_by)
+            select (
+                update track
+                set {
+                    liked_by := assert_distinct(
+                        (.liked_by union user) if shouldLike
+                        else (select .liked_by filter .id != user.id)
+                    )
+                }
+            );
+        ''', execute=False)
+        # We use execute := False above because we actually don't have data,
+        # but we can target the issue reliably with the "default" plan.
+        #
+        # The bug is that when coarse plan is generated "main_alias" may not
+        # be found in the plan, causing the coarse plan to be None.
+        #
+        # Part of the problem with this kind of bug is that we can definitely
+        # tell that having no coarse plan is cause by an exception, but
+        # besides that it's much harder to validate that the actual "fixed"
+        # coarse plan is "good".
+        self.assertIsNotNone(res['coarse_grained'])
+
+    async def test_edgeql_explain_bug_5791(self):
+        # Issue #5758
+        res = await self.explain('''
+            with
+                module bug5791,
+                users := (
+                    SELECT UserPreference
+                    FILTER count(
+                        File
+                        FILTER
+                            .userId = UserPreference.userId
+                            AND .isPremium = false
+                            AND .status = "PUBLISHED"
+                    ) >= 3
+                    AND .isHireable = true
+                ),
+                users_with_recent_files := (
+                    SELECT users {
+                        totalDownloadCount := sum((
+                            SELECT File
+                            FILTER
+                                .userId = users.userId
+                                AND .publishedAt >=
+                                    <datetime>"2023-06-24T09:37:21.714Z"
+                                AND .isPremium = false
+                                AND .status = "PUBLISHED"
+                            ).downloadCount
+                        ),
+                        files := (
+                            SELECT File {
+                                id,
+                                name,
+                                bgColor,
+                                isSticker,
+                                publishedAt,
+                                status,
+                                workflowId,
+                                userTags,
+                                userId,
+                                lottieSource,
+                                jsonSource,
+                                imageSource
+                            }
+                            FILTER
+                                .userId = users.userId
+                                AND .publishedAt >=
+                                    <datetime>"2023-06-24T09:37:21.714Z"
+                                AND .isPremium = false
+                                AND .status = "PUBLISHED"
+                            ORDER BY .downloadCount DESC
+                            LIMIT 3
+                        )
+                    }
+                )
+                SELECT users_with_recent_files {
+                    userId,
+                    isHireable,
+                    totalDownloadCount,
+                    files: {
+                        id,
+                        name,
+                        bgColor,
+                        isSticker,
+                        publishedAt,
+                        status,
+                        workflowId,
+                        userTags,
+                        userId,
+                        lottieSource,
+                        jsonSource,
+                        imageSource
+                    }
+                }
+                ORDER BY .totalDownloadCount DESC
+                OFFSET 0
+                LIMIT 6
+        ''', execute=False)
+        # We use execute := False above because we actually don't have data,
+        # but we can target the issue reliably with the "default" plan.
+        #
+        # The bug is that when coarse plan is generated "main_alias" may not
+        # be found in the plan, causing the coarse plan to be None.
+        #
+        # Part of the problem with this kind of bug is that we can definitely
+        # tell that having no coarse plan is cause by an exception, but
+        # besides that it's much harder to validate that the actual "fixed"
+        # coarse plan is "good".
+        self.assertIsNotNone(res['coarse_grained'])
 
 
 class NameTranslation(unittest.TestCase):
