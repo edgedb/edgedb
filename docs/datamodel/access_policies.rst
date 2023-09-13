@@ -8,7 +8,8 @@ Access Policies
 
 Object types can contain security policies that restrict the set of objects
 that can be selected, inserted, updated, or deleted by a particular query.
-This is known as *object-level security*.
+This is known as *object-level security* and it is similar in function to SQL's
+row-level security.
 
 Let's start with a simple schema without any access policies.
 
