@@ -589,12 +589,29 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_fts_complex(self):
+    async def test_edgeql_fts_complex_object(self):
         # Test the fts search on a subquery expression.
         await self.assert_query_result(
             r'''
             select fts::search(
                 (select Description limit 10),
+                'red',
+                language := 'English'
+            ).object {
+                text,
+            }
+            ''',
+            tb.bag([
+                {'text': 'Item #1: red umbrella'},
+                {'text': 'Item #2: red and white candy cane'},
+            ])
+        )
+
+        # Test the fts search on a subquery expression.
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                (select Description filter .text like 'Item%'),
                 'red',
                 language := 'English'
             ).object {
