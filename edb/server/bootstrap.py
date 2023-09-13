@@ -690,8 +690,24 @@ def prepare_patch(
         return (block.to_string(), update), (), {}, False
 
     if kind == 'repair':
-        assert not patch
-        return (update,), (), {}, True
+        needs_patch = True
+        # We ideally would like to support doing repairs only if the
+        # database was created with a version that requires the
+        # repair. This can come up if some error was introduced but it
+        # wasn't discovered for some time. This occured with an issue
+        # introduced in 3.0-rc.3 but not discovered until 3.3 was out.
+        #
+        # For that particular case, though, we detect the versions in
+        # a hacky way, by detecting a defunct function that gets left
+        # over in reflschema after the patching.
+        if patch == 'from {3.0-rc.1, 3.0-rc.2}':
+            pg_type_funcs = reflschema.get_functions(
+                'sys::_get_pg_type_for_edgedb_type')
+            needs_patch = len(pg_type_funcs) == 2
+        else:
+            assert not patch
+
+        return (update,), (), {}, needs_patch
 
     # EdgeQL and reflection schema patches need to be compiled.
     current_block = dbops.PLTopBlock()

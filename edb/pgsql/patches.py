@@ -280,5 +280,10 @@ std::__range_validate_json(v: std::json) -> OPTIONAL std::json
         ) j
     $$;
 };
-''')
+'''),
+    # Repair only if the database was originally created with rc1 or
+    # rc2, prior to pgvector being added. This catches a schema
+    # problem caused by adding prefer_subquery_args, where we
+    # distinguish between None (from old dbs) and False (the default).
+    ('repair', 'from {3.0-rc.1, 3.0-rc.2}'),
 ])
