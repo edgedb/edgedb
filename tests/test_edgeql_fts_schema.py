@@ -17,12 +17,12 @@
 #
 
 from edb.testbase import server as tb
-from edb.tools import test
 
+import edgedb
 
 class TestEdgeQLFTSSchema(tb.DDLTestCase):
 
-    @test.skip('unimplemented')
+
     async def test_edgeql_fts_schema_inheritance_01(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""
@@ -30,11 +30,11 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                     module default {
                         type Ordered {
                             required num: int64;
+                            index fts::index on (());
                         }
 
                         type Text extending Ordered {
                             required text: str;
-                            # no FTS index
                         }
                     }
                 };
@@ -46,7 +46,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 insert Text {num := 0, text := 'hello world'}
             ''')
 
-            # Without an index we simply expect no results.
+            # Empty index returns no results.
             await self.assert_query_result(
                 '''
                     select fts::search(
@@ -65,7 +65,6 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 [],
             )
 
-    @test.skip('unimplemented')
     async def test_edgeql_fts_schema_inheritance_02(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""
@@ -73,6 +72,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                     module default {
                         type Ordered {
                             required num: int64;
+                            index fts::index on (());
                         }
 
                         type Text extending Ordered {
@@ -109,7 +109,6 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 [0],
             )
 
-    @test.skip('unimplemented')
     async def test_edgeql_fts_schema_inheritance_03(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""
@@ -117,6 +116,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                     module default {
                         abstract type Ordered {
                             required num: int64;
+                            index fts::index on (());
                         }
 
                         type Text extending Ordered {
@@ -196,7 +196,6 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 ['hello world'],
             )
 
-    @test.skip('unimplemented')
     async def test_edgeql_fts_schema_inheritance_05(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""
@@ -227,16 +226,19 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 ['hello world'],
             )
 
-            await self.assert_query_result(
-                '''
+            async with self.assertRaisesRegexTx(
+                edgedb.InvalidReferenceError,
+                r'fts::search requires an fts::index index'
+            ):
+                await self.con.execute(
+                    '''
                     select count((
                         select fts::search(
                             Object, 'hello', language := 'English'
                         )
                     ))
-                ''',
-                [1],
-            )
+                    '''
+                )
 
     async def test_edgeql_fts_schema_inheritance_06(self):
         async with self._run_and_rollback():
@@ -280,22 +282,25 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 {'hello world', 'goodbye world'},
             )
 
-    @test.skip('unimplemented')
     async def test_edgeql_fts_schema_union_01(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""
                 start migration to {
                     module default {
-                        type Text {
+                        abstract type Searchable {
                             required text: str;
+                                   
+                            index fts::index on (());
+                        }
+           
+                        type Text extending Searchable {
                             index fts::index on (
                                 fts::with_language(.text, fts::Language.English)
                             );
                         }
 
-                        type TitledText {
+                        type TitledText extending Searchable {
                             required title: str;
-                            required text: str;
                             index fts::index on ((
                               fts::with_language(.title, fts::Language.English),
                               fts::with_language(.text, fts::Language.English)
@@ -318,7 +323,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
             await self.assert_query_result(
                 '''
                     select fts::search(
-                        {Text, TitledText}, 'world', language := 'English'
+                        Searchable, 'world', language := 'English'
                     ).object.text
                 ''',
                 {'hello world', 'goodbye world'},
