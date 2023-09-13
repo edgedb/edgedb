@@ -288,6 +288,6 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
         ''')
 
         self.assertNotIn(
-            "object_serialized", sql,
+            "score_serialized", sql,
             "fts::search score should not be serialized when not needed",
         )

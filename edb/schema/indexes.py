@@ -1185,6 +1185,8 @@ def get_effective_fts_index(
         for ind in indexes.objects(schema)
         if ind.has_base_with_name(schema, fts_name)
     ]
+    if len(fts_indexes) == 0:
+        return (None, False)
 
     fts_indexes_defined_here = [
         ind for ind in fts_indexes if ind.is_defined_here(schema)

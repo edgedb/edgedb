@@ -37,6 +37,7 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import operators as s_oper
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
+from edb.schema import indexes as s_indexes
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
@@ -327,7 +328,7 @@ class _SpecialCaseFunc(Protocol):
 _SPECIAL_FUNCTIONS: dict[str, _SpecialCaseFunc] = {}
 
 
-def _simple_special_case(name: str) -> Callable[
+def _special_case(name: str) -> Callable[
     [_SpecialCaseFunc], _SpecialCaseFunc
 ]:
     def func(f: _SpecialCaseFunc) -> _SpecialCaseFunc:
@@ -926,7 +927,36 @@ def finalize_args(
     return args, typemods
 
 
-@_simple_special_case('fts::with_language')
+@_special_case('fts::search')
+def compile_fts_search(
+    call: irast.FunctionCall, *, ctx: context.ContextLevel
+) -> irast.Expr:
+
+    # validate that object has fts::textsearch index
+    object_arg = call.args[1]
+    object_typeref = object_arg.expr.typeref 
+    object_typeref = object_typeref.material_type or object_typeref
+    stype_id = object_typeref.id
+
+    schema = ctx.env.schema
+
+    stype = schema.get_by_id(stype_id, type=s_types.Type)
+    if isinstance(stype, s_indexes.IndexableSubject):
+        (fts_index, _) = s_indexes.get_effective_fts_index(stype, schema)
+    else:
+        fts_index = None
+
+    if not fts_index:
+        raise errors.InvalidReferenceError(
+            f"fts::search requires an fts::index index on type "
+            f"'{stype.get_displayname(schema)}'",
+            context=object_arg.context,
+        )
+
+    return call
+
+
+@_special_case('fts::with_language')
 def compile_fts_with_language(
     call: irast.FunctionCall, *, ctx: context.ContextLevel
 ) -> irast.Expr:
