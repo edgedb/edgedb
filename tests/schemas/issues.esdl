@@ -104,6 +104,11 @@ type Issue extending Named, Owned, Text {
     };
 
     tags: array<str>;
+
+    index fts::textsearch on ((
+        fts::with_language(.name, fts::Language.English),
+        fts::with_language(.body, fts::Language.English),
+    ));
 }
 
 # This is used to test correct behavior of boolean operators: NOT,
