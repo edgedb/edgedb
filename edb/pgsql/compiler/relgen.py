@@ -4093,8 +4093,6 @@ def create_subrel_for_expr(
 ) -> irast.PathId:
     """
     Creates a sub query relation that contains the given expression.
-    That expr should not use any references to other relvars, since it will be
-    computed in a new context.
     """
 
     # create a dummy path id for a dummy object
