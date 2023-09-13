@@ -1084,14 +1084,6 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         return hash(self.id)
 
     @classmethod
-    def generate_id(
-        cls,
-        schema: s_schema.Schema,
-        data: Dict[str, Any],
-    ) -> uuid.UUID:
-        return uuidgen.uuid1mc()
-
-    @classmethod
     def _prepare_id(
         cls,
         schema: s_schema.Schema,
@@ -1112,7 +1104,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
                 return uuidgen.uuid5(
                     TYPE_ID_NAMESPACE, f'{name}-{cls.__name__}')
             else:
-                return cls.generate_id(schema, data)
+                return uuidgen.uuid1mc()
 
     @classmethod
     def _create_from_id(cls: Type[Object_T], id: uuid.UUID) -> Object_T:
