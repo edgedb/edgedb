@@ -20,8 +20,8 @@ from edb.testbase import server as tb
 
 import edgedb
 
-class TestEdgeQLFTSSchema(tb.DDLTestCase):
 
+class TestEdgeQLFTSSchema(tb.DDLTestCase):
 
     async def test_edgeql_fts_schema_inheritance_01(self):
         async with self._run_and_rollback():

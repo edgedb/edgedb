@@ -636,9 +636,9 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             ).object { __type__: { name }}
             ''',
             tb.bag([
-                { '__type__': { 'name': 'default::Post' }},
-                { '__type__': { 'name': 'default::Description' }},
-                { '__type__': { 'name': 'default::Description' }},
+                {'__type__': {'name': 'default::Post'}},
+                {'__type__': {'name': 'default::Description'}},
+                {'__type__': {'name': 'default::Description'}},
             ])
         )
 
