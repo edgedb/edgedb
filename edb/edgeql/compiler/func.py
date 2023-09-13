@@ -24,6 +24,7 @@ from __future__ import annotations
 from typing import *
 
 from edb import errors
+from edb.common import parsing
 from edb.common.typeutils import not_none
 
 from edb.ir import ast as irast
@@ -38,6 +39,7 @@ from edb.schema import operators as s_oper
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 from edb.schema import indexes as s_indexes
+from edb.schema import schema as s_schema
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
@@ -934,13 +936,29 @@ def compile_fts_search(
 
     # validate that object has fts::index index
     object_arg = call.args[1]
-    object_typeref = object_arg.expr.typeref 
+    object_typeref = object_arg.expr.typeref
     object_typeref = object_typeref.material_type or object_typeref
     stype_id = object_typeref.id
 
     schema = ctx.env.schema
+    pctx = object_arg.context
 
     stype = schema.get_by_id(stype_id, type=s_types.Type)
+
+    if union_variants := stype.get_union_of(schema):
+        for variant in union_variants.objects(schema):
+            _validate_has_fts_index(variant, schema, pctx)
+    else:
+        _validate_has_fts_index(stype, schema, pctx)
+
+    return call
+
+
+def _validate_has_fts_index(
+    stype: s_types.Type,
+    schema: s_schema.Schema,
+    pctx: Optional[parsing.ParserContext]
+) -> None:
     if isinstance(stype, s_indexes.IndexableSubject):
         (fts_index, _) = s_indexes.get_effective_fts_index(stype, schema)
     else:
@@ -950,10 +968,8 @@ def compile_fts_search(
         raise errors.InvalidReferenceError(
             f"fts::search requires an fts::index index on type "
             f"'{stype.get_displayname(schema)}'",
-            context=object_arg.context,
+            context=pctx,
         )
-
-    return call
 
 
 @_special_case('fts::with_language')

@@ -607,7 +607,6 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             ])
         )
 
-        # Test the fts search on a subquery expression.
         await self.assert_query_result(
             r'''
             select fts::search(
@@ -621,6 +620,25 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             tb.bag([
                 {'text': 'Item #1: red umbrella'},
                 {'text': 'Item #2: red and white candy cane'},
+            ])
+        )
+
+        # Test the fts search on unions.
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                {
+                    (select Description filter .text like 'Item%'),
+                    Post,
+                },
+                'red',
+                language := 'English'
+            ).object { __type__: { name }}
+            ''',
+            tb.bag([
+                { '__type__': { 'name': 'default::Post' }},
+                { '__type__': { 'name': 'default::Description' }},
+                { '__type__': { 'name': 'default::Description' }},
             ])
         )
 

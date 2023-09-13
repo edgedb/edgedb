@@ -288,12 +288,12 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 start migration to {
                     module default {
                         abstract type Searchable {
-                            required text: str;
-                                   
                             index fts::index on (());
                         }
-           
+
                         type Text extending Searchable {
+                            required text: str;
+
                             index fts::index on (
                                 fts::with_language(.text, fts::Language.English)
                             );
@@ -301,6 +301,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
 
                         type TitledText extending Searchable {
                             required title: str;
+                            required text: str;
                             index fts::index on ((
                               fts::with_language(.title, fts::Language.English),
                               fts::with_language(.text, fts::Language.English)
@@ -322,8 +323,19 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
 
             await self.assert_query_result(
                 '''
+                    select count((
+                        select fts::search(
+                            Searchable, 'world', language := 'English'
+                        )
+                    ))
+                ''',
+                {2},
+            )
+
+            await self.assert_query_result(
+                '''
                     select fts::search(
-                        Searchable, 'world', language := 'English'
+                        {Text, TitledText}, 'world', language := 'English'
                     ).object.text
                 ''',
                 {'hello world', 'goodbye world'},
