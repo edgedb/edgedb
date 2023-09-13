@@ -25,6 +25,8 @@ for obj in data['packages'] + data_testing['packages']:
             not obj['version_details']['prerelease']
             or obj['version_details']['prerelease'][0]['phase'] in ('beta', 'rc')
         )
+        # rc.3 triggers SIGILL on all but very new machines, so skip it
+        and obj['version'] != '3.0-rc.3+4d2cb4e'
     ):
         versions.append((obj['version'], base + obj['installrefs'][0]['ref']))
 
