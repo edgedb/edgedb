@@ -299,7 +299,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         """,
         f"""
         CONFIGURE CURRENT DATABASE
-        INSERT ext::auth::ClientConfig {{
+        INSERT ext::auth::OAuthClientConfig {{
             provider_name := "github",
             url := "https://github.com",
             provider_id := <str>'{uuid.uuid4()}',
@@ -309,7 +309,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         """,
         f"""
         CONFIGURE CURRENT DATABASE
-        INSERT ext::auth::ClientConfig {{
+        INSERT ext::auth::OAuthClientConfig {{
             provider_name := "google",
             url := "https://accounts.google.com",
             provider_id := <str>'{uuid.uuid4()}',
@@ -319,7 +319,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         """,
         f"""
         CONFIGURE CURRENT DATABASE
-        INSERT ext::auth::ClientConfig {{
+        INSERT ext::auth::OAuthClientConfig {{
             provider_name := "azure",
             url := "https://login.microsoftonline.com/common/v2.0",
             provider_id := <str>'{uuid.uuid4()}',
@@ -329,7 +329,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         """,
         f"""
         CONFIGURE CURRENT DATABASE
-        INSERT ext::auth::ClientConfig {{
+        INSERT ext::auth::OAuthClientConfig {{
             provider_name := "apple",
             url := "https://appleid.apple.com",
             provider_id := <str>'{uuid.uuid4()}',
@@ -358,7 +358,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             """
             SELECT assert_exists(assert_single(
                 cfg::Config.extensions[is ext::auth::AuthConfig]
-                    .providers { * } filter .provider_name = <str>$0
+                    .providers[is ext::auth::OAuthClientConfig]
+                    { * } filter .provider_name = <str>$0
             ));
             """,
             provider_name,

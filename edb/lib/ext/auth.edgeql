@@ -55,7 +55,9 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             set readonly := true;
             create annotation std::description := "Auth provider name";
         };
+    };
 
+    create type ext::auth::OAuthClientConfig extending ext::auth::ClientConfig {
         create required property url: std::str {
             set readonly := true;
             create annotation std::description := "Authorization server URL";
