@@ -3618,6 +3618,12 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         sql_res = compiler.compile_ir_to_sql_tree(ir.expr, singleton_mode=True)
         exprs = astutils.maybe_unpack_row(sql_res.ast)
 
+        if len(exprs) == 0:
+            raise errors.SchemaDefinitionError(
+                f'cannot index empty tuples using {root_name}',
+                context=index.get_sourcectx(schema)
+            )
+
         subject = index.get_subject(schema)
         assert subject
         table_name = common.get_backend_name(schema, subject, catenate=False)

@@ -318,7 +318,7 @@ def _pg_create_trigger(
             )
         '''
         )
-    document_sql = ' || '.join(document_exprs)
+    document_sql = ' || '.join(document_exprs) if document_exprs else 'NULL'
 
     func_name = _pg_update_func_name(table_name)
     function = dbops.Function(
