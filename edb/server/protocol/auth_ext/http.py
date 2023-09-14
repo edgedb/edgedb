@@ -134,15 +134,38 @@ class Router:
                                 f"Unsupported Content-Type: {content_type}"
                             )
 
-                    match data.get("provider"):
-                        case str(provider_id):
+                    match (data.get("redirect_to"), data.get("provider")):
+                        case (str(redirect_to), str(provider_id)):
                             local_client = local.Client(
                                 db=self.db, provider_id=provider_id
                             )
-                            await local_client.register(data)
-                        case _:
+                            identity = await local_client.register(data)
+
+                            response.status = http.HTTPStatus.FOUND
+                            response.custom_headers["Location"] = redirect_to
+                            session_token = self._make_session_token(
+                                identity.id
+                            )
+                            response.custom_headers["Set-Cookie"] = (
+                                f"edgedb-session={session_token}; "
+                                f"HttpOnly; Secure; SameSite=Strict"
+                            )
+                        case (None, None):
+                            raise errors.InvalidData(
+                                'Missing "redirect_to" and "provider" in '
+                                'register request'
+                            )
+                        case (None, _):
+                            raise errors.InvalidData(
+                                'Missing "redirect_to" in register request'
+                            )
+                        case (_, None):
                             raise errors.InvalidData(
                                 'Missing "provider" in register request'
+                            )
+                        case _:
+                            raise errors.InvalidData(
+                                "Invalid register request"
                             )
 
                 case _:

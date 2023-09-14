@@ -1361,10 +1361,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "email": "test@example.com",
                 "handle": "test_handle",
                 "password": "test_password",
+                "redirect_to": "http://example.com",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
-            _, _, status = self.http_con_request(
+            _, headers, status = self.http_con_request(
                 http_con,
                 None,
                 path="register",
@@ -1372,8 +1373,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 body=form_data_encoded,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
-
-            self.assertEqual(status, 200)
 
             identity = await self.con.query(
                 """
@@ -1384,6 +1383,28 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             self.assertEqual(len(identity), 1)
+
+            self.assertEqual(status, 302)
+            location = headers.get("location")
+            assert location is not None
+            self.assertEqual(location, "http://example.com")
+            set_cookie = headers.get("set-cookie")
+            assert set_cookie is not None
+            (k, v) = set_cookie.split(";")[0].split("=")
+            self.assertEqual(k, "edgedb-session")
+            signing_key = await self.get_signing_key()
+            session_token = jwt.JWT(key=signing_key, jwt=v)
+            session_claims = json.loads(session_token.claims)
+            self.assertEqual(session_claims.get("sub"), str(identity[0].id))
+            self.assertEqual(session_claims.get("iss"), str(self.http_addr))
+            now = datetime.datetime.utcnow()
+            tomorrow = now + datetime.timedelta(hours=25)
+            self.assertTrue(
+                session_claims.get("exp") > now.astimezone().timestamp()
+            )
+            self.assertTrue(
+                session_claims.get("exp") < tomorrow.astimezone().timestamp()
+            )
 
             password_credential = await self.con.query(
                 """
@@ -1408,6 +1429,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "email": "test2@example.com",
                 "handle": "test_handle2",
                 "password": "test_password2",
+                "redirect_to": "http://example.com",
             }
             json_data_encoded = json.dumps(json_data).encode()
 
@@ -1420,7 +1442,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 headers={"Content-Type": "application/json"},
             )
 
-            self.assertEqual(status, 200)
+            self.assertEqual(status, 302)
 
             identity = await self.con.query(
                 """
@@ -1445,6 +1467,34 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
+    async def test_http_auth_ext_local_password_register_form_missing_redirect_to(
+        self,
+    ):
+        with self.http_con() as http_con:
+            provider_config = await self.get_password_client_config_by_provider(
+                "password"
+            )
+            provider_id = provider_config.provider_id
+
+            form_data = {
+                "provider": provider_id,
+                "email": "test@example.com",
+                "handle": "test_handle",
+                "password": "test_password",
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 400)
+
     async def test_http_auth_ext_local_password_register_form_missing_provider(
         self,
     ):
@@ -1453,10 +1503,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "email": "test@example.com",
                 "handle": "test_handle",
                 "password": "test_password",
+                "redirect_to": "http://example.com",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
-            body, _, status = self.http_con_request(
+            _, _, status = self.http_con_request(
                 http_con,
                 None,
                 path="register",
@@ -1480,10 +1531,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": provider_id,
                 "email": "test@example.com",
                 "password": "test_password",
+                "redirect_to": "http://example.com",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
-            body, _, status = self.http_con_request(
+            _, _, status = self.http_con_request(
                 http_con,
                 None,
                 path="register",
@@ -1507,10 +1559,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": provider_id,
                 "email": "test@example.com",
                 "handle": "test_handle",
+                "redirect_to": "http://example.com",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
-            body, _, status = self.http_con_request(
+            _, _, status = self.http_con_request(
                 http_con,
                 None,
                 path="register",
@@ -1534,10 +1587,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": provider_id,
                 "handle": "test_handle",
                 "password": "test_password",
+                "redirect_to": "http://example.com",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
-            body, _, status = self.http_con_request(
+            _, _, status = self.http_con_request(
                 http_con,
                 None,
                 path="register",
@@ -1546,7 +1600,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
-            self.assertEqual(status, 200)
+            self.assertEqual(status, 302)
 
             identity = await self.con.query(
                 """
