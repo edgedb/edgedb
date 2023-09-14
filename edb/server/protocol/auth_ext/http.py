@@ -59,10 +59,10 @@ class Router:
                     provider_id = _get_search_param(
                         request.url.query.decode("ascii"), "provider"
                     )
-                    client = oauth.Client(
+                    oauth_client = oauth.Client(
                         db=self.db, provider_id=provider_id, base_url=test_url
                     )
-                    authorize_url = await client.get_authorize_url(
+                    authorize_url = await oauth_client.get_authorize_url(
                         redirect_uri=self._get_callback_url(),
                         state=self._make_state_claims(provider_id),
                     )
@@ -103,12 +103,12 @@ class Router:
 
                     provider_id = self._get_from_claims(state, "provider")
                     redirect_to = self._get_from_claims(state, "redirect_to")
-                    client = oauth.Client(
+                    oauth_client = oauth.Client(
                         db=self.db,
                         provider_id=provider_id,
                         base_url=test_url,
                     )
-                    identity = await client.handle_callback(code)
+                    identity = await oauth_client.handle_callback(code)
                     session_token = self._make_session_token(identity.id)
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = redirect_to
@@ -121,9 +121,12 @@ class Router:
                     content_type = request.content_type
                     match content_type:
                         case b"application/x-www-form-urlencoded":
-                            data = {k: v[0] for k, v in urllib.parse.parse_qs(
-                                request.body.decode('ascii')
-                            ).items()}
+                            data = {
+                                k: v[0]
+                                for k, v in urllib.parse.parse_qs(
+                                    request.body.decode('ascii')
+                                ).items()
+                            }
                         case b"application/json":
                             data = json.loads(request.body)
                         case _:
@@ -133,8 +136,10 @@ class Router:
 
                     match data.get("provider"):
                         case str(provider_id):
-                            client = local.Client(db=self.db, provider_id=provider_id)
-                            await client.register(data)
+                            local_client = local.Client(
+                                db=self.db, provider_id=provider_id
+                            )
+                            await local_client.register(data)
                         case _:
                             raise errors.InvalidData(
                                 'Missing "provider" in register request'
