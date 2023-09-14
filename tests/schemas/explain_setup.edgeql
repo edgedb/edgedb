@@ -150,31 +150,31 @@ update User set {
 };
 
 
-for x in range_unpack(range(0, 500_000)) union (
+for x in range_unpack(range(0, 900_000)) union (
   insert RangeTest {
-    rval := range(-<int64>round(300*random()), <int64>round(300*random())),
+    rval := range(-(x * 101419 % 307), x * 201881 % 307),
     mval := multirange([
-      range(-<int64>round(300*random()), <int64>round(300*random())),
-      range(-<int64>round(300*random()), <int64>round(300*random())),
+      range(-155 - (x * 100267 % 151), -(x * 201791 % 151)),
+      range(-(x * 100003 % 307), x * 202001 % 307),
     ]),
     rdate := range(
       <cal::local_date>'2000-01-01' +
-        cal::to_date_duration(days:=<int64>round(5000*random())),
+        cal::to_date_duration(days:=x * 300439 % 4999),
       <cal::local_date>'2014-01-01' +
-        cal::to_date_duration(days:=<int64>round(5000*random())),
+        cal::to_date_duration(days:=x * 300277 % 4999),
     ),
     mdate := multirange([
       range(
         <cal::local_date>'2000-01-01' +
-          cal::to_date_duration(days:=<int64>round(5000*random())),
+          cal::to_date_duration(days:=x * 302507 % 4999),
         <cal::local_date>'2014-01-01' +
-          cal::to_date_duration(days:=<int64>round(5000*random())),
+          cal::to_date_duration(days:=x * 301907 % 4999),
       ),
       range(
-        <cal::local_date>'2000-01-01' +
-          cal::to_date_duration(days:=<int64>round(5000*random())),
-        <cal::local_date>'2014-01-01' +
-          cal::to_date_duration(days:=<int64>round(5000*random())),
+        <cal::local_date>'2003-01-01' +
+          cal::to_date_duration(days:=x * 305933 % 4999),
+        <cal::local_date>'2017-01-01' +
+          cal::to_date_duration(days:=x * 305999 % 4999),
       ),
     ]),
   }
@@ -182,7 +182,7 @@ for x in range_unpack(range(0, 500_000)) union (
 
 
 for x in range_unpack(range(0, 100_000)) union (
-    insert JSONTest{val := <json>(a:=x, b:=round(random()*1000))}
+    insert JSONTest{val := <json>(a:=x, b:=x * 40123 % 10007)}
 );
 
 
