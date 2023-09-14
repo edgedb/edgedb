@@ -1349,7 +1349,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 ),
             )
 
-    async def test_http_auth_ext_local_password_register_01(self):
+    async def test_http_auth_ext_local_password_register_form_01(self):
         with self.http_con() as http_con:
             provider_config = await self.get_password_client_config_by_provider(
                 "password"
@@ -1358,6 +1358,98 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             form_data = {
                 "provider": provider_id,
+                "email": "test@example.com",
+                "handle": "test_handle",
+                "password": "test_password",
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 200)
+
+            identity = await self.con.query(
+                """
+                SELECT ext::auth::LocalIdentity
+                FILTER .email = 'test@example.com'
+                AND .handle = 'test_handle'
+                """
+            )
+
+            self.assertEqual(len(identity), 1)
+
+            password_credential = await self.con.query(
+                """
+                SELECT ext::auth::PasswordCredential { password_hash }
+                FILTER .identity.id = <uuid>$identity
+                """,
+                identity=identity[0].id,
+            )
+            self.assertTrue(
+                ph.verify(password_credential[0].password_hash, "test_password")
+            )
+
+    async def test_http_auth_ext_local_password_register_json_02(self):
+        with self.http_con() as http_con:
+            provider_config = await self.get_password_client_config_by_provider(
+                "password"
+            )
+            provider_id = provider_config.provider_id
+
+            json_data = {
+                "provider": provider_id,
+                "email": "test2@example.com",
+                "handle": "test_handle2",
+                "password": "test_password2",
+            }
+            json_data_encoded = json.dumps(json_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=json_data_encoded,
+                headers={"Content-Type": "application/json"},
+            )
+
+            self.assertEqual(status, 200)
+
+            identity = await self.con.query(
+                """
+                SELECT ext::auth::LocalIdentity
+                FILTER .email = 'test2@example.com'
+                AND .handle = 'test_handle2'
+                """
+            )
+
+            self.assertEqual(len(identity), 1)
+
+            password_credential = await self.con.query(
+                """
+                SELECT ext::auth::PasswordCredential { password_hash }
+                FILTER .identity.id = <uuid>$identity
+                """,
+                identity=identity[0].id,
+            )
+            self.assertTrue(
+                ph.verify(
+                    password_credential[0].password_hash, "test_password2"
+                )
+            )
+
+    async def test_http_auth_ext_local_password_register_form_missing_provider(
+        self,
+    ):
+        with self.http_con() as http_con:
+            form_data = {
                 "email": "test@example.com",
                 "handle": "test_handle",
                 "password": "test_password",
@@ -1373,15 +1465,93 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
-            from edb.common import markup
-            markup.dump(body)
+            self.assertEqual(status, 400)
+
+    async def test_http_auth_ext_local_password_register_form_missing_handle(
+        self,
+    ):
+        with self.http_con() as http_con:
+            provider_config = await self.get_password_client_config_by_provider(
+                "password"
+            )
+            provider_id = provider_config.provider_id
+
+            form_data = {
+                "provider": provider_id,
+                "email": "test@example.com",
+                "password": "test_password",
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            body, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 400)
+
+    async def test_http_auth_ext_local_password_register_form_missing_password(
+        self,
+    ):
+        with self.http_con() as http_con:
+            provider_config = await self.get_password_client_config_by_provider(
+                "password"
+            )
+            provider_id = provider_config.provider_id
+
+            form_data = {
+                "provider": provider_id,
+                "email": "test@example.com",
+                "handle": "test_handle",
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            body, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 400)
+
+    async def test_http_auth_ext_local_password_register_form_missing_email(
+        self,
+    ):
+        with self.http_con() as http_con:
+            provider_config = await self.get_password_client_config_by_provider(
+                "password"
+            )
+            provider_id = provider_config.provider_id
+
+            form_data = {
+                "provider": provider_id,
+                "handle": "test_handle",
+                "password": "test_password",
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            body, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
             self.assertEqual(status, 200)
 
             identity = await self.con.query(
                 """
                 SELECT ext::auth::LocalIdentity
-                FILTER .email = 'test@example.com'
-                AND .handle = 'test_handle'
+                FILTER .handle = 'test_handle'
                 """
             )
 
