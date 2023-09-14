@@ -18,6 +18,23 @@ try:
     for name in ['json', 'functions', 'expressions', 'casts', 'policies', 'vector', 'scope']:
         db.execute(f'create database {name};')
 
+    # For the scope database, let's actually migration to it.  This
+    # will test that the migrations can still work after the upgrade.
+    db2 = edgedb.create_client(
+        host='localhost', port=10000, tls_security='insecure', database='scope'
+    )
+    with open("tests/schemas/cards.esdl") as f:
+        body = f.read()
+    db2.execute(f'''
+        START MIGRATION TO {{
+            module default {{
+                {body}
+            }}
+        }};
+        POPULATE MIGRATION;
+        COMMIT MIGRATION;
+    ''')
+
 finally:
     proc.terminate()
     proc.wait()
