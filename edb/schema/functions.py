@@ -56,6 +56,9 @@ if TYPE_CHECKING:
     ParameterLike_T = TypeVar("ParameterLike_T", bound="ParameterLike")
 
 
+FUNC_NAMESPACE = uuidgen.UUID('80cd3b19-bb51-4659-952d-6bb03e3347d7')
+
+
 def param_as_str(
     schema: s_schema.Schema,
     param: Union[ParameterDesc, Parameter],
@@ -1721,6 +1724,8 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
             elif others := schema.get_functions(
                     sn.QualName(fullname.module, shortname.name), ()):
                 backend_name = others[0].get_backend_name(schema)
+            elif context.stdmode:
+                backend_name = uuidgen.uuid5(FUNC_NAMESPACE, str(fullname))
             else:
                 backend_name = uuidgen.uuid1mc()
             if not self.has_attribute_value('backend_name'):

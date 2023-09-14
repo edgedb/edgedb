@@ -4456,10 +4456,17 @@ def format_fields(
     columns in the same order as the original view.
     """
     ptrs = [obj.getptr(schema, s_name.UnqualName(s)) for s in fields]
-    # Sort by UUID timestamp, except that source goes before target always
-    # so force that to sort first.
+
+    # Sort by the order the pointers were added to the source.
+    # N.B: This only works because we are using the original in-memory
+    # schema. If it was loaded from reflection it probably wouldn't
+    # work.
+    ptr_indexes = {
+        v: i for i, v in enumerate(obj.get_pointers(schema).objects(schema))
+    }
     ptrs.sort(key=(
-        lambda p: (not p.is_link_source_property(schema), p.id.time)))
+        lambda p: (not p.is_link_source_property(schema), ptr_indexes[p])
+    ))
 
     cols = []
     for ptr in ptrs:
@@ -6740,9 +6747,15 @@ def _generate_config_type_view(
         views.extend(target_views)
 
     # You can't change the order of a postgres view... so
-    # sort them by uuid timestamp to keep them in order
+    # sort by the order the pointers were added to the source.
+    # N.B: This only works because we are using the original in-memory
+    # schema. If it was loaded from reflection it probably wouldn't
+    # work.
+    ptr_indexes = {
+        v: i for i, v in enumerate(stype.get_pointers(schema).objects(schema))
+    }
     target_cols_sorted = sorted(
-        target_cols.items(), key=lambda p: p[0].id.time
+        target_cols.items(), key=lambda p: ptr_indexes[p[0]]
     )
 
     target_cols_str = ',\n'.join([x for _, x in target_cols_sorted if x])
