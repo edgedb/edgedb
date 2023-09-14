@@ -590,7 +590,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
         )
 
     async def test_edgeql_fts_complex_object(self):
-        # Test the fts search on a subquery expression.
+        # object is a subquery
         await self.assert_query_result(
             r'''
             select fts::search(
@@ -607,15 +607,14 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             ])
         )
 
+        # object is a subquery
         await self.assert_query_result(
             r'''
             select fts::search(
                 (select Description filter .text like 'Item%'),
                 'red',
                 language := 'English'
-            ).object {
-                text,
-            }
+            ).object { text }
             ''',
             tb.bag([
                 {'text': 'Item #1: red umbrella'},
@@ -623,7 +622,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             ])
         )
 
-        # Test the fts search on unions.
+        # object is a union
         await self.assert_query_result(
             r'''
             select fts::search(
@@ -642,19 +641,72 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             ])
         )
 
+        # object is an empty set
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                (select Description filter false),
+                'red',
+                language := 'English'
+            ).object { text }
+            ''',
+            []
+        )
+
     async def test_edgeql_fts_complex_query(self):
-        # Test the fts search on a subquery expression.
+        # query is a subquery
         await self.assert_query_result(
             r'''
             select fts::search(
                 Description,
                 (select FancyText filter .style = 0 limit 1).text[0:5],
                 language := 'English'
-            ).object {
-                text,
-            }
+            ).object { text }
             ''',
             tb.bag([
                 {'text': 'Item #3: fancy pants'},
             ])
+        )
+
+        # query is an empty set
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                Description,
+                <optional str>$0,
+                language := 'English'
+            ).object { text }
+            ''',
+            [],
+            variables=(None,)
+        )
+
+    async def test_edgeql_fts_complex_language(self):
+        # language is an expression
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                Description,
+                'panties',
+                language := 'I can speak EnGlish fluently'[12:19]
+            ).object { text }
+            ''',
+            tb.bag([
+                {'text': 'Item #3: fancy pants'},
+            ])
+        )
+
+        # query is an empty set, default to english
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                Description,
+                'panties',
+                language := <optional str>$0
+            ).object { text }
+            ''',
+            tb.bag([
+                {'text': 'Item #3: fancy pants'},
+            ]),
+            variables=(None,)
         )

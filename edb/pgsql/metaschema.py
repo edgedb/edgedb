@@ -3902,6 +3902,10 @@ class FTSParseQueryFunction(dbops.Function):
         result tsquery := ''::tsquery;
 
     BEGIN
+        IF q IS NULL OR q = '' THEN
+            RETURN result;
+        END IF;
+
         -- Break up the query string into the current term, optional next
         -- operator and the rest.
         parts := regexp_match(
