@@ -413,8 +413,8 @@ class ExperimentalInterpreterTestSuite(unittest.TestSuite):
                         model.dbschema_and_db_with_initial_schema_and_queries(
                                         init_sdl, init_ql))
             else:
-                db = model.empty_db()
                 dbschema = model.empty_dbschema()
+                db = model.empty_db(dbschema)
 
             for test in self.sort_test_func({sk: suite}):
                 test.use_experimental_interpreter = True
