@@ -1,0 +1,12 @@
+[package]
+name = "edgeql-sqlite-compiler"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+edgeql-parser = { path = "../../edgeql-parser" }
+edgeql-parser-python = { path = "../../edgeql-parser/edgeql-parser-python" }
+cpython = "0.7.0"
+

@@ -257,6 +257,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "edgeql-sqlite-compiler"
+version = "0.1.0"
+dependencies = [
+ "cpython",
+ "edgeql-parser",
+ "edgeql-parser-python",
+]
+
+[[package]]
 name = "either"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
