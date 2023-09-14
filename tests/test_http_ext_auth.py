@@ -1467,7 +1467,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-    async def test_http_auth_ext_local_password_register_form_missing_redirect_to(
+    async def test_http_auth_ext_local_password_register_form_missing_redirect(
         self,
     ):
         with self.http_con() as http_con:
@@ -1621,3 +1621,124 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertTrue(
                 ph.verify(password_credential[0].password_hash, "test_password")
             )
+
+    async def test_http_auth_ext_local_password_authenticate_01(self):
+        with self.http_con() as http_con:
+            provider_config = await self.get_password_client_config_by_provider(
+                "password"
+            )
+            provider_id = provider_config.provider_id
+
+            # Register a new user
+            form_data = {
+                "provider": provider_id,
+                "email": "test_auth@example.com",
+                "handle": "test_auth_handle",
+                "password": "test_auth_password",
+                "redirect_to": "http://example.com",
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            # Authenticate the registered user
+            auth_data = {
+                "provider": form_data["provider"],
+                "handle": form_data["handle"],
+                "password": form_data["password"],
+                "redirect_to": form_data["redirect_to"],
+            }
+            auth_data_encoded = urllib.parse.urlencode(auth_data).encode()
+
+            _, headers, status = self.http_con_request(
+                http_con,
+                None,
+                path="authenticate",
+                method="POST",
+                body=auth_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 302)
+
+            # Check the session token
+            set_cookie = headers.get("set-cookie")
+            assert set_cookie is not None
+            (k, v) = set_cookie.split(";")[0].split("=")
+            self.assertEqual(k, "edgedb-session")
+            signing_key = await self.get_signing_key()
+            session_token = jwt.JWT(key=signing_key, jwt=v)
+            session_claims = json.loads(session_token.claims)
+
+            # Check the identity
+            identity = await self.con.query(
+                """
+                SELECT ext::auth::LocalIdentity
+                FILTER .email = 'test_auth@example.com'
+                AND .handle = 'test_auth_handle'
+                """
+            )
+
+            self.assertEqual(len(identity), 1)
+            self.assertEqual(session_claims.get("sub"), str(identity[0].id))
+            self.assertEqual(session_claims.get("iss"), str(self.http_addr))
+            now = datetime.datetime.utcnow()
+            tomorrow = now + datetime.timedelta(hours=25)
+            self.assertTrue(
+                session_claims.get("exp") > now.astimezone().timestamp()
+            )
+            self.assertTrue(
+                session_claims.get("exp") < tomorrow.astimezone().timestamp()
+            )
+
+            # Attempt to authenticate with wrong password
+            auth_data_wrong_password = {
+                "provider": form_data["provider"],
+                "handle": form_data["handle"],
+                "password": "wrong_password",
+                "redirect_to": form_data["redirect_to"],
+            }
+            auth_data_encoded_wrong_password = urllib.parse.urlencode(
+                auth_data_wrong_password
+            ).encode()
+
+            _, _, wrong_password_status = self.http_con_request(
+                http_con,
+                None,
+                path="authenticate",
+                method="POST",
+                body=auth_data_encoded_wrong_password,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(wrong_password_status, 403)
+
+            # Attempt to authenticate with a random handle
+            random_handle = str(uuid.uuid4())
+            auth_data_random_handle = {
+                "provider": form_data["provider"],
+                "handle": random_handle,
+                "password": form_data["password"],
+                "redirect_to": form_data["redirect_to"],
+            }
+            auth_data_encoded_random_handle = urllib.parse.urlencode(
+                auth_data_random_handle
+            ).encode()
+
+            _, _, wrong_handle_status = self.http_con_request(
+                http_con,
+                None,
+                path="authenticate",
+                method="POST",
+                body=auth_data_encoded_random_handle,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(wrong_handle_status, 403)

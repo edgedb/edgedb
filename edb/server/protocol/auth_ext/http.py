@@ -164,8 +164,55 @@ class Router:
                                 'Missing "provider" in register request'
                             )
                         case _:
+                            raise errors.InvalidData("Invalid register request")
+                case ("authenticate",):
+                    content_type = request.content_type
+                    match content_type:
+                        case b"application/x-www-form-urlencoded":
+                            data = {
+                                k: v[0]
+                                for k, v in urllib.parse.parse_qs(
+                                    request.body.decode('ascii')
+                                ).items()
+                            }
+                        case b"application/json":
+                            data = json.loads(request.body)
+                        case _:
                             raise errors.InvalidData(
-                                "Invalid register request"
+                                f"Unsupported Content-Type: {content_type}"
+                            )
+
+                    match (data.get("redirect_to"), data.get("provider")):
+                        case (str(redirect_to), str(provider_id)):
+                            local_client = local.Client(
+                                db=self.db, provider_id=provider_id
+                            )
+                            identity = await local_client.authenticate(data)
+                            response.status = http.HTTPStatus.FOUND
+                            response.custom_headers["Location"] = redirect_to
+                            session_token = self._make_session_token(
+                                identity.id
+                            )
+                            response.custom_headers["Set-Cookie"] = (
+                                f"edgedb-session={session_token}; "
+                                f"HttpOnly; Secure; SameSite=Strict"
+                            )
+                        case (None, None):
+                            raise errors.InvalidData(
+                                'Missing "redirect_to" and "provider" in '
+                                'authenticate request'
+                            )
+                        case (None, _):
+                            raise errors.InvalidData(
+                                'Missing "redirect_to" in authenticate request'
+                            )
+                        case (_, None):
+                            raise errors.InvalidData(
+                                'Missing "provider" in authenticate request'
+                            )
+                        case _:
+                            raise errors.InvalidData(
+                                "Invalid authenticate request"
                             )
 
                 case _:
@@ -192,6 +239,14 @@ class Router:
                 response=response,
                 status=http.HTTPStatus.INTERNAL_SERVER_ERROR,
                 message=str(ex),
+                ex_type=edb_errors.ProtocolError,
+            )
+
+        except errors.NoIdentityFound:
+            _fail_with_error(
+                response=response,
+                status=http.HTTPStatus.FORBIDDEN,
+                message="No identity found",
                 ex_type=edb_errors.ProtocolError,
             )
 
@@ -283,7 +338,6 @@ def _fail_with_error(
 
     response.body = json.dumps({"error": err_dct}).encode()
     response.status = status
-    response.close_connection = True
 
 
 def _maybe_get_search_param(query: str, key: str) -> str | None:

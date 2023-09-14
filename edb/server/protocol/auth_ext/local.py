@@ -42,7 +42,7 @@ class Client:
         return await self.provider.register(self.db, *args, **kwargs)
 
     async def authenticate(self, *args, **kwargs):
-        return await self.provider.authenticate(*args, **kwargs)
+        return await self.provider.authenticate(self.db, *args, **kwargs)
 
     async def logout(self, *args, **kwargs):
         return await self.provider.logout(*args, **kwargs)
@@ -132,8 +132,10 @@ filter .identity.handle = handle;""",
             raise errors.NoIdentityFound()
         password_credential_dict = password_credential_dicts[0]
 
-        password_hash = password_credential_dict.password_hash
-        if not ph.verify(password_hash, password):
+        password_hash = password_credential_dict["password_hash"]
+        try:
+            ph.verify(password_hash, password)
+        except argon2.exceptions.VerifyMismatchError:
             raise errors.NoIdentityFound()
 
         local_identity = data.LocalIdentity(
