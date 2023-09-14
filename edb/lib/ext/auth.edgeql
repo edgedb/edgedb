@@ -34,6 +34,10 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property handle: std::str {
             create constraint exclusive;
         };
+
+        alter property sub {
+            create rewrite insert using (<str>.id);
+        };
     };
 
     create type ext::auth::PasswordCredential {
