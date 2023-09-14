@@ -84,6 +84,9 @@ class PseudoType(
     def is_anytuple(self, schema: s_schema.Schema) -> bool:
         return str(self.get_name(schema)) == 'anytuple'
 
+    def is_anyobject(self, schema: s_schema.Schema) -> bool:
+        return str(self.get_name(schema)) == 'anyobject'
+
     def is_tuple(self, schema: s_schema.Schema) -> bool:
         return self.is_anytuple(schema)
 
@@ -135,6 +138,14 @@ class PseudoType(
     ) -> Optional[s_types.Type]:
         if self.is_any(schema):
             return concrete_type
+        if self.is_anyobject(schema):
+            if (
+                not concrete_type.is_object_type()
+                or concrete_type.is_polymorphic(schema)
+            ):
+                return None
+            else:
+                return concrete_type
         elif self.is_anytuple(schema):
             if (not concrete_type.is_tuple(schema) or
                     concrete_type.is_polymorphic(schema)):

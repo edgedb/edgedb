@@ -370,10 +370,16 @@ Parameters
 The following subcommands are allowed in the ``alter constraint`` block:
 
 :eql:synopsis:`set delegated`
-    Makes the constraint delegated.
+    If set, the constraint is defined as *delegated*, which means that it will
+    not be enforced on the type it's declared on, and the enforcement will be
+    delegated to the subtypes of this type. This is particularly useful for
+    :eql:constraint:`exclusive` constraints in abstract types. This is only
+    valid for *concrete constraints*.
 
 :eql:synopsis:`set not delegated`
-    Makes the constraint non-delegated.
+    If set, the constraint is defined as *not delegated*, which means that it
+    will be enforced globally across the type it's declared on and any
+    extending types.
 
 :eql:synopsis:`rename to <newname>`
     Change the name of the constraint to :eql:synopsis:`<newname>`.

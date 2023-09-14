@@ -108,6 +108,10 @@ class Range(Collection):
     pass
 
 
+class MultiRange(Collection):
+    pass
+
+
 class Pointer(Object):
     pass
 

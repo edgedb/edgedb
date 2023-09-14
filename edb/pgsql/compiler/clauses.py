@@ -399,9 +399,7 @@ def fini_toplevel(
     stmt.ctes[:0] = list(ctx.param_ctes.values())
     stmt.ctes[:0] = list(ctx.type_ctes.values())
 
-    stmt.argnames = argmap = ctx.argmap
-
-    if not ctx.env.use_named_params:
+    if ctx.env.named_param_prefix is None:
         # Adding unused parameters into a CTE
 
         # Find the used parameters by searching the query, so we don't
@@ -413,7 +411,7 @@ def fini_toplevel(
 
         targets = []
         for param in ctx.env.query_params:
-            pgparam = argmap[param.name]
+            pgparam = ctx.argmap[param.name]
             if pgparam.index in used or param.sub_params:
                 continue
             targets.append(pgast.ResTarget(val=pgast.TypeCast(
@@ -441,7 +439,10 @@ def populate_argmap(
     logical_index = 1
     for map_extra in (False, True):
         for param in params:
-            if ctx.env.use_named_params and not param.name.isdecimal():
+            if (
+                ctx.env.named_param_prefix is not None
+                and not param.name.isdecimal()
+            ):
                 continue
             if param.name.startswith('__edb_arg_') != map_extra:
                 continue

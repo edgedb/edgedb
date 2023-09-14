@@ -22,8 +22,7 @@ from typing import *
 import re
 import hashlib
 
-from edb._edgeql_parser import tokenize as _tokenize, TokenizerError, Token
-from edb._edgeql_parser import normalize as _normalize, Entry
+import edb._edgeql_parser as ql_parser
 
 from edb import errors
 
@@ -32,8 +31,7 @@ TRAILING_WS_IN_CONTINUATION = re.compile(r'\\ \s+\n')
 
 
 class Source:
-
-    def __init__(self, text: str, tokens: List[Token]) -> None:
+    def __init__(self, text: str, tokens: List[ql_parser.Token]) -> None:
         self._cache_key = hashlib.blake2b(text.encode('utf-8')).digest()
         self._text = text
         self._tokens = tokens
@@ -47,7 +45,7 @@ class Source:
     def variables(self) -> Dict[str, Any]:
         return {}
 
-    def tokens(self) -> List[Token]:
+    def tokens(self) -> List[ql_parser.Token]:
         return self._tokens
 
     def first_extra(self) -> Optional[int]:
@@ -61,15 +59,14 @@ class Source:
 
     @classmethod
     def from_string(cls, text: str) -> Source:
-        return cls(text=text, tokens=tokenize(text))
+        return cls(text=text, tokens=_tokenize(text))
 
     def __repr__(self):
         return f'<edgeql.Source text={self._text!r}>'
 
 
 class NormalizedSource(Source):
-
-    def __init__(self, normalized: Entry, text: str) -> None:
+    def __init__(self, normalized: ql_parser.Entry, text: str) -> None:
         self._text = text
         self._cache_key = normalized.key()
         self._tokens = normalized.tokens()
@@ -87,7 +84,7 @@ class NormalizedSource(Source):
     def variables(self) -> Dict[str, Any]:
         return self._variables
 
-    def tokens(self) -> List[Token]:
+    def tokens(self) -> List[ql_parser.Token]:
         return self._tokens
 
     def first_extra(self) -> Optional[int]:
@@ -101,35 +98,73 @@ class NormalizedSource(Source):
 
     @classmethod
     def from_string(cls, text: str) -> NormalizedSource:
-        return cls(normalize(text), text)
+        return cls(_normalize(text), text)
 
 
-def tokenize(eql: str) -> List[Token]:
+def inflate_span(
+    source: str, span: Tuple[int, Optional[int]]
+) -> Tuple[ql_parser.SourcePoint, ql_parser.SourcePoint]:
+    (start, end) = span
+    source_bytes = source.encode('utf-8')
+
+    [start_sp] = ql_parser.SourcePoint.from_offsets(source_bytes, [start])
+
+    if end is not None:
+        [end_sp] = ql_parser.SourcePoint.from_offsets(source_bytes, [end])
+    else:
+        end_sp = None
+
+    return (start_sp, end_sp)
+
+
+def inflate_position(
+    source: str, span: Tuple[int, Optional[int]]
+) -> Tuple[int, int, int, Optional[int]]:
+    (start, end) = inflate_span(source, span)
+    return (
+        start.column,
+        start.line,
+        start.offset,
+        end.offset if end else None,
+    )
+
+
+def _tokenize(eql: str) -> List[ql_parser.Token]:
+    result = ql_parser.tokenize(eql)
+
+    if len(result.errors()) > 0:
+        # TODO: emit multiple errors
+        error = result.errors()[0]
+
+        message, span = error
+        position = inflate_position(eql, span)
+
+        hint = _derive_hint(eql, message, position)
+        raise errors.EdgeQLSyntaxError(message, position=position, hint=hint)
+
+    return result.out()
+
+
+def _normalize(eql: str) -> ql_parser.Entry:
     try:
-        return _tokenize(eql)
-    except TokenizerError as e:
-        message, position = e.args
+        return ql_parser.normalize(eql)
+    except ql_parser.SyntaxError as e:
+        message, span = e.args
+        position = inflate_position(eql, span)
+
         hint = _derive_hint(eql, message, position)
         raise errors.EdgeQLSyntaxError(
-            message, position=position, hint=hint) from e
-
-
-def normalize(eql: str) -> Entry:
-    try:
-        return _normalize(eql)
-    except TokenizerError as e:
-        message, position = e.args
-        hint = _derive_hint(eql, message, position)
-        raise errors.EdgeQLSyntaxError(
-            message, position=position, hint=hint) from e
+            message, position=position, hint=hint
+        ) from e
 
 
 def _derive_hint(
     input: str,
     message: str,
-    position: Tuple[int, int, int],
+    position: Tuple[int, int, int, Optional[int]],
 ) -> Optional[str]:
-    _, _, off = position
+    _, _, off, _ = position
+
     if message.endswith(
         r"invalid string literal: invalid escape sequence '\ '"
     ):

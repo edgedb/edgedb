@@ -279,8 +279,8 @@ class BaseCommand(markup.MarkupCapableMixin):
 
 class Command(BaseCommand):
 
-    conditions: Iterable[str | Condition]
-    neg_conditions: Iterable[str | Condition]
+    conditions: Set[str | Condition]
+    neg_conditions: Set[str | Condition]
 
     def __init__(
         self,
@@ -289,8 +289,8 @@ class Command(BaseCommand):
         neg_conditions: Optional[Iterable[str | Condition]] = None,
     ):
         self.opid = id(self)
-        self.conditions = conditions or set()
-        self.neg_conditions = neg_conditions or set()
+        self.conditions = set(conditions) if conditions else set()
+        self.neg_conditions = set(neg_conditions) if neg_conditions else set()
 
     def generate(self, block) -> None:
         self_block = self.generate_self_block(block)
@@ -408,7 +408,9 @@ class Condition(BaseCommand):
 
 
 class Query(Command):
-    def __init__(self, text, *, type=None):
+    def __init__(
+        self, text: str, *, type: Optional[str | Tuple[str, str]] = None
+    ):
         super().__init__()
         self.text = text
         self.type = type
@@ -441,16 +443,16 @@ class Default(metaclass=DefaultMeta):
 
 
 class DBObject:
-    def __init__(self, *, metadata=None):
-        self.metadata = metadata
+    def __init__(self, *, metadata: Optional[Mapping[str, Any]] = None):
+        self.metadata = dict(metadata) if metadata else None
 
-    def add_metadata(self, key, value):
+    def add_metadata(self, key: str, value: Any):
         if self.metadata is None:
             self.metadata = {}
 
         self.metadata[key] = value
 
-    def get_metadata(self, key):
+    def get_metadata(self, key: str) -> Any:
         if self.metadata is None:
             return None
         else:
@@ -458,6 +460,12 @@ class DBObject:
 
     def is_shared(self) -> bool:
         return False
+
+    def get_type(self) -> str:
+        raise NotImplementedError()
+
+    def get_id(self) -> str:
+        raise NotImplementedError()
 
 
 class InheritableDBObject(DBObject):
@@ -467,5 +475,5 @@ class InheritableDBObject(DBObject):
             self.add_metadata('ddl:inherit', inherit)
 
     @property
-    def inherit(self):
+    def inherit(self) -> bool:
         return self.get_metadata('ddl:inherit') or False

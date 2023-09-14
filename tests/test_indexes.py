@@ -365,3 +365,18 @@ class TestIndexes(tb.DDLTestCase):
                 }],
             }],
         )
+
+    async def test_index_10(self):
+        with self.assertRaisesRegex(
+            edgedb.SchemaDefinitionError,
+            r"possibly more than one element returned",
+        ):
+            await self.con.execute(
+                r"""
+                create type Foo {
+                    create property val -> str;
+
+                    create index on (Foo.val);
+                };
+                """
+            )

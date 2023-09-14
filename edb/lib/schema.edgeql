@@ -164,6 +164,14 @@ CREATE TYPE schema::Range EXTENDING schema::CollectionType {
 CREATE TYPE schema::RangeExprAlias EXTENDING schema::Range;
 
 
+CREATE TYPE schema::MultiRange EXTENDING schema::CollectionType {
+    CREATE REQUIRED LINK element_type -> schema::Type;
+};
+
+
+CREATE TYPE schema::MultiRangeExprAlias EXTENDING schema::MultiRange;
+
+
 CREATE TYPE schema::Delta EXTENDING schema::Object {
     CREATE MULTI LINK parents -> schema::Delta;
 };

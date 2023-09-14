@@ -127,6 +127,7 @@ dispatch.py
 
 from __future__ import annotations
 from typing import *
+from typing import overload
 
 # WARNING: this package is in a tight import loop with various modules
 # in edb.schema, so no direct imports from either this package or
@@ -170,15 +171,50 @@ else:
 #: Compiler modules lazy-load guard.
 _LOADED = False
 
+Tf = TypeVar('Tf', bound=Callable[..., Any])
 
-def compiler_entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
+
+def compiler_entrypoint(func: Tf) -> Tf:
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         if not _LOADED:
             _load()
         return func(*args, **kwargs)
 
-    return wrapper
+    return cast(Tf, wrapper)
+
+
+@overload
+def compile_ast_to_ir(
+    tree: qlast.Expr | qlast.Command,
+    schema: s_schema.Schema,
+    *,
+    script_info: Optional[irast.ScriptInfo] = None,
+    options: Optional[CompilerOptions] = None,
+) -> irast.Statement:
+    pass
+
+
+@overload
+def compile_ast_to_ir(
+    tree: qlast.ConfigOp,
+    schema: s_schema.Schema,
+    *,
+    script_info: Optional[irast.ScriptInfo] = None,
+    options: Optional[CompilerOptions] = None,
+) -> irast.ConfigCommand:
+    pass
+
+
+@overload
+def compile_ast_to_ir(
+    tree: qlast.Base,
+    schema: s_schema.Schema,
+    *,
+    script_info: Optional[irast.ScriptInfo] = None,
+    options: Optional[CompilerOptions] = None,
+) -> irast.Statement | irast.ConfigCommand:
+    pass
 
 
 @compiler_entrypoint
@@ -188,7 +224,7 @@ def compile_ast_to_ir(
     *,
     script_info: Optional[irast.ScriptInfo] = None,
     options: Optional[CompilerOptions] = None,
-) -> irast.Command:
+) -> irast.Statement | irast.ConfigCommand:
     """Compile given EdgeQL AST into EdgeDB IR.
 
     This is the normal compiler entry point.  It assumes that *tree*
@@ -514,12 +550,12 @@ def normalize(
 
 @compiler_entrypoint
 def renormalize_compat(
-    tree: qlast.Base,
+    tree: qlast.Base_T,
     orig_text: str,
     *,
     schema: s_schema.Schema,
     localnames: AbstractSet[str] = frozenset(),
-) -> qlast.Base:
+) -> qlast.Base_T:
     """Renormalize an expression normalized with imprint_expr_context().
 
     This helper takes the original, unmangled expression, an EdgeQL AST

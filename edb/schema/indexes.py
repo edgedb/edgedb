@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 from typing import *
+from typing import overload
 
 from edb import edgeql
 from edb import errors
@@ -64,12 +65,19 @@ def is_index_valid_for_type(
         case 'pg::btree':
             return True
         case 'pg::gin':
-            return expr_type.is_array()
+            return (
+                expr_type.is_array()
+                or
+                expr_type.issubclass(
+                    schema,
+                    schema.get('std::json', type=s_scalars.ScalarType),
+                )
+            )
         case 'fts::textsearch':
             return expr_type.issubclass(
                 schema, schema.get('std::str', type=s_scalars.ScalarType))
         case 'pg::gist':
-            return expr_type.is_range()
+            return expr_type.is_range() or expr_type.is_multirange()
         case 'pg::spgist':
             return (
                 expr_type.is_range()
@@ -453,7 +461,7 @@ class IndexCommand(
         ...
 
     @overload
-    def get_object(  # NoQA: F811
+    def get_object(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
@@ -464,7 +472,7 @@ class IndexCommand(
     ) -> Optional[Index]:
         ...
 
-    def get_object(  # NoQA: F811
+    def get_object(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
@@ -589,12 +597,13 @@ class IndexCommand(
                     singletons=frozenset([subject]),
                     apply_query_rewrites=False,
                     track_schema_ref_exprs=track_schema_ref_exprs,
+                    detached=True,
                 ),
             )
 
             # Check that the inferred cardinality is no more than 1
             if expr.irast.cardinality.is_multi():
-                raise errors.ResultCardinalityMismatchError(
+                raise errors.SchemaDefinitionError(
                     f'possibly more than one element returned by '
                     f'the index expression where only singletons '
                     f'are allowed',

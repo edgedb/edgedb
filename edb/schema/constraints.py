@@ -766,13 +766,6 @@ class ConstraintCommand(
                 attrs['subjectexpr'] = base_subjectexpr
                 inherited['subjectexpr'] = True
 
-        errmessage = attrs.get('errmessage')
-        if not errmessage:
-            errmessage = constr_base.get_errmessage(schema)
-            inherited['errmessage'] = True
-
-        attrs['errmessage'] = errmessage
-
         if subject is not orig_subject:
             # subject has been redefined
             assert isinstance(subject, qlast.Base)

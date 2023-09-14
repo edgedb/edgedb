@@ -128,12 +128,12 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
     def _assert_list_shape(path, data, shape):
         if not isinstance(data, (list, tuple)):
             fail(
-                f'{message}: expected list '
+                f'{message}: expected list got {type(data)} '
                 f'{_format_path(path)}')
 
         if not data and shape:
             fail(
-                f'{message}: expected non-empty list '
+                f'{message}: expected non-empty list got {type(data)} '
                 f'{_format_path(path)}')
 
         shape_iter = _list_shape_iter(shape)

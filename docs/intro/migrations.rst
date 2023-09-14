@@ -1,16 +1,17 @@
-:orphan:
-
-.. _ref_intro_migrations_v3:
+.. _ref_intro_migrations:
 
 ==========
-EdgeDB 3.0
+Migrations
 ==========
 
-:edb-alt-title: Migrations in EdgeDB 3.0 Beta
+:index: migrations fill_expr cast_expr
 
-This is the new recommended migrations workflow for the EdgeDB 3.0 beta. If
-you're running the stable version of EdgeDB (2.x), follow :ref:`the migrations
-workflow for 2.x <ref_intro_migrations>` instead.
+EdgeDB’s baked-in migration system lets you painlessly evolve your schema
+throughout the development process. If you want to work along with this guide,
+start a new project with :ref:`ref_cli_edgedb_project_init`. This will create a
+new instance and some empty schema files to get you started.
+
+.. edb:youtube-embed:: _IUSPBm2xEA
 
 
 1. Start the ``watch`` command

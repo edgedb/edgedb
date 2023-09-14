@@ -28,8 +28,8 @@ from edb import errors
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import qltypes
-from edb.edgeql import hasher as qlhasher
 from edb.edgeql import parser as qlparser
+import edb._edgeql_parser as ql_parser
 
 from . import abc as s_abc
 from . import delta as sd
@@ -114,7 +114,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         if astnode.parent is not None:
             parent_name = astnode.parent.name
 
-        hasher = qlhasher.Hasher.start_migration(parent_name)
+        hasher = ql_parser.Hasher.start_migration(parent_name)
         if astnode.body.text is not None:
             # This is an explicitly specified CREATE MIGRATION
             ddl_text = astnode.body.text

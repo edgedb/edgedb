@@ -173,15 +173,8 @@ class ObjectRef(BaseObjectRef):
 
 
 class PseudoObjectRef(BaseObjectRef):
-    __abstract_node__ = True
-
-
-class AnyType(PseudoObjectRef):
-    pass
-
-
-class AnyTuple(PseudoObjectRef):
-    pass
+    # anytype, anytuple or anyobject
+    name: str
 
 
 class Anchor(Expr):
@@ -452,6 +445,12 @@ SessionCommand = (
     | SessionResetAliasDecl
     | SessionResetModule
     | SessionResetAllAliases
+)
+SessionCommand_tuple = (
+    SessionSetAliasDecl,
+    SessionResetAliasDecl,
+    SessionResetModule,
+    SessionResetAllAliases
 )
 
 
@@ -1480,7 +1479,7 @@ class _Optional(Expr):
 #
 
 
-class ConfigOp(Expr):
+class ConfigOp(Base):
     __abstract_node__ = True
     name: ObjectRef
     scope: qltypes.ConfigScope

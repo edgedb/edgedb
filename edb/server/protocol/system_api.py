@@ -36,12 +36,34 @@ async def handle_request(
     response,
     path_parts,
     server,
+    tenant,
 ):
     try:
+        if tenant is None:
+            try:
+                tenant = server.get_default_tenant()
+            except Exception:
+                # Multi-tenant server doesn't have default tenant,
+                # only check server status instead
+                pass
         if path_parts == ['status', 'ready'] and request.method == b'GET':
-            await handle_readiness_query(request, response, server)
+            if tenant is None:
+                # TODO(fantix): test the compiler pool
+                _response_ok(response, "OK")
+            else:
+                await tenant.create_task(
+                    handle_readiness_query(request, response, tenant),
+                    interruptable=False,
+                )
         elif path_parts == ['status', 'alive'] and request.method == b'GET':
-            await handle_liveness_query(request, response, server)
+            if tenant is None:
+                # TODO(fantix): test the compiler pool
+                _response_ok(response, "OK")
+            else:
+                await tenant.create_task(
+                    handle_liveness_query(request, response, tenant),
+                    interruptable=False,
+                )
         else:
             response.body = b'Unknown path'
             response.status = http.HTTPStatus.NOT_FOUND
@@ -88,9 +110,14 @@ def _response_ok(response, message):
     response.body = message
 
 
-async def _ping(server):
+async def _ping(tenant):
+    if tenant.get_backend_runtime_params().has_create_database:
+        dbname = edbdef.EDGEDB_SYSTEM_DB
+    else:
+        dbname = edbdef.EDGEDB_SUPERUSER_DB
+
     return await execute.parse_execute_json(
-        server.get_db(dbname=edbdef.EDGEDB_SYSTEM_DB),
+        tenant.get_db(dbname=dbname),
         query="SELECT 'OK'",
         output_format=compiler.OutputFormat.JSON_ELEMENTS,
         # Disable query cache because we need to ensure that the compiled
@@ -102,17 +129,17 @@ async def _ping(server):
 async def handle_liveness_query(
     request,
     response,
-    server,
+    tenant,
 ):
-    _response_ok(response, await _ping(server))
+    _response_ok(response, await _ping(tenant))
 
 
 async def handle_readiness_query(
     request,
     response,
-    server,
+    tenant,
 ):
-    if not server.is_ready():
+    if not tenant.is_ready():
         _response_error(
             response,
             http.HTTPStatus.SERVICE_UNAVAILABLE,
@@ -120,4 +147,4 @@ async def handle_readiness_query(
             errors.AccessError,
         )
     else:
-        _response_ok(response, await _ping(server))
+        _response_ok(response, await _ping(tenant))

@@ -1224,10 +1224,47 @@ class GraphQLTranslator:
         yield
         self._context.path.pop()
 
+    def _visit_range_spec(self, node, target):
+        assert isinstance(node, gql_ast.ObjectValueNode)
+        assert target.is_range or target.is_multirange
+
+        # This is a range spec
+        subtype = target.edb_base.get_subtypes(target.edb_schema)[0]
+        st_name = subtype.get_name(target.edb_schema)
+        kwargs = {
+            rf.name.value: self.visit(rf.value) for rf in node.fields
+            if not isinstance(rf.value, gql_ast.NullValueNode)
+        }
+        # move some kwargs into args
+        args = [
+            qlast.TypeCast(
+                expr=kwargs.pop('lower', qlast.Set(elements=[])),
+                type=qlast.TypeName(
+                    maintype=qlast.ObjectRef(name=str(st_name)),
+                ),
+            ),
+            qlast.TypeCast(
+                expr=kwargs.pop('upper', qlast.Set(elements=[])),
+                type=qlast.TypeName(
+                    maintype=qlast.ObjectRef(name=str(st_name)),
+                ),
+            ),
+        ]
+
+        return qlast.FunctionCall(
+            func='range',
+            args=args,
+            kwargs=kwargs,
+        )
+
     def _visit_insert_value(self, node):
         # get the type of the value being inserted
         _, target = self._get_parent_and_current_type()
         if isinstance(node, gql_ast.ObjectValueNode):
+            if target.is_range or target.is_multirange:
+                # This is a range spec
+                return self._visit_range_spec(node, target)
+
             # get a template AST
             eql, shape, filterable = target.get_template()
 
@@ -1251,8 +1288,23 @@ class GraphQLTranslator:
 
                 return eql
 
+        elif isinstance(node, gql_ast.ListValueNode) and target.is_multirange:
+            # Multiranges are composed of a list of ranges. So we just need to
+            # wrap the literal array into a range function call.
+            return qlast.FunctionCall(
+                func='multirange',
+                args=[
+                    qlast.Array(
+                        elements=[
+                            self._visit_insert_value(el) for el in node.values
+                        ]
+                    ),
+                ],
+            )
+
         elif isinstance(node, gql_ast.ListValueNode) and not target.is_array:
-            # not an actual array, but a set represented as a list
+            # not an actual array or multirange, but a set represented as a
+            # list
             return qlast.Set(elements=[
                 self._visit_insert_value(el) for el in node.values])
 
@@ -1290,6 +1342,41 @@ class GraphQLTranslator:
                             maintype=qlast.ObjectRef(name='array'),
                             subtypes=[res.type],
                         )
+                    )
+
+                elif target.is_range:
+                    # Range inputs come in two varieties: as a variable or as
+                    # a literal. Variables are already in JSON format and only
+                    # need to be cast into the appropriate range. Literals are
+                    # processed earlier as ObjectValueNode.
+                    res = qlast.TypeCast(
+                        expr=val,
+                        type=qlast.TypeName(
+                            maintype=qlast.ObjectRef(name='range'),
+                            subtypes=[res.type],
+                        )
+                    )
+
+                elif target.is_multirange:
+                    # Multiranges are composed of a list of ranges. List
+                    # literal is processed earlier, so we just need to cast
+                    # JSON into an array of ranges if it came from a
+                    # varaible.
+                    rtype = qlast.TypeName(
+                        maintype=qlast.ObjectRef(name='range'),
+                        subtypes=[res.type],
+                    )
+                    res = qlast.FunctionCall(
+                        func='multirange',
+                        args=[
+                            qlast.TypeCast(
+                                expr=val,
+                                type=qlast.TypeName(
+                                    maintype=qlast.ObjectRef(name='array'),
+                                    subtypes=[rtype],
+                                )
+                            )
+                        ],
                     )
 
                 return res
@@ -1592,16 +1679,28 @@ class GraphQLTranslator:
 
         vartype = var.defn.type
         optional = True
+        # get the type of the value being inserted
+        _, target = self._get_parent_and_current_type()
+
         if isinstance(vartype, gql_ast.NonNullTypeNode):
             vartype = vartype.type
             optional = False
 
         if self.is_list_type(vartype):
-            raise errors.QueryError(err_msg)
+            if target.is_array:
+                raise errors.QueryError(err_msg)
+            elif target.is_multirange:
+                subtype = target.edb_base.get_subtypes(target.edb_schema)[0]
+                st_name = subtype.get_name(target.edb_schema)
+                castname = qlast.ObjectRef(name=str(st_name))
 
-        if vartype.name.value in gt.GQL_TO_EDB_SCALARS_MAP:
+        elif vartype.name.value in gt.GQL_TO_EDB_SCALARS_MAP:
             castname = qlast.ObjectRef(
                 name=gt.GQL_TO_EDB_SCALARS_MAP[vartype.name.value])
+        elif (
+            name := gt.GQL_TO_EDB_RANGES_MAP.get(vartype.name.value)
+        ) is not None:
+            castname = qlast.ObjectRef(name=name)
         else:
             try:
                 vtype = self.get_type(
@@ -1615,8 +1714,17 @@ class GraphQLTranslator:
                 raise errors.QueryError(err_msg)
 
         casttype = qlast.TypeName(maintype=castname)
+
         # potentially this is an array
         if self.is_list_type(vartype):
+            if target.is_multirange:
+                # Wrap the base type into range, the next step will wrap it into
+                # an array.
+                casttype = qlast.TypeName(
+                    maintype=qlast.ObjectRef(name='range'),
+                    subtypes=[casttype],
+                )
+
             casttype = qlast.TypeName(
                 maintype=qlast.ObjectRef(name='array'),
                 subtypes=[casttype]

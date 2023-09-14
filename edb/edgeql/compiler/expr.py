@@ -27,11 +27,10 @@ from typing import *
 from edb import errors
 
 from edb.common import context as ctx_utils
-from edb.edgeql import qltypes as ft
 
 from edb.ir import ast as irast
-from edb.ir import staeval as ireval
 from edb.ir import typeutils as irtyputils
+from edb.ir import utils as irutils
 
 from edb.schema import abc as s_abc
 from edb.schema import constraints as s_constr
@@ -39,7 +38,6 @@ from edb.schema import globals as s_globals
 from edb.schema import indexes as s_indexes
 from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
-from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
@@ -131,12 +129,6 @@ def compile_BinOp(
     op_node = func.compile_operator(
         expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=ctx)
 
-    if ctx.env.options.constant_folding:
-        op_node.expr = cast(irast.OperatorCall, op_node.expr)
-        folded = try_fold_binop(op_node.expr, ctx=ctx)
-        if folded is not None:
-            return folded
-
     return op_node
 
 
@@ -192,7 +184,10 @@ def compile_Set(
                     left=l, right=r, rebalanced=True, context=c),
                 expr.context
             )
-            return dispatch.compile(bigunion, ctx=ctx)
+            res = dispatch.compile(bigunion, ctx=ctx)
+            if cres := try_constant_set(res):
+                res = setgen.ensure_set(cres, ctx=ctx)
+            return res
     else:
         return setgen.new_empty_set(
             alias=ctx.aliases.get('e'),
@@ -254,113 +249,6 @@ def compile_BaseConstant(
         env=ctx.env,
     )
     return setgen.ensure_set(node_cls(value=value, typeref=ct), ctx=ctx)
-
-
-def try_fold_binop(
-        opcall: irast.OperatorCall, *,
-        ctx: context.ContextLevel) -> Optional[irast.Set]:
-    try:
-        const = ireval.evaluate(opcall, schema=ctx.env.schema)
-    except ireval.UnsupportedExpressionError:
-        anyreal = ctx.env.schema.get('std::anyreal', type=s_scalars.ScalarType)
-
-        if (str(opcall.func_shortname) in ('std::+', 'std::*') and
-                opcall.operator_kind is ft.OperatorKind.Infix and
-                all(setgen.get_set_type(a.expr, ctx=ctx).issubclass(
-                    ctx.env.schema, anyreal)
-                    for a in opcall.args)):
-            return try_fold_associative_binop(opcall, ctx=ctx)
-        else:
-            return None
-    else:
-        return setgen.ensure_set(const, ctx=ctx)
-
-
-def try_fold_associative_binop(
-        opcall: irast.OperatorCall, *,
-        ctx: context.ContextLevel) -> Optional[irast.Set]:
-
-    # Let's check if we have (CONST + (OTHER_CONST + X))
-    # tree, which can be optimized to ((CONST + OTHER_CONST) + X)
-
-    op = opcall.func_shortname
-    my_const = opcall.args[0].expr
-    other_binop = opcall.args[1].expr
-    folded = None
-
-    if isinstance(other_binop.expr, irast.BaseConstant):
-        my_const, other_binop = other_binop, my_const
-
-    if (isinstance(my_const.expr, irast.BaseConstant) and
-            isinstance(other_binop.expr, irast.OperatorCall) and
-            other_binop.expr.func_shortname == op and
-            other_binop.expr.operator_kind is ft.OperatorKind.Infix):
-
-        other_const = other_binop.expr.args[0].expr
-        other_binop_node = other_binop.expr.args[1].expr
-
-        if isinstance(other_binop_node.expr, irast.BaseConstant):
-            other_binop_node, other_const = \
-                other_const, other_binop_node
-
-        if isinstance(other_const.expr, irast.BaseConstant):
-            try:
-                new_const = ireval.evaluate(
-                    irast.OperatorCall(
-                        args=[
-                            irast.CallArg(
-                                expr=other_const,
-                            ),
-                            irast.CallArg(
-                                expr=my_const,
-                            ),
-                        ],
-                        func_shortname=op,
-                        func_polymorphic=opcall.func_polymorphic,
-                        sql_function=opcall.sql_function,
-                        func_sql_expr=opcall.func_sql_expr,
-                        sql_operator=opcall.sql_operator,
-                        force_return_cast=opcall.force_return_cast,
-                        operator_kind=opcall.operator_kind,
-                        params_typemods=opcall.params_typemods,
-                        context=opcall.context,
-                        typeref=opcall.typeref,
-                        typemod=opcall.typemod,
-                        tuple_path_ids=opcall.tuple_path_ids,
-                        volatility=opcall.volatility,
-                    ),
-                    schema=ctx.env.schema,
-                )
-            except ireval.UnsupportedExpressionError:
-                pass
-            else:
-                folded_binop = irast.OperatorCall(
-                    args=[
-                        irast.CallArg(
-                            expr=setgen.ensure_set(new_const, ctx=ctx),
-                        ),
-                        irast.CallArg(
-                            expr=other_binop_node,
-                        ),
-                    ],
-                    func_shortname=op,
-                    func_polymorphic=opcall.func_polymorphic,
-                    sql_function=opcall.sql_function,
-                    func_sql_expr=opcall.func_sql_expr,
-                    sql_operator=opcall.sql_operator,
-                    force_return_cast=opcall.force_return_cast,
-                    operator_kind=opcall.operator_kind,
-                    params_typemods=opcall.params_typemods,
-                    context=opcall.context,
-                    typeref=opcall.typeref,
-                    typemod=opcall.typemod,
-                    tuple_path_ids=opcall.tuple_path_ids,
-                    volatility=opcall.volatility,
-                )
-
-                folded = setgen.ensure_set(folded_binop, ctx=ctx)
-
-    return folded
 
 
 @dispatch.compile.register(qlast.NamedTuple)
@@ -431,18 +319,8 @@ def compile_IfElse(
 def compile_UnaryOp(
         expr: qlast.UnaryOp, *, ctx: context.ContextLevel) -> irast.Set:
 
-    result = func.compile_operator(
+    return func.compile_operator(
         expr, op_name=expr.op, qlargs=[expr.operand], ctx=ctx)
-
-    try:
-        result = setgen.ensure_set(
-            ireval.evaluate(result, schema=ctx.env.schema),
-            ctx=ctx,
-        )
-    except ireval.UnsupportedExpressionError:
-        pass
-
-    return result
 
 
 @dispatch.compile.register(qlast.GlobalExpr)
@@ -759,3 +637,31 @@ def collect_binop(expr: qlast.BinOp) -> List[qlast.Expr]:
             elements.append(el)
 
     return elements
+
+
+def try_constant_set(expr: irast.Base) -> Optional[irast.ConstantSet]:
+    elements = []
+
+    stack: list[Optional[irast.Base]] = [expr]
+    while stack:
+        el = stack.pop()
+        if isinstance(el, irast.Set):
+            stack.append(el.expr)
+        elif (
+            isinstance(el, irast.OperatorCall)
+            and str(el.func_shortname) == 'std::UNION'
+        ):
+            stack.extend([el.args[1].expr.expr, el.args[0].expr.expr])
+        elif el and irutils.is_trivial_select(el):
+            stack.append(el.result)
+        elif isinstance(el, (irast.BaseConstant, irast.Parameter)):
+            elements.append(el)
+        else:
+            return None
+
+    if elements:
+        return irast.ConstantSet(
+            elements=tuple(elements), typeref=elements[0].typeref
+        )
+    else:
+        return None

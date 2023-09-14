@@ -25,16 +25,17 @@ import hashlib
 import base64
 import re
 from typing import *
+from typing import overload
 import uuid
 
 from edb.common import uuidgen
-from edb.schema import abc as s_abc
 from edb.schema import casts as s_casts
 from edb.schema import constraints as s_constr
 from edb.schema import defines as s_def
 from edb.schema import functions as s_func
-from edb.schema import modules as s_mod
+from edb.schema import indexes as s_indexes
 from edb.schema import name as s_name
+from edb.schema import objects as so
 from edb.schema import objtypes as s_objtypes
 from edb.schema import operators as s_opers
 from edb.schema import pointers as s_pointers
@@ -363,11 +364,15 @@ def get_function_backend_name(name, backend_name, catenate=False):
 
 def get_constraint_backend_name(
         id, module_name, catenate=True, *, aspect=None):
-    if aspect not in ('trigproc',):
+    if aspect not in ('trigproc', 'index'):
         raise ValueError(
             f'unexpected aspect for constraint backend name: {aspect!r}')
 
-    name = s_name.QualName(module=module_name, name=str(id))
+    sname = str(id)
+    if aspect == 'index':
+        aspect = None
+        sname = get_constraint_raw_name(id)
+    name = s_name.QualName(module=module_name, name=sname)
     return convert_name(name, aspect, catenate)
 
 
@@ -384,19 +389,48 @@ def get_index_backend_name(id, module_name, catenate=True, *, aspect=None):
 
 def get_tuple_backend_name(
     id, catenate=True, *, aspect=None
-) -> Tuple[str, ...]:
+) -> Union[str, tuple[str, str]]:
 
     name = s_name.QualName(module='edgedb', name=f'{id}_t')
     return convert_name(name, aspect, catenate)
 
 
-def get_backend_name(schema, obj, catenate=True, *, aspect=None):
+@overload
+def get_backend_name(
+    schema: s_schema.Schema,
+    obj: so.Object,
+    catenate: Literal[True]=True,
+    *,
+    aspect: Optional[str]=None
+) -> str:
+    ...
+
+
+@overload
+def get_backend_name(
+    schema: s_schema.Schema,
+    obj: so.Object,
+    catenate: Literal[False],
+    *,
+    aspect: Optional[str]=None
+) -> tuple[str, str]:
+    ...
+
+
+def get_backend_name(
+    schema: s_schema.Schema,
+    obj: so.Object,
+    catenate: bool=True,
+    *,
+    aspect: Optional[str]=None
+) -> Union[str, tuple[str, str]]:
+    name: Union[s_name.QualName, s_name.Name]
     if isinstance(obj, s_objtypes.ObjectType):
         name = obj.get_name(schema)
         return get_objtype_backend_name(
             obj.id, name.module, catenate=catenate, aspect=aspect)
 
-    elif isinstance(obj, s_abc.Pointer):
+    elif isinstance(obj, s_pointers.Pointer):
         name = obj.get_name(schema)
         return get_pointer_backend_name(obj.id, name.module, catenate=catenate,
                                         aspect=aspect)
@@ -422,13 +456,14 @@ def get_backend_name(schema, obj, catenate=True, *, aspect=None):
         return get_function_backend_name(
             name, backend_name, catenate)
 
-    elif isinstance(obj, s_mod.Module):
-        name = obj.get_name(schema)
-        return get_module_backend_name(name.get_module_name())
-
     elif isinstance(obj, s_constr.Constraint):
         name = obj.get_name(schema)
         return get_constraint_backend_name(
+            obj.id, name.module, catenate, aspect=aspect)
+
+    elif isinstance(obj, s_indexes.Index):
+        name = obj.get_name(schema)
+        return get_index_backend_name(
             obj.id, name.module, catenate, aspect=aspect)
 
     elif isinstance(obj, s_types.Tuple):

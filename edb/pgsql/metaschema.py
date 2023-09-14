@@ -23,14 +23,15 @@ from __future__ import annotations
 from typing import *
 
 import re
-import textwrap
 
-from edb import _edgeql_parser
+import edb._edgeql_parser as ql_parser
 
 from edb.common import context as parser_context
 from edb.common import debug
 from edb.common import exceptions
 from edb.common import uuidgen
+from edb.common import xdedent
+from edb.common.typeutils import not_none
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -46,7 +47,6 @@ from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import properties as s_props
-from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
@@ -55,7 +55,6 @@ from edb.schema import utils as s_utils
 from edb.server import defines
 from edb.server import compiler as edbcompiler
 from edb.server import config as edbconfig
-from edb.server import bootstrap as edbbootstrap
 
 from .resolver import sql_introspection
 
@@ -64,6 +63,7 @@ from . import compiler
 from . import dbops
 from . import types
 from . import params
+from . import codegen
 
 
 q = common.qname
@@ -157,16 +157,6 @@ class DMLDummyTable(dbops.Table):
     SETUP_QUERY = '''
         INSERT INTO edgedb._dml_dummy VALUES (0, false)
     '''
-
-
-class ExpressionType(dbops.CompositeType):
-    def __init__(self) -> None:
-        super().__init__(name=('edgedb', 'expression_t'))
-
-        self.add_columns([
-            dbops.Column(name='text', type='text'),
-            dbops.Column(name='refs', type='uuid[]'),
-        ])
 
 
 class BigintDomain(dbops.Domain):
@@ -359,6 +349,8 @@ class RangeToJsonFunction(dbops.Function):
     text = r'''
         SELECT
             CASE
+            WHEN val IS NULL THEN
+                NULL
             WHEN isempty(val) THEN
                 jsonb_build_object('empty', true)
             ELSE
@@ -378,6 +370,40 @@ class RangeToJsonFunction(dbops.Function):
             name=('edgedb', 'range_to_jsonb'),
             args=[
                 ('val', ('anyrange',)),
+            ],
+            returns=('jsonb',),
+            volatility='immutable',
+            language='sql',
+            text=self.text,
+        )
+
+
+class MultiRangeToJsonFunction(dbops.Function):
+    """Convert anymultirange to a jsonb object."""
+    text = r'''
+        SELECT
+            CASE
+            WHEN val IS NULL THEN
+                NULL
+            WHEN isempty(val) THEN
+                jsonb_build_array()
+            ELSE
+                (
+                    SELECT
+                        jsonb_agg(edgedb.range_to_jsonb(m.el))
+                    FROM
+                        (SELECT
+                            unnest(val) AS el
+                        ) AS m
+                )
+            END
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'multirange_to_jsonb'),
+            args=[
+                ('val', ('anymultirange',)),
             ],
             returns=('jsonb',),
             volatility='immutable',
@@ -1568,377 +1594,6 @@ class NullIfArrayNullsFunction(dbops.Function):
             ''')
 
 
-class IndexDescType(dbops.CompositeType):
-    """Introspected index description."""
-    def __init__(self) -> None:
-        super().__init__(name=('edgedb', 'intro_index_desc_t'))
-
-        self.add_columns([
-            dbops.Column(name='table_name', type='text[]'),
-            dbops.Column(name='name', type='text'),
-            dbops.Column(name='is_unique', type='bool'),
-            dbops.Column(name='predicate', type='text'),
-            dbops.Column(name='expression', type='text'),
-            dbops.Column(name='columns', type='text[]'),
-            dbops.Column(name='metadata', type='jsonb'),
-        ])
-
-
-class IntrospectIndexesFunction(dbops.Function):
-    """Return set of indexes for each table."""
-
-    text = '''
-        SELECT
-            i.table_name,
-            i.index_name,
-            i.index_is_unique,
-            i.index_predicate,
-            i.index_expression,
-            i.index_columns,
-            i.index_metadata
-        FROM
-            (SELECT
-                *
-             FROM
-                (SELECT
-                    ARRAY[ns.nspname::text, c.relname::text]
-                                                    AS table_name,
-                    ic.relname::text                AS index_name,
-                    i.indisunique                   AS index_is_unique,
-                    pg_get_expr(i.indpred, i.indrelid)::text
-                                                    AS index_predicate,
-                    pg_get_expr(i.indexprs, i.indrelid)::text
-                                                    AS index_expression,
-
-                    (SELECT
-                        array_agg(ia.attname::text ORDER BY ia.attnum)
-                     FROM
-                        pg_attribute AS ia
-                     WHERE
-                        ia.attrelid = i.indexrelid
-                        AND (ia.attnum IS NULL OR ia.attnum >= 1)
-                    )                               AS index_columns,
-
-                    edgedb.obj_metadata(i.indexrelid, 'pg_class')
-                                                    AS index_metadata
-
-                 FROM
-                    pg_class AS c
-                    INNER JOIN pg_namespace AS ns ON ns.oid = c.relnamespace
-                    INNER JOIN pg_index AS i ON i.indrelid = c.oid
-                    INNER JOIN pg_class AS ic ON i.indexrelid = ic.oid
-
-                 WHERE
-                    ($1::text IS NULL OR ns.nspname LIKE $1::text) AND
-                    ($2::text IS NULL OR c.relname LIKE $2::text) AND
-                    ($3::text[] IS NULL OR
-                        ns.nspname || '.' || ic.relname = any($3::text[])) AND
-                    ($4::text IS NULL OR ic.relname LIKE $4::text)
-                ) AS q
-
-             WHERE
-                (NOT $5::bool OR
-                    (index_metadata IS NOT NULL AND
-                        (index_metadata->>'ddl:inherit')::bool))
-                AND (
-                    $6 OR
-                    (
-                        index_metadata IS NULL OR
-                        NOT coalesce(
-                            (index_metadata->>'ddl:inherited')::bool, false)
-                    )
-                )
-
-            ) AS i
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', 'introspect_indexes'),
-            args=[
-                ('schema_pattern', 'text', 'NULL'),
-                ('table_pattern', 'text', 'NULL'),
-                ('table_list', 'text[]', 'NULL'),
-                ('index_pattern', 'text', 'NULL'),
-                ('inheritable_only', 'bool', 'FALSE'),
-                ('include_inherited', 'bool', 'FALSE'),
-            ],
-            returns=('edgedb', 'intro_index_desc_t'),
-            set_returning=True,
-            volatility='stable',
-            language='sql',
-            text=self.__class__.text)
-
-
-class TriggerDescType(dbops.CompositeType):
-    """Introspected trigger description."""
-    def __init__(self) -> None:
-        super().__init__(name=('edgedb', 'intro_trigger_desc_t'))
-
-        self.add_columns([
-            dbops.Column(name='table_name', type='text[]'),
-            dbops.Column(name='name', type='text'),
-            dbops.Column(name='proc', type='text[]'),
-            dbops.Column(name='is_constraint', type='bool'),
-            dbops.Column(name='granularity', type='text'),
-            dbops.Column(name='deferred', type='bool'),
-            dbops.Column(name='timing', type='text'),
-            dbops.Column(name='events', type='text[]'),
-            dbops.Column(name='definition', type='text'),
-            dbops.Column(name='condition', type='text'),
-            dbops.Column(name='metadata', type='jsonb'),
-        ])
-
-
-class IntrospectTriggersFunction(dbops.Function):
-    """Return a set of triggers for each table."""
-
-    text = '''
-
-        SELECT
-            table_name,
-            trg_name,
-            trg_proc,
-            trg_constraint,
-            trg_granularity,
-            trg_deferred,
-            trg_timing,
-            trg_events,
-            trg_definition,
-            NULL::text,
-            trg_metadata
-        FROM
-            (SELECT
-                *
-             FROM
-                (SELECT
-                    ARRAY[ns.nspname::text, tc.relname::text]
-                                                            AS table_name,
-
-                    t.oid::int                              AS trg_id,
-                    t.tgname::text                          AS trg_name,
-
-                    (SELECT
-                        ARRAY[nsp.nspname::text, p.proname::text]
-                     FROM
-                        pg_proc AS p
-                        INNER JOIN pg_namespace AS nsp
-                                ON nsp.oid = p.pronamespace
-                     WHERE
-                        t.tgfoid = p.oid
-                    )                                       AS trg_proc,
-
-                    t.tgconstraint != 0                     AS trg_constraint,
-
-                    (CASE
-                        WHEN (t.tgtype & (1 << 0)) != 0 THEN 'row'
-                        ELSE 'statement'
-                    END)                                    AS trg_granularity,
-
-                    t.tginitdeferred                        AS trg_deferred,
-
-                    (CASE
-                        WHEN (t.tgtype & (1 << 1)) != 0 THEN 'before'
-                        WHEN (t.tgtype & (1 << 6)) != 0 THEN 'instead'
-                        ELSE 'after'
-                    END)                                    AS trg_timing,
-
-                    array_remove(ARRAY[
-                        (CASE WHEN (t.tgtype & (1 << 2)) != 0 THEN 'insert'
-                         ELSE NULL END),
-                        (CASE WHEN (t.tgtype & (1 << 3)) != 0 THEN 'delete'
-                         ELSE NULL END),
-                        (CASE WHEN (t.tgtype & (1 << 4)) != 0 THEN 'update'
-                         ELSE NULL END),
-                        (CASE WHEN (t.tgtype & (1 << 5)) != 0 THEN 'truncate'
-                         ELSE NULL END)
-                    ]::text[], NULL)                        AS trg_events,
-
-                    pg_get_triggerdef(t.oid)::text          AS trg_definition,
-
-                    edgedb.obj_metadata(t.oid, 'pg_trigger') AS trg_metadata
-
-                 FROM
-                    pg_trigger AS t
-                    INNER JOIN pg_class AS tc ON t.tgrelid = tc.oid
-                    INNER JOIN pg_namespace AS ns ON ns.oid = tc.relnamespace
-
-                 WHERE
-                    ($1::text IS NULL OR ns.nspname LIKE $1::text) AND
-                    ($2::text IS NULL OR tc.relname LIKE $2::text) AND
-                    ($3::text[] IS NULL OR
-                        ns.nspname || '.' || tc.relname = any($3::text[])) AND
-                    ($4::text IS NULL OR t.tgname LIKE $4::text)
-                ) AS q
-
-             WHERE
-                (NOT $5::bool OR
-                    (trg_metadata IS NOT NULL AND
-                        (trg_metadata->>'ddl:inherit')::bool))
-
-                AND (
-                    $6 OR
-                    (
-                        trg_metadata IS NULL OR
-                        NOT coalesce(
-                            (trg_metadata->>'ddl:inherited')::bool, false)
-                    )
-                )
-            ) AS t
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', 'introspect_triggers'),
-            args=[
-                ('schema_pattern', 'text', 'NULL'),
-                ('table_pattern', 'text', 'NULL'),
-                ('table_list', 'text[]', 'NULL'),
-                ('trigger_pattern', 'text', 'NULL'),
-                ('inheritable_only', 'bool', 'FALSE'),
-                ('include_inherited', 'bool', 'FALSE'),
-            ],
-            returns=('edgedb', 'intro_trigger_desc_t'),
-            set_returning=True,
-            volatility='stable',
-            language='sql',
-            text=self.__class__.text)
-
-
-class TableInheritanceDescType(dbops.CompositeType):
-    """Introspected table inheritance descriptor."""
-    def __init__(self) -> None:
-        super().__init__(name=('edgedb', 'intro_tab_inh_t'))
-
-        self.add_columns([
-            dbops.Column(name='name', type='text[]'),
-            dbops.Column(name='depth', type='int'),
-            dbops.Column(name='pos', type='int'),
-        ])
-
-
-class GetTableDescendantsFunction(dbops.Function):
-    """Return a set of table descendants."""
-
-    text = '''
-        SELECT
-            *
-        FROM
-            (WITH RECURSIVE
-                inheritance(oid, name, ns, depth, path) AS (
-                    SELECT
-                        c.oid,
-                        c.relname,
-                        ns.nspname,
-                        0,
-                        ARRAY[c.relname]
-                    FROM
-                        pg_class c
-                        INNER JOIN pg_namespace ns
-                            ON c.relnamespace = ns.oid
-                    WHERE
-                        ($1::text IS NULL OR
-                            ns.nspname LIKE $1::text) AND
-                        ($2::text IS NULL OR
-                            c.relname LIKE $2::text)
-
-                    UNION ALL
-
-                    SELECT
-                        c.oid,
-                        c.relname,
-                        ns.nspname,
-                        i.depth + 1,
-                        i.path || c.relname
-                    FROM
-                        pg_class c,
-                        inheritance i,
-                        pg_inherits pgi,
-                        pg_namespace ns
-                    WHERE
-                        i.oid = pgi.inhparent
-                        AND c.oid = pgi.inhrelid
-                        AND ns.oid = c.relnamespace
-                        AND ($3::int IS NULL OR i.depth < $3::int)
-            )
-            SELECT DISTINCT ON (ns, name)
-                ARRAY[ns::text, name::text], depth, 0 FROM inheritance) q
-        WHERE
-            depth > 0
-        ORDER BY
-            depth
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', 'get_table_descendants'),
-            args=[
-                ('schema_name', 'text'),
-                ('table_name', 'text'),
-                ('max_depth', 'int', 'NULL'),
-            ],
-            returns=('edgedb', 'intro_tab_inh_t'),
-            set_returning=True,
-            volatility='stable',
-            language='sql',
-            text=self.__class__.text)
-
-
-class ParseTriggerConditionFunction(dbops.Function):
-    """Return a set of table descendants."""
-
-    text = '''
-        DECLARE
-            when_off integer;
-            pos integer;
-            brackets integer;
-            chr text;
-            def_len integer;
-        BEGIN
-            def_len := char_length(definition);
-            when_off := strpos(definition, 'WHEN (');
-            IF when_off IS NULL OR when_off = 0 THEN
-                RETURN NULL;
-            ELSE
-                pos := when_off + 6;
-                brackets := 1;
-                WHILE brackets > 0 AND pos < def_len LOOP
-                    chr := substr(definition, pos, 1);
-                    IF chr = ')' THEN
-                        brackets := brackets - 1;
-                    ELSIF chr = '(' THEN
-                        brackets := brackets + 1;
-                    END IF;
-                    pos := pos + 1;
-                END LOOP;
-
-                IF brackets != 0 THEN
-                    RAISE EXCEPTION
-                        'cannot parse trigger condition: %',
-                        definition;
-                END IF;
-
-                RETURN substr(
-                    definition,
-                    when_off + 6,
-                    pos - (when_off + 6) - 1
-                );
-            END IF;
-        END;
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', '_parse_trigger_condition'),
-            args=[
-                ('definition', 'text'),
-            ],
-            returns='text',
-            volatility='stable',
-            language='plpgsql',
-            text=self.__class__.text)
-
-
 class NormalizeArrayIndexFunction(dbops.Function):
     """Convert an EdgeQL index to SQL index."""
 
@@ -3056,30 +2711,6 @@ class DescribeRolesAsDDLFunction(dbops.Function):
             text=text)
 
 
-class DescribeInstanceConfigAsDDLFunctionForwardDecl(dbops.Function):
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', '_describe_system_config_as_ddl'),
-            args=[],
-            returns=('text'),
-            volatility='stable',
-            text='SELECT NULL::text',
-        )
-
-
-class DescribeDatabaseConfigAsDDLFunctionForwardDecl(dbops.Function):
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', '_describe_database_config_as_ddl'),
-            args=[],
-            returns=('text'),
-            volatility='stable',
-            text='SELECT NULL::text',
-        )
-
-
 class DumpSequencesFunction(dbops.Function):
 
     text = r"""
@@ -3513,11 +3144,9 @@ class SysConfigFullFunction(dbops.Function):
                 (s.value->>'typemod') AS typemod,
                 (s.value->>'backend_setting') AS backend_setting
             FROM
-                jsonb_each(
-                    (SELECT json
-                    FROM edgedbinstdata.instdata
-                    WHERE key = 'configspec')
-                ) AS s
+                edgedbinstdata.instdata as id,
+            LATERAL jsonb_each(id.json) AS s
+            WHERE id.key LIKE 'configspec%'
         ),
 
         config_defaults AS (
@@ -3794,7 +3423,8 @@ class SysConfigFullFunction(dbops.Function):
                         SELECT * FROM pg_all_settings
                     ) AS q
                 WHERE
-                    ($1 IS NULL OR
+                    q.value IS NOT NULL
+                    AND ($1 IS NULL OR
                         q.source::edgedb._sys_config_source_t = any($1)
                     )
                     AND ($2 IS NULL OR
@@ -3838,6 +3468,9 @@ class SysConfigFullFunction(dbops.Function):
         )
 
 
+# TODO: Calling this function repeatedly in config introspection
+# queries can lead to performance problems. Could we cache the results
+# in _edgecon_state or something?
 class SysConfigFunction(dbops.Function):
 
     text = f'''
@@ -3901,6 +3534,10 @@ class ResetSessionConfigFunction(dbops.Function):
         )
 
 
+# TODO: Support extension-defined configs that affect the backend
+# Not needed for supporting auth, so can skip temporarily.
+# If perf seems to matter, can hardcode things for base config
+# and consult json for just extension stuff.
 class ApplySessionConfigFunction(dbops.Function):
     """Apply an EdgeDB config setting to the backend, if possible.
 
@@ -3928,7 +3565,10 @@ class ApplySessionConfigFunction(dbops.Function):
             setting = config_spec[setting_name]
 
             valql = '"value"->>0'
-            if issubclass(setting.type, statypes.Duration):
+            if (
+                isinstance(setting.type, type)
+                and issubclass(setting.type, statypes.Duration)
+            ):
                 valql = f"""
                     edgedb._interval_to_ms(({valql})::interval)::text || 'ms'
                 """
@@ -4092,6 +3732,36 @@ class GetTypeToRangeNameMap(dbops.Function):
         )
 
 
+class GetTypeToMultiRangeNameMap(dbops.Function):
+    "Return a map of type names to the name of the associated multirange type"
+
+    text = f'''
+        VALUES
+            {", ".join(
+                f"""(
+                    {
+                        ql(f'{k[0]}.{k[1]}') if len(k) == 2
+                        else ql(f'pg_catalog.{k[0]}')
+                    },
+                    {
+                        ql(f'{v[0]}.{v[1]}') if len(v) == 2
+                        else ql(f'pg_catalog.{v[0]}')
+                    }
+                )"""
+            for k, v in types.type_to_multirange_name_map.items())}
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_get_type_to_multirange_type_map'),
+            args=[],
+            returns=('record',),
+            set_returning=True,
+            volatility='immutable',
+            text=self.text,
+        )
+
+
 class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
     """Return Postgres OID representing a given EdgeDB type."""
 
@@ -4157,6 +3827,31 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
                                     AS m(tid uuid, tn text)
                             INNER JOIN
                                 edgedb._get_type_to_range_type_map()
+                                    AS m2(tn2 text, rn text)
+                                ON tn = tn2
+                            WHERE
+                                tid = "elemid"
+                        )
+                ),
+                (
+                    SELECT
+                        rng.rngmultitypid
+                    FROM
+                        pg_catalog.pg_range rng
+                    WHERE
+                        "kind" = 'schema::MultiRange'
+                        -- For multiranges, we need to do the lookup based on
+                        -- our internal map of elem names to range names,
+                        -- because we use the builtin daterange as the range
+                        -- for edgedb.date_t.
+                        AND rng.rngmultitypid = (
+                            SELECT
+                                rn::regtype::oid
+                            FROM
+                                edgedb._get_base_scalar_type_map()
+                                    AS m(tid uuid, tn text)
+                            INNER JOIN
+                                edgedb._get_type_to_multirange_type_map()
                                     AS m2(tn2 text, rn text)
                                 ON tn = tn2
                             WHERE
@@ -4492,6 +4187,38 @@ class UuidGenerateV5Function(dbops.Function):
         )
 
 
+class PadBase64StringFunction(dbops.Function):
+    text = r"""
+        WITH
+            l AS (SELECT pg_catalog.length("s") % 4 AS r),
+            p AS (
+                SELECT
+                    (CASE WHEN l.r > 0 THEN repeat('=', (4 - l.r))
+                    ELSE '' END) AS p
+                FROM
+                    l
+            )
+        SELECT
+            "s" || p.p
+        FROM
+            p
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'pad_base64_string'),
+            args=[
+                ('s', ('text',)),
+            ],
+            returns=('text',),
+            volatility='immutable',
+            language='sql',
+            strict=True,
+            parallel_safe=True,
+            text=self.text,
+        )
+
+
 async def bootstrap(
     conn: PGConnection,
     config_spec: edbconfig.Spec,
@@ -4501,7 +4228,6 @@ async def bootstrap(
         dbops.CreateSchema(name='edgedbpub'),
         dbops.CreateSchema(name='edgedbstd'),
         dbops.CreateSchema(name='edgedbsql'),
-        dbops.CreateCompositeType(ExpressionType()),
         dbops.CreateView(NormalizedPgSettingsView()),
         dbops.CreateTable(DBConfigTable()),
         dbops.CreateTable(DMLDummyTable()),
@@ -4537,11 +4263,6 @@ async def bootstrap(
         dbops.CreateFunction(NormalizeNameFunction()),
         dbops.CreateFunction(GetNameModuleFunction()),
         dbops.CreateFunction(NullIfArrayNullsFunction()),
-        dbops.CreateCompositeType(IndexDescType()),
-        dbops.CreateFunction(IntrospectIndexesFunction()),
-        dbops.CreateCompositeType(TriggerDescType()),
-        dbops.CreateFunction(IntrospectTriggersFunction()),
-        dbops.CreateCompositeType(TableInheritanceDescType()),
         dbops.CreateDomain(BigintDomain()),
         dbops.CreateDomain(ConfigMemoryDomain()),
         dbops.CreateDomain(TimestampTzDomain()),
@@ -4559,8 +4280,6 @@ async def bootstrap(
         dbops.CreateFunction(StrToInt16NoInline()),
         dbops.CreateFunction(StrToFloat64NoInline()),
         dbops.CreateFunction(StrToFloat32NoInline()),
-        dbops.CreateFunction(GetTableDescendantsFunction()),
-        dbops.CreateFunction(ParseTriggerConditionFunction()),
         dbops.CreateFunction(NormalizeArrayIndexFunction()),
         dbops.CreateFunction(NormalizeArraySliceIndexFunction()),
         dbops.CreateFunction(IntOrNullFunction()),
@@ -4601,21 +4320,22 @@ async def bootstrap(
         dbops.CreateFunction(GetCachedReflection()),
         dbops.CreateFunction(GetBaseScalarTypeMap()),
         dbops.CreateFunction(GetTypeToRangeNameMap()),
+        dbops.CreateFunction(GetTypeToMultiRangeNameMap()),
         dbops.CreateFunction(GetPgTypeForEdgeDBTypeFunction()),
-        dbops.CreateFunction(DescribeInstanceConfigAsDDLFunctionForwardDecl()),
-        dbops.CreateFunction(DescribeDatabaseConfigAsDDLFunctionForwardDecl()),
         dbops.CreateFunction(DescribeRolesAsDDLFunctionForwardDecl()),
         dbops.CreateRange(Float32Range()),
         dbops.CreateRange(Float64Range()),
         dbops.CreateRange(DatetimeRange()),
         dbops.CreateRange(LocalDatetimeRange()),
         dbops.CreateFunction(RangeToJsonFunction()),
+        dbops.CreateFunction(MultiRangeToJsonFunction()),
         dbops.CreateFunction(RangeValidateFunction()),
         dbops.CreateFunction(RangeUnpackLowerValidateFunction()),
         dbops.CreateFunction(RangeUnpackUpperValidateFunction()),
         dbops.CreateFunction(FTSParseQueryFunction()),
         dbops.CreateFunction(FTSNormalizeWeightFunction()),
         dbops.CreateFunction(FTSNormalizeDocFunction()),
+        dbops.CreateFunction(PadBase64StringFunction()),
     ]
     commands = dbops.CommandGroup()
     commands.add_commands(cmds)
@@ -4629,14 +4349,24 @@ async def create_pg_extensions(
     conn: PGConnection,
     backend_params: params.BackendRuntimeParams,
 ) -> None:
-    ext_schema = backend_params.instance_params.ext_schema
+    inst_params = backend_params.instance_params
+    ext_schema = inst_params.ext_schema
+    # Both the extension schema, and the desired extension
+    # might already exist in a single database backend,
+    # attempt to create things conditionally.
     commands = dbops.CommandGroup()
-    commands.add_commands([
+    commands.add_command(
         dbops.CreateSchema(name=ext_schema, conditional=True),
-        dbops.CreateExtension(
-            dbops.Extension(name='uuid-ossp', schema=ext_schema),
-        ),
-    ])
+    )
+    if (
+        inst_params.existing_exts is None
+        or inst_params.existing_exts.get("uuid-ossp") is None
+    ):
+        commands.add_commands([
+            dbops.CreateExtension(
+                dbops.Extension(name='uuid-ossp', schema=ext_schema),
+            ),
+        ])
     block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)
@@ -4646,20 +4376,34 @@ async def patch_pg_extensions(
     conn: PGConnection,
     backend_params: params.BackendRuntimeParams,
 ) -> None:
-    ext_schema = backend_params.instance_params.ext_schema
+    # A single database backend might restrict creation of extensions
+    # to a specific schema, or restrict creation of extensions altogether
+    # and provide a way to register them using a different method
+    # (e.g. a hosting panel UI).
+    inst_params = backend_params.instance_params
+    if inst_params.existing_exts is not None:
+        uuid_ext_schema = inst_params.existing_exts.get("uuid-ossp")
+        if uuid_ext_schema is None:
+            uuid_ext_schema = inst_params.ext_schema
+    else:
+        uuid_ext_schema = inst_params.ext_schema
+
     commands = dbops.CommandGroup()
-    commands.add_commands([
-        dbops.CreateSchema(name=ext_schema, conditional=True),
-        dbops.CreateFunction(
-            UuidGenerateV1mcFunction(ext_schema), or_replace=True),
-        dbops.CreateFunction(
-            UuidGenerateV4Function(ext_schema), or_replace=True),
-        dbops.CreateFunction(
-            UuidGenerateV5Function(ext_schema), or_replace=True),
-    ])
-    block = dbops.PLTopBlock()
-    commands.generate(block)
-    await _execute_block(conn, block)
+
+    if uuid_ext_schema != "edgedbext":
+        commands.add_commands([
+            dbops.CreateFunction(
+                UuidGenerateV1mcFunction(uuid_ext_schema), or_replace=True),
+            dbops.CreateFunction(
+                UuidGenerateV4Function(uuid_ext_schema), or_replace=True),
+            dbops.CreateFunction(
+                UuidGenerateV5Function(uuid_ext_schema), or_replace=True),
+        ])
+
+    if len(commands) > 0:
+        block = dbops.PLTopBlock()
+        commands.generate(block)
+        await _execute_block(conn, block)
 
 
 classref_attr_aliases = {
@@ -4670,29 +4414,23 @@ classref_attr_aliases = {
 
 def tabname(
     schema: s_schema.Schema, obj: s_obj.QualifiedObject
-) -> Tuple[str, str]:
-    return (
-        'edgedbstd',
-        common.get_backend_name(
-            schema,
-            obj,
-            aspect='table',
-            catenate=False,
-        )[1],
+) -> tuple[str, str]:
+    return common.get_backend_name(
+        schema,
+        obj,
+        aspect='table',
+        catenate=False,
     )
 
 
 def inhviewname(
     schema: s_schema.Schema, obj: s_obj.QualifiedObject
 ) -> Tuple[str, str]:
-    return (
-        'edgedbstd',
-        common.get_backend_name(
-            schema,
-            obj,
-            aspect='inhview',
-            catenate=False,
-        )[1],
+    return common.get_backend_name(
+        schema,
+        obj,
+        aspect='inhview',
+        catenate=False,
     )
 
 
@@ -4846,7 +4584,7 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
         schema, s_name.UnqualName('version'), type=s_props.Property)
     ver_t = common.get_backend_name(
         schema,
-        ver.get_target(schema),
+        not_none(ver.get_target(schema)),
         catenate=False,
     )
 
@@ -5306,7 +5044,6 @@ def _generate_schema_ver_views(schema: s_schema.Schema) -> List[dbops.View]:
 def _make_json_caster(
     schema: s_schema.Schema,
     stype: s_types.Type,
-    context: str,
 ) -> Callable[[str], str]:
     cast_expr = qlast.TypeCast(
         expr=qlast.TypeCast(
@@ -5321,11 +5058,12 @@ def _make_json_caster(
         schema,
     )
 
-    cast_sql, _ = compiler.compile_ir_to_sql(
+    cast_sql_res = compiler.compile_ir_to_sql_tree(
         cast_ir,
-        use_named_params=True,
+        named_param_prefix=(),
         singleton_mode=True,
     )
+    cast_sql = codegen.generate_source(cast_sql_res.ast)
 
     return lambda val: cast_sql.replace('__replaceme__', val)
 
@@ -6423,6 +6161,24 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 END
             """
         ),
+        dbops.Function(
+            name=('edgedbsql', 'pg_table_is_visible'),
+            args=[
+                ('id', ('oid',)),
+                ('search_path', ('text[]',)),
+            ],
+            returns=('bool',),
+            volatility='stable',
+            text=r'''
+                SELECT pc.relnamespace IN (
+                    SELECT oid
+                    FROM edgedbsql.pg_namespace pn
+                    WHERE pn.nspname IN (select * from unnest(search_path))
+                )
+                FROM edgedbsql.pg_class pc
+                WHERE id = pc.oid
+            '''
+        )
     ]
 
     return (
@@ -6436,6 +6192,51 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         + [dbops.CreateView(view) for view in views]
         + [dbops.CreateFunction(func) for func in util_functions]
     )
+
+
+def get_config_type_views(
+    schema: s_schema.Schema,
+    conf: s_objtypes.ObjectType,
+    scope: Optional[qltypes.ConfigScope],
+) -> dbops.CommandGroup:
+    commands = dbops.CommandGroup()
+
+    cfg_views, _ = _generate_config_type_view(
+        schema,
+        conf,
+        scope=scope,
+        path=[],
+        rptr=None,
+    )
+    commands.add_commands([
+        dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
+        for tn, q in cfg_views
+    ])
+
+    return commands
+
+
+def get_config_views(
+    schema: s_schema.Schema,
+) -> dbops.CommandGroup:
+    commands = dbops.CommandGroup()
+
+    conf = schema.get('cfg::Config', type=s_objtypes.ObjectType)
+    commands.add_command(
+        get_config_type_views(schema, conf, scope=None),
+    )
+
+    conf = schema.get('cfg::InstanceConfig', type=s_objtypes.ObjectType)
+    commands.add_command(
+        get_config_type_views(schema, conf, scope=qltypes.ConfigScope.INSTANCE),
+    )
+
+    conf = schema.get('cfg::DatabaseConfig', type=s_objtypes.ObjectType)
+    commands.add_command(
+        get_config_type_views(schema, conf, scope=qltypes.ConfigScope.DATABASE),
+    )
+
+    return commands
 
 
 def get_support_views(
@@ -6464,44 +6265,7 @@ def get_support_views(
     for alias_view in schema_alias_views:
         commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
-    conf = schema.get('cfg::Config', type=s_objtypes.ObjectType)
-    cfg_views, _ = _generate_config_type_view(
-        schema,
-        conf,
-        scope=None,
-        path=[],
-        rptr=None,
-    )
-    commands.add_commands([
-        dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
-        for tn, q in cfg_views
-    ])
-
-    conf = schema.get('cfg::InstanceConfig', type=s_objtypes.ObjectType)
-    cfg_views, _ = _generate_config_type_view(
-        schema,
-        conf,
-        scope=qltypes.ConfigScope.INSTANCE,
-        path=[],
-        rptr=None,
-    )
-    commands.add_commands([
-        dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
-        for tn, q in cfg_views
-    ])
-
-    conf = schema.get('cfg::DatabaseConfig', type=s_objtypes.ObjectType)
-    cfg_views, _ = _generate_config_type_view(
-        schema,
-        conf,
-        scope=qltypes.ConfigScope.DATABASE,
-        path=[],
-        rptr=None,
-    )
-    commands.add_commands([
-        dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
-        for tn, q in cfg_views
-    ])
+    commands.add_command(get_config_views(schema))
 
     for dbview in _generate_database_views(schema):
         commands.add_command(dbops.CreateView(dbview, or_replace=True))
@@ -6566,45 +6330,7 @@ async def generate_more_support_functions(
 ) -> None:
     commands = dbops.CommandGroup()
 
-    _, text = edbbootstrap.compile_bootstrap_script(
-        compiler,
-        schema,
-        _describe_config(
-            schema, source='system override', testmode=testmode),
-        output_format=edbcompiler.OutputFormat.BINARY,
-    )
-
-    DescribeInstanceConfigAsDDLFunction = dbops.Function(
-        name=('edgedb', '_describe_system_config_as_ddl'),
-        args=[],
-        returns=('text'),
-        # Stable because it's raising exceptions.
-        volatility='stable',
-        text=text,
-    )
-
-    _, text = edbbootstrap.compile_bootstrap_script(
-        compiler,
-        schema,
-        _describe_config(
-            schema, source='database', testmode=testmode),
-        output_format=edbcompiler.OutputFormat.BINARY,
-    )
-
-    DescribeDatabaseConfigAsDDLFunction = dbops.Function(
-        name=('edgedb', '_describe_database_config_as_ddl'),
-        args=[],
-        returns=('text'),
-        # Stable because it's raising exceptions.
-        volatility='stable',
-        text=text,
-    )
-
     commands.add_commands([
-        dbops.CreateFunction(
-            DescribeInstanceConfigAsDDLFunction, or_replace=True),
-        dbops.CreateFunction(
-            DescribeDatabaseConfigAsDDLFunction, or_replace=True),
         dbops.CreateFunction(
             DescribeRolesAsDDLFunction(schema), or_replace=True),
         dbops.CreateFunction(GetSequenceBackendNameFunction()),
@@ -6614,314 +6340,6 @@ async def generate_more_support_functions(
     block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)
-
-
-def _describe_config(
-    schema: s_schema.Schema,
-    source: str,
-    testmode: bool,
-) -> str:
-    """Generate an EdgeQL query to render config as DDL."""
-
-    if source == 'system override':
-        scope = qltypes.ConfigScope.INSTANCE
-        config_object_name = 'cfg::InstanceConfig'
-    elif source == 'database':
-        scope = qltypes.ConfigScope.DATABASE
-        config_object_name = 'cfg::DatabaseConfig'
-    else:
-        raise AssertionError(f'unexpected configuration source: {source!r}')
-
-    cfg = schema.get(config_object_name, type=s_objtypes.ObjectType)
-    items = []
-    for ptr_name, p in cfg.get_pointers(schema).items(schema):
-        pn = str(ptr_name)
-        if pn in ('id', '__type__'):
-            continue
-
-        is_internal = (
-            p.get_annotation(
-                schema,
-                s_name.QualName('cfg', 'internal')
-            ) == 'true'
-        )
-        if is_internal and not testmode:
-            continue
-
-        ptype = p.get_target(schema)
-        assert ptype is not None
-        ptr_card = p.get_cardinality(schema)
-        mult = ptr_card.is_multi()
-        if isinstance(ptype, s_objtypes.ObjectType):
-            item = textwrap.indent(
-                _render_config_object(
-                    schema=schema,
-                    valtype=ptype,
-                    value_expr=str(ptype.get_name(schema)),
-                    scope=scope,
-                    join_term='',
-                    level=1,
-                ),
-                ' ' * 4,
-            )
-        else:
-            psource = f'{config_object_name}.{ qlquote.quote_ident(pn) }'
-            renderer = _render_config_set if mult else _render_config_scalar
-            item = textwrap.indent(
-                renderer(
-                    schema=schema,
-                    valtype=ptype,
-                    value_expr=psource,
-                    name=pn,
-                    scope=scope,
-                    level=1,
-                ),
-                ' ' * 4,
-            )
-
-        condition = f'EXISTS json_get(conf, {ql(pn)})'
-        if is_internal:
-            condition = f'({condition}) AND testmode'
-        items.append(f"(\n{item}\n    IF {condition} ELSE ''\n  )")
-
-    testmode_check = (
-        "<bool>json_get(cfg::get_config_json(),'__internal_testmode','value')"
-        " ?? false"
-    )
-    query = (
-        f"FOR conf IN {{cfg::get_config_json(sources := [{ql(source)}])}} "
-        + "UNION (\n"
-        + (f"FOR testmode IN {{{testmode_check}}} UNION (\n"
-           if testmode else "")
-        + "SELECT\n  " + ' ++ '.join(items)
-        + (")" if testmode else "")
-        + ")"
-    )
-    return query
-
-
-def _render_config_value(
-    *,
-    schema: s_schema.Schema,
-    valtype: s_types.Type,
-    value_expr: str,
-) -> str:
-    if valtype.issubclass(
-        schema,
-        schema.get('std::anyreal', type=s_scalars.ScalarType),
-    ):
-        val = f'<str>{value_expr}'
-    elif valtype.issubclass(
-        schema,
-        schema.get('std::bool', type=s_scalars.ScalarType),
-    ):
-        val = f'<str>{value_expr}'
-    elif valtype.issubclass(
-        schema,
-        schema.get('std::duration', type=s_scalars.ScalarType),
-    ):
-        val = f'"<std::duration>" ++ cfg::_quote(<str>{value_expr})'
-    elif valtype.issubclass(
-        schema,
-        schema.get('cfg::memory', type=s_scalars.ScalarType),
-    ):
-        val = f'"<cfg::memory>" ++ cfg::_quote(<str>{value_expr})'
-    elif valtype.issubclass(
-        schema,
-        schema.get('std::str', type=s_scalars.ScalarType),
-    ):
-        val = f'cfg::_quote({value_expr})'
-    elif valtype.is_enum(schema):
-        tn = valtype.get_name(schema)
-        val = f'"<{str(tn)}>" ++ cfg::_quote(<str>{value_expr})'
-    else:
-        raise AssertionError(
-            f'unexpected configuration value type: '
-            f'{valtype.get_displayname(schema)}'
-        )
-
-    return val
-
-
-def _render_config_set(
-    *,
-    schema: s_schema.Schema,
-    valtype: s_types.Type,
-    value_expr: str,
-    scope: qltypes.ConfigScope,
-    name: str,
-    level: int,
-) -> str:
-    assert isinstance(valtype, s_scalars.ScalarType)
-    v = _render_config_value(
-        schema=schema, valtype=valtype, value_expr=value_expr)
-    if level == 1:
-        return (
-            f"'CONFIGURE {scope.to_edgeql()} "
-            f"SET { qlquote.quote_ident(name) } := {{' ++ "
-            f"array_join(array_agg({v}), ', ') ++ '}};'"
-        )
-    else:
-        indent = ' ' * (4 * (level - 1))
-        return (
-            f"'{indent}{ qlquote.quote_ident(name) } := {{' ++ "
-            f"array_join(array_agg({v}), ', ') ++ '}},'"
-        )
-
-
-def _render_config_scalar(
-    *,
-    schema: s_schema.Schema,
-    valtype: s_types.Type,
-    value_expr: str,
-    scope: qltypes.ConfigScope,
-    name: str,
-    level: int,
-) -> str:
-    assert isinstance(valtype, s_scalars.ScalarType)
-    v = _render_config_value(
-        schema=schema, valtype=valtype, value_expr=value_expr)
-    if level == 1:
-        return (
-            f"'CONFIGURE {scope.to_edgeql()} "
-            f"SET { qlquote.quote_ident(name) } := ' ++ {v} ++ ';'"
-        )
-    else:
-        indent = ' ' * (4 * (level - 1))
-        return f"'{indent}{ qlquote.quote_ident(name) } := ' ++ {v} ++ ','"
-
-
-def _render_config_object(
-    *,
-    schema: s_schema.Schema,
-    valtype: s_objtypes.ObjectType,
-    value_expr: str,
-    scope: qltypes.ConfigScope,
-    join_term: str,
-    level: int,
-) -> str:
-    # Generate a valid `CONFIGURE <SCOPE> INSERT ConfigObject`
-    # shape for a given configuration object type or
-    # `INSERT ConfigObject` for a nested configuration type.
-    sub_layouts = _describe_config_object(
-        schema=schema, valtype=valtype, level=level + 1, scope=scope)
-    sub_layouts_items = []
-    if level == 1:
-        decor = [f'CONFIGURE {scope.to_edgeql()} INSERT ', ';\\n']
-    else:
-        decor = ['(INSERT ', ')']
-
-    indent = ' ' * (4 * (level - 1))
-
-    for type_name, type_layout in sub_layouts.items():
-        if type_layout:
-            sub_layout_item = (
-                f"'{indent}{decor[0]}{type_name} {{\\n'\n++ "
-                + "\n++ ".join(type_layout)
-                + f" ++ '{indent}}}{decor[1]}'"
-            )
-        else:
-            sub_layout_item = (
-                f"'{indent}{decor[0]}{type_name}{decor[1]}'"
-            )
-
-        if len(sub_layouts) > 1:
-            if type_layout:
-                sub_layout_item = (
-                    f'(WITH item := item[IS {type_name}]'
-                    f' SELECT {sub_layout_item}) '
-                    f'IF item.__type__.name = {ql(str(type_name))}'
-                )
-            else:
-                sub_layout_item = (
-                    f'{sub_layout_item} '
-                    f'IF item.__type__.name = {ql(str(type_name))}'
-                )
-
-        sub_layouts_items.append(sub_layout_item)
-
-    if len(sub_layouts_items) > 1:
-        sli_render = '\nELSE '.join(sub_layouts_items) + "\nELSE ''"
-    else:
-        sli_render = sub_layouts_items[0]
-
-    return '\n'.join((
-        f"array_join(array_agg((",
-        f"  FOR item IN {{ {value_expr} }}",
-        f"  UNION (",
-        f"{textwrap.indent(sli_render, ' ' * 4)}",
-        f"  )",
-        f")), {ql(join_term)})",
-    ))
-
-
-def _describe_config_object(
-    *,
-    schema: s_schema.Schema,
-    valtype: s_objtypes.ObjectType,
-    level: int,
-    scope: qltypes.ConfigScope,
-) -> Dict[s_name.QualName, List[str]]:
-    cfg_types = [valtype]
-    cfg_types.extend(cfg_types[0].descendants(schema))
-    layouts = {}
-    for cfg in cfg_types:
-        items = []
-        for ptr_name, p in cfg.get_pointers(schema).items(schema):
-            pn = str(ptr_name)
-            if (
-                pn in ('id', '__type__')
-                or p.get_annotation(
-                    schema,
-                    s_name.QualName('cfg', 'internal'),
-                ) == 'true'
-            ):
-                continue
-
-            ptype = p.get_target(schema)
-            assert ptype is not None
-            ptr_card = p.get_cardinality(schema)
-            mult = ptr_card.is_multi()
-            psource = f'item.{ qlquote.quote_ident(pn) }'
-
-            if isinstance(ptype, s_objtypes.ObjectType):
-                rval = textwrap.indent(
-                    _render_config_object(
-                        schema=schema,
-                        valtype=ptype,
-                        value_expr=psource,
-                        scope=scope,
-                        join_term=' UNION ',
-                        level=level + 1,
-                    ),
-                    ' ' * 2,
-                ).strip()
-                indent = ' ' * (4 * (level - 1))
-                item = (
-                    f"'{indent}{qlquote.quote_ident(pn)} "
-                    f":= (\\n'\n++ {rval} ++ '\\n{indent}),\\n'"
-                )
-                condition = None
-            else:
-                render = _render_config_set if mult else _render_config_scalar
-                item = render(
-                    schema=schema,
-                    valtype=ptype,
-                    value_expr=psource,
-                    scope=scope,
-                    name=pn,
-                    level=level,
-                )
-                condition = f'EXISTS {psource}'
-
-            if condition is not None:
-                item = f"({item} ++ '\\n' IF {condition} ELSE '')"
-
-            items.append(item)
-
-        layouts[cfg.get_name(schema)] = items
-
-    return layouts
 
 
 def _build_key_source(
@@ -6939,14 +6357,14 @@ def _build_key_source(
 
         targetlist = ','.join(restargets)
 
-        keysource = textwrap.dedent(f'''\
+        keysource = f'''
             (SELECT
                 ARRAY[{targetlist}] AS key
-            ) AS k{source_idx}''')
+            ) AS k{source_idx}'''
     else:
         assert rptr is not None
         rptr_name = rptr.get_shortname(schema).name
-        keysource = textwrap.dedent(f'''\
+        keysource = f'''
             (SELECT
                 ARRAY[
                     (CASE WHEN q{source_idx}.val = 'null'::jsonb
@@ -6954,14 +6372,14 @@ def _build_key_source(
                      ELSE {ql(rptr_name)}
                      END)
                 ] AS key
-            ) AS k{source_idx}''')
+            ) AS k{source_idx}'''
 
     return keysource
 
 
 def _build_key_expr(key_components: List[str]) -> str:
     key_expr = ' || '.join(key_components)
-    final_keysource = textwrap.dedent(f'''\
+    final_keysource = f'''
         (SELECT
             (CASE WHEN array_position(q.v, NULL) IS NULL
              THEN
@@ -6973,7 +6391,7 @@ def _build_key_expr(key_components: List[str]) -> str:
              END) AS key
          FROM
             (SELECT {key_expr} AS v) AS q
-        )''')
+        )'''
 
     return final_keysource
 
@@ -6996,19 +6414,23 @@ def _build_data_source(
         alias = f'q{alias}'
 
     if rptr_multi:
-        sourceN = textwrap.dedent(f'''\
+        sourceN = f'''
             (SELECT jel.val
                 FROM
                 jsonb_array_elements(
                     (q{source_idx}.val)->{ql(rptr_name)}) AS jel(val)
-            ) AS {alias}''')
+            ) AS {alias}'''
     else:
-        sourceN = textwrap.dedent(f'''\
+        sourceN = f'''
             (SELECT
                 (q{source_idx}.val)->{ql(rptr_name)} AS val
-            ) AS {alias}''')
+            ) AS {alias}'''
 
     return sourceN
+
+
+def _escape_like(s: str) -> str:
+    return s.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
 
 def _generate_config_type_view(
@@ -7023,6 +6445,8 @@ def _generate_config_type_view(
     List[Tuple[Tuple[str, str], str]],
     List[s_pointers.Pointer],
 ]:
+    X = xdedent.escape
+
     exc = schema.get('std::exclusive', type=s_constr.Constraint)
 
     if scope is not None:
@@ -7044,35 +6468,92 @@ def _generate_config_type_view(
 
     sources = []
 
+    ext_cfg = schema.get('cfg::ExtensionConfig', type=s_objtypes.ObjectType)
+    is_ext_cfg = stype.issubclass(schema, ext_cfg)
+    if is_ext_cfg:
+        rptr = None
+    is_rptr_ext_cfg = False
+
     if not path:
-        # This is the root config object.
-        if rptr is None:
-            source0 = textwrap.dedent(f'''\
+        if is_ext_cfg:
+            # Extension configs get one object per scope.
+            cfg_name = str(stype.get_name(schema))
+
+            escaped_name = _escape_like(cfg_name)
+            source0 = f'''
+                (SELECT
+                    (SELECT jsonb_object_agg(
+                      substr(name, {len(cfg_name)+3}), value) AS val
+                    FROM edgedb._read_sys_config(
+                      NULL, scope::edgedb._sys_config_source_t) cfg
+                    WHERE name LIKE {ql(escaped_name + '%')}
+                    ) AS val, scope::text AS scope, scope_id AS scope_id
+                    FROM (VALUES
+                        (NULL, '{CONFIG_ID[None]}'::uuid),
+                        ('database',
+                         '{CONFIG_ID[qltypes.ConfigScope.DATABASE]}'::uuid),
+                        ('system override',
+                         '{CONFIG_ID[qltypes.ConfigScope.INSTANCE]}'::uuid)
+                    ) AS s(scope, scope_id)
+                ) AS q0
+            '''
+        elif rptr is None:
+            # This is the root config object.
+            source0 = f'''
                 (SELECT jsonb_object_agg(name, value) AS val
-                FROM edgedb._read_sys_config(NULL, {max_source}) cfg) AS q0''')
+                FROM edgedb._read_sys_config(NULL, {max_source}) cfg) AS q0'''
         else:
             rptr_card = rptr.get_cardinality(schema)
             rptr_multi = rptr_card.is_multi()
             rptr_name = rptr.get_shortname(schema).name
+            rptr_source = rptr.get_source(schema)
+            assert rptr_source
+            is_rptr_ext_cfg = rptr_source.issubclass(schema, ext_cfg)
+            if is_rptr_ext_cfg:
+                assert rptr_multi
+                cfg_name = str(rptr_source.get_name(schema)) + '::' + rptr_name
+                escaped_name = _escape_like(cfg_name)
 
-            if rptr_multi:
-                source0 = textwrap.dedent(f'''\
+                source0 = f'''
+                    (SELECT el.val AS val, s.scope::text AS scope,
+                            s.scope_id AS scope_id
+                     FROM (VALUES
+                         (NULL, '{CONFIG_ID[None]}'::uuid),
+                         ('database',
+                          '{CONFIG_ID[qltypes.ConfigScope.DATABASE]}'::uuid),
+                         ('system override',
+                          '{CONFIG_ID[qltypes.ConfigScope.INSTANCE]}'::uuid)
+                     ) AS s(scope, scope_id),
+                     LATERAL (
+                         SELECT (value::jsonb) AS val
+                         FROM edgedb._read_sys_config(
+                           NULL, scope::edgedb._sys_config_source_t) cfg
+                         WHERE name LIKE {ql(escaped_name + '%')}
+                     ) AS cfg,
+                     LATERAL jsonb_array_elements(cfg.val) AS el(val)
+                    ) AS q0
+                '''
+
+            elif rptr_multi:
+                source0 = f'''
                     (SELECT el.val
                      FROM
                         (SELECT (value::jsonb) AS val
                         FROM edgedb._read_sys_config(NULL, {max_source})
                         WHERE name = {ql(rptr_name)}) AS cfg,
                         LATERAL jsonb_array_elements(cfg.val) AS el(val)
-                    ) AS q0''')
+                    ) AS q0'''
             else:
-                source0 = textwrap.dedent(f'''\
+                source0 = f'''
                     (SELECT (value::jsonb) AS val
                     FROM edgedb._read_sys_config(NULL, {max_source}) cfg
-                    WHERE name = {ql(rptr_name)}) AS q0''')
+                    WHERE name = {ql(rptr_name)}) AS q0'''
 
         sources.append(source0)
         key_start = 0
     else:
+        # XXX: The second level is broken
+        # Can we solve this without code duplication?
         key_start = 0
 
         for i, (l, exc_props) in enumerate(path):
@@ -7082,19 +6563,19 @@ def _generate_config_type_view(
 
             if i == 0:
                 if l_multi:
-                    sourceN = textwrap.dedent(f'''\
+                    sourceN = f'''
                         (SELECT el.val
                         FROM
                             (SELECT (value::jsonb) AS val
                             FROM edgedb._read_sys_config(NULL, {max_source})
                             WHERE name = {ql(l_name)}) AS cfg,
                             LATERAL jsonb_array_elements(cfg.val) AS el(val)
-                        ) AS q{i}''')
+                        ) AS q{i}'''
                 else:
-                    sourceN = textwrap.dedent(f'''\
+                    sourceN = f'''
                         (SELECT (value::jsonb) AS val
                         FROM edgedb._read_sys_config(NULL, {max_source}) cfg
-                        WHERE name = {ql(l_name)}) AS q{i}''')
+                        WHERE name = {ql(l_name)}) AS q{i}'''
             else:
                 sourceN = _build_data_source(schema, l, i - 1)
 
@@ -7146,15 +6627,13 @@ def _generate_config_type_view(
             else:
                 single_links.append(pp)
         else:
-            pp_cast = _make_json_caster(
-                schema, pp_type, f'cfg::Config.{".".join(path_steps)}')
+            pp_cast = _make_json_caster(schema, pp_type)
 
             if pp_multi:
                 multi_props.append((pp, pp_cast))
             else:
                 extract_col = (
-                    f'{pp_cast(f"{sval}->{ql(pn)}")}'
-                    f' AS {qi(pp_col)}')
+                    f'{pp_cast(f"{sval}->{ql(pn)}")} AS {qi(pp_col)}')
 
                 target_cols[pp] = extract_col
 
@@ -7164,17 +6643,37 @@ def _generate_config_type_view(
 
     exclusive_props.sort(key=lambda p: p.get_shortname(schema).name)
 
-    if exclusive_props or rptr:
+    if is_ext_cfg:
+        # Extension configs get custom keys based on their type name
+        # and the scope, since we create one object per scope.
+        key_components = [
+            f'ARRAY[{ql(str(stype.get_name(schema)))}]',
+            "ARRAY[coalesce(q0.scope, 'session')]"
+        ]
+        final_keysource = f'{_build_key_expr(key_components)} AS k'
+        sources.append(final_keysource)
+
+        key_expr = 'k.key'
+        where = f"q0.val IS NOT NULL"
+
+    elif exclusive_props or rptr:
         sources.append(
             _build_key_source(schema, exclusive_props, rptr, str(self_idx)))
 
         key_components = [f'k{i}.key' for i in range(key_start, self_idx + 1)]
+        if is_rptr_ext_cfg:
+            assert rptr_source
+            key_components = [
+                f'ARRAY[{ql(str(rptr_source.get_name(schema)))}]',
+                "ARRAY[coalesce(q0.scope, 'session')]"
+            ] + key_components
+
         final_keysource = f'{_build_key_expr(key_components)} AS k'
         sources.append(final_keysource)
 
         key_expr = 'k.key'
 
-        tname = stype.get_name(schema).name
+        tname = str(stype.get_name(schema))
         where = f"{key_expr} IS NOT NULL AND ({sval}->>'_tname') = {ql(tname)}"
 
     else:
@@ -7183,13 +6682,17 @@ def _generate_config_type_view(
         key_components = []
 
     id_ptr = stype.getptr(schema, s_name.UnqualName('id'))
-    target_cols[id_ptr] = f'{key_expr} AS id'
+    target_cols[id_ptr] = f'{X(key_expr)} AS id'
 
     for link in single_links:
         link_name = link.get_shortname(schema).name
         link_type = link.get_target(schema)
         link_psi = types.get_pointer_storage_info(link, schema=schema)
         link_col = link_psi.column_name
+
+        if str(link_type.get_name(schema)) == 'cfg::AbstractConfig':
+            target_cols[link] = f'q0.scope_id AS {qi(link_col)}'
+            continue
 
         if rptr is not None:
             target_path = path + [(rptr, exclusive_props)]
@@ -7225,13 +6728,14 @@ def _generate_config_type_view(
             schema, target_exc_props, link, source_idx=link_name)
         sources.append(target_key_source)
 
+        # XXX: it doesn't seem right to *just* use the exc props?
         if target_exc_props:
             target_key_components = [f'k{link_name}.key']
         else:
             target_key_components = key_components + [f'k{link_name}.key']
 
         target_key = _build_key_expr(target_key_components)
-        target_cols[link] = f'({target_key}) AS {qi(link_col)}'
+        target_cols[link] = f'({X(target_key)}) AS {qi(link_col)}'
 
         views.extend(target_views)
 
@@ -7243,13 +6747,13 @@ def _generate_config_type_view(
 
     target_cols_str = ',\n'.join([x for _, x in target_cols_sorted if x])
 
-    fromlist = ',\n'.join(f'LATERAL {s}' for s in sources)
+    fromlist = ',\n'.join(f'LATERAL {X(s)}' for s in sources)
 
-    target_query = textwrap.dedent(f'''\
+    target_query = xdedent.xdedent(f'''
         SELECT
-            {textwrap.indent(target_cols_str, ' ' * 4).strip()}
+            {X(target_cols_str)}
         FROM
-            {fromlist}
+            {X(fromlist)}
     ''')
 
     if where:
@@ -7290,6 +6794,12 @@ def _generate_config_type_view(
                 )
                 views.extend(desc_views)
 
+        # HACK: For computable links (just extensions hopefully?), we
+        # want to compile the targets as a side effect, but we don't
+        # want to actually include them in the view.
+        if link.get_computable(schema):
+            continue
+
         target_source = _build_data_source(
             schema, link, self_idx, alias=link_name)
         target_sources.append(target_source)
@@ -7301,18 +6811,18 @@ def _generate_config_type_view(
         target_key_components = key_components + [f'k{link_name}.key']
         target_key = _build_key_expr(target_key_components)
 
-        target_fromlist = ',\n'.join(f'LATERAL {s}' for s in target_sources)
+        target_fromlist = ',\n'.join(f'LATERAL {X(s)}' for s in target_sources)
 
-        link_query = textwrap.dedent(f'''\
+        link_query = xdedent.xdedent(f'''\
             SELECT
                 q.source,
                 q.target
             FROM
                 (SELECT
-                    {key_expr} AS source,
-                    {target_key} AS target
+                    {X(key_expr)} AS source,
+                    {X(target_key)} AS target
                 FROM
-                    {target_fromlist}
+                    {X(target_fromlist)}
                 ) q
             WHERE
                 q.target IS NOT NULL
@@ -7329,14 +6839,14 @@ def _generate_config_type_view(
             schema, prop, self_idx, alias=pn)
         target_sources.append(target_source)
 
-        target_fromlist = ',\n'.join(f'LATERAL {s}' for s in target_sources)
+        target_fromlist = ',\n'.join(f'LATERAL {X(s)}' for s in target_sources)
 
-        link_query = textwrap.dedent(f'''\
+        link_query = xdedent.xdedent(f'''\
             SELECT
-                {key_expr} AS source,
+                {X(key_expr)} AS source,
                 {pp_cast(f'q{pn}.val')} AS target
             FROM
-                {target_fromlist}
+                {X(target_fromlist)}
         ''')
 
         views.append((tabname(schema, prop), link_query))
@@ -7394,7 +6904,7 @@ async def execute_sql_script(
             text = e.get_field('q')
 
         elif pl_func_line:
-            point = _edgeql_parser.offset_of_line(sql_text, pl_func_line)
+            point = ql_parser.offset_of_line(sql_text, pl_func_line)
             text = sql_text
 
         if point is not None:

@@ -69,6 +69,12 @@ cdef class StatementsCache:
                 f'maxsize is expected to be greater than 0, got {maxsize}')
         self._maxsize = maxsize
 
+    def items(self):
+        return self._dict.items()
+
+    def clear(self):
+        self._dict.clear()
+
     def __getitem__(self, key):
         o = self._dict[key]
         self._dict_move_to_end(key)  # last=True

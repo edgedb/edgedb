@@ -184,6 +184,7 @@ def _build_stmt(node: Node, c: Context) -> pgast.Query | pgast.Statement:
             "TransactionStmt": _build_transaction_stmt,
             "PrepareStmt": _build_prepare,
             "ExecuteStmt": _build_execute,
+            "DeallocateStmt": _build_deallocate,
             "CreateStmt": _build_create,
             "CreateTableAsStmt": _build_create_table_as,
             "LockStmt": _build_lock,
@@ -429,6 +430,10 @@ def _build_execute(n: Node, c: Context) -> pgast.ExecuteStmt:
     return pgast.ExecuteStmt(
         name=n["name"], params=_maybe_list(n, c, "params", _build_base_expr)
     )
+
+
+def _build_deallocate(n: Node, c: Context) -> pgast.DeallocateStmt:
+    return pgast.DeallocateStmt(name=n["name"])
 
 
 def _build_create_table_as(n: Node, c: Context) -> pgast.CreateTableAsStmt:
@@ -838,13 +843,15 @@ def _build_range_function(n: Node, c: Context) -> pgast.RangeFunction:
 def _build_join_expr(n: Node, c: Context) -> pgast.JoinExpr:
     return pgast.JoinExpr(
         alias=_maybe(n, c, "alias", _build_alias) or pgast.Alias(aliasname=""),
-        type=n["jointype"][5:],
         larg=_build_base_range_var(n["larg"], c),
-        rarg=_build_base_range_var(n["rarg"], c),
-        using_clause=_maybe_list(
-            n, c, "usingClause", _build_str, _as_column_ref
-        ),
-        quals=_maybe(n, c, "quals", _build_base_expr),
+        joins=[pgast.JoinClause(
+            type=n["jointype"][5:],
+            rarg=_build_base_range_var(n["rarg"], c),
+            using_clause=_maybe_list(
+                n, c, "usingClause", _build_str, _as_column_ref
+            ),
+            quals=_maybe(n, c, "quals", _build_base_expr),
+        )],
     )
 
 

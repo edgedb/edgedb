@@ -8,7 +8,8 @@ edition = "2021"
 
 [dependencies]
 base32 = "0.4.0"
-bigdecimal = "0.3.0"
+bigdecimal = { version = "0.3.0", features = ["serde"] }
+num-bigint = { version = "0.3.0", features = ["serde"] }
 sha2 = "0.10.2"
 snafu = "0.7.0"
 memchr = "2.5.0"
@@ -21,10 +22,14 @@ unicode-width = "0.1.8"
 edgeql-parser-derive = { path = "edgeql-parser-derive", optional = true }
 cpython = { version = "0.7.0", optional = true }
 indexmap = "1.9.3"
+serde_json = { version = "1.0", features = ["preserve_order"] }
+bumpalo = { version = "3.13.0", features = ["collections"] }
+phf = { version = "0.11.1", features = ["macros"] }
+append-only-vec = "0.1.2"
 
 [features]
 default = []
 wasm-lexer = ["wasm-bindgen", "serde"]
-python = ["cpython", "edgeql-parser-derive"]
+python = ["cpython", "serde", "edgeql-parser-derive"]
 
 [lib]

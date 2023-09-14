@@ -24,6 +24,7 @@ from docutils.parsers import rst as d_rst
 from sphinx import addnodes as s_nodes
 from sphinx import transforms as s_transforms
 
+from . import edb
 from . import cli
 from . import eql
 from . import js
@@ -94,6 +95,7 @@ class VersionedSection(d_rst.Directive):
 
 
 def setup(app):
+    edb.setup_domain(app)
     cli.setup_domain(app)
     eql.setup_domain(app)
     js.setup_domain(app)

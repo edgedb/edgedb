@@ -20,11 +20,47 @@
 from __future__ import annotations
 from typing import *
 
+import dataclasses
 import functools
 import re
 import struct
+import datetime
+
+import immutables
 
 from edb import errors
+
+MISSING: Any = object()
+
+
+@dataclasses.dataclass(frozen=True)
+class CompositeTypeSpecField:
+    name: str
+    type: type | CompositeTypeSpec
+    _: dataclasses.KW_ONLY
+    unique: bool = True
+    default: Any = MISSING
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class CompositeTypeSpec:
+    name: str
+    fields: immutables.Map[str, CompositeTypeSpecField]
+    parent: Optional[CompositeTypeSpec] = None
+    children: list[CompositeTypeSpec] = dataclasses.field(
+        default_factory=list, hash=False, compare=False
+    )
+
+    @property
+    def __name__(self) -> str:
+        return self.name
+
+
+class CompositeType:
+    _tspec: CompositeTypeSpec
+
+    def to_json_value(self) -> dict[str, Any]:
+        raise NotImplementedError
 
 
 class ScalarType:
@@ -303,6 +339,9 @@ class Duration(ScalarType):
         if ret == ['PT']:
             ret.append('0S')
         return ''.join(ret)
+
+    def to_timedelta(self) -> datetime.timedelta:
+        return datetime.timedelta(microseconds=self.to_microseconds())
 
     def to_backend_str(self) -> str:
         return f'{self.to_microseconds()}us'

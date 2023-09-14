@@ -42,11 +42,13 @@ _new_nonterm = sdl_nontem_helper._new_nonterm
 
 # top-level SDL statements
 class SDLStatement(Nonterm):
+    @parsing.inline(0)
     def reduce_SDLBlockStatement(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_SDLShortStatement_SEMICOLON(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 # a list of SDL statements with optional semicolon separators
@@ -57,78 +59,101 @@ class SDLStatements(parsing.ListNonterm, element=SDLStatement,
 
 # These statements have a block
 class SDLBlockStatement(Nonterm):
+    @parsing.inline(0)
     def reduce_ModuleDeclaration(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_ScalarTypeDeclaration(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_AnnotationDeclaration(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_ObjectTypeDeclaration(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_AliasDeclaration(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_ConstraintDeclaration(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_LinkDeclaration(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_PropertyDeclaration(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_FunctionDeclaration(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_GlobalDeclaration(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_IndexDeclaration(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 # these statements have no {} block
 class SDLShortStatement(Nonterm):
 
+    @parsing.inline(0)
     def reduce_ExtensionRequirementDeclaration(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_FutureRequirementDeclaration(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_ScalarTypeDeclarationShort(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_AnnotationDeclarationShort(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_ObjectTypeDeclarationShort(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_AliasDeclarationShort(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_ConstraintDeclarationShort(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_LinkDeclarationShort(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_PropertyDeclarationShort(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_FunctionDeclarationShort(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_GlobalDeclarationShort(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_IndexDeclarationShort(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 # A rule for an SDL block, either as part of `module` declaration or
@@ -138,12 +163,11 @@ class SDLCommandBlock(Nonterm):
     def reduce_LBRACE_OptSemicolons_RBRACE(self, *kids):
         self.val = []
 
-    def reduce_statement_without_semicolons(self, *kids):
+    def reduce_statement_without_semicolons(self, _0, _1, stmt, _2):
         r"""%reduce LBRACE \
                 OptSemicolons SDLShortStatement \
             RBRACE
         """
-        _, _, stmt, _ = kids
         self.val = [stmt.val]
 
     def reduce_statements_without_optional_trailing_semicolons(self, *kids):
@@ -155,18 +179,17 @@ class SDLCommandBlock(Nonterm):
         _, _, stmts, _, stmt, _ = kids
         self.val = stmts.val + [stmt.val]
 
+    @parsing.inline(2)
     def reduce_LBRACE_OptSemicolons_SDLStatements_RBRACE(self, *kids):
-        _, _, stmts, _ = kids
-        self.val = stmts.val
+        pass
 
+    @parsing.inline(2)
     def reduce_statements_without_optional_trailing_semicolons2(self, *kids):
         r"""%reduce LBRACE \
                 OptSemicolons SDLStatements \
                 Semicolons \
             RBRACE
         """
-        _, _, stmts, _, _ = kids
-        self.val = stmts.val
 
 
 class SDLProductionHelper:
@@ -310,8 +333,7 @@ class FutureRequirementDeclaration(Nonterm):
 
 
 class ModuleDeclaration(Nonterm):
-    def reduce_MODULE_ModuleName_SDLCommandBlock(self, *kids):
-        _, module_name, block = kids
+    def reduce_MODULE_ModuleName_SDLCommandBlock(self, _, module_name, block):
 
         # Check that top-level declarations DO NOT use fully-qualified
         # names and aren't nested module blocks.
@@ -777,9 +799,9 @@ class OptPtrTarget(Nonterm):
     def reduce_empty(self, *kids):
         self.val = None
 
+    @parsing.inline(0)
     def reduce_PtrTarget(self, *kids):
-        (ptr,) = kids
-        self.val = ptr.val
+        pass
 
 
 class ConcreteUnknownPointerBlock(Nonterm):
@@ -1233,8 +1255,9 @@ class LinkDeclarationShort(Nonterm):
 
 
 class OptPtrKind(Nonterm):
+    @parsing.inline(0)
     def reduce_LINK(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_empty(self):
         self.val = None

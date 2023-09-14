@@ -156,7 +156,7 @@ def delta_schemas(
 
     if schema_a is None:
         if include_std_diff:
-            schema_a = s_schema.FlatSchema()
+            schema_a = s_schema.EMPTY_SCHEMA
         else:
             schema_a = schema_b
 

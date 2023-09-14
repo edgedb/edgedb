@@ -72,6 +72,9 @@ class BaseCluster:
     ):
         self._edgedb_cmd = [sys.executable, '-m', 'edb.server.main']
 
+        if "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" not in os.environ:
+            self._edgedb_cmd.append('--instance-name=localtest')
+
         self._edgedb_cmd.append('--tls-cert-mode=generate_self_signed')
         self._edgedb_cmd.append('--jose-key-mode=generate')
 
@@ -80,10 +83,9 @@ class BaseCluster:
 
         compiler_addr = os.getenv('EDGEDB_TEST_REMOTE_COMPILER')
         if compiler_addr:
+            compiler_pool_mode = edgedb_args.CompilerPoolMode.Remote
             self._edgedb_cmd.extend(
                 [
-                    '--compiler-pool-mode',
-                    'remote',
                     '--compiler-pool-addr',
                     compiler_addr,
                 ]
@@ -499,6 +501,12 @@ class TempCluster(Cluster):
 class RunningCluster(BaseCluster):
     def __init__(self, **conn_args: Any) -> None:
         self.conn_args = conn_args
+        if path := os.environ.get("EDGEDB_SERVER_JWS_KEY_FILE"):
+            try:
+                jws_key = secretkey.load_secret_key(pathlib.Path(path))
+            except secretkey.SecretKeyReadError as e:
+                raise ClusterError(e.args[0]) from e
+            self.get_jws_key = lambda: jws_key
 
     def is_managed(self) -> bool:
         return False
@@ -570,6 +578,10 @@ class TempClusterWithRemotePg(BaseCluster):
             ),
         )
         self._backend_dsn = backend_dsn
+        mt = "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ
+        if mt:
+            compiler_pool_mode = edgedb_args.CompilerPoolMode.MultiTenant
+
         super().__init__(
             runstate_dir,
             env=env,
@@ -579,7 +591,8 @@ class TempClusterWithRemotePg(BaseCluster):
             http_endpoint_security=http_endpoint_security,
             compiler_pool_mode=compiler_pool_mode,
         )
-        self._edgedb_cmd.extend(['--backend-dsn', backend_dsn])
+        if not mt:
+            self._edgedb_cmd.extend(['--backend-dsn', backend_dsn])
 
     async def _new_pg_cluster(self) -> pgcluster.BaseCluster:
         return await pgcluster.get_remote_pg_cluster(self._backend_dsn)

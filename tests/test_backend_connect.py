@@ -154,6 +154,7 @@ class ClusterTestCase(tb.TestCase):
         result = CliRunner().invoke(get_default_args, [])
         arg_input = pickle.loads(result.stdout_bytes)
         arg_input["data_dir"] = pathlib.Path(cluster.get_data_dir())
+        arg_input["multitenant_config_file"] = ""
         arg_input["tls_cert_mode"] = "generate_self_signed"
         arg_input["jose_key_mode"] = "generate"
         cls.dbname = cluster.get_db_name('edgedb')

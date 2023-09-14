@@ -4,11 +4,13 @@ use bigdecimal::num_bigint::ToBigInt;
 use bigdecimal::BigDecimal;
 
 use crate::helpers::{unquote_bytes, unquote_string};
-use crate::position::Pos;
+use crate::keywords::Keyword;
+use crate::position::{Pos, Span};
 use crate::tokenizer::{Error, Kind, Token, Tokenizer, Value, MAX_KEYWORD_LENGTH};
 
 /// Applies additional validation to the tokens.
 /// Combines multi-word keywords into single tokens.
+/// Remaps a few token kinds.
 pub struct Validator<'a> {
     pub inner: Tokenizer<'a>,
 
@@ -30,11 +32,13 @@ impl<'a> Iterator for Validator<'a> {
             Err(e) => return Some(Err(Error::new(e).with_span(token.span))),
         };
 
-        if let Some(text) = self.combine_multi_word_keywords(&token) {
-            token.kind = Kind::Keyword;
-            token.text = text.into();
+        if let Some(keyword) = self.combine_multi_word_keywords(&token) {
+            token.text = keyword.into();
+            token.kind = Kind::Keyword(Keyword(keyword));
             self.peeked = None;
         }
+
+        token.kind = remap_kind(token.kind);
 
         Some(Ok(token))
     }
@@ -46,6 +50,13 @@ impl<'a> Validator<'a> {
             inner,
             peeked: None,
             keyword_buf: String::with_capacity(MAX_KEYWORD_LENGTH),
+        }
+    }
+
+    pub fn with_eof(self) -> WithEof<'a> {
+        WithEof {
+            inner: self,
+            emitted: false,
         }
     }
 
@@ -61,7 +72,7 @@ impl<'a> Validator<'a> {
 
     /// Mimics behavior of [std::iter::Peekable]. We could use that, but it
     /// hides access to underlying iterator.
-    fn peek(&mut self) -> &Option<Result<Token<'a>, Error>> {
+    fn peek(&mut self) -> &Option<Result<Token, Error>> {
         if self.peeked.is_none() {
             self.peeked = Some(self.inner.next());
         }
@@ -73,8 +84,8 @@ impl<'a> Validator<'a> {
         self.inner.current_pos()
     }
 
-    fn combine_multi_word_keywords(&mut self, token: &Token) -> Option<&'static str> {
-        if !matches!(token.kind, Kind::Ident | Kind::Keyword) {
+    fn combine_multi_word_keywords(&mut self, token: &Token<'a>) -> Option<&'static str> {
+        if !matches!(token.kind, Kind::Ident | Kind::Keyword(_)) {
             return None;
         }
         let text = &token.text;
@@ -115,19 +126,19 @@ impl<'a> Validator<'a> {
         return None;
     }
 
-    fn peek_keyword(&mut self, kw: &str) -> bool {
+    fn peek_keyword(&mut self, kw: &'static str) -> bool {
         self.peek()
             .as_ref()
             .and_then(|res| res.as_ref().ok())
             .map(|t| {
-                (t.kind == Kind::Ident || t.kind == Kind::Keyword)
-                    && t.text.eq_ignore_ascii_case(kw)
+                t.kind == Kind::Keyword(Keyword(kw))
+                    || (t.kind == Kind::Ident && t.text.eq_ignore_ascii_case(kw))
             })
             .unwrap_or(false)
     }
 }
 
-pub fn parse_value(token: &Token<'_>) -> Result<Option<Value>, String> {
+pub fn parse_value(token: &Token) -> Result<Option<Value>, String> {
     use Kind::*;
     let text = &token.text;
     let string_value = match token.kind {
@@ -175,33 +186,69 @@ pub fn parse_value(token: &Token<'_>) -> Result<Option<Value>, String> {
             // Python has no problem of representing such a positive
             // value, though.
             return u64::from_str(&text.replace("_", ""))
-                .map(|x| Value::Int(x as i64))
-                .map(Some)
+                .map(|x| Some(Value::Int(x as i64)))
                 .map_err(|e| format!("error reading int: {}", e));
         }
         BigIntConst => {
-            let dec = text[..text.len() - 1]
+            return text[..text.len() - 1]
                 .replace("_", "")
                 .parse::<BigDecimal>()
-                .map_err(|e| format!("error reading bigint: {}", e))?;
-            // this conversion to decimal and back to string
-            // fixes thing like `1e2n` which we support for bigints
-            return Ok(Some(Value::BigInt(
-                dec.to_bigint()
-                    .ok_or_else(|| "number is not integer".to_string())?,
-            )));
+                .map_err(|e| format!("error reading bigint: {}", e))
+                // this conversion to decimal and back to string
+                // fixes thing like `1e2n` which we support for bigints
+                .and_then(|x| {
+                    x.to_bigint()
+                        .ok_or_else(|| "number is not integer".to_string())
+                })
+                .map(|x| Some(Value::BigInt(x.to_str_radix(16))));
         }
         BinStr => {
             return unquote_bytes(text).map(Value::Bytes).map(Some);
         }
 
-        Str => unquote_string(text)
-            .map_err(|s| s.to_string())?
-            .to_string(),
+        Str => unquote_string(text).map_err(|s| s.to_string())?.to_string(),
         BacktickName => text[1..text.len() - 1].replace("``", "`"),
-        Ident | Keyword => text.to_string(),
+        Ident | Keyword(_) => text.to_string(),
         Substitution => text[2..text.len() - 1].to_string(),
         _ => return Ok(None),
     };
     Ok(Some(Value::String(string_value)))
+}
+
+fn remap_kind(kind: Kind) -> Kind {
+    match kind {
+        Kind::BacktickName => Kind::Ident,
+        kind => kind,
+    }
+}
+
+pub struct WithEof<'a> {
+    inner: Validator<'a>,
+
+    emitted: bool,
+}
+
+impl<'a> Iterator for WithEof<'a> {
+    type Item = Result<Token<'a>, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(next) = self.inner.next() {
+            Some(next)
+        } else if !self.emitted {
+            self.emitted = true;
+            let pos = self.inner.current_pos().offset;
+
+            Some(Ok(Token {
+                kind: Kind::EOF,
+                text: "".into(),
+                value: None,
+                span: Span {
+                    start: pos,
+                    end: pos,
+                },
+            }))
+        } else {
+            None
+        }
+    }
 }

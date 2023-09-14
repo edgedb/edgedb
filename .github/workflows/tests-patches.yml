@@ -29,7 +29,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10'
+        python-version: '3.11.3'
 
     # Build virtualenv
 
@@ -383,7 +383,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10'
+        python-version: '3.11.3'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1
@@ -523,10 +523,14 @@ jobs:
 
     - name: Run tests with instance created on an older version
       run: |
+        # Run the server explicitly first to do the upgrade, since edb test
+        # has timeouts.
+        edb server --bootstrap-only --data-dir test-dir
         # Should we run *all* the tests?
         edb test -j2 -v --data-dir test-dir tests/test_edgeql_json.py tests/test_edgeql_casts.py tests/test_edgeql_functions.py tests/test_edgeql_expressions.py tests/test_edgeql_policies.py
 
     - name: Test downgrading a database after an upgrade
+      if: ${{ !contains(matrix.edgedb-version, '-rc') && !contains(matrix.edgedb-version, '-beta') }}
       env:
         EDGEDB_VERSION: ${{ matrix.edgedb-version }}
       shell: python
@@ -564,3 +568,24 @@ jobs:
           finally:
               proc.terminate()
               proc.wait()
+
+
+  workflow-notifications:
+    if: always()
+    name: Notify in Slack on failures
+    needs:
+      - build
+      - compute-versions
+      - test
+    runs-on: ubuntu-latest
+    permissions:
+      actions: 'read'
+    steps:
+      - name: Slack Workflow Notification
+        uses: Gamesight/slack-workflow-status@master
+        with:
+          repo_token: ${{secrets.GITHUB_TOKEN}}
+          slack_webhook_url: ${{secrets.ACTIONS_SLACK_WEBHOOK_URL}}
+          name: 'Workflow notifications'
+          icon_emoji: ':hammer:'
+          include_jobs: 'on-failure'

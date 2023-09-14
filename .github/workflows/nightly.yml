@@ -1172,6 +1172,7 @@ jobs:
 
 
 
+
   publish-debian-buster-x86_64:
     needs: [test-debian-buster-x86_64]
     runs-on: ubuntu-latest
@@ -1186,6 +1187,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_PLATFORM_LIBC: ""
@@ -1212,6 +1214,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1221,6 +1224,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-debian-buster-aarch64:
@@ -1237,6 +1242,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_PLATFORM_LIBC: ""
@@ -1263,6 +1269,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1272,6 +1279,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-debian-bullseye-x86_64:
@@ -1288,6 +1297,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_PLATFORM_LIBC: ""
@@ -1314,6 +1324,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1323,6 +1334,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-debian-bullseye-aarch64:
@@ -1339,6 +1352,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_PLATFORM_LIBC: ""
@@ -1365,6 +1379,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1374,6 +1389,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-debian-bookworm-x86_64:
@@ -1390,6 +1407,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_PLATFORM_LIBC: ""
@@ -1416,6 +1434,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1425,6 +1444,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-debian-bookworm-aarch64:
@@ -1441,6 +1462,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_PLATFORM_LIBC: ""
@@ -1467,6 +1489,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1476,6 +1499,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-ubuntu-bionic-x86_64:
@@ -1492,6 +1517,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_PLATFORM_LIBC: ""
@@ -1518,6 +1544,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1527,6 +1554,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-ubuntu-bionic-aarch64:
@@ -1543,6 +1572,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_PLATFORM_LIBC: ""
@@ -1569,6 +1599,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1578,6 +1609,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-ubuntu-focal-x86_64:
@@ -1594,6 +1627,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_PLATFORM_LIBC: ""
@@ -1620,6 +1654,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1629,6 +1664,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-ubuntu-focal-aarch64:
@@ -1645,6 +1682,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_PLATFORM_LIBC: ""
@@ -1671,6 +1709,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1680,6 +1719,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-ubuntu-jammy-x86_64:
@@ -1696,6 +1737,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_PLATFORM_LIBC: ""
@@ -1722,6 +1764,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1731,6 +1774,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-ubuntu-jammy-aarch64:
@@ -1747,6 +1792,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_PLATFORM_LIBC: ""
@@ -1773,6 +1819,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1782,6 +1829,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-centos-7-x86_64:
@@ -1798,6 +1847,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
         PKG_PLATFORM_LIBC: ""
@@ -1824,6 +1874,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1833,6 +1884,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-centos-8-x86_64:
@@ -1849,6 +1902,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_PLATFORM_LIBC: ""
@@ -1875,6 +1929,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1884,6 +1939,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-centos-8-aarch64:
@@ -1900,6 +1957,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_PLATFORM_LIBC: ""
@@ -1926,6 +1984,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1935,6 +1994,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-rockylinux-9-x86_64:
@@ -1951,6 +2012,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_PLATFORM_LIBC: ""
@@ -1977,6 +2039,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1986,6 +2049,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-rockylinux-9-aarch64:
@@ -2002,6 +2067,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_PLATFORM_LIBC: ""
@@ -2028,6 +2094,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2037,6 +2104,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-linux-x86_64:
@@ -2053,6 +2122,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_LIBC: ""
@@ -2079,6 +2149,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2088,6 +2159,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-linux-aarch64:
@@ -2104,6 +2177,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_PLATFORM_LIBC: ""
@@ -2130,6 +2204,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2139,6 +2214,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-linuxmusl-x86_64:
@@ -2155,6 +2232,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_LIBC: "musl"
@@ -2181,6 +2259,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2190,6 +2269,8 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+
 
 
   publish-linuxmusl-aarch64:
@@ -2206,6 +2287,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_PLATFORM_LIBC: "musl"
@@ -2232,6 +2314,7 @@ jobs:
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2241,6 +2324,7 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
 
 
 
@@ -2370,7 +2454,7 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
 
-    - name: Publish Docker Image
+    - name: Publish Docker Image (docker.io)
       uses: elgohr/Publish-Docker-Github-Action@43dc228e327224b2eda11c8883232afd5b34943b  # v5
       with:
         name: edgedb/edgedb
@@ -2381,3 +2465,173 @@ jobs:
         buildargs: version=${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-buster-x86_64.outputs.version-core }},subdist=nightly
         platforms: linux/amd64,linux/arm64
 
+    - name: Publish Docker Image (ghcr.io)
+      uses: elgohr/Publish-Docker-Github-Action@43dc228e327224b2eda11c8883232afd5b34943b  # v5
+      with:
+        registry: ghcr.io
+        name: ${{ github.repository }}
+        username: "edgedb-ci"
+        password: ${{ secrets.GITHUB_CI_BOT_TOKEN }}
+        tags: "nightly,nightly_${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }}_cv${{ needs.check-published-debian-buster-x86_64.outputs.catalog-version }}"
+        workdir: dockerfile
+        buildargs: version=${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-buster-x86_64.outputs.version-core }},subdist=nightly
+        platforms: linux/amd64,linux/arm64
+
+
+  workflow-notifications:
+    if: always()
+    name: Notify in Slack on failures
+
+    needs:
+      - prep
+      - build-debian-buster-x86_64
+      - test-debian-buster-x86_64
+      - publish-debian-buster-x86_64
+      - check-published-debian-buster-x86_64
+      - publish-beta-debian-buster-x86_64
+      - check-published-beta-debian-buster-x86_64
+      - build-debian-buster-aarch64
+      - test-debian-buster-aarch64
+      - publish-debian-buster-aarch64
+      - check-published-debian-buster-aarch64
+      - publish-beta-debian-buster-aarch64
+      - check-published-beta-debian-buster-aarch64
+      - build-debian-bullseye-x86_64
+      - test-debian-bullseye-x86_64
+      - publish-debian-bullseye-x86_64
+      - check-published-debian-bullseye-x86_64
+      - publish-beta-debian-bullseye-x86_64
+      - check-published-beta-debian-bullseye-x86_64
+      - build-debian-bullseye-aarch64
+      - test-debian-bullseye-aarch64
+      - publish-debian-bullseye-aarch64
+      - check-published-debian-bullseye-aarch64
+      - publish-beta-debian-bullseye-aarch64
+      - check-published-beta-debian-bullseye-aarch64
+      - build-debian-bookworm-x86_64
+      - test-debian-bookworm-x86_64
+      - publish-debian-bookworm-x86_64
+      - check-published-debian-bookworm-x86_64
+      - publish-beta-debian-bookworm-x86_64
+      - check-published-beta-debian-bookworm-x86_64
+      - build-debian-bookworm-aarch64
+      - test-debian-bookworm-aarch64
+      - publish-debian-bookworm-aarch64
+      - check-published-debian-bookworm-aarch64
+      - publish-beta-debian-bookworm-aarch64
+      - check-published-beta-debian-bookworm-aarch64
+      - build-ubuntu-bionic-x86_64
+      - test-ubuntu-bionic-x86_64
+      - publish-ubuntu-bionic-x86_64
+      - check-published-ubuntu-bionic-x86_64
+      - publish-beta-ubuntu-bionic-x86_64
+      - check-published-beta-ubuntu-bionic-x86_64
+      - build-ubuntu-bionic-aarch64
+      - test-ubuntu-bionic-aarch64
+      - publish-ubuntu-bionic-aarch64
+      - check-published-ubuntu-bionic-aarch64
+      - publish-beta-ubuntu-bionic-aarch64
+      - check-published-beta-ubuntu-bionic-aarch64
+      - build-ubuntu-focal-x86_64
+      - test-ubuntu-focal-x86_64
+      - publish-ubuntu-focal-x86_64
+      - check-published-ubuntu-focal-x86_64
+      - publish-beta-ubuntu-focal-x86_64
+      - check-published-beta-ubuntu-focal-x86_64
+      - build-ubuntu-focal-aarch64
+      - test-ubuntu-focal-aarch64
+      - publish-ubuntu-focal-aarch64
+      - check-published-ubuntu-focal-aarch64
+      - publish-beta-ubuntu-focal-aarch64
+      - check-published-beta-ubuntu-focal-aarch64
+      - build-ubuntu-jammy-x86_64
+      - test-ubuntu-jammy-x86_64
+      - publish-ubuntu-jammy-x86_64
+      - check-published-ubuntu-jammy-x86_64
+      - publish-beta-ubuntu-jammy-x86_64
+      - check-published-beta-ubuntu-jammy-x86_64
+      - build-ubuntu-jammy-aarch64
+      - test-ubuntu-jammy-aarch64
+      - publish-ubuntu-jammy-aarch64
+      - check-published-ubuntu-jammy-aarch64
+      - publish-beta-ubuntu-jammy-aarch64
+      - check-published-beta-ubuntu-jammy-aarch64
+      - build-centos-7-x86_64
+      - test-centos-7-x86_64
+      - publish-centos-7-x86_64
+      - check-published-centos-7-x86_64
+      - publish-beta-centos-7-x86_64
+      - check-published-beta-centos-7-x86_64
+      - build-centos-8-x86_64
+      - test-centos-8-x86_64
+      - publish-centos-8-x86_64
+      - check-published-centos-8-x86_64
+      - publish-beta-centos-8-x86_64
+      - check-published-beta-centos-8-x86_64
+      - build-centos-8-aarch64
+      - test-centos-8-aarch64
+      - publish-centos-8-aarch64
+      - check-published-centos-8-aarch64
+      - publish-beta-centos-8-aarch64
+      - check-published-beta-centos-8-aarch64
+      - build-rockylinux-9-x86_64
+      - test-rockylinux-9-x86_64
+      - publish-rockylinux-9-x86_64
+      - check-published-rockylinux-9-x86_64
+      - publish-beta-rockylinux-9-x86_64
+      - check-published-beta-rockylinux-9-x86_64
+      - build-rockylinux-9-aarch64
+      - test-rockylinux-9-aarch64
+      - publish-rockylinux-9-aarch64
+      - check-published-rockylinux-9-aarch64
+      - publish-beta-rockylinux-9-aarch64
+      - check-published-beta-rockylinux-9-aarch64
+      - build-linux-x86_64
+      - test-linux-x86_64
+      - publish-linux-x86_64
+      - check-published-linux-x86_64
+      - publish-beta-linux-x86_64
+      - check-published-beta-linux-x86_64
+      - build-linux-aarch64
+      - test-linux-aarch64
+      - publish-linux-aarch64
+      - check-published-linux-aarch64
+      - publish-beta-linux-aarch64
+      - check-published-beta-linux-aarch64
+      - build-linuxmusl-x86_64
+      - test-linuxmusl-x86_64
+      - publish-linuxmusl-x86_64
+      - check-published-linuxmusl-x86_64
+      - publish-beta-linuxmusl-x86_64
+      - check-published-beta-linuxmusl-x86_64
+      - build-linuxmusl-aarch64
+      - test-linuxmusl-aarch64
+      - publish-linuxmusl-aarch64
+      - check-published-linuxmusl-aarch64
+      - publish-beta-linuxmusl-aarch64
+      - check-published-beta-linuxmusl-aarch64
+      - build-macos-x86_64
+      - test-macos-x86_64
+      - publish-macos-x86_64
+      - check-published-macos-x86_64
+      - publish-beta-macos-x86_64
+      - check-published-beta-macos-x86_64
+      - build-macos-aarch64
+      - test-macos-aarch64
+      - publish-macos-aarch64
+      - check-published-macos-aarch64
+      - publish-beta-macos-aarch64
+      - check-published-beta-macos-aarch64
+      - publish-docker
+    runs-on: ubuntu-latest
+    permissions:
+      actions: 'read'
+    steps:
+      - name: Slack Workflow Notification
+        uses: Gamesight/slack-workflow-status@master
+        with:
+          repo_token: ${{secrets.GITHUB_TOKEN}}
+          slack_webhook_url: ${{secrets.ACTIONS_SLACK_WEBHOOK_URL}}
+          name: 'Workflow notifications'
+          icon_emoji: ':hammer:'
+          include_jobs: 'on-failure'

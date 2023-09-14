@@ -18,6 +18,7 @@ Reference
     connection
     environment
     projects
+    edgedb_toml
     dsn
     dump_format
     backend_ha

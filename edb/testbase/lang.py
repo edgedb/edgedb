@@ -22,6 +22,7 @@
 from __future__ import annotations
 from typing import *
 
+import types
 import typing
 import functools
 import os
@@ -179,7 +180,7 @@ class BaseSyntaxTest(BaseDocTest):
     markup_dump_lexer: Optional[str] = None
 
     @classmethod
-    def get_parser(cls):
+    def get_grammar(cls):
         raise NotImplementedError
 
     def run_test(self, *, source, spec, expected=None):
@@ -187,15 +188,12 @@ class BaseSyntaxTest(BaseDocTest):
         if debug:
             markup.dump_code(source, lexer=self.markup_dump_lexer)
 
-        p = self.get_parser()
-
-        inast = p.parse(source)
+        inast = qlparser.parse(self.get_grammar(), source)
 
         if debug:
             markup.dump(inast)
 
         # make sure that the AST has context
-        #
         context.ContextValidator().visit(inast)
 
         processed_src = self.ast_to_source(inast)
@@ -209,34 +207,34 @@ class BaseSyntaxTest(BaseDocTest):
 
 
 class TestCasesSetup:
-    def __init__(self, parsers: List[qlparser.EdgeQLParserBase]) -> None:
-        self.parsers = parsers
+    def __init__(self, grammars: list[types.ModuleType]) -> None:
+        self.grammars = grammars
 
 
 def get_test_cases_setup(
     cases: Iterable[unittest.TestCase],
 ) -> Optional[TestCasesSetup]:
-    parsers: List[qlparser.EdgeQLParserBase] = []
+    grammars: List[types.ModuleType] = []
 
     for case in cases:
-        if not hasattr(case, 'get_parser'):
+        if not hasattr(case, 'get_grammar'):
             continue
 
-        parser = case.get_parser()
-        if not parser:
+        grammar = case.get_grammar()
+        if not grammar:
             continue
 
-        parsers.append(parser)
+        grammars.append(grammar)
 
-    if not parsers:
+    if not grammars:
         return None
     else:
-        return TestCasesSetup(parsers)
+        return TestCasesSetup(grammars)
 
 
 def run_test_cases_setup(setup: TestCasesSetup, jobs: int) -> None:
     qlparser.preload(
-        parsers=setup.parsers,
+        grammars=setup.grammars,
         allow_rebuild=True,
         paralellize=jobs > 1,
     )
@@ -248,9 +246,7 @@ class AstValueTest(BaseDocTest):
         if debug:
             markup.dump_code(source, lexer=self.markup_dump_lexer)
 
-        p = self.get_parser()
-
-        inast = p.parse(source)
+        inast = qlparser.parse(self.get_grammar(), source)
 
         if debug:
             markup.dump(inast)
@@ -277,7 +273,7 @@ def _load_std_schema():
                 std_dirs_hash, 'transient-stdschema.pickle')
 
         if schema is None:
-            schema = s_schema.FlatSchema()
+            schema = s_schema.EMPTY_SCHEMA
             for modname in [*s_schema.STD_SOURCES, *s_schema.TESTMODE_SOURCES]:
                 schema = s_std.load_std_module(schema, modname)
             schema, _ = s_std.make_schema_version(schema)

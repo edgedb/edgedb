@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2019-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,23 @@
 # limitations under the License.
 #
 
-from __future__ import annotations
-from typing import *
+from typing import (
+    Any,
+    Mapping,
+    Optional,
+)
+import immutables
 
-from edb._edgeql_parser import Hasher  # noqa
+from edb.server import compiler
+from edb.server.dbview import dbview
+
+async def parse_execute_json(
+    db: dbview.Database,
+    query: str,
+    *,
+    variables: Mapping[str, Any] = immutables.Map(),
+    globals_: Optional[Mapping[str, Any]] = None,
+    output_format: compiler.OutputFormat = compiler.OutputFormat.JSON,
+    query_cache_enabled: Optional[bool] = None,
+) -> bytes:
+    ...

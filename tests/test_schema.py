@@ -396,7 +396,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "invalid property type: expected a scalar type, "
                   "or a scalar collection, got object type 'test::Object'",
-                  position=73)
+                  position=74)
     def test_schema_bad_prop_02(self):
         """
             type Object {
@@ -849,6 +849,12 @@ class TestSchema(tb.BaseSchemaLoadTest):
             function foo(variadic bar: optional int64) -> array<int64>
                 using (assert_exists(bar));
         """
+
+    def test_schema_global_01(self):
+        """
+          global two_things: TwoThings;
+          scalar type TwoThings extending enum<One, Two>;
+       """
 
     def test_schema_hard_sorting_01(self):
         # This is hard to sort properly because we don't understand the types.
@@ -1427,7 +1433,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "missing value for required property",
-                  line=9, col=42)
+                  line=10, col=25)
     def test_schema_rewrite_missing_required_01(self):
         """
             type Project {
@@ -6426,6 +6432,38 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    def test_schema_migrations_equivalence_constraint_11(self):
+        self._assert_migration_equivalence([r"""
+            type Foo {
+              required property name -> str {
+                constraint max_len_value(200) {
+                  errmessage := "name is too long";
+                }
+              }
+              constraint exclusive on (.name) {
+                errmessage := "exclusivity!";
+              }
+            }
+        """, r"""
+            type Foo {
+              required property name -> str {
+                constraint max_len_value(201) {
+                  errmessage := "name is too long";
+                }
+              }
+              constraint exclusive on (.name) {
+                errmessage := "exclusivity!";
+              }
+            }
+        """, r"""
+            type Foo {
+              required property name -> str;
+              constraint exclusive on (.name) {
+                errmessage := "exclusivity!";
+              }
+            }
+        """])
+
     def test_schema_migrations_equivalence_policies_01(self):
         self._assert_migration_equivalence([r"""
             type X {
@@ -8045,6 +8083,49 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 };
             """,
             r"""
+            """,
+        ])
+
+    def test_schema_migrations_implicit_type_01(self):
+        self._assert_migration_equivalence([
+            r"""
+                abstract type Pinnable {
+                    property pinned := __source__ in <Pinnable>{};
+                }
+            """,
+            r"""
+                abstract type Pinnable {
+                    property pinned := __source__ in <Pinnable>{};
+                }
+                type Foo extending Pinnable {}
+            """,
+        ])
+
+    def test_schema_migrations_implicit_type_02(self):
+        self._assert_migration_equivalence([
+            r"""
+                abstract type Person {
+                    multi link friends : Person{
+                        constraint expression on (
+                                __subject__ != __subject__@source
+                            );
+                    };
+
+                }
+            """,
+            r"""
+                abstract type Person {
+                    multi link friends : Person{
+                        constraint expression on (
+                                __subject__ != __subject__@source
+                            );
+                    };
+
+                }
+
+                type Employee extending Person{
+                    department: str;
+                }
             """,
         ])
 

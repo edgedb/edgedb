@@ -404,6 +404,32 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
             [16]
         )
 
+    async def test_edgeql_globals_13(self):
+        await self.con.execute('''
+            create global my_var -> str;
+        ''')
+
+        await self.con.execute('''
+            set global my_var := <str>$my_param
+        ''', my_param='hello')
+
+        await self.assert_query_result(
+            r'''select global my_var''',
+            ['hello']
+        )
+
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            'non-constant expression in CONFIGURE DATABASE SET',
+        ):
+            await self.con.execute(
+                '''
+                configure current database
+                    set query_execution_timeout := <duration>$0
+                ''',
+                my_param='1 sec',
+            )
+
     async def test_edgeql_globals_state_cardinality(self):
         await self.con.execute('''
             set global cur_user := {};

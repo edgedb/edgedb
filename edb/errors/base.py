@@ -90,7 +90,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         hint: Optional[str] = None,
         details: Optional[str] = None,
         context=None,
-        position: Optional[tuple[Optional[int], ...]] = None,
+        position: Optional[tuple[int, int, int, int | None]] = None,
         filename: Optional[str] = None,
         token=None,
         pgext_code: Optional[str] = None,
@@ -125,7 +125,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     def set_filename(self, filename):
         self._attrs[FIELD_FILENAME] = filename
 
-    def set_linecol(self, line, col):
+    def set_linecol(self, line: Optional[int], col: Optional[int]):
         if line is not None:
             self._attrs[FIELD_LINE_START] = str(line)
         if col is not None:
@@ -143,7 +143,10 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     def has_source_context(self):
         return FIELD_DETAILS in self._attrs
 
-    def set_source_context(self, context):
+    def set_source_context(self, context: Optional[pctx.ParserContext]):
+        if not context:
+            return
+
         start = context.start_point
         end = context.end_point
         ex.replace_context(self, context)
@@ -163,17 +166,14 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
 
     def set_position(
         self,
-        line: Optional[int] = None,
-        column: Optional[int] = None,
-        start: Optional[int] = None,
-        end: Optional[int] = None,
+        column: int,
+        line: int,
+        start: int,
+        end: Optional[int],
     ):
         self.set_linecol(line, column)
-        if start is not None:
-            self._attrs[FIELD_POSITION_START] = str(start)
-        end = end or start
-        if end is not None:
-            self._attrs[FIELD_POSITION_END] = str(end)
+        self._attrs[FIELD_POSITION_START] = str(start)
+        self._attrs[FIELD_POSITION_END] = str(end or start)
 
     @property
     def line(self):

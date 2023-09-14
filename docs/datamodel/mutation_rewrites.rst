@@ -6,6 +6,8 @@
 Mutation rewrites
 =================
 
+.. edb:youtube-embed:: ImgMfb_jCJQ?end=41
+
 Mutation rewrites allow you to intercept database mutations (i.e.,
 :ref:`inserts <ref_eql_insert>` and/or :ref:`updates <ref_eql_update>`) and set
 the value of a property or link to the result of an expression you define. They

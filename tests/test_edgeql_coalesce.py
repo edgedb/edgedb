@@ -1858,3 +1858,35 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ''',
             [],
         )
+
+    async def test_edgeql_optional_ensure_source_01(self):
+        await self.assert_query_result(
+            r'''
+                with x := array_unpack(<array<Issue>>[])
+                select (x.name ?= x.body);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                with user := array_unpack(<array<Object>>[])
+                select
+                    (<str>user.id ?? "") ++ <str>(exists user);
+            ''',
+            ["false"],
+        )
+
+    async def test_edgeql_optional_ensure_source_02(self):
+        await self.con.execute('''
+            create function test(x: optional Issue) -> bool using (
+                (x.name ?= x.body)
+            )
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                select test(<Issue>{})
+            ''',
+            [True],
+        )

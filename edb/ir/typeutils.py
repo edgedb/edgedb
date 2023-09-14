@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 from typing import *
+from typing import overload
 
 import uuid
 
@@ -88,6 +89,11 @@ def is_range(typeref: irast.TypeRef) -> bool:
     return typeref.collection == s_types.Range.get_schema_name()
 
 
+def is_multirange(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes a multirange type."""
+    return typeref.collection == s_types.MultiRange.get_schema_name()
+
+
 def is_any(typeref: irast.TypeRef) -> bool:
     """Return True if *typeref* describes the ``anytype`` generic type."""
     return isinstance(typeref, irast.AnyTypeRef)
@@ -98,12 +104,17 @@ def is_anytuple(typeref: irast.TypeRef) -> bool:
     return isinstance(typeref, irast.AnyTupleRef)
 
 
+def is_anyobject(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes the ``anyobject`` generic type."""
+    return isinstance(typeref, irast.AnyObjectRef)
+
+
 def is_generic(typeref: irast.TypeRef) -> bool:
     """Return True if *typeref* describes a generic type."""
     if is_collection(typeref):
         return any(is_generic(st) for st in typeref.subtypes)
     else:
-        return is_any(typeref) or is_anytuple(typeref)
+        return is_any(typeref) or is_anytuple(typeref) or is_anyobject(typeref)
 
 
 def is_abstract(typeref: irast.TypeRef) -> bool:
@@ -237,6 +248,12 @@ def type_to_typeref(
 
     if t.is_anytuple(schema):
         result = irast.AnyTupleRef(
+            id=t.id,
+            name_hint=name_hint,
+            orig_name_hint=orig_name_hint,
+        )
+    elif t.is_anyobject(schema):
+        result = irast.AnyObjectRef(
             id=t.id,
             name_hint=name_hint,
             orig_name_hint=orig_name_hint,
@@ -432,6 +449,9 @@ def ir_typeref_to_type(
     if is_anytuple(typeref):
         return schema, s_pseudo.PseudoType.get(schema, 'anytuple')
 
+    if is_anyobject(typeref):
+        return schema, s_pseudo.PseudoType.get(schema, 'anyobject')
+
     elif is_any(typeref):
         return schema, s_pseudo.PseudoType.get(schema, 'anytype')
 
@@ -477,7 +497,7 @@ def ptrref_from_ptrcls(
 
 
 @overload
-def ptrref_from_ptrcls(  # NoQA: F811
+def ptrref_from_ptrcls(
     *,
     schema: s_schema.Schema,
     ptrcls: s_pointers.PointerLike,
@@ -487,7 +507,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
     ...
 
 
-def ptrref_from_ptrcls(  # NoQA: F811
+def ptrref_from_ptrcls(
     *,
     schema: s_schema.Schema,
     ptrcls: s_pointers.PointerLike,
@@ -724,14 +744,14 @@ def ptrcls_from_ptrref(
 
 
 @overload
-def ptrcls_from_ptrref(  # NoQA: F811
+def ptrcls_from_ptrref(
     ptrref: irast.BasePointerRef, *,
     schema: s_schema.Schema,
 ) -> Tuple[s_schema.Schema, s_pointers.PointerLike]:
     ...
 
 
-def ptrcls_from_ptrref(  # NoQA: F811
+def ptrcls_from_ptrref(
     ptrref: irast.BasePointerRef, *,
     schema: s_schema.Schema,
 ) -> Tuple[s_schema.Schema, s_pointers.PointerLike]:

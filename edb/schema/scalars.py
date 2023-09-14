@@ -309,8 +309,9 @@ class ScalarType(
 
         # If this is an enum and enum_values changed, we need to
         # generate a rebase.
+        old_enum_values = self.get_enum_values(self_schema)
         enum_values = alter.get_local_attribute_value('enum_values')
-        if enum_values is not None:
+        if old_enum_values and enum_values:
             assert isinstance(alter.classname, s_name.QualName)
             rebase = RebaseScalarType(
                 classname=alter.classname,
@@ -321,6 +322,11 @@ class ScalarType(
             )
             alter.add(rebase)
 
+        # Changing enum_values is the respoinsiblity of the rebase command.
+        # Either it's in the one we synthesized above, or, the rebase is doomed
+        # to throw. When we run the ddl directly, the ALTER will not have a
+        # enum_values set, so discard here for symmetry.
+        alter.discard_attribute('enum_values')
         return alter
 
 
@@ -677,54 +683,48 @@ class RebaseScalarType(
         self.scls = scls
         assert isinstance(scls, ScalarType)
 
-        cur_labels = scls.get_enum_values(schema)
-
-        if cur_labels:
-
+        if self.scls.is_concrete_enum(schema):
             if self.removed_bases and not self.added_bases:
                 raise errors.SchemaError(
                     f'cannot DROP EXTENDING enum')
 
-            all_bases = []
+            if self.added_bases:
+                first_bases = self.added_bases[0]
+                new_bases, pos = first_bases
 
-            for bases, pos in self.added_bases:
-                # Check that there aren't any non-enum bases.
-                for base in bases:
-                    if isinstance(base, AnonymousEnumTypeShell):
-                        is_enum_base = True
-                    elif isinstance(base, s_types.TypeShell):
-                        is_enum_base = base.resolve(schema).is_enum(schema)
-                    else:
-                        is_enum_base = base.is_enum(schema)
+                if len(self.added_bases) > 1 or len(new_bases) > 1:
+                    dn = self.scls.get_displayname(schema)
+                    raise errors.SchemaError(
+                        f'enum {dn} may not have multiple supertypes')
 
-                    if not is_enum_base:
-                        raise errors.SchemaError(
-                            f'cannot add another type as supertype, '
-                            f'enumeration must be the only supertype specified'
-                        )
+                new_base = new_bases[0]
+                if isinstance(new_base, AnonymousEnumTypeShell):
+                    new_name = _prettyprint_enum(new_base.elements)
+                else:
+                    if isinstance(new_base, so.ObjectShell):
+                        new_base = new_base.resolve(schema)
+                    assert isinstance(new_base, s_types.Type)
+                    new_name = new_base.get_verbosename(schema)
 
-                # Since all bases are enums at this point, error
-                # messages only mention about enums.
+                if self.removed_bases and not scls.is_view(schema):
+                    # enum to enum rebases come without removed_bases
+                    assert not new_base.is_enum(schema)
+                    raise errors.SchemaError(
+                        f'cannot change the base of enum type '
+                        f'{scls.get_displayname(schema)} to {new_name}')
+
                 if pos:
                     raise errors.SchemaError(
-                        f'cannot add another enum as supertype, '
-                        f'use EXTENDING without position qualification')
+                        f'cannot add supertype {new_name} '
+                        f'to enum type {scls.get_displayname(schema)}')
 
-                all_bases.extend(bases)
-
-            if len(all_bases) > 1:
-                raise errors.SchemaError(
-                    f'cannot set more than one enum as supertype')
-
-            new_base = all_bases[0]
-            new_labels = new_base.elements
-
+            assert isinstance(new_base, AnonymousEnumTypeShell)
             schema = self._validate_enum_change(
-                scls, cur_labels, new_labels, schema, context)
-
-            self.validate_scalar_bases(schema, context)
+                scls, new_base.elements, schema)
 
             schema = super().apply(schema, context)
+
+            self.validate_scalar_bases(schema, context)
 
         else:
             old_concrete = self.scls.maybe_get_topmost_concrete_base(schema)
@@ -742,8 +742,22 @@ class RebaseScalarType(
 
             new_concrete = self.scls.maybe_get_topmost_concrete_base(schema)
             if old_concrete != new_concrete and not scls.is_view(schema):
+                old_name = (old_concrete.get_displayname(schema) if old_concrete
+                            else 'None')
+
+                if self.scls.is_concrete_enum(schema):
+                    values = self.scls.get_enum_values(schema)
+                    assert values is not None
+                    new_name = _prettyprint_enum(values)
+                elif new_concrete:
+                    new_name = new_concrete.get_displayname(schema)
+                else:
+                    new_name = 'None'
+
                 raise errors.SchemaError(
-                    f'cannot change concrete base of a scalar type')
+                    f'cannot change concrete base of scalar type '
+                    f'{scls.get_displayname(schema)} from '
+                    f'{old_name} to {new_name}')
 
         return schema
 
@@ -768,10 +782,8 @@ class RebaseScalarType(
     def _validate_enum_change(
         self,
         stype: s_types.Type,
-        cur_labels: Sequence[str],
         new_labels: Sequence[str],
         schema: s_schema.Schema,
-        context: sd.CommandContext,
     ) -> s_schema.Schema:
         new_set = set(new_labels)
         if len(new_set) != len(new_labels):
@@ -781,6 +793,10 @@ class RebaseScalarType(
         self.set_attribute_value('enum_values', new_labels)
         schema = stype.set_field_value(schema, 'enum_values', new_labels)
         return schema
+
+
+def _prettyprint_enum(elements: Iterable[str]) -> str:
+    return f"enum<{', '.join(elements)}>"
 
 
 class AlterScalarType(

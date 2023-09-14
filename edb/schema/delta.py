@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 from typing import *
+from typing import overload
 
 import collections
 import collections.abc
@@ -40,7 +41,6 @@ from edb.common import verutils
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
-from edb.edgeql import qltypes
 
 from . import expr as s_expr
 from . import name as sn
@@ -728,7 +728,7 @@ class Command(
         ...
 
     @overload
-    def get_subcommands(  # NoQA: F811
+    def get_subcommands(
         self,
         *,
         type: None = None,
@@ -739,7 +739,7 @@ class Command(
     ) -> Tuple[Command, ...]:
         ...
 
-    def get_subcommands(  # NoQA: F811
+    def get_subcommands(
         self,
         *,
         type: Union[Type[Command_T], None] = None,
@@ -788,14 +788,14 @@ class Command(
         ...
 
     @overload
-    def get_prerequisites(  # NoQA: F811
+    def get_prerequisites(
         self,
         *,
         type: None = None,
     ) -> Tuple[Command, ...]:
         ...
 
-    def get_prerequisites(  # NoQA: F811
+    def get_prerequisites(
         self,
         *,
         type: Union[Type[Command_T], None] = None,
@@ -815,14 +815,14 @@ class Command(
         ...
 
     @overload
-    def get_caused(  # NoQA: F811
+    def get_caused(
         self,
         *,
         type: None = None,
     ) -> Tuple[Command, ...]:
         ...
 
-    def get_caused(  # NoQA: F811
+    def get_caused(
         self,
         *,
         type: Union[Type[Command_T], None] = None,
@@ -1336,7 +1336,7 @@ class CommandContext:
             from *offset* in the stack.
         """
         return any(isinstance(ctx.op, DeleteObject)
-                   for ctx in self.stack[:-offset])
+                   for ctx in self.stack[:-offset if offset else None])
 
     def is_deleting(self, obj: so.Object) -> bool:
         """Return True if *obj* is being deleted in this context.
@@ -1391,13 +1391,13 @@ class CommandContext:
         ...
 
     @overload
-    def get(  # NoQA: F811
+    def get(
         self,
         cls: Union[Type[Command_T], Type[CommandContextToken[Command_T]]],
     ) -> Optional[CommandContextToken[Command_T]]:
         ...
 
-    def get(  # NoQA: F811
+    def get(
         self,
         cls: Union[Type[Command_T], Type[CommandContextToken[Command_T]]],
     ) -> Optional[CommandContextToken[Command_T]]:
@@ -2391,14 +2391,15 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
             if (
                 isinstance(self.classname, sn.QualName)
+                and (modname := self.classname.get_module_name())
                 and (
-                    (modname := self.classname.get_module_name())
+                    (modroot := sn.UnqualName(modname.name.partition('::')[0]))
                     in s_schema.STD_MODULES
                 )
             ):
                 raise errors.SchemaDefinitionError(
                     f'cannot {self._delta_action} {self.get_verbosename()}: '
-                    f'module {modname} is read-only',
+                    f'module {modroot} is read-only',
                     context=self.source_context)
 
     def get_verbosename(self, parent: Optional[str] = None) -> str:
@@ -2450,7 +2451,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         ...
 
     @overload
-    def get_object(  # NoQA: F811
+    def get_object(
         self,
         schema: s_schema.Schema,
         context: CommandContext,
@@ -2461,7 +2462,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
     ) -> Optional[so.Object_T]:
         ...
 
-    def get_object(  # NoQA: F811
+    def get_object(
         self,
         schema: s_schema.Schema,
         context: CommandContext,
@@ -2808,7 +2809,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         ...
 
     @overload
-    def get_object(  # NoQA: F811
+    def get_object(
         self,
         schema: s_schema.Schema,
         context: CommandContext,
@@ -2819,7 +2820,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
     ) -> Optional[so.QualifiedObject_T]:
         ...
 
-    def get_object(  # NoQA: F811
+    def get_object(
         self,
         schema: s_schema.Schema,
         context: CommandContext,
@@ -2953,6 +2954,34 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 
         return schema
 
+    def get_prespecified_id(
+        self,
+        context: CommandContext, *,
+        id_field: str = 'id',
+    ) -> Optional[uuid.UUID]:
+        if context.schema_object_ids is None:
+            return None
+
+        mcls = self.get_schema_metaclass()
+        qlclass: Optional[str]
+        if issubclass(mcls, so.QualifiedObject):
+            qlclass = None
+        else:
+            qlclass = mcls.get_ql_class_or_die()
+
+        objname = self.classname
+        if context.compat_ver_is_before(
+            (1, 0, verutils.VersionStage.ALPHA, 5)
+        ):
+            # Pre alpha.5 used to have a different name mangling scheme.
+            objname = sn.compat_name_remangle(str(objname))
+
+        if id_field != 'id':
+            qlclass = f'{qlclass}-{id_field}'
+
+        key = (objname, qlclass)
+        return context.schema_object_ids.get(key)
+
     def canonicalize_attributes(
         self,
         schema: s_schema.Schema,
@@ -2961,22 +2990,7 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         schema = super().canonicalize_attributes(schema, context)
 
         if context.schema_object_ids is not None:
-            mcls = self.get_schema_metaclass()
-            qlclass: Optional[qltypes.SchemaObjectClass]
-            if issubclass(mcls, so.QualifiedObject):
-                qlclass = None
-            else:
-                qlclass = mcls.get_ql_class_or_die()
-
-            objname = self.classname
-            if context.compat_ver_is_before(
-                (1, 0, verutils.VersionStage.ALPHA, 5)
-            ):
-                # Pre alpha.5 used to have a different name mangling scheme.
-                objname = sn.compat_name_remangle(str(objname))
-
-            key = (objname, qlclass)
-            specified_id = context.schema_object_ids.get(key)
+            specified_id = self.get_prespecified_id(context)
             if specified_id is not None:
                 self.set_attribute_value('id', specified_id)
 
@@ -3961,6 +3975,7 @@ class AlterObjectProperty(Command):
             if astnode.value is None:
                 new_value = None
             else:
+                assert isinstance(astnode.value, qlast.Expr)
                 orig_text = cls.get_orig_expr_text(
                     schema, parent_op.qlast, field.name)
 

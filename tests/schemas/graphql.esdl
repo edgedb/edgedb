@@ -217,3 +217,11 @@ type ErrorTest {
 
     constraint error_test_constraint on (len(.text) != .val);
 }
+
+type RangeTest {
+    required name: str;
+    rval: range<float64>;
+    mval: multirange<float64>;
+    rdate: range<cal::local_date>;
+    mdate: multirange<cal::local_date>;
+}

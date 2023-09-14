@@ -149,11 +149,18 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
         UNIQUE
         """
 
-    def test_edgeql_ir_mult_inference_14(self):
+    def test_edgeql_ir_mult_inference_14a(self):
         """
         SELECT 1 + {2, 3}
 % OK %
         UNIQUE
+        """
+
+    def test_edgeql_ir_mult_inference_14b(self):
+        """
+        SELECT 0 * {2, 3}
+% OK %
+        DUPLICATE
         """
 
     def test_edgeql_ir_mult_inference_15(self):

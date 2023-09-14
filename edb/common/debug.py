@@ -136,6 +136,9 @@ class flags(metaclass=FlagsMeta):
     server_proto = Flag(
         doc="Print server protocol querying messages.")
 
+    server_clobber_pg_conns = Flag(
+        doc="Discard Postgres connections when releasing them to the pool.")
+
     http_inject_cors = Flag(
         doc="Inject 'Access-Control-Allow-Origin: *' header in HTTP ports.")
 
@@ -160,6 +163,15 @@ class flags(metaclass=FlagsMeta):
     pydebug_listen = Flag(
         doc="Enable listening for Debug Adapter Protocol connections. "
             "Requires pydebug to be installed."
+    )
+
+    sql_input = Flag(
+        doc="Enable logging of SQL incoming requests (pg compiler input)."
+    )
+
+    sql_output = Flag(
+        doc="Enable logging of SQL requests, compiled to the internal SQL"
+            "(pg compiler output)."
     )
 
 

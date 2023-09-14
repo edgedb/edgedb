@@ -24,6 +24,7 @@ import pickle
 
 import immutables
 
+from edb import edgeql
 from edb import graphql
 
 from edb.common import debug
@@ -31,6 +32,7 @@ from edb.pgsql import params as pgparams
 from edb.schema import schema as s_schema
 from edb.server import compiler
 from edb.server import config
+from edb.server import defines
 
 from . import state
 from . import worker_proc
@@ -76,7 +78,7 @@ def __init_worker__(
         refl_schema,
         schema_class_layout,
         backend_runtime_params=backend_runtime_params,
-        load_config=True,
+        config_spec=None,
     )
 
 
@@ -240,13 +242,6 @@ def compile_notebook(
     )
 
 
-def try_compile_rollback(
-    *compile_args: Any,
-    **compile_kwargs: Any,
-):
-    return COMPILER.try_compile_rollback(*compile_args, **compile_kwargs)
-
-
 def compile_graphql(
     client_id: int,
     dbname: str,
@@ -257,10 +252,54 @@ def compile_graphql(
     client_schema = clients[client_id]
     db = client_schema.dbs[dbname]
 
-    return graphql.compile_graphql(
+    gql_op = graphql.compile_graphql(
         STD_SCHEMA,
         db.user_schema,
         client_schema.global_schema,
+        db.database_config,
+        client_schema.instance_config,
+        *compile_args,
+        **compile_kwargs
+    )
+
+    source = edgeql.Source.from_string(
+        edgeql.generate_source(gql_op.edgeql_ast, pretty=True),
+    )
+
+    unit_group, _ = COMPILER.compile(
+        user_schema=db.user_schema,
+        global_schema=client_schema.global_schema,
+        reflection_cache=db.reflection_cache,
+        database_config=db.database_config,
+        system_config=client_schema.instance_config,
+        source=source,
+        sess_modaliases=None,
+        sess_config=None,
+        output_format=compiler.OutputFormat.JSON,
+        expect_one=True,
+        implicit_limit=0,
+        inline_typeids=False,
+        inline_typenames=False,
+        inline_objectids=False,
+        json_parameters=True,
+        protocol_version=defines.CURRENT_PROTOCOL,
+    )
+
+    return unit_group, gql_op
+
+
+def compile_sql(
+    client_id: int,
+    dbname: str,
+    *compile_args: Any,
+    **compile_kwargs: Any,
+):
+    client_schema = clients[client_id]
+    db = client_schema.dbs[dbname]
+    return COMPILER.compile_sql(
+        db.user_schema,
+        client_schema.global_schema,
+        db.reflection_cache,
         db.database_config,
         client_schema.instance_config,
         *compile_args,
@@ -286,6 +325,8 @@ def call_for_client(client_id, pickled_schema, invalidation, msg, *args):
         meth = compile_notebook
     elif methname == "compile_graphql":
         meth = compile_graphql
+    elif methname == "compile_sql":
+        meth = compile_sql
     else:
         meth = getattr(COMPILER, methname)
     return meth(client_id, dbname, *args)
@@ -303,8 +344,6 @@ def get_handler(methname):
             meth = call_for_client
         elif methname == "compile_in_tx":
             meth = compile_in_tx
-        elif methname == "try_compile_rollback":
-            meth = try_compile_rollback
         else:
             meth = getattr(COMPILER, methname)
     return meth

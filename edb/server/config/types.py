@@ -19,25 +19,41 @@
 
 from __future__ import annotations
 
-import dataclasses
-
+from typing import *
 
 from edb import errors
 from edb.common import typeutils
 from edb.common import typing_inspect
 from edb.schema import objects as s_obj
-from edb.schema import name as s_name
+
+from edb.ir import statypes
+
+
+if TYPE_CHECKING:
+    from . import spec
+
+
+class ConfigTypeSpec(statypes.CompositeTypeSpec):
+    def __call__(self, **kwargs) -> CompositeConfigType:
+        return CompositeConfigType(self, **kwargs)
+
+    def from_pyvalue(
+        self, v, *, spec, allow_missing=False
+    ) -> CompositeConfigType:
+        return CompositeConfigType.from_pyvalue(
+            v, tspec=self, spec=spec, allow_missing=allow_missing
+        )
 
 
 class ConfigType:
 
     @classmethod
-    def from_pyvalue(cls, v, *, spec, allow_missing=False):
+    def from_pyvalue(cls, v, *, tspec, spec, allow_missing=False):
         """Subclasses override this to allow creation from Python scalars."""
         raise NotImplementedError
 
     @classmethod
-    def from_json_value(cls, v, *, spec):
+    def from_json_value(cls, v, *, tspec, spec):
         raise NotImplementedError
 
     def to_json_value(self):
@@ -48,21 +64,64 @@ class ConfigType:
         raise NotImplementedError
 
 
-class CompositeConfigType(ConfigType):
+class CompositeConfigType(ConfigType, statypes.CompositeType):
+    _compare_keys: tuple[str, ...]
+
+    def __init__(self, tspec: statypes.CompositeTypeSpec, **kwargs) -> None:
+        object.__setattr__(self, '_tspec', tspec)
+        for f in tspec.fields.values():
+            if f.name in kwargs:
+                object.__setattr__(self, f.name, kwargs[f.name])
+            elif f.default is not statypes.MISSING:
+                object.__setattr__(self, f.name, f.default)
+        object.__setattr__(self, '_compare_keys', tuple(
+            f.name for f in tspec.fields.values() if f.unique
+        ))
+
+    def __setattr__(self, k, v) -> None:
+        raise TypeError(f"{self._tspec.name} is immutable")
+
+    def __eq__(self, rhs: Any) -> bool:
+        if (
+            not isinstance(rhs, CompositeConfigType)
+            or self._tspec != rhs._tspec
+        ):
+            return NotImplemented
+        compare_keys = self._compare_keys
+        return (
+            tuple(getattr(self, k) for k in compare_keys)
+            == tuple(getattr(rhs, k) for k in compare_keys)
+        )
+
+    def __hash__(self) -> int:
+        return hash(tuple(getattr(self, k) for k in self._compare_keys))
+
+    def __repr__(self) -> str:
+        body = ', '.join(
+            f'{f.name}={getattr(self, f.name)!r}'
+            for f in self._tspec.fields.values()
+            if hasattr(self, f.name)
+        )
+        return f'{self._tspec.name}({body})'
 
     @classmethod
-    def from_pyvalue(cls, data, *, spec, allow_missing=False):
+    def from_pyvalue(cls, data, *,
+                     tspec: statypes.CompositeTypeSpec,
+                     spec: spec.Spec,
+                     allow_missing=False) -> CompositeConfigType:
+        if allow_missing and data is None:
+            return None  # type: ignore
+
         if not isinstance(data, dict):
-            raise cls._err(f'expected a dict value, got {type(data)!r}')
+            raise cls._err(tspec, f'expected a dict value, got {type(data)!r}')
 
         data = dict(data)
         tname = data.pop('_tname', None)
         if tname is not None:
-            if '::' in tname:
-                tname = s_name.QualName.from_string(tname).name
-            cls = spec.get_type_by_name(tname)
+            tspec = spec.get_type_by_name(tname)
+        assert tspec
 
-        fields = {f.name: f for f in dataclasses.fields(cls)}
+        fields = tspec.fields
 
         items = {}
         inv_keys = []
@@ -89,7 +148,7 @@ class CompositeConfigType(ConfigType):
                 if container not in (frozenset, list):
                     raise RuntimeError(
                         f'invalid type annotation on '
-                        f'{cls.__name__}.{fieldname}: '
+                        f'{tspec.name}.{fieldname}: '
                         f'{f_type!r} is not supported')
 
                 eltype = typing_inspect.get_args(f_type, evaluate=True)[0]
@@ -100,27 +159,27 @@ class CompositeConfigType(ConfigType):
                     value = container(value)
                 else:
                     raise cls._err(
+                        tspec,
                         f'invalid {fieldname!r} field value: expecting '
                         f'{eltype.__name__} or a list thereof, but got '
                         f'{type(value).__name__}'
                     )
 
-            elif (issubclass(f_type, CompositeConfigType)
+            elif (isinstance(f_type, ConfigTypeSpec)
                     and isinstance(value, dict)):
 
                 tname = value.get('_tname', None)
                 if tname is not None:
-                    if '::' in tname:
-                        tname = s_name.QualName.from_string(tname).name
                     actual_f_type = spec.get_type_by_name(tname)
                 else:
                     actual_f_type = f_type
-                    value['_tname'] = f_type.__name__
+                    value['_tname'] = f_type.name
 
-                value = actual_f_type.from_pyvalue(value, spec=spec)
+                value = cls.from_pyvalue(value, tspec=actual_f_type, spec=spec)
 
-            elif not isinstance(value, f_type):
+            elif not isinstance(f_type, type) or not isinstance(value, f_type):
                 raise cls._err(
+                    tspec,
                     f'invalid {fieldname!r} field value: expecting '
                     f'{f_type.__name__}, but got {type(value).__name__}'
                 )
@@ -128,38 +187,39 @@ class CompositeConfigType(ConfigType):
             items[fieldname] = value
 
         if inv_keys:
-            inv_keys = ', '.join(repr(r) for r in inv_keys)
-            raise cls._err(f'unknown fields: {inv_keys}')
+            sinv_keys = ', '.join(repr(r) for r in inv_keys)
+            raise cls._err(tspec, f'unknown fields: {sinv_keys}')
 
         for fieldname, field in fields.items():
-            if fieldname not in items and field.default is dataclasses.MISSING:
+            if fieldname not in items and field.default is statypes.MISSING:
                 if allow_missing:
                     items[fieldname] = None
                 else:
-                    raise cls._err(f'missing required field: {fieldname!r}')
+                    raise cls._err(
+                        tspec, f'missing required field: {fieldname!r}'
+                    )
 
         try:
-            return cls(**items)
+            return cls(tspec, **items)
         except (TypeError, ValueError) as ex:
-            raise cls._err(str(ex))
+            raise cls._err(tspec, str(ex))
 
     @classmethod
     def get_edgeql_typeid(cls):
         return s_obj.get_known_type_id('std::json')
 
     @classmethod
-    def from_json_value(cls, s, *, spec):
-        return cls.from_pyvalue(s, spec=spec)
+    def from_json_value(cls, s, *, tspec: statypes.CompositeTypeSpec, spec):
+        return cls.from_pyvalue(s, tspec=tspec, spec=spec)
 
     def to_json_value(self):
         dct = {}
-        dct['_tname'] = self.__class__.__name__
+        dct['_tname'] = self._tspec.name
 
-        for f in dataclasses.fields(self):
+        for f in self._tspec.fields.values():
             f_type = f.type
             value = getattr(self, f.name)
-            if (isinstance(f_type, type)
-                    and issubclass(f_type, CompositeConfigType)
+            if (isinstance(f_type, statypes.CompositeTypeSpec)
                     and value is not None):
                 value = value.to_json_value()
             elif typing_inspect.is_generic_type(f_type):
@@ -170,6 +230,8 @@ class CompositeConfigType(ConfigType):
         return dct
 
     @classmethod
-    def _err(cls, msg):
+    def _err(
+        cls, tspec: statypes.CompositeTypeSpec, msg: str
+    ) -> errors.ConfigurationError:
         return errors.ConfigurationError(
-            f'invalid {cls.__name__.lower()!r} value: {msg}')
+            f'invalid {tspec.name.lower()!r} value: {msg}')
