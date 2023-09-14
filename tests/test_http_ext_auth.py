@@ -25,12 +25,15 @@ import base64
 import datetime
 import http.server
 import threading
+import argon2
 
 from typing import Any, Callable
 from jwcrypto import jwt, jwk
 
 from edb.testbase import http as tb
 
+
+ph = argon2.PasswordHasher()
 
 HTTP_TEST_PORT: contextvars.ContextVar[str] = contextvars.ContextVar(
     'HTTP_TEST_PORT'
@@ -337,6 +340,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             client_id := <str>'{uuid.uuid4()}'
         }};
         """,
+        f"""
+        CONFIGURE CURRENT DATABASE
+        INSERT ext::auth::PasswordClientConfig {{
+            provider_name := "password",
+            provider_id := <str>'{uuid.uuid4()}',
+        }};
+        """,
     ]
 
     def http_con_send_request(self, *args, headers=None, **kwargs):
@@ -346,19 +356,31 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
         http_con_request() calls this method.
         """
-        test_port = HTTP_TEST_PORT.get()
-        if test_port:
+        test_port = HTTP_TEST_PORT.get(None)
+        if test_port is not None:
             if headers is None:
                 headers = {}
             headers['x-edgedb-oauth-test-server'] = test_port
         return super().http_con_send_request(*args, headers=headers, **kwargs)
 
-    async def get_client_config_by_provider(self, provider_name: str):
+    async def get_oauth_client_config_by_provider(self, provider_name: str):
         return await self.con.query_single(
             """
             SELECT assert_exists(assert_single(
                 cfg::Config.extensions[is ext::auth::AuthConfig]
                     .providers[is ext::auth::OAuthClientConfig]
+                    { * } filter .provider_name = <str>$0
+            ));
+            """,
+            provider_name,
+        )
+
+    async def get_password_client_config_by_provider(self, provider_name: str):
+        return await self.con.query_single(
+            """
+            SELECT assert_exists(assert_single(
+                cfg::Config.extensions[is ext::auth::AuthConfig]
+                    .providers[is ext::auth::PasswordClientConfig]
                     { * } filter .provider_name = <str>$0
             ));
             """,
@@ -395,7 +417,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_github_authorize_01(self):
         with MockAuthProvider(), self.http_con() as http_con:
-            provider_config = await self.get_client_config_by_provider("github")
+            provider_config = await self.get_oauth_client_config_by_provider(
+                "github"
+            )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
 
@@ -456,7 +480,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_github_callback_wrong_key_01(self):
         with MockAuthProvider(), self.http_con() as http_con:
-            provider_config = await self.get_client_config_by_provider("github")
+            provider_config = await self.get_oauth_client_config_by_provider(
+                "github"
+            )
             provider_id = provider_config.provider_id
             signing_key = jwk.JWK(
                 k=base64.b64encode(("abcd" * 8).encode()).decode(), kty="oct"
@@ -506,7 +532,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_github_callback_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
-            provider_config = await self.get_client_config_by_provider("github")
+            provider_config = await self.get_oauth_client_config_by_provider(
+                "github"
+            )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
             client_secret = provider_config.secret
@@ -660,7 +688,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_github_callback_failure_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
-            provider_config = await self.get_client_config_by_provider("github")
+            provider_config = await self.get_oauth_client_config_by_provider(
+                "github"
+            )
             provider_id = provider_config.provider_id
 
             now = datetime.datetime.utcnow()
@@ -722,7 +752,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_github_callback_failure_02(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
-            provider_config = await self.get_client_config_by_provider("github")
+            provider_config = await self.get_oauth_client_config_by_provider(
+                "github"
+            )
             provider_id = provider_config.provider_id
 
             now = datetime.datetime.utcnow()
@@ -779,7 +811,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_google_callback_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
-            provider_config = await self.get_client_config_by_provider("google")
+            provider_config = await self.get_oauth_client_config_by_provider(
+                "google"
+            )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
             client_secret = provider_config.secret
@@ -920,7 +954,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_google_authorize_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
-            provider_config = await self.get_client_config_by_provider("google")
+            provider_config = await self.get_oauth_client_config_by_provider(
+                "google"
+            )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
 
@@ -973,7 +1009,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_azure_authorize_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
-            provider_config = await self.get_client_config_by_provider("azure")
+            provider_config = await self.get_oauth_client_config_by_provider(
+                "azure"
+            )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
 
@@ -1026,7 +1064,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_azure_callback_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
-            provider_config = await self.get_client_config_by_provider("azure")
+            provider_config = await self.get_oauth_client_config_by_provider(
+                "azure"
+            )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
             client_secret = provider_config.secret
@@ -1140,7 +1180,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_apple_authorize_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
-            provider_config = await self.get_client_config_by_provider("apple")
+            provider_config = await self.get_oauth_client_config_by_provider(
+                "apple"
+            )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
 
@@ -1193,7 +1235,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_apple_callback_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
-            provider_config = await self.get_client_config_by_provider("apple")
+            provider_config = await self.get_oauth_client_config_by_provider(
+                "apple"
+            )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
             client_secret = provider_config.secret
@@ -1303,4 +1347,53 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         "client_secret": client_secret,
                     }
                 ),
+            )
+
+    async def test_http_auth_ext_local_password_register_01(self):
+        with self.http_con() as http_con:
+            provider_config = await self.get_password_client_config_by_provider(
+                "password"
+            )
+            provider_id = provider_config.provider_id
+
+            form_data = {
+                "provider": provider_id,
+                "email": "test@example.com",
+                "handle": "test_handle",
+                "password": "test_password",
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            body, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            from edb.common import markup
+            markup.dump(body)
+            self.assertEqual(status, 200)
+
+            identity = await self.con.query(
+                """
+                SELECT ext::auth::LocalIdentity
+                FILTER .email = 'test@example.com'
+                AND .handle = 'test_handle'
+                """
+            )
+
+            self.assertEqual(len(identity), 1)
+
+            password_credential = await self.con.query(
+                """
+                SELECT ext::auth::PasswordCredential { password_hash }
+                FILTER .identity.id = <uuid>$identity
+                """,
+                identity=identity[0].id,
+            )
+            self.assertTrue(
+                ph.verify(password_credential[0].password_hash, "test_password")
             )
