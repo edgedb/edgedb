@@ -195,6 +195,11 @@ def dump(*args, **kwargs):
     _markup.dump(*args, **kwargs)
 
 
+def dumps(*args, **kwargs):
+    from . import markup as _markup
+    return _markup.dumps(*args, **kwargs)
+
+
 def dump_code(*args, **kwargs):
     from . import markup as _markup
     _markup.dump_code(*args, **kwargs)
