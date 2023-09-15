@@ -7955,6 +7955,16 @@ aa \
 
     async def test_edgeql_expr_if_else_01(self):
         await self.assert_query_result(
+            r'''SELECT IF true THEN 'yes' ELSE 'no';''',
+            ['yes'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT IF false THEN 'yes' ELSE 'no';''',
+            ['no'],
+        )
+
+        await self.assert_query_result(
             r'''SELECT 'yes' IF True ELSE 'no';''',
             ['yes'],
         )
@@ -8092,6 +8102,19 @@ aa \
 
         await self.assert_query_result(
             r'''
+                WITH x := {'b', 'a', 't'}
+                SELECT
+                    IF x = 'a' THEN 1 ELSE
+                    IF x = 'b' THEN 10 ELSE
+                    IF x = 'c' THEN 100 ELSE
+                    0;
+            ''',
+            sorted([10, 1, 0]),
+            sort=True
+        )
+
+        await self.assert_query_result(
+            r'''
                 FOR w IN {<array<str>>[], ['c', 'a', 't'], ['b', 'a', 't']}
                 UNION (
                     WITH x := array_unpack(w)
@@ -8108,6 +8131,34 @@ aa \
         )
 
     async def test_edgeql_expr_if_else_05(self):
+        res = sorted([
+            100,    # ccc
+            0,      # cca
+            0,      # cct
+            100,    # cac
+            0,      # caa
+            0,      # cat
+            100,    # ctc
+            0,      # cta
+            0,      # ctt
+            1,      # a--
+            #       The other clauses don't get evaluated,
+            #       when 'a' is in the first test.  More
+            #       accurately, they get evaluated and
+            #       their results are not included in the
+            #       return value.
+
+            100,    # tcc
+            0,      # tca
+            0,      # tct
+            100,    # tac
+            0,      # taa
+            0,      # tat
+            100,    # ttc
+            0,      # tta
+            0,      # ttt
+        ])
+
         await self.assert_query_result(
             r"""
                 # this creates a 3 x 3 x 3 cross product
@@ -8117,33 +8168,37 @@ aa \
                     100 IF {'c', 'a', 't'} = 'c' ELSE
                     0;
             """,
-            sorted([
-                100,    # ccc
-                0,      # cca
-                0,      # cct
-                100,    # cac
-                0,      # caa
-                0,      # cat
-                100,    # ctc
-                0,      # cta
-                0,      # ctt
-                1,      # a--
-                        #       The other clauses don't get evaluated,
-                        #       when 'a' is in the first test.  More
-                        #       accurately, they get evaluated and
-                        #       their results are not included in the
-                        #       return value.
+            res,
+            sort=True
+        )
 
-                100,    # tcc
-                0,      # tca
-                0,      # tct
-                100,    # tac
-                0,      # taa
-                0,      # tat
-                100,    # ttc
-                0,      # tta
-                0,      # ttt
-            ]),
+        await self.assert_query_result(
+            r"""
+                # this creates a 3 x 3 x 3 cross product
+                SELECT
+                    IF {'c', 'a', 't'} = 'a' THEN 1 ELSE
+                    IF {'c', 'a', 't'} = 'b' THEN 10 ELSE
+                    IF {'c', 'a', 't'} = 'c' THEN 100 ELSE
+                    0;
+            """,
+            res,
+            sort=True
+        )
+
+        # Try nesting on in the THEN branch
+        await self.assert_query_result(
+            r"""
+                # this creates a 3 x 3 x 3 cross product
+                SELECT
+                    IF {'c', 'a', 't'} != 'a' THEN
+                      IF {'c', 'a', 't'} != 'b' THEN
+                        IF {'c', 'a', 't'} != 'c' THEN
+                          0
+                        ELSE 100
+                      ELSE 10
+                    ELSE 1;
+            """,
+            res,
             sort=True
         )
 

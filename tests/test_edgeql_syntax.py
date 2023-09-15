@@ -812,6 +812,24 @@ aa';
         SELECT (User IS (Named, Text));
         """
 
+    def test_edgeql_syntax_ops_27(self):
+        """
+        WITH x := {'b', 'a', 't'}
+        SELECT
+            IF x = 'a' THEN 1 ELSE
+            IF x = 'b' THEN 10 ELSE
+            IF x = 'c' THEN 100 ELSE
+            0;
+
+% OK %
+
+        WITH x := {'b', 'a', 't'}
+        SELECT
+            (IF (x = 'a') THEN 1 ELSE
+            (IF (x = 'b') THEN 10 ELSE
+            (IF (x = 'c') THEN 100 ELSE
+            0)));
+        """
     def test_edgeql_syntax_required_01(self):
         """
         SELECT REQUIRED (User.groups.description);
@@ -933,7 +951,7 @@ aa';
         SELECT event;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=17)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=19)
     def test_edgeql_syntax_name_08(self):
         """
         SELECT (event::if);
@@ -1910,7 +1928,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected keyword 'IF'", line=4, col=13)
+                  r"Missing '\('", line=4, col=15)
     def test_edgeql_syntax_struct_08(self):
         """
         SELECT (
