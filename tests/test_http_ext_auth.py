@@ -1403,7 +1403,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEqual(conflict_status, 409)
 
-
     async def test_http_auth_ext_local_password_register_json_02(self):
         with self.http_con() as http_con:
             provider_config = await self.get_password_client_config_by_provider(

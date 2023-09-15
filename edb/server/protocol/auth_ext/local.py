@@ -108,7 +108,9 @@ class PasswordProvider:
         except Exception as e:
             exc = await execute.interpret_error(e, db)
             if isinstance(exc, ConstraintViolationError):
-                raise errors.UserAlreadyRegistered("User with this handle already exists")
+                raise errors.UserAlreadyRegistered(
+                    "User with this handle already exists"
+                )
             else:
                 raise exc
 
