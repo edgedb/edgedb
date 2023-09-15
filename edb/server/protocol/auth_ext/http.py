@@ -152,9 +152,10 @@ class Router:
                     )
                     if data.get("redirect_to") is not None:
                         response.status = http.HTTPStatus.FOUND
-                        response.custom_headers["Location"] = data[
-                            "redirect_to"
-                        ]
+                        redirect_url = (
+                            f"{data['redirect_to']}?identity_id={identity.id}"
+                        )
+                        response.custom_headers["Location"] = redirect_url
                     else:
                         response.status = http.HTTPStatus.CREATED
                         response.custom_headers[
@@ -199,9 +200,10 @@ class Router:
                     )
                     if data.get("redirect_to") is not None:
                         response.status = http.HTTPStatus.FOUND
-                        response.custom_headers["Location"] = data[
-                            "redirect_to"
-                        ]
+                        redirect_url = (
+                            f"{data['redirect_to']}?identity_id={identity.id}"
+                        )
+                        response.custom_headers["Location"] = redirect_url
                     else:
                         response.status = http.HTTPStatus.OK
                         response.custom_headers[

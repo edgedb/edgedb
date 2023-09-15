@@ -1367,7 +1367,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(status, 302)
             location = headers.get("location")
             assert location is not None
-            self.assertEqual(location, "http://example.com")
+            self.assertEqual(
+                location, f"http://example.com?identity_id={identity[0].id}"
+            )
 
             session_claims = await self.extract_session_claims(headers)
             self.assertEqual(session_claims.get("sub"), str(identity[0].id))
