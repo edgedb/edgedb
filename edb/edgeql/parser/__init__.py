@@ -78,23 +78,15 @@ def parse_query(
     return tree
 
 
-def parse_command(
-    source: Union[qltokenizer.Source, str],
+def parse_block(
+    source: qltokenizer.Source | str,
     module_aliases: Optional[Mapping[Optional[str], str]] = None,
-) -> qlast.Command:
-    """Parse some EdgeQL command potentially adding some module aliases."""
-
-    tree = parse(qlgrammar.single, source)
-    assert isinstance(tree, qlast.Command)
-
+) -> list[qlast.Base]:
+    trees = parse(qlgrammar.block, source)
     if module_aliases:
-        append_module_aliases(tree, module_aliases)
-
-    return tree
-
-
-def parse_block(source: qltokenizer.Source | str) -> list[qlast.Base]:
-    return parse(qlgrammar.block, source)
+        for tree in trees:
+            append_module_aliases(tree, module_aliases)
+    return trees
 
 
 def parse_migration_body_block(
