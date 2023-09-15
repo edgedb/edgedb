@@ -1419,7 +1419,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             }
             json_data_encoded = json.dumps(json_data).encode()
 
-            _, _, status = self.http_con_request(
+            body, _, status = self.http_con_request(
                 http_con,
                 None,
                 path="register",
@@ -1440,6 +1440,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             self.assertEqual(len(identity), 1)
+
+            self.assertEqual(
+                json.loads(body), {"identity_id": str(identity[0].id)}
+            )
 
             password_credential = await self.con.query(
                 """
@@ -1610,7 +1614,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             }
             auth_data_encoded = urllib.parse.urlencode(auth_data).encode()
 
-            _, headers, status = self.http_con_request(
+            body, headers, status = self.http_con_request(
                 http_con,
                 None,
                 path="authenticate",
@@ -1630,6 +1634,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             self.assertEqual(len(identity), 1)
+
+            self.assertEqual(
+                json.loads(body), {"identity_id": str(identity[0].id)}
+            )
 
             now = datetime.datetime.utcnow()
             tomorrow = now + datetime.timedelta(hours=25)

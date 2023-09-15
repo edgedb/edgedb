@@ -157,6 +157,12 @@ class Router:
                         ]
                     else:
                         response.status = http.HTTPStatus.CREATED
+                        response.custom_headers[
+                            "content-type"
+                        ] = "application/json"
+                        response.body = json.dumps(
+                            {"identity_id": identity.id}
+                        ).encode()
 
                 case ("authenticate",):
                     content_type = request.content_type
@@ -198,6 +204,12 @@ class Router:
                         ]
                     else:
                         response.status = http.HTTPStatus.OK
+                        response.custom_headers[
+                            "content-type"
+                        ] = "application/json"
+                        response.body = json.dumps(
+                            {"identity_id": identity.id}
+                        ).encode()
 
                 case _:
                     raise errors.NotFound("Unknown auth endpoint")
