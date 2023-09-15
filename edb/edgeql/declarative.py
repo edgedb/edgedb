@@ -200,33 +200,6 @@ class TraceContextBase:
         return name, fq_name
 
 
-def ensure_pointer_kind(
-    node: qlast.CreateConcretePointer,
-    ctx: DepTraceContext | LayoutTraceContext,
-) -> qlast.CreateConcretePointer:
-
-    # If the link/property specifier was left off the SDL, fill it
-    # in here.
-    if isinstance(node, qlast.CreateConcreteUnknownPointer):
-        # I /think/ the parser shouldn't let through anything that
-        # violates this but...
-        if not isinstance(node.target, qlast.TypeExpr):
-            raise errors.SchemaError(
-                "declarations without link/property specify must have "
-                "an explicitly specified target type",
-                context=node.context,
-            )
-
-        typ = _resolve_type_expr(node.target, ctx=ctx)
-        cls = (
-            qlast.CreateConcreteLink
-            if typ.is_object_type() else qlast.CreateConcreteProperty
-        )
-        node = node.replace(__class__=cls)
-
-    return node
-
-
 def get_verbosename_from_fqname(
     fq_name: s_name.QualName,
     ctx: DepTraceContext,
@@ -656,15 +629,6 @@ def _trace_item_layout(
         if isinstance(decl, qlast.CreateConcretePointer):
             assert isinstance(obj, qltracer.Source)
 
-            # do not allow link property on properties
-            if isinstance(node, qlast.CreateConcreteProperty):
-                raise errors.InvalidDefinitionError(
-                    f'cannot create a link property on a property',
-                    context=decl.context,
-                    hint='Link properties can only be created on links, whose '
-                         'target types are object types.',
-                )
-
             target: Optional[qltracer.TypeLike]
             target_expr: Optional[qlast.Expr]
             if isinstance(decl.target, qlast.TypeExpr):
@@ -673,8 +637,6 @@ def _trace_item_layout(
             else:
                 target = None
                 target_expr = decl.target
-
-            decl = ensure_pointer_kind(decl, ctx=ctx)
 
             pn = s_utils.ast_ref_to_unqualname(decl.name)
 
@@ -964,7 +926,6 @@ def trace_ConcretePointer(
         raise AssertionError(
             f'unexpected CreateConcretePointer.target: {node.target!r}')
 
-    node = ensure_pointer_kind(node, ctx=ctx)
     _register_item(
         node,
         hard_dep_exprs=deps,
@@ -1546,6 +1507,8 @@ def _get_tracer_type(
     elif isinstance(decl, (qlast.CreateAnnotation,
                            qlast.CreateAnnotationValue)):
         tracer_type = qltracer.Annotation
+    elif isinstance(decl, qlast.CreateConcreteUnknownPointer):
+        tracer_type = qltracer.Pointer
     elif isinstance(decl, (qlast.CreateProperty,
                            qlast.CreateConcreteProperty)):
         tracer_type = qltracer.Property

@@ -124,12 +124,12 @@ type URL extending Named {
 type Publication {
     required title: str;
 
-    property title1 := (SELECT ident(.title));
-    required property title2 := (SELECT ident(.title));
-    required single property title3 := (SELECT ident(.title));
-    optional single property title4 := (SELECT ident(.title));
-    optional multi property title5 := (SELECT ident(.title));
-    required multi property title6 := (SELECT ident(.title));
+    title1 := (SELECT ident(.title));
+    required title2 := (SELECT ident(.title));
+    required single title3 := (SELECT ident(.title));
+    optional single title4 := (SELECT ident(.title));
+    optional multi title5 := (SELECT ident(.title));
+    required multi title6 := (SELECT ident(.title));
 
     multi authors: User {
         list_order: int64;

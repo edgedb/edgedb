@@ -1049,6 +1049,10 @@ class CreateConcreteUnknownPointer(CreateConcretePointer):
     pass
 
 
+class AlterConcreteUnknownPointer(AlterObject, PropertyCommand):
+    pass
+
+
 class CreateConcreteProperty(CreateConcretePointer, PropertyCommand):
     pass
 
