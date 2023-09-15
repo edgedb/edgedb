@@ -20,6 +20,7 @@ import argon2
 import json
 
 from typing import Any
+from edb.errors import ConstraintViolationError
 from edb.server.protocol import execute
 
 from . import errors, util, data
@@ -78,31 +79,38 @@ class PasswordProvider:
                     "Missing 'handle' or 'password' in data"
                 )
 
-        r = await execute.parse_execute_json(
-            db=db,
-            query="""\
-with
-  email := <optional str>$email,
-  handle := <str>$handle,
-  password_hash := <str>$password_hash,
-  identity := (insert ext::auth::LocalIdentity {
-    iss := <str>"local",
-    sub := "",
-    email := email,
-    handle := handle,
-  }),
-  password := (insert ext::auth::PasswordCredential {
-    password_hash := password_hash,
-    identity := identity,
-  }),
+        try:
+            r = await execute.parse_execute_json(
+                db=db,
+                query="""\
+    with
+      email := <optional str>$email,
+      handle := <str>$handle,
+      password_hash := <str>$password_hash,
+      identity := (insert ext::auth::LocalIdentity {
+        iss := <str>"local",
+        sub := "",
+        email := email,
+        handle := handle,
+      }),
+      password := (insert ext::auth::PasswordCredential {
+        password_hash := password_hash,
+        identity := identity,
+      }),
 
-select identity { * };""",
-            variables={
-                "email": email,
-                "handle": handle,
-                "password_hash": ph.hash(password),
-            },
-        )
+    select identity { * };""",
+                variables={
+                    "email": email,
+                    "handle": handle,
+                    "password_hash": ph.hash(password),
+                },
+            )
+        except Exception as e:
+            exc = await execute.interpret_error(e, db)
+            if isinstance(exc, ConstraintViolationError):
+                raise errors.UserAlreadyRegistered("User with this handle already exists")
+            else:
+                raise exc
 
         result_json = json.loads(r.decode())
         assert len(result_json) == 1

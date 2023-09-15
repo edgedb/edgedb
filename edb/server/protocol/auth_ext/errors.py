@@ -113,3 +113,24 @@ class NoIdentityFound(AuthExtError):
 
     def __str__(self) -> str:
         return self.description
+
+class UserAlreadyRegistered(AuthExtError):
+    """Attempt to register an already registered handle."""
+
+    def __init__(
+        self,
+        description: str = (
+            "This user has already been registered"
+        ),
+    ):
+        self.description = description
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"description={self.description!r}"
+            ")"
+        )
+
+    def __str__(self) -> str:
+        return self.description

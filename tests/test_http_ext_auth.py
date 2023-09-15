@@ -1391,6 +1391,19 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 ph.verify(password_credential[0].password_hash, "test_password")
             )
 
+            # Try to register the same user again
+            _, _, conflict_status = self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(conflict_status, 409)
+
+
     async def test_http_auth_ext_local_password_register_json_02(self):
         with self.http_con() as http_con:
             provider_config = await self.get_password_client_config_by_provider(

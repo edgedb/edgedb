@@ -234,6 +234,14 @@ class Router:
                 ex_type=edb_errors.ProtocolError,
             )
 
+        except errors.UserAlreadyRegistered as ex:
+            _fail_with_error(
+                response=response,
+                status=http.HTTPStatus.CONFLICT,
+                message=str(ex),
+                ex_type=edb_errors.ProtocolError,
+            )
+
         except Exception as ex:
             if debug.flags.server:
                 markup.dump(ex)
