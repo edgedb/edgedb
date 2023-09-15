@@ -1249,3 +1249,5 @@ class FTSDocument(BaseExpr):
 
     analyzer: BaseExpr
     analyzer_domain: typing.Set[str]
+
+    weight: typing.Optional[str]

@@ -710,3 +710,31 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             ]),
             variables=(None,)
         )
+
+    async def test_edgeql_fts_weights(self):
+        await self.assert_query_result(
+            r'''
+            with res := fts::search(
+                Post,
+                'angry',
+                analyzer := 'ISO_eng',
+                weights := [0.0, 0.0, 0.0, 1.0]
+            )
+            select res.object.title
+            order by res.score desc
+            ''',
+            ["angry reply", "random stuff"]
+        )
+        await self.assert_query_result(
+            r'''
+            with res := fts::search(
+                Post,
+                'angry',
+                analyzer := 'ISO_eng',
+                weights := [0.0, 0.0, 1.0, 0.0]
+            )
+            select res.object.title
+            order by res.score desc
+            ''',
+            ["random stuff", "angry reply"]
+        )

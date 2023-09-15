@@ -820,5 +820,6 @@ def compile_FTSDocument(
     return pgast.FTSDocument(
         text=dispatch.compile(expr.text, ctx=ctx),
         analyzer=dispatch.compile(expr.analyzer, ctx=ctx),
-        analyzer_domain=expr.analyzer_domain
+        analyzer_domain=expr.analyzer_domain,
+        weight=expr.weight,
     )

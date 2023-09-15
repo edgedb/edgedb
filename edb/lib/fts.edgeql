@@ -63,10 +63,13 @@ CREATE SCALAR TYPE fts::document {
 
 CREATE FUNCTION fts::with_options(
     text: std::str,
-    language: anyenum,
+    analyzer: anyenum,
+    weight_category: optional std::str = <std::str>{},
 ) -> fts::document {
-    CREATE ANNOTATION std::description :=
-        'Adds analyzer (language) information to a string.';
+    CREATE ANNOTATION std::description := '
+        Adds analyzer (i.e. language) and weight information to a string,
+        so it be indexed with fts::index.
+    ';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -75,6 +78,7 @@ CREATE FUNCTION fts::search(
     object: anyobject,
     query: std::str,
     named only analyzer: std::str = <std::str>fts::Analyzer.ISO_eng,
+    named only weights: optional array<float64> = {},
 ) -> optional tuple<object: anyobject, score: float32>
 {
     CREATE ANNOTATION std::description := '

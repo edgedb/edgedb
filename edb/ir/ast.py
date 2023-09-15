@@ -1260,3 +1260,5 @@ class FTSDocument(Expr):
     analyzer: Set
 
     analyzer_domain: typing.Set[str]
+
+    weight: typing.Optional[str]

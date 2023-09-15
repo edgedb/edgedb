@@ -297,7 +297,6 @@ def _pg_create_trigger(
     # create the update function
     document_exprs = []
     for expr in exprs:
-        weight = "'A'"
         assert isinstance(expr, pgast.FTSDocument)
 
         analyzer_domain = map(types.to_regconfig, expr.analyzer_domain)
@@ -308,17 +307,16 @@ def _pg_create_trigger(
         text_sql = codegen.generate_source(expr.text)
         analyzer_sql = codegen.generate_source(expr.analyzer)
 
-        document_exprs.append(
-            f'''
-            setweight(
-                to_tsvector(
-                    edgedb.fts_to_regconfig(({analyzer_sql})::text),
-                    COALESCE({text_sql}, '')
-                ),
-                {weight}
+        document_expr = f'''
+            to_tsvector(
+                edgedb.fts_to_regconfig(({analyzer_sql})::text),
+                COALESCE({text_sql}, '')
             )
         '''
-        )
+        if expr.weight:
+            document_expr = f'setweight({document_expr}, {ql(expr.weight)})'
+        document_exprs.append(document_expr)
+
     document_sql = ' || '.join(document_exprs) if document_exprs else 'NULL'
 
     func_name = _pg_update_func_name(table_name)

@@ -935,7 +935,7 @@ def compile_fts_search(
 ) -> irast.Expr:
 
     # validate that object has fts::index index
-    object_arg = call.args[1]
+    object_arg = call.args[2]
     object_typeref = object_arg.expr.typeref
     object_typeref = object_typeref.material_type or object_typeref
     stype_id = object_typeref.id
@@ -977,32 +977,49 @@ def _validate_has_fts_index(
 def compile_fts_with_options(
     call: irast.FunctionCall, *, ctx: context.ContextLevel
 ) -> irast.Expr:
-    # language has already been typechecked to be an enum
+    # analyzer has already been typechecked to be an enum
     analyzer = call.args[1].expr
     assert analyzer.typeref
-    mat_ty_id = analyzer.typeref.id
-    ty = ctx.env.schema.get_by_id(mat_ty_id, type=s_scalars.ScalarType)
-    assert ty
+    analyzer_ty_id = analyzer.typeref.id
+    analyzer_ty = ctx.env.schema.get_by_id(
+        analyzer_ty_id, type=s_scalars.ScalarType
+    )
+    assert analyzer_ty
 
-    analyzer_domain = set()  # languages that the fts index needs to support
+    analyzer_domain = set()  # analyzers that the fts index needs to support
     if irutils.is_const(analyzer):
-        # language is constant
+        # analyzer is constant
         # -> determine its only value at compile time
         lang_const = irutils.as_const(analyzer)
         assert lang_const
         analyzer_domain.add(str(lang_const.value).lower())
 
     else:
-        # language is not constant
+        # analyzer is not constant
         # -> use all possible values of the enum
 
-        enum_values = ty.get_enum_values(ctx.env.schema)
+        enum_values = analyzer_ty.get_enum_values(ctx.env.schema)
         assert enum_values
         for enum_value in enum_values:
             analyzer_domain.add(enum_value.lower())
+
+    # weight_category
+    if len(call.args) > 2:
+        weight_expr = call.args[2].expr
+        if not irutils.is_const(weight_expr):
+            raise errors.InvalidValueError(
+                f"fts::search weight_category must be a literal",
+                context=weight_expr.context,
+            )
+        weight_const = irutils.as_const(weight_expr)
+        assert weight_const
+        weight = str(weight_const.value)
+    else:
+        weight = None
 
     return irast.FTSDocument(
         text=call.args[0].expr,
         analyzer=analyzer,
         analyzer_domain=analyzer_domain,
+        weight=weight,
     )

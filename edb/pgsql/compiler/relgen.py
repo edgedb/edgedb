@@ -3905,12 +3905,13 @@ def process_set_as_fts_search(
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
 
-        obj_ir = func_call.args[1].expr
+        obj_ir = func_call.args[2].expr
         obj_id = obj_ir.path_id
         obj_rvar = ensure_source_rvar(obj_ir, newctx.rel, ctx=newctx)
 
         # we skip the object, as it has to be compiled as rvar source
-        lang_pg, query_pg = _compile_call_args(ir_set, skip={1}, ctx=newctx)
+        args_pg = _compile_call_args(ir_set, skip={2}, ctx=newctx)
+        analyzer, weights, query = args_pg
 
         out_obj_id, out_score_id = func_call.tuple_path_ids
 
@@ -3920,11 +3921,11 @@ def process_set_as_fts_search(
             from edb.common import debug
             if debug.flags.zombodb:
                 score_pg, where_clause = _fts_search_inner_zombo(
-                    obj_id, query_pg, lang_pg, ctx, newctx, inner_ctx
+                    obj_id, query, analyzer, ctx, newctx, inner_ctx
                 )
             else:
                 score_pg, where_clause = _fts_search_inner_pg(
-                    obj_id, query_pg, lang_pg, ctx, newctx, inner_ctx
+                    obj_id, query, analyzer, weights, ctx, newctx, inner_ctx
                 )
 
             pathctx.put_path_var(
@@ -3997,8 +3998,9 @@ def process_set_as_fts_search(
 
 def _fts_search_inner_pg(
     obj_id: irast.PathId,
-    query_pg: pgast.BaseExpr,
-    analyzer_pg: pgast.BaseExpr,
+    query: pgast.BaseExpr,
+    analyzer: pgast.BaseExpr,
+    weights: pgast.BaseExpr,
     ctx: context.CompilerContextLevel,
     newctx: context.CompilerContextLevel,
     inner_ctx: context.CompilerContextLevel,
@@ -4019,25 +4021,36 @@ def _fts_search_inner_pg(
         ctx=newctx,
     )
 
-    analyzer_pg = pgast.FuncCall(
+    analyzer = pgast.FuncCall(
         name=('edgedb', 'fts_to_regconfig'),
-        args=[analyzer_pg],
+        args=[analyzer],
     )
 
-    parsed_query_pg = pgast.FuncCall(
+    parsed_query: pgast.BaseExpr = pgast.FuncCall(
         name=('edgedb', 'fts_parse_query'),
-        args=[query_pg, analyzer_pg]
+        args=[query, analyzer]
     )
     parsed_query_id = create_subrel_for_expr(
-        parsed_query_pg, ctx=inner_ctx
+        parsed_query, ctx=inner_ctx
     )
     parsed_query = pathctx.get_path_var(
         inner_ctx.rel, parsed_query_id, aspect='value', env=ctx.env
     )
 
+    one = pgast.NumericConstant(val='1.0')
+    weights = pgast.CoalesceExpr(
+        args=[weights, pgast.ArrayExpr(elements=[one, one, one, one])]
+    )
+    weights = pgast.TypeCast(
+        arg=weights,
+        type_name=pgast.TypeName(
+            name=('real',),
+            array_bounds=[-1]
+        )
+    )
     score_pg = pgast.FuncCall(
         name=('pg_catalog', 'ts_rank'),
-        args=[fts_document, parsed_query]
+        args=[weights, fts_document, parsed_query]
     )
     where_clause = pgast.Expr(
         lexpr=fts_document,

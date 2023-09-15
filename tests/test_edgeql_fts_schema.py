@@ -375,14 +375,14 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 }
             ''')
 
-        #async with self._run_and_rollback():
-        #    await self.con.execute('''
-        #        alter type default::Text {
-        #          create index fts::index on (
-        #            fts::with_options(
+        # async with self._run_and_rollback():
+        #     await self.con.execute('''
+        #         alter type default::Text {
+        #           create index fts::index on (
+        #             fts::with_options(
         #              (.text0, .text1, .text2, .text3, .text4, .text5, .text6),
-        #              fts::Analyzer.ISO_eng
-        #            )
-        #          );
-        #        }
-        #    ''')
+        #               fts::Analyzer.ISO_eng
+        #             )
+        #           );
+        #         }
+        #     ''')
