@@ -947,6 +947,7 @@ def compile_fts_search(
 
     if union_variants := stype.get_union_of(schema):
         for variant in union_variants.objects(schema):
+            schema, variant = variant.material_type(schema)
             _validate_has_fts_index(variant, schema, pctx)
     else:
         _validate_has_fts_index(stype, schema, pctx)
@@ -972,24 +973,24 @@ def _validate_has_fts_index(
         )
 
 
-@_special_case('fts::with_language')
-def compile_fts_with_language(
+@_special_case('fts::with_options')
+def compile_fts_with_options(
     call: irast.FunctionCall, *, ctx: context.ContextLevel
 ) -> irast.Expr:
     # language has already been typechecked to be an enum
-    language = call.args[1].expr
-    assert language.typeref
-    mat_ty_id = language.typeref.id
+    analyzer = call.args[1].expr
+    assert analyzer.typeref
+    mat_ty_id = analyzer.typeref.id
     ty = ctx.env.schema.get_by_id(mat_ty_id, type=s_scalars.ScalarType)
     assert ty
 
-    language_domain = set()  # languages that the fts index needs to support
-    if irutils.is_const(language):
+    analyzer_domain = set()  # languages that the fts index needs to support
+    if irutils.is_const(analyzer):
         # language is constant
         # -> determine its only value at compile time
-        lang_const = irutils.as_const(language)
+        lang_const = irutils.as_const(analyzer)
         assert lang_const
-        language_domain.add(str(lang_const.value).lower())
+        analyzer_domain.add(str(lang_const.value).lower())
 
     else:
         # language is not constant
@@ -998,10 +999,10 @@ def compile_fts_with_language(
         enum_values = ty.get_enum_values(ctx.env.schema)
         assert enum_values
         for enum_value in enum_values:
-            language_domain.add(enum_value.lower())
+            analyzer_domain.add(enum_value.lower())
 
-    return irast.SearchableString(
+    return irast.FTSDocument(
         text=call.args[0].expr,
-        language=language,
-        language_domain=language_domain,
+        analyzer=analyzer,
+        analyzer_domain=analyzer_domain,
     )

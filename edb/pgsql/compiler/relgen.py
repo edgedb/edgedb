@@ -3998,7 +3998,7 @@ def process_set_as_fts_search(
 def _fts_search_inner_pg(
     obj_id: irast.PathId,
     query_pg: pgast.BaseExpr,
-    lang_pg: pgast.BaseExpr,
+    analyzer_pg: pgast.BaseExpr,
     ctx: context.CompilerContextLevel,
     newctx: context.CompilerContextLevel,
     inner_ctx: context.CompilerContextLevel,
@@ -4019,16 +4019,14 @@ def _fts_search_inner_pg(
         ctx=newctx,
     )
 
-    lang_pg = pgast.TypeCast(
-        arg=lang_pg,
-        type_name=pgast.TypeName(
-            name=('pg_catalog', 'regconfig')
-        ),
+    analyzer_pg = pgast.FuncCall(
+        name=('edgedb', 'fts_to_regconfig'),
+        args=[analyzer_pg],
     )
 
     parsed_query_pg = pgast.FuncCall(
         name=('edgedb', 'fts_parse_query'),
-        args=[query_pg, lang_pg]
+        args=[query_pg, analyzer_pg]
     )
     parsed_query_id = create_subrel_for_expr(
         parsed_query_pg, ctx=inner_ctx

@@ -19,22 +19,54 @@
 
 CREATE MODULE fts;
 
+CREATE SCALAR TYPE fts::Analyzer
+    EXTENDING enum<
+        ISO_ara,
+        ISO_hye,
+        ISO_eus,
+        ISO_cat,
+        ISO_dan,
+        ISO_nld,
+        ISO_eng,
+        ISO_fin,
+        ISO_fra,
+        ISO_deu,
+        ISO_ell,
+        ISO_hin,
+        ISO_hun,
+        ISO_ind,
+        ISO_gle,
+        ISO_ita,
+        ISO_nor,
+        ISO_por,
+        ISO_ron,
+        ISO_rus,
+        ISO_spa,
+        ISO_swe,
+        ISO_tur,
+    > {
+    CREATE ANNOTATION std::description := '
+        Analyzers supported by PostgreSQL FTS, ElasticSearch and Apache Lucene.
+        Names prefixed with ISO are ISO 639-3 language identifiers.
+    ';
+};
+
 CREATE ABSTRACT INDEX fts::index {
     CREATE ANNOTATION std::description :=
         "Full-text search index based on the Postgres's GIN index.";
     SET code := ''; # overridden by special case
 };
 
-CREATE SCALAR TYPE fts::searchable_str {
+CREATE SCALAR TYPE fts::document {
     SET transient := true;
 };
 
-CREATE FUNCTION fts::with_language(
+CREATE FUNCTION fts::with_options(
     text: std::str,
     language: anyenum,
-) -> fts::searchable_str {
+) -> fts::document {
     CREATE ANNOTATION std::description :=
-        'Adds language information to a string';
+        'Adds analyzer (language) information to a string.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -42,122 +74,139 @@ CREATE FUNCTION fts::with_language(
 CREATE FUNCTION fts::search(
     object: anyobject,
     query: std::str,
-    named only language: std::str,
-) -> optional tuple<
-    object: anyobject,
-    score: float32,
->
+    named only analyzer: std::str = <std::str>fts::Analyzer.ISO_eng,
+) -> optional tuple<object: anyobject, score: float32>
 {
     CREATE ANNOTATION std::description := '
         Search an object using its fts::index index.
-        Returns objects that match the specified query and the matching score
+        Returns objects that match the specified query and the matching score.
     ';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
-CREATE SCALAR TYPE fts::PGLanguage
+CREATE SCALAR TYPE fts::PGAnalyzer
     EXTENDING enum<
         Simple,
-        Arabic,
-        Armenian,
-        Basque,
-        Catalan,
-        Danish,
-        Dutch,
-        English,
-        Finnish,
-        French,
-        German,
-        Greek,
-        Hindi,
-        Hungarian,
-        Indonesian,
-        Irish,
-        Italian,
-        Lithuanian,
-        Nepali,
-        Norwegian,
-        Portuguese,
-        Romanian,
-        Russian,
-        Serbian,
-        Spanish,
-        Swedish,
-        Tamil,
-        Turkish,
-        Yiddish,
+        ISO_ara,
+        ISO_hye,
+        ISO_eus,
+        ISO_cat,
+        ISO_dan,
+        ISO_nld,
+        ISO_eng,
+        ISO_fin,
+        ISO_fra,
+        ISO_deu,
+        ISO_ell,
+        ISO_hin,
+        ISO_hun,
+        ISO_ind,
+        ISO_gle,
+        ISO_ita,
+        ISO_lit,
+        ISO_npi,
+        ISO_nor,
+        ISO_por,
+        ISO_ron,
+        ISO_rus,
+        ISO_srp,
+        ISO_spa,
+        ISO_swe,
+        ISO_tam,
+        ISO_tur,
+        ISO_yid,
     > {
-    CREATE ANNOTATION std::description :=
-        'Languages supported by PostgreSQL FTS';
+    CREATE ANNOTATION std::description :='
+        Analyzers supported by PostgreSQL FTS.
+        Names prefixed with ISO are ISO 639-3 language identifiers.
+    ';
 };
 
-CREATE SCALAR TYPE fts::ElasticLanguage
+CREATE SCALAR TYPE fts::ElasticAnalyzer
     EXTENDING enum<
-        Arabic,
-        Armenian,
-        Basque,
+        ISO_ara,
+        ISO_hye,
+        ISO_eus,
+        ISO_bul,
+        ISO_cat,
+        ISO_zho,
+        ISO_ces,
+        ISO_dan,
+        ISO_nld,
+        ISO_eng,
+        ISO_fin,
+        ISO_fra,
+        ISO_glg,
+        ISO_deu,
+        ISO_ell,
+        ISO_hin,
+        ISO_hun,
+        ISO_ind,
+        ISO_gle,
+        ISO_ita,
+        ISO_lav,
+        ISO_nor,
+        ISO_fas,
+        ISO_por,
+        ISO_ron,
+        ISO_rus,
+        ISO_ckb,
+        ISO_spa,
+        ISO_swe,
+        ISO_tur,
+        ISO_tha,
         Brazilian,
-        Bulgarian,
-        Catalan,
-        Chinese,
-        Cjk,
-        Czech,
-        Danish,
-        Dutch,
-        English,
-        Finnish,
-        French,
-        Galician,
-        German,
-        Greek,
-        Hindi,
-        Hungarian,
-        Indonesian,
-        Irish,
-        Italian,
-        Latvian,
-        Norwegian,
-        Persian,
-        Portuguese,
-        Romanian,
-        Russian,
-        Sorani,
-        Spanish,
-        Swedish,
-        Turkish,
-        Thai,
+        ChineseJapaneseKorean,
     > {
-    CREATE ANNOTATION std::description :=
-        'Languages supported by ElasticSearch';
+    CREATE ANNOTATION std::description := '
+        Analyzers supported by ElasticSearch.
+        Names prefixed with ISO are ISO 639-3 language identifiers.
+    ';
 };
 
-CREATE SCALAR TYPE fts::Language
+CREATE SCALAR TYPE fts::LuceneAnalyzer
     EXTENDING enum<
-        Arabic,
-        Armenian,
-        Basque,
-        Catalan,
-        Danish,
-        Dutch,
-        English,
-        Finnish,
-        French,
-        German,
-        Greek,
-        Hindi,
-        Hungarian,
-        Indonesian,
-        Irish,
-        Italian,
-        Norwegian,
-        Portuguese,
-        Romanian,
-        Russian,
-        Spanish,
-        Swedish,
-        Turkish,
+        ISO_ara,
+        ISO_bul,
+        ISO_ben,
+        ISO_cat,
+        ISO_ckb,
+        ISO_ces,
+        ISO_dan,
+        ISO_deu,
+        ISO_ell,
+        ISO_eng,
+        ISO_spa,
+        ISO_est,
+        ISO_eus,
+        ISO_fas,
+        ISO_fin,
+        ISO_fra,
+        ISO_gle,
+        ISO_glg,
+        ISO_hin,
+        ISO_hun,
+        ISO_hye,
+        ISO_ind,
+        ISO_ita,
+        ISO_lit,
+        ISO_lav,
+        ISO_nld,
+        ISO_nor,
+        ISO_por,
+        ISO_ron,
+        ISO_rus,
+        ISO_srp,
+        ISO_swe,
+        ISO_tha,
+        ISO_tur,
+        BrazilianPortuguese,
+        ChineseJapaneseKorean,
+        Indian,
     > {
-    CREATE ANNOTATION std::description :=
-        'Languages supported by both PostgreSQL FTS and ElasticSearch';
+    CREATE ANNOTATION std::description := '
+        Analyzers supported by Apache Lucene.
+        Names prefixed with ISO are ISO 639-3 language identifiers.
+    ';
 };

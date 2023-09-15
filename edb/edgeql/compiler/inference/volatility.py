@@ -299,10 +299,10 @@ def __infer_trigger_anchor(
 
 @_infer_volatility_inner.register
 def __infer_searchable_string(
-    ir: irast.SearchableString,
+    ir: irast.FTSDocument,
     env: context.Environment,
 ) -> InferredVolatility:
-    return _common_volatility([ir.text, ir.language], env)
+    return _common_volatility([ir.text, ir.analyzer], env)
 
 
 @_infer_volatility_inner.register

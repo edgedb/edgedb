@@ -1238,14 +1238,14 @@ class CopyStmt(Statement):
     where_clause: typing.Optional[BaseExpr] = None
 
 
-class SearchableString(BaseExpr):
+class FTSDocument(BaseExpr):
     """
     Text and information on how to search through it.
 
-    Constructed with `fts::with_language`.
+    Constructed with `fts::with_options`.
     """
 
     text: BaseExpr
 
-    language: BaseExpr
-    language_domain: typing.Set[str]
+    analyzer: BaseExpr
+    analyzer_domain: typing.Set[str]

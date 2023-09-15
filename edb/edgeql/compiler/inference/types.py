@@ -563,12 +563,12 @@ def __infer_trigger_anchor(
 
 
 @_infer_type.register
-def __infer_searchable_str(
-    ir: irast.SearchableString,
+def __infer_fts_document(
+    ir: irast.FTSDocument,
     env: context.Environment,
 ) -> s_types.Type:
     return env.schema.get(
-        s_name.QualName('fts', 'searchable_str'),
+        s_name.QualName('fts', 'document'),
         type=s_scalars.ScalarType
     )
 

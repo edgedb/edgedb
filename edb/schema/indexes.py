@@ -75,7 +75,7 @@ def is_index_valid_for_type(
             )
         case 'fts::index':
             return is_subclass_or_tuple(
-                expr_type, 'fts::searchable_str', schema
+                expr_type, 'fts::document', schema
             )
         case 'pg::gist':
             return expr_type.is_range() or expr_type.is_multirange()
@@ -1016,8 +1016,8 @@ class CreateIndex(
                 hint = None
                 if str(name) == 'fts::index':
                     hint = (
-                        'fts::searchable_str can be constructed with '
-                        'fts::with_language(str, anyenum)'
+                        'fts::document can be constructed with '
+                        'fts::with_options(str, ...)'
                     )
 
                 raise errors.SchemaDefinitionError(

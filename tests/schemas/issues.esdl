@@ -106,8 +106,8 @@ type Issue extending Named, Owned, Text {
     tags: array<str>;
 
     index fts::index on ((
-        fts::with_language(.name, fts::Language.English),
-        fts::with_language(.body, fts::Language.English),
+        fts::with_options(.name, fts::Analyzer.ISO_eng),
+        fts::with_options(.body, fts::Analyzer.ISO_eng),
     ));
 }
 

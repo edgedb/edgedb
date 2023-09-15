@@ -217,13 +217,13 @@ def _refresh_fts_document(
     return ops
 
 
-def _raise_unsupported_language_error(
+def _raise_unsupported_analyzer_error(
     unsupported: Collection[str],
 ) -> None:
     unsupported = list(unsupported)
     unsupported.sort()
 
-    msg = 'Full text search language'
+    msg = 'Full text search analyzer'
     if len(unsupported) > 1:
         msg += 's'
 
@@ -298,20 +298,21 @@ def _pg_create_trigger(
     document_exprs = []
     for expr in exprs:
         weight = "'A'"
-        assert isinstance(expr, pgast.SearchableString)
+        assert isinstance(expr, pgast.FTSDocument)
 
-        unsupported = expr.language_domain.difference(types.pg_langs)
+        analyzer_domain = map(types.to_regconfig, expr.analyzer_domain)
+        unsupported = set(analyzer_domain).difference(types.pg_langs)
         if len(unsupported) > 0:
-            _raise_unsupported_language_error(unsupported)
+            _raise_unsupported_analyzer_error(unsupported)
 
         text_sql = codegen.generate_source(expr.text)
-        language_sql = codegen.generate_source(expr.language)
+        analyzer_sql = codegen.generate_source(expr.analyzer)
 
         document_exprs.append(
             f'''
             setweight(
                 to_tsvector(
-                    (({language_sql})::text)::pg_catalog.regconfig,
+                    edgedb.fts_to_regconfig(({analyzer_sql})::text),
                     COALESCE({text_sql}, '')
                 ),
                 {weight}
@@ -425,18 +426,18 @@ def _zombo_create_fts_document(
     type_mappings: List[Tuple[str, str]] = []
     document_exprs = []
     for idx, expr in enumerate(exprs):
-        assert isinstance(expr, pgast.SearchableString)
+        assert isinstance(expr, pgast.FTSDocument)
 
         text_sql = codegen.generate_source(expr.text)
 
-        if len(expr.language_domain) != 1:
+        if len(expr.analyzer_domain) != 1:
             raise errors.UnsupportedFeatureError(
-                'zombo fts indexes support only exactly one language'
+                'zombo fts indexes support only exactly one analyzer'
             )
-        language = next(iter(expr.language_domain))
+        analyzer = next(iter(expr.analyzer_domain))
 
         document_exprs.append(text_sql)
-        type_mappings.append((f'field{idx}', language))
+        type_mappings.append((f'field{idx}', analyzer))
 
     zombo_func_name = _zombo_func_name(table_name)
     ops.add_command(

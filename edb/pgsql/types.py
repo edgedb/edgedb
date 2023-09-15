@@ -191,6 +191,49 @@ pg_langs = {
 }
 
 
+pg_langs_by_iso_639_3 = {
+    'ara': 'arabic',
+    'hye': 'armenian',
+    'eus': 'basque',
+    'cat': 'catalan',
+    'dan': 'danish',
+    'nld': 'dutch',
+    'eng': 'english',
+    'fin': 'finnish',
+    'fra': 'french',
+    'deu': 'german',
+    'ell': 'greek',
+    'hin': 'hindi',
+    'hun': 'hungarian',
+    'ind': 'indonesian',
+    'gle': 'irish',
+    'ita': 'italian',
+    'lit': 'lithuanian',
+    'npi': 'nepali',
+    'nor': 'norwegian',
+    'por': 'portuguese',
+    'ron': 'romanian',
+    'rus': 'russian',
+    'srp': 'serbian',
+    'spa': 'spanish',
+    'swe': 'swedish',
+    'tam': 'tamil',
+    'tur': 'turkish',
+    'yid': 'yiddish',
+}
+
+
+def to_regconfig(
+    analyzer: str
+) -> str:
+    "Analogous to edgedb.fts_to_regconfig function in metaschema"
+    analyzer = analyzer.lower()
+    if analyzer.startswith('iso_'):
+        return pg_langs_by_iso_639_3.get(analyzer[4:], analyzer)
+    else:
+        return analyzer
+
+
 def is_builtin_scalar(
     schema: s_schema.Schema, scalar: s_scalars.ScalarType
 ) -> bool:

@@ -4099,6 +4099,57 @@ class FTSNormalizeDocFunction(dbops.Function):
         )
 
 
+class FTSToRegconfig(dbops.Function):
+    """
+    Converts analyzer identifier into a regconfig.
+    Names prefixed with 'iso_' are treated as ISO 639-3 language identifiers.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'fts_to_regconfig'),
+            args=[
+                ('analyzer', ('text',)),
+            ],
+            returns=('regconfig',),
+            volatility='immutable',
+            text='''
+            SELECT
+                CASE LOWER(analyzer)
+                    WHEN 'iso_ara' THEN 'arabic'
+                    WHEN 'iso_hye' THEN 'armenian'
+                    WHEN 'iso_eus' THEN 'basque'
+                    WHEN 'iso_cat' THEN 'catalan'
+                    WHEN 'iso_dan' THEN 'danish'
+                    WHEN 'iso_nld' THEN 'dutch'
+                    WHEN 'iso_eng' THEN 'english'
+                    WHEN 'iso_fin' THEN 'finnish'
+                    WHEN 'iso_fra' THEN 'french'
+                    WHEN 'iso_deu' THEN 'german'
+                    WHEN 'iso_ell' THEN 'greek'
+                    WHEN 'iso_hin' THEN 'hindi'
+                    WHEN 'iso_hun' THEN 'hungarian'
+                    WHEN 'iso_ind' THEN 'indonesian'
+                    WHEN 'iso_gle' THEN 'irish'
+                    WHEN 'iso_ita' THEN 'italian'
+                    WHEN 'iso_lit' THEN 'lithuanian'
+                    WHEN 'iso_npi' THEN 'nepali'
+                    WHEN 'iso_nor' THEN 'norwegian'
+                    WHEN 'iso_por' THEN 'portuguese'
+                    WHEN 'iso_ron' THEN 'romanian'
+                    WHEN 'iso_rus' THEN 'russian'
+                    WHEN 'iso_srp' THEN 'serbian'
+                    WHEN 'iso_spa' THEN 'spanish'
+                    WHEN 'iso_swe' THEN 'swedish'
+                    WHEN 'iso_tam' THEN 'tamil'
+                    WHEN 'iso_tur' THEN 'turkish'
+                    WHEN 'iso_yid' THEN 'yiddish'
+                    ELSE COALESCE(LOWER(analyzer), 'english')
+                END::pg_catalog.regconfig;
+            ''',
+        )
+
+
 class FormatTypeFunction(dbops.Function):
     """Used instead of pg_catalog.format_type in pg_dump."""
 
@@ -4339,6 +4390,7 @@ async def bootstrap(
         dbops.CreateFunction(FTSParseQueryFunction()),
         dbops.CreateFunction(FTSNormalizeWeightFunction()),
         dbops.CreateFunction(FTSNormalizeDocFunction()),
+        dbops.CreateFunction(FTSToRegconfig()),
         dbops.CreateFunction(PadBase64StringFunction()),
     ]
     commands = dbops.CommandGroup()

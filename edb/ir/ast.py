@@ -1248,15 +1248,15 @@ class ConfigInsert(ConfigCommand):
     expr: Set
 
 
-class SearchableString(Expr):
+class FTSDocument(Expr):
     """
     Text and information on how to search through it.
 
-    Constructed with `fts::with_language`.
+    Constructed with `fts::with_options`.
     """
 
     text: Set
 
-    language: Set
+    analyzer: Set
 
-    language_domain: typing.Set[str]
+    analyzer_domain: typing.Set[str]

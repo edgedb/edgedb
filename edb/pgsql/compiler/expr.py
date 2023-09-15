@@ -812,13 +812,13 @@ def _compile_set_in_singleton_mode(
         return colref
 
 
-@dispatch.compile.register(irast.SearchableString)
-def compile_SearchableString(
-    expr: irast.SearchableString, *,
+@dispatch.compile.register(irast.FTSDocument)
+def compile_FTSDocument(
+    expr: irast.FTSDocument, *,
     ctx: context.CompilerContextLevel
 ) -> pgast.BaseExpr:
-    return pgast.SearchableString(
+    return pgast.FTSDocument(
         text=dispatch.compile(expr.text, ctx=ctx),
-        language=dispatch.compile(expr.language, ctx=ctx),
-        language_domain=expr.language_domain
+        analyzer=dispatch.compile(expr.analyzer, ctx=ctx),
+        analyzer_domain=expr.analyzer_domain
     )

@@ -255,11 +255,11 @@ class TestIndexes(tb.DDLTestCase):
                 create type Foo{
                     create property val -> str;
                     create index fts::index on (
-                        fts::with_language(.val, fts::Language.English));
+                        fts::with_options(.val, fts::Analyzer.ISO_eng));
                     create index fts::index on (
-                        fts::with_language(.val, fts::Language.English));
+                        fts::with_options(.val, fts::Analyzer.ISO_eng));
                     create index fts::index on (
-                        fts::with_language(.val, fts::Language.English));
+                        fts::with_options(.val, fts::Analyzer.ISO_eng));
                 };
             """)
 
@@ -269,7 +269,7 @@ class TestIndexes(tb.DDLTestCase):
             create type ObjIndex3 {
                 create property name -> str;
                 create index fts::index on (
-                    fts::with_language(.name, fts::Language.English)
+                    fts::with_options(.name, fts::Analyzer.ISO_eng)
                 );
             };
         """)
@@ -291,7 +291,7 @@ class TestIndexes(tb.DDLTestCase):
                 'indexes': [{
                     'name': 'fts::index',
                     'kwargs': [],
-                    'expr': 'fts::with_language(.name, fts::Language.English)',
+                    'expr': 'fts::with_options(.name, fts::Analyzer.ISO_eng)',
                     'abstract': False,
                 }]
             }],
@@ -305,7 +305,7 @@ class TestIndexes(tb.DDLTestCase):
             create type ObjIndex4 {
                 create property name -> str;
                 create index MyIndex on (
-                    fts::with_language(.name, fts::Language.English)
+                    fts::with_options(.name, fts::Analyzer.ISO_eng)
                 );
             };
         """)
@@ -327,7 +327,7 @@ class TestIndexes(tb.DDLTestCase):
                 'indexes': [{
                     'name': 'default::MyIndex',
                     'kwargs': [],
-                    'expr': 'fts::with_language(.name, fts::Language.English)',
+                    'expr': 'fts::with_options(.name, fts::Analyzer.ISO_eng)',
                     'abstract': False,
                 }]
             }],
