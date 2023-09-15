@@ -1182,3 +1182,10 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         element: AT_MOST_ONE
         """
+
+    def test_edgeql_ir_card_inference_140(self):
+        """
+        select (select Named { [is Card].element } limit 1).element
+% OK %
+        AT_MOST_ONE
+        """
