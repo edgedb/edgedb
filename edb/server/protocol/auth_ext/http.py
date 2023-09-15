@@ -134,14 +134,14 @@ class Router:
                                 f"Unsupported Content-Type: {content_type}"
                             )
 
-                    provider_id = data.get("provider")
-                    if provider_id is None:
+                    register_provider_id = data.get("provider")
+                    if register_provider_id is None:
                         raise errors.InvalidData(
                             'Missing "provider" in register request'
                         )
 
                     local_client = local.Client(
-                        db=self.db, provider_id=provider_id
+                        db=self.db, provider_id=register_provider_id
                     )
                     identity = await local_client.register(data)
 
@@ -175,14 +175,14 @@ class Router:
                                 f"Unsupported Content-Type: {content_type}"
                             )
 
-                    provider_id = data.get("provider")
-                    if provider_id is None:
+                    authenticate_provider_id = data.get("provider")
+                    if authenticate_provider_id is None:
                         raise errors.InvalidData(
                             'Missing "provider" in register request'
                         )
 
                     local_client = local.Client(
-                        db=self.db, provider_id=provider_id
+                        db=self.db, provider_id=authenticate_provider_id
                     )
                     identity = await local_client.authenticate(data)
 
