@@ -1338,7 +1338,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             form_data = {
                 "provider": provider_id,
                 "email": "test@example.com",
-                "handle": "test_handle",
+                "handle": str(uuid.uuid4()),
                 "password": "test_password",
                 "redirect_to": "http://example.com",
             }
@@ -1357,8 +1357,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 """
                 SELECT ext::auth::LocalIdentity
                 FILTER .email = 'test@example.com'
-                AND .handle = 'test_handle'
-                """
+                AND .handle = <str>$handle
+                """,
+                handle=form_data["handle"],
             )
 
             self.assertEqual(len(identity), 1)
@@ -1413,7 +1414,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             json_data = {
                 "provider": provider_id,
                 "email": "test2@example.com",
-                "handle": "test_handle2",
+                "handle": str(uuid.uuid4()),
                 "password": "test_password2",
             }
             json_data_encoded = json.dumps(json_data).encode()
@@ -1433,8 +1434,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 """
                 SELECT ext::auth::LocalIdentity
                 FILTER .email = 'test2@example.com'
-                AND .handle = 'test_handle2'
-                """
+                AND .handle = <str>$handle
+                """,
+                handle=json_data["handle"],
             )
 
             self.assertEqual(len(identity), 1)
@@ -1458,7 +1460,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         with self.http_con() as http_con:
             form_data = {
                 "email": "test@example.com",
-                "handle": "test_handle",
+                "handle": str(uuid.uuid4()),
                 "password": "test_password",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -1513,7 +1515,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             form_data = {
                 "provider": provider_id,
                 "email": "test@example.com",
-                "handle": "test_handle",
+                "handle": str(uuid.uuid4()),
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
@@ -1539,7 +1541,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             form_data = {
                 "provider": provider_id,
-                "handle": "test_handle",
+                "handle": str(uuid.uuid4()),
                 "password": "test_password",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -1558,8 +1560,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             identity = await self.con.query(
                 """
                 SELECT ext::auth::LocalIdentity
-                FILTER .handle = 'test_handle'
-                """
+                FILTER .handle = <str>$handle
+                """,
+                handle=form_data["handle"],
             )
 
             self.assertEqual(len(identity), 1)
