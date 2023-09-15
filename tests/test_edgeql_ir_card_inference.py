@@ -1205,3 +1205,67 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         AT_MOST_ONE
         """
+
+    def test_edgeql_ir_card_inference_142(self):
+        """
+        select Named { [is Card].element }
+% OK %
+        element: AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_143(self):
+        """
+        select Named { element := [is Card].element }
+% OK %
+        element: AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_144(self):
+        """
+        select (
+          select assert_exists(Named) { [is Card].element } limit 1).element
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_145(self):
+        """
+        select Named { [is Named].name }
+% OK %
+        name: ONE
+        """
+
+    def test_edgeql_ir_card_inference_146(self):
+        """
+        select User { [is Named].name }
+% OK %
+        name: ONE
+        """
+
+    @tb.must_fail(errors.QueryError,
+                  "possibly an empty set returned")
+    def test_edgeql_ir_card_inference_147(self):
+        """
+        select Named { [is User].name }
+        """
+
+    @tb.must_fail(errors.QueryError,
+                  "possibly an empty set returned")
+    def test_edgeql_ir_card_inference_148(self):
+        """
+        select Named { name := [is User].name }
+        """
+
+    @tb.must_fail(errors.QueryError,
+                  "possibly an empty set returned")
+    def test_edgeql_ir_card_inference_149(self):
+        """
+        select Named { [is schema::Object].name }
+        """
+
+    @tb.must_fail(errors.QueryError,
+                  "possibly an empty set returned")
+    def test_edgeql_ir_card_inference_150(self):
+        """
+        select User { [is schema::Object].name }
+        """
