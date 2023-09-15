@@ -415,6 +415,20 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         state_token.make_signed_token(auth_signing_key)
         return state_token.serialize()
 
+    async def extract_jwt_claims(self, raw_jwt: str):
+        signing_key = await self.get_signing_key()
+        jwt_token = jwt.JWT(key=signing_key, jwt=raw_jwt)
+        claims = json.loads(jwt_token.claims)
+        return claims
+
+    async def extract_session_claims(self, headers: dict[str, str]):
+        set_cookie = headers.get("set-cookie")
+        assert set_cookie is not None
+        (k, v) = set_cookie.split(";")[0].split("=")
+        assert k == "edgedb-session"
+        claims = await self.extract_jwt_claims(v)
+        return claims
+
     async def test_http_auth_ext_github_authorize_01(self):
         with MockAuthProvider(), self.http_con() as http_con:
             provider_config = await self.get_oauth_client_config_by_provider(
@@ -422,8 +436,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
-
-            signing_key = await self.get_signing_key()
 
             _, headers, status = self.http_con_request(
                 http_con, {"provider": provider_id}, path="authorize"
@@ -443,10 +455,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             state = qs.get("state")
             assert state is not None
 
-            signed_token = jwt.JWT(
-                key=signing_key, algs=["HS256"], jwt=state[0]
-            )
-            claims = json.loads(signed_token.claims)
+            claims = await self.extract_jwt_claims(state[0])
             self.assertEqual(claims.get("provider"), provider_id)
             self.assertEqual(claims.get("iss"), self.http_addr)
 
@@ -630,12 +639,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(len(identity), 1)
 
-            set_cookie = headers.get("set-cookie")
-            assert set_cookie is not None
-            (k, v) = set_cookie.split(";")[0].split("=")
-            self.assertEqual(k, "edgedb-session")
-            session_token = jwt.JWT(key=signing_key, jwt=v)
-            session_claims = json.loads(session_token.claims)
+            session_claims = await self.extract_session_claims(headers)
             self.assertEqual(session_claims.get("sub"), str(identity[0].id))
             self.assertEqual(session_claims.get("iss"), str(self.http_addr))
             tomorrow = now + datetime.timedelta(hours=25)
@@ -659,7 +663,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     200,
                 )
             )
-            (_, headers, _) = self.http_con_request(
+            (_, new_headers, _) = self.http_con_request(
                 http_con,
                 {"state": state_token, "code": "abc123"},
                 path="callback",
@@ -676,12 +680,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(len(same_identity), 1)
             self.assertEqual(identity[0].id, same_identity[0].id)
 
-            set_cookie = headers.get("set-cookie")
-            assert set_cookie is not None
-            (k, v) = set_cookie.split(";")[0].split("=")
-            self.assertEqual(k, "edgedb-session")
-            new_session_token = jwt.JWT(key=signing_key, jwt=v)
-            new_session_claims = json.loads(new_session_token.claims)
+            new_session_claims = await self.extract_session_claims(new_headers)
             self.assertTrue(
                 new_session_claims.get("exp") > session_claims.get("exp")
             )
@@ -936,12 +935,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(len(identity), 1)
 
-            set_cookie = headers.get("set-cookie")
-            assert set_cookie is not None
-            (k, v) = set_cookie.split(";")[0].split("=")
-            self.assertEqual(k, "edgedb-session")
-            session_token = jwt.JWT(key=signing_key, jwt=v)
-            session_claims = json.loads(session_token.claims)
+            session_claims = await self.extract_session_claims(headers)
             self.assertEqual(session_claims.get("sub"), str(identity[0].id))
             self.assertEqual(session_claims.get("iss"), str(self.http_addr))
             tomorrow = now + datetime.timedelta(hours=25)
@@ -972,8 +966,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-            signing_key = await self.get_signing_key()
-
             _, headers, status = self.http_con_request(
                 http_con, {"provider": provider_id}, path="authorize"
             )
@@ -992,10 +984,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             state = qs.get("state")
             assert state is not None
 
-            signed_token = jwt.JWT(
-                key=signing_key, algs=["HS256"], jwt=state[0]
-            )
-            claims = json.loads(signed_token.claims)
+            claims = await self.extract_jwt_claims(state[0])
             self.assertEqual(claims.get("provider"), provider_id)
             self.assertEqual(claims.get("iss"), self.http_addr)
 
@@ -1027,8 +1016,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-            signing_key = await self.get_signing_key()
-
             _, headers, status = self.http_con_request(
                 http_con, {"provider": provider_id}, path="authorize"
             )
@@ -1047,10 +1034,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             state = qs.get("state")
             assert state is not None
 
-            signed_token = jwt.JWT(
-                key=signing_key, algs=["HS256"], jwt=state[0]
-            )
-            claims = json.loads(signed_token.claims)
+            claims = await self.extract_jwt_claims(state[0])
             self.assertEqual(claims.get("provider"), provider_id)
             self.assertEqual(claims.get("iss"), self.http_addr)
 
@@ -1198,8 +1182,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-            signing_key = await self.get_signing_key()
-
             _, headers, status = self.http_con_request(
                 http_con, {"provider": provider_id}, path="authorize"
             )
@@ -1218,10 +1200,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             state = qs.get("state")
             assert state is not None
 
-            signed_token = jwt.JWT(
-                key=signing_key, algs=["HS256"], jwt=state[0]
-            )
-            claims = json.loads(signed_token.claims)
+            claims = await self.extract_jwt_claims(state[0])
             self.assertEqual(claims.get("provider"), provider_id)
             self.assertEqual(claims.get("iss"), self.http_addr)
 
@@ -1388,13 +1367,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             location = headers.get("location")
             assert location is not None
             self.assertEqual(location, "http://example.com")
-            set_cookie = headers.get("set-cookie")
-            assert set_cookie is not None
-            (k, v) = set_cookie.split(";")[0].split("=")
-            self.assertEqual(k, "edgedb-session")
-            signing_key = await self.get_signing_key()
-            session_token = jwt.JWT(key=signing_key, jwt=v)
-            session_claims = json.loads(session_token.claims)
+
+            session_claims = await self.extract_session_claims(headers)
             self.assertEqual(session_claims.get("sub"), str(identity[0].id))
             self.assertEqual(session_claims.get("iss"), str(self.http_addr))
             now = datetime.datetime.utcnow()
@@ -1429,7 +1403,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "email": "test2@example.com",
                 "handle": "test_handle2",
                 "password": "test_password2",
-                "redirect_to": "http://example.com",
             }
             json_data_encoded = json.dumps(json_data).encode()
 
@@ -1442,7 +1415,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 headers={"Content-Type": "application/json"},
             )
 
-            self.assertEqual(status, 302)
+            self.assertEqual(status, 201)
 
             identity = await self.con.query(
                 """
@@ -1467,34 +1440,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-    async def test_http_auth_ext_local_password_register_form_missing_redirect(
-        self,
-    ):
-        with self.http_con() as http_con:
-            provider_config = await self.get_password_client_config_by_provider(
-                "password"
-            )
-            provider_id = provider_config.provider_id
-
-            form_data = {
-                "provider": provider_id,
-                "email": "test@example.com",
-                "handle": "test_handle",
-                "password": "test_password",
-            }
-            form_data_encoded = urllib.parse.urlencode(form_data).encode()
-
-            _, _, status = self.http_con_request(
-                http_con,
-                None,
-                path="register",
-                method="POST",
-                body=form_data_encoded,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
-
-            self.assertEqual(status, 400)
-
     async def test_http_auth_ext_local_password_register_form_missing_provider(
         self,
     ):
@@ -1503,7 +1448,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "email": "test@example.com",
                 "handle": "test_handle",
                 "password": "test_password",
-                "redirect_to": "http://example.com",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
@@ -1531,7 +1475,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": provider_id,
                 "email": "test@example.com",
                 "password": "test_password",
-                "redirect_to": "http://example.com",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
@@ -1559,7 +1502,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": provider_id,
                 "email": "test@example.com",
                 "handle": "test_handle",
-                "redirect_to": "http://example.com",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
@@ -1587,7 +1529,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": provider_id,
                 "handle": "test_handle",
                 "password": "test_password",
-                "redirect_to": "http://example.com",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
@@ -1600,7 +1541,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
-            self.assertEqual(status, 302)
+            self.assertEqual(status, 201)
 
             identity = await self.con.query(
                 """
@@ -1635,7 +1576,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "email": "test_auth@example.com",
                 "handle": "test_auth_handle",
                 "password": "test_auth_password",
-                "redirect_to": "http://example.com",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
@@ -1648,12 +1588,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
-            # Authenticate the registered user
             auth_data = {
                 "provider": form_data["provider"],
                 "handle": form_data["handle"],
                 "password": form_data["password"],
-                "redirect_to": form_data["redirect_to"],
             }
             auth_data_encoded = urllib.parse.urlencode(auth_data).encode()
 
@@ -1666,18 +1604,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
-            self.assertEqual(status, 302)
+            self.assertEqual(status, 200)
 
-            # Check the session token
-            set_cookie = headers.get("set-cookie")
-            assert set_cookie is not None
-            (k, v) = set_cookie.split(";")[0].split("=")
-            self.assertEqual(k, "edgedb-session")
-            signing_key = await self.get_signing_key()
-            session_token = jwt.JWT(key=signing_key, jwt=v)
-            session_claims = json.loads(session_token.claims)
-
-            # Check the identity
             identity = await self.con.query(
                 """
                 SELECT ext::auth::LocalIdentity
@@ -1687,10 +1615,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             self.assertEqual(len(identity), 1)
-            self.assertEqual(session_claims.get("sub"), str(identity[0].id))
-            self.assertEqual(session_claims.get("iss"), str(self.http_addr))
+
             now = datetime.datetime.utcnow()
             tomorrow = now + datetime.timedelta(hours=25)
+            session_claims = await self.extract_session_claims(headers)
+
+            self.assertEqual(session_claims.get("sub"), str(identity[0].id))
+            self.assertEqual(session_claims.get("iss"), str(self.http_addr))
             self.assertTrue(
                 session_claims.get("exp") > now.astimezone().timestamp()
             )
@@ -1703,7 +1634,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": form_data["provider"],
                 "handle": form_data["handle"],
                 "password": "wrong_password",
-                "redirect_to": form_data["redirect_to"],
             }
             auth_data_encoded_wrong_password = urllib.parse.urlencode(
                 auth_data_wrong_password
@@ -1726,7 +1656,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": form_data["provider"],
                 "handle": random_handle,
                 "password": form_data["password"],
-                "redirect_to": form_data["redirect_to"],
             }
             auth_data_encoded_random_handle = urllib.parse.urlencode(
                 auth_data_random_handle

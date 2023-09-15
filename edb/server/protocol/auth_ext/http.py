@@ -134,37 +134,30 @@ class Router:
                                 f"Unsupported Content-Type: {content_type}"
                             )
 
-                    match (data.get("redirect_to"), data.get("provider")):
-                        case (str(redirect_to), str(provider_id)):
-                            local_client = local.Client(
-                                db=self.db, provider_id=provider_id
-                            )
-                            identity = await local_client.register(data)
+                    provider_id = data.get("provider")
+                    if provider_id is None:
+                        raise errors.InvalidData(
+                            'Missing "provider" in register request'
+                        )
 
-                            response.status = http.HTTPStatus.FOUND
-                            response.custom_headers["Location"] = redirect_to
-                            session_token = self._make_session_token(
-                                identity.id
-                            )
-                            response.custom_headers["Set-Cookie"] = (
-                                f"edgedb-session={session_token}; "
-                                f"HttpOnly; Secure; SameSite=Strict"
-                            )
-                        case (None, None):
-                            raise errors.InvalidData(
-                                'Missing "redirect_to" and "provider" in '
-                                'register request'
-                            )
-                        case (None, _):
-                            raise errors.InvalidData(
-                                'Missing "redirect_to" in register request'
-                            )
-                        case (_, None):
-                            raise errors.InvalidData(
-                                'Missing "provider" in register request'
-                            )
-                        case _:
-                            raise errors.InvalidData("Invalid register request")
+                    local_client = local.Client(
+                        db=self.db, provider_id=provider_id
+                    )
+                    identity = await local_client.register(data)
+
+                    session_token = self._make_session_token(identity.id)
+                    response.custom_headers["Set-Cookie"] = (
+                        f"edgedb-session={session_token}; "
+                        f"HttpOnly; Secure; SameSite=Strict"
+                    )
+                    if data.get("redirect_to") is not None:
+                        response.status = http.HTTPStatus.FOUND
+                        response.custom_headers["Location"] = data[
+                            "redirect_to"
+                        ]
+                    else:
+                        response.status = http.HTTPStatus.CREATED
+
                 case ("authenticate",):
                     content_type = request.content_type
                     match content_type:
@@ -182,38 +175,29 @@ class Router:
                                 f"Unsupported Content-Type: {content_type}"
                             )
 
-                    match (data.get("redirect_to"), data.get("provider")):
-                        case (str(redirect_to), str(provider_id)):
-                            local_client = local.Client(
-                                db=self.db, provider_id=provider_id
-                            )
-                            identity = await local_client.authenticate(data)
-                            response.status = http.HTTPStatus.FOUND
-                            response.custom_headers["Location"] = redirect_to
-                            session_token = self._make_session_token(
-                                identity.id
-                            )
-                            response.custom_headers["Set-Cookie"] = (
-                                f"edgedb-session={session_token}; "
-                                f"HttpOnly; Secure; SameSite=Strict"
-                            )
-                        case (None, None):
-                            raise errors.InvalidData(
-                                'Missing "redirect_to" and "provider" in '
-                                'authenticate request'
-                            )
-                        case (None, _):
-                            raise errors.InvalidData(
-                                'Missing "redirect_to" in authenticate request'
-                            )
-                        case (_, None):
-                            raise errors.InvalidData(
-                                'Missing "provider" in authenticate request'
-                            )
-                        case _:
-                            raise errors.InvalidData(
-                                "Invalid authenticate request"
-                            )
+                    provider_id = data.get("provider")
+                    if provider_id is None:
+                        raise errors.InvalidData(
+                            'Missing "provider" in register request'
+                        )
+
+                    local_client = local.Client(
+                        db=self.db, provider_id=provider_id
+                    )
+                    identity = await local_client.authenticate(data)
+
+                    session_token = self._make_session_token(identity.id)
+                    response.custom_headers["Set-Cookie"] = (
+                        f"edgedb-session={session_token}; "
+                        f"HttpOnly; Secure; SameSite=Strict"
+                    )
+                    if data.get("redirect_to") is not None:
+                        response.status = http.HTTPStatus.FOUND
+                        response.custom_headers["Location"] = data[
+                            "redirect_to"
+                        ]
+                    else:
+                        response.status = http.HTTPStatus.OK
 
                 case _:
                     raise errors.NotFound("Unknown auth endpoint")
