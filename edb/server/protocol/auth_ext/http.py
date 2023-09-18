@@ -152,12 +152,12 @@ class Router:
                     )
                     if data.get("redirect_to") is not None:
                         response.status = http.HTTPStatus.FOUND
-                        params = urllib.parse.urlencode({
+                        redirect_params = urllib.parse.urlencode({
                             "identity_id": identity.id,
                             "auth_token": session_token,
                         })
                         redirect_url = (
-                            f"{data['redirect_to']}?{params}"
+                            f"{data['redirect_to']}?{redirect_params}"
                         )
                         response.custom_headers["Location"] = redirect_url
                     else:
@@ -207,12 +207,12 @@ class Router:
                     )
                     if data.get("redirect_to") is not None:
                         response.status = http.HTTPStatus.FOUND
-                        params = urllib.parse.urlencode({
+                        redirect_params = urllib.parse.urlencode({
                             "identity_id": identity.id,
                             "auth_token": session_token,
                         })
                         redirect_url = (
-                            f"{data['redirect_to']}?{params}"
+                            f"{data['redirect_to']}?{redirect_params}"
                         )
                         response.custom_headers["Location"] = redirect_url
                     else:
