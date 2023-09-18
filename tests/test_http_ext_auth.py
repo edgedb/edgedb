@@ -347,7 +347,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
         # HACK: As a debugging cycle hack, when RELOAD is true, we reload the
         # extension package from the file, so we can test without a bootstrap.
-        RELOAD = True
+        RELOAD = False
 
         if RELOAD:
             root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -355,7 +355,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 contents = f.read()
             to_add = '''
                 drop extension package auth version '1.0';
-                create extension pgcrypto;
+                create extension auth;
             ''' + contents
             splice = '__internal_testmode := true;'
             res = res.replace(splice, splice + to_add)

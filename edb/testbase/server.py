@@ -667,16 +667,7 @@ class ClusterTestCase(BaseHTTPTestCase):
 
     @classmethod
     async def tearDownSingleDB(cls):
-        await cls.con.execute(
-            'START MIGRATION TO {};\n'
-            'POPULATE MIGRATION;\n'
-            'COMMIT MIGRATION;'
-        )
-        while m := await cls.con.query_single(
-            "SELECT schema::Migration { name } "
-            "FILTER NOT EXISTS .<parents LIMIT 1"
-        ):
-            await cls.con.execute(f"DROP MIGRATION {m.name}")
+        await cls.con.execute("RESET SCHEMA TO initial;")
 
     @classmethod
     def fetch_metrics(cls) -> str:
