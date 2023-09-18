@@ -185,6 +185,9 @@ class MockHttpServerHandler(http.server.BaseHTTPRequestHandler):
         server = urllib.parse.unquote(server)
         self.server.owner.handle_request('POST', server, path, self)
 
+    def log_message(self, *args):
+        pass
+
 
 ResponseType = tuple[dict[str, Any] | list[dict[str, Any]], int]
 
