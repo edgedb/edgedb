@@ -421,12 +421,19 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         claims = json.loads(jwt_token.claims)
         return claims
 
-    async def extract_session_claims(self, headers: dict[str, str]):
+    def maybe_get_auth_token(self, headers: dict[str, str]) -> str | None:
         set_cookie = headers.get("set-cookie")
-        assert set_cookie is not None
-        (k, v) = set_cookie.split(";")[0].split("=")
-        assert k == "edgedb-session"
-        claims = await self.extract_jwt_claims(v)
+        if set_cookie is not None:
+            (k, v) = set_cookie.split(";")[0].split("=")
+            if k == "edgedb-session":
+                return v
+
+        return None
+
+    async def extract_session_claims(self, headers: dict[str, str]):
+        maybe_token = self.maybe_get_auth_token(headers)
+        assert maybe_token is not None
+        claims = await self.extract_jwt_claims(maybe_token)
         return claims
 
     async def test_http_auth_ext_github_authorize_01(self):
@@ -1340,7 +1347,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "email": "test@example.com",
                 "handle": str(uuid.uuid4()),
                 "password": "test_password",
-                "redirect_to": "http://example.com",
+                "redirect_to": "http://example.com/some/path",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
@@ -1367,8 +1374,19 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(status, 302)
             location = headers.get("location")
             assert location is not None
+            auth_token = self.maybe_get_auth_token(headers)
+            assert auth_token is not None
+            parsed_location = urllib.parse.urlparse(location)
+            parsed_query = urllib.parse.parse_qs(parsed_location.query)
+            self.assertEqual(parsed_location.scheme, "http")
+            self.assertEqual(parsed_location.netloc, "example.com")
+            self.assertEqual(parsed_location.path, "/some/path")
             self.assertEqual(
-                location, f"http://example.com?identity_id={identity[0].id}"
+                parsed_query,
+                {
+                    "identity_id": [str(identity[0].id)],
+                    "auth_token": [auth_token],
+                },
             )
 
             session_claims = await self.extract_session_claims(headers)
@@ -1421,7 +1439,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             }
             json_data_encoded = json.dumps(json_data).encode()
 
-            body, _, status = self.http_con_request(
+            body, headers, status = self.http_con_request(
                 http_con,
                 None,
                 path="register",
@@ -1443,8 +1461,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEqual(len(identity), 1)
 
+            auth_token = self.maybe_get_auth_token(headers)
+            assert auth_token is not None
+
             self.assertEqual(
-                json.loads(body), {"identity_id": str(identity[0].id)}
+                json.loads(body),
+                {
+                    "identity_id": str(identity[0].id),
+                    "auth_token": auth_token,
+                },
             )
 
             password_credential = await self.con.query(
@@ -1637,13 +1662,20 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEqual(len(identity), 1)
 
+            auth_token = self.maybe_get_auth_token(headers)
+            assert auth_token is not None
+
             self.assertEqual(
-                json.loads(body), {"identity_id": str(identity[0].id)}
+                json.loads(body),
+                {
+                    "identity_id": str(identity[0].id),
+                    "auth_token": auth_token,
+                },
             )
 
             now = datetime.datetime.utcnow()
             tomorrow = now + datetime.timedelta(hours=25)
-            session_claims = await self.extract_session_claims(headers)
+            session_claims = await self.extract_jwt_claims(auth_token)
 
             self.assertEqual(session_claims.get("sub"), str(identity[0].id))
             self.assertEqual(session_claims.get("iss"), str(self.http_addr))

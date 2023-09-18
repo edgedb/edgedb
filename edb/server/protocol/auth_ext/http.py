@@ -152,8 +152,12 @@ class Router:
                     )
                     if data.get("redirect_to") is not None:
                         response.status = http.HTTPStatus.FOUND
+                        params = urllib.parse.urlencode({
+                            "identity_id": identity.id,
+                            "auth_token": session_token,
+                        })
                         redirect_url = (
-                            f"{data['redirect_to']}?identity_id={identity.id}"
+                            f"{data['redirect_to']}?{params}"
                         )
                         response.custom_headers["Location"] = redirect_url
                     else:
@@ -162,7 +166,10 @@ class Router:
                             "content-type"
                         ] = "application/json"
                         response.body = json.dumps(
-                            {"identity_id": identity.id}
+                            {
+                                "identity_id": identity.id,
+                                "auth_token": session_token,
+                            }
                         ).encode()
 
                 case ("authenticate",):
@@ -200,8 +207,12 @@ class Router:
                     )
                     if data.get("redirect_to") is not None:
                         response.status = http.HTTPStatus.FOUND
+                        params = urllib.parse.urlencode({
+                            "identity_id": identity.id,
+                            "auth_token": session_token,
+                        })
                         redirect_url = (
-                            f"{data['redirect_to']}?identity_id={identity.id}"
+                            f"{data['redirect_to']}?{params}"
                         )
                         response.custom_headers["Location"] = redirect_url
                     else:
@@ -210,7 +221,10 @@ class Router:
                             "content-type"
                         ] = "application/json"
                         response.body = json.dumps(
-                            {"identity_id": identity.id}
+                            {
+                                "identity_id": identity.id,
+                                "auth_token": session_token,
+                            }
                         ).encode()
 
                 case _:
