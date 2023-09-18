@@ -163,7 +163,11 @@ def _describe_config_inner(
                 pn if actual_name == config_object_name
                 else f'{actual_name}::{pn}'
             )
-            renderer = _render_config_set if mult else _render_config_scalar
+            renderer = (
+                _render_config_redacted if p.get_secret(schema)
+                else _render_config_set if mult
+                else _render_config_scalar
+            )
             item = textwrap.indent(
                 renderer(
                     schema=schema,
@@ -227,6 +231,27 @@ def _render_config_value(
         )
 
     return val
+
+
+def _render_config_redacted(
+    *,
+    schema: s_schema.Schema,
+    valtype: s_types.Type,
+    value_expr: str,
+    scope: qltypes.ConfigScope,
+    name: str,
+    level: int,
+) -> str:
+    if level == 1:
+        return (
+            f"'CONFIGURE {scope.to_edgeql()} "
+            f"SET { qlquote.quote_ident(name) } := {{}};  # REDACTED\\n'"
+        )
+    else:
+        indent = ' ' * (4 * (level - 1))
+        return (
+            f"'{indent}{ qlquote.quote_ident(name) } := {{}},  # REDACTED'"
+        )
 
 
 def _render_config_set(
@@ -395,7 +420,11 @@ def _describe_config_object(
                 )
                 condition = None
             else:
-                render = _render_config_set if mult else _render_config_scalar
+                render = (
+                    _render_config_redacted if p.get_secret(schema)
+                    else _render_config_set if mult
+                    else _render_config_scalar
+                )
                 item = render(
                     schema=schema,
                     valtype=ptype,
@@ -404,7 +433,10 @@ def _describe_config_object(
                     name=pn,
                     level=level,
                 )
-                condition = f'EXISTS {psource}'
+                if p.get_secret(schema):
+                    condition = 'true'
+                else:
+                    condition = f'EXISTS {psource}'
 
             if condition is not None:
                 item = f"({item} ++ '\\n' IF {condition} ELSE '')"

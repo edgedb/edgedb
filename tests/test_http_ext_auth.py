@@ -291,13 +291,20 @@ class MockAuthProvider:
         self._http_runner = None
 
 
+SIGNING_KEY = 'a' * 32
+GITHUB_SECRET = 'b' * 32
+GOOGLE_SECRET = 'c' * 32
+AZURE_SECRET = 'c' * 32
+APPLE_SECRET = 'c' * 32
+
+
 class TestHttpExtAuth(tb.ExtAuthTestCase):
     TRANSACTION_ISOLATION = False
 
     EXTENSION_SETUP = [
         f"""
         CONFIGURE CURRENT DATABASE SET
-        ext::auth::AuthConfig::auth_signing_key := <str>'{'a' * 32}';
+        ext::auth::AuthConfig::auth_signing_key := <str>'{SIGNING_KEY}';
 
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::token_time_to_live := <duration>'24 hours';
@@ -307,7 +314,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_name := "github",
             url := "https://github.com",
             provider_id := <str>'{uuid.uuid4()}',
-            secret := <str>'{"b" * 32}',
+            secret := <str>'{GITHUB_SECRET}',
             client_id := <str>'{uuid.uuid4()}'
         }};
 
@@ -316,7 +323,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_name := "google",
             url := "https://accounts.google.com",
             provider_id := <str>'{uuid.uuid4()}',
-            secret := <str>'{"c" * 32}',
+            secret := <str>'{GOOGLE_SECRET}',
             client_id := <str>'{uuid.uuid4()}'
         }};
 
@@ -325,7 +332,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_name := "azure",
             url := "https://login.microsoftonline.com/common/v2.0",
             provider_id := <str>'{uuid.uuid4()}',
-            secret := <str>'{"c" * 32}',
+            secret := <str>'{AZURE_SECRET}',
             client_id := <str>'{uuid.uuid4()}'
         }};
 
@@ -334,7 +341,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_name := "apple",
             url := "https://appleid.apple.com",
             provider_id := <str>'{uuid.uuid4()}',
-            secret := <str>'{"c" * 32}',
+            secret := <str>'{APPLE_SECRET}',
             client_id := <str>'{uuid.uuid4()}'
         }};
         """,
@@ -450,7 +457,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         )
 
     async def get_signing_key(self):
-        auth_signing_key = await self.get_auth_config_value("auth_signing_key")
+        auth_signing_key = SIGNING_KEY
         key_bytes = base64.b64encode(auth_signing_key.encode())
         signing_key = jwk.JWK(k=key_bytes.decode(), kty="oct")
         return signing_key
@@ -605,7 +612,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
-            client_secret = provider_config.secret
+            client_secret = GITHUB_SECRET
 
             now = datetime.datetime.utcnow()
             token_request = (
@@ -874,7 +881,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
-            client_secret = provider_config.secret
+            client_secret = GOOGLE_SECRET
 
             now = datetime.datetime.utcnow()
 
@@ -1112,7 +1119,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
-            client_secret = provider_config.secret
+            client_secret = AZURE_SECRET
 
             now = datetime.datetime.utcnow()
 
@@ -1278,7 +1285,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
-            client_secret = provider_config.secret
+            client_secret = APPLE_SECRET
 
             now = datetime.datetime.utcnow()
 

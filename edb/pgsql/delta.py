@@ -1180,6 +1180,7 @@ class FunctionCommand(MetaCommand):
             schema,
             context,
             body=body,
+            func_name=func.get_name(schema),
             params=func.get_params(schema),
             language=ql_ast.Language.EdgeQL,
             return_type=func.get_return_type(schema),

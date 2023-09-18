@@ -850,6 +850,34 @@ def resolve_ptr_with_intersections(
     raise err
 
 
+def _check_secret_ptr(
+    ptrcls: s_pointers.Pointer,
+    *,
+    srcctx: Optional[parsing.ParserContext]=None,
+    ctx: context.ContextLevel,
+) -> None:
+    module = ptrcls.get_name(ctx.env.schema).module
+
+    func_name = ctx.env.options.func_name
+    if func_name and func_name.module == module:
+        return
+
+    view_name = ctx.env.options.result_view_name  # type: ignore
+    if view_name and view_name.module == module:
+        return
+
+    if ctx.current_schema_views:
+        view_name = ctx.current_schema_views[-1].get_name(ctx.env.schema)
+        if view_name.module == module:
+            return
+
+    vn = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
+    raise errors.QueryError(
+        f"cannot access {vn} because it is secret",
+        context=srcctx,
+    )
+
+
 def extend_path(
     source_set: irast.Set,
     ptrcls: s_pointers.Pointer,
@@ -900,6 +928,9 @@ def extend_path(
         ns=ctx.path_id_namespace,
         ctx=ctx,
     )
+
+    if ptrcls.get_secret(ctx.env.schema):
+        _check_secret_ptr(ptrcls, srcctx=srcctx, ctx=ctx)
 
     target = orig_ptrcls.get_far_endpoint(ctx.env.schema, direction)
     assert isinstance(target, s_types.Type)

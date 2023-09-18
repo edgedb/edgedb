@@ -16117,6 +16117,11 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 "opt!";
         ''')
 
+        await self.con.execute('''
+            configure current database set ext::_conf::Config::secret :=
+                "foobaz";
+        ''')
+
         await _check(
             config_name='test',
             opt_value='opt!',
@@ -16156,6 +16161,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             configure current database insert ext::_conf::Obj {
                 name := '1',
                 value := 'foo',
+                secret := '123456',
             };
         ''')
         await self.con.execute('''
@@ -16190,6 +16196,78 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             ],
         )
 
+        await self.assert_query_result(
+            '''
+            with c := cfg::Config.extensions[is ext::_conf::Config]
+            select ext::_conf::get_secret((select c.objs filter .name = '1'))
+            ''',
+            ['123456'],
+        )
+
+        await self.assert_query_result(
+            '''
+            select ext::_conf::OK
+            ''',
+            [True],
+        )
+        await self.con.execute('''
+            configure current database set ext::_conf::Config::secret :=
+                "123456";
+        ''')
+        await self.assert_query_result(
+            '''
+            select ext::_conf::OK
+            ''',
+            [False],
+        )
+
+        # Make sure secrets are redacted from get_config_json
+        cfg_json = await self.con.query_single('''
+            select to_str(cfg::get_config_json());
+        ''')
+        self.assertNotIn('123456', cfg_json, 'secrets not redacted')
+
+        # test not being able to access secrets
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError, "because it is secret"
+        ):
+            await self.con.execute('''
+                select cfg::Config {
+                    conf := assert_single(.extensions[is ext::_conf::Config] {
+                        secret
+                    })
+                };
+            ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError, "because it is secret"
+        ):
+            await self.con.execute('''
+                select cfg::Config {
+                    conf := assert_single(.extensions[is ext::_conf::Config] {
+                        objs: { secret }
+                    })
+                };
+            ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError, "because it is secret"
+        ):
+            await self.con.execute('''
+                select ext::_conf::Config.secret
+            ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError, "because it is secret"
+        ):
+            await self.con.execute('''
+                select ext::_conf::Obj.secret
+            ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError, "because it is secret"
+        ):
+            await self.con.execute('''
+                configure current database reset ext::_conf::Obj
+                filter .secret = '123456'
+            ''')
+
         if not in_tx:
             # Load the in-memory config state via a HTTP debug endpoint
             # Retry until we see 'ready' is visible
@@ -16215,12 +16293,14 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 ),
                 [
                     {'_tname': 'ext::_conf::Obj',
-                     'name': '1', 'value': 'foo', 'opt_value': None},
+                     'name': '1', 'value': 'foo', 'opt_value': None,
+                     'secret': {'redacted': True}},
                     {'_tname': 'ext::_conf::Obj',
-                     'name': '2', 'value': 'bar', 'opt_value': 'opt.'},
+                     'name': '2', 'value': 'bar', 'opt_value': 'opt.',
+                     'secret': None},
                     {'_tname': 'ext::_conf::SubObj',
                      'name': '3', 'value': 'baz', 'extra': 42,
-                     'opt_value': None},
+                     'opt_value': None, 'secret': None},
                 ],
             )
 
@@ -16232,19 +16312,24 @@ class TestDDLNonIsolated(tb.DDLTestCase):
 'ready';
         CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
             name := '1',
+            secret := {},  # REDACTED
             value := 'foo',
         };
         CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
             name := '2',
             opt_value := 'opt.',
+            secret := {},  # REDACTED
             value := 'bar',
         };
         CONFIGURE CURRENT DATABASE INSERT ext::_conf::SubObj {
             extra := 42,
             name := '3',
+            secret := {},  # REDACTED
             value := 'baz',
         };
         CONFIGURE CURRENT DATABASE SET ext::_conf::Config::opt_value := 'opt!';
+        CONFIGURE CURRENT DATABASE SET ext::_conf::Config::secret := \
+{};  # REDACTED
         ''')
         self.assertEqual(val, test_expected)
 
@@ -16273,6 +16358,9 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             objs=[],
         )
 
+        await self.con.execute('''
+            configure current database reset ext::_conf::Config::secret;
+        ''')
         await self.con.execute('''
             configure current database reset ext::_conf::Config::config_name;
         ''')

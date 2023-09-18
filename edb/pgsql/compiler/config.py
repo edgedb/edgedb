@@ -385,7 +385,10 @@ def compile_ConfigReset(
 
         rvar = relctx.rvar_for_rel(selector, ctx=ctx)
 
-        assert isinstance(op.selector.expr, irast.SelectStmt)
+        sel_expr = op.selector.expr
+        assert isinstance(sel_expr, irast.SelectStmt)
+        sel_expr = sel_expr.result.expr
+        assert isinstance(sel_expr, irast.SelectStmt)
 
         # Grab all the non-link properties of the object as keys. We
         # could just do the exclusive ones, but this works too and we
@@ -393,7 +396,7 @@ def compile_ConfigReset(
         # XXX: Do we need to consider _tname also?
         keys = [
             el.rptr.ptrref.shortname.name
-            for el, op in op.selector.expr.result.shape
+            for el, op in sel_expr.result.shape
             if el.rptr
             and op == qlast.ShapeOp.ASSIGN
             and not irtyputils.is_object(el.rptr.ptrref.out_target)

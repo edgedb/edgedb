@@ -55,6 +55,9 @@ class SettingValue(NamedTuple):
     value: Any
     source: str
     scope: qltypes.ConfigScope
+    # We track this just so that we can redact secret values in our
+    # debug endpoints.
+    secret: bool = False
 
 
 if TYPE_CHECKING:
@@ -414,6 +417,7 @@ def from_json(spec: spec.Spec, js: str | bytes) -> SettingsMap:
                 value=value_from_json_value(spec, setting, value['value']),
                 source=value['source'],
                 scope=qltypes.ConfigScope(value['scope']),
+                secret=setting.secret,
             )
 
     return mm.finish()
@@ -450,7 +454,10 @@ def set_value(
     scope: qltypes.ConfigScope,
 ) -> SettingsMap:
 
+    secret = name in storage and storage[name].secret
+
     return storage.set(
         name,
-        SettingValue(name=name, value=value, source=source, scope=scope),
+        SettingValue(name=name, value=value, source=source, scope=scope,
+                     secret=secret),
     )

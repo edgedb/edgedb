@@ -953,9 +953,6 @@ class BaseServer:
         Some tests depend on the exact layout of the returned structure.
         """
 
-        def serialize_config(cfg):
-            return {name: value.value for name, value in cfg.items()}
-
         return dict(
             params=dict(
                 dev_mode=self._devmode,
@@ -964,7 +961,8 @@ class BaseServer:
                 listen_hosts=self._listen_hosts,
                 listen_port=self._listen_port,
             ),
-            instance_config=serialize_config(self._get_sys_config()),
+            instance_config=config.debug_serialize_config(
+                self._get_sys_config()),
             compiler_pool=dict(
                 worker_pids=list(
                     self._compiler_pool._workers.keys()  # type: ignore

@@ -530,6 +530,9 @@ class ContextLevel(compiler.ContextLevel):
     defining_view: Optional[s_objtypes.ObjectType]
     """Whether a view is currently being defined (as opposed to be compiled)"""
 
+    current_schema_views: tuple[s_types.Type, ...]
+    """Which schema views are currently being compiled"""
+
     recompiling_schema_alias: bool
     """Whether we are currently recompiling a schema-level expression alias."""
 
@@ -599,6 +602,7 @@ class ContextLevel(compiler.ContextLevel):
             self.special_computables_in_mutation_shape = frozenset()
             self.empty_result_type_hint = None
             self.defining_view = None
+            self.current_schema_views = ()
             self.compiling_update_shape = False
             self.active_computeds = ordered.OrderedSet()
             self.recompiling_schema_alias = False
@@ -641,6 +645,7 @@ class ContextLevel(compiler.ContextLevel):
                 prevlevel.special_computables_in_mutation_shape
             self.empty_result_type_hint = prevlevel.empty_result_type_hint
             self.defining_view = prevlevel.defining_view
+            self.current_schema_views = prevlevel.current_schema_views
             self.compiling_update_shape = prevlevel.compiling_update_shape
             self.active_computeds = prevlevel.active_computeds
             self.recompiling_schema_alias = prevlevel.recompiling_schema_alias

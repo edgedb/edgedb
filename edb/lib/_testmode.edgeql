@@ -133,6 +133,10 @@ create extension package _conf VERSION '1.0' {
         create property opt_value -> std::str {
             set readonly := true;
         };
+        create property secret -> std::str {
+            set readonly := true;
+            set secret := true;
+        };
     };
     create type ext::_conf::SubObj extending ext::_conf::Obj {
         create required property extra -> int64 {
@@ -147,9 +151,16 @@ create extension package _conf VERSION '1.0' {
             set default := "";
         };
         create property opt_value -> std::str;
+        create property secret -> std::str {
+            set secret := true;
+        };
     };
-};
 
+    create function ext::_conf::get_secret(c: ext::_conf::Obj)
+        -> optional std::str using (c.secret);
+    create alias ext::_conf::OK := (
+        cfg::Config.extensions[is ext::_conf::Config].secret ?= 'foobaz');
+};
 
 # std::_gen_series
 

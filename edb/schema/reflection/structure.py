@@ -308,6 +308,26 @@ def generate_structure(
                 $$;
                 SET volatility := 'IMMUTABLE';
             };
+
+            # A strictly-internal get config function that bypasses
+            # the redaction of secrets in the public-facing one.
+            CREATE FUNCTION
+            cfg::_get_config_json_internal(
+                NAMED ONLY sources: OPTIONAL array<std::str> = {},
+                NAMED ONLY max_source: OPTIONAL std::str = {}
+            ) -> std::json
+            {
+                USING SQL $$
+                SELECT
+                    coalesce(jsonb_object_agg(cfg.name, cfg), '{}'::jsonb)
+                FROM
+                    edgedb._read_sys_config(
+                        sources::edgedb._sys_config_source_t[],
+                        max_source::edgedb._sys_config_source_t
+                    ) AS cfg
+                $$;
+            };
+
             ''',
             schema=schema,
             delta=delta,

@@ -69,6 +69,9 @@ class GlobalCompilerOptions:
     #: this contains the type of the schema object.
     schema_object_context: Optional[Type[s_obj.Object]] = None
 
+    #: When compiling a function body, the function name.
+    func_name: Optional[s_name.QualName] = None
+
     #: When compiling a function body, specifies function parameter
     #: definitions.
     func_params: Optional[s_func.ParameterLikeList] = None

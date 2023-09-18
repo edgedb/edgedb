@@ -1625,6 +1625,7 @@ class FunctionCommand(
             schema,
             context,
             body=body,
+            func_name=self.classname,
             params=params,
             language=language,
             return_type=return_type,
@@ -2370,6 +2371,7 @@ def compile_function(
     context: sd.CommandContext,
     *,
     body: s_expr.Expression,
+    func_name: sn.QualName,
     params: FuncParameterList,
     language: qlast.Language,
     return_type: s_types.Type,
@@ -2390,6 +2392,7 @@ def compile_function(
         schema,
         options=qlcompiler.CompilerOptions(
             anchors=param_anchors,
+            func_name=func_name,
             func_params=params,
             apply_query_rewrites=not context.stdmode,
             track_schema_ref_exprs=track_schema_ref_exprs,

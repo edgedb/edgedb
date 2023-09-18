@@ -40,6 +40,7 @@ class CompositeTypeSpecField:
     _: dataclasses.KW_ONLY
     unique: bool = True
     default: Any = MISSING
+    secret: bool = False
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -59,7 +60,7 @@ class CompositeTypeSpec:
 class CompositeType:
     _tspec: CompositeTypeSpec
 
-    def to_json_value(self) -> dict[str, Any]:
+    def to_json_value(self, redacted: bool=False) -> dict[str, Any]:
         raise NotImplementedError
 
 
