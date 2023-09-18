@@ -292,12 +292,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         f"""
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::auth_signing_key := <str>'{'a' * 32}';
-        """,
-        """
+
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::token_time_to_live := <duration>'24 hours';
-        """,
-        f"""
+
         CONFIGURE CURRENT DATABASE
         INSERT ext::auth::ClientConfig {{
             provider_name := "github",
@@ -306,8 +304,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             secret := <str>'{"b" * 32}',
             client_id := <str>'{uuid.uuid4()}'
         }};
-        """,
-        f"""
+
         CONFIGURE CURRENT DATABASE
         INSERT ext::auth::ClientConfig {{
             provider_name := "google",
@@ -316,8 +313,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             secret := <str>'{"c" * 32}',
             client_id := <str>'{uuid.uuid4()}'
         }};
-        """,
-        f"""
+
         CONFIGURE CURRENT DATABASE
         INSERT ext::auth::ClientConfig {{
             provider_name := "azure",
@@ -326,8 +322,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             secret := <str>'{"c" * 32}',
             client_id := <str>'{uuid.uuid4()}'
         }};
-        """,
-        f"""
+
         CONFIGURE CURRENT DATABASE
         INSERT ext::auth::ClientConfig {{
             provider_name := "apple",
@@ -338,6 +333,31 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         }};
         """,
     ]
+
+    @classmethod
+    async def _wait_for_db_config(cls):
+        dbname = cls.get_database_name()
+        # Wait for the database config changes to propagate to the
+        # server by watching a debug endpoint
+        async for tr in cls.try_until_succeeds(ignore=AssertionError):
+            async with tr:
+                with cls.http_con() as http_con:
+                    rdata, _headers, status = (
+                        tb.ExtAuthTestCase.http_con_request(
+                            http_con,
+                            prefix="",
+                            path="server-info",
+                        )
+                    )
+                    data = json.loads(rdata)
+                    config = data['databases'][dbname]['config']
+                    if 'ext::auth::AuthConfig::providers' not in config:
+                        raise AssertionError('database config not ready')
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.loop.run_until_complete(cls._wait_for_db_config())
 
     @classmethod
     def get_setup_script(cls):
@@ -362,6 +382,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
         return res
 
+    @classmethod
     def http_con_send_request(self, *args, headers=None, **kwargs):
         """Inject a test header.
 
