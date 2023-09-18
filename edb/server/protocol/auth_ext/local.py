@@ -88,7 +88,7 @@ class PasswordProvider:
       handle := <str>$handle,
       password_hash := <str>$password_hash,
       identity := (insert ext::auth::LocalIdentity {
-        iss := <str>"local",
+        iss := "local",
         sub := "",
         email := email,
         handle := handle,
