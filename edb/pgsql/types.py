@@ -228,10 +228,10 @@ def to_regconfig(
 ) -> str:
     "Analogous to edgedb.fts_to_regconfig function in metaschema"
     language = language.lower()
-    if language.startswith('iso_'):
-        return pg_langs_by_iso_639_3.get(language[4:], language)
+    if language.startswith('xxx_'):
+        return language[4:]
     else:
-        return language
+        return pg_langs_by_iso_639_3.get(language, language)
 
 
 def is_builtin_scalar(

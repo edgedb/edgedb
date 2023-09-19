@@ -43,7 +43,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
             select fts::search(
                 Paragraph,
                 'drink poison',
-                language := 'ISO_eng'
+                language := 'eng'
             ).object {
                 number,
                 text,
@@ -97,7 +97,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
             select fts::search(
                 Paragraph,
                 'drink me',
-                language := 'ISO_eng'
+                language := 'eng'
             ).object {
                 number,
                 text,
@@ -142,7 +142,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
             select fts::search(
                 Paragraph,
                 'drink AND poison',
-                language := 'ISO_eng'
+                language := 'eng'
             ).object {
                 number,
                 text,
@@ -174,7 +174,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
             select fts::search(
                 Paragraph,
                 'drink "poison"',
-                language := 'ISO_eng'
+                language := 'eng'
             ).object {
                 number,
                 text,
@@ -209,7 +209,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                 select fts::search(
                     Paragraph,
                     'white rabbit gloves watch',
-                    language := 'ISO_eng'
+                    language := 'eng'
                 )
                 order by .score desc
                 limit 3
@@ -250,7 +250,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                 select fts::search(
                     Paragraph,
                     '"golden key" OR "white rabbit"',
-                    language := 'ISO_eng'
+                    language := 'eng'
                 )
                 order by .score desc
                 limit 3
@@ -292,7 +292,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                 select fts::search(
                     Paragraph,
                     'drink AND poison',
-                    language := 'ISO_eng'
+                    language := 'eng'
                 )
                 order by .score desc
                 limit 3
@@ -365,7 +365,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Text,
                 'rabbit run around the world',
-                language := 'ISO_eng'
+                language := 'eng'
             ).object {
                 text,
                 type := .__type__.name,
@@ -403,7 +403,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Text,
                 'foxy world',
-                language := 'ISO_eng'
+                language := 'eng'
             ).object {
                 text,
                 type := .__type__.name,
@@ -433,7 +433,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 FancyText,
                 'fancy chase',
-                language := 'ISO_eng'
+                language := 'eng'
             ).object {
                 text,
                 type := .__type__.name,
@@ -459,7 +459,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 FancyQuotedText,
                 'fancy chase',
-                language := 'ISO_eng'
+                language := 'eng'
             ).object {
                 text,
                 type := .__type__.name,
@@ -480,7 +480,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Post,
                 'angry',
-                language := 'ISO_eng'
+                language := 'eng'
             ).object {
                 title,
                 body,
@@ -503,7 +503,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Post,
                 'reply',
-                language := 'ISO_eng'
+                language := 'eng'
             ).object {
                 title,
                 body,
@@ -526,7 +526,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Post,
                 'sky',
-                language := 'ISO_eng'
+                language := 'eng'
             ).object {
                 title,
                 body,
@@ -547,7 +547,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Description,
                 'red',
-                language := 'ISO_eng'
+                language := 'eng'
             ).object {
                 text,
             }
@@ -563,7 +563,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Description,
                 '2 or 3',
-                language := 'ISO_eng'
+                language := 'eng'
             ).object {
                 text,
             }
@@ -579,7 +579,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Description,
                 'item AND fancy',
-                language := 'ISO_eng'
+                language := 'eng'
             ).object {
                 text,
             }
@@ -596,7 +596,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 (select Description limit 10),
                 'red',
-                language := 'ISO_eng'
+                language := 'eng'
             ).object {
                 text,
             }
@@ -613,7 +613,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 (select Description filter .text like 'Item%'),
                 'red',
-                language := 'ISO_eng'
+                language := 'eng'
             ).object { text }
             ''',
             tb.bag([
@@ -631,7 +631,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                     Post,
                 },
                 'red',
-                language := 'ISO_eng'
+                language := 'eng'
             ).object { __type__: { name }}
             ''',
             tb.bag([
@@ -647,7 +647,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 (select Description filter false),
                 'red',
-                language := 'ISO_eng'
+                language := 'eng'
             ).object { text }
             ''',
             []
@@ -660,7 +660,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Description,
                 (select FancyText filter .style = 0 limit 1).text[0:5],
-                language := 'ISO_eng'
+                language := 'eng'
             ).object { text }
             ''',
             tb.bag([
@@ -674,7 +674,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Description,
                 <optional str>$0,
-                language := 'ISO_eng'
+                language := 'eng'
             ).object { text }
             ''',
             [],
@@ -717,7 +717,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             with res := fts::search(
                 Post,
                 'angry',
-                language := 'ISO_eng',
+                language := 'eng',
                 weights := [0.0, 0.0, 0.0, 1.0]
             )
             select res.object.title
@@ -730,7 +730,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             with res := fts::search(
                 Post,
                 'angry',
-                language := 'ISO_eng',
+                language := 'eng',
                 weights := [0.0, 0.0, 1.0, 0.0]
             )
             select res.object.title
@@ -750,7 +750,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             insert Doc1 { x := 'hello world' };
             alter type Doc1 {
                 create index fts::index on (
-                    fts::with_options(.x, fts::Language.ISO_eng)
+                    fts::with_options(.x, fts::Language.eng)
                 );
             };
             '''
@@ -758,7 +758,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            select fts::search(Doc1, 'world', language := 'ISO_eng').object.x;
+            select fts::search(Doc1, 'world', language := 'eng').object.x;
             ''',
             ['hello world']
         )

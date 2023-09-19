@@ -11454,7 +11454,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             type Base {
                 property name -> str;
                 index MyIndex on (
-                    fts::with_options(.name, fts::Language.ISO_eng)
+                    fts::with_options(.name, fts::Language.eng)
                 );
             };
         """)
@@ -11464,7 +11464,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             type Base {
                 property name -> str;
                 index MyIndex on (
-                    fts::with_options(.name, fts::Language.ISO_eng)
+                    fts::with_options(.name, fts::Language.eng)
                 );
             };
             type Child extending Base;
@@ -11482,7 +11482,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             type Base {
                 property name -> str;
                 index MyIndex on (
-                    fts::with_options(.name, fts::Language.ISO_eng)
+                    fts::with_options(.name, fts::Language.eng)
                 );
             };
             type Child extending Base;
@@ -11495,7 +11495,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             type Base {
                 property name -> str;
                 index MyIndex on (
-                    fts::with_options(.name, fts::Language.ISO_eng)
+                    fts::with_options(.name, fts::Language.eng)
                 );
             };
             type Child extending Base;
