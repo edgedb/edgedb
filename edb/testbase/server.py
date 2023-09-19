@@ -342,8 +342,9 @@ class BaseHTTPTestCase(TestCase):
     def get_api_prefix(cls):
         return ''
 
+    @classmethod
     @contextlib.contextmanager
-    def http_con(self, server, keep_alive=True):
+    def http_con(cls, server, keep_alive=True):
         conn_args = server.get_connect_args()
         tls_context = ssl.create_default_context(
             ssl.Purpose.SERVER_AUTH,
@@ -366,8 +367,9 @@ class BaseHTTPTestCase(TestCase):
         finally:
             con.true_close()
 
+    @classmethod
     def http_con_send_request(
-        self,
+        cls,
         http_con: http.client.HTTPConnection,
         params: Optional[dict[str, str]] = None,
         *,
@@ -379,7 +381,7 @@ class BaseHTTPTestCase(TestCase):
     ):
         url = f'https://{http_con.host}:{http_con.port}'
         if prefix is None:
-            prefix = self.get_api_prefix()
+            prefix = cls.get_api_prefix()
         if prefix:
             url = f'{url}{prefix}'
         if path:
@@ -390,8 +392,9 @@ class BaseHTTPTestCase(TestCase):
             headers = {}
         http_con.request(method, url, body=body, headers=headers)
 
+    @classmethod
     def http_con_read_response(
-        self,
+        cls,
         http_con: http.client.HTTPConnection,
     ) -> tuple[bytes, dict[str, str], int]:
         resp = http_con.getresponse()
@@ -399,8 +402,9 @@ class BaseHTTPTestCase(TestCase):
         resp_headers = {k.lower(): v for k, v in resp.getheaders()}
         return resp_body, resp_headers, resp.status
 
+    @classmethod
     def http_con_request(
-        self,
+        cls,
         http_con: http.client.HTTPConnection,
         params: Optional[dict[str, str]] = None,
         *,
@@ -410,7 +414,7 @@ class BaseHTTPTestCase(TestCase):
         body: bytes = b"",
         path: str = "",
     ) -> tuple[bytes, dict[str, str], int]:
-        self.http_con_send_request(
+        cls.http_con_send_request(
             http_con,
             params,
             prefix=prefix,
@@ -419,10 +423,11 @@ class BaseHTTPTestCase(TestCase):
             body=body,
             path=path,
         )
-        return self.http_con_read_response(http_con)
+        return cls.http_con_read_response(http_con)
 
+    @classmethod
     def http_con_json_request(
-        self,
+        cls,
         http_con: http.client.HTTPConnection,
         params: Optional[dict[str, str]] = None,
         *,
@@ -430,7 +435,7 @@ class BaseHTTPTestCase(TestCase):
         body: Any,
         path: str = "",
     ):
-        response, headers, status = self.http_con_request(
+        response, headers, status = cls.http_con_request(
             http_con,
             params,
             method="POST",
@@ -667,16 +672,7 @@ class ClusterTestCase(BaseHTTPTestCase):
 
     @classmethod
     async def tearDownSingleDB(cls):
-        await cls.con.execute(
-            'START MIGRATION TO {};\n'
-            'POPULATE MIGRATION;\n'
-            'COMMIT MIGRATION;'
-        )
-        while m := await cls.con.query_single(
-            "SELECT schema::Migration { name } "
-            "FILTER NOT EXISTS .<parents LIMIT 1"
-        ):
-            await cls.con.execute(f"DROP MIGRATION {m.name}")
+        await cls.con.execute("RESET SCHEMA TO initial;")
 
     @classmethod
     def fetch_metrics(cls) -> str:
@@ -754,10 +750,11 @@ class ClusterTestCase(BaseHTTPTestCase):
             finally:
                 await tx.rollback()
 
+    @classmethod
     @contextlib.contextmanager
-    def http_con(self, server=None):
+    def http_con(cls, server=None):
         if server is None:
-            server = self
+            server = cls
         with super().http_con(server) as http_con:
             yield http_con
 

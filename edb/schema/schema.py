@@ -55,6 +55,8 @@ if TYPE_CHECKING:
         ],
     ]
 
+EXT_MODULE = sn.UnqualName('ext')
+
 STD_MODULES = (
     sn.UnqualName('std'),
     sn.UnqualName('schema'),
@@ -65,7 +67,7 @@ STD_MODULES = (
     sn.UnqualName('pg'),
     sn.UnqualName('std::_test'),
     sn.UnqualName('fts'),
-    sn.UnqualName('ext'),
+    EXT_MODULE,
     sn.UnqualName('std::enc'),
 )
 

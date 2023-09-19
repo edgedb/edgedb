@@ -2408,6 +2408,10 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                     (modroot := sn.UnqualName(modname.name.partition('::')[0]))
                     in s_schema.STD_MODULES
                 )
+                and not (
+                    modroot == s_schema.EXT_MODULE
+                    and context.transient_derivation
+                )
             ):
                 raise errors.SchemaDefinitionError(
                     f'cannot {self._delta_action} {self.get_verbosename()}: '
