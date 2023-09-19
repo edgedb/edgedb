@@ -294,7 +294,7 @@ def _pg_create_trigger(
 ) -> dbops.Command:
     ops = dbops.CommandGroup()
 
-    # create the update function
+    # prepare the expression to update __fts_document__
     document_exprs = []
     for expr in exprs:
         assert isinstance(expr, pgast.FTSDocument)
@@ -319,6 +319,14 @@ def _pg_create_trigger(
 
     document_sql = ' || '.join(document_exprs) if document_exprs else 'NULL'
 
+    # update existing rows
+    ops.add_command(dbops.Query(
+        f"""
+        UPDATE {q(*table_name)} as NEW SET __fts_document__ = ({document_sql});
+        """
+    ))
+
+    # create update function
     func_name = _pg_update_func_name(table_name)
     function = dbops.Function(
         name=func_name,

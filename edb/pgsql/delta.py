@@ -3661,6 +3661,16 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
 
         self.pgops.add(self.create_index(index, schema, context))
 
+        # FTS
+        if index.has_base_with_name(schema, sn.QualName('fts', 'index')):
+            # update inhviews
+
+            subject = index.get_subject(schema)
+            assert isinstance(subject, s_objtypes.ObjectType)
+            self.schedule_inhview_update(
+                schema, context, subject, s_objtypes.ObjectTypeCommandContext
+            )
+
         return schema
 
 

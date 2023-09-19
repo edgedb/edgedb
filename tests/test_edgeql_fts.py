@@ -738,3 +738,27 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             ''',
             ["random stuff", "angry reply"]
         )
+
+    async def test_edgeql_fts_updating(self):
+        # test that adding an fts index, existing objects are also indexed
+
+        await self.con.execute(
+            '''
+            create type Doc1 {
+                create required property x -> str;
+            };
+            insert Doc1 { x := 'hello world' };
+            alter type Doc1 {
+                create index fts::index on (
+                    fts::with_options(.x, fts::Analyzer.ISO_eng)
+                );
+            };
+            '''
+        )
+
+        await self.assert_query_result(
+            r'''
+            select fts::search(Doc1, 'world', analyzer := 'ISO_eng').object.x;
+            ''',
+            ['hello world']
+        )
