@@ -4101,7 +4101,7 @@ class FTSNormalizeDocFunction(dbops.Function):
 
 class FTSToRegconfig(dbops.Function):
     """
-    Converts analyzer identifier into a regconfig.
+    Converts language identifier into a regconfig.
     Names prefixed with 'iso_' are treated as ISO 639-3 language identifiers.
     """
 
@@ -4109,13 +4109,13 @@ class FTSToRegconfig(dbops.Function):
         super().__init__(
             name=('edgedb', 'fts_to_regconfig'),
             args=[
-                ('analyzer', ('text',)),
+                ('language', ('text',)),
             ],
             returns=('regconfig',),
             volatility='immutable',
             text='''
             SELECT
-                CASE LOWER(analyzer)
+                CASE LOWER(language)
                     WHEN 'iso_ara' THEN 'arabic'
                     WHEN 'iso_hye' THEN 'armenian'
                     WHEN 'iso_eus' THEN 'basque'
@@ -4144,7 +4144,7 @@ class FTSToRegconfig(dbops.Function):
                     WHEN 'iso_tam' THEN 'tamil'
                     WHEN 'iso_tur' THEN 'turkish'
                     WHEN 'iso_yid' THEN 'yiddish'
-                    ELSE COALESCE(LOWER(analyzer), 'english')
+                    ELSE COALESCE(LOWER(language), 'english')
                 END::pg_catalog.regconfig;
             ''',
         )

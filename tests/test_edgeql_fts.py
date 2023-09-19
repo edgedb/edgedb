@@ -43,7 +43,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
             select fts::search(
                 Paragraph,
                 'drink poison',
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object {
                 number,
                 text,
@@ -97,7 +97,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
             select fts::search(
                 Paragraph,
                 'drink me',
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object {
                 number,
                 text,
@@ -142,7 +142,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
             select fts::search(
                 Paragraph,
                 'drink AND poison',
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object {
                 number,
                 text,
@@ -174,7 +174,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
             select fts::search(
                 Paragraph,
                 'drink "poison"',
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object {
                 number,
                 text,
@@ -209,7 +209,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                 select fts::search(
                     Paragraph,
                     'white rabbit gloves watch',
-                    analyzer := 'ISO_eng'
+                    language := 'ISO_eng'
                 )
                 order by .score desc
                 limit 3
@@ -250,7 +250,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                 select fts::search(
                     Paragraph,
                     '"golden key" OR "white rabbit"',
-                    analyzer := 'ISO_eng'
+                    language := 'ISO_eng'
                 )
                 order by .score desc
                 limit 3
@@ -292,7 +292,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                 select fts::search(
                     Paragraph,
                     'drink AND poison',
-                    analyzer := 'ISO_eng'
+                    language := 'ISO_eng'
                 )
                 order by .score desc
                 limit 3
@@ -331,7 +331,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
-            "analyzers `esperanto`, `piglatin` not supported",
+            "languages `esperanto`, `piglatin` not supported",
         ):
             # In this case, language is not a constant, so we fallback to all
             # possible values of the enum. This then fails because some of them
@@ -365,7 +365,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Text,
                 'rabbit run around the world',
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object {
                 text,
                 type := .__type__.name,
@@ -403,7 +403,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Text,
                 'foxy world',
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object {
                 text,
                 type := .__type__.name,
@@ -433,7 +433,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 FancyText,
                 'fancy chase',
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object {
                 text,
                 type := .__type__.name,
@@ -459,7 +459,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 FancyQuotedText,
                 'fancy chase',
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object {
                 text,
                 type := .__type__.name,
@@ -480,7 +480,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Post,
                 'angry',
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object {
                 title,
                 body,
@@ -503,7 +503,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Post,
                 'reply',
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object {
                 title,
                 body,
@@ -526,7 +526,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Post,
                 'sky',
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object {
                 title,
                 body,
@@ -547,7 +547,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Description,
                 'red',
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object {
                 text,
             }
@@ -563,7 +563,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Description,
                 '2 or 3',
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object {
                 text,
             }
@@ -579,7 +579,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Description,
                 'item AND fancy',
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object {
                 text,
             }
@@ -596,7 +596,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 (select Description limit 10),
                 'red',
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object {
                 text,
             }
@@ -613,7 +613,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 (select Description filter .text like 'Item%'),
                 'red',
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object { text }
             ''',
             tb.bag([
@@ -631,7 +631,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                     Post,
                 },
                 'red',
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object { __type__: { name }}
             ''',
             tb.bag([
@@ -647,7 +647,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 (select Description filter false),
                 'red',
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object { text }
             ''',
             []
@@ -660,7 +660,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Description,
                 (select FancyText filter .style = 0 limit 1).text[0:5],
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object { text }
             ''',
             tb.bag([
@@ -674,21 +674,21 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Description,
                 <optional str>$0,
-                analyzer := 'ISO_eng'
+                language := 'ISO_eng'
             ).object { text }
             ''',
             [],
             variables=(None,)
         )
 
-    async def test_edgeql_fts_complex_analyzer(self):
-        # analyzer is an expression
+    async def test_edgeql_fts_complex_lang(self):
+        # lang is an expression
         await self.assert_query_result(
             r'''
             select fts::search(
                 Description,
                 'pants',
-                analyzer := 'I can speak english fluently'[12:19]
+                language := 'I can speak english fluently'[12:19]
             ).object { text }
             ''',
             tb.bag([
@@ -702,7 +702,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select fts::search(
                 Description,
                 'pants',
-                analyzer := <optional str>$0
+                language := <optional str>$0
             ).object { text }
             ''',
             tb.bag([
@@ -717,7 +717,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             with res := fts::search(
                 Post,
                 'angry',
-                analyzer := 'ISO_eng',
+                language := 'ISO_eng',
                 weights := [0.0, 0.0, 0.0, 1.0]
             )
             select res.object.title
@@ -730,7 +730,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             with res := fts::search(
                 Post,
                 'angry',
-                analyzer := 'ISO_eng',
+                language := 'ISO_eng',
                 weights := [0.0, 0.0, 1.0, 0.0]
             )
             select res.object.title
@@ -750,7 +750,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             insert Doc1 { x := 'hello world' };
             alter type Doc1 {
                 create index fts::index on (
-                    fts::with_options(.x, fts::Analyzer.ISO_eng)
+                    fts::with_options(.x, fts::Language.ISO_eng)
                 );
             };
             '''
@@ -758,7 +758,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            select fts::search(Doc1, 'world', analyzer := 'ISO_eng').object.x;
+            select fts::search(Doc1, 'world', language := 'ISO_eng').object.x;
             ''',
             ['hello world']
         )

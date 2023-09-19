@@ -217,13 +217,13 @@ def _refresh_fts_document(
     return ops
 
 
-def _raise_unsupported_analyzer_error(
+def _raise_unsupported_language_error(
     unsupported: Collection[str],
 ) -> None:
     unsupported = list(unsupported)
     unsupported.sort()
 
-    msg = 'Full text search analyzer'
+    msg = 'Full text search language'
     if len(unsupported) > 1:
         msg += 's'
 
@@ -299,17 +299,18 @@ def _pg_create_trigger(
     for expr in exprs:
         assert isinstance(expr, pgast.FTSDocument)
 
-        analyzer_domain = map(types.to_regconfig, expr.analyzer_domain)
-        unsupported = set(analyzer_domain).difference(types.pg_langs)
+        lang_domain: Iterable[str] = expr.language_domain
+        lang_domain = map(types.to_regconfig, lang_domain)
+        unsupported = set(lang_domain).difference(types.pg_langs)
         if len(unsupported) > 0:
-            _raise_unsupported_analyzer_error(unsupported)
+            _raise_unsupported_language_error(unsupported)
 
         text_sql = codegen.generate_source(expr.text)
-        analyzer_sql = codegen.generate_source(expr.analyzer)
+        language_sql = codegen.generate_source(expr.language)
 
         document_expr = f'''
             to_tsvector(
-                edgedb.fts_to_regconfig(({analyzer_sql})::text),
+                edgedb.fts_to_regconfig(({language_sql})::text),
                 COALESCE({text_sql}, '')
             )
         '''
@@ -436,14 +437,14 @@ def _zombo_create_fts_document(
 
         text_sql = codegen.generate_source(expr.text)
 
-        if len(expr.analyzer_domain) != 1:
+        if len(expr.language_domain) != 1:
             raise errors.UnsupportedFeatureError(
-                'zombo fts indexes support only exactly one analyzer'
+                'zombo fts indexes support only exactly one language'
             )
-        analyzer = next(iter(expr.analyzer_domain))
+        language = next(iter(expr.language_domain))
 
         document_exprs.append(text_sql)
-        type_mappings.append((f'field{idx}', analyzer))
+        type_mappings.append((f'field{idx}', language))
 
     zombo_func_name = _zombo_func_name(table_name)
     ops.add_command(
@@ -460,8 +461,8 @@ def _zombo_create_fts_document(
         )
     )
 
-    for col_name, analyzer in type_mappings:
-        mapping = f'{{"type": "text", "analyzer": "{analyzer}"}}'
+    for col_name, language in type_mappings:
+        mapping = f'{{"type": "text", "analyzer": "{language}"}}'
 
         ops.add_command(
             dbops.Query(

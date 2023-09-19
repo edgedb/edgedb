@@ -977,31 +977,31 @@ def _validate_has_fts_index(
 def compile_fts_with_options(
     call: irast.FunctionCall, *, ctx: context.ContextLevel
 ) -> irast.Expr:
-    # analyzer has already been typechecked to be an enum
-    analyzer = call.args[1].expr
-    assert analyzer.typeref
-    analyzer_ty_id = analyzer.typeref.id
-    analyzer_ty = ctx.env.schema.get_by_id(
-        analyzer_ty_id, type=s_scalars.ScalarType
+    # language has already been typechecked to be an enum
+    lang = call.args[1].expr
+    assert lang.typeref
+    lang_ty_id = lang.typeref.id
+    lang_ty = ctx.env.schema.get_by_id(
+        lang_ty_id, type=s_scalars.ScalarType
     )
-    assert analyzer_ty
+    assert lang_ty
 
-    analyzer_domain = set()  # analyzers that the fts index needs to support
-    if irutils.is_const(analyzer):
-        # analyzer is constant
+    lang_domain = set()  # languages that the fts index needs to support
+    if irutils.is_const(lang):
+        # language is constant
         # -> determine its only value at compile time
-        lang_const = irutils.as_const(analyzer)
+        lang_const = irutils.as_const(lang)
         assert lang_const
-        analyzer_domain.add(str(lang_const.value).lower())
+        lang_domain.add(str(lang_const.value).lower())
 
     else:
-        # analyzer is not constant
+        # language is not constant
         # -> use all possible values of the enum
 
-        enum_values = analyzer_ty.get_enum_values(ctx.env.schema)
+        enum_values = lang_ty.get_enum_values(ctx.env.schema)
         assert enum_values
         for enum_value in enum_values:
-            analyzer_domain.add(enum_value.lower())
+            lang_domain.add(enum_value.lower())
 
     # weight_category
     if len(call.args) > 2:
@@ -1019,7 +1019,7 @@ def compile_fts_with_options(
 
     return irast.FTSDocument(
         text=call.args[0].expr,
-        analyzer=analyzer,
-        analyzer_domain=analyzer_domain,
+        language=lang,
+        language_domain=lang_domain,
         weight=weight,
     )

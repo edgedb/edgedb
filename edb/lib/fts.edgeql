@@ -19,7 +19,7 @@
 
 CREATE MODULE fts;
 
-CREATE SCALAR TYPE fts::Analyzer
+CREATE SCALAR TYPE fts::Language
     EXTENDING enum<
         ISO_ara,
         ISO_hye,
@@ -46,7 +46,7 @@ CREATE SCALAR TYPE fts::Analyzer
         ISO_tur,
     > {
     CREATE ANNOTATION std::description := '
-        Analyzers supported by PostgreSQL FTS, ElasticSearch and Apache Lucene.
+        Languages supported by PostgreSQL FTS, ElasticSearch and Apache Lucene.
         Names prefixed with ISO are ISO 639-3 language identifiers.
     ';
 };
@@ -63,11 +63,11 @@ CREATE SCALAR TYPE fts::document {
 
 CREATE FUNCTION fts::with_options(
     text: std::str,
-    analyzer: anyenum,
+    language: anyenum,
     weight_category: optional std::str = <std::str>{},
 ) -> fts::document {
     CREATE ANNOTATION std::description := '
-        Adds analyzer (i.e. language) and weight information to a string,
+        Adds language (i.e. language) and weight information to a string,
         so it be indexed with fts::index.
     ';
     SET volatility := 'Immutable';
@@ -77,7 +77,7 @@ CREATE FUNCTION fts::with_options(
 CREATE FUNCTION fts::search(
     object: anyobject,
     query: std::str,
-    named only analyzer: std::str = <std::str>fts::Analyzer.ISO_eng,
+    named only language: std::str = <std::str>fts::Language.ISO_eng,
     named only weights: optional array<float64> = {},
 ) -> optional tuple<object: anyobject, score: float32>
 {
@@ -89,7 +89,7 @@ CREATE FUNCTION fts::search(
     USING SQL EXPRESSION;
 };
 
-CREATE SCALAR TYPE fts::PGAnalyzer
+CREATE SCALAR TYPE fts::PGLanguage
     EXTENDING enum<
         Simple,
         ISO_ara,
@@ -122,12 +122,12 @@ CREATE SCALAR TYPE fts::PGAnalyzer
         ISO_yid,
     > {
     CREATE ANNOTATION std::description :='
-        Analyzers supported by PostgreSQL FTS.
+        Languages supported by PostgreSQL FTS.
         Names prefixed with ISO are ISO 639-3 language identifiers.
     ';
 };
 
-CREATE SCALAR TYPE fts::ElasticAnalyzer
+CREATE SCALAR TYPE fts::ElasticLanguage
     EXTENDING enum<
         ISO_ara,
         ISO_hye,
@@ -164,12 +164,12 @@ CREATE SCALAR TYPE fts::ElasticAnalyzer
         ChineseJapaneseKorean,
     > {
     CREATE ANNOTATION std::description := '
-        Analyzers supported by ElasticSearch.
+        Languages supported by ElasticSearch.
         Names prefixed with ISO are ISO 639-3 language identifiers.
     ';
 };
 
-CREATE SCALAR TYPE fts::LuceneAnalyzer
+CREATE SCALAR TYPE fts::LuceneLanguage
     EXTENDING enum<
         ISO_ara,
         ISO_bul,
@@ -210,7 +210,7 @@ CREATE SCALAR TYPE fts::LuceneAnalyzer
         Indian,
     > {
     CREATE ANNOTATION std::description := '
-        Analyzers supported by Apache Lucene.
+        Languages supported by Apache Lucene.
         Names prefixed with ISO are ISO 639-3 language identifiers.
     ';
 };

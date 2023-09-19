@@ -224,14 +224,14 @@ pg_langs_by_iso_639_3 = {
 
 
 def to_regconfig(
-    analyzer: str
+    language: str
 ) -> str:
     "Analogous to edgedb.fts_to_regconfig function in metaschema"
-    analyzer = analyzer.lower()
-    if analyzer.startswith('iso_'):
-        return pg_langs_by_iso_639_3.get(analyzer[4:], analyzer)
+    language = language.lower()
+    if language.startswith('iso_'):
+        return pg_langs_by_iso_639_3.get(language[4:], language)
     else:
-        return analyzer
+        return language
 
 
 def is_builtin_scalar(

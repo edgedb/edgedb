@@ -50,7 +50,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
             await self.assert_query_result(
                 '''
                     select fts::search(
-                        Text, 'hello', analyzer := 'ISO_eng'
+                        Text, 'hello', language := 'ISO_eng'
                     ).object.num
                 ''',
                 [],
@@ -59,7 +59,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
             await self.assert_query_result(
                 '''
                     select fts::search(
-                        Ordered, 'hello', analyzer := 'ISO_eng'
+                        Ordered, 'hello', language := 'ISO_eng'
                     ).object.num
                 ''',
                 [],
@@ -78,7 +78,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                         type Text extending Ordered {
                             required text: str;
                             index fts::index on (
-                                fts::with_options(.text, fts::Analyzer.ISO_eng)
+                                fts::with_options(.text, fts::Language.ISO_eng)
                             );
                         }
                     }
@@ -94,7 +94,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
             await self.assert_query_result(
                 '''
                     select fts::search(
-                        Text, 'hello', analyzer := 'ISO_eng'
+                        Text, 'hello', language := 'ISO_eng'
                     ).object.num
                 ''',
                 [0],
@@ -103,7 +103,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
             await self.assert_query_result(
                 '''
                     select fts::search(
-                        Ordered, 'hello', analyzer := 'ISO_eng'
+                        Ordered, 'hello', language := 'ISO_eng'
                     ).object.num
                 ''',
                 [0],
@@ -122,7 +122,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                         type Text extending Ordered {
                             required text: str;
                             index fts::index on (
-                                fts::with_options(.text, fts::Analyzer.ISO_eng)
+                                fts::with_options(.text, fts::Language.ISO_eng)
                             );
                         }
                     }
@@ -138,7 +138,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
             await self.assert_query_result(
                 '''
                     select fts::search(
-                        Text, 'hello', analyzer := 'ISO_eng'
+                        Text, 'hello', language := 'ISO_eng'
                     ).object.num
                 ''',
                 [0],
@@ -147,7 +147,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
             await self.assert_query_result(
                 '''
                     select fts::search(
-                        Ordered, 'hello', analyzer := 'ISO_eng'
+                        Ordered, 'hello', language := 'ISO_eng'
                     ).object.num
                 ''',
                 [0],
@@ -161,7 +161,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                         abstract type Text {
                             required text: str;
                             index fts::index on (
-                                fts::with_options(.text, fts::Analyzer.ISO_eng)
+                                fts::with_options(.text, fts::Language.ISO_eng)
                             );
                         }
 
@@ -181,7 +181,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
             await self.assert_query_result(
                 '''
                     select fts::search(
-                        Text, 'hello', analyzer := 'ISO_eng'
+                        Text, 'hello', language := 'ISO_eng'
                     ).object.text
                 ''',
                 ['hello world'],
@@ -190,7 +190,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
             await self.assert_query_result(
                 '''
                     select fts::search(
-                        FancyText, 'hello', analyzer := 'ISO_eng'
+                        FancyText, 'hello', language := 'ISO_eng'
                     ).object.text
                 ''',
                 ['hello world'],
@@ -204,7 +204,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                         type Text {
                             required text: str;
                             index fts::index on (
-                                fts::with_options(.text, fts::Analyzer.ISO_eng)
+                                fts::with_options(.text, fts::Language.ISO_eng)
                             );
                         }
                     }
@@ -220,7 +220,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
             await self.assert_query_result(
                 '''
                     select fts::search(
-                        Text, 'hello', analyzer := 'ISO_eng'
+                        Text, 'hello', language := 'ISO_eng'
                     ).object.text
                 ''',
                 ['hello world'],
@@ -234,7 +234,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                     '''
                     select count((
                         select fts::search(
-                            Object, 'hello', analyzer := 'ISO_eng'
+                            Object, 'hello', language := 'ISO_eng'
                         )
                     ))
                     '''
@@ -248,15 +248,15 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                         type Text {
                             required text: str;
                             index fts::index on (
-                                fts::with_options(.text, fts::Analyzer.ISO_eng)
+                                fts::with_options(.text, fts::Language.ISO_eng)
                             );
                         }
 
                         type TitledText extending Text {
                             required title: str;
                             index fts::index on ((
-                              fts::with_options(.title, fts::Analyzer.ISO_eng),
-                              fts::with_options(.text, fts::Analyzer.ISO_eng)
+                              fts::with_options(.title, fts::Language.ISO_eng),
+                              fts::with_options(.text, fts::Language.ISO_eng)
                             ));
                         }
                     }
@@ -276,7 +276,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
             await self.assert_query_result(
                 '''
                     select fts::search(
-                        Text, 'world', analyzer := 'ISO_eng'
+                        Text, 'world', language := 'ISO_eng'
                     ).object.text
                 ''',
                 {'hello world', 'goodbye world'},
@@ -295,7 +295,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                             required text: str;
 
                             index fts::index on (
-                                fts::with_options(.text, fts::Analyzer.ISO_eng)
+                                fts::with_options(.text, fts::Language.ISO_eng)
                             );
                         }
 
@@ -303,8 +303,8 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                             required title: str;
                             required text: str;
                             index fts::index on ((
-                              fts::with_options(.title, fts::Analyzer.ISO_eng),
-                              fts::with_options(.text, fts::Analyzer.ISO_eng)
+                              fts::with_options(.title, fts::Language.ISO_eng),
+                              fts::with_options(.text, fts::Language.ISO_eng)
                             ));
                         }
                     }
@@ -325,7 +325,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 '''
                     select count((
                         select fts::search(
-                            Searchable, 'world', analyzer := 'ISO_eng'
+                            Searchable, 'world', language := 'ISO_eng'
                         )
                     ))
                 ''',
@@ -335,7 +335,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
             await self.assert_query_result(
                 '''
                     select fts::search(
-                        {Text, TitledText}, 'world', analyzer := 'ISO_eng'
+                        {Text, TitledText}, 'world', language := 'ISO_eng'
                     ).object.text
                 ''',
                 {'hello world', 'goodbye world'},
@@ -364,13 +364,13 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
             await self.con.execute('''
                 alter type default::Text {
                   create index fts::index on ((
-                    fts::with_options(.text0, fts::Analyzer.ISO_eng),
-                    fts::with_options(.text1, fts::Analyzer.ISO_eng),
-                    fts::with_options(.text2, fts::Analyzer.ISO_eng),
-                    fts::with_options(.text3, fts::Analyzer.ISO_eng),
-                    fts::with_options(.text4, fts::Analyzer.ISO_eng),
-                    fts::with_options(.text5, fts::Analyzer.ISO_eng),
-                    fts::with_options(.text6, fts::Analyzer.ISO_eng),
+                    fts::with_options(.text0, fts::Language.ISO_eng),
+                    fts::with_options(.text1, fts::Language.ISO_eng),
+                    fts::with_options(.text2, fts::Language.ISO_eng),
+                    fts::with_options(.text3, fts::Language.ISO_eng),
+                    fts::with_options(.text4, fts::Language.ISO_eng),
+                    fts::with_options(.text5, fts::Language.ISO_eng),
+                    fts::with_options(.text6, fts::Language.ISO_eng),
                   ));
                 }
             ''')
@@ -381,7 +381,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
         #           create index fts::index on (
         #             fts::with_options(
         #              (.text0, .text1, .text2, .text3, .text4, .text5, .text6),
-        #               fts::Analyzer.ISO_eng
+        #               fts::Language.ISO_eng
         #             )
         #           );
         #         }

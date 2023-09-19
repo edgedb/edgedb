@@ -819,7 +819,7 @@ def compile_FTSDocument(
 ) -> pgast.BaseExpr:
     return pgast.FTSDocument(
         text=dispatch.compile(expr.text, ctx=ctx),
-        analyzer=dispatch.compile(expr.analyzer, ctx=ctx),
-        analyzer_domain=expr.analyzer_domain,
+        language=dispatch.compile(expr.language, ctx=ctx),
+        language_domain=expr.language_domain,
         weight=expr.weight,
     )

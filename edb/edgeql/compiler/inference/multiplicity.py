@@ -891,7 +891,7 @@ def __infer_searchable_string(
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
     return _common_multiplicity(
-        (ir.text, ir.analyzer), scope_tree=scope_tree, ctx=ctx
+        (ir.text, ir.language), scope_tree=scope_tree, ctx=ctx
     )
 
 

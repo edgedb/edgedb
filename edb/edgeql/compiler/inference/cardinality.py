@@ -1425,7 +1425,7 @@ def __infer_searchable_string(
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
     return _common_cardinality(
-        (ir.text, ir.analyzer), scope_tree=scope_tree, ctx=ctx
+        (ir.text, ir.language), scope_tree=scope_tree, ctx=ctx
     )
 
 

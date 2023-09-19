@@ -3911,7 +3911,7 @@ def process_set_as_fts_search(
 
         # we skip the object, as it has to be compiled as rvar source
         args_pg = _compile_call_args(ir_set, skip={2}, ctx=newctx)
-        analyzer, weights, query = args_pg
+        lang, weights, query = args_pg
 
         out_obj_id, out_score_id = func_call.tuple_path_ids
 
@@ -3921,11 +3921,11 @@ def process_set_as_fts_search(
             from edb.common import debug
             if debug.flags.zombodb:
                 score_pg, where_clause = _fts_search_inner_zombo(
-                    obj_id, query, analyzer, ctx, newctx, inner_ctx
+                    obj_id, query, lang, ctx, newctx, inner_ctx
                 )
             else:
                 score_pg, where_clause = _fts_search_inner_pg(
-                    obj_id, query, analyzer, weights, ctx, newctx, inner_ctx
+                    obj_id, query, lang, weights, ctx, newctx, inner_ctx
                 )
 
             pathctx.put_path_var(
@@ -3999,7 +3999,7 @@ def process_set_as_fts_search(
 def _fts_search_inner_pg(
     obj_id: irast.PathId,
     query: pgast.BaseExpr,
-    analyzer: pgast.BaseExpr,
+    lang: pgast.BaseExpr,
     weights: pgast.BaseExpr,
     ctx: context.CompilerContextLevel,
     newctx: context.CompilerContextLevel,
@@ -4021,14 +4021,14 @@ def _fts_search_inner_pg(
         ctx=newctx,
     )
 
-    analyzer = pgast.FuncCall(
+    lang = pgast.FuncCall(
         name=('edgedb', 'fts_to_regconfig'),
-        args=[analyzer],
+        args=[lang],
     )
 
     parsed_query: pgast.BaseExpr = pgast.FuncCall(
         name=('edgedb', 'fts_parse_query'),
-        args=[query, analyzer]
+        args=[query, lang]
     )
     parsed_query_id = create_subrel_for_expr(
         parsed_query, ctx=inner_ctx
