@@ -1077,3 +1077,26 @@ class TestSQL(tb.SQLQueryTestCase):
             " WHERE name = 'bytea_output'; "
         )
         await self.scon.execute("SET client_encoding='WIN874';")
+
+    async def test_sql_prql_01(self):
+        await self.scon.execute("set query_language to 'PRQL'")
+
+        res = await self.squery_values(
+            '''
+            from Movie
+            select title
+            sort title
+            '''
+        )
+        self.assertEqual(res, [['Forrest Gump'], ['Saving Private Ryan']])
+
+    async def test_sql_prql_02(self):
+        await self.scon.execute("set query_language to 'PRQL'")
+
+        res = await self.scon.fetch(
+            '''
+            from mve = "Movie"
+            select {mve.title, mve.release_year, director_id}
+            '''
+        )
+        self.assert_shape(res, 2, 3)

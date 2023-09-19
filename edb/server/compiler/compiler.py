@@ -588,8 +588,16 @@ class Compiler:
             'search_path': True,
             'server_version': False,
             'server_version_num': False,
+            'query_language': True,
         }
-        query_str_sql = prql.compile(query_str)
+
+        # compile the query to SQL
+        if tx_state.get("query_language") == "'PRQL'":
+            query_str_sql = prql.compile(query_str)
+        else:
+            query_str_sql = query_str
+
+        # parse SQL
         stmts = pg_parser.parse(query_str_sql)
         sql_units = []
         for stmt in stmts:
