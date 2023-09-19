@@ -164,9 +164,7 @@ class Router:
                             response.custom_headers["Location"] = redirect_url
                         else:
                             response.status = http.HTTPStatus.CREATED
-                            response.custom_headers[
-                                "content-type"
-                            ] = "application/json"
+                            response.content_type = b"application/json"
                             response.body = json.dumps(
                                 {
                                     "identity_id": identity.id,
@@ -239,9 +237,7 @@ class Router:
                             response.custom_headers["Location"] = redirect_url
                         else:
                             response.status = http.HTTPStatus.OK
-                            response.custom_headers[
-                                "content-type"
-                            ] = "application/json"
+                            response.content_type = b"application/json"
                             response.body = json.dumps(
                                 {
                                     "identity_id": identity.id,
