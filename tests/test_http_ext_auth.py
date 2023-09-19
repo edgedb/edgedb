@@ -355,12 +355,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         async for tr in cls.try_until_succeeds(ignore=AssertionError):
             async with tr:
                 with cls.http_con() as http_con:
-                    rdata, _headers, status = (
-                        tb.ExtAuthTestCase.http_con_request(
-                            http_con,
-                            prefix="",
-                            path="server-info",
-                        )
+                    (
+                        rdata,
+                        _headers,
+                        status,
+                    ) = tb.ExtAuthTestCase.http_con_request(
+                        http_con,
+                        prefix="",
+                        path="server-info",
                     )
                     data = json.loads(rdata)
                     config = data['databases'][dbname]['config']
@@ -386,10 +388,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             with open(os.path.join(root, 'edb/lib/ext/auth.edgeql')) as f:
                 contents = f.read()
-            to_add = '''
+            to_add = (
+                '''
                 drop extension package auth version '1.0';
                 create extension auth;
-            ''' + contents
+            '''
+                + contents
+            )
             splice = '__internal_testmode := true;'
             res = res.replace(splice, splice + to_add)
 
@@ -1459,8 +1464,22 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 ph.verify(password_credential[0].password_hash, "test_password")
             )
 
-            # Try to register the same user again
+            # Try to register the same user again (no redirect_to)
             _, _, conflict_status = self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=urllib.parse.urlencode(
+                    {k: v for k, v in form_data.items() if k != 'redirect_to'}
+                ).encode(),
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(conflict_status, 409)
+
+            # Try to register the same user again (no redirect_on_failure)
+            _, redirect_to_headers, redirect_to_status = self.http_con_request(
                 http_con,
                 None,
                 path="register",
@@ -1469,7 +1488,72 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
-            self.assertEqual(conflict_status, 409)
+            self.assertEqual(redirect_to_status, 302)
+            location = redirect_to_headers.get("location")
+            assert location is not None
+            parsed_location = urllib.parse.urlparse(location)
+            parsed_query = urllib.parse.parse_qs(parsed_location.query)
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        parsed_location.scheme,
+                        parsed_location.netloc,
+                        parsed_location.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                form_data["redirect_to"],
+            )
+
+            self.assertEqual(
+                parsed_query.get("error"),
+                ["User with this handle already exists"],
+            )
+
+            # Try to register the same user again (with redirect_on_failure)
+            redirect_on_failure_url = "http://example.com/different/path"
+            (
+                _,
+                redirect_on_failure_headers,
+                redirect_on_failure_status,
+            ) = self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=urllib.parse.urlencode(
+                    {
+                        **form_data,
+                        "redirect_on_failure": redirect_on_failure_url,
+                    }
+                ).encode(),
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(redirect_on_failure_status, 302)
+            location = redirect_on_failure_headers.get("location")
+            assert location is not None
+            parsed_location = urllib.parse.urlparse(location)
+            parsed_query = urllib.parse.parse_qs(parsed_location.query)
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        parsed_location.scheme,
+                        parsed_location.netloc,
+                        parsed_location.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                redirect_on_failure_url,
+            )
+            self.assertEqual(
+                parsed_query.get("error"),
+                ["User with this handle already exists"],
+            )
 
     async def test_http_auth_ext_local_password_register_json_02(self):
         with self.http_con() as http_con:
@@ -1775,3 +1859,96 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             self.assertEqual(wrong_handle_status, 403)
+
+            # Attempt to authenticate with a random handle (redirect flow)
+            auth_data_redirect_to = {
+                "provider": form_data["provider"],
+                "handle": random_handle,
+                "password": form_data["password"],
+                "redirect_to": "http://example.com/some/path",
+            }
+            auth_data_encoded_redirect_to = urllib.parse.urlencode(
+                auth_data_redirect_to
+            ).encode()
+
+            _, redirect_to_headers, redirect_to_status = self.http_con_request(
+                http_con,
+                None,
+                path="authenticate",
+                method="POST",
+                body=auth_data_encoded_redirect_to,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(redirect_to_status, 302)
+            location = redirect_to_headers.get("location")
+            assert location is not None
+            parsed_location = urllib.parse.urlparse(location)
+            parsed_query = urllib.parse.parse_qs(parsed_location.query)
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        parsed_location.scheme,
+                        parsed_location.netloc,
+                        parsed_location.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                auth_data_redirect_to["redirect_to"],
+            )
+
+            self.assertEqual(
+                parsed_query.get("error"),
+                [
+                    (
+                        "Could not find an Identity matching the provided "
+                        "credentials"
+                    )
+                ],
+            )
+
+            # Attempt to authenticate with a random handle
+            # (redirect flow with redirect_on_failure)
+            auth_data_redirect_on_failure = {
+                "provider": form_data["provider"],
+                "handle": random_handle,
+                "password": form_data["password"],
+                "redirect_to": "http://example.com/some/path",
+                "redirect_on_failure": "http://example.com/failure/path",
+            }
+            auth_data_encoded_redirect_on_failure = urllib.parse.urlencode(
+                auth_data_redirect_on_failure
+            ).encode()
+
+            (
+                _,
+                redirect_on_failure_headers,
+                redirect_on_failure_status,
+            ) = self.http_con_request(
+                http_con,
+                None,
+                path="authenticate",
+                method="POST",
+                body=auth_data_encoded_redirect_on_failure,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(redirect_on_failure_status, 302)
+            location = redirect_on_failure_headers.get("location")
+            assert location is not None
+            parsed_location = urllib.parse.urlparse(location)
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        parsed_location.scheme,
+                        parsed_location.netloc,
+                        parsed_location.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                auth_data_redirect_on_failure["redirect_on_failure"],
+            )

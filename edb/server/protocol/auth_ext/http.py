@@ -143,34 +143,51 @@ class Router:
                     local_client = local.Client(
                         db=self.db, provider_id=register_provider_id
                     )
-                    identity = await local_client.register(data)
-
-                    session_token = self._make_session_token(identity.id)
-                    response.custom_headers["Set-Cookie"] = (
-                        f"edgedb-session={session_token}; "
-                        f"HttpOnly; Secure; SameSite=Strict"
-                    )
-                    if data.get("redirect_to") is not None:
-                        response.status = http.HTTPStatus.FOUND
-                        redirect_params = urllib.parse.urlencode({
-                            "identity_id": identity.id,
-                            "auth_token": session_token,
-                        })
-                        redirect_url = (
-                            f"{data['redirect_to']}?{redirect_params}"
+                    try:
+                        identity = await local_client.register(data)
+                        session_token = self._make_session_token(identity.id)
+                        response.custom_headers["Set-Cookie"] = (
+                            f"edgedb-session={session_token}; "
+                            f"HttpOnly; Secure; SameSite=Strict"
                         )
-                        response.custom_headers["Location"] = redirect_url
-                    else:
-                        response.status = http.HTTPStatus.CREATED
-                        response.custom_headers[
-                            "content-type"
-                        ] = "application/json"
-                        response.body = json.dumps(
-                            {
-                                "identity_id": identity.id,
-                                "auth_token": session_token,
-                            }
-                        ).encode()
+                        if data.get("redirect_to") is not None:
+                            response.status = http.HTTPStatus.FOUND
+                            redirect_params = urllib.parse.urlencode(
+                                {
+                                    "identity_id": identity.id,
+                                    "auth_token": session_token,
+                                }
+                            )
+                            redirect_url = (
+                                f"{data['redirect_to']}?{redirect_params}"
+                            )
+                            response.custom_headers["Location"] = redirect_url
+                        else:
+                            response.status = http.HTTPStatus.CREATED
+                            response.content_type = b"application/json"
+                            response.body = json.dumps(
+                                {
+                                    "identity_id": identity.id,
+                                    "auth_token": session_token,
+                                }
+                            ).encode()
+                    except Exception as ex:
+                        redirect_on_failure = data.get(
+                            "redirect_on_failure", data.get("redirect_to")
+                        )
+                        if redirect_on_failure is not None:
+                            response.status = http.HTTPStatus.FOUND
+                            redirect_params = urllib.parse.urlencode(
+                                {
+                                    "error": str(ex),
+                                }
+                            )
+                            redirect_url = (
+                                f"{redirect_on_failure}?{redirect_params}"
+                            )
+                            response.custom_headers["Location"] = redirect_url
+                        else:
+                            raise ex
 
                 case ("authenticate",):
                     content_type = request.content_type
@@ -198,34 +215,52 @@ class Router:
                     local_client = local.Client(
                         db=self.db, provider_id=authenticate_provider_id
                     )
-                    identity = await local_client.authenticate(data)
+                    try:
+                        identity = await local_client.authenticate(data)
 
-                    session_token = self._make_session_token(identity.id)
-                    response.custom_headers["Set-Cookie"] = (
-                        f"edgedb-session={session_token}; "
-                        f"HttpOnly; Secure; SameSite=Strict"
-                    )
-                    if data.get("redirect_to") is not None:
-                        response.status = http.HTTPStatus.FOUND
-                        redirect_params = urllib.parse.urlencode({
-                            "identity_id": identity.id,
-                            "auth_token": session_token,
-                        })
-                        redirect_url = (
-                            f"{data['redirect_to']}?{redirect_params}"
+                        session_token = self._make_session_token(identity.id)
+                        response.custom_headers["Set-Cookie"] = (
+                            f"edgedb-session={session_token}; "
+                            f"HttpOnly; Secure; SameSite=Strict"
                         )
-                        response.custom_headers["Location"] = redirect_url
-                    else:
-                        response.status = http.HTTPStatus.OK
-                        response.custom_headers[
-                            "content-type"
-                        ] = "application/json"
-                        response.body = json.dumps(
-                            {
-                                "identity_id": identity.id,
-                                "auth_token": session_token,
-                            }
-                        ).encode()
+                        if data.get("redirect_to") is not None:
+                            response.status = http.HTTPStatus.FOUND
+                            redirect_params = urllib.parse.urlencode(
+                                {
+                                    "identity_id": identity.id,
+                                    "auth_token": session_token,
+                                }
+                            )
+                            redirect_url = (
+                                f"{data['redirect_to']}?{redirect_params}"
+                            )
+                            response.custom_headers["Location"] = redirect_url
+                        else:
+                            response.status = http.HTTPStatus.OK
+                            response.content_type = b"application/json"
+                            response.body = json.dumps(
+                                {
+                                    "identity_id": identity.id,
+                                    "auth_token": session_token,
+                                }
+                            ).encode()
+                    except Exception as ex:
+                        redirect_on_failure = data.get(
+                            "redirect_on_failure", data.get("redirect_to")
+                        )
+                        if redirect_on_failure is not None:
+                            response.status = http.HTTPStatus.FOUND
+                            redirect_params = urllib.parse.urlencode(
+                                {
+                                    "error": str(ex),
+                                }
+                            )
+                            redirect_url = (
+                                f"{redirect_on_failure}?{redirect_params}"
+                            )
+                            response.custom_headers["Location"] = redirect_url
+                        else:
+                            raise ex
 
                 case _:
                     raise errors.NotFound("Unknown auth endpoint")
