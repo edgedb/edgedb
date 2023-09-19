@@ -20,6 +20,7 @@ dependencies = [
 
     'httpx~=0.24.1',
     'httpx_cache~=0.12.0',
+    'argon2-cffi~=23.1.0',
 ]
 
 [project.optional-dependencies]

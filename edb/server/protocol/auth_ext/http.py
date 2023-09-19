@@ -31,9 +31,7 @@ from edb.common import debug
 from edb.common import markup
 from edb.ir import statypes
 
-from . import oauth
-from . import errors
-from . import util
+from . import oauth, local, errors, util
 
 
 class Router:
@@ -61,10 +59,10 @@ class Router:
                     provider_id = _get_search_param(
                         request.url.query.decode("ascii"), "provider"
                     )
-                    client = oauth.Client(
+                    oauth_client = oauth.Client(
                         db=self.db, provider_id=provider_id, base_url=test_url
                     )
-                    authorize_url = await client.get_authorize_url(
+                    authorize_url = await oauth_client.get_authorize_url(
                         redirect_uri=self._get_callback_url(),
                         state=self._make_state_claims(provider_id),
                     )
@@ -105,12 +103,12 @@ class Router:
 
                     provider_id = self._get_from_claims(state, "provider")
                     redirect_to = self._get_from_claims(state, "redirect_to")
-                    client = oauth.Client(
+                    oauth_client = oauth.Client(
                         db=self.db,
                         provider_id=provider_id,
                         base_url=test_url,
                     )
-                    identity = await client.handle_callback(code)
+                    identity = await oauth_client.handle_callback(code)
                     session_token = self._make_session_token(identity.id)
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = redirect_to
@@ -119,8 +117,118 @@ class Router:
                         f"HttpOnly; Secure; SameSite=Strict"
                     )
 
+                case ("register",):
+                    content_type = request.content_type
+                    match content_type:
+                        case b"application/x-www-form-urlencoded":
+                            data = {
+                                k: v[0]
+                                for k, v in urllib.parse.parse_qs(
+                                    request.body.decode('ascii')
+                                ).items()
+                            }
+                        case b"application/json":
+                            data = json.loads(request.body)
+                        case _:
+                            raise errors.InvalidData(
+                                f"Unsupported Content-Type: {content_type}"
+                            )
+
+                    register_provider_id = data.get("provider")
+                    if register_provider_id is None:
+                        raise errors.InvalidData(
+                            'Missing "provider" in register request'
+                        )
+
+                    local_client = local.Client(
+                        db=self.db, provider_id=register_provider_id
+                    )
+                    identity = await local_client.register(data)
+
+                    session_token = self._make_session_token(identity.id)
+                    response.custom_headers["Set-Cookie"] = (
+                        f"edgedb-session={session_token}; "
+                        f"HttpOnly; Secure; SameSite=Strict"
+                    )
+                    if data.get("redirect_to") is not None:
+                        response.status = http.HTTPStatus.FOUND
+                        redirect_params = urllib.parse.urlencode({
+                            "identity_id": identity.id,
+                            "auth_token": session_token,
+                        })
+                        redirect_url = (
+                            f"{data['redirect_to']}?{redirect_params}"
+                        )
+                        response.custom_headers["Location"] = redirect_url
+                    else:
+                        response.status = http.HTTPStatus.CREATED
+                        response.custom_headers[
+                            "content-type"
+                        ] = "application/json"
+                        response.body = json.dumps(
+                            {
+                                "identity_id": identity.id,
+                                "auth_token": session_token,
+                            }
+                        ).encode()
+
+                case ("authenticate",):
+                    content_type = request.content_type
+                    match content_type:
+                        case b"application/x-www-form-urlencoded":
+                            data = {
+                                k: v[0]
+                                for k, v in urllib.parse.parse_qs(
+                                    request.body.decode('ascii')
+                                ).items()
+                            }
+                        case b"application/json":
+                            data = json.loads(request.body)
+                        case _:
+                            raise errors.InvalidData(
+                                f"Unsupported Content-Type: {content_type}"
+                            )
+
+                    authenticate_provider_id = data.get("provider")
+                    if authenticate_provider_id is None:
+                        raise errors.InvalidData(
+                            'Missing "provider" in register request'
+                        )
+
+                    local_client = local.Client(
+                        db=self.db, provider_id=authenticate_provider_id
+                    )
+                    identity = await local_client.authenticate(data)
+
+                    session_token = self._make_session_token(identity.id)
+                    response.custom_headers["Set-Cookie"] = (
+                        f"edgedb-session={session_token}; "
+                        f"HttpOnly; Secure; SameSite=Strict"
+                    )
+                    if data.get("redirect_to") is not None:
+                        response.status = http.HTTPStatus.FOUND
+                        redirect_params = urllib.parse.urlencode({
+                            "identity_id": identity.id,
+                            "auth_token": session_token,
+                        })
+                        redirect_url = (
+                            f"{data['redirect_to']}?{redirect_params}"
+                        )
+                        response.custom_headers["Location"] = redirect_url
+                    else:
+                        response.status = http.HTTPStatus.OK
+                        response.custom_headers[
+                            "content-type"
+                        ] = "application/json"
+                        response.body = json.dumps(
+                            {
+                                "identity_id": identity.id,
+                                "auth_token": session_token,
+                            }
+                        ).encode()
+
                 case _:
-                    raise errors.NotFound("Unknown OAuth endpoint")
+                    raise errors.NotFound("Unknown auth endpoint")
 
         except errors.NotFound as ex:
             _fail_with_error(
@@ -142,6 +250,22 @@ class Router:
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.INTERNAL_SERVER_ERROR,
+                message=str(ex),
+                ex_type=edb_errors.ProtocolError,
+            )
+
+        except errors.NoIdentityFound:
+            _fail_with_error(
+                response=response,
+                status=http.HTTPStatus.FORBIDDEN,
+                message="No identity found",
+                ex_type=edb_errors.ProtocolError,
+            )
+
+        except errors.UserAlreadyRegistered as ex:
+            _fail_with_error(
+                response=response,
+                status=http.HTTPStatus.CONFLICT,
                 message=str(ex),
                 ex_type=edb_errors.ProtocolError,
             )
@@ -234,7 +358,6 @@ def _fail_with_error(
 
     response.body = json.dumps({"error": err_dct}).encode()
     response.status = status
-    response.close_connection = True
 
 
 def _maybe_get_search_param(query: str, key: str) -> str | None:

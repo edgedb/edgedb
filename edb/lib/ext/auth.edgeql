@@ -34,6 +34,10 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property handle: std::str {
             create constraint exclusive;
         };
+
+        alter property sub {
+            create rewrite insert using (<str>.id);
+        };
     };
 
     create type ext::auth::PasswordCredential {
@@ -55,7 +59,10 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             set readonly := true;
             create annotation std::description := "Auth provider name";
         };
+    };
 
+    create type ext::auth::OAuthClientConfig
+        extending ext::auth::ClientConfig {
         create required property url: std::str {
             set readonly := true;
             create annotation std::description := "Authorization server URL";
@@ -73,6 +80,9 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
                 "ID for client provided by auth provider";
         };
     };
+
+    create type ext::auth::PasswordClientConfig
+        extending ext::auth::ClientConfig;
 
     create type ext::auth::AuthConfig extending cfg::ExtensionConfig {
         create multi link providers -> ext::auth::ClientConfig {
