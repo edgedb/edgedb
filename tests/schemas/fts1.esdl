@@ -34,7 +34,7 @@ type FancyQuotedText extending FancyText, QuotedText;
 
 type Post {
     required title: str;
-    required body: str;
+    body: str;
     # 2 properties are subject to FTS
     index fts::index on ((
         fts::with_options(.title, fts::Language.eng, 'A'),

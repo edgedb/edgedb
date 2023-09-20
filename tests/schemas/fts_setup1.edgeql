@@ -46,6 +46,9 @@ insert Post {
     title := 'random stuff',
     body := 'angry giraffes',
 };
+insert Post {
+    title := 'no body',
+};
 
 insert Description {
     num := 1,

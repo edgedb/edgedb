@@ -762,3 +762,15 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             ''',
             ['hello world']
         )
+
+    async def test_edgeql_fts_empty_fields(self):
+        # test that adding an fts index, existing objects are also indexed
+
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                Post, 'no body', language := 'eng'
+            ).object { title, body};
+            ''',
+            [{"title": "no body", "body": None}]
+        )
