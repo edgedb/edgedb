@@ -62,7 +62,7 @@ CREATE SCALAR TYPE fts::document {
 };
 
 CREATE FUNCTION fts::with_options(
-    text: std::str,
+    VARIADIC text: std::str,
     NAMED ONLY language: anyenum,
     NAMED ONLY weight_category: optional std::str = <std::str>{},
 ) -> fts::document {

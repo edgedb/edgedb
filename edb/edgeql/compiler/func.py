@@ -975,8 +975,11 @@ def _validate_has_fts_index(
 def compile_fts_with_options(
     call: irast.FunctionCall, *, ctx: context.ContextLevel
 ) -> irast.Expr:
-    # language has already been typechecked to be an enum
     lang = call.args[0].expr
+    weight_category = call.args[1].expr
+    text_fields = call.args[2:]
+    
+    # language has already been typechecked to be an enum
     assert lang.typeref
     lang_ty_id = lang.typeref.id
     lang_ty = ctx.env.schema.get_by_id(lang_ty_id, type=s_scalars.ScalarType)
@@ -1000,21 +1003,28 @@ def compile_fts_with_options(
             lang_domain.add(enum_value.lower())
 
     # weight_category
-    weight_expr = call.args[1].expr
-    if not irutils.is_const(weight_expr):
+    if not irutils.is_const(weight_category):
         raise errors.InvalidValueError(
             f"fts::search weight_category must be a literal",
-            context=weight_expr.context,
+            context=weight_category.context,
         )
-    weight_const = irutils.as_const(weight_expr)
+    weight_const = irutils.as_const(weight_category)
     if weight_const:
         weight = str(weight_const.value)
     else:
         weight = None
 
-    return irast.FTSDocument(
-        text=call.args[2].expr,
-        language=lang,
-        language_domain=lang_domain,
-        weight=weight,
-    )
+    def create_fts_doc(text: irast.Set) -> irast.FTSDocument:
+        return irast.FTSDocument(
+            text=text,
+            language=lang,
+            language_domain=lang_domain,
+            weight=weight,
+        )
+
+    fts_docs = [
+        create_fts_doc(text.expr) for text in text_fields
+    ]
+    # how to convert this to a tuple?
+    # how to derive the tuple's type?
+    return ???
