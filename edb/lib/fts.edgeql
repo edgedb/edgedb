@@ -67,7 +67,7 @@ CREATE FUNCTION fts::with_options(
     weight_category: optional std::str = <std::str>{},
 ) -> fts::document {
     CREATE ANNOTATION std::description := '
-        Adds language (i.e. language) and weight information to a string,
+        Adds language and weight category information to a string,
         so it be indexed with fts::index.
     ';
     SET volatility := 'Immutable';
