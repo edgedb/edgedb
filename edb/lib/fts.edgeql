@@ -91,7 +91,7 @@ CREATE FUNCTION fts::search(
 
 CREATE SCALAR TYPE fts::PGLanguage
     EXTENDING enum<
-        Simple,
+        xxx_simple,
         ara,
         hye,
         eus,
@@ -123,7 +123,8 @@ CREATE SCALAR TYPE fts::PGLanguage
     > {
     CREATE ANNOTATION std::description :='
         Languages supported by PostgreSQL FTS.
-        Names are ISO 639-3 language identifiers.
+        Names are ISO 639-3 language identifiers or Postgres regconfig names
+        prefixed with `xxx_`.
     ';
 };
 
@@ -160,12 +161,12 @@ CREATE SCALAR TYPE fts::ElasticLanguage
         tha,
         tur,
         zho,
-        Brazilian,
-        ChineseJapaneseKorean,
+        edb_Brazilian,
+        edb_ChineseJapaneseKorean,
     > {
     CREATE ANNOTATION std::description := '
         Languages supported by ElasticSearch.
-        Names are ISO 639-3 language identifiers.
+        Names are ISO 639-3 language identifiers or EdgeDB language identifers.
     ';
 };
 
@@ -205,12 +206,12 @@ CREATE SCALAR TYPE fts::LuceneLanguage
         swe,
         tha,
         tur,
-        BrazilianPortuguese,
-        ChineseJapaneseKorean,
-        Indian,
+        edb_Brazilian,
+        edb_ChineseJapaneseKorean,
+        edb_Indian,
     > {
     CREATE ANNOTATION std::description := '
         Languages supported by Apache Lucene.
-        Names are ISO 639-3 language identifiers.
+        Names are ISO 639-3 language identifiers or EdgeDB language identifers.
     ';
 };
