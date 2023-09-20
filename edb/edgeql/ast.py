@@ -385,6 +385,8 @@ class IfElse(Expr):
     condition: Expr
     if_expr: Expr
     else_expr: Expr
+    # Just affects pretty-printing
+    python_style: bool = False
 
 
 class TupleElement(Base):

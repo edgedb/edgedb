@@ -460,11 +460,19 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_IfElse(self, node: qlast.IfElse) -> None:
         self.write('(')
-        self.visit(node.if_expr)
-        self._write_keywords(' IF ')
-        self.visit(node.condition)
-        self._write_keywords(' ELSE ')
-        self.visit(node.else_expr)
+        if node.python_style:
+            self.visit(node.if_expr)
+            self._write_keywords(' IF ')
+            self.visit(node.condition)
+            self._write_keywords(' ELSE ')
+            self.visit(node.else_expr)
+        else:
+            self._write_keywords(' IF ')
+            self.visit(node.condition)
+            self._write_keywords(' THEN ')
+            self.visit(node.if_expr)
+            self._write_keywords(' ELSE ')
+            self.visit(node.else_expr)
         self.write(')')
 
     def visit_Tuple(self, node: qlast.Tuple) -> None:
