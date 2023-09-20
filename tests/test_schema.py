@@ -368,12 +368,12 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
             module default {
                 type Person {
-                    required name : str {
+                    required name: str {
                         constraint exclusive;
                     }
 
                     multi friends : Person {
-                        note : str {
+                        note: str {
                             default := .name
                         }
                     }
@@ -3770,25 +3770,62 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         };
         type Foo {
             name: str;
+            required address: str {
+                default := "n" ++ "/a";
+            }
             foo: Foo;
+            multi foos: Foo;
             bar: Bar;
             bar2 extending friendship: Bar;
+            bar3: Bar {
+               lprop: str {
+                   default := "foo" ++ "bar";
+               }
+            };
             or_: Foo | Bar;
             array1: array<str>;
             array2: array<scl>;
+
+            cprop1 := .name;
+            multi cprop2 := (
+              with us := .name,
+              select (select .foos filter .name != us).name
+            );
+            required cprop3 := assert_exists(.name);
+
+            clink1 := (select .foo filter .name != 'Elvis');
         };
+        type Child extending Foo {
+            overloaded foo {
+                lprop: str;
+            };
+        }
         '''
 
         schema = self._assert_migration_consistency(tschema)
 
         obj = schema.get('default::Foo')
         obj.getptr(schema, s_name.UnqualName('name'), type=s_props.Property)
+        obj.getptr(schema, s_name.UnqualName('address'), type=s_props.Property)
         obj.getptr(schema, s_name.UnqualName('array1'), type=s_props.Property)
         obj.getptr(schema, s_name.UnqualName('array2'), type=s_props.Property)
         obj.getptr(schema, s_name.UnqualName('foo'), type=s_links.Link)
         obj.getptr(schema, s_name.UnqualName('bar'), type=s_links.Link)
         obj.getptr(schema, s_name.UnqualName('bar2'), type=s_links.Link)
         obj.getptr(schema, s_name.UnqualName('or_'), type=s_links.Link)
+
+        obj.getptr(schema, s_name.UnqualName('cprop1'), type=s_props.Property)
+        obj.getptr(schema, s_name.UnqualName('cprop2'), type=s_props.Property)
+        obj.getptr(schema, s_name.UnqualName('cprop3'), type=s_props.Property)
+
+        obj.getptr(schema, s_name.UnqualName('clink1'), type=s_links.Link)
+
+        ptr = obj.getptr(schema, s_name.UnqualName('bar3'), type=s_links.Link)
+        ptr.getptr(schema, s_name.UnqualName('lprop'), type=s_props.Property)
+
+        obj2 = schema.get('default::Child')
+        ptr = obj2.getptr(schema, s_name.UnqualName('foo'), type=s_links.Link)
+        ptr.getptr(schema, s_name.UnqualName('lprop'), type=s_props.Property)
 
     def test_schema_migrations_equivalence_01(self):
         self._assert_migration_equivalence([r"""

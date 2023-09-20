@@ -13730,7 +13730,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             "'ha' is not a valid field",
         ):
             await self.con.execute(r"""
-                CREATE TYPE Lol {SET ha := "crash"};
+                CREATE SCALAR TYPE Lol extending str {SET ha := "crash"};
             """)
 
     async def test_edgeql_ddl_bad_field_02(self):
@@ -13740,7 +13740,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
         ):
             await self.con.execute(r"""
                 START MIGRATION TO {
-                    type default::Lol {
+                    scalar type default::Lol extending str {
                         ha := "crash"
                     }
                 }

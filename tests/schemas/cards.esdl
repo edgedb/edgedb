@@ -54,12 +54,12 @@ type Bot extending User;
 type Card extending Named {
     required element: str;
     required cost: int64;
-    multi link owners := .<deck[IS User];
+    multi owners := .<deck[IS User];
     # computable property
-    property elemental_cost := <str>.cost ++ ' ' ++ .element;
+    elemental_cost := <str>.cost ++ ' ' ++ .element;
     multi awards: Award;
-    multi link good_awards := (SELECT .awards FILTER .name != '3rd');
-    single link best_award := (select .awards order by .name limit 1);
+    multi good_awards := (SELECT .awards FILTER .name != '3rd');
+    single best_award := (select .awards order by .name limit 1);
 }
 
 type SpecialCard extending Card;
