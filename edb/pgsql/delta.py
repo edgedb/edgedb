@@ -3493,7 +3493,6 @@ class CompositeMetaCommand(MetaCommand):
 
 
 class IndexCommand(MetaCommand):
-
     @classmethod
     def get_compile_options(
         cls,
@@ -3612,7 +3611,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 sql_kwarg_exprs,
                 options,
                 schema,
-                context
+                context,
             )
 
         sql_res = compiler.compile_ir_to_sql_tree(ir.expr, singleton_mode=True)
@@ -3621,7 +3620,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         if len(exprs) == 0:
             raise errors.SchemaDefinitionError(
                 f'cannot index empty tuples using {root_name}',
-                context=index.get_sourcectx(schema)
+                context=index.get_sourcectx(schema),
             )
 
         subject = index.get_subject(schema)
@@ -3637,7 +3636,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             name=index_name[1],
             table_name=table_name,  # type: ignore
             exprs=sql_exprs,
-            unique=False, inherit=True,
+            unique=False,
+            inherit=True,
             predicate=predicate_src,
             metadata={
                 'schemaname': str(index.get_name(schema)),
@@ -3746,9 +3746,11 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
             options = self.get_compile_options(
                 index, orig_schema, context, self.get_schema_metaclass()
             )
-            self.pgops.add(deltafts.delete_fts_index(
-                index, drop_index, options, orig_schema, context
-            ))
+            self.pgops.add(
+                deltafts.delete_fts_index(
+                    index, drop_index, options, orig_schema, context
+                )
+            )
         else:
             self.pgops.add(drop_index)
 

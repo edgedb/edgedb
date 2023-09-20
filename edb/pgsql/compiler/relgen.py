@@ -339,9 +339,9 @@ class _SimpleSpecialCaseFunc(Protocol):
 _SIMPLE_SPECIAL_FUNCTIONS: dict[str, _SimpleSpecialCaseFunc] = {}
 
 
-def simple_special_case(name: str) -> Callable[
-    [_SimpleSpecialCaseFunc], _SimpleSpecialCaseFunc
-]:
+def simple_special_case(
+    name: str,
+) -> Callable[[_SimpleSpecialCaseFunc], _SimpleSpecialCaseFunc]:
     def func(f: _SimpleSpecialCaseFunc) -> _SimpleSpecialCaseFunc:
         _SIMPLE_SPECIAL_FUNCTIONS[name] = f
         return f
@@ -370,9 +370,8 @@ def _get_set_rvar(
 
         if isinstance(expr, (irast.OperatorCall, irast.FunctionCall)):
             fname = str(expr.func_shortname)
-            if (
-                (func := _SPECIAL_FUNCTIONS.get(fname))
-                and (not func.only_as_fallback or expr.func_sql_expr)
+            if (func := _SPECIAL_FUNCTIONS.get(fname)) and (
+                not func.only_as_fallback or expr.func_sql_expr
             ):
                 return func.func(ir_set, ctx=ctx)
 
@@ -3242,7 +3241,7 @@ def _compile_call_args(
     ir_set: irast.Set,
     *,
     skip: Collection[int] = (),
-    ctx: context.CompilerContextLevel
+    ctx: context.CompilerContextLevel,
 ) -> List[pgast.BaseExpr]:
     """
     Compiles function call arguments, whose index is not in `skip`.
@@ -3919,6 +3918,7 @@ def process_set_as_fts_search(
             # inner_ctx generates the `SELECT score WHERE test` relation
 
             from edb.common import debug
+
             if debug.flags.zombodb:
                 score_pg, where_clause = _fts_search_inner_zombo(
                     obj_id, query, lang, ctx, newctx, inner_ctx
@@ -3935,9 +3935,7 @@ def process_set_as_fts_search(
                 inner_ctx.rel.where_clause, where_clause
             )
 
-            in_rvar = relctx.new_rel_rvar(
-                ir_set, inner_ctx.rel, ctx=newctx
-            )
+            in_rvar = relctx.new_rel_rvar(ir_set, inner_ctx.rel, ctx=newctx)
             relctx.include_rvar(
                 newctx.rel, in_rvar, out_score_id, aspects={'value'}, ctx=newctx
             )
@@ -3971,10 +3969,7 @@ def process_set_as_fts_search(
         )
 
         var = pathctx.maybe_get_path_var(
-            newctx.rel,
-            obj_id,
-            aspect='serialized',
-            env=newctx.env
+            newctx.rel, obj_id, aspect='serialized', env=newctx.env
         )
         if var is not None:
             pathctx.put_path_var(
@@ -4027,12 +4022,9 @@ def _fts_search_inner_pg(
     )
 
     parsed_query: pgast.BaseExpr = pgast.FuncCall(
-        name=('edgedb', 'fts_parse_query'),
-        args=[query, lang]
+        name=('edgedb', 'fts_parse_query'), args=[query, lang]
     )
-    parsed_query_id = create_subrel_for_expr(
-        parsed_query, ctx=inner_ctx
-    )
+    parsed_query_id = create_subrel_for_expr(parsed_query, ctx=inner_ctx)
     parsed_query = pathctx.get_path_var(
         inner_ctx.rel, parsed_query_id, aspect='value', env=ctx.env
     )
@@ -4042,21 +4034,13 @@ def _fts_search_inner_pg(
         args=[weights, pgast.ArrayExpr(elements=[one, one, one, one])]
     )
     weights = pgast.TypeCast(
-        arg=weights,
-        type_name=pgast.TypeName(
-            name=('real',),
-            array_bounds=[-1]
-        )
+        arg=weights, type_name=pgast.TypeName(name=('real',), array_bounds=[-1])
     )
     score_pg = pgast.FuncCall(
         name=('pg_catalog', 'ts_rank'),
-        args=[weights, fts_document, parsed_query]
+        args=[weights, fts_document, parsed_query],
     )
-    where_clause = pgast.Expr(
-        lexpr=fts_document,
-        name='@@',
-        rexpr=parsed_query
-    )
+    where_clause = pgast.Expr(lexpr=fts_document, name='@@', rexpr=parsed_query)
 
     return score_pg, where_clause
 
@@ -4085,10 +4069,7 @@ def _fts_search_inner_zombo(
         ctx=newctx,
     )
 
-    score_pg = pgast.FuncCall(
-        name=('zdb', 'score'),
-        args=[ctid]
-    )
+    score_pg = pgast.FuncCall(name=('zdb', 'score'), args=[ctid])
     where_clause = pgast.Expr(
         lexpr=ctid,
         name='==>',
@@ -4098,9 +4079,7 @@ def _fts_search_inner_zombo(
 
 
 def create_subrel_for_expr(
-    expr: pgast.BaseExpr,
-    *,
-    ctx: context.CompilerContextLevel
+    expr: pgast.BaseExpr, *, ctx: context.CompilerContextLevel
 ) -> irast.PathId:
     """
     Creates a sub query relation that contains the given expression.

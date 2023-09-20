@@ -174,9 +174,7 @@ class flags(metaclass=FlagsMeta):
             "(pg compiler output)."
     )
 
-    zombodb = Flag(
-        doc="Enabled zombodb and disables postgres FTS"
-    )
+    zombodb = Flag(doc="Enabled zombodb and disables postgres FTS")
 
 
 @contextlib.contextmanager

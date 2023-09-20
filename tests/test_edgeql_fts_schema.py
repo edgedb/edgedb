@@ -22,10 +22,10 @@ import edgedb
 
 
 class TestEdgeQLFTSSchema(tb.DDLTestCase):
-
     async def test_edgeql_fts_schema_inheritance_01(self):
         async with self._run_and_rollback():
-            await self.con.execute(r"""
+            await self.con.execute(
+                r"""
                 start migration to {
                     module default {
                         type Ordered {
@@ -40,11 +40,14 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 };
                 populate migration;
                 commit migration;
-            """)
+                """
+            )
 
-            await self.con.execute('''
+            await self.con.execute(
+                '''
                 insert Text {num := 0, text := 'hello world'}
-            ''')
+                '''
+            )
 
             # Empty index returns no results.
             await self.assert_query_result(
@@ -67,7 +70,8 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
 
     async def test_edgeql_fts_schema_inheritance_02(self):
         async with self._run_and_rollback():
-            await self.con.execute(r"""
+            await self.con.execute(
+                r"""
                 start migration to {
                     module default {
                         type Ordered {
@@ -85,11 +89,14 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 };
                 populate migration;
                 commit migration;
-            """)
+                """
+            )
 
-            await self.con.execute('''
+            await self.con.execute(
+                '''
                 insert Text {num := 0, text := 'hello world'}
-            ''')
+                '''
+            )
 
             await self.assert_query_result(
                 '''
@@ -111,7 +118,8 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
 
     async def test_edgeql_fts_schema_inheritance_03(self):
         async with self._run_and_rollback():
-            await self.con.execute(r"""
+            await self.con.execute(
+                r"""
                 start migration to {
                     module default {
                         abstract type Ordered {
@@ -129,11 +137,14 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 };
                 populate migration;
                 commit migration;
-            """)
+                """
+            )
 
-            await self.con.execute('''
+            await self.con.execute(
+                '''
                 insert Text {num := 0, text := 'hello world'}
-            ''')
+                '''
+            )
 
             await self.assert_query_result(
                 '''
@@ -155,7 +166,8 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
 
     async def test_edgeql_fts_schema_inheritance_04(self):
         async with self._run_and_rollback():
-            await self.con.execute(r"""
+            await self.con.execute(
+                r"""
                 start migration to {
                     module default {
                         abstract type Text {
@@ -172,11 +184,14 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 };
                 populate migration;
                 commit migration;
-            """)
+                """
+            )
 
-            await self.con.execute('''
+            await self.con.execute(
+                '''
                 insert FancyText {num := 0, text := 'hello world'}
-            ''')
+                '''
+            )
 
             await self.assert_query_result(
                 '''
@@ -198,7 +213,8 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
 
     async def test_edgeql_fts_schema_inheritance_05(self):
         async with self._run_and_rollback():
-            await self.con.execute(r"""
+            await self.con.execute(
+                r"""
                 start migration to {
                     module default {
                         type Text {
@@ -211,11 +227,14 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 };
                 populate migration;
                 commit migration;
-            """)
+                """
+            )
 
-            await self.con.execute('''
+            await self.con.execute(
+                '''
                 insert Text {text := 'hello world'}
-            ''')
+                '''
+            )
 
             await self.assert_query_result(
                 '''
@@ -228,7 +247,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
 
             async with self.assertRaisesRegexTx(
                 edgedb.InvalidReferenceError,
-                r'fts::search requires an fts::index index'
+                r'fts::search requires an fts::index index',
             ):
                 await self.con.execute(
                     '''
@@ -242,7 +261,8 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
 
     async def test_edgeql_fts_schema_inheritance_06(self):
         async with self._run_and_rollback():
-            await self.con.execute(r"""
+            await self.con.execute(
+                r"""
                 start migration to {
                     module default {
                         type Text {
@@ -263,15 +283,18 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 };
                 populate migration;
                 commit migration;
-            """)
+                """
+            )
 
-            await self.con.execute('''
+            await self.con.execute(
+                '''
                 insert Text {text := 'hello world'};
                 insert TitledText {
                     title := 'farewell',
                     text := 'goodbye world'
                 };
-            ''')
+                '''
+            )
 
             await self.assert_query_result(
                 '''
@@ -284,7 +307,8 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
 
     async def test_edgeql_fts_schema_union_01(self):
         async with self._run_and_rollback():
-            await self.con.execute(r"""
+            await self.con.execute(
+                r"""
                 start migration to {
                     module default {
                         abstract type Searchable {
@@ -311,15 +335,18 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 };
                 populate migration;
                 commit migration;
-            """)
+                """
+            )
 
-            await self.con.execute('''
+            await self.con.execute(
+                '''
                 insert Text {text := 'hello world'};
                 insert TitledText {
                     title := 'farewell',
                     text := 'goodbye world'
                 };
-            ''')
+                '''
+            )
 
             await self.assert_query_result(
                 '''
@@ -342,7 +369,8 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
             )
 
     async def test_edgeql_fts_schema_with_options(self):
-        await self.con.execute(r"""
+        await self.con.execute(
+            r"""
             start migration to {
                 module default {
                     type Text {
@@ -358,10 +386,12 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
             };
             populate migration;
             commit migration;
-        """)
+            """
+        )
 
         async with self._run_and_rollback():
-            await self.con.execute('''
+            await self.con.execute(
+                '''
                 alter type default::Text {
                   create index fts::index on ((
                     fts::with_options(.text0, fts::Language.eng),
@@ -373,7 +403,8 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                     fts::with_options(.text6, fts::Language.eng),
                   ));
                 }
-            ''')
+                '''
+            )
 
         # async with self._run_and_rollback():
         #     await self.con.execute('''

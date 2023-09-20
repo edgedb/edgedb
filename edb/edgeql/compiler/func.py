@@ -330,9 +330,7 @@ class _SpecialCaseFunc(Protocol):
 _SPECIAL_FUNCTIONS: dict[str, _SpecialCaseFunc] = {}
 
 
-def _special_case(name: str) -> Callable[
-    [_SpecialCaseFunc], _SpecialCaseFunc
-]:
+def _special_case(name: str) -> Callable[[_SpecialCaseFunc], _SpecialCaseFunc]:
     def func(f: _SpecialCaseFunc) -> _SpecialCaseFunc:
         _SPECIAL_FUNCTIONS[name] = f
         return f
@@ -958,7 +956,7 @@ def compile_fts_search(
 def _validate_has_fts_index(
     stype: s_types.Type,
     schema: s_schema.Schema,
-    pctx: Optional[parsing.ParserContext]
+    pctx: Optional[parsing.ParserContext],
 ) -> None:
     if isinstance(stype, s_indexes.IndexableSubject):
         (fts_index, _) = s_indexes.get_effective_fts_index(stype, schema)
@@ -981,9 +979,7 @@ def compile_fts_with_options(
     lang = call.args[1].expr
     assert lang.typeref
     lang_ty_id = lang.typeref.id
-    lang_ty = ctx.env.schema.get_by_id(
-        lang_ty_id, type=s_scalars.ScalarType
-    )
+    lang_ty = ctx.env.schema.get_by_id(lang_ty_id, type=s_scalars.ScalarType)
     assert lang_ty
 
     lang_domain = set()  # languages that the fts index needs to support

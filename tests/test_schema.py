@@ -601,23 +601,24 @@ class TestSchema(tb.BaseSchemaLoadTest):
             };
         """
 
-    @tb.must_fail(errors.InvalidDefinitionError,
-                  "index 'fts::index' of object type 'test::Foo' "
-                  "was already declared")
+    @tb.must_fail(
+        errors.InvalidDefinitionError,
+        "index 'fts::index' of object type 'test::Foo' " "was already declared",
+    )
     def test_schema_bad_type_17(self):
         """
-            type Foo {
-                property val -> str;
-                index fts::index on (
-                    fts::with_options(.val, fts::Language.eng)
-                );
-                index fts::index on (
-                    fts::with_options(.val, fts::Language.ita)
-                );
-                index fts::index on (
-                    fts::with_options(.val, fts::Language.eng)
-                );
-            };
+        type Foo {
+            property val -> str;
+            index fts::index on (
+                fts::with_options(.val, fts::Language.eng)
+            );
+            index fts::index on (
+                fts::with_options(.val, fts::Language.ita)
+            );
+            index fts::index on (
+                fts::with_options(.val, fts::Language.eng)
+            );
+        };
         """
 
     def test_schema_computable_cardinality_inference_01(self):
@@ -6189,23 +6190,28 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """])
 
     def test_schema_migrations_equivalence_index_04(self):
-        self._assert_migration_equivalence([r"""
-            type Base {
-                property first_name -> str;
-                property last_name -> str;
-                property name := .first_name ++ ' ' ++ .last_name;
-            }
-        """, r"""
-            type Base {
-                property first_name -> str;
-                property last_name -> str;
-                property name := .first_name ++ ' ' ++ .last_name;
-                # an index on a computable
-                index fts::index on (
-                    fts::with_options(.name, fts::Language.eng)
-                );
-            }
-        """])
+        self._assert_migration_equivalence(
+            [
+                r"""
+                type Base {
+                    property first_name -> str;
+                    property last_name -> str;
+                    property name := .first_name ++ ' ' ++ .last_name;
+                }
+                """,
+                r"""
+                type Base {
+                    property first_name -> str;
+                    property last_name -> str;
+                    property name := .first_name ++ ' ' ++ .last_name;
+                    # an index on a computable
+                    index fts::index on (
+                        fts::with_options(.name, fts::Language.eng)
+                    );
+                }
+                """,
+            ]
+        )
 
     def test_schema_migrations_equivalence_index_05(self):
         self._assert_migration_equivalence([r"""

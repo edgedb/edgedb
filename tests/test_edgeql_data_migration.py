@@ -11449,7 +11449,8 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         """)
 
     async def test_edgeql_migration_abstract_index_01(self):
-        await self.migrate(r"""
+        await self.migrate(
+            r"""
             abstract index MyIndex extending fts::index;
             type Base {
                 property name -> str;
@@ -11457,9 +11458,11 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                     fts::with_options(.name, fts::Language.eng)
                 );
             };
-        """)
+            """
+        )
 
-        await self.migrate(r"""
+        await self.migrate(
+            r"""
             abstract index MyIndex extending fts::index;
             type Base {
                 property name -> str;
@@ -11468,7 +11471,8 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 );
             };
             type Child extending Base;
-        """)
+            """
+        )
 
         async with self.assertRaisesRegexTx(
                 edgedb.SchemaError,
@@ -11477,7 +11481,8 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 drop abstract index test::MyIndex
             ''')
 
-        await self.migrate(r"""
+        await self.migrate(
+            r"""
             abstract index MyIndex extending fts::index;
             type Base {
                 property name -> str;
@@ -11486,9 +11491,11 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 );
             };
             type Child extending Base;
-        """)
+            """
+        )
 
-        await self.migrate(r"""
+        await self.migrate(
+            r"""
             abstract index MyIndex extending fts::index {
                 annotation title := "test";
             }
@@ -11499,7 +11506,8 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 );
             };
             type Child extending Base;
-        """)
+            """
+        )
 
         await self.migrate("")
 

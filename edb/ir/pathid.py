@@ -260,10 +260,7 @@ class PathId:
         return pid
 
     @classmethod
-    def new_dummy(
-        cls,
-        name: str
-    ) -> PathId:
+    def new_dummy(cls, name: str) -> PathId:
         name_hint = s_name.QualName(module='__derived__', name=name)
         typeref = irast.TypeRef(id=uuidgen.uuid1mc(), name_hint=name_hint)
         return irast.PathId.from_typeref(typeref=typeref)

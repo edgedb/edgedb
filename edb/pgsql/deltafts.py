@@ -132,6 +132,7 @@ def _create_fts_document(
     exprs = astutils.maybe_unpack_row(sql_res.ast)
 
     from edb.common import debug
+
     if debug.flags.zombodb:
         return _zombo_create_fts_document(
             index, exprs, predicate_src, sql_kwarg_exprs, schema
@@ -208,6 +209,7 @@ def _refresh_fts_document(
     ops = dbops.CommandGroup()
 
     from edb.common import debug
+
     if debug.flags.zombodb:
         raise NotImplementedError('zombo refresh index not implemented')
     else:
@@ -321,11 +323,13 @@ def _pg_create_trigger(
     document_sql = ' || '.join(document_exprs) if document_exprs else 'NULL'
 
     # update existing rows
-    ops.add_command(dbops.Query(
-        f"""
+    ops.add_command(
+        dbops.Query(
+            f"""
         UPDATE {q(*table_name)} as NEW SET __fts_document__ = ({document_sql});
         """
-    ))
+        )
+    )
 
     # create update function
     func_name = _pg_update_func_name(table_name)
@@ -397,6 +401,7 @@ def _pg_trigger_name(
 
 
 # --- zombo ---
+
 
 def _zombo_create_fts_document(
     index: s_indexes.Index,

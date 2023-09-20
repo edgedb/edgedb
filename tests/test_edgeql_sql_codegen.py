@@ -283,11 +283,14 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
         )
 
     def test_codegen_fts_search_no_score(self):
-        sql = self._compile('''
+        sql = self._compile(
+            '''
             select fts::search(Issue, 'spiced', language := 'eng').object
-        ''')
+            '''
+        )
 
         self.assertNotIn(
-            "score_serialized", sql,
+            "score_serialized",
+            sql,
             "fts::search score should not be serialized when not needed",
         )

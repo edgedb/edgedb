@@ -74,9 +74,7 @@ def is_index_valid_for_type(
                 )
             )
         case 'fts::index':
-            return is_subclass_or_tuple(
-                expr_type, 'fts::document', schema
-            )
+            return is_subclass_or_tuple(expr_type, 'fts::document', schema)
         case 'pg::gist':
             return expr_type.is_range() or expr_type.is_multirange()
         case 'pg::spgist':

@@ -814,8 +814,7 @@ def _compile_set_in_singleton_mode(
 
 @dispatch.compile.register(irast.FTSDocument)
 def compile_FTSDocument(
-    expr: irast.FTSDocument, *,
-    ctx: context.CompilerContextLevel
+    expr: irast.FTSDocument, *, ctx: context.CompilerContextLevel
 ) -> pgast.BaseExpr:
     return pgast.FTSDocument(
         text=dispatch.compile(expr.text, ctx=ctx),

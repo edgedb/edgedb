@@ -1477,9 +1477,7 @@ def compile_insert_else_body(
 
             # Set up a dummy path to represent all of the rows
             # that *aren't* being filtered out
-            dummy_pathid = irast.PathId.new_dummy(
-                ctx.env.aliases.get('dummy')
-            )
+            dummy_pathid = irast.PathId.new_dummy(ctx.env.aliases.get('dummy'))
             with ictx.subrel() as dctx:
                 dummy_q = dctx.rel
                 relctx.ensure_transient_identity_for_path(

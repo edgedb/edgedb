@@ -223,9 +223,7 @@ pg_langs_by_iso_639_3 = {
 }
 
 
-def to_regconfig(
-    language: str
-) -> str:
+def to_regconfig(language: str) -> str:
     "Analogous to edgedb.fts_to_regconfig function in metaschema"
     language = language.lower()
     if language.startswith('xxx_'):

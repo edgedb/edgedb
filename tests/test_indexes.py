@@ -249,9 +249,10 @@ class TestIndexes(tb.DDLTestCase):
         with self.assertRaisesRegex(
             edgedb.SchemaError,
             r"index.+fts::index"
-            r".+of object type 'default::Foo' already exists"
+            r".+of object type 'default::Foo' already exists",
         ):
-            await self.con.execute(r"""
+            await self.con.execute(
+                r"""
                 create type Foo{
                     create property val -> str;
                     create index fts::index on (
@@ -261,10 +262,12 @@ class TestIndexes(tb.DDLTestCase):
                     create index fts::index on (
                         fts::with_options(.val, fts::Language.eng));
                 };
-            """)
+                """
+            )
 
     async def test_index_08(self):
-        await self.con.execute(r"""
+        await self.con.execute(
+            r"""
             # setup delta
             create type ObjIndex3 {
                 create property name -> str;
@@ -272,7 +275,8 @@ class TestIndexes(tb.DDLTestCase):
                     fts::with_options(.name, fts::Language.eng)
                 );
             };
-        """)
+            """
+        )
 
         await self.assert_query_result(
             r"""
@@ -298,7 +302,8 @@ class TestIndexes(tb.DDLTestCase):
         )
 
     async def test_index_09(self):
-        await self.con.execute(r"""
+        await self.con.execute(
+            r"""
             # setup delta
             create abstract index MyIndex extending fts::index;
 
@@ -308,7 +313,8 @@ class TestIndexes(tb.DDLTestCase):
                     fts::with_options(.name, fts::Language.eng)
                 );
             };
-        """)
+            """
+        )
 
         await self.assert_query_result(
             r"""
@@ -352,16 +358,20 @@ class TestIndexes(tb.DDLTestCase):
                     }
                 filter .name = 'default::MyIndex' and .abstract = true;
             """,
-            [{
-                'name': 'default::MyIndex',
-                'kwargs': [],
-                'abstract': True,
-                'ancestors': [{
-                    'name': 'fts::index',
-                    'params': [],
+            [
+                {
+                    'name': 'default::MyIndex',
+                    'kwargs': [],
                     'abstract': True,
-                }],
-            }],
+                    'ancestors': [
+                        {
+                            'name': 'fts::index',
+                            'params': [],
+                            'abstract': True,
+                        }
+                    ],
+                }
+            ],
         )
 
     async def test_index_10(self):

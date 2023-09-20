@@ -30,11 +30,11 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
     This is intended to test the FTS query language as well as result scoring.
     '''
 
-    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'fts0.esdl')
+    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas', 'fts0.esdl')
 
-    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'fts_setup0.edgeql')
+    SETUP = os.path.join(
+        os.path.dirname(__file__), 'schemas', 'fts_setup0.edgeql'
+    )
 
     async def test_edgeql_fts_search_01(self):
         # At least one of "drink" or "poison" should appear in text.
@@ -46,48 +46,25 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                 language := 'eng'
             ).object {
                 number,
-                text,
+                text := .text[0:10],
             };
             ''',
-            tb.bag([{
-                "number": 15,
-                "text":
-                    "There seemed to be no use in waiting by the little "
-                    "door, so she went back to the table, half hoping she "
-                    "might find another key on it, or at any rate a book of "
-                    "rules for shutting people up like telescopes: this "
-                    "time she found a little bottle on it, (“which "
-                    "certainly was not here before,” said Alice,) and round "
-                    "the neck of the bottle was a paper label, with the "
-                    "words “DRINK ME,” beautifully printed on it in large "
-                    "letters."
-            }, {
-                "number": 16,
-                "text":
-                    "It was all very well to say “Drink me,” but the wise "
-                    "little Alice was not going to do _that_ in a hurry. "
-                    "“No, I’ll look first,” she said, “and see whether it’s "
-                    "marked ‘_poison_’ or not”; for she had read several "
-                    "nice little histories about children who had got "
-                    "burnt, and eaten up by wild beasts and other "
-                    "unpleasant things, all because they _would_ not "
-                    "remember the simple rules their friends had taught "
-                    "them: such as, that a red-hot poker will burn you if "
-                    "you hold it too long; and that if you cut your finger "
-                    "_very_ deeply with a knife, it usually bleeds; and she "
-                    "had never forgotten that, if you drink much from a "
-                    "bottle marked “poison,” it is almost certain to "
-                    "disagree with you, sooner or later."
-            }, {
-                "number": 17,
-                "text":
-                    "However, this bottle was _not_ marked “poison,” so "
-                    "Alice ventured to taste it, and finding it very nice, "
-                    "(it had, in fact, a sort of mixed flavour of "
-                    "cherry-tart, custard, pine-apple, roast turkey, "
-                    "toffee, and hot buttered toast,) she very soon "
-                    "finished it off."
-            }])
+            tb.bag(
+                [
+                    {
+                        "number": 15,
+                        "text": "There seem",
+                    },
+                    {
+                        "number": 16,
+                        "text": "It was all",
+                    },
+                    {
+                        "number": 17,
+                        "text": "However, t",
+                    },
+                ]
+            ),
         )
 
     async def test_edgeql_fts_search_02(self):
@@ -100,39 +77,21 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                 language := 'eng'
             ).object {
                 number,
-                text,
+                text := .text[0:10],
             };
             ''',
-            tb.bag([{
-                "number": 15,
-                "text":
-                    "There seemed to be no use in waiting by the little "
-                    "door, so she went back to the table, half hoping she "
-                    "might find another key on it, or at any rate a book of "
-                    "rules for shutting people up like telescopes: this "
-                    "time she found a little bottle on it, (“which "
-                    "certainly was not here before,” said Alice,) and round "
-                    "the neck of the bottle was a paper label, with the "
-                    "words “DRINK ME,” beautifully printed on it in large "
-                    "letters."
-            }, {
-                "number": 16,
-                "text":
-                    "It was all very well to say “Drink me,” but the wise "
-                    "little Alice was not going to do _that_ in a hurry. "
-                    "“No, I’ll look first,” she said, “and see whether it’s "
-                    "marked ‘_poison_’ or not”; for she had read several "
-                    "nice little histories about children who had got "
-                    "burnt, and eaten up by wild beasts and other "
-                    "unpleasant things, all because they _would_ not "
-                    "remember the simple rules their friends had taught "
-                    "them: such as, that a red-hot poker will burn you if "
-                    "you hold it too long; and that if you cut your finger "
-                    "_very_ deeply with a knife, it usually bleeds; and she "
-                    "had never forgotten that, if you drink much from a "
-                    "bottle marked “poison,” it is almost certain to "
-                    "disagree with you, sooner or later."
-            }])
+            tb.bag(
+                [
+                    {
+                        "number": 15,
+                        "text": "There seem",
+                    },
+                    {
+                        "number": 16,
+                        "text": "It was all",
+                    },
+                ]
+            ),
         )
 
     async def test_edgeql_fts_search_03(self):
@@ -145,26 +104,13 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                 language := 'eng'
             ).object {
                 number,
-                text,
+                text := .text[0:10],
             };
             ''',
             [{
                 "number": 16,
                 "text":
-                    "It was all very well to say “Drink me,” but the wise "
-                    "little Alice was not going to do _that_ in a hurry. "
-                    "“No, I’ll look first,” she said, “and see whether it’s "
-                    "marked ‘_poison_’ or not”; for she had read several "
-                    "nice little histories about children who had got "
-                    "burnt, and eaten up by wild beasts and other "
-                    "unpleasant things, all because they _would_ not "
-                    "remember the simple rules their friends had taught "
-                    "them: such as, that a red-hot poker will burn you if "
-                    "you hold it too long; and that if you cut your finger "
-                    "_very_ deeply with a knife, it usually bleeds; and she "
-                    "had never forgotten that, if you drink much from a "
-                    "bottle marked “poison,” it is almost certain to "
-                    "disagree with you, sooner or later."
+                    "It was all"
             }]
         )
 
@@ -177,26 +123,13 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                 language := 'eng'
             ).object {
                 number,
-                text,
+                text := .text[0:10],
             };
             ''',
             [{
                 "number": 16,
                 "text":
-                    "It was all very well to say “Drink me,” but the wise "
-                    "little Alice was not going to do _that_ in a hurry. "
-                    "“No, I’ll look first,” she said, “and see whether it’s "
-                    "marked ‘_poison_’ or not”; for she had read several "
-                    "nice little histories about children who had got "
-                    "burnt, and eaten up by wild beasts and other "
-                    "unpleasant things, all because they _would_ not "
-                    "remember the simple rules their friends had taught "
-                    "them: such as, that a red-hot poker will burn you if "
-                    "you hold it too long; and that if you cut your finger "
-                    "_very_ deeply with a knife, it usually bleeds; and she "
-                    "had never forgotten that, if you drink much from a "
-                    "bottle marked “poison,” it is almost certain to "
-                    "disagree with you, sooner or later."
+                    "It was all"
             }]
         )
 
@@ -219,26 +152,30 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                 rank := x.score,
             };
             ''',
-            [{
-                # "hl":
-                #     "<b>White</b> <b>Rabbit</b> returning, splendidly "
-                #     "dressed, with a pair of <b>white</b> kid <b>gloves</b> "
-                #     "in one hand",
-                "number": 8,
-                "rank": 0.6037054,
-            }, {
-                # "hl":
-                #     "<b>Rabbit</b>’s little <b>white</b> kid <b>gloves</b> "
-                #     "while she was talking. “How _can_ I have done",
-                "number": 14,
-                "rank": 0.4559453,
-            }, {
-                # "hl":
-                #     "<b>Rabbit</b> actually _took a <b>watch</b> out of its "
-                #     "waistcoat-pocket_, and looked at it, and then",
-                "number": 3,
-                "rank": 0.40634018,
-            }]
+            [
+                {
+                    # "hl":
+                    # "<b>White</b> <b>Rabbit</b> returning, splendidly "
+                    # "dressed, with a pair of <b>white</b> kid <b>gloves</b> "
+                    # "in one hand",
+                    "number": 8,
+                    "rank": 0.6037054,
+                },
+                {
+                    # "hl":
+                    # "<b>Rabbit</b>’s little <b>white</b> kid <b>gloves</b> "
+                    # "while she was talking. “How _can_ I have done",
+                    "number": 14,
+                    "rank": 0.4559453,
+                },
+                {
+                    # "hl":
+                    # "<b>Rabbit</b> actually _took a <b>watch</b> out of its "
+                    # "waistcoat-pocket_, and looked at it, and then",
+                    "number": 3,
+                    "rank": 0.40634018,
+                },
+            ],
         )
 
     async def test_edgeql_fts_search_05(self):
@@ -260,26 +197,30 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                 rank := x.score,
             };
             ''',
-            [{
-                # "hl":
-                #     "<b>White</b> <b>Rabbit</b> returning, splendidly "
-                #     "dressed, with a pair of <b>white</b> kid gloves in one "
-                #     "hand",
-                "number": 8,
-                "rank": 0.41372818,
-            }, {
-                # "hl":
-                #     "<b>golden</b> <b>key</b>, and Alice’s first thought "
-                #     "was that it might belong to one of the doors",
-                "number": 13,
-                "rank": 0.39684132,
-            }, {
-                # "hl":
-                #     "<b>White</b> <b>Rabbit</b> was still in sight, "
-                #     "hurrying down it. There was not a moment to be lost",
-                "number": 11,
-                "rank": 0.341959,
-            }]
+            [
+                {
+                    # "hl":
+                    # "<b>White</b> <b>Rabbit</b> returning, splendidly "
+                    # "dressed, with a pair of <b>white</b> kid gloves in one "
+                    # "hand",
+                    "number": 8,
+                    "rank": 0.41372818,
+                },
+                {
+                    # "hl":
+                    # "<b>golden</b> <b>key</b>, and Alice’s first thought "
+                    # "was that it might belong to one of the doors",
+                    "number": 13,
+                    "rank": 0.39684132,
+                },
+                {
+                    # "hl":
+                    # "<b>White</b> <b>Rabbit</b> was still in sight, "
+                    # "hurrying down it. There was not a moment to be lost",
+                    "number": 11,
+                    "rank": 0.341959,
+                },
+            ],
         )
 
     async def test_edgeql_fts_search_06(self):
@@ -303,11 +244,13 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                 rank := x.score,
             };
             ''',
-            [{
-                "ch": 1,
-                "number": 16,
-                "rank": 0.8530858,
-            }]
+            [
+                {
+                    "ch": 1,
+                    "number": 16,
+                    "rank": 0.8530858,
+                }
+            ],
         )
 
     async def test_edgeql_fts_language_01(self):
@@ -336,13 +279,15 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
             # In this case, language is not a constant, so we fallback to all
             # possible values of the enum. This then fails because some of them
             # are not supported by postgres.
-            await self.con.execute("""
+            await self.con.execute(
+                """
                 alter type Doc2 create index fts::index on (
                     fts::with_options(.x,
                         MyLangs.English if .x = 'blah' else MyLangs.PigLatin
                     )
                 );
-            """)
+                """
+            )
 
 
 class TestEdgeQLFTSFeatures(tb.QueryTestCase):
@@ -351,11 +296,11 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
     This is intended to test the various FTS schema features.
     '''
 
-    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'fts1.esdl')
+    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas', 'fts1.esdl')
 
-    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'fts_setup1.edgeql')
+    SETUP = os.path.join(
+        os.path.dirname(__file__), 'schemas', 'fts_setup1.edgeql'
+    )
 
     async def test_edgeql_fts_inheritance_01(self):
         # Test the fts search on a bunch of types that inherit from one
@@ -371,28 +316,24 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 type := .__type__.name,
             }
             ''',
-            tb.bag([
-                {
-                    'text': 'hello world',
-                    'type': 'default::Text'
-                },
-                {
-                    'text': 'running and jumping fox',
-                    'type': 'default::Text'
-                },
-                {
-                    'text': 'the fox chases the rabbit',
-                    'type': 'default::FancyQuotedText'
-                },
-                {
-                    'text': 'the rabbit is fast',
-                    'type': 'default::FancyQuotedText'
-                },
-                {
-                    'text': 'the world is big',
-                    'type': 'default::QuotedText'
-                },
-            ])
+            tb.bag(
+                [
+                    {'text': 'hello world', 'type': 'default::Text'},
+                    {
+                        'text': 'running and jumping fox',
+                        'type': 'default::Text',
+                    },
+                    {
+                        'text': 'the fox chases the rabbit',
+                        'type': 'default::FancyQuotedText',
+                    },
+                    {
+                        'text': 'the rabbit is fast',
+                        'type': 'default::FancyQuotedText',
+                    },
+                    {'text': 'the world is big', 'type': 'default::QuotedText'},
+                ]
+            ),
         )
 
     async def test_edgeql_fts_inheritance_02(self):
@@ -409,20 +350,16 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 type := .__type__.name,
             }
             ''',
-            tb.bag([
-                {
-                    'text': 'hello world',
-                    'type': 'default::Text'
-                },
-                {
-                    'text': 'elaborate and foxy',
-                    'type': 'default::FancyText'
-                },
-                {
-                    'text': 'the world is big',
-                    'type': 'default::QuotedText'
-                },
-            ])
+            tb.bag(
+                [
+                    {'text': 'hello world', 'type': 'default::Text'},
+                    {
+                        'text': 'elaborate and foxy',
+                        'type': 'default::FancyText',
+                    },
+                    {'text': 'the world is big', 'type': 'default::QuotedText'},
+                ]
+            ),
         )
 
     async def test_edgeql_fts_inheritance_03(self):
@@ -439,16 +376,15 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 type := .__type__.name,
             }
             ''',
-            tb.bag([
-                {
-                    'text': 'fancy hello',
-                    'type': 'default::FancyText'
-                },
-                {
-                    'text': 'the fox chases the rabbit',
-                    'type': 'default::FancyQuotedText'
-                },
-            ])
+            tb.bag(
+                [
+                    {'text': 'fancy hello', 'type': 'default::FancyText'},
+                    {
+                        'text': 'the fox chases the rabbit',
+                        'type': 'default::FancyQuotedText',
+                    },
+                ]
+            ),
         )
 
     async def test_edgeql_fts_inheritance_04(self):
@@ -468,9 +404,9 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             [
                 {
                     'text': 'the fox chases the rabbit',
-                    'type': 'default::FancyQuotedText'
+                    'type': 'default::FancyQuotedText',
                 },
-            ]
+            ],
         )
 
     async def test_edgeql_fts_multifield_01(self):
@@ -486,16 +422,18 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 body,
             }
             ''',
-            tb.bag([
-                {
-                    'title': 'angry reply',
-                    'body': "No! Wrong! It's blue!",
-                },
-                {
-                    'title': 'random stuff',
-                    'body': 'angry giraffes',
-                },
-            ])
+            tb.bag(
+                [
+                    {
+                        'title': 'angry reply',
+                        'body': "No! Wrong! It's blue!",
+                    },
+                    {
+                        'title': 'random stuff',
+                        'body': 'angry giraffes',
+                    },
+                ]
+            ),
         )
 
         await self.assert_query_result(
@@ -509,16 +447,18 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 body,
             }
             ''',
-            tb.bag([
-                {
-                    'title': 'angry reply',
-                    'body': "No! Wrong! It's blue!",
-                },
-                {
-                    'title': 'helpful reply',
-                    'body': "That's Rayleigh scattering for you",
-                },
-            ])
+            tb.bag(
+                [
+                    {
+                        'title': 'angry reply',
+                        'body': "No! Wrong! It's blue!",
+                    },
+                    {
+                        'title': 'helpful reply',
+                        'body': "That's Rayleigh scattering for you",
+                    },
+                ]
+            ),
         )
 
         await self.assert_query_result(
@@ -537,7 +477,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                     'title': 'first post',
                     'body': 'The sky is so red.',
                 },
-            ]
+            ],
         )
 
     async def test_edgeql_fts_computed_01(self):
@@ -552,10 +492,12 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 text,
             }
             ''',
-            tb.bag([
-                {'text': 'Item #1: red umbrella'},
-                {'text': 'Item #2: red and white candy cane'},
-            ])
+            tb.bag(
+                [
+                    {'text': 'Item #1: red umbrella'},
+                    {'text': 'Item #2: red and white candy cane'},
+                ]
+            ),
         )
 
         await self.assert_query_result(
@@ -568,10 +510,12 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 text,
             }
             ''',
-            tb.bag([
-                {'text': 'Item #2: red and white candy cane'},
-                {'text': 'Item #3: fancy pants'},
-            ])
+            tb.bag(
+                [
+                    {'text': 'Item #2: red and white candy cane'},
+                    {'text': 'Item #3: fancy pants'},
+                ]
+            ),
         )
 
         await self.assert_query_result(
@@ -586,7 +530,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             ''',
             [
                 {'text': 'Item #3: fancy pants'},
-            ]
+            ],
         )
 
     async def test_edgeql_fts_complex_object(self):
@@ -601,10 +545,12 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 text,
             }
             ''',
-            tb.bag([
-                {'text': 'Item #1: red umbrella'},
-                {'text': 'Item #2: red and white candy cane'},
-            ])
+            tb.bag(
+                [
+                    {'text': 'Item #1: red umbrella'},
+                    {'text': 'Item #2: red and white candy cane'},
+                ]
+            ),
         )
 
         # object is a subquery
@@ -616,10 +562,12 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 language := 'eng'
             ).object { text }
             ''',
-            tb.bag([
-                {'text': 'Item #1: red umbrella'},
-                {'text': 'Item #2: red and white candy cane'},
-            ])
+            tb.bag(
+                [
+                    {'text': 'Item #1: red umbrella'},
+                    {'text': 'Item #2: red and white candy cane'},
+                ]
+            ),
         )
 
         # object is a union
@@ -634,11 +582,13 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 language := 'eng'
             ).object { __type__: { name }}
             ''',
-            tb.bag([
-                {'__type__': {'name': 'default::Post'}},
-                {'__type__': {'name': 'default::Description'}},
-                {'__type__': {'name': 'default::Description'}},
-            ])
+            tb.bag(
+                [
+                    {'__type__': {'name': 'default::Post'}},
+                    {'__type__': {'name': 'default::Description'}},
+                    {'__type__': {'name': 'default::Description'}},
+                ]
+            ),
         )
 
         # object is an empty set
@@ -650,7 +600,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 language := 'eng'
             ).object { text }
             ''',
-            []
+            [],
         )
 
     async def test_edgeql_fts_complex_query(self):
@@ -663,9 +613,11 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 language := 'eng'
             ).object { text }
             ''',
-            tb.bag([
-                {'text': 'Item #3: fancy pants'},
-            ])
+            tb.bag(
+                [
+                    {'text': 'Item #3: fancy pants'},
+                ]
+            ),
         )
 
         # query is an empty set
@@ -678,7 +630,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             ).object { text }
             ''',
             [],
-            variables=(None,)
+            variables=(None,),
         )
 
     async def test_edgeql_fts_complex_lang(self):
@@ -691,9 +643,11 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 language := 'I can speak english fluently'[12:19]
             ).object { text }
             ''',
-            tb.bag([
-                {'text': 'Item #3: fancy pants'},
-            ])
+            tb.bag(
+                [
+                    {'text': 'Item #3: fancy pants'},
+                ]
+            ),
         )
 
         # query is an empty set, default to english
@@ -705,10 +659,12 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 language := <optional str>$0
             ).object { text }
             ''',
-            tb.bag([
-                {'text': 'Item #3: fancy pants'},
-            ]),
-            variables=(None,)
+            tb.bag(
+                [
+                    {'text': 'Item #3: fancy pants'},
+                ]
+            ),
+            variables=(None,),
         )
 
     async def test_edgeql_fts_weights(self):
@@ -723,7 +679,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select res.object.title
             order by res.score desc
             ''',
-            ["angry reply", "random stuff"]
+            ["angry reply", "random stuff"],
         )
         await self.assert_query_result(
             r'''
@@ -736,7 +692,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             select res.object.title
             order by res.score desc
             ''',
-            ["random stuff", "angry reply"]
+            ["random stuff", "angry reply"],
         )
 
     async def test_edgeql_fts_updating(self):
@@ -760,7 +716,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             r'''
             select fts::search(Doc1, 'world', language := 'eng').object.x;
             ''',
-            ['hello world']
+            ['hello world'],
         )
 
     async def test_edgeql_fts_empty_fields(self):
@@ -772,5 +728,5 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 Post, 'no body', language := 'eng'
             ).object { title, body};
             ''',
-            [{"title": "no body", "body": None}]
+            [{"title": "no body", "body": None}],
         )

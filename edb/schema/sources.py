@@ -163,6 +163,7 @@ class Source(
         """
         res = []
         from edb.common import debug
+
         if not debug.flags.zombodb:
             (fts_index, _) = indexes.get_effective_fts_index(self, schema)
 

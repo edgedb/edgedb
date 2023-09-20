@@ -568,8 +568,7 @@ def __infer_fts_document(
     env: context.Environment,
 ) -> s_types.Type:
     return env.schema.get(
-        s_name.QualName('fts', 'document'),
-        type=s_scalars.ScalarType
+        s_name.QualName('fts', 'document'), type=s_scalars.ScalarType
     )
 
 
