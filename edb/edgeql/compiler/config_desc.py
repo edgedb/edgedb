@@ -270,13 +270,15 @@ def _render_config_set(
         return (
             f"'CONFIGURE {scope.to_edgeql()} "
             f"SET { qlquote.quote_ident(name) } := {{' ++ "
-            f"array_join(array_agg({v}), ', ') ++ '}};\\n'"
+            f"array_join(array_agg((select _ := {v} order by _)), ', ') "
+            f"++ '}};\\n'"
         )
     else:
         indent = ' ' * (4 * (level - 1))
         return (
             f"'{indent}{ qlquote.quote_ident(name) } := {{' ++ "
-            f"array_join(array_agg({v}), ', ') ++ '}},'"
+            f"array_join(array_agg((SELECT _ := {v} ORDER BY _)), ', ') "
+            f"++ '}},'"
         )
 
 
@@ -357,12 +359,12 @@ def _render_config_object(
         sli_render = sub_layouts_items[0]
 
     return '\n'.join((
-        f"array_join(array_agg((",
+        f"array_join(array_agg((SELECT _ := (",
         f"  FOR item IN {{ {value_expr} }}",
         f"  UNION (",
         f"{textwrap.indent(sli_render, ' ' * 4)}",
         f"  )",
-        f")), {ql(join_term)})",
+        f") ORDER BY _)), {ql(join_term)})",
     ))
 
 

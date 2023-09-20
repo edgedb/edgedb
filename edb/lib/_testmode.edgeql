@@ -133,14 +133,16 @@ create extension package _conf VERSION '1.0' {
         create property opt_value -> std::str {
             set readonly := true;
         };
-        create property secret -> std::str {
-            set readonly := true;
-            set secret := true;
-        };
     };
     create type ext::_conf::SubObj extending ext::_conf::Obj {
         create required property extra -> int64 {
             set readonly := true;
+        };
+    };
+    create type ext::_conf::SecretObj extending ext::_conf::Obj {
+        create property secret -> std::str {
+            set readonly := true;
+            set secret := true;
         };
     };
 
@@ -156,8 +158,11 @@ create extension package _conf VERSION '1.0' {
         };
     };
 
-    create function ext::_conf::get_secret(c: ext::_conf::Obj)
+    create function ext::_conf::get_secret(c: ext::_conf::SecretObj)
         -> optional std::str using (c.secret);
+    create function ext::_conf::get_top_secret()
+        -> set of std::str using (
+          cfg::Config.extensions[is ext::_conf::Config].secret);
     create alias ext::_conf::OK := (
         cfg::Config.extensions[is ext::_conf::Config].secret ?= 'foobaz');
 };
