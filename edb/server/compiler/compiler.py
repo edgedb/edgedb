@@ -1037,7 +1037,7 @@ class Compiler:
         )
 
         sys_config_ddl = config.to_edgeql(
-            self.state.config_spec, database_config
+            self.state.config_spec, database_config, with_secrets=False,
         )
         # We need to put extension DDL configs *after* we have
         # reloaded the schema
@@ -1045,6 +1045,7 @@ class Compiler:
             config.load_ext_spec_from_schema(
                 user_schema, self.state.std_schema),
             database_config,
+            with_secrets=False,
         )
 
         schema_ddl = s_ddl.ddl_text_from_schema(
