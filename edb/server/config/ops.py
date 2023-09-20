@@ -55,6 +55,9 @@ class SettingValue(NamedTuple):
     value: Any
     source: str
     scope: qltypes.ConfigScope
+    # We track this just so that we can redact secret values in our
+    # debug endpoints.
+    secret: bool = False
 
 
 if TYPE_CHECKING:
@@ -414,6 +417,7 @@ def from_json(spec: spec.Spec, js: str | bytes) -> SettingsMap:
                 value=value_from_json_value(spec, setting, value['value']),
                 source=value['source'],
                 scope=qltypes.ConfigScope(value['scope']),
+                secret=setting.secret,
             )
 
     return mm.finish()
@@ -422,6 +426,7 @@ def from_json(spec: spec.Spec, js: str | bytes) -> SettingsMap:
 def to_edgeql(
     spec: spec.Spec,
     storage: Mapping[str, SettingValue],
+    with_secrets: bool,
 ) -> str:
     stmts = []
 
@@ -429,8 +434,14 @@ def to_edgeql(
         if name not in spec:
             continue
         setting = spec[name]
+        if setting.secret and not with_secrets:
+            continue
         if isinstance(setting.type, types.ConfigTypeSpec):
             for x in value.value:
+                # We look at the specific type of the object because
+                # a subtype could have a secret that the parent doesn't.
+                if x._tspec.has_secret and not with_secrets:
+                    continue
                 val = value_to_edgeql_const(setting.type, x)
                 stmt = f'CONFIGURE {value.scope.to_edgeql()}\n{val};'
                 stmts.append(stmt)
@@ -450,7 +461,10 @@ def set_value(
     scope: qltypes.ConfigScope,
 ) -> SettingsMap:
 
+    secret = name in storage and storage[name].secret
+
     return storage.set(
         name,
-        SettingValue(name=name, value=value, source=source, scope=scope),
+        SettingValue(name=name, value=value, source=source, scope=scope,
+                     secret=secret),
     )

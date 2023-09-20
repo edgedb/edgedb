@@ -145,18 +145,30 @@ def compile_ConfigReset(
             name=param_type_name.name,
             module=param_type_name.module,
         )
-        select = qlast.SelectQuery(
-            result=qlast.Shape(
-                expr=qlast.Path(steps=[param_type_ref]),
-                elements=s_utils.get_config_type_shape(
-                    ctx.env.schema, info.param_type, path=[param_type_ref]),
-            ),
-            where=filter_expr,
+        body = qlast.Shape(
+            expr=qlast.Path(steps=[param_type_ref]),
+            elements=s_utils.get_config_type_shape(
+                ctx.env.schema, info.param_type, path=[param_type_ref]),
         )
+        # The body needs to have access to secrets, since they get put
+        # into the shape and are necessary for compiling the deletion
+        # code, so compile the body in a way that we allow it.
+        # The filter should *not* be able to access secret pointers, though.
+        with ctx.new() as sctx:
+            sctx.current_schema_views += (info.param_type,)
+            body_ir = dispatch.compile(body, ctx=sctx)
 
-        ctx.modaliases[None] = 'cfg'
-        select_ir = setgen.ensure_set(
-            dispatch.compile(select, ctx=ctx), ctx=ctx)
+        with ctx.new() as sctx:
+            sctx.anchors = sctx.anchors.copy()
+            select = qlast.SelectQuery(
+                result=sctx.create_anchor(body_ir, 'a'),
+                where=filter_expr,
+            )
+
+            sctx.modaliases = ctx.modaliases.copy()
+            sctx.modaliases[None] = 'cfg'
+            select_ir = setgen.ensure_set(
+                dispatch.compile(select, ctx=sctx), ctx=sctx)
 
     config_reset = irast.ConfigReset(
         name=info.param_name,

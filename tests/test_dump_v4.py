@@ -72,8 +72,17 @@ class DumpTestCaseMixin:
                     dict(name='2', value='bar', tname='ext::_conf::Obj'),
                     dict(name='3', value='baz', extra=42,
                          tname='ext::_conf::SubObj'),
+                    # No SecretObj
                 ],
             ))]
+        )
+
+        # Secret shouldn't make it
+        await self.assert_query_result(
+            '''
+            select ext::_conf::get_top_secret()
+            ''',
+            [],
         )
 
 

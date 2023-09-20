@@ -450,7 +450,11 @@ def object_type_to_spec(
             and any(c.issubclass(schema, exclusive) for c in constraints)
         )
         fields[str_pn] = statypes.CompositeTypeSpecField(
-            name=str_pn, type=pytype, unique=unique, default=default
+            name=str_pn,
+            type=pytype,
+            unique=unique,
+            default=default,
+            secret=p.get_secret(schema),
         )
 
     spec = spec_class(

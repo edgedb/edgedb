@@ -40,6 +40,7 @@ class CompositeTypeSpecField:
     _: dataclasses.KW_ONLY
     unique: bool = True
     default: Any = MISSING
+    secret: bool = False
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -50,6 +51,25 @@ class CompositeTypeSpec:
     children: list[CompositeTypeSpec] = dataclasses.field(
         default_factory=list, hash=False, compare=False
     )
+    has_secret: bool = False
+
+    def __post_init__(self) -> None:
+        has_secret = any(
+            field.secret
+            or (
+                isinstance(field, CompositeTypeSpec)
+                # We look at children of pointer targets, and not
+                # children of the object itself, on the idea that for
+                # config objects, omitting individual top level
+                # objects with secrets should be fine.
+                and (
+                    field.has_secret
+                    or any(child.has_secret for child in field.children)
+                )
+            )
+            for field in self.fields.values()
+        )
+        object.__setattr__(self, 'has_secret', has_secret)
 
     @property
     def __name__(self) -> str:
@@ -59,7 +79,7 @@ class CompositeTypeSpec:
 class CompositeType:
     _tspec: CompositeTypeSpec
 
-    def to_json_value(self) -> dict[str, Any]:
+    def to_json_value(self, redacted: bool=False) -> dict[str, Any]:
         raise NotImplementedError
 
 

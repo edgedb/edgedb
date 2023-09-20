@@ -70,6 +70,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
 
         create required property secret: std::str {
             set readonly := true;
+            set secret := true;
             create annotation std::description :=
                 "Secret provided by auth provider";
         };
@@ -91,6 +92,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
 
         create property auth_signing_key -> std::str {
+            set secret := true;
             create annotation std::description :=
                 "The signing key used for auth extension. Must be at \
                 least 32 characters long.";

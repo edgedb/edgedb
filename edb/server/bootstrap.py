@@ -1601,7 +1601,7 @@ def compile_sys_queries(
     _, sql = compile_bootstrap_script(
         compiler,
         schema,
-        'SELECT cfg::get_config_json()',
+        'SELECT cfg::_get_config_json_internal()',
         expected_cardinality_one=True,
     )
 
@@ -1610,7 +1610,7 @@ def compile_sys_queries(
     _, sql = compile_bootstrap_script(
         compiler,
         schema,
-        "SELECT cfg::get_config_json(sources := ['database'])",
+        "SELECT cfg::_get_config_json_internal(sources := ['database'])",
         expected_cardinality_one=True,
     )
 
@@ -1619,7 +1619,9 @@ def compile_sys_queries(
     _, sql = compile_bootstrap_script(
         compiler,
         schema,
-        "SELECT cfg::get_config_json(max_source := 'system override')",
+        """
+        SELECT cfg::_get_config_json_internal(max_source := 'system override')
+        """,
         expected_cardinality_one=True,
     )
 
@@ -1628,7 +1630,9 @@ def compile_sys_queries(
     _, sql = compile_bootstrap_script(
         compiler,
         schema,
-        "SELECT cfg::get_config_json(max_source := 'postgres client')",
+        """
+        SELECT cfg::_get_config_json_internal(max_source := 'postgres client')
+        """,
         expected_cardinality_one=True,
     )
 

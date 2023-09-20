@@ -39,6 +39,7 @@ from . import modules as s_mod
 from . import name as sn
 from . import objects as so
 from . import schema as s_schema
+from . import types as s_types
 
 
 class ExtensionPackage(
@@ -399,6 +400,10 @@ class DeleteExtension(
                 or (
                     isinstance(obj, so.DerivableObject)
                     and not obj.generic(schema)
+                )
+                or (
+                    isinstance(obj, s_types.Type)
+                    and obj.get_from_alias(schema)
                 )
             ):
                 # Skip any dependent objects, only pick top level

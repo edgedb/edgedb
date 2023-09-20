@@ -58,6 +58,7 @@ class Setting:
     affects_compilation: bool = False
     enum_values: Optional[Sequence[str]] = None
     required: bool = True
+    secret: bool = False
 
     def __post_init__(self) -> None:
         if (self.type not in SETTING_TYPES and
@@ -304,6 +305,7 @@ def _load_spec_from_type(
                 else None
             ),
             required=required,
+            secret=p.get_secret(schema),
         )
 
         settings.append(setting)
