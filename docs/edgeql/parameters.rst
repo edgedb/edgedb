@@ -150,6 +150,22 @@ When using a client library, pass the idiomatic null pointer for your language:
     select <required str>$name;
 
 
+Default parameter values
+------------------------
+
+When using optional parameters, you may want to provide a default value to use
+in case the parameter is not passed.
+
+.. code-block:: edgeql-repl
+
+  db> select 'Hello ' ++ <optional str>$name ?? 'there';
+  Parameter <str>$name (Ctrl+D for empty set `{}`): EdgeDB
+  {'Hello EdgeDB'}
+  db> select 'Hello ' ++ <optional str>$name ?? 'there';
+  Parameter <str>$name (Ctrl+D for empty set `{}`):
+  {'Hello there'}
+
+
 What can be parameterized?
 --------------------------
 
