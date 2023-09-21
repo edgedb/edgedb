@@ -1247,3 +1247,43 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             r'''select Src''',
             [],
         )
+
+    async def test_edgeql_policies_parent_update_01(self):
+        await self.con.execute('''
+            CREATE ABSTRACT TYPE Base {
+                CREATE PROPERTY name: std::str;
+                CREATE ACCESS POLICY sel_ins
+                    ALLOW SELECT, INSERT USING (true);
+            };
+            CREATE TYPE Child EXTENDING Base;
+
+            INSERT Child;
+        ''')
+
+        await self.assert_query_result(
+            '''
+            update Base set { name := '!!!' }
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            '''
+            delete Base
+            ''',
+            [],
+        )
+
+        await self.con.execute('''
+            ALTER TYPE Base {
+                CREATE ACCESS POLICY upd_read
+                    ALLOW UPDATE READ USING (true);
+            };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation on update"):
+            await self.con.query('''
+                update Base set { name := '!!!' }
+            ''')
