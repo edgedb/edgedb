@@ -256,11 +256,11 @@ class TestIndexes(tb.DDLTestCase):
                 create type Foo{
                     create property val -> str;
                     create index fts::index on (
-                        fts::with_options(.val, fts::Language.eng));
+                        fts::with_options(.val, language := fts::Language.eng));
                     create index fts::index on (
-                        fts::with_options(.val, fts::Language.eng));
+                        fts::with_options(.val, language := fts::Language.eng));
                     create index fts::index on (
-                        fts::with_options(.val, fts::Language.eng));
+                        fts::with_options(.val, language := fts::Language.eng));
                 };
                 """
             )
@@ -272,7 +272,7 @@ class TestIndexes(tb.DDLTestCase):
             create type ObjIndex3 {
                 create property name -> str;
                 create index fts::index on (
-                    fts::with_options(.name, fts::Language.eng)
+                    fts::with_options(.name, language := fts::Language.eng)
                 );
             };
             """
@@ -291,14 +291,21 @@ class TestIndexes(tb.DDLTestCase):
                     }
                 filter .name = 'default::ObjIndex3';
             """,
-            [{
-                'indexes': [{
-                    'name': 'fts::index',
-                    'kwargs': [],
-                    'expr': 'fts::with_options(.name, fts::Language.eng)',
-                    'abstract': False,
-                }]
-            }],
+            [
+                {
+                    'indexes': [
+                        {
+                            'name': 'fts::index',
+                            'kwargs': [],
+                            'expr': (
+                                'fts::with_options(.name, '
+                                'language := fts::Language.eng)'
+                            ),
+                            'abstract': False,
+                        }
+                    ]
+                }
+            ],
         )
 
     async def test_index_09(self):
@@ -310,7 +317,7 @@ class TestIndexes(tb.DDLTestCase):
             create type ObjIndex4 {
                 create property name -> str;
                 create index MyIndex on (
-                    fts::with_options(.name, fts::Language.eng)
+                    fts::with_options(.name, language := fts::Language.eng)
                 );
             };
             """
@@ -329,14 +336,21 @@ class TestIndexes(tb.DDLTestCase):
                     }
                 filter .name = 'default::ObjIndex4';
             """,
-            [{
-                'indexes': [{
-                    'name': 'default::MyIndex',
-                    'kwargs': [],
-                    'expr': 'fts::with_options(.name, fts::Language.eng)',
-                    'abstract': False,
-                }]
-            }],
+            [
+                {
+                    'indexes': [
+                        {
+                            'name': 'default::MyIndex',
+                            'kwargs': [],
+                            'expr': (
+                                'fts::with_options(.name, '
+                                'language := fts::Language.eng)'
+                            ),
+                            'abstract': False,
+                        }
+                    ]
+                }
+            ],
         )
 
         await self.assert_query_result(

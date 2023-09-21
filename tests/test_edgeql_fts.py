@@ -107,11 +107,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                 text := .text[0:10],
             };
             ''',
-            [{
-                "number": 16,
-                "text":
-                    "It was all"
-            }]
+            [{"number": 16, "text": "It was all"}],
         )
 
         # Same sematics as above
@@ -126,11 +122,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                 text := .text[0:10],
             };
             ''',
-            [{
-                "number": 16,
-                "text":
-                    "It was all"
-            }]
+            [{"number": 16, "text": "It was all"}],
         )
 
     async def test_edgeql_fts_search_04(self):
@@ -263,7 +255,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                 create required property x -> str;
 
                 create index fts::index on (
-                    fts::with_options(.x, MyLangs.English)
+                    fts::with_options(.x, language := MyLangs.English)
                 );
             };
             create type Doc2 {
@@ -282,9 +274,9 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
             await self.con.execute(
                 """
                 alter type Doc2 create index fts::index on (
-                    fts::with_options(.x,
-                        MyLangs.English if .x = 'blah' else MyLangs.PigLatin
-                    )
+                  fts::with_options(.x, language :=
+                    MyLangs.English if .x = 'blah' else MyLangs.PigLatin
+                  )
                 );
                 """
             )
@@ -706,7 +698,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             insert Doc1 { x := 'hello world' };
             alter type Doc1 {
                 create index fts::index on (
-                    fts::with_options(.x, fts::Language.eng)
+                    fts::with_options(.x, language := fts::Language.eng)
                 );
             };
             '''

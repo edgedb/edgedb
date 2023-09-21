@@ -63,8 +63,8 @@ CREATE SCALAR TYPE fts::document {
 
 CREATE FUNCTION fts::with_options(
     text: std::str,
-    language: anyenum,
-    weight_category: optional std::str = <std::str>{},
+    NAMED ONLY language: anyenum,
+    NAMED ONLY weight_category: optional std::str = <std::str>{},
 ) -> fts::document {
     CREATE ANNOTATION std::description := '
         Adds language and weight category information to a string,

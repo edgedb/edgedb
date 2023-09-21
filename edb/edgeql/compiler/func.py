@@ -976,7 +976,7 @@ def compile_fts_with_options(
     call: irast.FunctionCall, *, ctx: context.ContextLevel
 ) -> irast.Expr:
     # language has already been typechecked to be an enum
-    lang = call.args[1].expr
+    lang = call.args[0].expr
     assert lang.typeref
     lang_ty_id = lang.typeref.id
     lang_ty = ctx.env.schema.get_by_id(lang_ty_id, type=s_scalars.ScalarType)
@@ -1000,21 +1000,20 @@ def compile_fts_with_options(
             lang_domain.add(enum_value.lower())
 
     # weight_category
-    if len(call.args) > 2:
-        weight_expr = call.args[2].expr
-        if not irutils.is_const(weight_expr):
-            raise errors.InvalidValueError(
-                f"fts::search weight_category must be a literal",
-                context=weight_expr.context,
-            )
-        weight_const = irutils.as_const(weight_expr)
-        assert weight_const
+    weight_expr = call.args[1].expr
+    if not irutils.is_const(weight_expr):
+        raise errors.InvalidValueError(
+            f"fts::search weight_category must be a literal",
+            context=weight_expr.context,
+        )
+    weight_const = irutils.as_const(weight_expr)
+    if weight_const:
         weight = str(weight_const.value)
     else:
         weight = None
 
     return irast.FTSDocument(
-        text=call.args[0].expr,
+        text=call.args[2].expr,
         language=lang,
         language_domain=lang_domain,
         weight=weight,

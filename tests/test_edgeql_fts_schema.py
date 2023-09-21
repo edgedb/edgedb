@@ -82,7 +82,10 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                         type Text extending Ordered {
                             required text: str;
                             index fts::index on (
-                                fts::with_options(.text, fts::Language.eng)
+                                fts::with_options(
+                                    .text,
+                                    language := fts::Language.eng
+                                )
                             );
                         }
                     }
@@ -130,7 +133,10 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                         type Text extending Ordered {
                             required text: str;
                             index fts::index on (
-                                fts::with_options(.text, fts::Language.eng)
+                                fts::with_options(
+                                    .text,
+                                    language := fts::Language.eng
+                                )
                             );
                         }
                     }
@@ -173,7 +179,10 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                         abstract type Text {
                             required text: str;
                             index fts::index on (
-                                fts::with_options(.text, fts::Language.eng)
+                                fts::with_options(
+                                    .text,
+                                    language := fts::Language.eng
+                                )
                             );
                         }
 
@@ -220,7 +229,10 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                         type Text {
                             required text: str;
                             index fts::index on (
-                                fts::with_options(.text, fts::Language.eng)
+                                fts::with_options(
+                                    .text,
+                                    language := fts::Language.eng
+                                )
                             );
                         }
                     }
@@ -268,15 +280,24 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                         type Text {
                             required text: str;
                             index fts::index on (
-                                fts::with_options(.text, fts::Language.eng)
+                                fts::with_options(
+                                    .text,
+                                    language := fts::Language.eng
+                                )
                             );
                         }
 
                         type TitledText extending Text {
                             required title: str;
                             index fts::index on ((
-                              fts::with_options(.title, fts::Language.eng),
-                              fts::with_options(.text, fts::Language.eng)
+                              fts::with_options(
+                                .title,
+                                language := fts::Language.eng
+                              ),
+                              fts::with_options(
+                                .text,
+                                language := fts::Language.eng
+                              )
                             ));
                         }
                     }
@@ -319,7 +340,10 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                             required text: str;
 
                             index fts::index on (
-                                fts::with_options(.text, fts::Language.eng)
+                                fts::with_options(
+                                    .text,
+                                    language := fts::Language.eng
+                                )
                             );
                         }
 
@@ -327,8 +351,14 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                             required title: str;
                             required text: str;
                             index fts::index on ((
-                              fts::with_options(.title, fts::Language.eng),
-                              fts::with_options(.text, fts::Language.eng)
+                              fts::with_options(
+                                .title,
+                                language := fts::Language.eng
+                              ),
+                              fts::with_options(
+                                .text,
+                                language := fts::Language.eng
+                              )
                             ));
                         }
                     }
@@ -394,13 +424,13 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
                 '''
                 alter type default::Text {
                   create index fts::index on ((
-                    fts::with_options(.text0, fts::Language.eng),
-                    fts::with_options(.text1, fts::Language.eng),
-                    fts::with_options(.text2, fts::Language.eng),
-                    fts::with_options(.text3, fts::Language.eng),
-                    fts::with_options(.text4, fts::Language.eng),
-                    fts::with_options(.text5, fts::Language.eng),
-                    fts::with_options(.text6, fts::Language.eng),
+                    fts::with_options(.text0, language := fts::Language.eng),
+                    fts::with_options(.text1, language := fts::Language.eng),
+                    fts::with_options(.text2, language := fts::Language.eng),
+                    fts::with_options(.text3, language := fts::Language.eng),
+                    fts::with_options(.text4, language := fts::Language.eng),
+                    fts::with_options(.text5, language := fts::Language.eng),
+                    fts::with_options(.text6, language := fts::Language.eng),
                   ));
                 }
                 '''
