@@ -3739,19 +3739,39 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
             # the indexes are dropped automatically in this case.
             drop_index = self.delete_index(index, orig_schema, context)
         else:
-            drop_index = dbops.CommandGroup()
+            drop_index = dbops.NoOpCommand()
 
         # FTS
-        fts_textsearch = sn.QualName('fts', 'index')
-        if index.has_base_with_name(orig_schema, fts_textsearch):
+        if index.has_base_with_name(orig_schema, sn.QualName('fts', 'index')):
+
+            # compile commands for index drop
             options = self.get_compile_options(
                 index, orig_schema, context, self.get_schema_metaclass()
             )
-            self.pgops.add(
-                deltafts.delete_fts_index(
-                    index, drop_index, options, orig_schema, context
-                )
+            drop_ops = deltafts.delete_fts_index(
+                index, drop_index, options, schema, orig_schema, context
             )
+            drop_s_ops = cast(sd.Command, drop_ops)
+
+            if isinstance(drop_index, dbops.NoOpCommand):
+                # Even though the object type table is getting dropped, we have
+                # to drop the trigger and its function
+                self.pgops.add(drop_s_ops)
+            else:
+                # The object is not getting dropped, so we need to update the
+                # inh view *before* the __fts_document__ is dropped.
+
+                # schedule inh view update
+                subject = index.get_subject(orig_schema)
+                assert isinstance(subject, s_objtypes.ObjectType)
+                self.schedule_inhview_update(
+                    schema, context, subject, s_sources.SourceCommandContext
+                )
+
+                # schedule the index to be dropped after
+                self.schedule_post_inhview_update_command(
+                    schema, context, drop_s_ops, s_sources.SourceCommandContext
+                )
         else:
             self.pgops.add(drop_index)
 
