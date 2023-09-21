@@ -70,6 +70,9 @@ def get_access_policies(
     stype: s_objtypes.ObjectType, *, ctx: context.ContextLevel,
 ) -> Tuple[s_policies.AccessPolicy, ...]:
     schema = ctx.env.schema
+    if not ctx.env.options.apply_query_rewrites:
+        return ()
+
     # The apply_access_policies config flag disables user-specified
     # access polices, but not stdlib ones
     if (
@@ -380,7 +383,8 @@ def compile_dml_write_policies(
     ctx: context.ContextLevel,
 ) -> Optional[irast.WritePolicies]:
     """Compile policy filters and wrap them into irast.WritePolicies"""
-    if not ctx.env.type_rewrites.get((stype, False)):
+    pols = get_access_policies(stype, ctx=ctx)
+    if not pols:
         return None
 
     with ctx.detached() as _, _.newscope(fenced=True) as subctx:
@@ -390,10 +394,6 @@ def compile_dml_write_policies(
 
         schema = subctx.env.schema
         subctx.anchors = subctx.anchors.copy()
-
-        pols = get_access_policies(stype, ctx=ctx)
-        if not pols:
-            return None
 
         policies = []
         for pol in pols:
@@ -425,7 +425,7 @@ def compile_dml_read_policies(
     ctx: context.ContextLevel,
 ) -> Optional[irast.ReadPolicyExpr]:
     """Compile a policy filter for a DML statement at a particular type"""
-    if not ctx.env.type_rewrites.get((stype, False)):
+    if not get_access_policies(stype, ctx=ctx):
         return None
 
     with ctx.detached() as _, _.newscope(fenced=True) as subctx:
@@ -450,6 +450,8 @@ def _prepare_dml_policy_context(
     *,
     ctx: context.ContextLevel,
 ) -> None:
+    # It doesn't matter whether we skip subtypes here, so don't skip
+    # subtypes if it has already been compiled that way, otherwise do.
     skip_subtypes = (stype, False) not in ctx.env.type_rewrites
     result = setgen.class_set(
         stype, path_id=result.path_id, skip_subtypes=skip_subtypes, ctx=ctx
