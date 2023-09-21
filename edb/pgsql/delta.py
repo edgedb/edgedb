@@ -3974,10 +3974,15 @@ class PointerMetaCommand(
         if ptr.is_pure_computable(schema):
             return None
 
+        # We only *need* to use postgres defaults for link properties
+        # and sequence values (since we always explicitly inject it in
+        # INSERTs anyway), but we *want* to use it whenever we can,
+        # since it is much faster than explicitly populating the
+        # column.
         default = ptr.get_default(schema)
         default_value = None
 
-        if default is not None and ptr.is_link_property(schema):
+        if default is not None:
             default_value = schemamech.ptr_default_to_col_default(
                 schema, ptr, default)
         elif self.is_sequence_ptr(ptr, schema):
@@ -4567,11 +4572,10 @@ class PointerMetaCommand(
         if changing_col_type:
             # In case the column has a default, clear it out before
             # changing the type
-            if is_lprop or self.is_sequence_ptr(pointer, orig_schema):
-                alter_table.add_operation(
-                    dbops.AlterTableAlterColumnDefault(
-                        column_name=old_ptr_stor_info.column_name,
-                        default=None))
+            alter_table.add_operation(
+                dbops.AlterTableAlterColumnDefault(
+                    column_name=old_ptr_stor_info.column_name,
+                    default=None))
 
             alter_type = dbops.AlterTableAlterColumnType(
                 old_ptr_stor_info.column_name,
