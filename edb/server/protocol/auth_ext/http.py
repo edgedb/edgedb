@@ -23,6 +23,8 @@ import json
 import urllib.parse
 import base64
 import hashlib
+import os
+import mimetypes
 
 from typing import *
 from jwcrypto import jwk, jwt
@@ -32,8 +34,7 @@ from edb.common import debug
 from edb.common import markup
 from edb.ir import statypes
 
-from . import oauth, local, errors, util, pkce
-
+from . import oauth, local, errors, util, pkce, ui
 
 class Router:
     def __init__(self, *, db: Any, base_path: str, test_mode: bool):
@@ -44,6 +45,9 @@ class Router:
     async def handle_request(
         self, request: Any, response: Any, args: list[str]
     ):
+        if self.db.db_config is None:
+            await self.db.introspection()
+
         test_url = (
             request.params[b'oauth-test-server'].decode()
             if (
@@ -255,6 +259,8 @@ class Router:
                             redirect_params = urllib.parse.urlencode(
                                 {
                                     "error": str(ex),
+                                    "handle": data.get('handle', ''),
+                                    "email": data.get('email', '')
                                 }
                             )
                             redirect_url = (
@@ -328,6 +334,7 @@ class Router:
                             redirect_params = urllib.parse.urlencode(
                                 {
                                     "error": str(ex),
+                                    "handle": data.get('handle', ''),
                                 }
                             )
                             redirect_url = (
@@ -336,6 +343,66 @@ class Router:
                             response.custom_headers["Location"] = redirect_url
                         else:
                             raise ex
+
+                case ('login',):
+                    providers = util.get_config(
+                        self.db.db_config, "ext::auth::AuthConfig::providers",
+                        frozenset
+                    )
+
+                    query = (request.url.query.decode("ascii")
+                            if request.url.query else '')
+
+                    response.status = http.HTTPStatus.OK
+                    response.content_type = b'text/html'
+                    response.body = ui.render_login_page(
+                        base_path=self.base_path,
+                        providers=providers,
+                        redirect_to='http://localhost',
+                        error_message=_maybe_get_search_param(query, 'error'),
+                        handle=_maybe_get_search_param(query, 'handle'),
+                    )
+
+                case ('signup',):
+                    providers = util.get_config(
+                        self.db.db_config, "ext::auth::AuthConfig::providers",
+                        frozenset
+                    )
+                    password_providers = [
+                        p for p in providers
+                        if util.get_config_typename(p) == 'ext::auth::PasswordClientConfig'
+                    ]
+                    assert(len(password_providers) == 1)
+
+                    query = (request.url.query.decode("ascii")
+                            if request.url.query else '')
+
+                    response.status = http.HTTPStatus.OK
+                    response.content_type = b'text/html'
+                    response.body = ui.render_signup_page(
+                        base_path=self.base_path,
+                        provider_id=password_providers[0].provider_id,
+                        redirect_to='http://localhost',
+                        error_message=_maybe_get_search_param(query, 'error'),
+                        handle=_maybe_get_search_param(query, 'handle'),
+                        email=_maybe_get_search_param(query, 'email')
+                    )
+
+                case ('_static', filename):
+                    filepath = os.path.join(
+                        os.path.dirname(__file__),
+                        '_static', filename
+                    )
+                    try:
+                        with open(filepath, 'rb') as f:
+                            response.status = http.HTTPStatus.OK
+                            response.content_type = (
+                                    mimetypes.guess_type(filename)[0]
+                                    or 'application/octet-stream'
+                                ).encode()
+                            response.body = f.read()
+                    except FileNotFoundError:
+                        response.status = http.HTTPStatus.NOT_FOUND
 
                 case _:
                     raise errors.NotFound("Unknown auth endpoint")
