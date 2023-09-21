@@ -84,11 +84,26 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     create type ext::auth::PasswordClientConfig
         extending ext::auth::ClientConfig;
 
+    # create type ext::auth::UIConfig extending cfg::ConfigObject {
+    #     create required property redirect_to: std::str;
+
+    #     create property app_name: std::str;
+    #     create property logo_url: std::str;
+    #     create property dark_logo_url: std::str;
+    #     create property brand_color: std::str;
+    # };
+
     create type ext::auth::AuthConfig extending cfg::ExtensionConfig {
         create multi link providers -> ext::auth::ClientConfig {
             create annotation std::description :=
                 "Configuration for auth provider clients";
         };
+
+        # create link ui -> ext::auth::UIConfig {
+        #     create annotation std::description :=
+        #         "Configuration for builtin auth UI. If not set the builtin \
+        #         UI is disabled";
+        # };
 
         create property auth_signing_key -> std::str {
             create annotation std::description :=

@@ -94,3 +94,6 @@ def get_config_unchecked(
             description="Missing configuration value",
         )
     return value
+
+def get_config_typename(config_value: SettingValue) -> str:
+    return config_value._tspec.name
