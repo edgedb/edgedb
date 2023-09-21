@@ -904,7 +904,11 @@ class ExtensionCommand(UnqualifiedObjectCommand):
 
 
 class CreateExtension(CreateObject, ExtensionCommand):
-    pass
+    # HACK: I think there is a bug in our plugin that made us not
+    # understand that this was overridden in ExtensionCommand.
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.EXTENSION
+    )
 
 
 class DropExtension(DropObject, ExtensionCommand):

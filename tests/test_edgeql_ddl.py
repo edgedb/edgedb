@@ -8680,7 +8680,7 @@ type default::Foo {
 
         async with self.assertRaisesRegexTx(
             edgedb.SchemaError,
-            "extension 'MyExtension' already exists",
+            "version 1.0 is already installed",
         ):
             await self.con.execute(r"""
                 CREATE EXTENSION MyExtension VERSION '2.0';
@@ -16470,6 +16470,143 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         finally:
             await self.con.execute('''
                 drop type Test;
+            ''')
+
+    async def _extension_test_06b(self):
+        await self.con.execute(r"""
+            START MIGRATION TO {
+                using extension bar version "1.1";
+                module default {
+                    function lol() -> str using (ext::bar::fubar())
+                }
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        await self.assert_query_result(
+            'select lol()',
+            ['foobar'],
+        )
+
+        # Try dropping everything that uses it but not the extension
+        async with self._run_and_rollback():
+            await self.con.execute(r"""
+                START MIGRATION TO {
+                    using extension bar version "1.1";
+                    module default {
+                    }
+                };
+                POPULATE MIGRATION;
+                COMMIT MIGRATION;
+            """)
+
+        # Try dropping it but adding bar
+        async with self._run_and_rollback():
+            await self.con.execute(r"""
+                START MIGRATION TO {
+                    using extension bar version "1.1";
+                    module default {
+                    }
+                };
+                POPULATE MIGRATION;
+                COMMIT MIGRATION;
+            """)
+
+        # Try dropping everything including the extension
+        await self.con.execute(r"""
+            START MIGRATION TO {
+                module default {
+                }
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        # Try it explicitly specifying an old version. Note
+        # that we don't *yet* support upgrading between extension
+        # versions; you need to drop it and recreate everything, which
+        # obviously is not great.
+
+        await self.con.execute(r"""
+            START MIGRATION TO {
+                using extension bar version '1.0';
+                module default {
+                    function lol() -> str using (ext::bar::fubar())
+                }
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        await self.assert_query_result(
+            'select lol()',
+            ['foo?bar'],
+        )
+
+        # Try dropping everything including the extension
+        await self.con.execute(r"""
+            START MIGRATION TO {
+                module default {
+                }
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        with self.assertRaisesRegex(
+            edgedb.SchemaError,
+            "cannot install extension 'foo' version 1.1: "
+            "version 1.0 is already installed"
+        ):
+            await self.con.execute(r"""
+                START MIGRATION TO {
+                    using extension bar version '1.0';
+                    using extension foo version '1.1';
+                    module default {
+                    }
+                };
+                POPULATE MIGRATION;
+                COMMIT MIGRATION;
+            """)
+
+    async def test_edgeql_ddl_extensions_06(self):
+        # Make an extension with dependencies
+        await self.con.execute('''
+            create extension package foo VERSION '1.0' {
+              set ext_module := "ext::foo";
+              create module ext::foo;
+              create function ext::foo::test() -> str using ("foo?");
+            };
+            create extension package foo VERSION '1.1' {
+              set ext_module := "ext::foo";
+              create module ext::foo;
+              create function ext::foo::test() -> str using ("foo");
+            };
+            create extension package bar VERSION '1.0' {
+              set ext_module := "ext::bar";
+              set dependencies := ["foo==1.0"];
+              create module ext::bar;
+              create function ext::bar::fubar() -> str using (
+                ext::foo::test() ++ "bar"
+              );
+            };
+            create extension package bar VERSION '1.1' {
+              set ext_module := "ext::bar";
+              set dependencies := ["foo==1.1"];
+              create module ext::bar;
+              create function ext::bar::fubar() -> str using (
+                ext::foo::test() ++ "bar"
+              );
+            };
+        ''')
+        try:
+            async with self._run_and_rollback():
+                await self._extension_test_06b()
+        finally:
+            await self.con.execute('''
+                drop extension package bar VERSION '1.0';
+                drop extension package foo VERSION '1.0';
             ''')
 
     async def test_edgeql_ddl_reindex(self):

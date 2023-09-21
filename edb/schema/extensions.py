@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *
 
 import contextlib
+import uuid
 
 from edb import errors
 
@@ -49,6 +50,14 @@ class ExtensionPackage(
     data_safe=False,
 ):
 
+    # Note: !!!!!!
+    # ExtensionPackage, like all GlobalObjects, needs to store its
+    # data in globally stored JSON instead of via reflection schema.
+    # When you add a field to ExtensionPackage, you must also update
+    # CreateExtensionPackage in pgsql/delta.py and
+    # _generate_extension_views in metaschema to store and retrieve
+    # the data from json.
+
     version = so.SchemaField(
         verutils.Version,
         compcoef=0.9,
@@ -69,6 +78,16 @@ class ExtensionPackage(
 
     ext_module = so.SchemaField(
         str, default=None, compcoef=0.9)
+
+    # It uses str instead of direct references so we can stick
+    # versions in there eventually
+    dependencies = so.SchemaField(
+        checked.FrozenCheckedSet[str],
+        default=so.DEFAULT_CONSTRUCTOR,
+        coerce=True,
+        inheritable=False,
+        compcoef=0.9,
+    )
 
     @classmethod
     def get_schema_class_displayname(cls) -> str:
@@ -94,6 +113,37 @@ class Extension(
         ExtensionPackage,
         compcoef=0.0,
     )
+
+    dependencies = so.SchemaField(
+        so.ObjectList['Extension'],
+        default=so.DEFAULT_CONSTRUCTOR,
+        coerce=True,
+        inheritable=False,
+        compcoef=0.9,
+    )
+
+    @classmethod
+    def create_in_schema(
+        cls: Type[Extension],
+        schema: s_schema.Schema_T,
+        stdmode: bool = False,
+        *,
+        id: Optional[uuid.UUID] = None,
+        **data: Any,
+    ) -> Tuple[s_schema.Schema_T, Extension]:
+        name = data['name']
+        pkg = data['package']
+
+        if existing_ext := schema.get_global(Extension, name, default=None):
+            vn = existing_ext.get_verbosename(schema)
+            existing_pkg = existing_ext.get_package(schema)
+            raise errors.SchemaError(
+                f'cannot install {vn} version {pkg.get_version(schema)}: '
+                f'version {existing_pkg.get_version(schema)} is already '
+                f'installed'
+            )
+
+        return super().create_in_schema(schema, stdmode, id=id, **data)
 
 
 class ExtensionPackageCommandContext(
@@ -136,6 +186,44 @@ class ExtensionPackageCommand(
             )
 
         return super()._cmd_tree_from_ast(schema, astnode, context)
+
+
+def get_package(
+    name: sn.Name, version: Optional[verutils.Version], schema: s_schema.Schema
+) -> ExtensionPackage:
+    filters = [
+        lambda schema, pkg: (
+            pkg.get_shortname(schema) == name
+        )
+    ]
+    if version is not None:
+        filters.append(
+            lambda schema, pkg: pkg.get_version(schema) == version,
+        )
+
+    pkgs = list(schema.get_objects(
+        type=ExtensionPackage,
+        extra_filters=filters,
+    ))
+
+    if not pkgs:
+        dname = str(name)
+        if version is None:
+            raise errors.SchemaError(
+                f'cannot create extension {dname!r}:'
+                f' extension package {dname!r} does'
+                f' not exist'
+            )
+        else:
+            raise errors.SchemaError(
+                f'cannot create extension {dname!r}:'
+                f' extension package {dname!r} version'
+                f' {str(version)!r} does not exist'
+            )
+
+    pkgs.sort(key=lambda pkg: pkg.get_version(schema), reverse=True)
+
+    return pkgs[0]
 
 
 # XXX: Trying to CREATE/DROP these from within a transaction managed
@@ -286,39 +374,46 @@ class CreateExtension(
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = super().canonicalize_attributes(schema, context)
-        filters = [
-            lambda schema, pkg: (
-                pkg.get_shortname(schema) == self.classname
-            )
-        ]
-        version = self.get_attribute_value('version')
-        if version is not None:
-            filters.append(
-                lambda schema, pkg: pkg.get_version(schema) == version,
-            )
-            self.discard_attribute('version')
+        pkg: ExtensionPackage
 
-        pkgs = list(schema.get_objects(
-            type=ExtensionPackage,
-            extra_filters=filters,
-        ))
+        if pkg_attr := self.get_attribute_value('package'):
+            pkg = pkg_attr.resolve(schema)
+        else:
+            version = self.get_attribute_value('version')
+            pkg = get_package(self.classname, version, schema)
 
-        if not pkgs:
-            if version is None:
+        self.discard_attribute('version')
+
+        self.set_attribute_value('package', pkg)
+
+        deps = []
+        for dep_name in pkg.get_dependencies(schema):
+            if '==' not in dep_name:
+                raise errors.SchemaError(
+                    f'built-in extension {self.classname} missing '
+                    f'version for {dep_name}')
+            dep_name, dep_version_s = dep_name.split('==')
+            dep = schema.get_global(Extension, dep_name, default=None)
+            if not dep:
                 raise errors.SchemaError(
                     f'cannot create extension {self.get_displayname()!r}:'
-                    f' extension package {self.get_displayname()!r} does'
-                    f' not exist'
+                    f' it depends on extension {dep_name} which has not been'
+                    f' created'
                 )
-            else:
+            dep_version = verutils.parse_version(dep_version_s)
+            real_version = dep.get_package(schema).get_version(schema)
+            if dep_version != real_version:
                 raise errors.SchemaError(
-                    f'cannot create extension {self.get_displayname()!r}:'
-                    f' extension package {self.get_displayname()!r} version'
-                    f' {str(version)!r} does not exist'
+                    f'cannot create extension {self.get_displayname()!r} :'
+                    f'it depends on extension {dep_name}, but the wrong '
+                    f'version is installed: {real_version} is present but '
+                    f'{dep_version} is required'
                 )
 
-        pkgs.sort(key=lambda pkg: pkg.get_version(schema), reverse=True)
-        self.set_attribute_value('package', pkgs[0])
+            deps.append(dep)
+
+        self.set_attribute_value('dependencies', deps)
+
         return schema
 
     # XXX: I think this is wrong, but it might not matter ever.

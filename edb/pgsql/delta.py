@@ -7167,6 +7167,7 @@ class CreateExtensionPackage(
                 'internal': self.scls.get_internal(schema),
                 'ext_module': ext_module and str(ext_module),
                 'sql_extensions': list(self.scls.get_sql_extensions(schema)),
+                'dependencies': list(self.scls.get_dependencies(schema)),
             }
         }
 

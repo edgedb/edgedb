@@ -4669,6 +4669,15 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
                 ARRAY[]::text[]
             )
         ''',
+        'dependencies': '''
+            COALESCE(
+                (SELECT array_agg(edgedb.jsonb_extract_scalar(q.v, 'string'))
+                FROM jsonb_array_elements(
+                    e.value->'dependencies'
+                ) AS q(v)),
+                ARRAY[]::text[]
+            )
+        ''',
         'ext_module': "(e.value->>'ext_module')",
         'computed_fields': 'ARRAY[]::text[]',
         'builtin': "(e.value->>'builtin')::bool",
