@@ -298,6 +298,14 @@ def __infer_trigger_anchor(
 
 
 @_infer_volatility_inner.register
+def __infer_searchable_string(
+    ir: irast.FTSDocument,
+    env: context.Environment,
+) -> InferredVolatility:
+    return _common_volatility([ir.text, ir.language], env)
+
+
+@_infer_volatility_inner.register
 def __infer_dml_stmt(
     ir: irast.MutatingStmt,
     env: context.Environment,

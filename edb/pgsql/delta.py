@@ -69,6 +69,7 @@ from edb.common import uuidgen
 from edb.common import parsing
 from edb.common.typeutils import not_none
 
+from edb.ir import ast as irast
 from edb.ir import pathid as irpathid
 from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
@@ -76,6 +77,7 @@ from edb.ir import utils as irutils
 from edb.pgsql import common
 from edb.pgsql import dbops
 from edb.pgsql import params
+from edb.pgsql import deltafts
 
 from edb.server import defines as edbdef
 from edb.server import config
@@ -3163,8 +3165,12 @@ class CompositeMetaCommand(MetaCommand):
                     cols.append((col_name, alias, True))
                 elif ptrname == sn.UnqualName('source'):
                     cols.append(('NULL::uuid', alias, False))
+                elif ptrname == sn.UnqualName('__fts_document__'):
+                    # an addon column
+                    cols.append((ptrname.name, alias, True))
                 else:
                     return None
+
         else:
             cols.extend(
                 (str(ptrname), alias, True)
@@ -3238,6 +3244,9 @@ class CompositeMetaCommand(MetaCommand):
                         ptr_stor_info.column_name,
                         ptr_stor_info.column_type,
                     )
+
+            for name, type in obj.get_addon_columns(schema):
+                ptrs[sn.UnqualName(name)] = (name, type)
 
         else:
             # MULTI PROPERTY
@@ -3485,7 +3494,28 @@ class CompositeMetaCommand(MetaCommand):
 
 
 class IndexCommand(MetaCommand):
-    pass
+    @classmethod
+    def get_compile_options(
+        cls,
+        index: s_indexes.Index,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        schema_object_context: Type[so.Object_T],
+    ) -> qlcompiler.CompilerOptions:
+        subject = index.get_subject(schema)
+        assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
+
+        singletons = [subject]
+        path_prefix_anchor = ql_ast.Subject().name
+
+        return qlcompiler.CompilerOptions(
+            modaliases=context.modaliases,
+            schema_object_context=schema_object_context,
+            anchors={ql_ast.Subject().name: subject},
+            path_prefix_anchor=path_prefix_anchor,
+            singletons=singletons,
+            apply_query_rewrites=False,
+        )
 
 
 class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
@@ -3498,19 +3528,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
     ):
         from .compiler import astutils
 
-        subject = index.get_subject(schema)
-        assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
-
-        singletons = [subject]
-        path_prefix_anchor = ql_ast.Subject().name
-
-        options = qlcompiler.CompilerOptions(
-            modaliases=context.modaliases,
-            schema_object_context=cls.get_schema_metaclass(),
-            anchors={ql_ast.Subject().name: subject},
-            path_prefix_anchor=path_prefix_anchor,
-            singletons=singletons,
-            apply_query_rewrites=False,
+        options = cls.get_compile_options(
+            index, schema, context, cls.get_schema_metaclass()
         )
 
         index_sexpr: Optional[s_expr.Expression] = index.get_expr(schema)
@@ -3583,9 +3602,30 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         if root_code is None:
             raise AssertionError(f'index {root_name} is missing the code')
 
+        # FTS
+        if root_name == sn.QualName('fts', 'index'):
+            return deltafts.create_fts_index(
+                index,
+                root_code,
+                ir.expr,
+                predicate_src,
+                sql_kwarg_exprs,
+                options,
+                schema,
+                context,
+            )
+
         sql_res = compiler.compile_ir_to_sql_tree(ir.expr, singleton_mode=True)
         exprs = astutils.maybe_unpack_row(sql_res.ast)
 
+        if len(exprs) == 0:
+            raise errors.SchemaDefinitionError(
+                f'cannot index empty tuples using {root_name}',
+                context=index.get_sourcectx(schema),
+            )
+
+        subject = index.get_subject(schema)
+        assert subject
         table_name = common.get_backend_name(schema, subject, catenate=False)
 
         module_name = index.get_name(schema).module
@@ -3593,7 +3633,6 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             index.id, module_name, catenate=False)
 
         sql_exprs = [codegen.generate_source(e) for e in exprs]
-
         pg_index = dbops.Index(
             name=index_name[1],
             table_name=table_name,  # type: ignore
@@ -3622,6 +3661,16 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             return schema
 
         self.pgops.add(self.create_index(index, schema, context))
+
+        # FTS
+        if index.has_base_with_name(schema, sn.QualName('fts', 'index')):
+            # update inhviews
+
+            subject = index.get_subject(schema)
+            assert isinstance(subject, s_objtypes.ObjectType)
+            self.schedule_inhview_update(
+                schema, context, subject, s_objtypes.ObjectTypeCommandContext
+            )
 
         return schema
 
@@ -3688,7 +3737,23 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
         if not isinstance(source.op, sd.DeleteObject):
             # We should not drop indexes when the host is being dropped since
             # the indexes are dropped automatically in this case.
-            self.pgops.add(self.delete_index(index, orig_schema, context))
+            drop_index = self.delete_index(index, orig_schema, context)
+        else:
+            drop_index = dbops.CommandGroup()
+
+        # FTS
+        fts_textsearch = sn.QualName('fts', 'index')
+        if index.has_base_with_name(orig_schema, fts_textsearch):
+            options = self.get_compile_options(
+                index, orig_schema, context, self.get_schema_metaclass()
+            )
+            self.pgops.add(
+                deltafts.delete_fts_index(
+                    index, drop_index, options, orig_schema, context
+                )
+            )
+        else:
+            self.pgops.add(drop_index)
 
         return schema
 
@@ -4632,7 +4697,6 @@ class PointerMetaCommand(
         - Result is SQL string that contain a single SELECT statement that
           has a single value column.
         """
-        from edb.ir import ast as irast
         old_ptr_stor_info = types.get_pointer_storage_info(
             pointer, schema=orig_schema)
         ptr_table = old_ptr_stor_info.table_type == 'link'

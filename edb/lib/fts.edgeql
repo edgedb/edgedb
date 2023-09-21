@@ -19,128 +19,199 @@
 
 CREATE MODULE fts;
 
-CREATE ABSTRACT INDEX fts::textsearch(named only language: std::str) {
-    CREATE ANNOTATION std::description :=
-        "Full-text search index based on the Postgres's GIN index.";
-    SET code := 'gin (to_tsvector(__kw_language__, __col__))';
+CREATE SCALAR TYPE fts::Language
+    EXTENDING enum<
+        ara,
+        hye,
+        eus,
+        cat,
+        dan,
+        nld,
+        eng,
+        fin,
+        fra,
+        deu,
+        ell,
+        hin,
+        hun,
+        ind,
+        gle,
+        ita,
+        nor,
+        por,
+        ron,
+        rus,
+        spa,
+        swe,
+        tur,
+    > {
+    CREATE ANNOTATION std::description := '
+        Languages supported by PostgreSQL FTS, ElasticSearch and Apache Lucene.
+        Names are ISO 639-3 language identifiers.
+    ';
 };
 
-CREATE SCALAR TYPE fts::searchable_str {
+CREATE ABSTRACT INDEX fts::index {
+    CREATE ANNOTATION std::description :=
+        "Full-text search index based on the Postgres's GIN index.";
+    SET code := ''; # overridden by a special case
+};
+
+CREATE SCALAR TYPE fts::document {
     SET transient := true;
 };
 
-## Functions
-## ---------
-
-CREATE FUNCTION
-fts::test(
-    query: std::str,
-    variadic doc: optional std::str,
-    named only language: std::str,
-) -> std::bool
-{
-    CREATE ANNOTATION std::description :=
-        'Return true if the document matches the FTS query.';
+CREATE FUNCTION fts::with_options(
+    text: std::str,
+    NAMED ONLY language: anyenum,
+    NAMED ONLY weight_category: optional std::str = <std::str>{},
+) -> fts::document {
+    CREATE ANNOTATION std::description := '
+        Adds language and weight category information to a string,
+        so it be indexed with fts::index.
+    ';
     SET volatility := 'Immutable';
-    USING SQL $$
-    SELECT
-        to_tsvector("language"::regconfig, array_to_string("doc", ' ')) @@
-        edgedb.fts_parse_query("query", "language"::regconfig)
-    $$;
+    USING SQL EXPRESSION;
 };
 
-
-CREATE FUNCTION
-fts::match_rank(
+CREATE FUNCTION fts::search(
+    object: anyobject,
     query: std::str,
-    variadic doc: optional std::str,
-    named only language: std::str,
-) -> std::float64
+    named only language: std::str = <std::str>fts::Language.eng,
+    named only weights: optional array<float64> = {},
+) -> optional tuple<object: anyobject, score: float32>
 {
-    CREATE ANNOTATION std::description :=
-        'Return just the rank of the document given the FTS query.';
-    SET volatility := 'Stable';
-    USING SQL $$
-    SELECT ts_rank(
-        to_tsvector("language"::regconfig, array_to_string("doc", ' ')),
-        edgedb.fts_parse_query("query")
-    )
-    $$;
+    CREATE ANNOTATION std::description := '
+        Search an object using its fts::index index.
+        Returns objects that match the specified query and the matching score.
+    ';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
 };
 
-
-CREATE FUNCTION
-fts::highlight_match(
-    query: std::str,
-    variadic doc: optional std::str,
-    named only language: std::str,
-) -> std::str
-{
-    CREATE ANNOTATION std::description :=
-        'Return just the part of the document matching the FTS query.';
-    SET volatility := 'Stable';
-    USING SQL $$
-    SELECT ts_headline(
-        "language"::regconfig,
-        array_to_string("doc", ' '),
-        edgedb.fts_parse_query("query")
-    )
-    $$;
+CREATE SCALAR TYPE fts::PGLanguage
+    EXTENDING enum<
+        xxx_simple,
+        ara,
+        hye,
+        eus,
+        cat,
+        dan,
+        nld,
+        eng,
+        fin,
+        fra,
+        deu,
+        ell,
+        hin,
+        hun,
+        ind,
+        gle,
+        ita,
+        lit,
+        npi,
+        nor,
+        por,
+        ron,
+        rus,
+        srp,
+        spa,
+        swe,
+        tam,
+        tur,
+        yid,
+    > {
+    CREATE ANNOTATION std::description :='
+        Languages supported by PostgreSQL FTS.
+        Names are ISO 639-3 language identifiers or Postgres regconfig names
+        prefixed with `xxx_`.
+    ';
 };
 
+CREATE SCALAR TYPE fts::ElasticLanguage
+    EXTENDING enum<
+        ara,
+        bul,
+        cat,
+        ces,
+        ckb,
+        dan,
+        deu,
+        ell,
+        eng,
+        eus,
+        fas,
+        fin,
+        fra,
+        gle,
+        glg,
+        hin,
+        hun,
+        hye,
+        ind,
+        ita,
+        lav,
+        nld,
+        nor,
+        por,
+        ron,
+        rus,
+        spa,
+        swe,
+        tha,
+        tur,
+        zho,
+        edb_Brazilian,
+        edb_ChineseJapaneseKorean,
+    > {
+    CREATE ANNOTATION std::description := '
+        Languages supported by ElasticSearch.
+        Names are ISO 639-3 language identifiers or EdgeDB language identifers.
+    ';
+};
 
-CREATE FUNCTION
-fts::match(
-    query: std::str,
-    variadic doc: optional std::str,
-    named only language: std::str,
-    named only rank_opts: optional std::str = 'default',
-    named only weights: optional array<std::float64> = {},
-    named only highlight_opts: optional std::str = {},
-) -> tuple<rank: std::float64, highlights: array<std::str>>
-{
-    CREATE ANNOTATION std::description :=
-        'Return the parts of the document given the FTS query and their \
-        ranks.';
-    SET volatility := 'Stable';
-    USING SQL $$
-    SELECT
-        (ts.rank)::float8,
-        (
-            CASE WHEN highlight_opts IS NULL THEN ARRAY[]::text[]
-            ELSE ARRAY[ts.hl] END
-        )
-    FROM
-        (
-            SELECT
-                CASE WHEN rank_opts = 'default' THEN
-                    ts_rank(
-                        edgedb.fts_normalize_weights(weights),
-                        edgedb.fts_normalize_doc(doc, weights, data.lang),
-                        data.q
-                    )
-                ELSE
-                    0
-                END
-                AS rank,
-
-                CASE WHEN highlight_opts = 'default' THEN
-                    ts_headline(
-                        data.lang, data.d, data.q
-                    )
-                ELSE
-                    ts_headline(
-                        data.lang, data.d, data.q, highlight_opts
-                    )
-                END
-                AS hl
-            FROM
-                (
-                    SELECT
-                        "language"::regconfig as lang,
-                        array_to_string("doc", ' ') as d,
-                        edgedb.fts_parse_query("query") as q
-                ) AS data
-        ) AS ts
-    $$;
+CREATE SCALAR TYPE fts::LuceneLanguage
+    EXTENDING enum<
+        ara,
+        ben,
+        bul,
+        cat,
+        ces,
+        ckb,
+        dan,
+        deu,
+        ell,
+        eng,
+        est,
+        eus,
+        fas,
+        fin,
+        fra,
+        gle,
+        glg,
+        hin,
+        hun,
+        hye,
+        ind,
+        ita,
+        lav,
+        lit,
+        nld,
+        nor,
+        por,
+        ron,
+        rus,
+        spa,
+        srp,
+        swe,
+        tha,
+        tur,
+        edb_Brazilian,
+        edb_ChineseJapaneseKorean,
+        edb_Indian,
+    > {
+    CREATE ANNOTATION std::description := '
+        Languages supported by Apache Lucene.
+        Names are ISO 639-3 language identifiers or EdgeDB language identifers.
+    ';
 };

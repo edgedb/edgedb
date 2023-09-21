@@ -1417,6 +1417,18 @@ def __infer_trigger_anchor(
     return MANY
 
 
+@_infer_cardinality.register
+def __infer_searchable_string(
+    ir: irast.FTSDocument,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inference_context.InfCtx,
+) -> qltypes.Cardinality:
+    return _common_cardinality(
+        (ir.text, ir.language), scope_tree=scope_tree, ctx=ctx
+    )
+
+
 def infer_cardinality(
     ir: irast.Base,
     *,

@@ -36,7 +36,6 @@ from typing import *
 
 import immutables as immu
 
-from edb.common import uuidgen
 from edb.common.typeutils import downcast, not_none
 
 from edb.edgeql import ast as qlast
@@ -1478,12 +1477,7 @@ def compile_insert_else_body(
 
             # Set up a dummy path to represent all of the rows
             # that *aren't* being filtered out
-            dummy_pathid = irast.PathId.from_typeref(
-                typeref=irast.TypeRef(
-                    id=uuidgen.uuid1mc(),
-                    name_hint=sn.QualName(
-                        module='__derived__',
-                        name=ctx.env.aliases.get('dummy'))))
+            dummy_pathid = irast.PathId.new_dummy(ctx.env.aliases.get('dummy'))
             with ictx.subrel() as dctx:
                 dummy_q = dctx.rel
                 relctx.ensure_transient_identity_for_path(

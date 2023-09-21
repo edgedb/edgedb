@@ -30,6 +30,7 @@ from edb import errors
 from edb.edgeql import qltypes
 
 from edb.schema import objects as s_obj
+from edb.schema import name as sn
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
@@ -328,6 +329,26 @@ def _special_case(name: str, only_as_fallback: bool = False) -> Callable[
     return func
 
 
+class _SimpleSpecialCaseFunc(Protocol):
+    def __call__(
+        self, expr: irast.FunctionCall, *, ctx: context.CompilerContextLevel
+    ) -> pgast.BaseExpr:
+        pass
+
+
+_SIMPLE_SPECIAL_FUNCTIONS: dict[str, _SimpleSpecialCaseFunc] = {}
+
+
+def simple_special_case(
+    name: str,
+) -> Callable[[_SimpleSpecialCaseFunc], _SimpleSpecialCaseFunc]:
+    def func(f: _SimpleSpecialCaseFunc) -> _SimpleSpecialCaseFunc:
+        _SIMPLE_SPECIAL_FUNCTIONS[name] = f
+        return f
+
+    return func
+
+
 def _get_set_rvar(
     ir_set: irast.Set,
     *,
@@ -348,11 +369,15 @@ def _get_set_rvar(
             return process_set_as_subquery(ir_set, ctx=ctx)
 
         if isinstance(expr, (irast.OperatorCall, irast.FunctionCall)):
-            if (
-                (func := _SPECIAL_FUNCTIONS.get(str(expr.func_shortname)))
-                and (not func.only_as_fallback or expr.func_sql_expr)
+            fname = str(expr.func_shortname)
+            if (func := _SPECIAL_FUNCTIONS.get(fname)) and (
+                not func.only_as_fallback or expr.func_sql_expr
             ):
                 return func.func(ir_set, ctx=ctx)
+
+            # Route simple special functions through expr compilation
+            if fname in _SIMPLE_SPECIAL_FUNCTIONS:
+                return process_set_as_expr(ir_set, ctx=ctx)
 
             if isinstance(expr, irast.OperatorCall):
                 # Operator call
@@ -3213,9 +3238,15 @@ def _compile_arg_null_check(
 
 
 def _compile_call_args(
-        ir_set: irast.Set, *,
-        ctx: context.CompilerContextLevel
+    ir_set: irast.Set,
+    *,
+    skip: Collection[int] = (),
+    ctx: context.CompilerContextLevel,
 ) -> List[pgast.BaseExpr]:
+    """
+    Compiles function call arguments, whose index is not in `skip`.
+    """
+
     expr = ir_set.expr
     assert isinstance(expr, irast.Call)
 
@@ -3226,7 +3257,9 @@ def _compile_call_args(
             arg_ref = dispatch.compile(glob_arg, ctx=ctx)
             args.append(output.output_as_value(arg_ref, env=ctx.env))
 
-    for ir_arg, typemod in zip(expr.args, expr.params_typemods):
+    for i, (ir_arg, typemod) in enumerate(zip(expr.args, expr.params_typemods)):
+        if i in skip:
+            continue
         assert ir_arg.multiplicity != qltypes.Multiplicity.UNKNOWN
 
         # Support a mode where we try to compile arguments as pure
@@ -3859,3 +3892,211 @@ def process_encoded_param(
             sctx.rel.nullable = True
 
     return sctx.rel
+
+
+@_special_case('fts::search')
+def process_set_as_fts_search(
+    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+) -> SetRVars:
+    func_call = ir_set.expr
+    assert isinstance(func_call, irast.FunctionCall)
+
+    with ctx.subrel() as newctx:
+        newctx.expr_exposed = False
+
+        obj_ir = func_call.args[2].expr
+        obj_id = obj_ir.path_id
+        obj_rvar = ensure_source_rvar(obj_ir, newctx.rel, ctx=newctx)
+
+        # we skip the object, as it has to be compiled as rvar source
+        args_pg = _compile_call_args(ir_set, skip={2}, ctx=newctx)
+        lang, weights, query = args_pg
+
+        out_obj_id, out_score_id = func_call.tuple_path_ids
+
+        with newctx.subrel() as inner_ctx:
+            # inner_ctx generates the `SELECT score WHERE test` relation
+
+            from edb.common import debug
+
+            if debug.flags.zombodb:
+                score_pg, where_clause = _fts_search_inner_zombo(
+                    obj_id, query, lang, ctx, newctx, inner_ctx
+                )
+            else:
+                score_pg, where_clause = _fts_search_inner_pg(
+                    obj_id, query, lang, weights, ctx, newctx, inner_ctx
+                )
+
+            pathctx.put_path_var(
+                inner_ctx.rel, out_score_id, score_pg, aspect='value'
+            )
+            inner_ctx.rel.where_clause = astutils.extend_binop(
+                inner_ctx.rel.where_clause, where_clause
+            )
+
+            in_rvar = relctx.new_rel_rvar(ir_set, inner_ctx.rel, ctx=newctx)
+            relctx.include_rvar(
+                newctx.rel, in_rvar, out_score_id, aspects={'value'}, ctx=newctx
+            )
+
+        obj_id_pg_ref = pathctx.get_rvar_path_var(
+            obj_rvar, obj_id, aspect='value', env=newctx.env
+        )
+        score_pg_ref = pathctx.get_path_var(
+            newctx.rel, out_score_id, aspect='value', env=newctx.env
+        )
+
+        tuple_expr = pgast.TupleVar(
+            elements=[
+                pgast.TupleElement(
+                    path_id=out_obj_id,
+                    name='object',
+                    val=obj_id_pg_ref,
+                ),
+                pgast.TupleElement(
+                    path_id=out_score_id,
+                    name='score',
+                    val=score_pg_ref,
+                ),
+            ],
+            named=True,
+            typeref=ir_set.typeref,
+        )
+
+        pathctx.put_path_var(
+            newctx.rel, ir_set.path_id, tuple_expr, aspect='value'
+        )
+
+        var = pathctx.maybe_get_path_var(
+            newctx.rel, obj_id, aspect='serialized', env=newctx.env
+        )
+        if var is not None:
+            pathctx.put_path_var(
+                newctx.rel,
+                out_obj_id,
+                var,
+                aspect='serialized',
+            )
+
+    pathctx.put_path_id_map(newctx.rel, out_obj_id, obj_id)
+
+    aspects = {'value'}
+
+    func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
+    relctx.include_rvar(
+        ctx.rel, func_rvar, ir_set.path_id, aspects=aspects, ctx=ctx
+    )
+
+    return new_stmt_set_rvar(ir_set, ctx.rel, aspects=aspects, ctx=ctx)
+
+
+def _fts_search_inner_pg(
+    obj_id: irast.PathId,
+    query: pgast.BaseExpr,
+    lang: pgast.BaseExpr,
+    weights: pgast.BaseExpr,
+    ctx: context.CompilerContextLevel,
+    newctx: context.CompilerContextLevel,
+    inner_ctx: context.CompilerContextLevel,
+) -> Tuple[pgast.BaseExpr, pgast.BaseExpr]:
+    el_name = sn.QualName('__object__', '__fts_document__')
+    fts_document_ptrref = irast.SpecialPointerRef(
+        name=el_name,
+        shortname=el_name,
+        out_source=obj_id.target,
+        out_target=pg_types.pg_tsvector_typeref,
+        out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
+    )
+    fts_document_id = obj_id.extend(ptrref=fts_document_ptrref)
+    fts_document = relctx.get_path_var(
+        newctx.rel,
+        fts_document_id,
+        aspect='value',
+        ctx=newctx,
+    )
+
+    lang = pgast.FuncCall(
+        name=('edgedb', 'fts_to_regconfig'),
+        args=[lang],
+    )
+
+    parsed_query: pgast.BaseExpr = pgast.FuncCall(
+        name=('edgedb', 'fts_parse_query'), args=[query, lang]
+    )
+    parsed_query_id = create_subrel_for_expr(parsed_query, ctx=inner_ctx)
+    parsed_query = pathctx.get_path_var(
+        inner_ctx.rel, parsed_query_id, aspect='value', env=ctx.env
+    )
+
+    one = pgast.NumericConstant(val='1.0')
+    weights = pgast.CoalesceExpr(
+        args=[weights, pgast.ArrayExpr(elements=[one, one, one, one])]
+    )
+    weights = pgast.TypeCast(
+        arg=weights, type_name=pgast.TypeName(name=('real',), array_bounds=[-1])
+    )
+    score_pg = pgast.FuncCall(
+        name=('pg_catalog', 'ts_rank'),
+        args=[weights, fts_document, parsed_query],
+    )
+    where_clause = pgast.Expr(lexpr=fts_document, name='@@', rexpr=parsed_query)
+
+    return score_pg, where_clause
+
+
+def _fts_search_inner_zombo(
+    obj_id: irast.PathId,
+    query_pg: pgast.BaseExpr,
+    _lang_pg: pgast.BaseExpr,
+    _ctx: context.CompilerContextLevel,
+    newctx: context.CompilerContextLevel,
+    _inner_ctx: context.CompilerContextLevel,
+) -> Tuple[pgast.BaseExpr, pgast.BaseExpr]:
+    el_name = sn.QualName('__object__', 'ctid')
+    ctid_ptrref = irast.SpecialPointerRef(
+        name=el_name,
+        shortname=el_name,
+        out_source=obj_id.target,
+        out_target=pg_types.pg_oid_typeref,
+        out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
+    )
+    ctid_id = obj_id.extend(ptrref=ctid_ptrref)
+    ctid = relctx.get_path_var(
+        newctx.rel,
+        ctid_id,
+        aspect='value',
+        ctx=newctx,
+    )
+
+    score_pg = pgast.FuncCall(name=('zdb', 'score'), args=[ctid])
+    where_clause = pgast.Expr(
+        lexpr=ctid,
+        name='==>',
+        rexpr=query_pg,
+    )
+    return score_pg, where_clause
+
+
+def create_subrel_for_expr(
+    expr: pgast.BaseExpr, *, ctx: context.CompilerContextLevel
+) -> irast.PathId:
+    """
+    Creates a sub query relation that contains the given expression.
+    """
+
+    # create a dummy path id for a dummy object
+    expr_id = irast.PathId.new_dummy(ctx.env.aliases.get('dummy'))
+
+    with ctx.subrel() as newctx:
+
+        # register the expression
+        pathctx.put_path_var(newctx.rel, expr_id, expr, aspect='value')
+
+        # include the subrel in the parent
+        new_rvar = relctx.rvar_for_rel(newctx.rel, ctx=ctx)
+        relctx.include_rvar(
+            ctx.rel, new_rvar, expr_id, aspects=('value',), ctx=ctx
+        )
+
+    return expr_id

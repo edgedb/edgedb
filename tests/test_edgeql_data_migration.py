@@ -11464,26 +11464,30 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         """)
 
     async def test_edgeql_migration_abstract_index_01(self):
-        await self.migrate(r"""
-            abstract index MyIndex(language := 'english')
-                extending fts::textsearch;
+        await self.migrate(
+            r"""
+            abstract index MyIndex extending fts::index;
             type Base {
                 property name -> str;
-                index MyIndex on (.name);
-                index fts::textsearch(language:='english') on (.name);
+                index MyIndex on (
+                    fts::with_options(.name, language := fts::Language.eng)
+                );
             };
-        """)
+            """
+        )
 
-        await self.migrate(r"""
-            abstract index MyIndex(language := 'english')
-                extending fts::textsearch;
+        await self.migrate(
+            r"""
+            abstract index MyIndex extending fts::index;
             type Base {
                 property name -> str;
-                index MyIndex on (.name);
-                index fts::textsearch(language:='english') on (.name);
+                index MyIndex on (
+                    fts::with_options(.name, language := fts::Language.eng)
+                );
             };
             type Child extending Base;
-        """)
+            """
+        )
 
         async with self.assertRaisesRegexTx(
                 edgedb.SchemaError,
@@ -11492,31 +11496,33 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 drop abstract index test::MyIndex
             ''')
 
-        await self.migrate(r"""
-            abstract index MyIndex(language := 'german')
-                extending fts::textsearch;
+        await self.migrate(
+            r"""
+            abstract index MyIndex extending fts::index;
             type Base {
                 property name -> str;
-                index MyIndex on (.name);
-                index fts::textsearch(language:='english') on (.name);
+                index MyIndex on (
+                    fts::with_options(.name, language := fts::Language.eng)
+                );
             };
             type Child extending Base;
-        """)
+            """
+        )
 
-        await self.migrate(r"""
-            abstract index MyIndex(language := 'german')
-                extending fts::textsearch {
-              annotation title := "test";
+        await self.migrate(
+            r"""
+            abstract index MyIndex extending fts::index {
+                annotation title := "test";
             }
             type Base {
                 property name -> str;
-                index MyIndex on (.name);
-                index fts::textsearch(language:='english') on (.name) {
-                   annotation description := "test";
-                };
+                index MyIndex on (
+                    fts::with_options(.name, language := fts::Language.eng)
+                );
             };
             type Child extending Base;
-        """)
+            """
+        )
 
         await self.migrate("")
 

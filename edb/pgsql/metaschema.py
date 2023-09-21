@@ -3902,6 +3902,10 @@ class FTSParseQueryFunction(dbops.Function):
         result tsquery := ''::tsquery;
 
     BEGIN
+        IF q IS NULL OR q = '' THEN
+            RETURN result;
+        END IF;
+
         -- Break up the query string into the current term, optional next
         -- operator and the rest.
         parts := regexp_match(
@@ -4092,6 +4096,61 @@ class FTSNormalizeDocFunction(dbops.Function):
             returns=('tsvector',),
             volatility='stable',
             text=self.text,
+        )
+
+
+class FTSToRegconfig(dbops.Function):
+    """
+    Converts ISO 639-3 language identifiers into a regconfig.
+    Defaults to english.
+    Identifiers prefixed with 'xxx_' have the prefix stripped and the remainder
+    used as regconfg identifier.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'fts_to_regconfig'),
+            args=[
+                ('language', ('text',)),
+            ],
+            returns=('regconfig',),
+            volatility='immutable',
+            text='''
+            SELECT CASE
+                WHEN language ILIKE 'xxx_%' THEN SUBSTR(language, 4)
+                ELSE (CASE LOWER(language)
+                    WHEN 'ara' THEN 'arabic'
+                    WHEN 'hye' THEN 'armenian'
+                    WHEN 'eus' THEN 'basque'
+                    WHEN 'cat' THEN 'catalan'
+                    WHEN 'dan' THEN 'danish'
+                    WHEN 'nld' THEN 'dutch'
+                    WHEN 'eng' THEN 'english'
+                    WHEN 'fin' THEN 'finnish'
+                    WHEN 'fra' THEN 'french'
+                    WHEN 'deu' THEN 'german'
+                    WHEN 'ell' THEN 'greek'
+                    WHEN 'hin' THEN 'hindi'
+                    WHEN 'hun' THEN 'hungarian'
+                    WHEN 'ind' THEN 'indonesian'
+                    WHEN 'gle' THEN 'irish'
+                    WHEN 'ita' THEN 'italian'
+                    WHEN 'lit' THEN 'lithuanian'
+                    WHEN 'npi' THEN 'nepali'
+                    WHEN 'nor' THEN 'norwegian'
+                    WHEN 'por' THEN 'portuguese'
+                    WHEN 'ron' THEN 'romanian'
+                    WHEN 'rus' THEN 'russian'
+                    WHEN 'srp' THEN 'serbian'
+                    WHEN 'spa' THEN 'spanish'
+                    WHEN 'swe' THEN 'swedish'
+                    WHEN 'tam' THEN 'tamil'
+                    WHEN 'tur' THEN 'turkish'
+                    WHEN 'yid' THEN 'yiddish'
+                    ELSE 'english' END
+                )
+            END::pg_catalog.regconfig;
+            ''',
         )
 
 
@@ -4335,6 +4394,7 @@ async def bootstrap(
         dbops.CreateFunction(FTSParseQueryFunction()),
         dbops.CreateFunction(FTSNormalizeWeightFunction()),
         dbops.CreateFunction(FTSNormalizeDocFunction()),
+        dbops.CreateFunction(FTSToRegconfig()),
         dbops.CreateFunction(PadBase64StringFunction()),
     ]
     commands = dbops.CommandGroup()

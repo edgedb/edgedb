@@ -562,6 +562,16 @@ def __infer_trigger_anchor(
     return t
 
 
+@_infer_type.register
+def __infer_fts_document(
+    ir: irast.FTSDocument,
+    env: context.Environment,
+) -> s_types.Type:
+    return env.schema.get(
+        s_name.QualName('fts', 'document'), type=s_scalars.ScalarType
+    )
+
+
 def infer_type(ir: irast.Base, env: context.Environment) -> s_types.Type:
     result = env.inferred_types.get(ir)
     if result is not None:

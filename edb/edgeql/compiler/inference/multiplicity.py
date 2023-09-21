@@ -883,6 +883,18 @@ def __infer_trigger_anchor(
     return UNIQUE
 
 
+@_infer_multiplicity.register
+def __infer_searchable_string(
+    ir: irast.FTSDocument,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
+    return _common_multiplicity(
+        (ir.text, ir.language), scope_tree=scope_tree, ctx=ctx
+    )
+
+
 def infer_multiplicity(
     ir: irast.Base,
     *,

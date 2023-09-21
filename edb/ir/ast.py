@@ -361,6 +361,11 @@ class TupleIndirectionPointerRef(BasePointerRef):
     pass
 
 
+class SpecialPointerRef(BasePointerRef):
+    """Pointer ref used for internal columns, such as __fts_document__"""
+    pass
+
+
 class TypeIntersectionLink(s_pointers.PseudoPointer):
     """A Link-alike that can be used in type intersection path ids."""
 
@@ -868,6 +873,7 @@ class Call(ImmutableExpr):
     force_return_cast: bool
 
     # Bound arguments.
+    # Named arguments will come first, followed by positional arguments.
     args: typing.List[CallArg]
 
     # Typemods of parameters.  This list corresponds to ".args"
@@ -1240,3 +1246,19 @@ class ConfigReset(ConfigCommand):
 class ConfigInsert(ConfigCommand):
 
     expr: Set
+
+
+class FTSDocument(Expr):
+    """
+    Text and information on how to search through it.
+
+    Constructed with `fts::with_options`.
+    """
+
+    text: Set
+
+    language: Set
+
+    language_domain: typing.Set[str]
+
+    weight: typing.Optional[str]
