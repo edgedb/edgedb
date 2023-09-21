@@ -550,15 +550,14 @@ cdef class DatabaseConnectionView:
         if self._in_tx:
             raise errors.InternalServerError(
                 'no need to serialize state while in transaction')
-        if self._config == DEFAULT_CONFIG:
-            return DEFAULT_STATE
 
+        dbver = self._db.dbver
         if self._session_state_db_cache is not None:
-            if self._session_state_db_cache[0] == self._config:
+            if self._session_state_db_cache[0] == (self._config, dbver):
                 return self._session_state_db_cache[1]
 
         state = []
-        if self._config:
+        if self._config and self._config != DEFAULT_CONFIG:
             settings = self.get_config_spec()
             for sval in self._config.values():
                 setting = settings[sval.name]
@@ -566,8 +565,13 @@ cdef class DatabaseConnectionView:
                 jval = config.value_to_json_value(setting, sval.value)
                 state.append({"name": sval.name, "value": jval, "type": kind})
 
+        # Include the database version in the state so that we are forced
+        # to clear the config cache on dbver changes.
+        state.append(
+            {"name": '__dbver__', "value": dbver, "type": 'C'})
+
         spec = json.dumps(state).encode('utf-8')
-        self._session_state_db_cache = (self._config, spec)
+        self._session_state_db_cache = ((self._config, dbver), spec)
         return spec
 
     cdef bint is_state_desc_changed(self):
@@ -1169,6 +1173,10 @@ cdef class DatabaseIndex:
         return self._comp_sys_config
 
     def update_sys_config(self, sys_config):
+        cdef Database db
+        for db in self._dbs.values():
+            db.dbver = next_dbver()
+
         with self._default_sysconfig.mutate() as mm:
             mm.update(sys_config)
             sys_config = mm.finish()
