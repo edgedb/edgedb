@@ -31,7 +31,7 @@ from edb.tools.edb import edbcommands
 
 
 BOOL_LITERALS = {'true', 'false'}
-SPECIAL_TYPES = {'array', 'tuple', 'enum', 'range'}
+SPECIAL_TYPES = {'array', 'tuple', 'enum', 'range', 'multirange'}
 NAMES = {'edgeql'}
 NAVIGATION = ('.<', '.>', '@', '.')
 
@@ -64,6 +64,13 @@ def main(names, data):
     types = set(data['t_names'])
     types |= SPECIAL_TYPES
     types = sorted(types)
+
+    modules = set()
+    for m in s_schema.STD_MODULES:
+        mod = str(m)
+        if not (mod.startswith('__') or 'test' in mod):
+            # we want each individual module name component separately
+            modules |= set(mod.split('::'))
     constraints = sorted(set(data['c_names']))
     fn_builtins = sorted(set(data['f_names']))
     # add non-word operators
@@ -82,10 +89,7 @@ def main(names, data):
                         eql_keywords.unreserved_keywords - BOOL_LITERALS),
                     bool_literals=sorted(BOOL_LITERALS),
                     type_builtins=types,
-                    module_builtins=(sorted(
-                        str(m) for m in s_schema.STD_MODULES
-                        if not (str(m).startswith('__') or 'test' in str(m))
-                    )),
+                    module_builtins=(sorted(modules)),
                     constraint_builtins=constraints,
                     fn_builtins=fn_builtins,
                     operators=operators,
@@ -130,7 +134,7 @@ def gen_meta_grammars(names):
                 T := (SELECT Type
                       FILTER Type IS (PseudoType | ScalarType | ObjectType)),
                 t_names := (
-                    SELECT T.name[5:]
+                    SELECT re_match(r'(?:.*::)?(.+)', T.name)[0]
                     FILTER T.name LIKE "std::%" OR T.name LIKE "cal::%"
                 ),
                 c_names := re_match(

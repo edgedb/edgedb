@@ -307,7 +307,7 @@ cdef class DatabaseConnectionView:
         self._globals = DEFAULT_GLOBALS
         self._session_state_db_cache = None
         self._session_state_cache = None
-        self._state_serializer = db.get_state_serializer(protocol_version)
+        self._state_serializer = None
 
         if db.name == defines.EDGEDB_SYSTEM_DB:
             # Make system database read-only.
@@ -417,6 +417,10 @@ cdef class DatabaseConnectionView:
         if self._in_tx:
             return self._in_tx_state_serializer
         else:
+            if self._state_serializer is None:
+                self._state_serializer = self._db.get_state_serializer(
+                    self._protocol_version
+                )
             return self._state_serializer
 
     cdef set_state_serializer(self, new_serializer):
@@ -608,6 +612,10 @@ cdef class DatabaseConnectionView:
 
         serializer = self._command_state_serializer
         self._command_state_serializer = None
+        if not self.in_tx():
+            # After encode_state(), self._state_serializer is no longer used if
+            # not in a transaction. So it should be cleared
+            self._state_serializer = None
 
         if self._session_state_cache is not None:
             if (
@@ -761,6 +769,7 @@ cdef class DatabaseConnectionView:
             self._apply_in_tx(query_unit)
 
     cdef _start_tx(self):
+        state_serializer = self.get_state_serializer()
         self._in_tx = True
         self._in_tx_config = self._config
         self._in_tx_globals = self._globals
@@ -770,7 +779,7 @@ cdef class DatabaseConnectionView:
         self._in_tx_global_schema_pickle = \
             self._db._index._global_schema_pickle
         self._in_tx_user_config_spec = self._db.user_config_spec
-        self._in_tx_state_serializer = self._state_serializer
+        self._in_tx_state_serializer = state_serializer
 
     cdef _apply_in_tx(self, query_unit):
         if query_unit.has_ddl:

@@ -1389,8 +1389,21 @@ class Expr(Nonterm):
         )
 
     def reduce_Expr_IF_Expr_ELSE_Expr(self, *kids):
+        if_expr, _, condition, _, else_expr = kids
         self.val = qlast.IfElse(
-            if_expr=kids[0].val, condition=kids[2].val, else_expr=kids[4].val)
+            if_expr=if_expr.val,
+            condition=condition.val,
+            else_expr=else_expr.val,
+            python_style=True,
+        )
+
+    def reduce_IF_Expr_THEN_Expr_ELSE_Expr(self, *kids):
+        _, condition, _, if_expr, _, else_expr = kids
+        self.val = qlast.IfElse(
+            condition=condition.val,
+            if_expr=if_expr.val,
+            else_expr=else_expr.val,
+        )
 
     def reduce_Expr_UNION_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op='UNION',

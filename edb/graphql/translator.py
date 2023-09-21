@@ -609,6 +609,10 @@ class GraphQLTranslator:
                 self._context.fields.append({})
                 shape.elements = self.visit(node.selection_set)
                 insert_shapes = self._visit_insert_arguments(node.arguments)
+                if not insert_shapes:
+                    # No insert arguments, nmeaning that a single object must
+                    # be inserted without any shape.
+                    insert_shapes = [None]
                 self._context.fields.pop()
 
             filterable.aliases = [
@@ -1037,7 +1041,7 @@ class GraphQLTranslator:
 
         # NOTE: there will be more operations in the future
         if fname == 'set':
-            value = self._get_input_expr_for_pointer_mutaiton(field, ptrname)
+            value = self._get_input_expr_for_pointer_mutation(field, ptrname)
             return shapeop, value
 
         elif fname == 'clear':
@@ -1118,13 +1122,13 @@ class GraphQLTranslator:
 
         elif fname == 'add':
             # This is a set, so no reason to validate cardinality.
-            value = self._get_input_expr_for_pointer_mutaiton(
+            value = self._get_input_expr_for_pointer_mutation(
                 field, ptrname, validate_cardinality=False)
             shapeop = qlast.ShapeOp.APPEND
             return shapeop, value
         elif fname == 'remove':
             # This is a set, so no reason to validate cardinality.
-            value = self._get_input_expr_for_pointer_mutaiton(
+            value = self._get_input_expr_for_pointer_mutation(
                 field, ptrname, validate_cardinality=False)
             shapeop = qlast.ShapeOp.SUBTRACT
             return shapeop, value
@@ -1148,7 +1152,7 @@ class GraphQLTranslator:
         for field in node.fields:
             # set-up the current path to point to the thing being inserted
             with self._update_path_for_insert_field(field):
-                compexpr = self._get_input_expr_for_pointer_mutaiton(
+                compexpr = self._get_input_expr_for_pointer_mutation(
                     field, field.name.value)
                 result.append(
                     qlast.ShapeElement(
@@ -1165,7 +1169,7 @@ class GraphQLTranslator:
 
         return result
 
-    def _get_input_expr_for_pointer_mutaiton(
+    def _get_input_expr_for_pointer_mutation(
         self,
         field,
         fname,

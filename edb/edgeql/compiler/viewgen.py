@@ -474,9 +474,9 @@ def _process_view(
     # Produce the shape. The main thing here is that we need to fixup
     # all of the rptrs to properly point back at ir_set.
     for _, ptrcls, shape_op, ptr_set in shape_ptrs:
-        srcctx = None
+        psrcctx = None
         if ptrcls in ctx.env.pointer_specified_info:
-            _, _, srcctx = ctx.env.pointer_specified_info[ptrcls]
+            _, _, psrcctx = ctx.env.pointer_specified_info[ptrcls]
 
         if ptr_set:
             src_path_id = path_id
@@ -500,7 +500,7 @@ def _process_view(
             # already has a context, since for explain output that
             # seems nicer, but this is what we want for producing
             # actual error messages.
-            ptr_set.context = srcctx
+            ptr_set.context = psrcctx
 
             _setup_shape_source(ptr_set, ctx=ctx)
 
@@ -510,7 +510,7 @@ def _process_view(
                 ir_set,
                 ptrcls,
                 same_computable_scope=True,
-                srcctx=srcctx,
+                srcctx=psrcctx or srcctx,
                 ctx=ctx,
             )
 
@@ -637,6 +637,8 @@ def _expand_splat(
         path.append(intersection)
     for ptr in pointers.objects(ctx.env.schema):
         if not isinstance(ptr, s_props.Property):
+            continue
+        if ptr.get_secret(ctx.env.schema):
             continue
         sname = ptr.get_shortname(ctx.env.schema)
         if sname.name in skip_ptrs:

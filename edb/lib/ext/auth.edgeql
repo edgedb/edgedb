@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2018-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2023-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,4 +17,207 @@
 #
 
 
-CREATE EXTENSION PACKAGE auth VERSION '1.0';
+CREATE EXTENSION PACKAGE auth VERSION '1.0' {
+    set ext_module := "ext::auth";
+
+    create module ext::auth;
+
+    create type ext::auth::Identity {
+        create required property iss: std::str;
+        create required property sub: std::str;
+        create property email: std::str;
+
+        create constraint exclusive on ((.iss, .sub))
+    };
+
+    create type ext::auth::LocalIdentity extending ext::auth::Identity {
+        create required property handle: std::str {
+            create constraint exclusive;
+        };
+
+        alter property sub {
+            create rewrite insert using (<str>.id);
+        };
+    };
+
+    create type ext::auth::PasswordCredential {
+        create required property password_hash: std::str;
+        create required link identity: ext::auth::LocalIdentity {
+            create constraint exclusive;
+        };
+    };
+
+    create type ext::auth::ClientConfig extending cfg::ConfigObject {
+        create required property provider_id: std::str {
+            set readonly := true;
+            create annotation std::description :=
+                "ID of the auth provider";
+            create constraint exclusive;
+        };
+
+        create required property provider_name: std::str {
+            set readonly := true;
+            create annotation std::description := "Auth provider name";
+        };
+    };
+
+    create type ext::auth::OAuthClientConfig
+        extending ext::auth::ClientConfig {
+        create required property url: std::str {
+            set readonly := true;
+            create annotation std::description := "Authorization server URL";
+        };
+
+        create required property secret: std::str {
+            set readonly := true;
+            set secret := true;
+            create annotation std::description :=
+                "Secret provided by auth provider";
+        };
+
+        create required property client_id: std::str {
+            set readonly := true;
+            create annotation std::description :=
+                "ID for client provided by auth provider";
+        };
+    };
+
+    create type ext::auth::PasswordClientConfig
+        extending ext::auth::ClientConfig;
+
+    create type ext::auth::AuthConfig extending cfg::ExtensionConfig {
+        create multi link providers -> ext::auth::ClientConfig {
+            create annotation std::description :=
+                "Configuration for auth provider clients";
+        };
+
+        create property auth_signing_key -> std::str {
+            set secret := true;
+            create annotation std::description :=
+                "The signing key used for auth extension. Must be at \
+                least 32 characters long.";
+        };
+
+        create property token_time_to_live -> std::duration {
+            create annotation std::description :=
+                "The time after which an auth token expires. A value of 0 \
+                indicates that the token should never expire.";
+            set default := <std::duration>'336 hours';
+        };
+    };
+
+    create scalar type ext::auth::JWTAlgo extending enum<RS256, HS256>;
+
+    create function ext::auth::_jwt_check_signature(
+        jwt: tuple<header: std::str, payload: std::str, signature: std::str>,
+        key: std::str,
+        algo: ext::auth::JWTAlgo = ext::auth::JWTAlgo.RS256,
+    ) -> std::json
+    {
+        set volatility := 'Stable';
+        using (
+            with
+                module ext::auth,
+                msg := jwt.header ++ "." ++ jwt.payload,
+                hash := (
+                    "sha256" if algo = JWTAlgo.RS256 or algo = JWTAlgo.HS256
+                    else <str>std::assert(
+                        false, message := "unsupported JWT algo")
+                ),
+            select
+                std::to_json(
+                    std::to_str(
+                        std::enc::base64_decode(
+                            jwt.payload,
+                            padding := false,
+                            alphabet := std::enc::Base64Alphabet.urlsafe,
+                        ),
+                    ),
+                )
+            order by
+                assert(
+                    std::enc::base64_encode(
+                        ext::pgcrypto::hmac(msg, key, hash),
+                        padding := false,
+                        alphabet := std::enc::Base64Alphabet.urlsafe,
+                    ) = jwt.signature,
+                    message := "JWT signature mismatch",
+                )
+        );
+    };
+
+    create function ext::auth::_jwt_parse(
+        token: std::str,
+    ) -> tuple<header: std::str, payload: std::str, signature: std::str>
+    {
+        set volatility := 'Stable';
+        using (
+            with
+                parts := std::str_split(token, "."),
+            select
+                (
+                    header := parts[0],
+                    payload := parts[1],
+                    signature := parts[2],
+                )
+            order by
+                assert(len(parts) = 3, message := "JWT is malformed")
+        );
+    };
+
+    create function ext::auth::_jwt_verify(
+        token: std::str,
+        key: std::str,
+        algo: ext::auth::JWTAlgo = ext::auth::JWTAlgo.RS256,
+    ) -> std::json
+    {
+        set volatility := 'Stable';
+        using (
+            with
+                # NB: Free-object wrapping to force materialization
+                jwt := {
+                    t := ext::auth::_jwt_check_signature(
+                        ext::auth::_jwt_parse(token),
+                        key,
+                        algo,
+                    ),
+                },
+                validity_range := std::range(
+                    std::to_datetime(<float64>json_get(jwt.t, "nbf")),
+                    std::to_datetime(<float64>json_get(jwt.t, "exp")),
+                ),
+            select
+                jwt.t
+            order by
+                assert(
+                    std::contains(
+                        validity_range,
+                        std::datetime_of_transaction(),
+                    ),
+                    message := "JWT is expired or is not yet valid",
+                )
+        );
+    };
+
+    create global ext::auth::client_token -> std::str;
+    create global ext::auth::ClientTokenIdentity := (
+        with
+            conf := {
+                key := (
+                    cfg::Config.extensions[is ext::auth::AuthConfig]
+                    .auth_signing_key
+                ),
+            },
+            jwt := {
+                claims := ext::auth::_jwt_verify(
+                    global ext::auth::client_token,
+                    conf.key,
+                )
+            },
+        select
+            ext::auth::Identity
+        filter
+            .iss = <str>json_get(jwt.claims, "iss")
+            and .sub = <str>json_get(jwt.claims, "sub")
+    );
+};

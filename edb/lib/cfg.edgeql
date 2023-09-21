@@ -163,24 +163,6 @@ ALTER TYPE cfg::AbstractConfig {
             'Whether inserts are allowed to set the \'id\' property.';
     };
 
-    # XXX: Remove these and move to extension config mechanism when ready
-    CREATE PROPERTY xxx_auth_signing_key -> std::str {
-        CREATE ANNOTATION std::description :=
-            'The signing key used for auth extension. Must be at \
-            least 32 characters long.';
-        SET default := '00000000000000000000000000000000';
-    };
-
-    CREATE PROPERTY xxx_github_client_secret -> std::str {
-        CREATE ANNOTATION std::description := 'Secret key provided by GitHub';
-        SET default := '00000000000000000000000000000000';
-    };
-
-    CREATE PROPERTY xxx_github_client_id -> std::str {
-        CREATE ANNOTATION std::description := 'ID provided by GitHub';
-        SET default := '00000000000000000000000000000000';
-    };
-
     # Exposed backend settings follow.
     # When exposing a new setting, remember to modify
     # the _read_sys_config function to select the value
@@ -263,7 +245,24 @@ cfg::get_config_json(
 {
     USING SQL $$
     SELECT
-        coalesce(jsonb_object_agg(cfg.name, cfg), '{}'::jsonb)
+        coalesce(
+            jsonb_object_agg(
+                cfg.name,
+                -- Redact config values from extension configs, since
+                -- they might contain secrets, and it isn't worth the
+                -- trouble right now to care about which ones actually do.
+                (CASE WHEN
+                     cfg.name LIKE '%::%'
+                     AND cfg.value != 'null'::jsonb
+                 THEN
+                     jsonb_set(to_jsonb(cfg), '{value}',
+                               '{"redacted": true}'::jsonb)
+                 ELSE
+                     to_jsonb(cfg)
+                 END)
+            ),
+            '{}'::jsonb
+        )
     FROM
         edgedb._read_sys_config(
             sources::edgedb._sys_config_source_t[],

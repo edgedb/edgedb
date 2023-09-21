@@ -111,6 +111,8 @@ DEF QUERY_HEADER_IMPLICIT_TYPEIDS = 0xFF03
 DEF QUERY_HEADER_ALLOW_CAPABILITIES = 0xFF04
 DEF QUERY_HEADER_EXPLICIT_OBJECTIDS = 0xFF05
 
+DEF QUERY_HEADER_DUMP_SECRETS = 0xFF10
+
 DEF SERVER_HEADER_CAPABILITIES = 0x1001
 
 DEF ALL_CAPABILITIES = 0xFFFFFFFFFFFFFFFF
@@ -656,14 +658,14 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         cdef:
             dict attrs
             uint16_t num_fields
-            str key
-            str value
+            uint16_t key
+            bytes value
 
         attrs = {}
         num_fields = <uint16_t>self.buffer.read_int16()
         while num_fields:
-            key = self.buffer.read_len_prefixed_utf8()
-            value = self.buffer.read_len_prefixed_utf8()
+            key = <uint16_t>self.buffer.read_int16()
+            value = self.buffer.read_len_prefixed_bytes()
             attrs[key] = value
             num_fields -= 1
         return attrs
@@ -674,8 +676,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         num_fields = <uint16_t>self.buffer.read_int16()
         while num_fields:
-            self.buffer.read_len_prefixed_utf8()
-            self.buffer.read_len_prefixed_utf8()
+            self.buffer.read_int16()
+            self.buffer.read_len_prefixed_bytes()
             num_fields -= 1
 
     #############
@@ -1300,7 +1302,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             WriteBuffer msg_buf
             dbview.DatabaseConnectionView _dbview
 
-        self.reject_headers()
+        headers = self.parse_headers()
+        include_secrets = headers.get(QUERY_HEADER_DUMP_SECRETS) == b'\x01'
+
         self.buffer.finish_message()
 
         _dbview = self.get_dbview()
@@ -1357,6 +1361,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     global_schema_json,
                     db_config_json,
                     dump_protocol,
+                    include_secrets,
                 )
             )
 

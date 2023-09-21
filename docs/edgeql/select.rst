@@ -443,8 +443,8 @@ properties and links on the specified type.
 With this query, we get ``name`` for each ``Person`` and all the properties and
 one level of links on the ``Hero`` objects. We don't get ``Villain`` objects'
 nemeses because that link is not covered by our double splat which only
-expans ``Hero`` links. If the ``Villain`` type had properties defined on it, we
-wouldn't get those with this query either.
+expands ``Hero`` links. If the ``Villain`` type had properties defined on it,
+we wouldn't get those with this query either.
 
 
 .. _ref_eql_select_filter:

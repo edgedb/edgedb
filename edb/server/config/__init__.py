@@ -88,3 +88,23 @@ def get_compilation_config(
         if k in spec
         if spec[k].affects_compilation
     ))
+
+
+def _serialize_val(v: object) -> object:
+    if isinstance(v, frozenset):
+        return [_serialize_val(x) for x in v]
+    elif isinstance(v, CompositeConfigType):
+        return v.to_json_value(redacted=True)
+    else:
+        return v
+
+
+def debug_serialize_config(
+    cfg: Mapping[str, SettingValue],
+) -> Any:
+    return {
+        name:
+        {'redacted': True} if value.secret
+        else _serialize_val(value.value)
+        for name, value in cfg.items()
+    }

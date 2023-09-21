@@ -5,10 +5,25 @@ Indexes
 =======
 
 An index is a data structure used internally to speed up filtering, ordering,
-and grouping operations. Most commonly, indexes are declared within object
-type declarations and reference a particular property; this will speed up
-any query that references that property in a ``filter``, ``order by``, or
-``group`` clause.
+and grouping operations. Indexes help accomplish this in two key ways:
+
+- They are pre-sorted which saves time on costly sort operations on rows.
+- They can be used by the query planner to filter out irrelevant rows.
+
+.. note::
+
+    The Postgres query planner decides when to use indexes for a query. In some
+    cases — for example, when tables are small and it would be faster to scan
+    the whole table than to use an index — an applicable index may be ignored.
+
+    For more information on how it does this, read `the Postgres query planner
+    documentation
+    <https://www.postgresql.org/docs/current/planner-optimizer.html>`_.
+
+Most commonly, indexes are declared within object type declarations and
+reference a particular property. The index can be used to speed up queries
+which reference that property in a ``filter``, ``order by``, or ``group``
+clause.
 
 .. note::
 
@@ -37,13 +52,22 @@ notation shorthand <ref_dot_notation>`: ``.name``.
       index on (.name);
     }
 
-By indexing on ``User.name``, queries that filter, order, or group by the 
-``name`` property will be faster, as the database can look up a name in 
-the index instead of scanning through all ``User`` objects sequentially.
+By indexing on ``User.name``, the query planner will have access to that index
+for use when planning queries containing the property in a filter, order, or
+group by. This may result in better performance in these queries as the
+database can look up a name in the index instead of scanning through all
+``User`` objects sequentially, although whether or not to use the index is
+ultimately up to the Postgres query planner.
 
-To see the difference for yourself, try adding the :ref:`analyze
-<ref_cli_edgedb_analyze>` keyword before a query with an index compared
-to one without.
+To see if an index can help your query, try adding the :ref:`analyze
+<ref_cli_edgedb_analyze>` keyword before a query with an index compared to one
+without.
+
+.. note::
+
+    Even if your database is too small now to benefit from an index, it may
+    benefit from one as it continues to grow.
+
 
 Index on an expression
 ----------------------
@@ -76,9 +100,21 @@ references multiple properties of the enclosing object type.
 Index on multiple properties
 ----------------------------
 
-A *composite index* is an index that references multiple properties. This will
-speed up queries that filter, order, or group on *both properties*. In EdgeDB,
-this is accomplished by indexing on a ``tuple`` of properties.
+A *composite index* is an index that references multiple properties. This can
+speed up queries that filter, order, or group on both properties.
+
+.. note::
+
+    An index on multiple properties may also be used in queries where only a
+    single property in the index is filtered, ordered, or grouped by. It is
+    best to have the properties most likely to be used in this way listed first
+    when you create the index on multiple properties.
+
+    Read `the Postgres documentation on multicolumn indexes
+    <https://www.postgresql.org/docs/current/indexes-multicolumn.html>`_ to
+    learn more about how the query planner uses these indexes.
+
+In EdgeDB, this is index is created by indexing on a ``tuple`` of properties.
 
 .. code-block:: sdl
     :version-lt: 3.0
@@ -96,6 +132,7 @@ this is accomplished by indexing on a ``tuple`` of properties.
       required email: str;
       index on ((.name, .email));
     }
+
 
 Index on a link property
 ------------------------
@@ -126,6 +163,7 @@ Link properties can also be indexed.
         extending friendship;
       };
     }
+
 
 Specify a Postgres index type
 -----------------------------
@@ -158,6 +196,7 @@ You can use them like this:
       required property name -> str;
       index pg::spgist on (.name);
     };
+
 
 Annotate an index
 -----------------

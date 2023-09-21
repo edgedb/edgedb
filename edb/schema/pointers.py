@@ -448,6 +448,12 @@ class Pointer(referencing.NamedReferencedInheritingObject,
         merge_fn=merge_readonly,
     )
 
+    secret = so.SchemaField(
+        bool,
+        default=False,
+        compcoef=0.909,
+    )
+
     # For non-derived pointers this is strongly correlated with
     # "expr" below.  Derived pointers might have "computable" set,
     # but expr=None.

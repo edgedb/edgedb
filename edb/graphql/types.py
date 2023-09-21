@@ -429,11 +429,11 @@ class GQLCoreSchema:
             return shortname
         else:
             assert module != '', f'get_gl_name {name=}'
-            return f'{module}__{shortname}'
+            return str(name).replace("::", "__")
 
     def get_input_name(self, inputtype: str, name: str) -> str:
         if '__' in name:
-            module, shortname = name.split('__', 1)
+            module, shortname = name.rsplit('__', 1)
             assert module != '', f'get_input_name {name=}'
             return f'{module}__{inputtype}{shortname}'
         else:
@@ -442,7 +442,7 @@ class GQLCoreSchema:
     def gql_to_edb_name(self, name: str) -> str:
         '''Convert the GraphQL field name into an EdgeDB type/view name.'''
         if '__' in name:
-            return name.replace('__', '::', 1)
+            return name.replace('__', '::')
         else:
             return name
 
@@ -645,6 +645,9 @@ class GQLCoreSchema:
                     args=self._get_query_args(name),
                 )
         elif str(typename) == '__graphql__::Mutation':
+            # Get a list of alias names, so that we don't generate inserts for
+            # them.
+            aliases = {t.name for t in self._gql_objtypes_from_alias.values()}
             for name, gqltype in sorted(self._gql_objtypes.items(),
                                         key=lambda x: x[1].name):
                 # '_edb' prefix indicates an internally generated type
@@ -657,12 +660,15 @@ class GQLCoreSchema:
                     GraphQLList(GraphQLNonNull(gqltype)),
                     args=self._get_query_args(name),
                 )
+                if gname in aliases:
+                    # Aliases can only have delete mutations
+                    continue
+
                 args = self._get_insert_args(name)
-                if args:
-                    fields[f'insert_{gname}'] = GraphQLField(
-                        GraphQLList(GraphQLNonNull(gqltype)),
-                        args=args,
-                    )
+                fields[f'insert_{gname}'] = GraphQLField(
+                    GraphQLList(GraphQLNonNull(gqltype)),
+                    args=args,
+                )
 
             for name, gqliface in sorted(self._gql_interfaces.items(),
                                          key=lambda x: x[1].name):
@@ -673,6 +679,7 @@ class GQLCoreSchema:
                 gname = self.get_gql_name(name)
                 args = self._get_update_args(name)
                 if args:
+                    # If there are no args, there's nothing to update.
                     fields[f'update_{gname}'] = GraphQLField(
                         GraphQLList(GraphQLNonNull(gqliface)),
                         args=args,
@@ -1430,7 +1437,8 @@ class GQLCoreSchema:
                 # only objects that have at least one non-readonly
                 # link/property are eligible
                 pointers = t.get_pointers(self.edb_schema)
-                if any(not p.get_readonly(self.edb_schema)
+                if any(not p.get_readonly(self.edb_schema) and
+                       not p.is_pure_computable(self.edb_schema)
                        for _, p in pointers.items(self.edb_schema)):
                     gqlupdatetype = GraphQLInputObjectType(
                         name=self.get_input_name('Update', gql_name),
@@ -1478,13 +1486,20 @@ class GQLCoreSchema:
             )
             self._gql_objtypes[t_name] = gqltype
 
-            # input object types corresponding to this object (only
-            # real objects can appear as input objects)
-            gqlinserttype = GraphQLInputObjectType(
-                name=self.get_input_name('Insert', gql_name),
-                fields=partial(self.get_insert_fields, t_name),
-            )
-            self._gql_inobjtypes[f'Insert{t_name}'] = gqlinserttype
+            # only objects that have at least one non-computed
+            # link/property are eligible to be input objects
+            pointers = t.get_pointers(self.edb_schema)
+            if any(not p.is_pure_computable(self.edb_schema)
+                   for pname, p in pointers.items(self.edb_schema)
+                   if str(pname) not in {'__type__', 'id'}):
+
+                # input object types corresponding to this object (only
+                # real objects can appear as input objects)
+                gqlinserttype = GraphQLInputObjectType(
+                    name=self.get_input_name('Insert', gql_name),
+                    fields=partial(self.get_insert_fields, t_name),
+                )
+                self._gql_inobjtypes[f'Insert{t_name}'] = gqlinserttype
 
     def get(self, name: str, *, dummy: bool = False) -> GQLBaseType:
         '''Get a special GQL type either by name or based on EdgeDB type.'''
@@ -1504,9 +1519,17 @@ class GQLCoreSchema:
 
             for tname in names:
                 if edb_base is None:
+                    module: Union[s_name.Name, str]
+
                     if '::' in tname:
                         edb_base = self.edb_schema.get(
                             tname,
+                            type=s_types.Type,
+                        )
+                    elif '__' in tname:
+                        # Looks like it's coming from a specific module
+                        edb_base = self.edb_schema.get(
+                            f"{tname.replace('__', '::')}",
                             type=s_types.Type,
                         )
                     else:
@@ -1609,7 +1632,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
         # determine module from name if not already specified
         if '::' in self._name:
-            self._module = self._name.split('::', 1)[0]
+            self._module = self._name.rsplit('::', 1)[0]
         else:
             self._module = None
 
@@ -1733,7 +1756,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
     @property
     def gql_typename(self) -> str:
         name = self.name
-        module, shortname = name.split('::', 1)
+        module, shortname = name.rsplit('::', 1)
 
         if self.edb_base is None:
             # We expect that this is one of the fake objects, that
@@ -1749,7 +1772,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
             return f'{shortname}{suffix}'
         else:
             assert module != '', 'gql_typename ' + module
-            return f'{module}__{shortname}{suffix}'
+            return f'{name.replace("::", "__")}{suffix}'
 
     @property
     def schema(self) -> GQLCoreSchema:
@@ -1882,13 +1905,13 @@ class GQLBaseType(metaclass=GQLTypeMeta):
                 eql = parse_fragment(f'{self.gql_typename!r}')
             else:
                 # Construct the GraphQL type name from the actual type name.
-                eql = parse_fragment(f'''
+                eql = parse_fragment(fr'''
                     WITH name := {codegen.generate_source(parent)}
                         .__type__.name
                     SELECT (
                         name[5:] IF name LIKE 'std::%' ELSE
                         name[9:] IF name LIKE 'default::%' ELSE
-                        re_replace(r'(.+?)::(.+$)', r'\1__\2', name)
+                        str_replace(name, '::', '__')
                     ) ++ '_Type'
                 ''')
 
@@ -1976,7 +1999,8 @@ class GQLBaseQuery(GQLBaseType):
         if name in self._std_obj_names:
             return ('std', name)
         elif '__' in name:
-            return tuple(name.split('__', 1))
+            module, name = name.rsplit('__', 1)
+            return (module.replace('__', '::'), name)
         else:
             return ('default', name)
 
@@ -2021,20 +2045,24 @@ class GQLMutation(GQLBaseQuery):
         fkey = (name, self.dummy)
         target = None
 
-        op, name = name.split('_', 1)
-        if op in {'delete', 'insert', 'update'}:
+        if name == '__typename':
+            # It's a valid field that doesn't start with a command
             target = super().get_field_type(name)
+        else:
+            op, name = name.split('_', 1)
+            if op in {'delete', 'insert', 'update'}:
+                target = super().get_field_type(name)
 
-            if target is None:
-                module, edb_name = self.get_module_and_name(name)
-                edb_qname = s_name.QualName(module=module, name=edb_name)
-                edb_type = self.edb_schema.get(
-                    edb_qname,
-                    default=None,
-                    type=s_types.Type,
-                )
-                if edb_type is not None:
-                    target = self.convert_edb_to_gql_type(edb_type)
+                if target is None:
+                    module, edb_name = self.get_module_and_name(name)
+                    edb_qname = s_name.QualName(module=module, name=edb_name)
+                    edb_type = self.edb_schema.get(
+                        edb_qname,
+                        default=None,
+                        type=s_types.Type,
+                    )
+                    if edb_type is not None:
+                        target = self.convert_edb_to_gql_type(edb_type)
 
         if target is not None:
             self._fields[fkey] = target

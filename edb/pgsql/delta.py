@@ -1182,6 +1182,7 @@ class FunctionCommand(MetaCommand):
             schema,
             context,
             body=body,
+            func_name=func.get_name(schema),
             params=func.get_params(schema),
             language=ql_ast.Language.EdgeQL,
             return_type=func.get_return_type(schema),
@@ -6627,7 +6628,13 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 target, scls_type=s_links.Link, field_name='target')
 
             # We need to look at all inbound links to all ancestors
-            for ancestor in target.get_ancestors(schema).objects(schema):
+            for ancestor in itertools.chain(
+                target.get_ancestors(schema).objects(schema),
+                schema.get_referrers(
+                    target, scls_type=s_objtypes.ObjectType,
+                    field_name='union_of'
+                ),
+            ):
                 inbound_links |= schema.get_referrers(
                     ancestor, scls_type=s_links.Link, field_name='target')
 

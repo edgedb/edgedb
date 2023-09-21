@@ -838,7 +838,7 @@ class ConcreteUnknownPointerBlock(Nonterm):
     def reduce_CreateRegularPointer(self, *kids):
         """%reduce
             PathNodeName OptExtendingSimple
-            PtrTarget CreateConcreteLinkSDLCommandsBlock
+            OptPtrTarget CreateConcreteLinkSDLCommandsBlock
         """
         name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
@@ -855,7 +855,7 @@ class ConcreteUnknownPointerBlock(Nonterm):
     def reduce_CreateRegularQualifiedPointer(self, *kids):
         """%reduce
             PtrQuals PathNodeName OptExtendingSimple
-            PtrTarget CreateConcreteLinkSDLCommandsBlock
+            OptPtrTarget CreateConcreteLinkSDLCommandsBlock
         """
         quals, name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
@@ -871,11 +871,10 @@ class ConcreteUnknownPointerBlock(Nonterm):
         )
         self._validate()
 
-    # XXX: COULD WE MAKE THIS OptPtrTarget also??
     def reduce_CreateOverloadedPointer(self, *kids):
         """%reduce
             OVERLOADED PathNodeName OptExtendingSimple
-            PtrTarget CreateConcreteLinkSDLCommandsBlock
+            OptPtrTarget CreateConcreteLinkSDLCommandsBlock
         """
         _, name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
@@ -892,11 +891,10 @@ class ConcreteUnknownPointerBlock(Nonterm):
         )
         self._validate()
 
-    # XXX: COULD WE MAKE THIS OptPtrTarget also??
     def reduce_CreateOverloadedQualifiedPointer(self, *kids):
         """%reduce
             OVERLOADED PtrQuals PathNodeName OptExtendingSimple
-            PtrTarget CreateConcreteLinkSDLCommandsBlock
+            OptPtrTarget CreateConcreteLinkSDLCommandsBlock
         """
         _, quals, name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
@@ -942,11 +940,10 @@ class ConcreteUnknownPointerShort(Nonterm):
             cardinality=quals.val.cardinality,
         )
 
-    # XXX: COULD WE MAKE THIS OptPtrTarget also??
     def reduce_CreateOverloadedPointer(self, *kids):
         """%reduce
             OVERLOADED PathNodeName OptExtendingSimple
-            PtrTarget
+            OptPtrTarget
         """
         _, name, opt_bases, opt_target = kids
         self.val = qlast.CreateConcreteUnknownPointer(
@@ -961,7 +958,7 @@ class ConcreteUnknownPointerShort(Nonterm):
     def reduce_CreateOverloadedQualifiedPointer(self, *kids):
         """%reduce
             OVERLOADED PtrQuals PathNodeName OptExtendingSimple
-            PtrTarget
+            OptPtrTarget
         """
         _, quals, name, opt_bases, opt_target = kids
         self.val = qlast.CreateConcreteUnknownPointer(
@@ -971,6 +968,32 @@ class ConcreteUnknownPointerShort(Nonterm):
             is_required=quals.val.required,
             cardinality=quals.val.cardinality,
             target=opt_target.val,
+        )
+
+
+# Unknown simple computed pointers can only go on objects, since they
+# conflict with SetField on links.
+class ConcreteUnknownPointerObjectShort(Nonterm):
+    def reduce_CreateComputableUnknownPointer(self, *kids):
+        """%reduce
+            PathNodeName ASSIGN Expr
+        """
+        name, _, expr = kids
+        self.val = qlast.CreateConcreteUnknownPointer(
+            name=name.val,
+            target=expr.val,
+        )
+
+    def reduce_CreateQualifiedComputableUnknownPointer(self, *kids):
+        """%reduce
+            PtrQuals PathNodeName ASSIGN Expr
+        """
+        quals, name, _, expr = kids
+        self.val = qlast.CreateConcreteUnknownPointer(
+            name=name.val,
+            is_required=quals.val.required,
+            cardinality=quals.val.cardinality,
+            target=expr.val,
         )
 
 
@@ -1575,7 +1598,6 @@ class TriggerDeclarationShort(Nonterm):
 
 sdl_commands_block(
     'CreateObjectType',
-    SetField,
     SetAnnotation,
     ConcretePropertyBlock,
     ConcretePropertyShort,
@@ -1583,6 +1605,7 @@ sdl_commands_block(
     ConcreteLinkShort,
     ConcreteUnknownPointerBlock,
     ConcreteUnknownPointerShort,
+    ConcreteUnknownPointerObjectShort,
     ConcreteConstraintBlock,
     ConcreteConstraintShort,
     ConcreteIndexDeclarationBlock,

@@ -460,11 +460,19 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_IfElse(self, node: qlast.IfElse) -> None:
         self.write('(')
-        self.visit(node.if_expr)
-        self._write_keywords(' IF ')
-        self.visit(node.condition)
-        self._write_keywords(' ELSE ')
-        self.visit(node.else_expr)
+        if node.python_style:
+            self.visit(node.if_expr)
+            self._write_keywords(' IF ')
+            self.visit(node.condition)
+            self._write_keywords(' ELSE ')
+            self.visit(node.else_expr)
+        else:
+            self._write_keywords(' IF ')
+            self.visit(node.condition)
+            self._write_keywords(' THEN ')
+            self.visit(node.if_expr)
+            self._write_keywords(' ELSE ')
+            self.visit(node.else_expr)
         self.write(')')
 
     def visit_Tuple(self, node: qlast.Tuple) -> None:
@@ -1647,7 +1655,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def _process_AlterConcretePointer_for_SDL(
         self,
-        node: Union[qlast.AlterConcreteProperty, qlast.AlterConcreteLink],
+        node: qlast.AlterObject,
     ) -> Tuple[List[str], FrozenSet[qlast.DDLOperation]]:
         keywords = []
         specials = set()
@@ -1668,36 +1676,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self,
         node: qlast.AlterConcreteProperty
     ) -> None:
-        keywords = []
-        ignored_cmds: Set[qlast.DDLOperation] = set()
-        after_name: Optional[Callable[[], None]] = None
-
-        if self.sdlmode:
-            if not self.descmode:
-                keywords.append('OVERLOADED')
-            quals, ignored_cmds_r = self._process_AlterConcretePointer_for_SDL(
-                node)
-            keywords.extend(quals)
-            ignored_cmds.update(ignored_cmds_r)
-
-            type_cmd = None
-            for cmd in node.commands:
-                if isinstance(cmd, qlast.SetPointerType):
-                    ignored_cmds.add(cmd)
-                    type_cmd = cmd
-                    break
-
-            def after_name() -> None:
-                if type_cmd is not None:
-                    self.write(' -> ')
-                    assert type_cmd.value
-                    self.visit(type_cmd.value)
-
-        keywords.append('PROPERTY')
-        self._visit_AlterObject(
-            node, *keywords, ignored_cmds=ignored_cmds,
-            allow_short=False, unqualified=True,
-            after_name=after_name)
+        self.visit_AlterConcretePointer(node, kind='PROPERTY')
 
     def visit_DropConcreteProperty(
         self,
@@ -1770,13 +1749,23 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     ) -> None:
         self.visit_CreateConcretePointer(node, kind=None)
 
+    def visit_AlterConcreteUnknownPointer(
+        self,
+        node: qlast.AlterConcreteLink
+    ) -> None:
+        self.visit_AlterConcretePointer(node, kind=None)
+
     def visit_CreateConcreteLink(
         self,
         node: qlast.CreateConcreteLink
     ) -> None:
         self.visit_CreateConcretePointer(node, kind='LINK')
 
-    def visit_AlterConcreteLink(self, node: qlast.AlterConcreteLink) -> None:
+    def visit_AlterConcretePointer(
+        self,
+        node: qlast.AlterObject,
+        kind: Optional[str],
+    ) -> None:
         keywords = []
         ignored_cmds: Set[qlast.DDLOperation] = set()
 
@@ -1812,10 +1801,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         else:
             after_name = None
 
-        keywords.append('LINK')
+        if kind:
+            keywords.append(kind)
         self._visit_AlterObject(
             node, *keywords, ignored_cmds=ignored_cmds,
             allow_short=False, unqualified=True, after_name=after_name)
+
+    def visit_AlterConcreteLink(self, node: qlast.AlterConcreteLink) -> None:
+        self.visit_AlterConcretePointer(node, kind='LINK')
 
     def visit_DropConcreteLink(self, node: qlast.DropConcreteLink) -> None:
         self._visit_DropObject(node, 'LINK', unqualified=True)

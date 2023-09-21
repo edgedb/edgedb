@@ -318,49 +318,10 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
+    - uses: actions/checkout@v3
     - id: set-matrix
       name: Compute versions to run on
-      shell: python
-      run: |
-        import json
-        import os
-        import re
-        from urllib import request
-
-        base = 'https://packages.edgedb.com'
-        u = f'{base}/archive/.jsonindexes/x86_64-unknown-linux-gnu.json'
-        data = json.loads(request.urlopen(u).read())
-
-        u = f'{base}/archive/.jsonindexes/x86_64-unknown-linux-gnu.testing.json'
-        data_testing = json.loads(request.urlopen(u).read())
-
-
-        branch = os.getenv('GITHUB_BASE_REF') or os.getenv('GITHUB_REF_NAME')
-        print("BRANCH", branch)
-        version = int(re.findall(r'\d+', branch)[0])
-
-        versions = []
-        for obj in data['packages'] + data_testing['packages']:
-            if (
-                obj['version_details']['major'] == version
-                and (
-                    not obj['version_details']['prerelease']
-                    or obj['version_details']['prerelease'][0]['phase'] in ('beta', 'rc')
-                )
-            ):
-                versions.append((obj['version'], base + obj['installrefs'][0]['ref']))
-
-        matrix = {
-            "include": [
-                {"edgedb-version": v, "edgedb-url": url, "make-dbs": mk}
-                for v, url in versions
-                for mk in [True, False]
-            ]
-        }
-
-        print("matrix:", matrix)
-        with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
-            print(f'matrix={json.dumps(matrix)}', file=f)
+      run: python3 .github/scripts/patches/compute-versions.py
 
   test:
     runs-on: ubuntu-latest
@@ -499,27 +460,7 @@ jobs:
       env:
         EDGEDB_VERSION: ${{ matrix.edgedb-version }}
       if: ${{ matrix.make-dbs }}
-      shell: python
-      run: |
-        import edgedb
-        import os
-        import subprocess
-
-        version = os.getenv('EDGEDB_VERSION')
-        cmd = [
-            f'edgedb-server-{version}/bin/edgedb-server', '-D' 'test-dir',
-            '--testmode', '--security', 'insecure_dev_mode', '--port', '10000',
-        ]
-        proc = subprocess.Popen(cmd)
-
-        db = edgedb.create_client(
-            host='localhost', port=10000, tls_security='insecure'
-        )
-        for name in ['json', 'functions', 'expressions', 'casts', 'policies']:
-            db.execute(f'create database {name};')
-
-        proc.terminate()
-        proc.wait()
+      run: python3 .github/scripts/patches/create-databases.py
 
     - name: Run tests with instance created on an older version
       run: |
@@ -527,44 +468,30 @@ jobs:
         # has timeouts.
         edb server --bootstrap-only --data-dir test-dir
         # Should we run *all* the tests?
-        edb test -j2 -v --data-dir test-dir tests/test_edgeql_json.py tests/test_edgeql_casts.py tests/test_edgeql_functions.py tests/test_edgeql_expressions.py tests/test_edgeql_policies.py
+        edb test -j2 -v --data-dir test-dir tests/test_edgeql_json.py tests/test_edgeql_casts.py tests/test_edgeql_functions.py tests/test_edgeql_expressions.py tests/test_edgeql_policies.py tests/test_edgeql_vector.py tests/test_edgeql_scope.py
 
     - name: Test downgrading a database after an upgrade
       if: ${{ !contains(matrix.edgedb-version, '-rc') && !contains(matrix.edgedb-version, '-beta') }}
       env:
         EDGEDB_VERSION: ${{ matrix.edgedb-version }}
-      shell: python
-      run: |
-          import edgedb
-          import os
-          import subprocess
-          import json
+      run: python3 .github/scripts/patches/test-downgrade.py
 
-          version = os.getenv('EDGEDB_VERSION')
-          cmd = [
-              f'edgedb-server-{version}/bin/edgedb-server', '-D' 'test-dir',
-              '--testmode', '--security', 'insecure_dev_mode', '--port', '10000',
-          ]
-          proc = subprocess.Popen(cmd)
-
-          db = edgedb.create_client(
-              host='localhost', port=10000, tls_security='insecure',
-              database='policies',
-          )
-
-          try:
-              # Test that a basic query works
-              res = json.loads(db.query_json('''
-                  select Issue { name, number, watchers: {name} }
-                  filter .number = "1"
-              '''))
-              expected = [{
-                  "name": "Release EdgeDB",
-                  "number": "1",
-                  "watchers": [{"name": "Yury"}],
-              }]
-
-              assert res == expected, res
-          finally:
-              proc.terminate()
-              proc.wait()
+  workflow-notifications:
+    if: failure()
+    name: Notify in Slack on failures
+    needs:
+      - build
+      - compute-versions
+      - test
+    runs-on: ubuntu-latest
+    permissions:
+      actions: 'read'
+    steps:
+      - name: Slack Workflow Notification
+        uses: Gamesight/slack-workflow-status@master
+        with:
+          repo_token: ${{secrets.GITHUB_TOKEN}}
+          slack_webhook_url: ${{secrets.ACTIONS_SLACK_WEBHOOK_URL}}
+          name: 'Workflow notifications'
+          icon_emoji: ':hammer:'
+          include_jobs: 'on-failure'

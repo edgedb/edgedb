@@ -351,4 +351,44 @@
         buildargs: version=${{ << pub_outputs >>.version-slot }},exact_version=${{ << pub_outputs >>.version-core }}<% if subdist != "" %>,subdist=<< subdist >><% endif %>
         platforms: << docker_tgts|map(attribute="docker_arch")|join(",") >>
 <% endif %>
+
+  workflow-notifications:
+    if: failure()
+    name: Notify in Slack on failures
+
+    needs:
+      - prep
+    <%- if publish_all %>
+      - collect
+    <%- else %>
+    <%- endif %>
+    <%- for tgt in targets.linux %>
+      - build-<< tgt.name >>
+      - test-<< tgt.name >>
+    <%- for publish in publications %>
+      - publish<< publish.suffix>>-<< tgt.name >>
+      - check-published<< publish.suffix>>-<< tgt.name >>
+    <%- endfor %>
+    <%- endfor %>
+    <%- for tgt in targets.macos %>
+      - build-<< tgt.name >>
+      - test-<< tgt.name >>
+    <%- for publish in publications %>
+      - publish<< publish.suffix>>-<< tgt.name >>
+    <%- endfor %>
+    <%- endfor %>
+      - publish-docker
+    runs-on: ubuntu-latest
+    permissions:
+      actions: 'read'
+    steps:
+      - name: Slack Workflow Notification
+        uses: Gamesight/slack-workflow-status@master
+        with:
+          repo_token: ${{secrets.GITHUB_TOKEN}}
+          slack_webhook_url: ${{secrets.ACTIONS_SLACK_WEBHOOK_URL}}
+          name: 'Workflow notifications'
+          icon_emoji: ':hammer:'
+          include_jobs: 'on-failure'
+
 <%- endmacro %>

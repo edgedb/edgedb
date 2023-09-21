@@ -63,9 +63,76 @@ class UserInfo:
 
 
 @dataclasses.dataclass
-class Email:
-    """Email address"""
+class Identity:
+    id: str
+    sub: str
+    iss: str
+    email: str | None
 
-    address: str
-    is_verified: bool
-    is_primary: bool
+    def __str__(self) -> str:
+        return self.id
+
+
+@dataclasses.dataclass
+class LocalIdentity(Identity):
+    handle: str
+
+    def __str__(self) -> str:
+        return self.handle
+
+
+@dataclasses.dataclass
+class OpenIDConfig:
+    """
+    OpenID Connect configuration. Only includes fields actually in use.
+    See:
+    - https://openid.net/specs/openid-connect-discovery-1_0.html
+    - https://accounts.google.com/.well-known/openid-configuration
+    """
+
+    issuer: str
+    authorization_endpoint: str
+    token_endpoint: str
+    jwks_uri: str
+
+    def __init__(self, **kwargs):
+        for field in dataclasses.fields(self):
+            setattr(self, field.name, kwargs.get(field.name))
+
+    def __str__(self) -> str:
+        return self.issuer
+
+
+@dataclasses.dataclass(repr=False)
+class OAuthAccessTokenResponse:
+    """
+    Access Token Response.
+    https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4
+    """
+
+    access_token: str
+    token_type: str
+    expires_in: int
+    refresh_token: str
+
+    def __init__(self, **kwargs):
+        for field in dataclasses.fields(self):
+            if field.name in kwargs:
+                setattr(self, field.name, kwargs.pop(field.name))
+        self._extra_fields = kwargs
+
+
+@dataclasses.dataclass(repr=False)
+class OpenIDConnectAccessTokenResponse(OAuthAccessTokenResponse):
+    """
+    OpenID Connect Access Token Response.
+    https://openid.net/specs/openid-connect-core-1_0.html#TokenResponse
+    """
+
+    id_token: str
+
+    def __init__(self, **kwargs):
+        for field in dataclasses.fields(self):
+            if field.name in kwargs:
+                setattr(self, field.name, kwargs.pop(field.name))
+        self._extra_fields = kwargs

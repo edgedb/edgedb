@@ -37,6 +37,7 @@ bag = assert_data_shape.bag
 
 
 class BaseHttpExtensionTest(server.QueryTestCase):
+    EXTENSION_SETUP: List[str] = []
 
     @classmethod
     def get_extension_name(cls):
@@ -53,13 +54,14 @@ class BaseHttpExtensionTest(server.QueryTestCase):
         return f'/db/{dbname}/{extpath}'
 
     @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
+    def get_setup_script(cls):
+        script = super().get_setup_script()
 
         extname = cls.get_extension_name()
-        cls.loop.run_until_complete(
-            cls.con.execute(f'CREATE EXTENSION {extname};')
-        )
+        script += f'\nCREATE EXTENSION pgcrypto;\n'
+        script += f'\nCREATE EXTENSION {extname};\n'
+        script += "\n".join(cls.EXTENSION_SETUP)
+        return script
 
     @classmethod
     def tearDownClass(cls):

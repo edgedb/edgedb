@@ -9678,6 +9678,18 @@ type default::Foo {
             alter alias X using (Bar);
         """)
 
+    async def test_edgeql_ddl_alias_11(self):
+        await self.con.execute(r"""
+            create type X;
+            create alias Z := (with lol := X, select count(lol));
+        """)
+        await self.con.execute(r"""
+            drop alias Z
+        """)
+        await self.con.execute(r"""
+            create alias Z := (with lol := X, select count(lol));
+        """)
+
     async def test_edgeql_ddl_inheritance_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE InhTest01 {
@@ -13718,7 +13730,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             "'ha' is not a valid field",
         ):
             await self.con.execute(r"""
-                CREATE TYPE Lol {SET ha := "crash"};
+                CREATE SCALAR TYPE Lol extending str {SET ha := "crash"};
             """)
 
     async def test_edgeql_ddl_bad_field_02(self):
@@ -13728,7 +13740,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
         ):
             await self.con.execute(r"""
                 START MIGRATION TO {
-                    type default::Lol {
+                    scalar type default::Lol extending str {
                         ha := "crash"
                     }
                 }
@@ -15990,6 +16002,11 @@ class TestDDLNonIsolated(tb.DDLTestCase):
               set code := ' ((__col__) NULLS FIRST)';
           };
 
+          create type ext::varchar::ParentTest {
+              create property foo -> str;
+          };
+          create type ext::varchar::ChildTest
+              extending ext::varchar::ParentTest;
         };
         ''')
         try:
@@ -16100,6 +16117,11 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 "opt!";
         ''')
 
+        await self.con.execute('''
+            configure current database set ext::_conf::Config::secret :=
+                "foobaz";
+        ''')
+
         await _check(
             config_name='test',
             opt_value='opt!',
@@ -16155,6 +16177,19 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 extra := 42,
             };
         ''')
+        await self.con.execute('''
+            configure current database insert ext::_conf::SecretObj {
+                name := '4',
+                value := 'foo',
+                secret := '123456',
+            };
+        ''')
+        await self.con.execute('''
+            configure current database insert ext::_conf::SecretObj {
+                name := '5',
+                value := 'foo',
+            };
+        ''')
 
         await self.con.execute('''
             configure current database set ext::_conf::Config::config_name :=
@@ -16170,8 +16205,92 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                      opt_value='opt.'),
                 dict(name='3', value='baz', extra=42,
                      tname='ext::_conf::SubObj', opt_value=None),
+                dict(name='4', value='foo',
+                     tname='ext::_conf::SecretObj', opt_value=None),
+                dict(name='5', value='foo',
+                     tname='ext::_conf::SecretObj', opt_value=None),
             ],
         )
+
+        await self.assert_query_result(
+            '''
+            with c := cfg::Config.extensions[is ext::_conf::Config]
+            select ext::_conf::get_secret(
+              (select c.objs[is ext::_conf::SecretObj] filter .name = '4'))
+            ''',
+            ['123456'],
+        )
+        await self.assert_query_result(
+            '''
+            select ext::_conf::get_top_secret()
+            ''',
+            ['foobaz'],
+        )
+
+        await self.assert_query_result(
+            '''
+            select ext::_conf::OK
+            ''',
+            [True],
+        )
+        await self.con.execute('''
+            configure current database set ext::_conf::Config::secret :=
+                "123456";
+        ''')
+        await self.assert_query_result(
+            '''
+            select ext::_conf::OK
+            ''',
+            [False],
+        )
+
+        # Make sure secrets are redacted from get_config_json
+        cfg_json = await self.con.query_single('''
+            select to_str(cfg::get_config_json());
+        ''')
+        self.assertNotIn('123456', cfg_json, 'secrets not redacted')
+
+        # test not being able to access secrets
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError, "because it is secret"
+        ):
+            await self.con.execute('''
+                select cfg::Config {
+                    conf := assert_single(.extensions[is ext::_conf::Config] {
+                        secret
+                    })
+                };
+            ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError, "because it is secret"
+        ):
+            await self.con.execute('''
+                select cfg::Config {
+                    conf := assert_single(
+                        .extensions[is ext::_conf::Config] {
+                        objs: { [is ext::_conf::SecretObj].secret }
+                    })
+                };
+            ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError, "because it is secret"
+        ):
+            await self.con.execute('''
+                select ext::_conf::Config.secret
+            ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError, "because it is secret"
+        ):
+            await self.con.execute('''
+                select ext::_conf::SecretObj.secret
+            ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError, "because it is secret"
+        ):
+            await self.con.execute('''
+                configure current database reset ext::_conf::SecretObj
+                filter .secret = '123456'
+            ''')
 
         if not in_tx:
             # Load the in-memory config state via a HTTP debug endpoint
@@ -16204,6 +16323,12 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                     {'_tname': 'ext::_conf::SubObj',
                      'name': '3', 'value': 'baz', 'extra': 42,
                      'opt_value': None},
+                    {'_tname': 'ext::_conf::SecretObj',
+                     'name': '4', 'value': 'foo',
+                     'opt_value': None, 'secret': {'redacted': True}},
+                    {'_tname': 'ext::_conf::SecretObj',
+                     'name': '5', 'value': 'foo',
+                     'opt_value': None, 'secret': None},
                 ],
             )
 
@@ -16222,18 +16347,33 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             opt_value := 'opt.',
             value := 'bar',
         };
+        CONFIGURE CURRENT DATABASE INSERT ext::_conf::SecretObj {
+            name := '4',
+            secret := {},  # REDACTED
+            value := 'foo',
+        };
+        CONFIGURE CURRENT DATABASE INSERT ext::_conf::SecretObj {
+            name := '5',
+            secret := {},  # REDACTED
+            value := 'foo',
+        };
         CONFIGURE CURRENT DATABASE INSERT ext::_conf::SubObj {
             extra := 42,
             name := '3',
             value := 'baz',
         };
         CONFIGURE CURRENT DATABASE SET ext::_conf::Config::opt_value := 'opt!';
+        CONFIGURE CURRENT DATABASE SET ext::_conf::Config::secret := \
+{};  # REDACTED
         ''')
         self.assertEqual(val, test_expected)
 
         await self.con.execute('''
             configure current database reset ext::_conf::Obj
             filter .value like 'ba%'
+        ''')
+        await self.con.execute('''
+            configure current database reset ext::_conf::SecretObj
         ''')
 
         await _check(
@@ -16256,6 +16396,9 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             objs=[],
         )
 
+        await self.con.execute('''
+            configure current database reset ext::_conf::Config::secret;
+        ''')
         await self.con.execute('''
             configure current database reset ext::_conf::Config::config_name;
         ''')

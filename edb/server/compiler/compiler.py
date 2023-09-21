@@ -1026,6 +1026,7 @@ class Compiler:
         global_schema_json: bytes,
         db_config_json: bytes,
         protocol_version: defines.ProtocolVersion,
+        with_secrets: bool,
     ) -> DumpDescriptor:
         global_schema = self.parse_json_schema(global_schema_json, None)
         user_schema = self.parse_json_schema(user_schema_json, global_schema)
@@ -1037,7 +1038,7 @@ class Compiler:
         )
 
         sys_config_ddl = config.to_edgeql(
-            self.state.config_spec, database_config
+            self.state.config_spec, database_config, with_secrets=with_secrets,
         )
         # We need to put extension DDL configs *after* we have
         # reloaded the schema
@@ -1045,6 +1046,7 @@ class Compiler:
             config.load_ext_spec_from_schema(
                 user_schema, self.state.std_schema),
             database_config,
+            with_secrets=with_secrets,
         )
 
         schema_ddl = s_ddl.ddl_text_from_schema(
@@ -1370,7 +1372,7 @@ def compile_schema_storage_in_delta(
         context.renames.clear()
         context.early_renames.clear()
 
-    s_refl.write_meta(
+    s_refl.generate_metadata_write_edgeql(
         delta,
         classlayout=ctx.compiler_state.schema_class_layout,
         schema=schema,

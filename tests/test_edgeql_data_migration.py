@@ -10200,6 +10200,21 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 }
             ''')
 
+    async def test_edgeql_migration_union_02(self):
+        await self.migrate('''
+            type Target1;
+            type Target1Child extending Target1;
+            type Target2;
+
+            type Source1 {
+                link tgt_union_restrict -> Target1 | Target2;
+                multi link tgt_union_m2m_del_source -> Target1 | Target2;
+            }
+
+            type Source3 extending Source1;
+        ''')
+        await self.migrate('')
+
     async def test_edgeql_migration_backlink_01(self):
         await self.migrate('''
             type User {

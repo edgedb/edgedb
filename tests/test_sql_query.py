@@ -900,11 +900,17 @@ class TestSQL(tb.SQLQueryTestCase):
             "Movie", output=out, format="csv", delimiter="\t"
         )
         out = io.StringIO(out.getvalue().decode("utf-8"))
-        # FIXME(#5716): Once COPY and information_schema are
-        # harmonized to agree on the order of columns, we should query
-        # information_schema to get the column number instead of
-        # hardcoding it.
-        names = set(row[7] for row in csv.reader(out, delimiter="\t"))
+        # Get the columns order from the information_schema.
+        res = await self.squery_values(
+            r'''
+            SELECT column_name, ordinal_position
+            FROM information_schema.columns cols
+            WHERE cols.table_name = 'Movie'
+            '''
+        )
+        col_map = {name: num - 1 for name, num in res}
+        names = set(
+            row[col_map['title']] for row in csv.reader(out, delimiter="\t"))
         self.assertEqual(names, {"Forrest Gump", "Saving Private Ryan"})
 
     async def test_sql_query_error_01(self):

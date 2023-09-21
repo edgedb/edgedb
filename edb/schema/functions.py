@@ -56,6 +56,9 @@ if TYPE_CHECKING:
     ParameterLike_T = TypeVar("ParameterLike_T", bound="ParameterLike")
 
 
+FUNC_NAMESPACE = uuidgen.UUID('80cd3b19-bb51-4659-952d-6bb03e3347d7')
+
+
 def param_as_str(
     schema: s_schema.Schema,
     param: Union[ParameterDesc, Parameter],
@@ -1622,6 +1625,7 @@ class FunctionCommand(
             schema,
             context,
             body=body,
+            func_name=self.classname,
             params=params,
             language=language,
             return_type=return_type,
@@ -1721,6 +1725,8 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
             elif others := schema.get_functions(
                     sn.QualName(fullname.module, shortname.name), ()):
                 backend_name = others[0].get_backend_name(schema)
+            elif context.stdmode:
+                backend_name = uuidgen.uuid5(FUNC_NAMESPACE, str(fullname))
             else:
                 backend_name = uuidgen.uuid1mc()
             if not self.has_attribute_value('backend_name'):
@@ -2365,6 +2371,7 @@ def compile_function(
     context: sd.CommandContext,
     *,
     body: s_expr.Expression,
+    func_name: sn.QualName,
     params: FuncParameterList,
     language: qlast.Language,
     return_type: s_types.Type,
@@ -2385,6 +2392,7 @@ def compile_function(
         schema,
         options=qlcompiler.CompilerOptions(
             anchors=param_anchors,
+            func_name=func_name,
             func_params=params,
             apply_query_rewrites=not context.stdmode,
             track_schema_ref_exprs=track_schema_ref_exprs,

@@ -741,3 +741,22 @@ jobs:
                   json={"files": {"time_stats.csv": {"content": buf.getvalue()}}},
               )
               resp.raise_for_status()
+
+
+  workflow-notifications:
+    if: failure()
+    name: Notify in Slack on failures
+    needs:
+      - test-conclusion
+    runs-on: ubuntu-latest
+    permissions:
+      actions: 'read'
+    steps:
+      - name: Slack Workflow Notification
+        uses: Gamesight/slack-workflow-status@master
+        with:
+          repo_token: ${{secrets.GITHUB_TOKEN}}
+          slack_webhook_url: ${{secrets.ACTIONS_SLACK_WEBHOOK_URL}}
+          name: 'Workflow notifications'
+          icon_emoji: ':hammer:'
+          include_jobs: 'on-failure'

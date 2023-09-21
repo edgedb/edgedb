@@ -20,6 +20,8 @@
 from __future__ import annotations
 from typing import *
 
+import contextlib
+
 from edb import errors
 
 from edb.common import verutils
@@ -37,6 +39,7 @@ from . import modules as s_mod
 from . import name as sn
 from . import objects as so
 from . import schema as s_schema
+from . import types as s_types
 
 
 class ExtensionPackage(
@@ -213,6 +216,19 @@ class ExtensionCommand(
     pass
 
 
+@contextlib.contextmanager
+def _extension_mode(context: sd.CommandContext) -> Iterator[None]:
+    testmode = context.testmode
+    declarative = context.declarative
+    context.testmode = True
+    context.declarative = False
+    try:
+        yield
+    finally:
+        context.testmode = testmode
+        context.declarative = declarative
+
+
 class CreateExtension(
     ExtensionCommand,
     sd.CreateObject[Extension],
@@ -224,14 +240,8 @@ class CreateExtension(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        testmode = context.testmode
-        context.testmode = True
-
-        schema = super().apply(schema, context)
-
-        context.testmode = testmode
-
-        return schema
+        with _extension_mode(context):
+            return super().apply(schema, context)
 
     @classmethod
     def _cmd_tree_from_ast(
@@ -341,14 +351,8 @@ class DeleteExtension(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        testmode = context.testmode
-        context.testmode = True
-
-        schema = super().apply(schema, context)
-
-        context.testmode = testmode
-
-        return schema
+        with _extension_mode(context):
+            return super().apply(schema, context)
 
     def _canonicalize(
         self,
@@ -396,6 +400,10 @@ class DeleteExtension(
                 or (
                     isinstance(obj, so.DerivableObject)
                     and not obj.generic(schema)
+                )
+                or (
+                    isinstance(obj, s_types.Type)
+                    and obj.get_from_alias(schema)
                 )
             ):
                 # Skip any dependent objects, only pick top level

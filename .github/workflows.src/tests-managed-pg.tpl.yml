@@ -474,3 +474,36 @@ jobs:
           name: heroku-postgres-tfstate
           path: .github/heroku-postgres/terraform.tfstate
           retention-days: 1
+
+
+  workflow-notifications:
+    if: failure()
+    name: Notify in Slack on failures
+    needs:
+      - setup-aws-rds
+      - test-aws-rds
+      - teardown-aws-rds
+      - setup-do-database
+      - test-do-database
+      - teardown-do-database
+      - setup-gcp-cloud-sql
+      - test-gcp-cloud-sql
+      - teardown-gcp-cloud-sql
+      - setup-aws-aurora
+      - test-aws-aurora
+      - teardown-aws-aurora
+      - setup-heroku-postgres
+      - test-heroku-postgres
+      - teardown-heroku-postgres
+    runs-on: ubuntu-latest
+    permissions:
+      actions: 'read'
+    steps:
+      - name: Slack Workflow Notification
+        uses: Gamesight/slack-workflow-status@master
+        with:
+          repo_token: ${{secrets.GITHUB_TOKEN}}
+          slack_webhook_url: ${{secrets.ACTIONS_SLACK_WEBHOOK_URL}}
+          name: 'Workflow notifications'
+          icon_emoji: ':hammer:'
+          include_jobs: 'on-failure'

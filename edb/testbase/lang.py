@@ -39,6 +39,7 @@ from edb import errors
 from edb import edgeql
 from edb.edgeql import ast as qlast
 from edb.edgeql import parser as qlparser
+from edb.edgeql.parser import grammar as qlgrammar
 from edb.edgeql import qltypes
 
 from edb.server import defines
@@ -223,13 +224,15 @@ def get_test_cases_setup(
         grammar = case.get_grammar()
         if not grammar:
             continue
-
-        grammars.append(grammar)
+        elif isinstance(grammar, list):
+            grammars.extend(grammar)
+        else:
+            grammars.append(grammar)
 
     if not grammars:
         return None
     else:
-        return TestCasesSetup(grammars)
+        return TestCasesSetup(set(grammars))
 
 
 def run_test_cases_setup(setup: TestCasesSetup, jobs: int) -> None:
@@ -348,6 +351,15 @@ class BaseSchemaTest(BaseDocTest):
             cls.schema = cls.run_ddl(_load_std_schema(), script)
         else:
             cls.schema = _load_std_schema()
+
+    @classmethod
+    def get_grammar(cls):
+        return [
+            qlgrammar.block,
+            qlgrammar.fragment,
+            qlgrammar.sdldocument,
+            qlgrammar.extension_package_body,
+        ]
 
     @classmethod
     def run_ddl(cls, schema, ddl, default_module=defines.DEFAULT_MODULE_ALIAS):
@@ -511,7 +523,7 @@ class BaseSchemaTest(BaseDocTest):
             m = re.match(r'^SCHEMA(?:_(\w+))?', name)
             if m:
                 module_name = (m.group(1)
-                               or 'default').lower().replace('__', '.')
+                               or 'default').lower().replace('_', '::')
 
                 if '\n' in val:
                     # Inline schema source

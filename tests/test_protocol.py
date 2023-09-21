@@ -37,7 +37,9 @@ def pack_i32s(*args):
 
 class TestProtocol(ProtocolTestCase):
 
-    async def _execute(self, command_text, sync=True, data=False, cc=None):
+    async def _execute(
+        self, command_text, sync=True, data=False, cc=None, con=None
+    ):
         exec_args = dict(
             annotations=[],
             allowed_capabilities=protocol.Capability.ALL,
@@ -61,7 +63,9 @@ class TestProtocol(ProtocolTestCase):
         args = (protocol.Execute(**exec_args),)
         if sync:
             args += (protocol.Sync(),)
-        await self.con.send(*args)
+        if con is None:
+            con = self.con
+        await con.send(*args)
 
     async def test_proto_execute_01(self):
         # Test that Execute returns ErrorResponse immediately.
@@ -449,6 +453,62 @@ class TestProtocol(ProtocolTestCase):
             protocol.CommandDataDescription,
             result_cardinality=compiler.Cardinality.AT_MOST_ONE,
         )
+
+    async def test_proto_state_concurrent_alter(self):
+        con2 = await protocol.protocol.new_connection(
+            **self.get_connect_args(database=self.get_database_name())
+        )
+        try:
+            await self.con.connect()
+            await con2.connect()
+
+            # Create initial state schema
+            await self._execute('CREATE GLOBAL state_desc_3 -> int32')
+            sdd1 = await self.con.recv_match(protocol.StateDataDescription)
+            await self.con.recv_match(protocol.CommandComplete)
+            await self.con.recv_match(protocol.ReadyForCommand)
+            self.assertNotEqual(sdd1.typedesc_id, b'\0' * 16)
+
+            # Check setting the state
+            await self._execute('SET GLOBAL state_desc_3 := 11')
+            cc1 = await self.con.recv_match(
+                protocol.CommandComplete,
+                state_typedesc_id=sdd1.typedesc_id,
+            )
+            await self.con.recv_match(protocol.ReadyForCommand)
+
+            # Verify the state is set
+            await self._execute(
+                'SELECT GLOBAL state_desc_3', data=True, cc=cc1)
+            await self.con.recv_match(protocol.CommandDataDescription)
+            d1 = await self.con.recv_match(protocol.Data)
+            await self.con.recv_match(protocol.CommandComplete)
+            await self.con.recv_match(protocol.ReadyForCommand)
+            self.assertEqual(d1.data[0].data[-1], 11)
+
+            # Alter the global type in another connection
+            await self._execute(
+                'ALTER GLOBAL state_desc_3 SET TYPE str RESET TO DEFAULT',
+                con=con2,
+            )
+            sdd2 = await con2.recv_match(protocol.StateDataDescription)
+            await con2.recv_match(protocol.CommandComplete)
+            await con2.recv_match(protocol.ReadyForCommand)
+            self.assertNotEqual(sdd1.typedesc_id, sdd2.typedesc_id)
+
+            # The same query in the first connection should now fail
+            await self._execute(
+                'SELECT GLOBAL state_desc_3', data=True, cc=cc1)
+            sdd3 = await self.con.recv_match(protocol.StateDataDescription)
+            await self.con.recv_match(
+                protocol.ErrorResponse,
+                message='Cannot decode state: type mismatch',
+            )
+            await self.con.recv_match(protocol.ReadyForCommand)
+            self.assertEqual(sdd2.typedesc_id, sdd3.typedesc_id)
+
+        finally:
+            await con2.aclose()
 
     async def _parse_execute(self, query, args):
         await self.con.connect()

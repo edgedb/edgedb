@@ -100,6 +100,8 @@ ObjectCollection_T = TypeVar(
 )
 HashCriterion = Union[Type["Object"], Tuple[str, Any]]
 
+TYPE_ID_NAMESPACE = uuidgen.UUID('00e50276-2502-11e7-97f2-27fe51238dbd')
+
 
 class ReflectionMethod(enum.Enum):
     """Annotation on schema classes telling how to reflect in metaschema."""
@@ -1082,17 +1084,10 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         return hash(self.id)
 
     @classmethod
-    def generate_id(
-        cls,
-        schema: s_schema.Schema,
-        data: Dict[str, Any],
-    ) -> uuid.UUID:
-        return uuidgen.uuid1mc()
-
-    @classmethod
     def _prepare_id(
         cls,
         schema: s_schema.Schema,
+        stdmode: bool,
         data: Dict[str, Any],
     ) -> uuid.UUID:
         name = data.get('name')
@@ -1101,7 +1096,15 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         try:
             return get_known_type_id(name)
         except errors.SchemaError:
-            return cls.generate_id(schema, data)
+            if stdmode:
+                # When compiling the standard library, we generate
+                # stable ids based on the internal name and the type's
+                # name. This keeps std schemas compatible across
+                # minor versions at least.
+                return uuidgen.uuid5(
+                    TYPE_ID_NAMESPACE, f'{name}-{cls.__name__}')
+            else:
+                return uuidgen.uuid1mc()
 
     @classmethod
     def _create_from_id(cls: Type[Object_T], id: uuid.UUID) -> Object_T:
@@ -1112,6 +1115,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
     def create_in_schema(
         cls: Type[Object_T],
         schema: s_schema.Schema_T,
+        stdmode: bool = False,
         *,
         id: Optional[uuid.UUID] = None,
         **data: Any,
@@ -1131,7 +1135,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             obj_data[field.index] = value
 
         if id is None:
-            id = cls._prepare_id(schema, data)
+            id = cls._prepare_id(schema, stdmode, data)
         scls = cls._create_from_id(id)
         schema = schema.add(id, cls, tuple(obj_data))
 

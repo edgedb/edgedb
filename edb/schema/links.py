@@ -38,6 +38,7 @@ from . import referencing
 from . import rewrites as s_rewrites
 from . import sources
 from . import types as s_types
+from . import unknown_pointers
 from . import utils
 
 if TYPE_CHECKING:
@@ -209,6 +210,7 @@ class LinkCommandContext(
     pointers.PointerCommandContext[Link],
     constraints.ConsistencySubjectCommandContext,
     properties.PropertySourceContext[Link],
+    unknown_pointers.UnknownPointerSourceContext[Link],
     sources.SourceCommandContext[Link],
     s_rewrites.RewriteSubjectCommandContext,
 ):

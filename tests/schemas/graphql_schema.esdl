@@ -97,3 +97,14 @@ type ScalarTest {
     property p_array_json -> array<json>;
     property p_array_bytes -> array<bytes>;
 }
+
+type Fixed {
+    property computed := 123;
+}
+
+type NotEditable {
+    property computed := 'a computed value';
+    required once: str {
+        readonly := true;
+    }
+}

@@ -28,7 +28,6 @@ import uuid
 from edb import errors
 
 from edb.common import checked
-from edb.common import uuidgen
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -53,7 +52,6 @@ if typing.TYPE_CHECKING:
     from edb.common import parsing
 
 
-TYPE_ID_NAMESPACE = uuidgen.UUID('00e50276-2502-11e7-97f2-27fe51238dbd')
 MAX_TYPE_DISTANCE = 1_000_000_000
 
 

@@ -36,3 +36,13 @@ async def parse_execute_json(
     query_cache_enabled: Optional[bool] = None,
 ) -> bytes:
     ...
+
+async def interpret_error(
+    exc: Exception,
+    db: dbview.Database,
+    *,
+    global_schema_pickle: object=None,
+    user_schema_pickle: object=None,
+    from_graphql: bool=False,
+) -> Exception:
+    ...

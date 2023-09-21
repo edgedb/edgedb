@@ -745,6 +745,7 @@ def _declare_view_from_schema(
     # subcontext to compile in, but it should avoid depending on the
     # context, because of the cache.
     with ctx.detached() as subctx:
+        subctx.current_schema_views += (viewcls,)
         subctx.expr_exposed = context.Exposure.UNEXPOSED
         view_expr = viewcls.get_expr(ctx.env.schema)
         assert view_expr is not None

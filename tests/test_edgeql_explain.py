@@ -1753,7 +1753,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
     async def test_edgeql_explain_json_contains_01(self):
         res = await self.explain('''
             select JSONTest {id, val}
-            filter contains(.val, <json>(a := 123))
+            filter contains(.val, <json>(b := 123))
         ''')
         self.assert_plan(
             res['fine_grained']['subplans'][1],

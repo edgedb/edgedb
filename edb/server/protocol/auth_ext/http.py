@@ -29,10 +29,9 @@ from jwcrypto import jwk, jwt
 from edb import errors as edb_errors
 from edb.common import debug
 from edb.common import markup
+from edb.ir import statypes
 
-from . import oauth
-from . import errors
-from . import util
+from . import oauth, local, errors, util
 
 
 class Router:
@@ -57,41 +56,214 @@ class Router:
         try:
             match args:
                 case ("authorize",):
-                    # TODO: this is ambiguous whether it's a name or ID which
-                    # is useful now, but we'll need to pivot to ID sooner than
-                    # later and then rename all of this to provider_id
-                    provider = _get_search_param(
+                    provider_id = _get_search_param(
                         request.url.query.decode("ascii"), "provider"
                     )
-                    client = oauth.Client(
-                        db=self.db, provider=provider, base_url=test_url
+                    oauth_client = oauth.Client(
+                        db=self.db, provider_id=provider_id, base_url=test_url
                     )
-                    authorize_url = client.get_authorize_url(
+                    authorize_url = await oauth_client.get_authorize_url(
                         redirect_uri=self._get_callback_url(),
-                        state=self._make_state_claims(provider),
+                        state=self._make_state_claims(provider_id),
                     )
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = authorize_url
-                    response.close_connection = True
 
                 case ("callback",):
                     query = request.url.query.decode("ascii")
                     state = _get_search_param(query, "state")
-                    code = _get_search_param(query, "code")
-                    provider = self._get_from_claims(state, "provider")
+                    try:
+                        code = _get_search_param(query, "code")
+                    except (
+                        errors.InvalidData,
+                        errors.MisconfiguredProvider,
+                    ) as ex:
+                        error_description = None
+                        if isinstance(ex, errors.MisconfiguredProvider):
+                            error = "misconfigured_provider"
+                            error_description = ex.description
+                        else:
+                            error = _get_search_param(query, "error")
+                            error_description = _maybe_get_search_param(
+                                query, "error_description"
+                            )
+                        redirect_to = self._get_from_claims(
+                            state, "redirect_to"
+                        )
+                        response.status = http.HTTPStatus.FOUND
+                        params = {
+                            "error": error,
+                        }
+                        if error_description is not None:
+                            params["error_description"] = error_description
+                        response.custom_headers[
+                            "Location"
+                        ] = f"{redirect_to}?{urllib.parse.urlencode(params)}"
+                        return
+
+                    provider_id = self._get_from_claims(state, "provider")
                     redirect_to = self._get_from_claims(state, "redirect_to")
-                    client = oauth.Client(
+                    oauth_client = oauth.Client(
                         db=self.db,
-                        provider=provider,
+                        provider_id=provider_id,
                         base_url=test_url,
                     )
-                    await client.handle_callback(code)
+                    identity = await oauth_client.handle_callback(code)
+                    session_token = self._make_session_token(identity.id)
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = redirect_to
-                    response.close_connection = True
+                    response.custom_headers["Set-Cookie"] = (
+                        f"edgedb-session={session_token}; "
+                        f"HttpOnly; Secure; SameSite=Strict"
+                    )
+
+                case ("register",):
+                    content_type = request.content_type
+                    match content_type:
+                        case b"application/x-www-form-urlencoded":
+                            data = {
+                                k: v[0]
+                                for k, v in urllib.parse.parse_qs(
+                                    request.body.decode('ascii')
+                                ).items()
+                            }
+                        case b"application/json":
+                            data = json.loads(request.body)
+                        case _:
+                            raise errors.InvalidData(
+                                f"Unsupported Content-Type: {content_type}"
+                            )
+
+                    register_provider_id = data.get("provider")
+                    if register_provider_id is None:
+                        raise errors.InvalidData(
+                            'Missing "provider" in register request'
+                        )
+
+                    local_client = local.Client(
+                        db=self.db, provider_id=register_provider_id
+                    )
+                    try:
+                        identity = await local_client.register(data)
+                        session_token = self._make_session_token(identity.id)
+                        response.custom_headers["Set-Cookie"] = (
+                            f"edgedb-session={session_token}; "
+                            f"HttpOnly; Secure; SameSite=Strict"
+                        )
+                        if data.get("redirect_to") is not None:
+                            response.status = http.HTTPStatus.FOUND
+                            redirect_params = urllib.parse.urlencode(
+                                {
+                                    "identity_id": identity.id,
+                                    "auth_token": session_token,
+                                }
+                            )
+                            redirect_url = (
+                                f"{data['redirect_to']}?{redirect_params}"
+                            )
+                            response.custom_headers["Location"] = redirect_url
+                        else:
+                            response.status = http.HTTPStatus.CREATED
+                            response.content_type = b"application/json"
+                            response.body = json.dumps(
+                                {
+                                    "identity_id": identity.id,
+                                    "auth_token": session_token,
+                                }
+                            ).encode()
+                    except Exception as ex:
+                        redirect_on_failure = data.get(
+                            "redirect_on_failure", data.get("redirect_to")
+                        )
+                        if redirect_on_failure is not None:
+                            response.status = http.HTTPStatus.FOUND
+                            redirect_params = urllib.parse.urlencode(
+                                {
+                                    "error": str(ex),
+                                }
+                            )
+                            redirect_url = (
+                                f"{redirect_on_failure}?{redirect_params}"
+                            )
+                            response.custom_headers["Location"] = redirect_url
+                        else:
+                            raise ex
+
+                case ("authenticate",):
+                    content_type = request.content_type
+                    match content_type:
+                        case b"application/x-www-form-urlencoded":
+                            data = {
+                                k: v[0]
+                                for k, v in urllib.parse.parse_qs(
+                                    request.body.decode('ascii')
+                                ).items()
+                            }
+                        case b"application/json":
+                            data = json.loads(request.body)
+                        case _:
+                            raise errors.InvalidData(
+                                f"Unsupported Content-Type: {content_type}"
+                            )
+
+                    authenticate_provider_id = data.get("provider")
+                    if authenticate_provider_id is None:
+                        raise errors.InvalidData(
+                            'Missing "provider" in register request'
+                        )
+
+                    local_client = local.Client(
+                        db=self.db, provider_id=authenticate_provider_id
+                    )
+                    try:
+                        identity = await local_client.authenticate(data)
+
+                        session_token = self._make_session_token(identity.id)
+                        response.custom_headers["Set-Cookie"] = (
+                            f"edgedb-session={session_token}; "
+                            f"HttpOnly; Secure; SameSite=Strict"
+                        )
+                        if data.get("redirect_to") is not None:
+                            response.status = http.HTTPStatus.FOUND
+                            redirect_params = urllib.parse.urlencode(
+                                {
+                                    "identity_id": identity.id,
+                                    "auth_token": session_token,
+                                }
+                            )
+                            redirect_url = (
+                                f"{data['redirect_to']}?{redirect_params}"
+                            )
+                            response.custom_headers["Location"] = redirect_url
+                        else:
+                            response.status = http.HTTPStatus.OK
+                            response.content_type = b"application/json"
+                            response.body = json.dumps(
+                                {
+                                    "identity_id": identity.id,
+                                    "auth_token": session_token,
+                                }
+                            ).encode()
+                    except Exception as ex:
+                        redirect_on_failure = data.get(
+                            "redirect_on_failure", data.get("redirect_to")
+                        )
+                        if redirect_on_failure is not None:
+                            response.status = http.HTTPStatus.FOUND
+                            redirect_params = urllib.parse.urlencode(
+                                {
+                                    "error": str(ex),
+                                }
+                            )
+                            redirect_url = (
+                                f"{redirect_on_failure}?{redirect_params}"
+                            )
+                            response.custom_headers["Location"] = redirect_url
+                        else:
+                            raise ex
 
                 case _:
-                    raise errors.NotFound("Unknown OAuth endpoint")
+                    raise errors.NotFound("Unknown auth endpoint")
 
         except errors.NotFound as ex:
             _fail_with_error(
@@ -117,6 +289,22 @@ class Router:
                 ex_type=edb_errors.ProtocolError,
             )
 
+        except errors.NoIdentityFound:
+            _fail_with_error(
+                response=response,
+                status=http.HTTPStatus.FORBIDDEN,
+                message="No identity found",
+                ex_type=edb_errors.ProtocolError,
+            )
+
+        except errors.UserAlreadyRegistered as ex:
+            _fail_with_error(
+                response=response,
+                status=http.HTTPStatus.CONFLICT,
+                message=str(ex),
+                ex_type=edb_errors.ProtocolError,
+            )
+
         except Exception as ex:
             if debug.flags.server:
                 markup.dump(ex)
@@ -132,7 +320,7 @@ class Router:
 
     def _get_auth_signing_key(self) -> jwk.JWK:
         auth_signing_key = util.get_config(
-            self.db.db_config, "xxx_auth_signing_key"
+            self.db.db_config, "ext::auth::AuthConfig::auth_signing_key"
         )
         key_bytes = base64.b64encode(auth_signing_key.encode())
 
@@ -153,6 +341,29 @@ class Router:
         )
         state_token.make_signed_token(signing_key)
         return state_token.serialize()
+
+    def _make_session_token(self, identity_id: str) -> str:
+        signing_key = self._get_auth_signing_key()
+        auth_expiration_time = util.get_config(
+            self.db.db_config,
+            "ext::auth::AuthConfig::token_time_to_live",
+            statypes.Duration,
+        )
+        expires_in = auth_expiration_time.to_timedelta()
+        expires_at = datetime.datetime.utcnow() + expires_in
+
+        claims: dict[str, Any] = {
+            "iss": self.base_path,
+            "sub": identity_id,
+        }
+        if expires_in.total_seconds() != 0:
+            claims["exp"] = expires_at.astimezone().timestamp()
+        session_token = jwt.JWT(
+            header={"alg": "HS256"},
+            claims=claims,
+        )
+        session_token.make_signed_token(signing_key)
+        return session_token.serialize()
 
     def _get_from_claims(self, state: str, key: str) -> str:
         signing_key = self._get_auth_signing_key()
@@ -182,7 +393,6 @@ def _fail_with_error(
 
     response.body = json.dumps({"error": err_dct}).encode()
     response.status = status
-    response.close_connection = True
 
 
 def _maybe_get_search_param(query: str, key: str) -> str | None:

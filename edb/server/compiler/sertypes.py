@@ -213,7 +213,7 @@ def _get_collection_type_id(
     string_id = f'{coll_type}\x00{":".join(map(str, subtypes))}'
     if element_names:
         string_id += f'\x00{":".join(element_names)}'
-    return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, string_id)
+    return uuidgen.uuid5(s_obj.TYPE_ID_NAMESPACE, string_id)
 
 
 def _get_object_shape_id(
@@ -234,12 +234,12 @@ def _get_object_shape_id(
         parts.append(":".join(chr(c._value_) for c in cardinalities))
     string_id = "\x00".join(parts)
     string_id += f'{has_implicit_fields!r};{links_props!r};{links!r}'
-    return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, string_id)
+    return uuidgen.uuid5(s_obj.TYPE_ID_NAMESPACE, string_id)
 
 
 def _get_set_type_id(basetype_id: uuid.UUID) -> uuid.UUID:
     return uuidgen.uuid5(
-        s_types.TYPE_ID_NAMESPACE, 'set-of::' + str(basetype_id))
+        s_obj.TYPE_ID_NAMESPACE, 'set-of::' + str(basetype_id))
 
 
 def _register_type_id(

@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2008-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2023-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,24 +17,14 @@
 #
 
 
-from __future__ import annotations
-
-from edb.common import parsing
-
-from .expressions import Nonterm
-from .precedence import *  # NOQA
-from .tokens import *  # NOQA
-from .statements import *  # NOQA
-from .ddl import *  # NOQA
+from . import base
 
 
-class SingleDDLOrQuery(Nonterm):
-    "%start"
-
-    @parsing.inline(0)
-    def reduce_Stmt_EOF(self, *kids):
-        pass
-
-    @parsing.inline(0)
-    def reduce_DDLStmt_EOF(self, *kids):
-        pass
+class AzureProvider(base.OpenIDProvider):
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            "azure",
+            "https://login.microsoftonline.com/common/v2.0",
+            *args,
+            **kwargs,
+        )
