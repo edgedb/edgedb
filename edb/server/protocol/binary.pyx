@@ -608,15 +608,30 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         self,
         dbview.QueryRequestInfo query_req,
     ) -> dbview.CompiledQuery:
+        cdef dbview.DatabaseConnectionView dbv
+        dbv = self.get_dbview()
         if self.debug:
             source = query_req.source
             text = source.text()
             self.debug_print('PARSE', text)
-            self.debug_print('Cache key', source.cache_key())
+            self.debug_print(
+                'Cache key',
+                source.cache_key(),
+                f"protocol_version={query_req.protocol_version}",
+                f"output_format={query_req.output_format}",
+                f"expect_one={query_req.expect_one}",
+                f"implicit_limit={query_req.implicit_limit}",
+                f"inline_typeids={query_req.inline_typeids}",
+                f"inline_typenames={query_req.inline_typenames}",
+                f"inline_objectids={query_req.inline_objectids}",
+                f"allow_capabilities={query_req.allow_capabilities}",
+                f"modaliazes={dbv.get_modaliases()}",
+                f"session_config={dbv.get_session_config()}",
+            )
             self.debug_print('Extra variables', source.variables(),
                              'after', source.first_extra())
 
-        return await self.get_dbview().parse(query_req)
+        return await dbv.parse(query_req)
 
     cdef parse_cardinality(self, bytes card):
         if card[0] == CARD_MANY.value:
