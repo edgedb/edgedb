@@ -86,6 +86,29 @@ typed; you can't simply convert an object to an object of a different type.
   db> select <int16>100000000000000n;
   NumericOutOfRangeError: std::int16 out of range
 
+
+.. lint-off
+
+.. versionadded:: 3.0
+
+    You can cast a UUID into an object:
+
+    .. code-block:: edgeql-repl
+
+        db> select <Hero><uuid>'01d9cc22-b776-11ed-8bef-73f84c7e91e7';
+        {default::Hero {id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7}}
+
+    If you try to cast a UUID that no object of the type has as its ``id``
+    property, you'll get an error:
+
+    .. code-block:: edgeql-repl
+
+        db> select <Hero><uuid>'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+        edgedb error: CardinalityViolationError: 'default::Hero' with id 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' does not exist
+
+.. lint-on
+
+
 .. _ref_eql_types_intersection:
 
 Type intersections
