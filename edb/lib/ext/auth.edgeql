@@ -106,6 +106,13 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
     };
 
+    create function ext::auth::signing_key_exists() -> std::bool {
+        using (
+            select exists cfg::Config.extensions[is ext::auth::AuthConfig]
+                .auth_signing_key
+        );
+    };
+
     create scalar type ext::auth::JWTAlgo extending enum<RS256, HS256>;
 
     create function ext::auth::_jwt_check_signature(
