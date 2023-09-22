@@ -475,6 +475,8 @@ cdef class HttpProtocol:
 
     async def handle_request(self, HttpRequest request, HttpResponse response):
         request_url = get_request_url(request, self.is_tls)
+        from edb.common import markup
+        markup.dump(request_url)
         path = urllib.parse.unquote(request_url.path.decode('ascii'))
         path = path.strip('/')
         path_parts = path.split('/')
@@ -689,13 +691,13 @@ cdef class HttpProtocol:
 
 def get_request_url(request, is_tls):
     request_url = request.url
-    default_schema = "https" if is_tls else "http"
+    default_schema = b"https" if is_tls else b"http"
     if all(
         getattr(request_url, attr) is None
         for attr in ('schema', 'host', 'port')
     ):
         forwarded = request.forwarded if hasattr(request, 'forwarded') else {}
-        schema = forwarded.get(b'proto', default_schema.encode()).decode()
+        schema = forwarded.get(b'proto', default_schema).decode()
         host_header = forwarded.get(b'host', request.host).decode()
 
         host, _, port = host_header.partition(':')
