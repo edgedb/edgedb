@@ -96,10 +96,8 @@ Parameter types and JSON
 
 Prior to EdgeDB 3.0, parameters can be only :ref:`scalars
 <ref_datamodel_scalar_types>` or arrays of scalars. In EdgeDB 3.0, parameters
-can also be tuples. This may seem limiting at first, but in actuality this
-doesn't impose any practical limitation on what can be parameterized. To pass
-complex structures as parameters, use EdgeDB's built-in :ref:`JSON
-<ref_std_json>` functionality.
+can also be tuples. If you need to pass complex structures as parameters, use
+EdgeDB's built-in :ref:`JSON <ref_std_json>` functionality.
 
 .. code-block:: edgeql-repl
 
@@ -150,11 +148,55 @@ When using a client library, pass the idiomatic null pointer for your language:
     select <required str>$name;
 
 
+Default parameter values
+------------------------
+
+When using optional parameters, you may want to provide a default value to use
+in case the parameter is not passed. You can do this by using the
+:eql:op:`?? (coalesce) <coalesce>` operator.
+
+.. code-block:: edgeql-repl
+
+  db> select 'Hello ' ++ <optional str>$name ?? 'there';
+  Parameter <str>$name (Ctrl+D for empty set `{}`): EdgeDB
+  {'Hello EdgeDB'}
+  db> select 'Hello ' ++ <optional str>$name ?? 'there';
+  Parameter <str>$name (Ctrl+D for empty set `{}`):
+  {'Hello there'}
+
+
 What can be parameterized?
 --------------------------
 
 Any data manipulation language (DML) statement can be
-parameterized: ``select``, ``insert``, ``update``, and ``delete``.
+parameterized: ``select``, ``insert``, ``update``, and ``delete``. Since
+parameters can only be scalars, arrays of scalars, and, as of EdgeDB 3.0,
+tuples of scalars, only parts of the query that would be one of those types can
+be parameterized. This excludes parts of the query like the type being queried
+and the property to order by.
+
+.. note::
+
+    You can parameterize ``order by`` for a limited number of options by using
+    :eql:op:`if..else`:
+
+    .. code-block:: edgeql
+
+        select Movie {*}
+          order by
+            (.title if <str>$order_by = 'title'
+              else <str>{})
+          then
+            (.release_year if <str>$order_by = 'release_year'
+              else <int64>{});
+
+    If a user running this query enters ``title`` as the parameter value,
+    ``Movie`` objects will be sorted by their ``title`` property. If they enter
+    ``release_year``, they will be sorted by the ``release_year`` property.
+
+    Since the ``if`` and ``else`` result clauses need to be of compatible
+    types, your ``else`` expressions should be an empty set of the same type as
+    the property.
 
 Schema definition language (SDL) and :ref:`configure
 <ref_eql_statements_configure>` statements **cannot** be parameterized. Data
