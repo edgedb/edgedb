@@ -1403,7 +1403,7 @@ def process_set_as_subquery(
                     ensure_source_rvar(ir_source, subctx.rel, ctx=subctx)
 
                 relctx.include_rvar(
-                    stmt, subrvar, ir_source.path_id, ctx=ctx)
+                    stmt, subrvar, ir_source.path_id, ctx=newctx)
 
         # If we are looking at a materialized computable, running
         # get_set_rvar on the source above may have made it show
@@ -1411,8 +1411,8 @@ def process_set_as_subquery(
         # in the source_rvar itself, and if we find it, skip compiling
         # the computable.
         if ir_source and (new_rvar := (
-            _lookup_set_rvar(ir_set, ctx=ctx)
-            or _lookup_set_rvar_in_source(ir_set, source_set_rvar, ctx=ctx)
+            _lookup_set_rvar(ir_set, ctx=newctx)
+            or _lookup_set_rvar_in_source(ir_set, source_set_rvar, ctx=newctx)
         )):
             if semi_join:
                 # We need to use DISTINCT, instead of doing an actual
@@ -1424,7 +1424,7 @@ def process_set_as_subquery(
                     pathctx.get_rvar_output_var_as_col_list(
                         subrvar, value_var, aspect='value', env=ctx.env))
 
-            return _new_subquery_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+            return _new_subquery_stmt_set_rvar(ir_set, stmt, ctx=newctx)
 
         # materialized refs should always get picked up by now
         assert not ir_set.is_materialized_ref, (
@@ -1461,7 +1461,7 @@ def process_set_as_subquery(
             # Make a new stmt, join in the new root, and semi join on
             # the original statement.
             stmt = pgast.SelectStmt()
-            relctx.include_rvar(stmt, set_rvar, ir_set.path_id, ctx=ctx)
+            relctx.include_rvar(stmt, set_rvar, ir_set.path_id, ctx=newctx)
             stmt.where_clause = astutils.extend_binop(
                 stmt.where_clause, cond_expr)
 
