@@ -474,7 +474,7 @@ cdef class HttpProtocol:
             self.resume()
 
     async def handle_request(self, HttpRequest request, HttpResponse response):
-        request_url = get_request_url(request)
+        request_url = get_request_url(request, self.is_tls)
         path = urllib.parse.unquote(request_url.path.decode('ascii'))
         path = path.strip('/')
         path_parts = path.split('/')
@@ -687,26 +687,22 @@ cdef class HttpProtocol:
         response.close_connection = True
 
 
-def get_request_url(request: HttpRequest):
+def get_request_url(request, is_tls):
     request_url = request.url
+    default_schema = "https" if is_tls else "http"
     if all(
         getattr(request_url, attr) is None
-        for attr in ('schema', 'host', 'port')):
-        schema = (
-            'http' if not hasattr(request, 'forwarded')
-            else request.forwarded.get(b'proto', b'http').decode()
-        )
-        host_header = (
-            request.forwarded.get(b'host', request.host)
-            if request.forwarded is not None
-            else request.host
-        )
+        for attr in ('schema', 'host', 'port')
+    ):
+        forwarded = request.forwarded if hasattr(request, 'forwarded') else {}
+        schema = forwarded.get(b'proto', default_schema.encode()).decode()
+        host_header = forwarded.get(b'host', request.host).decode()
 
-        host, _, port = host_header.decode("utf-8").partition(':')
-        port = port or None
-        new_url = f"{schema}://{host}"\
-                  f"{(':' + port) if port is not None else ''}"\
-                  f"{request_url.path.decode()}"
+        host, _, port = host_header.partition(':')
+        path = request_url.path.decode()
+        new_url = f"{schema}://"\
+                  f"{host}{port and ':' + port}"\
+                  f"{path}"
         request_url = httptools.parse_url(new_url.encode())
 
     return request_url
