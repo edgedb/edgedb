@@ -18,6 +18,8 @@
 
 import argon2
 import json
+import hashlib
+import base64
 
 from typing import Any
 from edb.errors import ConstraintViolationError
@@ -50,6 +52,15 @@ class Client:
 
     async def get_identity_and_secret(self, *args, **kwargs):
         return await self.provider.get_identity_and_secret(
+            self.db, *args, **kwargs)
+
+    async def validate_reset_secret(self, *args, **kwargs):
+        identity = await self.provider.validate_reset_secret(
+            self.db, *args, **kwargs)
+        return identity is not None
+
+    async def update_password(self, *args, **kwargs):
+        return await self.provider.update_password(
             self.db, *args, **kwargs)
 
     def _get_provider_config(self, provider_id: str) -> str:
@@ -196,6 +207,70 @@ select ext::auth::PasswordCredential {
         local_identity = data.LocalIdentity(
             **password_cred["identity"]
         )
-        secret = ph.hash(password_cred['password_hash'])
+        secret = base64.b64encode(
+            hashlib.sha256(password_cred['password_hash'].encode()).digest()
+        ).decode()
 
         return (local_identity, secret)
+
+    async def validate_reset_secret(
+        self, db: Any, identity_id: str, secret: str):
+
+        r = await execute.parse_execute_json(
+            db=db,
+            query="""\
+with
+  identity_id := <uuid><str>$identity_id,
+select ext::auth::PasswordCredential { password_hash, identity: { * } }
+filter .identity.id = identity_id;""",
+            variables={
+                "identity_id": identity_id,
+            },
+        )
+
+        result_json = json.loads(r.decode())
+        if len(result_json) != 1:
+            raise errors.NoIdentityFound()
+        password_cred = result_json[0]
+
+        local_identity = data.LocalIdentity(
+            **password_cred["identity"]
+        )
+
+        current_secret = base64.b64encode(
+            hashlib.sha256(password_cred['password_hash'].encode()).digest()
+        ).decode()
+
+        return local_identity if secret == current_secret else None
+
+    async def update_password(
+        self, db: Any, identity_id: str, secret: str, input: dict[str, Any]):
+        if 'password' not in input:
+            raise errors.InvalidData("Missing 'password' in data")
+
+        password = input["password"]
+
+        local_identity = await self.validate_reset_secret(
+            db, identity_id, secret)
+
+        if local_identity is None:
+            raise errors.InvalidData("Invalid 'reset_token'")
+
+        # TODO: check if race between validating secret and updating password
+        #       is a problem
+        await execute.parse_execute_json(
+            db=db,
+            query="""\
+with
+  identity_id := <uuid><str>$identity_id,
+  new_hash := <str>$new_hash,
+update ext::auth::PasswordCredential
+filter .identity.id = identity_id
+set { password_hash := new_hash };""",
+            variables={
+                'identity_id': identity_id,
+                'new_hash': ph.hash(password)
+            }
+        )
+
+        return local_identity

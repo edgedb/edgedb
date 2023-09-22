@@ -316,7 +316,7 @@ class Router:
                         else:
                             raise ex
 
-                case ('send_reset', ):
+                case ('send_reset_email', ):
                     data = self._get_data_from_request(request)
 
                     local_provider_id = data.get("provider")
@@ -330,13 +330,22 @@ class Router:
                     )
 
                     try:
+                        if 'reset_url' not in data:
+                            raise errors.InvalidData(
+                                "Missing 'reset_url' in data"
+                            )
+
                         identity, secret = (
                             await local_client.get_identity_and_secret(data))
 
                         reset_token = self._make_reset_token(identity.id, secret)
 
-                        # TODO: Do something with this token
-                        print(reset_token)
+                        params = urllib.parse.urlencode({
+                            'reset_token': reset_token
+                        })
+                        reset_url = f"{data['reset_url']}?{params}"
+                        # TODO: Send an email with this url
+                        print(reset_url)
 
                         if data.get("redirect_to") is not None:
                             response.status = http.HTTPStatus.FOUND
@@ -367,6 +376,77 @@ class Router:
                                 {
                                     "error": str(ex),
                                     "handle": data.get('handle', ''),
+                                }
+                            )
+                            redirect_url = (
+                                f"{redirect_on_failure}?{redirect_params}"
+                            )
+                            response.custom_headers["Location"] = redirect_url
+                        else:
+                            raise ex
+
+                case ('reset_password', ):
+                    data = self._get_data_from_request(request)
+
+                    local_provider_id = data.get("provider")
+                    if local_provider_id is None:
+                        raise errors.InvalidData(
+                            'Missing "provider" in register request'
+                        )
+
+                    local_client = local.Client(
+                        db=self.db, provider_id=local_provider_id
+                    )
+
+                    try:
+                        if 'reset_token' not in data:
+                            raise errors.InvalidData(
+                                "Missing 'reset_token' in data"
+                            )
+                        reset_token = data['reset_token']
+
+                        identity_id, secret = (
+                                self._get_data_from_reset_token(reset_token))
+
+                        identity = await local_client.update_password(
+                                identity_id, secret, data)
+
+                        session_token = self._make_session_token(identity.id)
+                        response.custom_headers["Set-Cookie"] = (
+                            f"edgedb-session={session_token}; "
+                            f"HttpOnly; Secure; SameSite=Strict"
+                        )
+                        if data.get("redirect_to") is not None:
+                            response.status = http.HTTPStatus.FOUND
+                            redirect_params = urllib.parse.urlencode(
+                                {
+                                    "identity_id": identity.id,
+                                    "auth_token": session_token,
+                                }
+                            )
+                            redirect_url = (
+                                f"{data['redirect_to']}?{redirect_params}"
+                            )
+                            response.custom_headers["Location"] = redirect_url
+                        else:
+                            response.status = http.HTTPStatus.OK
+                            response.content_type = b"application/json"
+                            response.body = json.dumps(
+                                {
+                                    "identity_id": identity.id,
+                                    "auth_token": session_token,
+                                }
+                            ).encode()
+                    except Exception as ex:
+                        redirect_on_failure = data.get(
+                            "redirect_on_failure", data.get("redirect_to")
+                        )
+                        if redirect_on_failure is not None:
+                            response.status = http.HTTPStatus.FOUND
+                            redirect_params = urllib.parse.urlencode(
+                                {
+                                    "error": str(ex),
+                                    "reset_token": data.get('reset_token', ''),
                                 }
                             )
                             redirect_url = (
@@ -411,17 +491,7 @@ class Router:
                     if ui_config is None:
                         response.status = http.HTTPStatus.NOT_FOUND
                     else:
-                        providers = util.get_config(
-                            self.db.db_config,
-                            "ext::auth::AuthConfig::providers",
-                            frozenset
-                        )
-                        password_providers = [
-                            p for p in providers
-                            if (util.get_config_typename(p) ==
-                                'ext::auth::PasswordClientConfig')
-                        ]
-                        assert(len(password_providers) == 1)
+                        password_provider = self._get_password_provider()
 
                         query = (request.url.query.decode("ascii")
                                 if request.url.query else '')
@@ -430,8 +500,33 @@ class Router:
                         response.content_type = b'text/html'
                         response.body = ui.render_signup_page(
                             base_path=self.base_path,
-                            provider_id=password_providers[0].provider_id,
+                            provider_id=password_provider.provider_id,
                             redirect_to=ui_config.redirect_to,
+                            error_message=_maybe_get_search_param(query, 'error'),
+                            handle=_maybe_get_search_param(query, 'handle'),
+                            email=_maybe_get_search_param(query, 'email'),
+                            app_name=ui_config.app_name,
+                            logo_url=ui_config.logo_url,
+                            dark_logo_url=ui_config.dark_logo_url,
+                            brand_color=ui_config.brand_color,
+                        )
+
+                case ('forgot-password',):
+                    ui_config = self._get_ui_config()
+
+                    if ui_config is None:
+                        response.status = http.HTTPStatus.NOT_FOUND
+                    else:
+                        password_provider = self._get_password_provider()
+
+                        query = (request.url.query.decode("ascii")
+                                if request.url.query else '')
+
+                        response.status = http.HTTPStatus.OK
+                        response.content_type = b'text/html'
+                        response.body = ui.render_forgot_password_page(
+                            base_path=self.base_path,
+                            provider_id=password_provider.provider_id,
                             error_message=_maybe_get_search_param(query, 'error'),
                             handle=_maybe_get_search_param(query, 'handle'),
                             email=_maybe_get_search_param(query, 'email'),
@@ -447,34 +542,46 @@ class Router:
                     if ui_config is None:
                         response.status = http.HTTPStatus.NOT_FOUND
                     else:
-                        providers = util.get_config(
-                            self.db.db_config,
-                            "ext::auth::AuthConfig::providers",
-                            frozenset
-                        )
-                        password_providers = [
-                            p for p in providers
-                            if (util.get_config_typename(p) ==
-                                'ext::auth::PasswordClientConfig')
-                        ]
-                        assert(len(password_providers) == 1)
+                        password_provider = self._get_password_provider()
 
                         query = (request.url.query.decode("ascii")
                                 if request.url.query else '')
 
+                        reset_token = _maybe_get_search_param(
+                            query, 'reset_token')
+
+                        if reset_token:
+                            try:
+                                identity_id, secret = (
+                                    self._get_data_from_reset_token(reset_token))
+
+                                local_client = local.Client(
+                                    db=self.db,
+                                    provider_id=password_provider.provider_id
+                                )
+
+                                is_valid = await local_client.validate_reset_secret(
+                                    identity_id, secret)
+                            except:
+                                is_valid = False
+                        else:
+                            is_valid = False
+
                         response.status = http.HTTPStatus.OK
                         response.content_type = b'text/html'
-                        response.body = ui.render_reset_page(
+                        response.body = ui.render_reset_password_page(
                             base_path=self.base_path,
-                            provider_id=password_providers[0].provider_id,
+                            provider_id=password_provider.provider_id,
+                            is_valid=is_valid,
+                            redirect_to=ui_config.redirect_to,
+                            reset_token=reset_token,
                             error_message=_maybe_get_search_param(query, 'error'),
-                            handle=_maybe_get_search_param(query, 'handle'),
-                            email=_maybe_get_search_param(query, 'email'),
                             app_name=ui_config.app_name,
                             logo_url=ui_config.logo_url,
                             dark_logo_url=ui_config.dark_logo_url,
                             brand_color=ui_config.brand_color,
                         )
+
 
                 case ('_static', filename):
                     filepath = os.path.join(
@@ -560,12 +667,14 @@ class Router:
         self, provider: str, redirect_to: str, challenge: str
     ) -> str:
         signing_key = self._get_auth_signing_key()
-        expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
+        expires_at = (
+            datetime.datetime.now(datetime.timezone.utc) +
+            datetime.timedelta(minutes=5))
 
         state_claims = {
             "iss": self.base_path,
             "provider": provider,
-            "exp": expires_at.astimezone().timestamp(),
+            "exp": expires_at.timestamp(),
             "redirect_to": redirect_to,
             "challenge": challenge,
         }
@@ -584,14 +693,14 @@ class Router:
             statypes.Duration,
         )
         expires_in = auth_expiration_time.to_timedelta()
-        expires_at = datetime.datetime.utcnow() + expires_in
+        expires_at = datetime.datetime.now(datetime.timezone.utc) + expires_in
 
         claims: dict[str, Any] = {
             "iss": self.base_path,
             "sub": identity_id,
         }
         if expires_in.total_seconds() != 0:
-            claims["exp"] = expires_at.astimezone().timestamp()
+            claims["exp"] = expires_at.timestamp()
         session_token = jwt.JWT(
             header={"alg": "HS256"},
             claims=claims,
@@ -599,10 +708,22 @@ class Router:
         session_token.make_signed_token(signing_key)
         return session_token.serialize()
 
+    def _get_from_claims(self, state: str, key: str) -> str:
+        signing_key = self._get_auth_signing_key()
+        try:
+            state_token = jwt.JWT(key=signing_key, jwt=state)
+        except Exception:
+            raise errors.InvalidData("Invalid state token")
+        state_claims: dict[str, str] = json.loads(state_token.claims)
+        value = state_claims.get(key)
+        if value is None:
+            raise errors.InvalidData("Invalid state token")
+        return value
+
     def _make_reset_token(self, identity_id: str, secret: str) -> str:
         signing_key = self._get_auth_signing_key()
-        expires_in = datetime.timedelta(hours=1)
-        expires_at = datetime.datetime.utcnow() + expires_in
+        expires_in = datetime.timedelta(minutes=10)
+        expires_at = datetime.datetime.now(datetime.timezone.utc) + expires_in
 
         claims: dict[str, Any] = {
             "iss": self.base_path,
@@ -610,7 +731,7 @@ class Router:
             "jti": secret,
         }
         if expires_in.total_seconds() != 0:
-            claims["exp"] = expires_at.astimezone().timestamp()
+            claims["exp"] = expires_at.timestamp()
         session_token = jwt.JWT(
             header={"alg": "HS256"},
             claims=claims,
@@ -622,6 +743,22 @@ class Router:
         signing_key = self._get_auth_signing_key()
         verified = jwt.JWT(key=signing_key, jwt=jwtStr)
         return json.loads(verified.claims)
+
+    def _get_data_from_reset_token(self, token: str) -> str:
+        signing_key = self._get_auth_signing_key()
+        try:
+            decoded_token = jwt.JWT(key=signing_key, jwt=token)
+        except Exception as ex:
+            raise errors.InvalidData("Invalid 'reset_token'")
+
+        claims: dict[str, str] = json.loads(decoded_token.claims)
+        identity_id = claims.get('sub')
+        secret = claims.get('jti')
+
+        if identity_id is None or secret is None:
+            raise errors.InvalidData("Invalid 'reset_token'")
+
+        return (identity_id, secret)
 
     def _get_data_from_request(self, request: Any) -> dict[Any, Any]:
         content_type = request.content_type
@@ -655,6 +792,21 @@ class Router:
             assert(len(ui_config) == 1)
 
         return list(ui_config)[0] if ui_config else None
+
+    def _get_password_provider(self):
+        providers = util.get_config(
+            self.db.db_config,
+            "ext::auth::AuthConfig::providers",
+            frozenset
+        )
+        password_providers = [
+            p for p in providers
+            if (util.get_config_typename(p) ==
+                'ext::auth::PasswordClientConfig')
+        ]
+        assert(len(password_providers) == 1)
+
+        return password_providers[0]
 
 
 def _fail_with_error(

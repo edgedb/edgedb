@@ -106,7 +106,7 @@ def render_login_page(*,
 
       <div class="field-header">
         <label for="password">Password</label>
-        <a class="field-note" href="reset-password">Forgot password?</a>
+        <a class="field-note" href="forgot-password">Forgot password?</a>
       </div>
       <input id="password" name="password" type="password" />
 
@@ -169,7 +169,7 @@ def render_signup_page(*,
     </form>'''
     )
 
-def render_reset_page(*,
+def render_forgot_password_page(*,
     base_path: str,
     provider_id: str,
     error_message: str = None,
@@ -182,22 +182,23 @@ def render_reset_page(*,
     brand_color: str = None
 ):
     if email is not None:
-        content = f'''
-        Password reset email has been sent to {email}'''
+        content = f'''Password reset email has been sent to {email}'''
     else:
         content = f'''
         {render_error_message(error_message)}
 
         <input type="hidden" name="provider" value="{provider_id}" />
         <input type="hidden" name="redirect_on_failure" value="{
-          base_path}/reset-password" />
+          base_path}/forgot-password" />
         <input type="hidden" name="redirect_to" value="{
-          base_path}/reset-password" />
+          base_path}/forgot-password" />
+        <input type="hidden" name="reset_url" value="{
+            base_path}/reset-password" />
 
         <label for="username">Username</label>
         <input id="username" name="handle" type="text" value="{handle or ''}" />
 
-        {render_button('Send Password Reset')}'''
+        {render_button('Send Reset Email')}'''
 
     return render_base_page(
         title=f'Reset password{f" for {app_name}" if app_name else ""}',
@@ -206,7 +207,7 @@ def render_reset_page(*,
         brand_color=brand_color,
         cleanup_search_params=['error', 'handle', 'email'],
         content=f'''
-    <form method="POST" action="send_reset">
+    <form method="POST" action="send_reset_email">
       <h1>{f'<span>Reset password for</span> {html.escape(app_name)}'
            if app_name else '<span>Reset password</span>'}</h1>
 
@@ -216,6 +217,52 @@ def render_reset_page(*,
         Back to
         <a href="login">Sign In</a>
       </div>
+    </form>'''
+    )
+
+def render_reset_password_page(*,
+    base_path: str,
+    provider_id: str,
+    is_valid: bool,
+    redirect_to: str,
+    reset_token: str = None,
+    error_message: str = None,
+    # config
+    app_name: str = None,
+    logo_url: str = None,
+    dark_logo_url: str = None,
+    brand_color: str = None
+):
+    if not is_valid:
+        content = f'''Reset token is invalid, it may have expired.
+        <a href="forgot-password">Try sending another reset email</a>'''
+    else:
+        content = f'''
+        {render_error_message(error_message)}
+
+        <input type="hidden" name="provider" value="{provider_id}" />
+        <input type="hidden" name="reset_token" value="{reset_token}" />
+        <input type="hidden" name="redirect_on_failure" value="{
+          base_path}/reset-password" />
+        <input type="hidden" name="redirect_to" value="{redirect_to}" />
+
+        <label for="password">New Password</label>
+        <input id="password" name="password" type="password" />
+
+        {render_button('Sign In')}'''
+
+    return render_base_page(
+        title=f'Reset password{f" for {app_name}" if app_name else ""}',
+        logo_url=logo_url,
+        dark_logo_url=dark_logo_url,
+        brand_color=brand_color,
+        cleanup_search_params=['error'],
+        content=f'''
+    <form method="POST" action="reset_password">
+      <h1>{f'<span>Reset password for</span> {html.escape(app_name)}'
+           if app_name else '<span>Reset password</span>'}</h1>
+
+      {content}
     </form>'''
     )
 
