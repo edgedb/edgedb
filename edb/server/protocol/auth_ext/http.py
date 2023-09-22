@@ -345,48 +345,69 @@ class Router:
                             raise ex
 
                 case ('login',):
-                    providers = util.get_config(
-                        self.db.db_config, "ext::auth::AuthConfig::providers",
-                        frozenset
-                    )
+                    ui_config = self._get_ui_config()
 
-                    query = (request.url.query.decode("ascii")
-                            if request.url.query else '')
+                    if ui_config is None:
+                        response.status = http.HTTPStatus.NOT_FOUND
+                    else:
+                        providers = util.get_config(
+                            self.db.db_config,
+                            "ext::auth::AuthConfig::providers",
+                            frozenset
+                        )
 
-                    response.status = http.HTTPStatus.OK
-                    response.content_type = b'text/html'
-                    response.body = ui.render_login_page(
-                        base_path=self.base_path,
-                        providers=providers,
-                        redirect_to='http://localhost',
-                        error_message=_maybe_get_search_param(query, 'error'),
-                        handle=_maybe_get_search_param(query, 'handle'),
-                    )
+                        query = (request.url.query.decode("ascii")
+                                if request.url.query else '')
+
+                        response.status = http.HTTPStatus.OK
+                        response.content_type = b'text/html'
+                        response.body = ui.render_login_page(
+                            base_path=self.base_path,
+                            providers=providers,
+                            redirect_to=ui_config.redirect_to,
+                            error_message=_maybe_get_search_param(query, 'error'),
+                            handle=_maybe_get_search_param(query, 'handle'),
+                            app_name=ui_config.app_name,
+                            logo_url=ui_config.logo_url,
+                            dark_logo_url=ui_config.dark_logo_url,
+                            brand_color=ui_config.brand_color,
+                        )
 
                 case ('signup',):
-                    providers = util.get_config(
-                        self.db.db_config, "ext::auth::AuthConfig::providers",
-                        frozenset
-                    )
-                    password_providers = [
-                        p for p in providers
-                        if util.get_config_typename(p) == 'ext::auth::PasswordClientConfig'
-                    ]
-                    assert(len(password_providers) == 1)
+                    ui_config = self._get_ui_config()
 
-                    query = (request.url.query.decode("ascii")
-                            if request.url.query else '')
+                    if ui_config is None:
+                        response.status = http.HTTPStatus.NOT_FOUND
+                    else:
+                        providers = util.get_config(
+                            self.db.db_config,
+                            "ext::auth::AuthConfig::providers",
+                            frozenset
+                        )
+                        password_providers = [
+                            p for p in providers
+                            if (util.get_config_typename(p) ==
+                                'ext::auth::PasswordClientConfig')
+                        ]
+                        assert(len(password_providers) == 1)
 
-                    response.status = http.HTTPStatus.OK
-                    response.content_type = b'text/html'
-                    response.body = ui.render_signup_page(
-                        base_path=self.base_path,
-                        provider_id=password_providers[0].provider_id,
-                        redirect_to='http://localhost',
-                        error_message=_maybe_get_search_param(query, 'error'),
-                        handle=_maybe_get_search_param(query, 'handle'),
-                        email=_maybe_get_search_param(query, 'email')
-                    )
+                        query = (request.url.query.decode("ascii")
+                                if request.url.query else '')
+
+                        response.status = http.HTTPStatus.OK
+                        response.content_type = b'text/html'
+                        response.body = ui.render_signup_page(
+                            base_path=self.base_path,
+                            provider_id=password_providers[0].provider_id,
+                            redirect_to=ui_config.redirect_to,
+                            error_message=_maybe_get_search_param(query, 'error'),
+                            handle=_maybe_get_search_param(query, 'handle'),
+                            email=_maybe_get_search_param(query, 'email'),
+                            app_name=ui_config.app_name,
+                            logo_url=ui_config.logo_url,
+                            dark_logo_url=ui_config.dark_logo_url,
+                            brand_color=ui_config.brand_color,
+                        )
 
                 case ('_static', filename):
                     filepath = os.path.join(
@@ -515,6 +536,17 @@ class Router:
         signing_key = self._get_auth_signing_key()
         verified = jwt.JWT(key=signing_key, jwt=jwtStr)
         return json.loads(verified.claims)
+
+    def _get_ui_config(self):
+        ui_config = util.maybe_get_config(
+            self.db.db_config, "ext::auth::AuthConfig::ui",
+            frozenset
+        )
+
+        if ui_config is not None:
+            assert(len(ui_config) == 1)
+
+        return list(ui_config)[0] if ui_config else None
 
 
 def _fail_with_error(

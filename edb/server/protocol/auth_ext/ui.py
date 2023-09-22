@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 
+import html
+
 from .util import get_config_typename
 
 
@@ -71,7 +73,8 @@ def render_login_page(*,
         cleanup_search_params=['error', 'handle'],
         content=f'''
     <form method="POST" action="authenticate">
-      <h1>{f'<span>Sign in to</span> {app_name}' if app_name else '<span>Sign in</span>'}</h1>
+      <h1>{f'<span>Sign in to</span> {html.escape(app_name)}'
+           if app_name else '<span>Sign in</span>'}</h1>
 
     {
       f"""
@@ -138,7 +141,8 @@ def render_signup_page(*,
         cleanup_search_params=['error', 'handle', 'email'],
         content=f'''
     <form method="POST" action="register">
-      <h1>{f'<span>Sign up to</span> {app_name}' if app_name else '<span>Sign up</span>'}</h1>
+      <h1>{f'<span>Sign up to</span> {html.escape(app_name)}'
+           if app_name else '<span>Sign up</span>'}</h1>
 
       {render_error_message(error_message)}
 
@@ -175,9 +179,10 @@ def render_base_page(*,
 ):
     logo = f'''
       <picture class="brand-logo">
-        {'<source srcset="'+dark_logo_url+'" media="(prefers-color-scheme: dark)" />'
+        {'<source srcset="'+html.escape(dark_logo_url)+
+          '" media="(prefers-color-scheme: dark)" />'
           if dark_logo_url else ''}
-        <img src="{logo_url}" />
+        <img src="{html.escape(logo_url)}" />
       </picture>''' if logo_url else ''
 
     cleanup_script = f'''<script>
@@ -198,10 +203,11 @@ def render_base_page(*,
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width" />
     <link rel="stylesheet" href="_static/styles.css" />
-    <title>{title}</title>
+    <title>{html.escape(title)}</title>
     {cleanup_script}
   </head>
-  <body {'style="--brand-color: '+brand_color+'"' if brand_color else ''}>
+  <body {'style="--brand-color: '+html.escape(brand_color)+'"'
+          if brand_color else ''}>
     {logo}
     {content}
   </body>
@@ -214,7 +220,7 @@ def render_error_message(error_message: str):
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="20" viewBox="0 0 24 20" fill="none">
             <path d="M12 15H12.01M12 7.00002V11M10.29 1.86002L1.82002 16C1.64539 16.3024 1.55299 16.6453 1.55201 16.9945C1.55103 17.3438 1.64151 17.6872 1.81445 17.9905C1.98738 18.2939 2.23675 18.5468 2.53773 18.7239C2.83871 18.901 3.18082 18.9962 3.53002 19H20.47C20.8192 18.9962 21.1613 18.901 21.4623 18.7239C21.7633 18.5468 22.0127 18.2939 22.1856 17.9905C22.3585 17.6872 22.449 17.3438 22.448 16.9945C22.4471 16.6453 22.3547 16.3024 22.18 16L13.71 1.86002C13.5318 1.56613 13.2807 1.32314 12.9812 1.15451C12.6817 0.98587 12.3438 0.897278 12 0.897278C11.6563 0.897278 11.3184 0.98587 11.0188 1.15451C10.7193 1.32314 10.4683 1.56613 10.29 1.86002Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        {error_message}
+        {html.escape(error_message)}
         </div>'''
         if error_message else '')
 
