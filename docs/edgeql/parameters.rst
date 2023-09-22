@@ -152,7 +152,8 @@ Default parameter values
 ------------------------
 
 When using optional parameters, you may want to provide a default value to use
-in case the parameter is not passed.
+in case the parameter is not passed. You can do this by using the
+:eql:op:`?? (coalesce) <coalesce>` operator.
 
 .. code-block:: edgeql-repl
 
