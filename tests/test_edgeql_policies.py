@@ -1287,3 +1287,12 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             await self.con.query('''
                 update Base set { name := '!!!' }
             ''')
+
+    async def test_edgeql_policies_empty_cast_01(self):
+        obj = await self.con._fetchall(
+            '''
+                SELECT <Issue>{}
+            ''',
+            __typenames__=True,
+        )
+        self.assertEqual(obj, [])
