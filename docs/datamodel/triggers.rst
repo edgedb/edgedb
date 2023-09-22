@@ -15,9 +15,10 @@ These can be defined in your schema.
 
 .. note::
 
-    Triggers cannot be used to modify the object that set off the trigger.
-    Instead, you should use :ref:`mutation rewrites
-    <ref_datamodel_mutation_rewrites>` for this.
+    Triggers cannot be used to *modify* the object that set off the trigger,
+    although they can be used with :eql:func:`assert` to do *validation* on
+    that object. If you need to modify the object, you can use :ref:`mutation
+    rewrites <ref_datamodel_mutation_rewrites>`.
 
 Here's an example that creates a simple audit log type so that we can keep
 track of what's happening to our users in a database. First, we will create a
