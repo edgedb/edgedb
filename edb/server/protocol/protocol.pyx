@@ -225,6 +225,11 @@ cdef class HttpProtocol:
                 self.current_request.params = {}
             param = name[len(b'x-edgedb-'):]
             self.current_request.params[param] = value
+        elif name.startswith(b'x-forwarded-'):
+            if self.current_request.forwarded is None:
+                self.current_request.forwarded = {}
+            forwarded_key = name[len(b'x-forwarded-'):]
+            self.current_request.forwarded[forwarded_key] = value
 
     def on_body(self, body: bytes):
         self.current_request.body += body
@@ -469,7 +474,8 @@ cdef class HttpProtocol:
             self.resume()
 
     async def handle_request(self, HttpRequest request, HttpResponse response):
-        path = urllib.parse.unquote(request.url.path.decode('ascii'))
+        request_url = get_request_url(request)
+        path = urllib.parse.unquote(request_url.path.decode('ascii'))
         path = path.strip('/')
         path_parts = path.split('/')
         path_parts_len = len(path_parts)
@@ -583,11 +589,11 @@ cdef class HttpProtocol:
                     )
                 elif extname == 'auth':
                     netloc = (
-                        f"{request.url.host.decode()}:{request.url.port}"
-                            if request.url.port
-                            else request.url.host.decode()
+                        f"{request_url.host.decode()}:{request_url.port}"
+                            if request_url.port
+                            else request_url.host.decode()
                     )
-                    extension_base_path = f"{request.url.schema.decode()}://" \
+                    extension_base_path = f"{request_url.schema.decode()}://" \
                                           f"{netloc}/db/{dbname}/ext/auth"
                     handler = auth_ext.http.Router(
                         db=db,
@@ -679,3 +685,28 @@ cdef class HttpProtocol:
         response.body = message.encode("utf-8")
         response.status = http.HTTPStatus.BAD_REQUEST
         response.close_connection = True
+
+
+def get_request_url(request: HttpRequest):
+    request_url = request.url
+    if all(
+        getattr(request_url, attr) is None
+        for attr in ('schema', 'host', 'port')):
+        schema = (
+            'http' if not hasattr(request, 'forwarded')
+            else request.forwarded.get(b'proto', b'http').decode()
+        )
+        host_header = (
+            request.forwarded.get(b'host', request.host)
+            if request.forwarded is not None
+            else request.host
+        )
+
+        host, _, port = host_header.decode("utf-8").partition(':')
+        port = port or None
+        new_url = f"{schema}://{host}"\
+                  f"{(':' + port) if port is not None else ''}"\
+                  f"{request_url.path.decode()}"
+        request_url = httptools.parse_url(new_url.encode())
+
+    return request_url
