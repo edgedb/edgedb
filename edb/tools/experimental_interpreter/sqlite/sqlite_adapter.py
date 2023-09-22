@@ -61,13 +61,13 @@ def compute_projection(cursor: sqlite3.Cursor,
                         if link_property_tp == "INT":
                             cursor.execute(f"SELECT int_value FROM \"{link_property_table_name}\" WHERE source_id=? AND target_id=?", 
                                             (link_source_id, link_target_id))
-                            link_props[StrLabel(link_property_name)] = (Visible(), MultiSetVal([IntVal(row[0]) for row in cursor.fetchall()]))
+                            link_props[LinkPropLabel(link_property_name)] = (Visible(), MultiSetVal([IntVal(row[0]) for row in cursor.fetchall()]))
                         elif link_property_tp == "STRING":
                             cursor.execute(f"SELECT string_value FROM \"{link_property_table_name}\" WHERE source_id=? AND target_id=?",
                                                 (link_source_id, link_target_id))
-                            link_props[StrLabel(link_property_name)] = (Visible(), MultiSetVal([StrVal(row[0]) for row in cursor.fetchall()]))
+                            link_props[LinkPropLabel(link_property_name)] = (Visible(), MultiSetVal([StrVal(row[0]) for row in cursor.fetchall()]))
 
-                targets.append(LinkPropVal(link_target_id, ObjectVal(link_props)))
+                targets.append(RefVal(link_target_id, ObjectVal(link_props)))
             return MultiSetVal(targets)
         else:
             raise ValueError(f"Unknown property type {property_tp}")
@@ -202,13 +202,13 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
                             raise ValueError("Link property cannot be a link property")
                         case "INT":
                             self.cursor.execute(f"SELECT int_value FROM \"{link_property_table}\" WHERE source_id=? AND target_id=?", (source_id, target_id))
-                            link_props[StrLabel(property_name)] = (Visible(), MultiSetVal([IntVal(row[0]) for row in self.cursor.fetchall()]))
+                            link_props[LinkPropLabel(property_name)] = (Visible(), MultiSetVal([IntVal(row[0]) for row in self.cursor.fetchall()]))
                         case "STRING":
                             self.cursor.execute(f"SELECT string_value FROM \"{link_property_table}\" WHERE source_id=? AND target_id=?", (source_id, target_id))
-                            link_props[StrLabel(property_name)] = (Visible(), MultiSetVal([StrVal(row[0]) for row in self.cursor.fetchall()]))
+                            link_props[LinkPropLabel(property_name)] = (Visible(), MultiSetVal([StrVal(row[0]) for row in self.cursor.fetchall()]))
                         case _:
                             raise ValueError(f"Unknown property type {link_property_type}")
-                result.append(LinkPropVal(refid=source_id, linkprop=ObjectVal(link_props)))
+                result.append(RefVal(refid=source_id, val=ObjectVal(link_props)))
         return MultiSetVal(result)
 
     def delete(self, id: EdgeID) -> None:
@@ -259,7 +259,7 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
                 result_tp =  "STRING"
             elif all(isinstance(v, IntVal) for v in val.vals):
                 result_tp =  "INT"
-            elif all(isinstance(v, LinkPropVal) for v in val.vals):
+            elif all(isinstance(v, RefVal) for v in val.vals):
                 result_tp =  "LINK"
             else:
                 raise ValueError(f"Unknown type for {val}")
@@ -319,7 +319,7 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
                         self.cursor.execute(f"INSERT INTO \"{tp}.{prop}\" (id, string_value) VALUES (?, ?)", (id, s))
                     case IntVal(i):
                         self.cursor.execute(f"INSERT INTO \"{tp}.{prop}\" (id, int_value) VALUES (?, ?)", (id, i))
-                    case LinkPropVal(refid, linkprop):
+                    case RefVal(refid, linkprop):
                         # insert the link property table if it does not exist
                         for (lp_name, (_, val)) in linkprop.val.items():
                             lp_tp = self.get_type_for_proprty(tp, prop, lp_name.label, val)
@@ -370,10 +370,10 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
                     case "LINK":
                         self.cursor.execute(f"DELETE FROM \"{tp}.{prop_name}\" WHERE id=?", (id,))
                         for v in prop_val.vals:
-                            assert isinstance(v, LinkPropVal), "type mismatch"
+                            assert isinstance(v, RefVal), "type mismatch"
                             self.cursor.execute(f"INSERT INTO \"{tp}.{prop_name}\" VALUES (?, ?)", (id, v.refid))
                             # replace all link properties
-                            for (lp_name, (_, lp_val)) in v.linkprop.val.items():
+                            for (lp_name, (_, lp_val)) in v.val.val.items():
                                 lp_prop_tp_str = self.get_type_for_proprty(tp, prop_name, lp_name.label, lp_val)
                                 self.cursor.execute(f"DELETE FROM \"{tp}.{prop_name}.{lp_name.label}\" WHERE source_id=? AND target_id=?", (id, v.refid))
                                 match lp_prop_tp_str:

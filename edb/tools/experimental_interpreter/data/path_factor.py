@@ -2,8 +2,9 @@ from typing import Callable, List, Optional
 
 from .data_ops import (BackLinkExpr, BindingExpr, BoolVal, DBSchema,
                        DetachedExpr, Expr, FilterOrderExpr, FreeVarExpr,
-                       LinkPropProjExpr, ObjectExpr, ObjectProjExpr,
+                       LinkPropProjExpr, ObjectProjExpr,
                        OptionalForExpr, next_name, StrLabel)
+from . import data_ops as e
 from .expr_ops import (
     abstract_over_expr, appears_in_expr, instantiate_expr, is_path,
     iterative_subst_expr_for_expr, map_expr, operate_under_binding)
@@ -206,12 +207,12 @@ def sub_select_hoist(e: Expr, dbschema: DBSchema) -> Expr:
 # @trace_input_output
 
 
-def select_hoist(e: Expr, dbschema: DBSchema) -> Expr:
+def select_hoist(expr: Expr, dbschema: DBSchema) -> Expr:
     # Optimization: do not factor single path, this helps to
     # keep select_hoist as an idempotent operation
-    if is_path(e):
-        return e
-    top_paths = toppath_for_factoring(e, dbschema)
+    if is_path(expr):
+        return expr
+    top_paths = toppath_for_factoring(expr, dbschema)
     fresh_names: List[str] = [next_name() for p in top_paths]
     # print("Paths and Names:", top_paths, fresh_names)
     fresh_vars: List[Expr] = [FreeVarExpr(n) for n in fresh_names]
@@ -223,7 +224,7 @@ def select_hoist(e: Expr, dbschema: DBSchema) -> Expr:
 
     inner_e: Expr
     post_process_transform: Callable[[Expr], Expr]
-    match e:
+    match expr:
         case FilterOrderExpr(subject=subject, filter=filter, order=order):
             bindname = next_name()
             inner_e = OptionalForExpr(
@@ -240,39 +241,45 @@ def select_hoist(e: Expr, dbschema: DBSchema) -> Expr:
                             iterative_subst_expr_for_expr(
                                 fresh_vars, top_paths, filter),
                             dbschema)),
-                    order=abstract_over_expr(ObjectExpr({}))),
+                    order={}),
                 abstract_over_expr(
-                    ObjectExpr(
-                        {StrLabel("subject"): FreeVarExpr(bindname),
-                         StrLabel("order"):
-                         select_hoist(
-                             iterative_subst_expr_for_expr(
-                                 fresh_vars, top_paths,
-                                 instantiate_expr(
-                                     FreeVarExpr(bindname),
-                                     order)),
-                             dbschema), }),
+                    e.ShapedExprExpr(expr=e.FreeObjectExpr(),
+                        shape=e.ShapeExpr(shape=
+                        {StrLabel("subject"): abstract_over_expr(FreeVarExpr(bindname)),
+                        **{StrLabel(l) : 
+                            abstract_over_expr(select_hoist(
+                                iterative_subst_expr_for_expr(
+                                    fresh_vars, top_paths,
+                                    instantiate_expr(
+                                        FreeVarExpr(bindname),
+                                        o)),
+                                dbschema)) for (l, o) in order.items()
+                        }}
+                        )),
                     bindname))
 
-            def post_processing(e: Expr) -> Expr:
+            def post_processing(expr: Expr) -> Expr:
                 bindname = next_name()
                 return ObjectProjExpr(
                     subject=FilterOrderExpr(
-                        subject=e,
+                        subject=expr,
                         filter=abstract_over_expr(
                             BoolVal(True)),
-                        order=abstract_over_expr(
+                        order={
+                            l : abstract_over_expr(
                             ObjectProjExpr(
                                 subject=FreeVarExpr(bindname),
-                                label="order"),
+                                label=l),
                             bindname)
+                            for (l, o) in order.items()
+                        }
                     ),
                     label="subject"
                 )
             post_process_transform = post_processing
         case _:
             after_e = iterative_subst_expr_for_expr(
-                fresh_vars, top_paths, e)
+                fresh_vars, top_paths, expr)
             inner_e = sub_select_hoist(after_e, dbschema)
 
             def id_transform(x):

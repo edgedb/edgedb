@@ -140,20 +140,22 @@ class InMemoryEdgeDatabase(EdgeDatabaseInterface):
         for (id, obj) in self.db.dbdata.items():
             if prop in obj.data.keys():
                 object_vals = obj.data[prop].vals
-                if all(isinstance(object_val, LinkPropVal)
+                if all(isinstance(object_val, RefVal)
                         for object_val in object_vals):
                     object_id_mapping = {
-                        object_val.refid: object_val.linkprop
+                        object_val.refid: object_val.val
                         for object_val in object_vals
-                        if isinstance(object_val, LinkPropVal)}
+                        if isinstance(object_val, RefVal)}
                     for (object_id,
                             obj_linkprop_val) in object_id_mapping.items():
+                        if not all(isinstance(lbl, LinkPropLabel) for lbl in obj_linkprop_val.val.keys()):
+                            raise ValueError("Expecting only link prop vals in store")
                         if object_id in subject_ids:
                             results = [
                                 *results,
-                                LinkPropVal(
+                                RefVal(
                                     refid=id,
-                                    linkprop=obj_linkprop_val)]
+                                    val=obj_linkprop_val)]
         return MultiSetVal(results)
 
     def delete(self, id: EdgeID) -> None:

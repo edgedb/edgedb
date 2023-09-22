@@ -76,7 +76,7 @@ def run_statement(db: EdgeDatabaseInterface,
         if should_print:
             print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")
             debug.print(result)
-            print(multi_set_val_to_json_like(eops.assume_link_target(result)))
+            print(multi_set_val_to_json_like((result)))
             print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Done ")
         return (result, ResultTp(VarTp("NOT AVAILABLE"), CardAny))
 
@@ -93,8 +93,9 @@ def run_statement(db: EdgeDatabaseInterface,
     if should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")
         debug.print(result)
-        print(typed_multi_set_val_to_json_like(
-            tp, eops.assume_link_target(result), dbschema))
+        # print(typed_multi_set_val_to_json_like(
+        #     tp, eops.assume_link_target(result), dbschema))
+        print(typed_multi_set_val_to_json_like(tp, result, dbschema))
         print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Done ")
     return (result, tp)
     # debug.dump(stmt)

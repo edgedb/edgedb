@@ -1,5 +1,5 @@
 
-from typing import Any, List, Optional, Sequence, cast
+from typing import Any, List, Optional, Sequence, cast, Dict
 
 from edb.edgeql import ast as qlast
 from edb.schema.pointers import PointerDirection
@@ -7,19 +7,18 @@ from edb.schema.pointers import PointerDirection
 from .basis.built_ins import all_builtin_ops
 from .data.data_ops import (ArrExpr, BackLinkExpr, BoolVal, DateTimeTp,
                             DetachedExpr, Expr, FilterOrderExpr, ForExpr,
-                            FreeVal, FreeVarExpr, FunAppExpr, InsertExpr,
+                            FreeVarExpr, FunAppExpr, InsertExpr,
                             IntVal, JsonTp, Label, LinkPropLabel,
                             LinkPropProjExpr, MultiSetExpr, NamedTupleExpr,
-                            ObjectExpr, ObjectProjExpr, ObjectVal,
+                            ObjectProjExpr, ObjectVal,
                             OffsetLimitExpr, OptionalForExpr, OrderAscending,
                             OrderDescending, OrderLabelSep, RefVal,
                             ShapedExprExpr, ShapeExpr, StrLabel, StrTp, StrVal,
                             SubqueryExpr, Tp, TpIntersectExpr, TypeCastExpr,
                             UnionExpr, UnnamedTupleExpr, UpdateExpr, Val,
-                            WithExpr, LinkPropVal)
+                            WithExpr, )
 from .data import data_ops as e
-from .data.expr_ops import (abstract_over_expr, instantiate_expr,
-                            object_to_shape)
+from .data.expr_ops import (abstract_over_expr, instantiate_expr)
 from .elaboration import DEFAULT_HEAD_NAME
 
 
@@ -66,22 +65,22 @@ def reverse_elab_type_name(tp: Tp) -> qlast.TypeName:
     raise ValueError("Unimplemented")
 
 
-def reverse_elab_order(order: Expr) -> Optional[List[qlast.SortExpr]]:
-    if isinstance(order, ObjectExpr):
-        keys = sorted([(idx, spec, k) for k in order.val.keys()
-                      for [idx, spec] in [k.label.split(OrderLabelSep)]])
+def reverse_elab_order(order: Dict[str, Expr]) -> Optional[List[qlast.SortExpr]]:
+    # if isinstance(order, ObjectExpr):
+        keys = sorted([(idx, spec, k) for k in order.keys()
+                      for [idx, spec] in [k.split(OrderLabelSep)]])
         if len(keys) == 0:
             return None
-        return [qlast.SortExpr(path=reverse_elab(order.val[k]),
+        return [qlast.SortExpr(path=reverse_elab(order[k]),
                                direction=(
             qlast.SortOrder.Asc if spec == OrderAscending else
             qlast.SortOrder.Desc if spec == OrderDescending else
-            reverse_elab_error("unknown direction", order)
+            reverse_elab_error("unknown direction " + spec, order[k])
         ))
             for (idx, spec, k) in keys
         ]
-    else:
-        return [qlast.SortExpr(path=reverse_elab(order))]
+    # else:
+    #     return [qlast.SortExpr(path=reverse_elab(order))]
 
 
 def reverse_elab_object_val(val: ObjectVal) -> qlast.Expr:
@@ -121,14 +120,14 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
         case RefVal(_):
             return qlast.StringConstant(
                 value=str("<REFVAL, TODO: UUID_CASTING>"))
-        case LinkPropVal(_):
-            return qlast.StringConstant(value=str("<TODO: LINK_PROP_VAL>"))
-        case FreeVal(val=val):
-            return reverse_elab_object_val(val)
-        case ObjectExpr(val=_):
-            return qlast.Shape(expr=None,
-                               elements=reverse_elab_shape(
-                                   object_to_shape(ir_expr)))
+        # case LinkPropVal(_):
+        #     return qlast.StringConstant(value=str("<TODO: LINK_PROP_VAL>"))
+        # case FreeVal(val=val):
+        #     return reverse_elab_object_val(val)
+        # case ObjectExpr(val=_):
+        #     return qlast.Shape(expr=None,
+        #                        elements=reverse_elab_shape(
+        #                            object_to_shape(ir_expr)))
         case InsertExpr(name=tname, new=arg):
             return qlast.InsertQuery(subject=qlast.ObjectRef(name=tname),
                                      shape=reverse_elab_shape(arg)
@@ -142,11 +141,9 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
                     instantiate_expr(FreeVarExpr(result_name),
                                      filter)),
                 orderby=reverse_elab_order(
-                    cast(
-                        ObjectExpr,
-                        instantiate_expr(
+                        {l : instantiate_expr(
                             FreeVarExpr(result_name),
-                            order))))
+                            o) for (l,o) in order.items()}))
         case OffsetLimitExpr(subject=subject, offset=offset, limit=limit):
             return qlast.SelectQuery(
                 result=reverse_elab(subject),

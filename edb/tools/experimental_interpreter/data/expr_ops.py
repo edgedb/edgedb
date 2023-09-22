@@ -4,10 +4,10 @@ from typing import Callable, Dict, Optional, Sequence, Tuple, cast
 
 from .data_ops import (ArrExpr, ArrVal, BackLinkExpr, BindingExpr, BoolVal,
                        BoundVarExpr, DetachedExpr, Expr, FilterOrderExpr,
-                       ForExpr, FreeVal, FreeVarExpr, FunAppExpr, InsertExpr,
+                       ForExpr, FreeVarExpr, FunAppExpr, InsertExpr,
                        IntVal, LinkPropLabel, LinkPropProjExpr, LinkPropTp,
-                       LinkPropVal, MultiSetExpr, MultiSetVal, NamedTupleExpr,
-                       ObjectExpr, ObjectProjExpr, ObjectTp, ObjectVal,
+                       MultiSetExpr, MultiSetVal, NamedTupleExpr,
+                       ObjectProjExpr, ObjectTp, ObjectVal,
                        OffsetLimitExpr, OptionalForExpr, RefVal,
                        ShapedExprExpr, ShapeExpr, StrLabel, StrVal,
                        SubqueryExpr, Tp, TpIntersectExpr, TypeCastExpr,
@@ -95,7 +95,7 @@ def map_expr(
 
         match expr:
             case (FreeVarExpr(_) | BoundVarExpr(_) | StrVal(_) | BoolVal(_) |
-                    IntVal(_) | RefVal(_) | LinkPropVal(_) | FreeVal(_)
+                    IntVal(_) | RefVal(_) 
                     | ArrVal(_) | UnnamedTupleVal(_)):
                 return expr
             case BindingExpr(var=var, body=body):
@@ -147,10 +147,10 @@ def map_expr(
                 return WithExpr(bound=recur(bound), next=recur(next))
             case InsertExpr(name=name, new=new):
                 return InsertExpr(name=name, new=recur(new))
-            case ObjectExpr(val=val):
-                return ObjectExpr(
-                    val={label: recur(item)
-                         for (label, item) in val.items()})
+            # case ObjectExpr(val=val):
+            #     return ObjectExpr(
+            #         val={label: recur(item)
+            #              for (label, item) in val.items()})
             case DetachedExpr(expr=expr):
                 return DetachedExpr(expr=recur(expr))
             case SubqueryExpr(expr=expr):
@@ -353,8 +353,8 @@ def operate_under_binding(e: BindingExpr, op: Callable[[Expr], Expr]):
 
 def get_object_val(val: Val) -> ObjectVal:
     match val:
-        case FreeVal(dictval):
-            return dictval
+        # case FreeVal(dictval):
+        #     return dictval
         case RefVal(_, dictval):
             return dictval
     raise ValueError("Cannot get object val", val)
@@ -365,14 +365,14 @@ def val_is_primitive(rt: Val) -> bool:
         case (StrVal(_) | IntVal(_) | ArrVal(_)
                 | UnnamedTupleVal(_) | BoolVal(_)):
             return True
-        case RefVal(_) | FreeVal(_):
+        case RefVal(_):
             return False
     raise ValueError("not implemented")
 
 
 def val_is_object(rt: Val) -> bool:
     match rt:
-        case RefVal(_) | FreeVal(_):
+        case RefVal(_):
             return True
         case (StrVal(_) | IntVal(_) | ArrVal(_)
                 | UnnamedTupleVal(_) | BoolVal(_)):
@@ -434,9 +434,9 @@ def combine_object_tp(o1: ObjectTp, o2: ObjectTp) -> ObjectTp:
     return ObjectTp({**o1.val, **o2.val})
 
 
-def object_to_shape(expr: ObjectExpr) -> ShapeExpr:
-    return ShapeExpr(
-        shape={lbl: abstract_over_expr(e) for (lbl, e) in expr.val.items()})
+# def object_to_shape(expr: ObjectExpr) -> ShapeExpr:
+#     return ShapeExpr(
+#         shape={lbl: abstract_over_expr(e) for (lbl, e) in expr.val.items()})
 
 
 def make_storage_atomic(val: Val, tp: Tp) -> Val:
@@ -446,11 +446,11 @@ def make_storage_atomic(val: Val, tp: Tp) -> Val:
                 obj_link_prop = remove_unless_link_props(obj)
                 temp_obj = link_prop_obj_to_obj(obj_link_prop)
                 after_obj = coerce_to_storage(temp_obj, tp_linkprop)
-                return LinkPropVal(id, ObjectVal({StrLabel(k):(Visible(), v) for (k,v) in after_obj.items()}))
-            case LinkPropVal(refid=id,
-                             linkprop=linkprop):
-                after_obj = coerce_to_storage(linkprop, tp_linkprop)
-                return LinkPropVal(id, ObjectVal({StrLabel(k):(Visible(), v) for (k,v) in after_obj.items()}))
+                return RefVal(id, ObjectVal({LinkPropLabel(k):(Visible(), v) for (k,v) in after_obj.items()}))
+            # case LinkPropVal(refid=id,
+            #                  linkprop=linkprop):
+            #     after_obj = coerce_to_storage(linkprop, tp_linkprop)
+            #     return LinkPropVal(id, ObjectVal({StrLabel(k):(Visible(), v) for (k,v) in after_obj.items()}))
             case _:
                 raise ValueError("Cannot Coerce to LinkPropType", val)
     match tp:
@@ -485,42 +485,46 @@ def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> Dict[str, MultiSetVal]:
     }
 
 
+
 def object_dedup(val: Sequence[Val]) -> Sequence[Val]:
-    temp: Dict[int, Val] = {}
+    temp: Dict[int, RefVal] = {}
     for v in val:
         match v:
             case RefVal(refid=id, val=_):
-                temp[id] = v
-            case FreeVal(_):
-                # Should link dedup apply to free objects?
-                temp[next_id()] = v
+                if id in temp:
+                    temp[id] = RefVal(refid=id, val=combine_object_val(temp[id].val, v.val))
+                else:
+                    temp[id] = v
+            # case FreeVal(_):
+            #     # Should link dedup apply to free objects?
+            #     temp[next_id()] = v
             case _:
                 raise ValueError("must pass in objects")
     return list(temp.values())
 
 
-def get_link_target(val: Val) -> Val:
-    match val:
-        case LinkPropVal(refid=id, linkprop=_):
-            return RefVal(refid=id, val=ObjectVal({}))
-        case _:
-            raise ValueError("Not LinkPropVal")
+# def get_link_target(val: Val) -> Val:
+#     match val:
+#         case LinkPropVal(refid=id, linkprop=_):
+#             return RefVal(refid=id, val=ObjectVal({}))
+#         case _:
+#             raise ValueError("Not LinkPropVal")
 
 
-def assume_link_target(val: MultiSetVal) -> MultiSetVal:
-    targets = [get_link_target(v) if isinstance(
-        v, LinkPropVal) else v for v in val.vals]
-    if all(val_is_object(t) for t in targets):
-        return MultiSetVal(object_dedup(targets))
-    elif all(val_is_primitive(t) for t in targets):
-        return MultiSetVal(targets)
-    else:
-        raise ValueError("link targets not uniform", val)
+# def assume_link_target(val: MultiSetVal) -> MultiSetVal:
+#     targets = [get_link_target(v) if isinstance(
+#         v, LinkPropVal) else v for v in val.vals]
+#     if all(val_is_object(t) for t in targets):
+#         return MultiSetVal(object_dedup(targets))
+#     elif all(val_is_primitive(t) for t in targets):
+#         return MultiSetVal(targets)
+#     else:
+#         raise ValueError("link targets not uniform", val)
 
 
-def map_assume_link_target(
-        sv: Sequence[MultiSetVal]) -> Sequence[MultiSetVal]:
-    return [assume_link_target(v) for v in sv]
+# def map_assume_link_target(
+#         sv: Sequence[MultiSetVal]) -> Sequence[MultiSetVal]:
+#     return [assume_link_target(v) for v in sv]
 
 
 # def map_assume_link_target(

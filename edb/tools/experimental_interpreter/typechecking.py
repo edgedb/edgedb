@@ -321,8 +321,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                                            arg_cards[1].lower),
                             e.max_cardinal(arg_cards[0].upper,
                                            arg_cards[1].upper),
-                            e.max_cardinal(arg_cards[0].multiplicity,
-                                           arg_cards[1].multiplicity)
+                            # e.max_cardinal(arg_cards[0].multiplicity,
+                            #                arg_cards[1].multiplicity)
                         )
                     case _:
                         # take the product of argument cardinalities
@@ -354,26 +354,26 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                             raise
                         else:
                             continue
-        case e.ObjectExpr(val=dic):
-            s_tp = e.ObjectTp({})
-            link_tp = e.ObjectTp({})
-            dic_ck: Dict[e.Label, e.Expr] = {}
-            for k, v in dic.items():
-                (v_tp, v_ck) = synthesize_type(ctx, v)
-                dic_ck = {**dic_ck, k: v_ck}
-                match k:
-                    case e.StrLabel(s_lbl):
-                        s_tp = e.ObjectTp({**s_tp.val,
-                                           s_lbl: v_tp})
-                    case e.LinkPropLabel(s_lbl):
-                        link_tp = e.ObjectTp({**link_tp.val,
-                                              s_lbl: v_tp})
-            if len(link_tp.val.keys()) > 0:
-                result_tp = e.LinkPropTp(s_tp, link_tp)
-            else:
-                result_tp = s_tp
-            result_card = e.CardOne
-            result_expr = e.ObjectExpr(dic_ck)
+        # case e.ObjectExpr(val=dic):
+        #     s_tp = e.ObjectTp({})
+        #     link_tp = e.ObjectTp({})
+        #     dic_ck: Dict[e.Label, e.Expr] = {}
+        #     for k, v in dic.items():
+        #         (v_tp, v_ck) = synthesize_type(ctx, v)
+        #         dic_ck = {**dic_ck, k: v_ck}
+        #         match k:
+        #             case e.StrLabel(s_lbl):
+        #                 s_tp = e.ObjectTp({**s_tp.val,
+        #                                    s_lbl: v_tp})
+        #             case e.LinkPropLabel(s_lbl):
+        #                 link_tp = e.ObjectTp({**link_tp.val,
+        #                                       s_lbl: v_tp})
+        #     if len(link_tp.val.keys()) > 0:
+        #         result_tp = e.LinkPropTp(s_tp, link_tp)
+        #     else:
+        #         result_tp = s_tp
+        #     result_card = e.CardOne
+        #     result_expr = e.ObjectExpr(dic_ck)
         case e.ObjectProjExpr(subject=subject, label=label):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_expr = e.ObjectProjExpr(subject_ck, label)
@@ -433,9 +433,9 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 result_tp = tops.construct_tp_intersection(
                     subject_tp.tp, e.VarTp(intersect_tp))
             result_card = e.CMMode(
-                e.Fin(0),
+                e.CardNumZero,
                 subject_tp.mode.upper, 
-                subject_tp.mode.multiplicity
+                # subject_tp.mode.multiplicity
             )
         case e.SubqueryExpr(expr=sub_expr):
             (sub_expr_tp, sub_expr_ck) = synthesize_type(ctx, sub_expr)
@@ -459,27 +459,31 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             filter_ctx, filter_body, filter_bound_var = eops.tcctx_add_binding(
                 ctx, filter, e.ResultTp(subject_tp.tp, e.CardOne))
-            order_ctx, order_body, order_bound_var = eops.tcctx_add_binding(
-                ctx, order, e.ResultTp(subject_tp.tp, e.CardOne))
+            
+            order_ck : Dict[str, e.BindingExpr] = {}
+            for (order_label, o) in order.items():
+                order_ctx, order_body, order_bound_var = eops.tcctx_add_binding(
+                    ctx, o, e.ResultTp(subject_tp.tp, e.CardOne))
+                (_, o_ck) = synthesize_type(order_ctx, order_body)
+                order_ck = {**order_ck, order_label : eops.abstract_over_expr(o_ck, order_bound_var)}
             
             assert eops.is_effect_free(filter), "Expecting effect-free filter"
-            assert eops.is_effect_free(order), "Expecting effect-free filter"
+            assert all(eops.is_effect_free(o) for o in order.values()), "Expecting effect-free order"
 
             (_, filter_ck) = check_type_no_card(
                 filter_ctx, filter_body, e.BoolTp())
-            (order_tp, order_ck) = synthesize_type(order_ctx, order_body)
 
-            assert tops.is_order_spec(order_tp), "Expecting order spec"
+            # assert tops.is_order_spec(order_tp), "Expecting order spec"
 
             result_expr = e.FilterOrderExpr(
                 subject_ck,
                 eops.abstract_over_expr(filter_ck, filter_bound_var),
-                eops.abstract_over_expr(order_ck, order_bound_var))
+                order_ck)
             result_tp = subject_tp.tp
             result_card = e.CMMode(
-                e.Fin(0),
-                subject_tp.mode.upper,
-                subject_tp.mode.multiplicity
+                e.CardNumZero,
+                subject_tp.mode.upper
+                # subject_tp.mode.multiplicity
             )
         case e.OffsetLimitExpr(subject=subject, offset=offset, limit=limit):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
@@ -490,16 +494,19 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_expr = e.OffsetLimitExpr(subject_ck, offset_ck, limit_ck)
             result_tp = subject_tp.tp
             result_card = e.CMMode(
-                e.Fin(0),
+                e.CardNumZero,
                 subject_tp.mode.upper,
-                subject_tp.mode.multiplicity
+                # subject_tp.mode.multiplicity
             )
             if isinstance(limit_ck, e.IntVal):
                 lim_num = limit_ck.val
                 result_card = e.CMMode(
-                    e.Fin(0),
-                    e.min_cardinal(result_card.upper, e.Fin(lim_num)),
-                    e.min_cardinal(result_card.multiplicity, e.Fin(lim_num)))
+                    e.CardNumZero,
+                    e.min_cardinal(result_card.upper, 
+                                   e.CardNumInf if lim_num > 1 else 
+                                   (e.CardNumOne if lim_num == 0 else e.CardNumZero)),
+                    # e.min_cardinal(result_card.multiplicity, e.Fin(lim_num))
+                    )
         case e.InsertExpr(name=tname, new=arg):
             tname_tp = tops.get_runtime_tp(ctx.schema.val[tname])
             arg_shape_tp, arg_ck = check_shape_transform(
@@ -546,8 +553,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_card = e.CMMode(
                 e.min_cardinal(then_tp.mode.lower, else_tp.mode.lower),
                 e.max_cardinal(then_tp.mode.upper, else_tp.mode.upper),
-                e.max_cardinal(then_tp.mode.multiplicity,
-                               else_tp.mode.multiplicity)
+                # e.max_cardinal(then_tp.mode.multiplicity,
+                #                else_tp.mode.multiplicity)
             )
             result_expr = e.IfElseExpr(
                     then_branch=then_ck,
@@ -565,12 +572,12 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_card = next_tp.mode * bound_tp.mode
         case e.OptionalForExpr(bound=bound, next=next):
             (bound_tp, bound_ck) = synthesize_type(ctx, bound)
-            bound_card = e.CMMode(
-                e.max_cardinal(e.Fin(0), e.min_cardinal(e.Fin(1),
-                                                        bound_tp.mode.lower)),
-                e.Fin(1),
-                e.Fin(1)
-            )
+            if (bound_tp.mode.lower == e.CardNumZero):
+                bound_card = e.CardAtMostOne 
+            elif (bound_tp.mode.lower == e.CardNumOne):
+                bound_card = e.CardOne
+            else:
+                raise ValueError("Cannot have inf as lower bound")
             new_ctx, next_body, bound_var = eops.tcctx_add_binding(
                 ctx, next, e.ResultTp(bound_tp.tp, bound_card))
             (next_tp, next_ck) = synthesize_type(new_ctx, next_body)
@@ -579,13 +586,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 next=eops.abstract_over_expr(next_ck, bound_var))
             result_tp = next_tp.tp
             result_card = next_tp.mode * e.CMMode(
-                e.max_cardinal(e.min_cardinal(
-                    e.Fin(1), bound_tp.mode.lower), bound_tp.mode.lower),
-                e.max_cardinal(e.min_cardinal(
-                    e.Fin(1), bound_tp.mode.upper), bound_tp.mode.upper),
-                e.max_cardinal(e.min_cardinal(
-                    e.Fin(1), bound_tp.mode.multiplicity),
-                    bound_tp.mode.multiplicity))
+                e.CardNumOne, bound_tp.mode.upper)
         case e.UnnamedTupleExpr(val=arr):
             [res_tps, cks] = zip(*[synthesize_type(ctx, v) for v in arr])
             result_expr = e.UnnamedTupleExpr(list(cks))
@@ -615,7 +616,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.MultiSetExpr(expr=arr):
             if len(arr) == 0:
                 return (e.ResultTp(e.UnifiableTp(e.next_id()),
-                                   e.CardZero), expr)  # this is a hack
+                                   e.CardAny), expr)  # this is a hack
             # assert len(arr) > 0, ("Empty multiset does not"
             #                       " support type synthesis")
             (first_tp, first_ck) = synthesize_type(ctx, arr[0])

@@ -40,7 +40,7 @@ def is_nominal_subtype_in_schema(
 
 
 def mode_is_optional(m: e.CMMode) -> bool:
-    return isinstance(m.lower, e.FiniteCardinal) and m.lower.value == 0
+    return isinstance(m.lower, e.ZeroCardinal)
 
 
 def object_tp_is_essentially_optional(tp: e.ObjectTp) -> bool:
@@ -174,8 +174,8 @@ def assert_real_subtype(
 def assert_cardinal_subtype(cm: e.CMMode, cm2: e.CMMode) -> None:
     if not (
         cm2.lower <= cm.lower and
-        cm.upper <= cm2.upper and
-        cm.multiplicity <= cm2.multiplicity
+        cm.upper <= cm2.upper 
+        # and cm.multiplicity <= cm2.multiplicity
     ):
         raise ValueError("not subtype", cm, cm2)
 
@@ -230,9 +230,10 @@ def match_param_modifier(p : e.ParamModifier, m : e.CMMode) -> e.CMMode:
         case e.ParamSingleton():
             return m
         case e.ParamOptional():
-            return e.CMMode(e.max_cardinal(e.Fin(1), m.lower), 
-                            e.max_cardinal(e.Fin(1), m.upper),
-                            e.max_cardinal(e.Fin(1), m.multiplicity))
+            return e.CMMode(e.max_cardinal(e.CardNumOne, m.lower), 
+                            e.max_cardinal(e.CardNumOne, m.upper),
+                            # e.max_cardinal(e.Fin(1), m.multiplicity)
+                            )
         case e.ParamSetOf():
             return e.CardOne
         case _:
@@ -250,10 +251,11 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
                                     result_mode: e.CMMode) -> e.ResultTp:
         if not tp_is_primitive(result_base_tp):
             result_mode = e.CMMode(
-                e.min_cardinal(e.Fin(1), result_mode.lower),
-                result_mode.upper,
-                e.min_cardinal(e.Fin(1),
-                               result_mode.multiplicity))
+                e.min_cardinal(e.CardNumOne, result_mode.lower),
+                result_mode.upper
+                # e.min_cardinal(e.Fin(1),
+                #                result_mode.multiplicity)
+                               )
         return e.ResultTp(result_base_tp, result_mode)
     if isinstance(tp.tp, e.VarTp):
         target_tp = dereference_var_tp(ctx.schema, tp.tp)

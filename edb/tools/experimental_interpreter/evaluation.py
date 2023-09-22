@@ -5,10 +5,10 @@ from typing import *
 from .data.casts import type_cast
 from .data.data_ops import (
     DB, ArrExpr, ArrVal, BackLinkExpr, BoolVal, DBEntry,
-    DetachedExpr, Expr, FilterOrderExpr, ForExpr, FreeVal, FreeVarExpr,
+    DetachedExpr, Expr, FilterOrderExpr, ForExpr, FreeVarExpr,
     FunAppExpr, InsertExpr, IntInfVal, IntVal, Invisible, Label,
-    LinkPropLabel, LinkPropProjExpr, LinkPropVal, Marker, MultiSetExpr,
-    MultiSetVal, NamedTupleExpr, NamedTupleVal, ObjectExpr, ObjectProjExpr,
+    LinkPropLabel, LinkPropProjExpr, Marker, MultiSetExpr,
+    MultiSetVal, NamedTupleExpr, NamedTupleVal, ObjectProjExpr,
     ObjectVal, OffsetLimitExpr, OptionalForExpr, OrderAscending,
     OrderDescending, OrderLabelSep, ParamOptional, ParamSetOf,
     ParamSingleton, RefVal, ShapedExprExpr, ShapeExpr, StrLabel, StrVal,
@@ -19,9 +19,9 @@ from .data import data_ops as e
 from .data import expr_ops as eops
 from .data import type_ops as tops
 from .data.expr_ops import (
-    assume_link_target, coerce_to_storage, combine_object_val,
+    coerce_to_storage, combine_object_val,
     get_object_val, instantiate_expr,
-    map_assume_link_target, map_expand_multiset_val,
+    map_expand_multiset_val,
       val_is_link_convertible, val_is_ref_val)
 from .data.type_ops import is_nominal_subtype_in_schema
 from .db_interface import *
@@ -36,13 +36,13 @@ def eval_error(expr: Val | Expr | Sequence[Val], msg: str = "") -> Any:
 
 def eval_order_by(
         after_condition: Sequence[Val],
-        orders: Sequence[ObjectVal]) -> Sequence[Val]:
+        orders: Sequence[Dict[str, Val]]) -> Sequence[Val]:
     if len(after_condition) == 0:
         return after_condition
     if len(orders) == 0:
         return after_condition
 
-    keys = [k.label for k in orders[0].val.keys()]
+    keys = [k for k in orders[0].keys()]
     if len(keys) == 0:
         return after_condition
     sort_specs = sorted([(int(idx), spec) for k in keys for [
@@ -52,8 +52,7 @@ def eval_order_by(
     # use reversed to achieve the desired effect
     for (idx, spec) in reversed(sort_specs):
         def key_extract(elem: Tuple[int, Val], idx=idx, spec=spec):
-            return orders[elem[0]].val[
-                StrLabel(str(idx) + OrderLabelSep + spec)]
+            return orders[elem[0]][(str(idx) + OrderLabelSep + spec)]
         result = sorted(
             result, key=key_extract,
             reverse=(False if spec == OrderAscending else
@@ -91,14 +90,14 @@ def apply_shape(ctx: EvalEnv, db : EdgeDatabaseInterface, shape: ShapeExpr, valu
 
     # [value] = assume_link_target([value])
     match value:
-        case FreeVal(val=dictval):
-            return FreeVal(val=apply_shape_to_prodval(shape, dictval))
+        # case FreeVal(val=dictval):
+        #     return FreeVal(val=apply_shape_to_prodval(shape, dictval))
         case RefVal(refid=id, val=dictval):
             return RefVal(
                 refid=id, val=apply_shape_to_prodval(shape, dictval))
-        case LinkPropVal(refid=id, linkprop=_):
-            return RefVal(
-                refid=id, val=apply_shape_to_prodval(shape, ObjectVal({})))
+        # case LinkPropVal(refid=id, linkprop=_):
+        #     return RefVal(
+        #         refid=id, val=apply_shape_to_prodval(shape, ObjectVal({})))
         case _:
             return eval_error(value, "Cannot apply shape to value")
 
@@ -117,11 +116,11 @@ def eval_expr_list(ctx: EvalEnv,
 
 def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: Label) -> MultiSetVal:
     match subject:
-        case FreeVal(val=objVal):
-            if label in objVal.val.keys():
-                return objVal.val[label][1]
-            else:
-                raise ValueError("Label not found", label)
+        # case FreeVal(val=objVal):
+        #     if label in objVal.val.keys():
+        #         return objVal.val[label][1]
+        #     else:
+        #         raise ValueError("Label not found", label)
         case RefVal(refid=id, val=objVal):
             # entry_obj = data.read_snapshots[0].dbdata[id].data
             if label in objVal.val.keys():
@@ -165,17 +164,17 @@ def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: 
                     else:
                         raise ValueError("key DNE")
             raise ValueError("Label not Str")
-        case LinkPropVal(refid=id, linkprop=linkprop):
-            match label:
-                case LinkPropLabel(label=lp_label):
-                    return singular_proj(ctx, db,
-                        FreeVal(val=linkprop), label=StrLabel(lp_label))
-                case StrLabel(_):
-                    return singular_proj(ctx, db,
-                                         RefVal(refid=id, val=ObjectVal({})),
-                                         label=label)
-                case _:
-                    raise ValueError(label)
+        # case LinkPropVal(refid=id, linkprop=linkprop):
+        #     match label:
+        #         case LinkPropLabel(label=lp_label):
+        #             return singular_proj(ctx, db,
+        #                 FreeVal(val=linkprop), label=StrLabel(lp_label))
+        #         case StrLabel(_):
+        #             return singular_proj(ctx, db,
+        #                                  RefVal(refid=id, val=ObjectVal({})),
+        #                                  label=label)
+        #         case _:
+        #             raise ValueError(label)
     raise ValueError("Cannot project, unknown subject", subject)
 
 
@@ -261,12 +260,12 @@ def eval_expr(ctx: EvalEnv,
               | BoolVal(_)
               ):
             return MultiSetVal([expr])
-        case ObjectExpr(val=dic):
-            result: Dict[Label, Tuple[Marker, MultiSetVal]] = {}
-            for (key, expr) in dic.items():  # type: ignore[has-type]
-                val = eval_expr(ctx, db, expr)
-                result = {**result, key: (Visible(), (val))}
-            return  MultiSetVal([FreeVal(ObjectVal(result))])
+        # case ObjectExpr(val=dic):
+        #     result: Dict[Label, Tuple[Marker, MultiSetVal]] = {}
+        #     for (key, expr) in dic.items():  # type: ignore[has-type]
+        #         val = eval_expr(ctx, db, expr)
+        #         result = {**result, key: (Visible(), (val))}
+        #     return  MultiSetVal([FreeVal(ObjectVal(result))])
         case InsertExpr(tname, arg):
             id = db.insert(tname, {})
             var_name = "insert_bnd_" + tname + "_" + str(next_id())
@@ -304,22 +303,13 @@ def eval_expr(ctx: EvalEnv,
                 select_i
                 for (select_i, condition) in zip(selected.vals, conditions)
                 if BoolVal(True) in condition.vals]
-            orders: Sequence[ObjectVal] = [
-                (raw_order.vals[0].val
-                    if
-                    type(raw_order.vals[0]) is FreeVal and
-                    type(raw_order.vals[0].val) is ObjectVal else
-                    eval_error(raw_order.vals[0],
-                            "Order must be an object val"))
-                if len(raw_order.vals) == 1 else eval_error(raw_order)
-                for after_condition_i in after_condition
-                for new_ctx, order_body in [ctx_extend(ctx, order, MultiSetVal([after_condition_i]))]
-                for raw_order
-                in
-                [eval_expr(
-                        new_ctx,
-                        db,
-                        order_body)]]
+            orders: Sequence[Dict[str, Val]] =[] 
+            for after_condition_i in after_condition:
+                current : Dict[str, Val] = {}
+                for (l, o) in order.items():
+                    new_ctx, o_body = ctx_extend(ctx, o, MultiSetVal([after_condition_i]))
+                    current = {**current, l: eval_expr(new_ctx, db, o_body)}
+                orders = [*orders, current]
             after_order = eval_order_by(after_condition, orders)
             return MultiSetVal(after_order)
         case ShapedExprExpr(expr=subject, shape=shape):
@@ -336,7 +326,7 @@ def eval_expr(ctx: EvalEnv,
                 return MultiSetVal(all_ids)
         case FunAppExpr(fun=fname, args=args, overloading_index=_):
             argsv = eval_expr_list(ctx, db, args)
-            argsv = map_assume_link_target(argsv)
+            # argsv = map_assume_link_target(argsv)
             looked_up_fun = db.get_schema().fun_defs[fname]
             f_modifier = looked_up_fun.tp.args_mod
             assert len(f_modifier) == len(argsv)
@@ -368,7 +358,7 @@ def eval_expr(ctx: EvalEnv,
             subjectv = eval_expr(ctx, db, subject)
             projected = [
                 p
-                for v in assume_link_target(subjectv).vals
+                for v in subjectv.vals
                 for p in singular_proj(ctx, db, v, StrLabel(label)).vals]
             return MultiSetVal(projected)
             # if all([val_is_link_convertible(v) for v in projected]):
@@ -381,7 +371,7 @@ def eval_expr(ctx: EvalEnv,
             #         projected, "Returned objects are not uniform")
         case BackLinkExpr(subject=subject, label=label):
             subjectv = eval_expr(ctx, db, subject)
-            subjectv = assume_link_target(subjectv)
+            # subjectv = assume_link_target(subjectv)
             subject_ids = [v.refid
                            if
                            isinstance(v, RefVal) else
@@ -393,9 +383,7 @@ def eval_expr(ctx: EvalEnv,
             after_intersect: List[Val] = []
             for v in subjectv.vals:
                 match v:
-                    case (RefVal(refid=vid, val=_)
-                          | LinkPropVal(refid=vid,
-                                        linkprop=_)):
+                    case RefVal(refid=vid, val=_):
                         if is_nominal_subtype_in_schema(
                                 db.get_type_for_an_id(vid), tp_name,
                                 db.get_schema()):
@@ -413,7 +401,7 @@ def eval_expr(ctx: EvalEnv,
                 UnnamedTupleVal(list(p))
                 for p in itertools.product(
                     *map_expand_multiset_val(
-                      map_assume_link_target(tuplesv)))]
+                      tuplesv))]
             return MultiSetVal(constructed)
         case NamedTupleExpr(val=tuples):
             tuplesv = eval_expr_list(ctx, db, list(tuples.values()))
@@ -421,7 +409,7 @@ def eval_expr(ctx: EvalEnv,
                            NamedTupleVal({k: p})
                            for prod in itertools.product(
                              *map_expand_multiset_val(
-                               map_assume_link_target(tuplesv)))
+                               tuplesv))
                            for (k, p) in zip(
                                tuples.keys(),
                                prod, strict=True)]
@@ -435,11 +423,11 @@ def eval_expr(ctx: EvalEnv,
             arr_result = [ArrVal(list(el))
                           for el in itertools.product(
                           *map_expand_multiset_val(
-                              map_assume_link_target(elemsv)))]
+                              elemsv))]
             return MultiSetVal(arr_result)
         case e.DeleteExpr(subject=subject):
             subjectv = eval_expr(ctx, db, subject)
-            subjectv = assume_link_target(subjectv)
+            # subjectv = assume_link_target(subjectv)
             if all([val_is_ref_val(v) for v in subjectv.vals]):
                 # old_dbdata = rt.data.cur_db.dbdata
                 delete_ref_ids = [v.refid for v in subjectv.vals]
@@ -458,7 +446,7 @@ def eval_expr(ctx: EvalEnv,
                 return eval_error(expr, "expecting all references")
         case UpdateExpr(subject=subject, shape=shape):
             subjectv = eval_expr(ctx, db, subject)
-            subjectv = assume_link_target(subjectv)
+            # subjectv = assume_link_target(subjectv)
             if all([val_is_ref_val(v) for v in subjectv.vals]):
                 updated: Sequence[Val] = [apply_shape(ctx, db, shape, v)
                             for v in subjectv.vals]  # type: ignore[misc]

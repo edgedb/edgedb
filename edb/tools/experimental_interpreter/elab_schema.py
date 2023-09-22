@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple, Union, cast
 from edb.edgeql import ast as qlast
 
 from .basis.built_ins import all_builtin_funcs
-from .data.data_ops import (CMMode, DBSchema, Fin, Inf, LinkPropTp, ObjectTp,
+from .data.data_ops import (CMMode, DBSchema, LinkPropTp, ObjectTp,
                             ResultTp, Tp)
 from .elaboration import elab_single_type_expr, elab_expr_with_default_head
 from .helper_funcs import parse_sdl
@@ -18,10 +18,10 @@ def elab_schema_error(obj: Any) -> Any:
 def elab_schema_cardinality(
         is_required: Optional[bool],
         cardinality: Optional[qlast.qltypes.SchemaCardinality]) -> CMMode:
-    return CMMode(Fin(1) if is_required else Fin(0),
-                  Inf()
+    return CMMode(e.CardNumOne if is_required else e.CardNumZero,
+                  e.CardNumInf
                   if cardinality == qlast.qltypes.SchemaCardinality.Many
-                  else Fin(1))
+                  else e.CardNumOne)
 
 
 def elab_schema_target_tp(

@@ -8,7 +8,7 @@ from .data_ops import (ArrExpr, BackLinkExpr, BindingExpr, BoolVal,
                        BoundVarExpr, DBSchema, DetachedExpr, Expr,
                        FilterOrderExpr, ForExpr, FreeVarExpr, FunAppExpr,
                        InsertExpr, IntVal, LinkPropProjExpr, MultiSetExpr,
-                       NamedTupleExpr, ObjectExpr, ObjectProjExpr,
+                       NamedTupleExpr,  ObjectProjExpr,
                        OffsetLimitExpr, OptionalForExpr, ParamOptional,
                        ParamSetOf, ParamSingleton, ShapedExprExpr, ShapeExpr,
                        StrVal, SubqueryExpr, TpIntersectExpr, TypeCastExpr,
@@ -154,10 +154,10 @@ def map_query(f: Callable[[Expr, QueryLevel],
                     else_branch=sub_recur(else_branch))
             case InsertExpr(name=name, new=new):
                 return InsertExpr(name=name, new=sub_recur(new))
-            case ObjectExpr(val=val):
-                return ObjectExpr(
-                    val={label: sub_recur(item)
-                         for (label, item) in val.items()})
+            # case ObjectExpr(val=val):
+            #     return ObjectExpr(
+            #         val={label: sub_recur(item)
+            #              for (label, item) in val.items()})
             case DetachedExpr(expr=expr):
                 return DetachedExpr(expr=sub_recur(expr))
             case SubqueryExpr(expr=expr):

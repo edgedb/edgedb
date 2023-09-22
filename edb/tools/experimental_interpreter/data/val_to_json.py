@@ -1,9 +1,9 @@
 from typing import Any, Dict, Sequence
 
 from . import data_ops as e
-from .data_ops import (ArrVal, BoolVal, FreeVal, IntVal, Label, LinkPropLabel,
+from .data_ops import (ArrVal, BoolVal, IntVal, Label, LinkPropLabel,
                        MultiSetVal, NamedTupleVal, ObjectVal, RefVal, StrLabel,
-                       StrVal, UnnamedTupleVal, Val, Visible, LinkPropVal)
+                       StrVal, UnnamedTupleVal, Val, Visible)
 from . import expr_ops as eops
 from . import type_ops as tops
 
@@ -35,18 +35,18 @@ def val_to_json_like(v: Val) -> json_like:
             return b
         case RefVal(_, object):
             return objectval_to_json_like(object)
-        case FreeVal(object):
-            return objectval_to_json_like(object)
+        # case FreeVal(object):
+        #     return objectval_to_json_like(object)
         case ArrVal(val=array):
             return [val_to_json_like(v) for v in array]
         case UnnamedTupleVal(val=array):
             return [val_to_json_like(v) for v in array]
         case NamedTupleVal(val=dic):
             return {k: val_to_json_like(v) for (k, v) in dic.items()}
-        case LinkPropVal(refid=_, linkprop=linkprop):
-            linkprop_json = objectval_to_json_like(linkprop)
-            assert isinstance(linkprop_json, dict)
-            return linkprop_json
+        # case LinkPropVal(refid=_, linkprop=linkprop):
+        #     linkprop_json = objectval_to_json_like(linkprop)
+        #     assert isinstance(linkprop_json, dict)
+        #     return linkprop_json
     raise ValueError("MATCH", v)
 
 
@@ -113,9 +113,9 @@ def typed_val_to_json_like(v: Val, tp: e.Tp,
             if not isinstance(tp, e.ObjectTp | e.LinkPropTp):
                 raise ValueError("Expecing objecttp")
             return typed_objectval_to_json_like(object, tp, dbschema)
-        case FreeVal(object):
-            assert isinstance(tp, e.ObjectTp)
-            return typed_objectval_to_json_like(object, tp, dbschema)
+        # case FreeVal(object):
+        #     assert isinstance(tp, e.ObjectTp)
+        #     return typed_objectval_to_json_like(object, tp, dbschema)
         case ArrVal(val=array):
             assert isinstance(tp, e.ArrTp)
             return [typed_val_to_json_like(v, tp.tp, dbschema) for v in array]
@@ -128,13 +128,13 @@ def typed_val_to_json_like(v: Val, tp: e.Tp,
             assert isinstance(tp, e.NamedTupleTp)
             return {k: typed_val_to_json_like(v, tp.val[k], dbschema)
                     for (k, v) in dic.items()}
-        case LinkPropVal(refid=_, linkprop=linkprop):
-            assert isinstance(tp, e.LinkPropTp)
-            linkprop_json = typed_objectval_to_json_like(
-                eops.link_prop_obj_to_obj(linkprop),
-                tp.linkprop, dbschema)
-            assert isinstance(linkprop_json, dict)
-            return linkprop_json
+        # case LinkPropVal(refid=_, linkprop=linkprop):
+        #     assert isinstance(tp, e.LinkPropTp)
+        #     linkprop_json = typed_objectval_to_json_like(
+        #         eops.link_prop_obj_to_obj(linkprop),
+        #         tp.linkprop, dbschema)
+        #     assert isinstance(linkprop_json, dict)
+        #     return linkprop_json
     raise ValueError("MATCH", v)
 
 
@@ -149,7 +149,7 @@ def typed_multi_set_val_to_json_like(
     param top_level: If True, the result is a list of values, even if
                      the result's type is a singleton.
     """
-    if tp.mode.upper == e.Fin(1):
+    if tp.mode.upper == e.CardNumOne:
         assert len(m.vals) <= 1, (
             "Single Multiset must have cardinality at most 1")
         if len(m.vals) == 1:

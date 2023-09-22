@@ -166,124 +166,113 @@ Marker = Visible | Invisible
 
 # DEFINE CARDINALITIES
 
-@dataclass(frozen=True)
-class FiniteCardinal:
-    value: int
 
+@dataclass(frozen=True)
+class ZeroCardinal:
     def __add__(self, other):
+        return other
+
+    def __mul__(self, other: Cardinal):
+        assert not isinstance(other, InfiniteCardinal), "Cannot multiply zero by inf"
+        return self
+
+    def __le__(self, other: Cardinal):
+        return True
+
+
+@dataclass(frozen=True)
+class OneCardinal:
+    def __add__(self, other: Cardinal):
         match other:
-            case FiniteCardinal(otherCard):
-                return FiniteCardinal(self.value + otherCard)
+            case ZeroCardinal():
+                return OneCardinal()
+            case OneCardinal():
+                return InfiniteCardinal()
             case InfiniteCardinal():
                 return InfiniteCardinal()
         raise ValueError()
 
     def __mul__(self, other: Cardinal):
-        match other:
-            case FiniteCardinal(otherCard):
-                return FiniteCardinal(self.value * otherCard)
-            case InfiniteCardinal():
-                return InfiniteCardinal()
-        raise ValueError()
+        return other
 
     def __le__(self, other: Cardinal):
         match other:
-            case FiniteCardinal(otherCard):
-                return self.value <= otherCard
+            case ZeroCardinal():
+                return False
+            case OneCardinal():
+                return True
             case InfiniteCardinal():
                 return True
         raise ValueError()
-
 
 @dataclass(frozen=True)
 class InfiniteCardinal:
-    def __add__(self, other):
-        match other:
-            case FiniteCardinal(_):
-                return InfiniteCardinal()
-            case InfiniteCardinal():
-                return InfiniteCardinal()
-        raise ValueError()
+    def __add__(self, other: Cardinal):
+        return InfiniteCardinal()
 
     def __mul__(self, other: Cardinal):
-        match other:
-            case FiniteCardinal(_):
-                return InfiniteCardinal()
-            case InfiniteCardinal():
-                return InfiniteCardinal()
-        raise ValueError()
+        assert not isinstance(other, ZeroCardinal), "cannot multiply zero by inf"
+        return InfiniteCardinal()
 
     def __le__(self, other: Cardinal):
         match other:
-            case FiniteCardinal(_):
-                return False
             case InfiniteCardinal():
                 return True
+            case OneCardinal():
+                return False
+            case ZeroCardinal():
+                return False
         raise ValueError()
 
 
-Cardinal = FiniteCardinal | InfiniteCardinal
+Cardinal = ZeroCardinal | OneCardinal | InfiniteCardinal
+LowerCardinal = ZeroCardinal | OneCardinal
+UpperCardinal = OneCardinal | InfiniteCardinal
 
+CardNumZero = ZeroCardinal()
+CardNumOne = OneCardinal()
+CardNumInf = InfiniteCardinal()
 
-def Inf():
-    return InfiniteCardinal()
-
-
-def Fin(i):
-    return FiniteCardinal(i)
 
 def max_cardinal(a: Cardinal, b: Cardinal):
-    match a:
-        case FiniteCardinal(aVal):
-            match b:
-                case FiniteCardinal(bVal):
-                    return Fin(max(aVal, bVal))
-                case InfiniteCardinal():
-                    return Inf()
-        case InfiniteCardinal():
-            return Inf()
-    raise ValueError()
+    if a <= b:
+        return b
+    else:
+        return a
 
 
 def min_cardinal(a: Cardinal, b: Cardinal):
-    match a:
-        case FiniteCardinal(aVal):
-            match b:
-                case FiniteCardinal(bVal):
-                    return Fin(min(aVal, bVal))
-                case InfiniteCardinal():
-                    return a
-        case InfiniteCardinal():
-            return b
-    raise ValueError()
-
+    if a <= b:
+        return a
+    else:
+        return b
 
 @dataclass(frozen=True)
 class CMMode:
-    lower: Cardinal
-    upper: Cardinal
-    multiplicity: Cardinal = None  # type: ignore
+    lower: LowerCardinal
+    upper: UpperCardinal
+    # multiplicity: Cardinal = None  # type: ignore
 
-    def __post_init__(self):
-        if self.multiplicity is None:
-            object.__setattr__(self, 'multiplicity', self.upper)
+    # def __post_init__(self):
+    #     if self.multiplicity is None:
+    #         object.__setattr__(self, 'multiplicity', self.upper)
 
     def __add__(self, other: CMMode):
-        return CMMode(self.lower + other.lower,
-                      self.upper + other.upper,
-                      self.multiplicity + other.multiplicity)
+        new_lower = self.lower + other.lower
+        return CMMode(new_lower if new_lower != CardNumInf else CardNumOne,
+                      self.upper + other.upper)
+                      
 
     def __mul__(self, other: CMMode):
         return CMMode(self.lower * other.lower,
-                      self.upper * other.upper,
-                      self.multiplicity * other.multiplicity)
+                      self.upper * other.upper)
 
 
-CardZero = CMMode(Fin(0), Fin(0))
-CardOne = CMMode(Fin(1), Fin(1))
-CardAtMostOne = CMMode(Fin(0), Fin(1))
-CardAtLeastOne = CMMode(Fin(1), Inf())
-CardAny = CMMode(Fin(0), Inf())
+# CardZero = CMMode(CardNumZero, CardNumZero)
+CardOne = CMMode(CardNumOne, CardNumOne)
+CardAtMostOne = CMMode(CardNumZero, CardNumOne)
+CardAtLeastOne = CMMode(CardNumOne, CardNumInf)
+CardAny = CMMode(CardNumZero, CardNumInf)
 
 # ResultTp = Tuple[Tp, CMMode]
 
@@ -395,9 +384,13 @@ class FunAppExpr:
     args: Sequence[Expr]
 
 
-@dataclass(frozen=True)
-class ObjectExpr:
-    val: Dict[Label, Expr]
+# @dataclass(frozen=True)
+# class ObjectExpr:
+#     val: Dict[Label, Expr]
+
+class FreeObjectExpr:
+    pass
+
 
 
 @dataclass(frozen=True)
@@ -476,7 +469,7 @@ class IfElseExpr:
 class FilterOrderExpr:
     subject: Expr
     filter: BindingExpr
-    order: BindingExpr
+    order: Dict[str, BindingExpr] # keys are order-specifying list
 
 
 @dataclass(frozen=True)
@@ -558,9 +551,9 @@ class ObjectVal:
     val: Dict[Label, Tuple[Marker, MultiSetVal]]
 
 
-@dataclass(frozen=True)
-class FreeVal:
-    val: ObjectVal
+# @dataclass(frozen=True)
+# class FreeVal:
+#     val: ObjectVal
 
 
 @dataclass(frozen=True)
@@ -595,10 +588,10 @@ class ArrVal:
     val: Sequence[Val]
 
 
-@dataclass(frozen=True)
-class LinkPropVal:
-    refid: int
-    linkprop: ObjectVal
+# @dataclass(frozen=True)
+# class LinkPropVal:
+#     refid: int
+#     linkprop: ObjectVal
 
 
 # TODO: Check the eval_order_by code to make sure 
@@ -609,9 +602,7 @@ class MultiSetVal:
     # singleton: bool = False
 
 
-Val = (PrimVal | RefVal | FreeVal
-       # | RefLinkVal | LinkWithPropertyVal
-       | UnnamedTupleVal | NamedTupleVal | ArrVal | LinkPropVal)  # V
+Val = (PrimVal | RefVal | UnnamedTupleVal | NamedTupleVal | ArrVal )  
 
 # MultiSetVal = Sequence[Val]
 
@@ -622,7 +613,9 @@ Expr = (
     ObjectProjExpr | LinkPropProjExpr | WithExpr | ForExpr | OptionalForExpr |
     TpIntersectExpr | BackLinkExpr | FilterOrderExpr | OffsetLimitExpr |
     InsertExpr | UpdateExpr | MultiSetExpr | ShapedExprExpr | ShapeExpr |
-    ObjectExpr | BindingExpr | Val | UnnamedTupleExpr | NamedTupleExpr |
+    FreeObjectExpr |
+    # ObjectExpr | 
+    BindingExpr | Val | UnnamedTupleExpr | NamedTupleExpr |
     ArrExpr | Tp | UnionExpr | DetachedExpr | SubqueryExpr
     #   | SingularExpr
     | IfElseExpr | DeleteExpr)

@@ -5,8 +5,10 @@ from . import expr_ops as eops
 
 def show_card(card: e.Cardinal) -> str:
     match card:
-        case e.FiniteCardinal(value=val):
-            return str(val)
+        case e.ZeroCardinal():
+            return "0"
+        case e.OneCardinal():
+            return "1"
         case e.InfiniteCardinal():
             return "∞"
         case _:
@@ -95,9 +97,9 @@ def show_expr(expr: e.Expr) -> str:
             return "<" + show_tp(tp) + ">" + show_expr(arg)
         case e.MultiSetExpr(expr=arr):
             return "{" + ", ".join(show_expr(el) for el in arr) + "}"
-        case e.ObjectExpr(val=elems):
-            return "{" + ", ".join(f'{show_label(lbl)} := {show_expr(el)}'
-                                   for lbl, el in elems.items()) + "}"
+        # case e.ObjectExpr(val=elems):
+        #     return "{" + ", ".join(f'{show_label(lbl)} := {show_expr(el)}'
+        #                            for lbl, el in elems.items()) + "}"
         case e.ShapeExpr(shape=shape):
             return "{" + ", ".join(show_label(lbl) + " := " + show_expr(el)
                                    for lbl, el in shape.items()) + "}"
@@ -124,7 +126,7 @@ def show_expr(expr: e.Expr) -> str:
             return "select " + show_expr(subject)
         case e.FilterOrderExpr(subject=subject, filter=filter, order=order):
             return ("(" + show_expr(subject) + " filter " + show_expr(filter) +
-                    " order by " + show_expr(order) + ")")
+                    " order by {" +  ", ".join([l + " => " + show_expr(o) for (l,o) in order.items()]) + "})")
         case e.OffsetLimitExpr(subject=subject, offset=offset, limit=limit):
             return ("(" + show_expr(subject) + " offset " + show_expr(offset) +
                     " limit " + show_expr(limit) + ")")

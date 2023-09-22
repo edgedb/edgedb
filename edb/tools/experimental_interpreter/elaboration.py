@@ -16,7 +16,7 @@ from .data.data_ops import (
     DateTimeTp, DetachedExpr, Expr, FilterOrderExpr, ForExpr, FreeVarExpr,
     FunAppExpr,  IndirectionIndexOp, IndirectionSliceOp,
     InsertExpr, IntInfVal, IntTp, IntVal, JsonTp, Label, LinkPropLabel,
-    LinkPropProjExpr, MultiSetExpr, NamedTupleExpr, ObjectExpr,
+    LinkPropProjExpr, MultiSetExpr, NamedTupleExpr,
     ObjectProjExpr, OffsetLimitExpr, OptionalForExpr, OrderAscending,
     OrderDescending, OrderLabelSep, ShapedExprExpr, ShapeExpr, StrLabel,
     StrTp, StrVal, SubqueryExpr, Tp, TpIntersectExpr, TypeCastExpr,
@@ -24,7 +24,7 @@ from .data.data_ops import (
     next_name)
 from .data.expr_ops import (abstract_over_expr, instantiate_expr, is_path,
                             subst_expr_for_expr)
-from .shape_ops import shape_to_expr
+# from .shape_ops import shape_to_expr
 
 DEFAULT_HEAD_NAME = "__no_clash_head_subject__"
 # used as the name for the leading dot notation!
@@ -184,11 +184,12 @@ def elab_ShapeElement(s: qlast.ShapeElement) -> Tuple[Label, BindingExpr]:
 
 @elab.register(qlast.Shape)
 def elab_ShapedExpr(shape: qlast.Shape) -> ShapedExprExpr:
-
-    return ShapedExprExpr(
-        expr=elab(shape.expr)
-        if shape.expr is not None else ObjectExpr({}),
-        shape=elab_Shape(shape.elements))
+    if shape.expr is None:
+        raise ValueError("Free object expressions not currently supported")
+    else:
+        return ShapedExprExpr(
+            expr=elab(shape.expr),
+            shape=elab_Shape(shape.elements))
 
 
 @elab.register(qlast.InsertQuery)
@@ -235,9 +236,10 @@ def elab_where(where: Optional[qlast.Expr]) -> BindingExpr:
         return abstract_over_expr(elab(where), DEFAULT_HEAD_NAME)
 
 
-def elab_orderby(qle: Optional[Sequence[qlast.SortExpr]]) -> BindingExpr:
+def elab_orderby(qle: Optional[Sequence[qlast.SortExpr]]) -> Dict[str, BindingExpr]:
     if qle is None:
-        return abstract_over_expr(ObjectExpr({}))
+        # return abstract_over_expr(ObjectExpr({}))
+        return {}
     result: Dict[str, Expr] = {}
     for (idx, sort_expr) in enumerate(qle):
         if sort_expr.nones_order is not None:
@@ -253,9 +255,7 @@ def elab_orderby(qle: Optional[Sequence[qlast.SortExpr]]) -> BindingExpr:
         elabed_expr = elab(sort_expr.path)
         result = {**result, key: elabed_expr}
 
-    return abstract_over_expr(
-        ObjectExpr({StrLabel(l): v for (l, v) in result.items()}),
-        DEFAULT_HEAD_NAME)
+    return {l: abstract_over_expr(v, DEFAULT_HEAD_NAME) for (l, v) in result.items()}
 
 
 @elab.register(qlast.SelectQuery)
@@ -280,8 +280,8 @@ def elab_SelectExpr(qle: qlast.SelectQuery) -> Expr:
             alias_var = FreeVarExpr(qle.result_alias)
             filter_elab = abstract_over_expr(instantiate_expr(
                 alias_var, filter_elab), qle.result_alias)
-            order_elab = abstract_over_expr(instantiate_expr(
-                alias_var, order_elab), qle.result_alias)
+            order_elab = {l: abstract_over_expr(instantiate_expr(
+                alias_var, o), qle.result_alias) for (l,o) in order_elab.items()}
         else:
             # abstract over if subject is a path
             # and select does not have an alias
@@ -303,14 +303,14 @@ def elab_SelectExpr(qle: qlast.SelectQuery) -> Expr:
                                         FreeVarExpr(name),
                                         filter_elab)),
                                 name)
-                            order_elab = abstract_over_expr(
+                            order_elab = {l : abstract_over_expr(
                                 subst_expr_for_expr(
                                     FreeVarExpr(name),
                                     subject,
                                     instantiate_expr(
                                         FreeVarExpr(name),
-                                        order_elab)),
-                                name)
+                                        o)),
+                                name) for (l,o) in order_elab.items()}
                         return
             path_abstraction(subject_elab)
 
@@ -441,7 +441,7 @@ def elab_UpdateQuery(qle: qlast.UpdateQuery):
         filter=abstract_over_expr(elab(qle.where),
                                   DEFAULT_HEAD_NAME)
         if qle.where else abstract_over_expr(BoolVal(True)),
-        order=abstract_over_expr(ObjectExpr({})),)
+        order={},)
     shape = elab_Shape(qle.shape)
     return elab_aliases(
         qle.aliases, UpdateExpr(subject=subject, shape=shape))
@@ -453,7 +453,7 @@ def elab_DeleteQuery(qle: qlast.DeleteQuery):
         filter=abstract_over_expr(elab(qle.where),
                                   DEFAULT_HEAD_NAME)
         if qle.where else abstract_over_expr(BoolVal(True)),
-        order=abstract_over_expr(ObjectExpr({})),)
+        order={},)
     return elab_aliases(
         qle.aliases, e.DeleteExpr(subject=subject))
 
