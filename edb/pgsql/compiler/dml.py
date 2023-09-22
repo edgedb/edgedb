@@ -122,6 +122,13 @@ def init_dml_stmt(
 
         typerefs.extend(irtyputils.get_typeref_descendants(top_typeref))
 
+        # Only update/delete concrete types. (Except in the degenerate
+        # corner case where there are none, in which case keep using
+        # everything so as to avoid needing a more complex special case.)
+        concrete_typerefs = [t for t in typerefs if not t.is_abstract]
+        if concrete_typerefs:
+            typerefs = concrete_typerefs
+
     dml_map = {}
 
     for typeref in typerefs:
