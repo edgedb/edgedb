@@ -106,7 +106,7 @@ def render_login_page(*,
 
       <div class="field-header">
         <label for="password">Password</label>
-        <a class="field-note" href="#">Forgot password?</a>
+        <a class="field-note" href="reset-password">Forgot password?</a>
       </div>
       <input id="password" name="password" type="password" />
 
@@ -165,6 +165,56 @@ def render_signup_page(*,
       <div class="bottom-note">
         Already have an account?
         <a href="login">Sign in</a>
+      </div>
+    </form>'''
+    )
+
+def render_reset_page(*,
+    base_path: str,
+    provider_id: str,
+    error_message: str = None,
+    handle: str = None,
+    email: str = None,
+    # config
+    app_name: str = None,
+    logo_url: str = None,
+    dark_logo_url: str = None,
+    brand_color: str = None
+):
+    if email is not None:
+        content = f'''
+        Password reset email has been sent to {email}'''
+    else:
+        content = f'''
+        {render_error_message(error_message)}
+
+        <input type="hidden" name="provider" value="{provider_id}" />
+        <input type="hidden" name="redirect_on_failure" value="{
+          base_path}/reset-password" />
+        <input type="hidden" name="redirect_to" value="{
+          base_path}/reset-password" />
+
+        <label for="username">Username</label>
+        <input id="username" name="handle" type="text" value="{handle or ''}" />
+
+        {render_button('Send Password Reset')}'''
+
+    return render_base_page(
+        title=f'Reset password{f" for {app_name}" if app_name else ""}',
+        logo_url=logo_url,
+        dark_logo_url=dark_logo_url,
+        brand_color=brand_color,
+        cleanup_search_params=['error', 'handle', 'email'],
+        content=f'''
+    <form method="POST" action="send_reset">
+      <h1>{f'<span>Reset password for</span> {html.escape(app_name)}'
+           if app_name else '<span>Reset password</span>'}</h1>
+
+      {content}
+
+      <div class="bottom-note">
+        Back to
+        <a href="login">Sign In</a>
       </div>
     </form>'''
     )

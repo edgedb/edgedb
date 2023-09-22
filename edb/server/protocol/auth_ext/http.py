@@ -197,21 +197,7 @@ class Router:
                         response.status = http.HTTPStatus.FORBIDDEN
 
                 case ("register",):
-                    content_type = request.content_type
-                    match content_type:
-                        case b"application/x-www-form-urlencoded":
-                            data = {
-                                k: v[0]
-                                for k, v in urllib.parse.parse_qs(
-                                    request.body.decode('ascii')
-                                ).items()
-                            }
-                        case b"application/json":
-                            data = json.loads(request.body)
-                        case _:
-                            raise errors.InvalidData(
-                                f"Unsupported Content-Type: {content_type}"
-                            )
+                    data = self._get_data_from_request(request)
 
                     register_provider_id = data.get("provider")
                     if register_provider_id is None:
@@ -271,21 +257,7 @@ class Router:
                             raise ex
 
                 case ("authenticate",):
-                    content_type = request.content_type
-                    match content_type:
-                        case b"application/x-www-form-urlencoded":
-                            data = {
-                                k: v[0]
-                                for k, v in urllib.parse.parse_qs(
-                                    request.body.decode('ascii')
-                                ).items()
-                            }
-                        case b"application/json":
-                            data = json.loads(request.body)
-                        case _:
-                            raise errors.InvalidData(
-                                f"Unsupported Content-Type: {content_type}"
-                            )
+                    data = self._get_data_from_request(request)
 
                     authenticate_provider_id = data.get("provider")
                     if authenticate_provider_id is None:
@@ -323,6 +295,66 @@ class Router:
                                 {
                                     "identity_id": identity.id,
                                     "auth_token": session_token,
+                                }
+                            ).encode()
+                    except Exception as ex:
+                        redirect_on_failure = data.get(
+                            "redirect_on_failure", data.get("redirect_to")
+                        )
+                        if redirect_on_failure is not None:
+                            response.status = http.HTTPStatus.FOUND
+                            redirect_params = urllib.parse.urlencode(
+                                {
+                                    "error": str(ex),
+                                    "handle": data.get('handle', ''),
+                                }
+                            )
+                            redirect_url = (
+                                f"{redirect_on_failure}?{redirect_params}"
+                            )
+                            response.custom_headers["Location"] = redirect_url
+                        else:
+                            raise ex
+
+                case ('send_reset', ):
+                    data = self._get_data_from_request(request)
+
+                    local_provider_id = data.get("provider")
+                    if local_provider_id is None:
+                        raise errors.InvalidData(
+                            'Missing "provider" in register request'
+                        )
+
+                    local_client = local.Client(
+                        db=self.db, provider_id=local_provider_id
+                    )
+
+                    try:
+                        identity, secret = (
+                            await local_client.get_identity_and_secret(data))
+
+                        reset_token = self._make_reset_token(identity.id, secret)
+
+                        # TODO: Do something with this token
+                        print(reset_token)
+
+                        if data.get("redirect_to") is not None:
+                            response.status = http.HTTPStatus.FOUND
+                            redirect_params = urllib.parse.urlencode(
+                                {
+                                    "email": identity.email,
+                                }
+                            )
+                            redirect_url = (
+                                f"{data['redirect_to']}?{redirect_params}"
+                            )
+                            response.custom_headers["Location"] = redirect_url
+                        else:
+                            response.status = http.HTTPStatus.OK
+                            response.content_type = b"application/json"
+                            response.body = json.dumps(
+                                {
+                                    "email": identity.email,
                                 }
                             ).encode()
                     except Exception as ex:
@@ -400,6 +432,41 @@ class Router:
                             base_path=self.base_path,
                             provider_id=password_providers[0].provider_id,
                             redirect_to=ui_config.redirect_to,
+                            error_message=_maybe_get_search_param(query, 'error'),
+                            handle=_maybe_get_search_param(query, 'handle'),
+                            email=_maybe_get_search_param(query, 'email'),
+                            app_name=ui_config.app_name,
+                            logo_url=ui_config.logo_url,
+                            dark_logo_url=ui_config.dark_logo_url,
+                            brand_color=ui_config.brand_color,
+                        )
+
+                case ('reset-password',):
+                    ui_config = self._get_ui_config()
+
+                    if ui_config is None:
+                        response.status = http.HTTPStatus.NOT_FOUND
+                    else:
+                        providers = util.get_config(
+                            self.db.db_config,
+                            "ext::auth::AuthConfig::providers",
+                            frozenset
+                        )
+                        password_providers = [
+                            p for p in providers
+                            if (util.get_config_typename(p) ==
+                                'ext::auth::PasswordClientConfig')
+                        ]
+                        assert(len(password_providers) == 1)
+
+                        query = (request.url.query.decode("ascii")
+                                if request.url.query else '')
+
+                        response.status = http.HTTPStatus.OK
+                        response.content_type = b'text/html'
+                        response.body = ui.render_reset_page(
+                            base_path=self.base_path,
+                            provider_id=password_providers[0].provider_id,
                             error_message=_maybe_get_search_param(query, 'error'),
                             handle=_maybe_get_search_param(query, 'handle'),
                             email=_maybe_get_search_param(query, 'email'),
@@ -532,10 +599,51 @@ class Router:
         session_token.make_signed_token(signing_key)
         return session_token.serialize()
 
+    def _make_reset_token(self, identity_id: str, secret: str) -> str:
+        signing_key = self._get_auth_signing_key()
+        expires_in = datetime.timedelta(hours=1)
+        expires_at = datetime.datetime.utcnow() + expires_in
+
+        claims: dict[str, Any] = {
+            "iss": self.base_path,
+            "sub": identity_id,
+            "jti": secret,
+        }
+        if expires_in.total_seconds() != 0:
+            claims["exp"] = expires_at.astimezone().timestamp()
+        session_token = jwt.JWT(
+            header={"alg": "HS256"},
+            claims=claims,
+        )
+        session_token.make_signed_token(signing_key)
+        return session_token.serialize()
+
     def _verify_and_extract_claims(self, jwtStr: str) -> dict[str, str]:
         signing_key = self._get_auth_signing_key()
         verified = jwt.JWT(key=signing_key, jwt=jwtStr)
         return json.loads(verified.claims)
+
+    def _get_data_from_request(self, request: Any) -> dict[Any, Any]:
+        content_type = request.content_type
+        match content_type:
+            case b"application/x-www-form-urlencoded":
+                return {
+                    k: v[0]
+                    for k, v in urllib.parse.parse_qs(
+                        request.body.decode('ascii')
+                    ).items()
+                }
+            case b"application/json":
+                data = json.loads(request.body)
+                if not isinstance(data, dict):
+                    raise errors.InvalidData(
+                        f"Invalid json data, expected an object"
+                    )
+                return data
+            case _:
+                raise errors.InvalidData(
+                    f"Unsupported Content-Type: {content_type}"
+                )
 
     def _get_ui_config(self):
         ui_config = util.maybe_get_config(

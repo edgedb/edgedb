@@ -48,6 +48,10 @@ class Client:
     async def logout(self, *args, **kwargs):
         return await self.provider.logout(*args, **kwargs)
 
+    async def get_identity_and_secret(self, *args, **kwargs):
+        return await self.provider.get_identity_and_secret(
+            self.db, *args, **kwargs)
+
     def _get_provider_config(self, provider_id: str) -> str:
         provider_client_config = util.get_config(
             self.db_config, "ext::auth::AuthConfig::providers", frozenset
@@ -164,3 +168,34 @@ set { password_hash := new_hash };""",
             )
 
         return local_identity
+
+    async def get_identity_and_secret(self, db: Any, input: dict[str, Any]):
+        if 'handle' not in input:
+            raise errors.InvalidData("Missing 'handle' in data")
+
+        handle = input["handle"]
+        r = await execute.parse_execute_json(
+            db=db,
+            query="""
+with
+  handle := <str>$handle,
+select ext::auth::PasswordCredential {
+  password_hash,
+  identity: { * }
+} filter .identity.handle = handle""",
+            variables={
+                "handle": handle,
+            }
+        )
+
+        result_json = json.loads(r.decode())
+        if len(result_json) != 1:
+            raise errors.NoIdentityFound()
+        password_cred = result_json[0]
+
+        local_identity = data.LocalIdentity(
+            **password_cred["identity"]
+        )
+        secret = ph.hash(password_cred['password_hash'])
+
+        return (local_identity, secret)
