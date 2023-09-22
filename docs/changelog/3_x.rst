@@ -614,8 +614,8 @@ EdgeQL
   .. code-block:: sdl
 
     type User {
-      required property email -> str { constraint exclusive; };
-      required property is_admin -> bool { default := false };
+      required email: str { constraint exclusive; };
+      required is_admin: bool { default := false };
       access policy admin_only
         allow all
         using (global current_user.is_admin ?? false) {
@@ -679,7 +679,7 @@ EdgeQL
   .. code-block:: sdl
 
       type User {
-        required property name -> str;
+        required name: str;
         index pg::spgist on (.name);
       };
 

@@ -193,7 +193,7 @@ You can use them like this:
 .. code-block:: sdl
 
     type User {
-      required property name -> str;
+      required name: str;
       index pg::spgist on (.name);
     };
 
