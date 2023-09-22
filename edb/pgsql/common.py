@@ -69,10 +69,17 @@ def _quote_ident(string: str) -> str:
     return '"' + string.replace('"', '""') + '"'
 
 
-def quote_ident(ident: str | pgast.Star, *, force=False) -> str:
+def quote_ident(ident: str | pgast.Star, *, force=False, column=False) -> str:
     if isinstance(ident, pgast.Star):
         return "*"
-    return _quote_ident(ident) if needs_quoting(ident) or force else ident
+    return (
+        _quote_ident(ident)
+        if needs_quoting(ident, column=column) or force else ident
+    )
+
+
+def quote_col(ident: str | pgast.Star) -> str:
+    return quote_ident(ident, column=True)
 
 
 def quote_bytea_literal(data: bytes) -> str:
@@ -85,7 +92,7 @@ def quote_bytea_literal(data: bytes) -> str:
         return "''::bytea"
 
 
-def needs_quoting(string: str) -> bool:
+def needs_quoting(string: str, column: bool=False) -> bool:
     isalnum = (string and not string[0].isdecimal() and
                string.replace('_', 'a').isalnum())
     return (
@@ -94,13 +101,15 @@ def needs_quoting(string: str) -> bool:
             pg_keywords.RESERVED_KEYWORD] or
         string.lower() in pg_keywords.by_type[
             pg_keywords.TYPE_FUNC_NAME_KEYWORD] or
+        (column and string.lower() in pg_keywords.by_type[
+            pg_keywords.COL_NAME_KEYWORD]) or
         string.lower() != string
     )
 
 
-def qname(*parts: str | pgast.Star) -> str:
+def qname(*parts: str | pgast.Star, column: bool=False) -> str:
     assert len(parts) <= 3, parts
-    return '.'.join([quote_ident(q) for q in parts])
+    return '.'.join([quote_ident(q, column=column) for q in parts])
 
 
 def quote_type(type_: Tuple[str, ...] | str):
