@@ -309,10 +309,14 @@ def sort_by_inheritance(
     return topological.sort(graph, allow_unresolved=True)
 
 
-def sort_by_cross_refs(
+T = TypeVar("T")
+
+
+def sort_by_cross_refs_key(
     schema: s_schema.Schema,
-    objs: Iterable[so.Object_T],
-) -> Tuple[so.Object_T, ...]:
+    objs: Iterable[T], *,
+    key: Callable[[T], so.Object],
+) -> Tuple[T, ...]:
     """Sort an iterable of objects according to cross-references between them.
 
     Return a toplogical ordering of a graph of objects joined by references.
@@ -325,24 +329,32 @@ def sort_by_cross_refs(
     # lead to self references (because the computed property gets
     # inlined, essentially).
     self_ref = None
-    for x in objs:
+    for entry in objs:
+        x = key(entry)
         referrers = schema.get_referrers(x)
         if x in referrers:
             self_ref = x
         graph[x] = topological.DepGraphEntry(
-            item=x,
+            item=entry,
             deps={ref for ref in referrers
                   if not x.is_parent_ref(schema, ref) and x != ref},
             extra=False,
         )
 
-    res = topological.sort(graph, allow_unresolved=True)  # type: ignore
+    res = topological.sort(graph, allow_unresolved=True)
 
     if self_ref:
         raise topological.CycleError(
             f"{self_ref!r} refers to itself", item=self_ref)
 
     return res
+
+
+def sort_by_cross_refs(
+    schema: s_schema.Schema,
+    objs: Iterable[so.Object_T],
+) -> Tuple[so.Object_T, ...]:
+    return sort_by_cross_refs_key(schema, objs, key=lambda x: x)
 
 
 CommandMeta_T = TypeVar("CommandMeta_T", bound="CommandMeta")

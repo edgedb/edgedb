@@ -19,6 +19,7 @@
 
 CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     set ext_module := "ext::auth";
+    set dependencies := ["pgcrypto==1.3"];
 
     create module ext::auth;
 
