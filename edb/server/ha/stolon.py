@@ -59,7 +59,7 @@ class StolonBackend(base.HABackend):
     def get_master_addr(self) -> Optional[Tuple[str, int]]:
         return self._master_addr
 
-    def on_update(self, payload: bytes) -> None:
+    def _on_update(self, payload: bytes) -> None:
         try:
             data = json.loads(base64.b64decode(payload))
         except (TypeError, ValueError):

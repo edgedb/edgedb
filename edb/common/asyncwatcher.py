@@ -20,8 +20,12 @@ from __future__ import annotations
 from typing import *
 
 import asyncio
+import logging
 
 from . import retryloop
+
+
+logger = logging.getLogger("edb.server.asyncwatcher")
 
 
 class AsyncWatcherProtocol(asyncio.Protocol):
@@ -70,7 +74,15 @@ class AsyncWatcher:
         self._retry_attempt += 1
         delay = self._backoff(self._retry_attempt)
         await asyncio.sleep(delay)
-        await self.start_watching()
+        try:
+            await self.start_watching()
+        except Exception:
+            logger.warning(
+                "%s failed to start watching, will retry.",
+                type(self).__name__,
+                exc_info=True,
+            )
+            asyncio.create_task(self.retry_watching())
 
     def stop_watching(self) -> None:
         self._watching = False
@@ -94,6 +106,10 @@ class AsyncWatcher:
                 waiter.set_result(None)
 
     def on_update(self, data: bytes) -> None:
+        self._retry_attempt = 0
+        self._on_update(data)
+
+    def _on_update(self, data: bytes) -> None:
         raise NotImplementedError
 
     async def _start_watching(self) -> AsyncWatcherProtocol:
