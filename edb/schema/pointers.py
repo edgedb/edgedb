@@ -1766,13 +1766,23 @@ class PointerCommand(
                     schema, context, default_expr.irast.expr)
 
             source_context = self.get_attribute_source_context('default')
-            default_schema = default_expr.irast.schema
-            default_type = default_expr.irast.stype
+            ir = default_expr.irast
+            default_schema = ir.schema
+            default_type = ir.stype
             assert default_type is not None
             ptr_target = scls.get_target(schema)
             assert ptr_target is not None
 
-            if default_type.is_view(default_schema):
+            if (
+                default_type.is_view(default_schema)
+                # Using an alias/global always creates a new subtype view,
+                # but we want to allow those here, so check whether there
+                # is a shape more directly.
+                and not (
+                    len(shape := ir.view_shapes.get(default_type, [])) == 1
+                    and shape[0].is_id_pointer(default_schema)
+                )
+            ):
                 raise errors.SchemaDefinitionError(
                     f'default expression may not include a shape',
                     context=source_context,
