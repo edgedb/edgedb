@@ -99,7 +99,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
                 //   Due to performance reasons, this is done only on first
                 //   error, not during all the steps of recovery.
                 if parser.error_cost == 0 {
-                    if let Some(error) = parser.custom_error(token) {
+                    if let Some(error) = parser.custom_error(ctx, token) {
                         dbg!(token);
                         parser
                             .push_error(error.default_span_to(token.span), ERROR_COST_CUSTOM_ERROR);
@@ -206,6 +206,7 @@ pub struct Spec {
     pub goto: Vec<IndexMap<String, usize>>,
     pub start: String,
     pub inlines: IndexMap<usize, u8>,
+    pub production_names: Vec<(String, String)>,
 }
 
 #[derive(Debug)]
@@ -385,7 +386,7 @@ impl<'s> Parser<'s> {
     }
 
     // #[cfg(never)]
-    fn print_stack(&self) {
+    fn print_stack(&self, ctx: &'s Context) {
         let prefix = "STACK: ";
 
         let mut stack = Vec::new();
@@ -401,7 +402,10 @@ impl<'s> Parser<'s> {
             .map(|s| match s.value {
                 CSTNode::Empty => format!("Empty"),
                 CSTNode::Terminal(term) => format!("{term}"),
-                CSTNode::Production(prod) => format!("prod_{}", prod.id),
+                CSTNode::Production(prod) => {
+                    let prod_name = &ctx.spec.production_names[prod.id];
+                    format!("{}.{}", prod_name.0, prod_name.1)
+                }
             })
             .collect::<Vec<_>>();
 
@@ -561,6 +565,7 @@ impl Spec {
             pub goto: Vec<Vec<(String, usize)>>,
             pub start: String,
             pub inlines: Vec<(usize, u8)>,
+            pub production_names: Vec<(String, String)>,
         }
 
         let v = serde_json::from_str::<SpecJson>(j_spec).map_err(|e| e.to_string())?;
@@ -578,6 +583,7 @@ impl Spec {
             goto,
             start: v.start,
             inlines,
+            production_names: v.production_names,
         })
     }
 }

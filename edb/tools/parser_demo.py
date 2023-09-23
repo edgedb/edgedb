@@ -51,7 +51,7 @@ def main():
         print()
 
         for index, error in enumerate(result.errors()):
-            message, span = error
+            message, span, _hint, _details = error
             (start, end) = tokenizer.inflate_span(source.text(), span)
 
             print(f'Error [{index+1}/{len(result.errors())}]:')
@@ -301,18 +301,12 @@ QUERIES = [
     FOR x in <std::Object>
     ''',
     '''
+    SELECT (
+        # reserved keywords
+        select := 2
+    );
+    ''',
+    '''
     SELECT count(SELECT 1);
-    ''',
-    '''
-    SELECT (
-        # reserved keywords
-        select := 2
-    );
-    ''',
-    '''
-    SELECT (
-        # reserved keywords
-        select := 2
-    );
     ''',
 ]

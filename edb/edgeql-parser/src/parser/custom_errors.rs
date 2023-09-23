@@ -1,11 +1,11 @@
 use crate::tokenizer::Kind;
 use crate::{keywords::Keyword, position::Span};
 
-use super::{CSTNode, Error, Parser, StackNode, Terminal};
+use super::{CSTNode, Context, Error, Parser, StackNode, Terminal};
 
 impl<'s> Parser<'s> {
-    pub(super) fn custom_error(&self, token: &Terminal) -> Option<Error> {
-        self.print_stack();
+    pub(super) fn custom_error(&self, ctx: &Context<'_>, token: &Terminal) -> Option<Error> {
+        self.print_stack(ctx);
         let ltok = self.get_from_top(0).unwrap();
 
         if let Some(value) = self.custom_error_from_rule(token) {
