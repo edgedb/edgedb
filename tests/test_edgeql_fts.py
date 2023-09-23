@@ -281,6 +281,31 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                 """
             )
 
+    async def test_edgeql_fts_ddl_01(self):
+        await self.con.execute(
+            '''
+            create type Doc {create required property text: str};
+
+            alter type Doc {
+                create index fts::index on (
+                    fts::with_options(.text, language := fts::Language.eng)
+                )
+            };
+
+            alter type Doc {
+                drop index fts::index on (
+                    fts::with_options(.text, language := fts::Language.eng)
+                )
+            };
+
+            alter type Doc {
+                create index fts::index on (
+                    fts::with_options(.text, language := fts::Language.eng)
+                )
+            };
+            '''
+        )
+
 
 class TestEdgeQLFTSFeatures(tb.QueryTestCase):
     '''Tests for FTS features.

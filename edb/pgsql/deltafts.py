@@ -84,15 +84,16 @@ def delete_fts_index(
     drop_index: dbops.Command,
     options: qlcompiler.CompilerOptions,
     schema: s_schema.Schema,
+    orig_schema: s_schema.Schema,
     context: sd.CommandContext,
 ) -> dbops.Command:
-    subject = index.get_subject(schema)
+    subject = index.get_subject(orig_schema)
     assert isinstance(subject, s_indexes.IndexableSubject)
 
     effective, _ = s_indexes.get_effective_fts_index(subject, schema)
 
     if not effective:
-        return _delete_fts_document(index, drop_index, schema, context)
+        return _delete_fts_document(index, drop_index, orig_schema, context)
     else:
         # effective index remains: don't drop the fts document
 
@@ -165,13 +166,19 @@ def _delete_fts_document(
     else:
         ops.add_command(_pg_drop_trigger(table_name))
 
-        fts_document = dbops.Column(
-            name=f'__fts_document__',
-            type=('pg_catalog', 'tsvector'),
-        )
-        alter_table = dbops.AlterTable(table_name)
-        alter_table.add_operation(dbops.AlterTableDropColumn(fts_document))
-        ops.add_command(alter_table)
+        # When the ObjectType is being deleted, we don't drop the index, as it
+        # will get dropped with parent table.
+        # The same goes for the __fts_document__ column.
+        source_drop = isinstance(drop_index, dbops.NoOpCommand)
+
+        if not source_drop:
+            fts_document = dbops.Column(
+                name=f'__fts_document__',
+                type=('pg_catalog', 'tsvector'),
+            )
+            alter_table = dbops.AlterTable(table_name)
+            alter_table.add_operation(dbops.AlterTableDropColumn(fts_document))
+            ops.add_command(alter_table)
     return ops
 
 
