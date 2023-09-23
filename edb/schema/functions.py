@@ -1213,8 +1213,8 @@ class Function(
 ):
 
     used_globals = so.SchemaField(
-        so.ObjectList[s_globals.Global],
-        coerce=True, compcoef=0.0, default=so.DEFAULT_CONSTRUCTOR,
+        so.ObjectSet[s_globals.Global],
+        coerce=True, default=so.DEFAULT_CONSTRUCTOR,
         inheritable=False)
 
     # A backend_name that is shared between all overloads of the same
@@ -1672,8 +1672,8 @@ class FunctionCommand(
                     context=body.qlast.context,
                 )
 
-        globs = [schema.get(glob.global_name, type=s_globals.Global)
-                 for glob in ir.globals]
+        globs = {schema.get(glob.global_name, type=s_globals.Global)
+                 for glob in ir.globals}
         self.set_attribute_value('used_globals', globs)
 
         return expr
