@@ -41,6 +41,8 @@ pub enum Value {
 pub struct Error {
     pub message: String,
     pub span: Span,
+    pub hint: Option<String>,
+    pub details: Option<String>,
 }
 
 impl Error {
@@ -48,6 +50,8 @@ impl Error {
         Error {
             message: message.to_string(),
             span: Span::default(),
+            hint: None,
+            details: None,
         }
     }
 

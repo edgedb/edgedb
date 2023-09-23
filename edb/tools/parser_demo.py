@@ -30,7 +30,7 @@ from edb.tools.edb import edbcommands
 
 @edbcommands.command("parser-demo")
 def main():
-    for q in QUERIES:
+    for q in QUERIES[-1:]:
         sdl = q.startswith('sdl')
         if sdl:
             q = q[3:]
@@ -62,8 +62,7 @@ def main():
             )
             print(
                 ' ' * (start.column - 1)
-                + '^'
-                + '-' * (end.column - start.column - 1)
+                + '^' * (end.column - start.column)
                 + ' '
                 + message
             )
@@ -299,6 +298,21 @@ QUERIES = [
     SELECT ((count(foo 1)));
     ''',
     '''
-    SELECT ((((count(foo, 1)))));
+    FOR x in <std::Object>
+    ''',
+    '''
+    SELECT count(SELECT 1);
+    ''',
+    '''
+    SELECT (
+        # reserved keywords
+        select := 2
+    );
+    ''',
+    '''
+    SELECT (
+        # reserved keywords
+        select := 2
+    );
     ''',
 ]

@@ -1,5 +1,5 @@
-use crate::keywords::Keyword;
 use crate::tokenizer::Kind;
+use crate::{keywords::Keyword, position::Span};
 
 use super::{CSTNode, Error, Parser, StackNode, Terminal};
 
@@ -14,49 +14,32 @@ impl<'s> Parser<'s> {
 
         if matches!(token.kind, Kind::Keyword(Keyword("explain"))) {
             let _hint = "Use `analyze` to show query performance details";
-            return Some(Error::new(format!("Unexpected keyword {}", token.text)));
+            return Some(Error::new(format!(
+                "Unexpected keyword '{}'",
+                token.text.to_uppercase()
+            )));
         }
 
-        let is_reserved = match token.kind {
-            Kind::Keyword(kw) => kw.is_reserved(),
-            _ => false,
+        if let Kind::Keyword(kw) = token.kind {
+            if kw.is_reserved() && !Cond::Production.check(ltok) {
+                // TODO: gr_exprs.Expr
+                // Another token followed by a reserved keyword:
+                // likely an attempt to use keyword as identifier
+                return Some(unexpected_reserved_keyword(&token.text, token.span));
+            }
         };
-
-        if is_reserved && !Cond::Production.check(ltok)
-        // TODO: gr_exprs.Expr
-        {
-            // Another token followed by a reserved keyword:
-            // likely an attempt to use keyword as identifier
-            let token_text = token.text.to_uppercase();
-            let msg = format!("Unexpected keyword '{token_text}'");
-            let _details = format!(
-                "Token {token_text} is a reserved keyword and cannot be used as an identifier"
-            );
-            let _hint = format!(
-                "Use a different identifier or quote the name with backticks: `{token_text}`"
-            );
-            return Some(Error {
-                message: msg,
-                span: token.span,
-            });
-        }
 
         if let CSTNode::Terminal(Terminal {
             kind: Kind::Keyword(kw),
+            text,
+            span,
             ..
         }) = ltok.value
         {
             if kw.is_reserved() {
-                // Another token followed by a reserved keyword:
+                // Unexpected reserved keyword:
                 // likely an attempt to use keyword as identifier
-                let token_text = &token.text;
-                let _details = format!(
-                    "Token {token_text} is a reserved keyword and cannot be used as an identifier"
-                );
-                return Some(Error {
-                    message: format!("Unexpected keyword '{}'. Use a different identifier or quote the name with backticks: `{token_text}`", kw.0.to_uppercase()),
-                    span: super::get_span_of_nodes(&[ltok.value]).unwrap_or_default(),
-                });
+                return Some(unexpected_reserved_keyword(text, *span));
             }
         }
 
@@ -99,6 +82,8 @@ impl<'s> Parser<'s> {
                     message: "Missing parenthesis around statement used as an expression"
                         .to_string(),
                     span: super::get_span_of_nodes(&[last.value]).unwrap_or_default(),
+                    hint: None,
+                    details: None,
                 });
             }
 
@@ -155,9 +140,11 @@ impl<'s> Parser<'s> {
                     token.span
                 };
                 return Some(Error {
-                    message: "Missing parentheses around complex expression in a FOR iterator clause"
-                        .to_string(),
+                    message: "Missing parentheses around complex expression in \
+                              a FOR iterator clause".to_string(),
                     span,
+                    hint: None,
+                    details: None,
                 });
             },
 
@@ -354,6 +341,22 @@ impl<'s> Parser<'s> {
             current = cur.parent;
         }
         true
+    }
+}
+
+fn unexpected_reserved_keyword(text: &String, span: Span) -> Error {
+    let text_upper = text.to_uppercase();
+    Error {
+        message: format!("Unexpected keyword '{text_upper}'"),
+        span,
+        details: Some(format!(
+            "Token '{text_upper}' is a reserved keyword and cannot be \
+            used as an identifier"
+        )),
+        hint: Some(format!(
+            "Use a different identifier or quote the name \
+            with backticks: `{text}`"
+        )),
     }
 }
 
