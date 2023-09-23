@@ -36,7 +36,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
         node_count: 0,
         can_recover: true,
         errors: Vec::new(),
-        ignore_errors: false,
+        has_custom_error: false,
     };
 
     // append EIO
@@ -96,15 +96,21 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
                 }
 
                 // option 2: check for a custom error and skip token
-                if !parser.ignore_errors {
-                    if let Some(error) = parser.get_exception(token) {
-                        parser.push_custom_error(error.default_span_to(token.span));
+                //   Due to performance reasons, this is done only on first
+                //   error, not during all the steps of recovery.
+                if parser.error_cost == 0 {
+                    if let Some(error) = parser.custom_error(token) {
+                        dbg!(token);
+                        parser
+                            .push_error(error.default_span_to(token.span), ERROR_COST_CUSTOM_ERROR);
+                        parser.has_custom_error = true;
 
                         new_parsers.push(parser);
                         continue;
                     }
-                } else {
-                    parser.push_error(Error::new(""), 0);
+                } else if parser.has_custom_error {
+                    // when there is a custom error, just skip the tokens until
+                    // the parser recovers
                     new_parsers.push(parser);
                     continue;
                 }
@@ -131,12 +137,17 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
             let recovered = new_parsers.iter().position(Parser::has_recovered);
 
             if let Some(recovered) = recovered {
-                let mut recovered = new_parsers.swap_remove(recovered);
-                recovered.error_cost = 0;
-                recovered.ignore_errors = false;
+                // make sure not to discard custom errors
+                let any_custom_error = new_parsers.iter().any(|p| p.has_custom_error);
+                if !any_custom_error || new_parsers[recovered].has_custom_error {
+                    // recover a parser and discard the rest
+                    let mut recovered = new_parsers.swap_remove(recovered);
+                    recovered.error_cost = 0;
+                    recovered.has_custom_error = false;
 
-                new_parsers.clear();
-                new_parsers.push(recovered);
+                    new_parsers.clear();
+                    new_parsers.push(recovered);
+                }
             }
         }
 
@@ -266,8 +277,9 @@ struct Parser<'s> {
 
     errors: Vec<Error>,
 
-    /// make parser ignore new errors until recovery
-    ignore_errors: bool,
+    /// A flag that is used to make the parser prefer custom errors over other
+    /// recovery paths
+    has_custom_error: bool,
 }
 
 impl<'s> Parser<'s> {
@@ -404,17 +416,9 @@ impl<'s> Parser<'s> {
     }
 
     fn push_error(&mut self, error: Error, cost: u16) {
-        if !self.ignore_errors {
-            self.errors.push(error);
-        }
+        self.errors.push(error);
         self.error_cost += cost;
         self.node_count = 0;
-    }
-
-    fn push_custom_error(&mut self, error: Error) {
-        self.ignore_errors = false;
-        self.push_error(error, 1);
-        self.ignore_errors = true;
     }
 
     fn node_successful(&mut self) {
@@ -452,10 +456,12 @@ impl<'a> StackNode<'a> {
 fn get_span_of_nodes(args: &[CSTNode]) -> Option<Span> {
     let start = args.iter().find_map(|x| match x {
         CSTNode::Terminal(t) => Some(t.span.start),
+        CSTNode::Production(p) => get_span_of_nodes(&p.args).map(|x| x.start),
         _ => None,
     })?;
     let end = args.iter().rev().find_map(|x| match x {
         CSTNode::Terminal(t) => Some(t.span.end),
+        CSTNode::Production(p) => get_span_of_nodes(&p.args).map(|x| x.end),
         _ => None,
     })?;
     Some(Span { start, end })
@@ -485,6 +491,7 @@ const PARSER_COUNT_MAX: usize = 10;
 
 const ERROR_COST_INJECT_MAX: u16 = 15;
 const ERROR_COST_SKIP: u16 = 3;
+const ERROR_COST_CUSTOM_ERROR: u16 = 3;
 
 fn error_cost(kind: &Kind) -> u16 {
     use Kind::*;

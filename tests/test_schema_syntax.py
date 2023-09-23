@@ -748,7 +748,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing ':='", line=4, col=22)
+                  r"Expected 'ON', but got 'prop' instead", line=4, col=23)
     def test_eschema_syntax_index_03(self):
         """
         module test {
@@ -757,8 +757,6 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
             };
         };
         """
-        # XXX: error recovery quality regression
-        #      Expected 'ON', but got 'prop' instead
 
     def test_eschema_syntax_index_04(self):
         """

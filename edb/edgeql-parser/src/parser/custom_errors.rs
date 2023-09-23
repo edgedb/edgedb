@@ -4,107 +4,12 @@ use crate::tokenizer::Kind;
 use super::{CSTNode, Error, Parser, StackNode, Terminal};
 
 impl<'s> Parser<'s> {
-    pub(super) fn get_exception(&self, token: &Terminal) -> Option<Error> {
+    pub(super) fn custom_error(&self, token: &Terminal) -> Option<Error> {
         self.print_stack();
-
         let ltok = self.get_from_top(0).unwrap();
 
-        // Look at the parsing stack and use tokens and
-        // non-terminals to infer the parser rule when the
-        // error occurred.
-        let (i, rule) = dbg!(self.get_rule()?);
-
-        match rule {
-            ParserRule::Shape if matches!(token.kind, Kind::Ident) && Cond::Production.check(ltok) => {
-                // TODO:    isinstance(ltok, parsing.Nonterm)
-                // Make sure that the previous element in the stack
-                // is some kind of Nonterminal, because if it's
-                // not, this is probably not an issue of a missing
-                // COMMA.
-                return Some(Error::new(format!("It appears that a ',' is missing in {rule} before {}", token.text)));
-            }
-
-            ParserRule::ListOfArguments
-                // The stack is like <NodeName> LPAREN <AnyIdentifier>
-                if i == 1
-                    && Cond::AnyOf(vec![
-                        Cond::Production, // gr_exprs.AnyIdentifier,
-                        Cond::Terminal(Kind::Keyword(Keyword("with"))),
-                        Cond::Terminal(Kind::Keyword(Keyword("select"))),
-                        Cond::Terminal(Kind::Keyword(Keyword("for"))),
-                        Cond::Terminal(Kind::Keyword(Keyword("insert"))),
-                        Cond::Terminal(Kind::Keyword(Keyword("update"))),
-                        Cond::Terminal(Kind::Keyword(Keyword("delete"))),
-                    ])
-                    .check(ltok)
-            => {
-                return Some(Error {
-                    message: "Missing parenthesis around statement used as an expression"
-                        .to_string(),
-                    span: super::get_span_of_nodes(&[ltok.value]).unwrap_or_default(),
-                });
-            }
-
-            ParserRule::ArraySlice if matches!(token.kind, Kind::Ident | Kind::IntConst) && !Cond::Terminal(Kind::Colon).check(ltok) => {
-                // The offending token was something that could
-                // make an expression
-                return Some(Error::new(format!(
-                    "It appears that a ':' is missing in {rule} before {}",
-                    token.text
-                )));
-            },
-
-            ParserRule::ListOfArguments | ParserRule::Tuple | ParserRule::Array if matches!(
-                token.kind,
-                Kind::Ident
-                    | Kind::IntConst
-                    | Kind::FloatConst
-                    | Kind::BigIntConst
-                    | Kind::DecimalConst
-                    | Kind::BinStr
-                    | Kind::Str
-                    | Kind::Keyword(Keyword("true"))
-                    | Kind::Keyword(Keyword("false"))
-            ) && !Cond::Terminal(Kind::Comma).check(ltok) =>
-            {
-                // The offending token was something that could
-                // make an expression
-
-                return Some(Error::new(format!(
-                    "It appears that a ',' is missing in {rule} before {}",
-                    token.text
-                )));
-            }
-
-            ParserRule::Definition if token.kind == Kind::Ident => {
-                // Something went wrong in a definition, so check
-                // if the last successful token is a keyword.
-                if Cond::Production.check(ltok)
-                // TODO: gr_exprs.Identifier
-                // TODO: && ltok.value.upper() == "INDEX"
-                {
-                    return Some(Error::new(format!(
-                        "Expected 'ON', but got {} instead",
-                        token.text
-                    )));
-                }
-            },
-
-            ParserRule::ForIterator => {
-                // if i > 0 {
-                //     context = pctx.merge_context([
-                //         self.parser._stack[-i][0].context, context,
-                //     ])
-                // }
-    
-                return Some(Error {
-                    message: "Missing parentheses around complex expression in a FOR iterator clause"
-                        .to_string(),
-                    span: super::get_span_of_nodes(&[ltok.value]).unwrap_or_default(),
-                });
-            },
-
-            _ => {}
+        if let Some(value) = self.custom_error_from_rule(token) {
+            return Some(value);
         }
 
         if matches!(token.kind, Kind::Keyword(Keyword("explain"))) {
@@ -122,8 +27,8 @@ impl<'s> Parser<'s> {
         {
             // Another token followed by a reserved keyword:
             // likely an attempt to use keyword as identifier
-            let token_text = &token.text;
-            let msg = format!("Unexpected keyword {token_text}");
+            let token_text = token.text.to_uppercase();
+            let msg = format!("Unexpected keyword '{token_text}'");
             let _details = format!(
                 "Token {token_text} is a reserved keyword and cannot be used as an identifier"
             );
@@ -136,6 +41,128 @@ impl<'s> Parser<'s> {
             });
         }
 
+        if let CSTNode::Terminal(Terminal {
+            kind: Kind::Keyword(kw),
+            ..
+        }) = ltok.value
+        {
+            if kw.is_reserved() {
+                // Another token followed by a reserved keyword:
+                // likely an attempt to use keyword as identifier
+                let token_text = &token.text;
+                let _details = format!(
+                    "Token {token_text} is a reserved keyword and cannot be used as an identifier"
+                );
+                return Some(Error {
+                    message: format!("Unexpected keyword '{}'. Use a different identifier or quote the name with backticks: `{token_text}`", kw.0.to_uppercase()),
+                    span: super::get_span_of_nodes(&[ltok.value]).unwrap_or_default(),
+                });
+            }
+        }
+
+        None
+    }
+
+    fn custom_error_from_rule(&self, token: &Terminal) -> Option<Error> {
+        let last = self.get_from_top(0).unwrap();
+
+        let (i, rule) = dbg!(self.get_rule()?);
+        // Look at the parsing stack and use tokens and
+        // non-terminals to infer the parser rule when the
+        // error occurred.
+
+        match rule {
+            // ParserRule::Shape if matches!(token.kind, Kind::Ident) && Cond::Production.check(last) => {
+            //    // TODO:    isinstance(ltok, parsing.Nonterm)
+            //    // Make sure that the previous element in the stack
+            //    // is some kind of Nonterminal, because if it's
+            //    // not, this is probably not an issue of a missing
+            //    // COMMA.
+            //    return Some(Error::new(format!("It appears that a ',' is missing in {rule} before {}", token.text)));
+            // }
+
+            ParserRule::ListOfArguments
+                // The stack is like <NodeName> LPAREN <AnyIdentifier>
+                if i == 1
+                    && Cond::AnyOf(vec![
+                        Cond::Production, // gr_exprs.AnyIdentifier,
+                        Cond::keyword("with"),
+                        Cond::keyword("select"),
+                        Cond::keyword("for"),
+                        Cond::keyword("insert"),
+                        Cond::keyword("update"),
+                        Cond::keyword("delete"),
+                    ])
+                    .check(last)
+            => {
+                return Some(Error {
+                    message: "Missing parenthesis around statement used as an expression"
+                        .to_string(),
+                    span: super::get_span_of_nodes(&[last.value]).unwrap_or_default(),
+                });
+            }
+
+            ParserRule::ArraySlice if matches!(token.kind, Kind::Ident | Kind::IntConst) && !Cond::Terminal(Kind::Colon).check(last) => {
+                // The offending token was something that could
+                // make an expression
+                return Some(Error::new(format!(
+                    "It appears that a ':' is missing in {rule} before {}",
+                    token.text
+                )));
+            },
+
+            // ParserRule::ListOfArguments | ParserRule::Tuple | ParserRule::Array if matches!(
+            //     token.kind,
+            //     Kind::Ident
+            //         | Kind::IntConst
+            //         | Kind::FloatConst
+            //         | Kind::BigIntConst
+            //         | Kind::DecimalConst
+            //         | Kind::BinStr
+            //         | Kind::Str
+            //         | Kind::Keyword(Keyword("true"))
+            //         | Kind::Keyword(Keyword("false"))
+            // ) && !Cond::Terminal(Kind::Comma).check(last) =>
+            // {
+            //     // The offending token was something that could
+            //     // make an expression
+            //     return Some(Error::new(format!(
+            //         "It appears that a ',' is missing in {rule} before {}",
+            //         token.text
+            //     )));
+            // }
+
+            ParserRule::Definition if token.kind == Kind::Ident => {
+                // Something went wrong in a definition, so check
+                // if the last successful token is a keyword.
+                if Cond::Production.check(last)
+                // TODO: gr_exprs.Identifier
+                // TODO: && ltok.value.upper() == "INDEX"
+                {
+                    return Some(Error::new(format!(
+                        "Expected 'ON', but got '{}' instead",
+                        token.text
+                    )));
+                }
+            },
+
+            ParserRule::ForIterator => {
+                let span = if i >= 3 {
+                    let span_start = self.get_from_top(i - 3).unwrap();
+                    let span = super::get_span_of_nodes(&[span_start.value]).unwrap_or_default();
+                    span.combine(token.span)
+                } else {
+                    token.span
+                };
+                return Some(Error {
+                    message: "Missing parentheses around complex expression in a FOR iterator clause"
+                        .to_string(),
+                    span,
+                });
+            },
+
+            _ => {}
+        }
         None
     }
 
@@ -145,12 +172,24 @@ impl<'s> Parser<'s> {
         // Check if we're in the `FOR x IN <bad_token>` situation
         if self.compare_stack(
             &[
-                Cond::Terminal(Kind::Keyword(Keyword("for"))),
+                Cond::keyword("for"),
                 Cond::Production, // TODO gr_exprs.Identifier,
-                Cond::Terminal(Kind::Keyword(Keyword("in"))),
+                Cond::keyword("in"),
                 Cond::Terminal(Kind::Less),
                 Cond::Production, // TODO gr_exprs.FullTypeExpr,
                 Cond::Terminal(Kind::Greater),
+            ],
+            1,
+        ) {
+            return Some((6, ParserRule::ForIterator));
+        }
+
+        if self.compare_stack(
+            &[
+                Cond::keyword("for"),
+                Cond::Production, // TODO gr_exprs.Identifier,
+                Cond::keyword("in"),
+                Cond::Production, // gr_exprs.AtomicExpr
             ],
             1,
         ) {
@@ -159,37 +198,25 @@ impl<'s> Parser<'s> {
 
         if self.compare_stack(
             &[
-                Cond::Terminal(Kind::Keyword(Keyword("for"))),
+                Cond::keyword("for"),
                 Cond::Production, // TODO gr_exprs.Identifier,
-                Cond::Terminal(Kind::Keyword(Keyword("in"))),
-                Cond::Production, // gr_exprs.AtomicExpr
-            ],
-            1,
-        ) {
-            return Some((2, ParserRule::ForIterator));
-        }
-
-        if self.compare_stack(
-            &[
-                Cond::Terminal(Kind::Keyword(Keyword("for"))),
-                Cond::Production, // TODO gr_exprs.Identifier,
-                Cond::Terminal(Kind::Keyword(Keyword("in"))),
+                Cond::keyword("in"),
                 Cond::Production, // gr_exprs.BaseAtomicExpr
             ],
             0,
         ) {
-            return Some((1, ParserRule::ForIterator));
+            return Some((3, ParserRule::ForIterator));
         }
 
         if self.compare_stack(
             &[
-                Cond::Terminal(Kind::Keyword(Keyword("for"))),
+                Cond::keyword("for"),
                 Cond::Production, // TODO gr_exprs.Identifier,
-                Cond::Terminal(Kind::Keyword(Keyword("in"))),
+                Cond::keyword("in"),
             ],
             0,
         ) {
-            return Some((0, ParserRule::ForIterator));
+            return Some((2, ParserRule::ForIterator));
         }
 
         // If the last valid token was a closing brace/parent/bracket,
@@ -253,12 +280,12 @@ impl<'s> Parser<'s> {
                         // gr_exprs.NodeName
                         return Some((i, ParserRule::ListOfArguments));
                     } else if Cond::AnyOf(vec![
-                        Cond::Terminal(Kind::Keyword(Keyword("for"))),
-                        Cond::Terminal(Kind::Keyword(Keyword("select"))),
-                        Cond::Terminal(Kind::Keyword(Keyword("update"))),
-                        Cond::Terminal(Kind::Keyword(Keyword("delete"))),
-                        Cond::Terminal(Kind::Keyword(Keyword("insert"))),
-                        Cond::Terminal(Kind::Keyword(Keyword("for"))),
+                        Cond::keyword("for"),
+                        Cond::keyword("select"),
+                        Cond::keyword("update"),
+                        Cond::keyword("delete"),
+                        Cond::keyword("insert"),
+                        Cond::keyword("for"),
                     ])
                     .check_opt(nextel)
                     {
@@ -338,6 +365,10 @@ enum Cond {
 }
 
 impl Cond {
+    fn keyword(kw: &'static str) -> Self {
+        Cond::Terminal(Kind::Keyword(Keyword(kw)))
+    }
+
     fn check<'a>(&self, node: &StackNode<'a>) -> bool {
         match self {
             Cond::Terminal(kind) => match node.value {
