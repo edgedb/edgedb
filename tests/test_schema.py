@@ -1459,6 +1459,28 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """
 
+    def test_schema_rewrite_order_01(self):
+        """
+            type EventSession extending Timed {
+
+              lastSeen: datetime {
+                rewrite update using (
+                  __old__.foo
+                )
+              }
+              lastSeen2: datetime {
+                rewrite insert using (
+                  __subject__.foo
+                )
+              }
+            }
+            abstract type Timed {
+              required foo: datetime {
+                default := datetime_current();
+              }
+            }
+        """
+
     def test_schema_property_cardinality_alter_01(self):
         schema = self.load_schema('''
             type Foo {
