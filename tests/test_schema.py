@@ -276,6 +276,61 @@ class TestSchema(tb.BaseSchemaLoadTest):
             type UniqueName_3 extending UniqueName, UniqueName_2;
         """
 
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "index expressions must be immutable")
+    def test_schema_index_computed_01(self):
+        """
+        type SignatureStatus {
+          required property signature -> str;
+          link memo := (
+            select Memo filter .signature = SignatureStatus.signature limit 1);
+
+          index on (.memo);
+        }
+
+        type Memo {
+          required property signature -> str {
+            constraint exclusive;
+          }
+        }
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "index expressions must be immutable")
+    def test_schema_index_computed_02(self):
+        """
+        type SignatureStatus {
+          required property signature -> str;
+          link memo := (
+            select Memo filter .signature = SignatureStatus.signature limit 1);
+
+          index on (__subject__ { lol := .memo }.lol);
+        }
+
+        type Memo {
+          required property signature -> str {
+            constraint exclusive;
+          }
+        }
+        """
+
+    def test_schema_index_computed_03(self):
+        """
+        type SignatureStatus {
+          required property signature -> str;
+          link memo_: Memo;
+          link memo := .memo_;
+
+          index on (.memo);
+        }
+
+        type Memo {
+          required property signature -> str {
+            constraint exclusive;
+          }
+        }
+        """
+
     @tb.must_fail(
         errors.InvalidLinkTargetError,
         "invalid link target type, expected object type, "
