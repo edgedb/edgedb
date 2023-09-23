@@ -352,6 +352,7 @@ def resolve_name(
     objects: Dict[sn.QualName, Optional[ObjectLike]],
     modaliases: Optional[Dict[Optional[str], str]],
     local_modules: AbstractSet[str],
+    declaration: bool=False,
 ) -> sn.QualName:
     """Resolve a name into a fully-qualified one.
 
@@ -359,7 +360,7 @@ def resolve_name(
     """
     module = ref.module
 
-    no_std = False
+    no_std = declaration
     if module and module.startswith('__current__::'):
         no_std = True
         module = f'{current_module}::{module.removeprefix("__current__::")}'
@@ -377,15 +378,13 @@ def resolve_name(
             module = fq_module + sep + rest
 
     qname = sn.QualName(module=module, name=ref.name)
-    if type is None:
-        return qname
 
     # check if there's a name in default module
-    # actually registered to the right type
+    # that matches
     if not no_std and not (
         ref.module and ref.module in local_modules
     ) and not (
-        isinstance(objects.get(qname), type)
+        objects.get(qname)
         or schema.get(
             qname, default=None, type=so.Object) is not None
     ):

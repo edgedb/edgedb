@@ -9755,6 +9755,75 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 """,
             )
 
+    def test_schema_describe_name_override_01(self):
+        self._assert_describe(
+            """
+            type Other {
+                obj: Object;
+            }
+            type Object;
+            """,
+
+            'DESCRIBE MODULE test',
+
+            """
+            create type test::Object;
+            create type test::Other {
+                create link obj: test::Object;
+            };
+            """
+        )
+
+    def test_schema_describe_name_override_02(self):
+        self._assert_describe(
+            """
+            type Object;
+            type Other {
+                obj: test::Object;
+            }
+            """,
+
+            'DESCRIBE MODULE test',
+
+            """
+            create type test::Object;
+            create type test::Other {
+                create link obj: test::Object;
+            };
+            """
+        )
+
+    def test_schema_describe_name_override_03(self):
+        self._assert_describe(
+            """
+            type User {
+              single link identity: Identity;
+            }
+
+            abstract type BaseObject {}
+
+            type Identity extending BaseObject {
+              link user := .<identity[is User];
+            }
+
+            type IdentityCredential extending BaseObject {}
+            """,
+
+            'DESCRIBE MODULE test',
+
+            """
+            create abstract type test::BaseObject;
+            create type test::Identity extending test::BaseObject;
+            create type test::IdentityCredential extending test::BaseObject;
+            create type test::User {
+                create single link identity: test::Identity;
+            };
+            alter type test::Identity {
+                create link user := (.<identity[is test::User]);
+            };
+            """
+        )
+
 
 class TestCreateMigration(tb.BaseSchemaTest):
 
