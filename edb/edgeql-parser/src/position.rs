@@ -4,7 +4,7 @@ use std::str::{from_utf8, Utf8Error};
 use unicode_width::UnicodeWidthStr;
 
 /// Span of an element in source code
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Span {
     /// Byte offset in the original file

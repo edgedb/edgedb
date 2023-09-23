@@ -1,3 +1,5 @@
+mod custom_errors;
+
 use append_only_vec::AppendOnlyVec;
 use indexmap::IndexMap;
 
@@ -34,6 +36,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
         node_count: 0,
         can_recover: true,
         errors: Vec::new(),
+        ignore_errors: false,
     };
 
     // append EIO
@@ -92,8 +95,21 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
                     }
                 }
 
-                // option 2: skip the token
+                // option 2: check for a custom error and skip token
+                if !parser.ignore_errors {
+                    if let Some(error) = parser.get_exception(token) {
+                        parser.push_custom_error(error.default_span_to(token.span));
 
+                        new_parsers.push(parser);
+                        continue;
+                    }
+                } else {
+                    parser.push_error(Error::new(""), 0);
+                    new_parsers.push(parser);
+                    continue;
+                }
+
+                // option 3: skip the token
                 let mut skip = parser;
                 let error = Error::new(format!("Unexpected {token}")).with_span(token.span);
                 skip.push_error(error, ERROR_COST_SKIP);
@@ -101,7 +117,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
                     // extra penalty
                     skip.error_cost += ERROR_COST_INJECT_MAX;
                     skip.can_recover = false;
-                };
+                }
 
                 // println!("   --> [skip]");
 
@@ -117,6 +133,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
             if let Some(recovered) = recovered {
                 let mut recovered = new_parsers.swap_remove(recovered);
                 recovered.error_cost = 0;
+                recovered.ignore_errors = false;
 
                 new_parsers.clear();
                 new_parsers.push(recovered);
@@ -244,9 +261,13 @@ struct Parser<'s> {
     /// number of nodes pushed to stack since last error
     node_count: u16,
 
+    /// prevent parser from recovering, for cases when EOF was skipped
     can_recover: bool,
 
     errors: Vec<Error>,
+
+    /// make parser ignore new errors until recovery
+    ignore_errors: bool,
 }
 
 impl<'s> Parser<'s> {
@@ -351,7 +372,7 @@ impl<'s> Parser<'s> {
         }
     }
 
-    #[cfg(never)]
+    // #[cfg(never)]
     fn print_stack(&self) {
         let prefix = "STACK: ";
 
@@ -365,23 +386,35 @@ impl<'s> Parser<'s> {
 
         let names = stack
             .iter()
-            .map(|s| format!("{:?}", s.value))
+            .map(|s| match s.value {
+                CSTNode::Empty => format!("Empty"),
+                CSTNode::Terminal(term) => format!("{term}"),
+                CSTNode::Production(prod) => format!("prod_{}", prod.id),
+            })
             .collect::<Vec<_>>();
 
-        let mut states = format!("{:6}", ' ');
+        let mut states = format!("{:5}", ' ');
         for (index, node) in stack.iter().enumerate() {
             let name_width = names[index].chars().count();
-            states += &format!(" {:<width$}", node.state, width = name_width);
+            states += &format!("  {:<width$}", node.state, width = name_width);
         }
 
-        println!("{}{}", prefix, names.join(" "));
+        println!("{}{}", prefix, names.join("  "));
         println!("{}", states);
     }
 
     fn push_error(&mut self, error: Error, cost: u16) {
-        self.errors.push(error);
+        if !self.ignore_errors {
+            self.errors.push(error);
+        }
         self.error_cost += cost;
         self.node_count = 0;
+    }
+
+    fn push_custom_error(&mut self, error: Error) {
+        self.ignore_errors = false;
+        self.push_error(error, 1);
+        self.ignore_errors = true;
     }
 
     fn node_successful(&mut self) {
@@ -396,6 +429,23 @@ impl<'s> Parser<'s> {
 
     fn has_recovered(&self) -> bool {
         self.can_recover && self.adjusted_cost() == 0
+    }
+
+    fn get_from_top(&self, steps: usize) -> Option<&StackNode<'s>> {
+        self.stack_top.step_up(steps)
+    }
+}
+
+impl<'a> StackNode<'a> {
+    fn step_up(&self, steps: usize) -> Option<&StackNode<'a>> {
+        let mut node = Some(self);
+        for _ in 0..steps {
+            match node {
+                None => return None,
+                Some(n) => node = n.parent,
+            }
+        }
+        node
     }
 }
 
@@ -417,7 +467,7 @@ fn extend_span<'a>(value: &mut CSTNode<'a>, span: Option<Span>, ctx: &'a Context
     };
 
     let CSTNode::Terminal(terminal) = value else {
-        return
+        return;
     };
 
     let mut new_term = terminal.clone();
