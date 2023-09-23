@@ -2106,7 +2106,7 @@ def _inline_type_computable(
             # we see through that.
             base_stype = stype.get_nearest_non_derived_parent(ctx.env.schema)
             base_ir_set = setgen.ensure_set(
-                ir_set, type_override=base_stype, ctx=ctx)
+                ir_set, type_override=base_stype, ctx=scopectx)
 
             scopectx.anchors[qlast.Source().name] = base_ir_set
             ptr, ptr_set = _normalize_view_ptr_expr(
