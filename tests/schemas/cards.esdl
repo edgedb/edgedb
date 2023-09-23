@@ -64,7 +64,9 @@ type Card extending Named {
 
 type SpecialCard extending Card;
 
-type Award extending Named;
+type Award extending Named {
+    link winner := .<awards[is User];
+};
 
 alias AirCard := (
     SELECT Card
