@@ -1371,3 +1371,13 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             };
             ''',
         )
+
+    async def test_edgeql_group_backlink(self):
+        await self.assert_query_result(
+            r'''
+            select (group cards::Award by .winner) {
+              a := .key.winner,
+            };
+            ''',
+            [{"a": {}}, {"a": {}}],
+        )
