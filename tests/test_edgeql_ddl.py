@@ -4920,6 +4920,18 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
         self.assertEqual(val, 1)
 
+    async def test_edgeql_ddl_function_38(self):
+        await self.con.execute('''
+            create function myFuncFailA(character: int64) -> float64
+            using (
+              select 2.3
+            );
+            create function myFuncFailB(interval: str) -> float64
+            using (
+              select 2.3
+            );
+        ''')
+
     async def test_edgeql_ddl_function_rename_01(self):
         await self.con.execute("""
             CREATE FUNCTION foo(s: str) -> str {
