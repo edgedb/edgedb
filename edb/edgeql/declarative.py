@@ -879,14 +879,14 @@ def trace_Rewrite(
 ) -> None:
     exprs = [ExprDependency(expr=node.expr)]
 
-    obj = ctx.depstack[-1][1]
+    obj = ctx.depstack[-2][1]
     _register_item(
         node,
         deps=set(),
         hard_dep_exprs=exprs,
         source=obj,
         subject=obj,
-        anchors={'__specified__': obj},
+        anchors={'__old__': obj},
         ctx=ctx,
     )
 
