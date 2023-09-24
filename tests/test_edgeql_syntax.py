@@ -3572,7 +3572,7 @@ aa';
     def test_edgeql_syntax_function_12(self):
         """
         SELECT count(SELECT 1);
-        """        
+        """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Missing parenthesis around statement used as an expression",

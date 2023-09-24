@@ -476,12 +476,12 @@ impl<'a> StackNode<'a> {
 fn get_span_of_nodes(args: &[CSTNode]) -> Option<Span> {
     let start = args.iter().find_map(|x| match x {
         CSTNode::Terminal(t) => Some(t.span.start),
-        CSTNode::Production(p) => get_span_of_nodes(&p.args).map(|x| x.start),
+        CSTNode::Production(p) => get_span_of_nodes(p.args).map(|x| x.start),
         _ => None,
     })?;
     let end = args.iter().rev().find_map(|x| match x {
         CSTNode::Terminal(t) => Some(t.span.end),
-        CSTNode::Production(p) => get_span_of_nodes(&p.args).map(|x| x.end),
+        CSTNode::Production(p) => get_span_of_nodes(p.args).map(|x| x.end),
         _ => None,
     })?;
     Some(Span { start, end })

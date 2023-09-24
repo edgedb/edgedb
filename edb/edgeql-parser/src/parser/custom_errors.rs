@@ -336,12 +336,12 @@ impl Cond {
         Cond::Terminal(Kind::Keyword(Keyword(kw)))
     }
 
-    fn check<'a>(&self, node: &StackNode<'a>, ctx: &Context) -> bool {
+    fn check(&self, node: &StackNode, ctx: &Context) -> bool {
         match self {
-            Cond::Terminal(kind) => match node.value {
-                CSTNode::Terminal(Terminal { kind: k, .. }) if k == kind => true,
-                _ => false,
-            },
+            Cond::Terminal(kind) => matches!(
+                node.value,
+                CSTNode::Terminal(Terminal { kind: k, .. }) if k == kind
+            ),
             Cond::Production(non_term) => match node.value {
                 CSTNode::Production(prod) => {
                     let (pn, _) = &ctx.spec.production_names[prod.id];
@@ -364,7 +364,7 @@ impl Cond {
         }
     }
 
-    fn check_opt<'a>(&self, node: Option<&StackNode<'a>>, ctx: &Context) -> bool {
+    fn check_opt(&self, node: Option<&StackNode>, ctx: &Context) -> bool {
         node.map_or(false, |x| self.check(x, ctx))
     }
 }
