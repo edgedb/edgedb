@@ -30,7 +30,7 @@ from edb.tools.edb import edbcommands
 
 @edbcommands.command("parser-demo")
 def main():
-    for q in QUERIES[-1:]:
+    for q in QUERIES:
         sdl = q.startswith('sdl')
         if sdl:
             q = q[3:]
@@ -51,7 +51,7 @@ def main():
         print()
 
         for index, error in enumerate(result.errors()):
-            message, span, _hint, _details = error
+            message, span, hint, details = error
             (start, end) = tokenizer.inflate_span(source.text(), span)
 
             print(f'Error [{index+1}/{len(result.errors())}]:')
@@ -66,6 +66,10 @@ def main():
                 + ' '
                 + message
             )
+            if details:
+                print(f'  Details: {details}')
+            if hint:
+                print(f'  Hint: {hint}')
             print()
 
         if result.out():
@@ -298,7 +302,7 @@ QUERIES = [
     SELECT ((count(foo 1)));
     ''',
     '''
-    FOR x in <std::Object>
+    SELECT count(SELECT 1);
     ''',
     '''
     SELECT (
@@ -307,6 +311,6 @@ QUERIES = [
     );
     ''',
     '''
-    SELECT count(SELECT 1);
+    SELECT INTROSPECT tuple<int64>;
     ''',
 ]

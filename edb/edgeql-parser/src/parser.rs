@@ -100,7 +100,6 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
                 //   error, not during all the steps of recovery.
                 if parser.error_cost == 0 {
                     if let Some(error) = parser.custom_error(ctx, token) {
-                        dbg!(token);
                         parser
                             .push_error(error.default_span_to(token.span), ERROR_COST_CUSTOM_ERROR);
                         parser.has_custom_error = true;
@@ -172,7 +171,8 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
     } else {
         None
     };
-    (node, parser.errors)
+    let errors = custom_errors::post_process(parser.errors);
+    (node, errors)
 }
 
 impl<'s> Context<'s> {
@@ -254,6 +254,7 @@ pub struct Terminal {
 pub struct Production<'a> {
     pub id: usize,
     pub args: &'a [CSTNode<'a>],
+    pub inlined_ids: Option<&'a [usize]>,
 }
 
 struct StackNode<'p> {
@@ -320,6 +321,7 @@ impl<'s> Parser<'s> {
         let value = CSTNode::Production(Production {
             id: reduce.production_id,
             args,
+            inlined_ids: None,
         });
 
         let nstate = self.stack_top.state;
@@ -330,11 +332,25 @@ impl<'s> Parser<'s> {
         let mut value = value;
         if let CSTNode::Production(production) = value {
             if let Some(inline_position) = ctx.spec.inlines.get(&production.id) {
+                let inlined_id = production.id;
                 // inline rule found
                 let args = production.args;
                 let span = get_span_of_nodes(args);
 
                 value = args[*inline_position as usize];
+
+                // save inlined id
+                if let CSTNode::Production(new_prod) = &mut value {
+                    let curr_len = new_prod.inlined_ids.map_or(0, |x| x.len());
+                    let mut new_inlined_ids = Vec::with_capacity(curr_len + 1);
+                    if let Some(inlined_ids) = new_prod.inlined_ids {
+                        new_inlined_ids.extend(inlined_ids);
+                    }
+                    new_inlined_ids.push(inlined_id);
+
+                    let new_inlined_ids = ctx.arena.alloc_slice_copy(new_inlined_ids.as_slice());
+                    new_prod.inlined_ids = Some(new_inlined_ids);
+                }
 
                 extend_span(&mut value, span, ctx);
             } else {
@@ -385,7 +401,7 @@ impl<'s> Parser<'s> {
         }
     }
 
-    // #[cfg(never)]
+    #[cfg(never)]
     fn print_stack(&self, ctx: &'s Context) {
         let prefix = "STACK: ";
 

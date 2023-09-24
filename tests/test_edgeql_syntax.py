@@ -1506,7 +1506,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing ':' before '{'", line=4, col=17)
+                  r"Missing ':'", line=3, col=16)
     def test_edgeql_syntax_shape_46(self):
         """
         SELECT Foo {
@@ -1581,7 +1581,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing '\{'", line=3, col=17)
+                  r"Unexpected 'Bar'", line=3, col=18)
     def test_edgeql_syntax_shape_53(self):
         """
         INSERT Foo {
@@ -4683,7 +4683,12 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Missing identifier", line=2, col=42)
+                  "Unexpected keyword 'SET'",
+                  details="This name is a reserved keyword and cannot be "
+                          "used as an identifier",
+                  hint="Use a different identifier or quote the name "
+                       "with backticks: `SET`",
+                  line=2, col=43)
     def test_edgeql_syntax_ddl_function_31(self):
         # parameter name is missing
         """
@@ -4691,10 +4696,10 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Missing identifier", line=2, col=42)
+                  "Unexpected '::'", line=2, col=37)
     def test_edgeql_syntax_ddl_function_32(self):
         """
-        CREATE FUNCTION std::foo(VARIADIC SET OF std::str) -> std::int64;
+        CREATE FUNCTION std::foo(std::str) -> std::int64;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -5085,7 +5090,7 @@ aa';
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=33)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=34)
     def test_edgeql_syntax_ddl_property_04(self):
         """
         CREATE ABSTRACT PROPERTY __type__ {

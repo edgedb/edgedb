@@ -4,11 +4,11 @@ use crate::{keywords::Keyword, position::Span};
 use super::{CSTNode, Context, Error, Parser, StackNode, Terminal};
 
 impl<'s> Parser<'s> {
-    pub(super) fn custom_error(&self, ctx: &Context<'_>, token: &Terminal) -> Option<Error> {
-        self.print_stack(ctx);
+    pub(super) fn custom_error(&self, ctx: &Context, token: &Terminal) -> Option<Error> {
+        // self.print_stack(ctx);
         let ltok = self.get_from_top(0).unwrap();
 
-        if let Some(value) = self.custom_error_from_rule(token) {
+        if let Some(value) = self.custom_error_from_rule(token, ctx) {
             return Some(value);
         }
 
@@ -21,35 +21,34 @@ impl<'s> Parser<'s> {
         }
 
         if let Kind::Keyword(kw) = token.kind {
-            if kw.is_reserved() && !Cond::Production.check(ltok) {
-                // TODO: gr_exprs.Expr
+            if kw.is_reserved() && !Cond::Production("Expr").check(ltok, ctx) {
                 // Another token followed by a reserved keyword:
                 // likely an attempt to use keyword as identifier
                 return Some(unexpected_reserved_keyword(&token.text, token.span));
             }
         };
 
-        if let CSTNode::Terminal(Terminal {
-            kind: Kind::Keyword(kw),
-            text,
-            span,
-            ..
-        }) = ltok.value
-        {
-            if kw.is_reserved() {
-                // Unexpected reserved keyword:
-                // likely an attempt to use keyword as identifier
-                return Some(unexpected_reserved_keyword(text, *span));
-            }
-        }
+        // if let CSTNode::Terminal(Terminal {
+        //     kind: Kind::Keyword(kw),
+        //     text,
+        //     span,
+        //     ..
+        // }) = ltok.value
+        // {
+        //     if kw.is_reserved() {
+        //         // Unexpected reserved keyword:
+        //         // likely an attempt to use keyword as identifier
+        //         return Some(unexpected_reserved_keyword(text, *span));
+        //     }
+        // }
 
         None
     }
 
-    fn custom_error_from_rule(&self, token: &Terminal) -> Option<Error> {
+    fn custom_error_from_rule(&self, token: &Terminal, ctx: &Context) -> Option<Error> {
         let last = self.get_from_top(0).unwrap();
 
-        let (i, rule) = dbg!(self.get_rule()?);
+        let (i, rule) = self.get_rule(ctx)?;
         // Look at the parsing stack and use tokens and
         // non-terminals to infer the parser rule when the
         // error occurred.
@@ -68,7 +67,7 @@ impl<'s> Parser<'s> {
                 // The stack is like <NodeName> LPAREN <AnyIdentifier>
                 if i == 1
                     && Cond::AnyOf(vec![
-                        Cond::Production, // gr_exprs.AnyIdentifier,
+                        Cond::Production("AnyIdentifier"),
                         Cond::keyword("with"),
                         Cond::keyword("select"),
                         Cond::keyword("for"),
@@ -76,7 +75,7 @@ impl<'s> Parser<'s> {
                         Cond::keyword("update"),
                         Cond::keyword("delete"),
                     ])
-                    .check(last)
+                    .check(last, ctx)
             => {
                 return Some(Error {
                     message: "Missing parenthesis around statement used as an expression"
@@ -87,7 +86,10 @@ impl<'s> Parser<'s> {
                 });
             }
 
-            ParserRule::ArraySlice if matches!(token.kind, Kind::Ident | Kind::IntConst) && !Cond::Terminal(Kind::Colon).check(last) => {
+            ParserRule::ArraySlice
+                if matches!(token.kind, Kind::Ident | Kind::IntConst)
+                && !Cond::Terminal(Kind::Colon).check(last, ctx)
+            => {
                 // The offending token was something that could
                 // make an expression
                 return Some(Error::new(format!(
@@ -120,8 +122,7 @@ impl<'s> Parser<'s> {
             ParserRule::Definition if token.kind == Kind::Ident => {
                 // Something went wrong in a definition, so check
                 // if the last successful token is a keyword.
-                if Cond::Production.check(last)
-                // TODO: gr_exprs.Identifier
+                if Cond::Production("Identifier").check(last, ctx)
                 // TODO: && ltok.value.upper() == "INDEX"
                 {
                     return Some(Error::new(format!(
@@ -155,57 +156,7 @@ impl<'s> Parser<'s> {
 
     /// Look at the parsing stack and use tokens and non-terminals
     /// to infer the parser rule when the error occurred.
-    fn get_rule(&self) -> Option<(usize, ParserRule)> {
-        // Check if we're in the `FOR x IN <bad_token>` situation
-        if self.compare_stack(
-            &[
-                Cond::keyword("for"),
-                Cond::Production, // TODO gr_exprs.Identifier,
-                Cond::keyword("in"),
-                Cond::Terminal(Kind::Less),
-                Cond::Production, // TODO gr_exprs.FullTypeExpr,
-                Cond::Terminal(Kind::Greater),
-            ],
-            1,
-        ) {
-            return Some((6, ParserRule::ForIterator));
-        }
-
-        if self.compare_stack(
-            &[
-                Cond::keyword("for"),
-                Cond::Production, // TODO gr_exprs.Identifier,
-                Cond::keyword("in"),
-                Cond::Production, // gr_exprs.AtomicExpr
-            ],
-            1,
-        ) {
-            return Some((4, ParserRule::ForIterator));
-        }
-
-        if self.compare_stack(
-            &[
-                Cond::keyword("for"),
-                Cond::Production, // TODO gr_exprs.Identifier,
-                Cond::keyword("in"),
-                Cond::Production, // gr_exprs.BaseAtomicExpr
-            ],
-            0,
-        ) {
-            return Some((3, ParserRule::ForIterator));
-        }
-
-        if self.compare_stack(
-            &[
-                Cond::keyword("for"),
-                Cond::Production, // TODO gr_exprs.Identifier,
-                Cond::keyword("in"),
-            ],
-            0,
-        ) {
-            return Some((2, ParserRule::ForIterator));
-        }
-
+    fn get_rule(&self, ctx: &Context) -> Option<(usize, ParserRule)> {
         // If the last valid token was a closing brace/parent/bracket,
         // so we need to find a match for it before deciding what rule
         // context we're in.
@@ -216,7 +167,9 @@ impl<'s> Parser<'s> {
                 Cond::Terminal(Kind::CloseBracket),
             ])],
             0,
+            ctx,
         );
+        let mut found_union = false;
 
         let ltok = self.get_from_top(0).unwrap();
 
@@ -232,21 +185,17 @@ impl<'s> Parser<'s> {
                     kind: Kind::OpenBrace,
                     ..
                 }) => {
-                    if need_match && Cond::Terminal(Kind::CloseBrace).check(ltok) {
+                    if need_match && Cond::Terminal(Kind::CloseBrace).check(ltok, ctx) {
                         // This is matched, while we're looking
                         // for unmatched braces.
                         need_match = false;
-                    } else if Cond::Production.check_opt(prevel) {
-                        // TODO: gr_commondl.OptExtending
+                    } else if Cond::Production("OptExtending").check_opt(prevel, ctx) {
                         // This is some SDL/DDL
                         return Some((i, ParserRule::Definition));
                     } else if prevel.map_or(false, |prevel| {
-                        Cond::Production.check(prevel) // gr_exprs.Expr
-                            ||                            (
-                                Cond::Terminal(Kind::Colon).check(prevel)
-                                &&
-                                Cond::Production.check_opt(prevel.parent) // gr_exprs.ShapePointer
-                            )
+                        Cond::Production("Expr").check(prevel, ctx)
+                            || (Cond::Terminal(Kind::Colon).check(prevel, ctx)
+                                && Cond::Production("ShapePointer").check_opt(prevel.parent, ctx))
                     }) {
                         // This is some kind of shape.
                         return Some((i, ParserRule::Shape));
@@ -259,12 +208,11 @@ impl<'s> Parser<'s> {
                     kind: Kind::OpenParen,
                     ..
                 }) => {
-                    if need_match && Cond::Terminal(Kind::CloseParen).check(ltok) {
+                    if need_match && Cond::Terminal(Kind::CloseParen).check(ltok, ctx) {
                         // This is matched, while we're looking
                         // for unmatched parentheses.
                         need_match = false
-                    } else if Cond::Production.check_opt(prevel) {
-                        // gr_exprs.NodeName
+                    } else if Cond::Production("NodeName").check_opt(prevel, ctx) {
                         return Some((i, ParserRule::ListOfArguments));
                     } else if Cond::AnyOf(vec![
                         Cond::keyword("for"),
@@ -274,7 +222,7 @@ impl<'s> Parser<'s> {
                         Cond::keyword("insert"),
                         Cond::keyword("for"),
                     ])
-                    .check_opt(nextel)
+                    .check_opt(nextel, ctx)
                     {
                         // A parenthesized subquery expression,
                         // we should leave the error as is.
@@ -291,13 +239,11 @@ impl<'s> Parser<'s> {
                     // This is either an array literal or
                     // array index.
 
-                    if need_match && Cond::Terminal(Kind::CloseBracket).check(ltok) {
+                    if need_match && Cond::Terminal(Kind::CloseBracket).check(ltok, ctx) {
                         // This is matched, while we're looking
                         // for unmatched brackets.
                         need_match = false
-                    } else if Cond::Production.check_opt(prevel)
-                    // gr_exprs.Expr
-                    {
+                    } else if Cond::Production("Expr").check_opt(prevel, ctx) {
                         return Some((i, ParserRule::ArraySlice));
                     } else {
                         return Some((i, ParserRule::Array));
@@ -305,6 +251,24 @@ impl<'s> Parser<'s> {
                 }
 
                 _ => {}
+            }
+
+            // Check if we're in the `FOR x IN bad_tokens` situation
+            if self.compare_stack(&[Cond::keyword("union")], i, ctx) {
+                found_union = true;
+            }
+            if !found_union
+                && self.compare_stack(
+                    &[
+                        Cond::keyword("for"),
+                        Cond::Production("Identifier"),
+                        Cond::keyword("in"),
+                    ],
+                    i,
+                    ctx,
+                )
+            {
+                return Some((i + 2, ParserRule::ForIterator));
             }
 
             // Also keep track of the element right after current.
@@ -327,14 +291,14 @@ impl<'s> Parser<'s> {
     ///              D - X
     ///              E
     /// ```
-    fn compare_stack<'a>(&self, expected: &[Cond], top_offset: usize) -> bool {
+    fn compare_stack<'a>(&self, expected: &[Cond], top_offset: usize, ctx: &Context) -> bool {
         let mut current = self.get_from_top(top_offset);
 
         for validator in expected.iter().rev() {
             let Some(cur) = current else {
                 return false;
             };
-            if !validator.check(cur) {
+            if !validator.check(cur, ctx) {
                 return false;
             }
 
@@ -344,13 +308,13 @@ impl<'s> Parser<'s> {
     }
 }
 
-fn unexpected_reserved_keyword(text: &String, span: Span) -> Error {
+fn unexpected_reserved_keyword(text: &str, span: Span) -> Error {
     let text_upper = text.to_uppercase();
     Error {
         message: format!("Unexpected keyword '{text_upper}'"),
         span,
         details: Some(format!(
-            "Token '{text_upper}' is a reserved keyword and cannot be \
+            "This name is a reserved keyword and cannot be \
             used as an identifier"
         )),
         hint: Some(format!(
@@ -363,7 +327,7 @@ fn unexpected_reserved_keyword(text: &String, span: Span) -> Error {
 /// Condition for a stack node. An easier way to match stack node kinds.
 enum Cond {
     Terminal(Kind),
-    Production,
+    Production(&'static str),
     AnyOf(Vec<Cond>),
 }
 
@@ -372,22 +336,36 @@ impl Cond {
         Cond::Terminal(Kind::Keyword(Keyword(kw)))
     }
 
-    fn check<'a>(&self, node: &StackNode<'a>) -> bool {
+    fn check<'a>(&self, node: &StackNode<'a>, ctx: &Context) -> bool {
         match self {
             Cond::Terminal(kind) => match node.value {
                 CSTNode::Terminal(Terminal { kind: k, .. }) if k == kind => true,
                 _ => false,
             },
-            Cond::Production => match node.value {
-                CSTNode::Production(_) => true,
+            Cond::Production(non_term) => match node.value {
+                CSTNode::Production(prod) => {
+                    let (pn, _) = &ctx.spec.production_names[prod.id];
+                    if non_term == pn {
+                        return true;
+                    }
+                    if let Some(inlined_ids) = prod.inlined_ids {
+                        for prod_id in inlined_ids {
+                            let (pn, _) = &ctx.spec.production_names[*prod_id];
+                            if non_term == pn {
+                                return true;
+                            }
+                        }
+                    }
+                    false
+                }
                 _ => false,
             },
-            Cond::AnyOf(options) => options.iter().any(|v| v.check(node)),
+            Cond::AnyOf(options) => options.iter().any(|v| v.check(node, ctx)),
         }
     }
 
-    fn check_opt<'a>(&self, node: Option<&StackNode<'a>>) -> bool {
-        node.map_or(false, |x| self.check(x))
+    fn check_opt<'a>(&self, node: Option<&StackNode<'a>>, ctx: &Context) -> bool {
+        node.map_or(false, |x| self.check(x, ctx))
     }
 }
 
@@ -414,4 +392,29 @@ impl std::fmt::Display for ParserRule {
             ParserRule::ListOfArguments => f.write_str("list of arguments"),
         }
     }
+}
+
+pub fn post_process(errors: Vec<Error>) -> Vec<Error> {
+    let mut new_errors: Vec<Error> = Vec::with_capacity(errors.len());
+    for error in errors {
+        // Enrich combination of 'Unexpected keyword' + 'Missing identifier'
+        if error.message == "Missing identifier" {
+            if let Some(last) = new_errors.last() {
+                if last.message.starts_with("Unexpected keyword '")
+                    && last.span.end == error.span.start
+                {
+                    let last = new_errors.pop().unwrap();
+                    let text = last.message.strip_prefix("Unexpected keyword '").unwrap();
+                    let text = text.strip_suffix("'").unwrap();
+
+                    new_errors.push(unexpected_reserved_keyword(text, last.span));
+                    continue;
+                }
+            }
+        }
+
+        new_errors.push(error);
+    }
+
+    new_errors
 }
