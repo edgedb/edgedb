@@ -145,9 +145,7 @@ class Router:
                     )
                     try:
                         identity = await local_client.register(data)
-                        session_token = self._make_session_token(
-                            identity.id, "local"
-                        )
+                        session_token = self._make_session_token(identity.id)
                         response.custom_headers["Set-Cookie"] = (
                             f"edgedb-session={session_token}; "
                             f"HttpOnly; Secure; SameSite=Strict"
@@ -220,9 +218,7 @@ class Router:
                     try:
                         identity = await local_client.authenticate(data)
 
-                        session_token = self._make_session_token(
-                            identity.id, "local"
-                        )
+                        session_token = self._make_session_token(identity.id)
                         response.custom_headers["Set-Cookie"] = (
                             f"edgedb-session={session_token}; "
                             f"HttpOnly; Secure; SameSite=Strict"
@@ -346,7 +342,7 @@ class Router:
         state_token.make_signed_token(signing_key)
         return state_token.serialize()
 
-    def _make_session_token(self, identity_id: str, iss: str | None) -> str:
+    def _make_session_token(self, identity_id: str) -> str:
         signing_key = self._get_auth_signing_key()
         auth_expiration_time = util.get_config(
             self.db.db_config,
@@ -357,7 +353,7 @@ class Router:
         expires_at = datetime.datetime.utcnow() + expires_in
 
         claims: dict[str, Any] = {
-            "iss": iss or self.base_path,
+            "iss": self.base_path,
             "sub": identity_id,
         }
         if expires_in.total_seconds() != 0:
