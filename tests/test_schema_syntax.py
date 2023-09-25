@@ -265,8 +265,13 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Missing identifier",
-                  line=3, col=17)
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected keyword 'COMMIT'",
+                  details="This name is a reserved keyword and cannot be "
+                          "used as an identifier",
+                  hint="Use a different identifier or quote the name "
+                       "with backticks: `Commit`",
+                  line=3, col=18)
     def test_eschema_syntax_type_11(self):
         """
         module test {
