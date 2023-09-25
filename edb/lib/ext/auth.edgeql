@@ -119,7 +119,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     create function ext::auth::_jwt_check_signature(
         jwt: tuple<header: std::str, payload: std::str, signature: std::str>,
         key: std::str,
-        algo: ext::auth::JWTAlgo = ext::auth::JWTAlgo.RS256,
+        algo: ext::auth::JWTAlgo = ext::auth::JWTAlgo.HS256,
     ) -> std::json
     {
         set volatility := 'Stable';
@@ -176,7 +176,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     create function ext::auth::_jwt_verify(
         token: std::str,
         key: std::str,
-        algo: ext::auth::JWTAlgo = ext::auth::JWTAlgo.RS256,
+        algo: ext::auth::JWTAlgo = ext::auth::JWTAlgo.HS256,
     ) -> std::json
     {
         set volatility := 'Stable';
@@ -225,7 +225,6 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         select
             ext::auth::Identity
         filter
-            .iss = <str>json_get(jwt.claims, "iss")
-            and .sub = <str>json_get(jwt.claims, "sub")
+            .id = <uuid>json_get(jwt.claims, "sub")
     );
 };
