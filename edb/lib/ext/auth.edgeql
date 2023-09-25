@@ -225,7 +225,6 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         select
             ext::auth::Identity
         filter
-            .iss = <str>json_get(jwt.claims, "iss")
-            and .sub = <str>json_get(jwt.claims, "sub")
+            .id = <uuid>json_get(jwt.claims, "sub")
     );
 };
