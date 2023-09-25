@@ -190,7 +190,7 @@ a.field-note:hover {
   text-decoration: none;
 }
 
-.error-message {
+.error-message, .success-message {
   display: flex;
   padding: 10px 12px;
   align-items: center;
@@ -204,8 +204,21 @@ a.field-note:hover {
   line-height: 19px;
   margin-bottom: 16px;
 }
-.error-message svg {
+.error-message svg, .success-message svg {
   flex-shrink: 0;
+}
+.error-message a, .success-message a {
+  color: var(--accent-color);
+  text-decoration: none;
+}
+.error-message b, .success-message b {
+  font-weight: 600;
+}
+
+.success-message {
+  color: #1f8aed;
+  border-color: #1f8aed;
+  background: #e4f1fc;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -256,5 +269,8 @@ a.field-note:hover {
   .error-message {
     background: #423336;
     border-color: #A1433D;
+  }
+  .success-message {
+    background: #293a4a;
   }
 }
