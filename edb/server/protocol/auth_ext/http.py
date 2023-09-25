@@ -338,21 +338,32 @@ class Router:
                         identity, secret = (
                             await local_client.get_identity_and_secret(data))
 
-                        reset_token = self._make_reset_token(identity.id, secret)
+                        new_reset_token = self._make_reset_token(
+                            identity.id, secret
+                        )
 
-                        params = urllib.parse.urlencode({
-                            'reset_token': reset_token
+                        reset_token_params = urllib.parse.urlencode({
+                            "reset_token": new_reset_token
                         })
-                        reset_url = f"{data['reset_url']}?{params}"
+                        reset_url = f"{data['reset_url']}?{reset_token_params}"
                         # TODO: Send an email with this url
                         print(reset_url)
+
+                        return_data = (
+                            # TODO: Remove this once email tests set up
+                            {
+                                "email": identity.email,
+                                "reset_url": reset_url
+                            } if self.test_mode else
+                            {
+                                "email": identity.email,
+                            }
+                        )
 
                         if data.get("redirect_to") is not None:
                             response.status = http.HTTPStatus.FOUND
                             redirect_params = urllib.parse.urlencode(
-                                {
-                                    "email": identity.email,
-                                }
+                                return_data
                             )
                             redirect_url = (
                                 f"{data['redirect_to']}?{redirect_params}"
@@ -362,9 +373,7 @@ class Router:
                             response.status = http.HTTPStatus.OK
                             response.content_type = b"application/json"
                             response.body = json.dumps(
-                                {
-                                    "email": identity.email,
-                                }
+                                return_data
                             ).encode()
                     except Exception as ex:
                         redirect_on_failure = data.get(
@@ -406,10 +415,12 @@ class Router:
                         reset_token = data['reset_token']
 
                         identity_id, secret = (
-                                self._get_data_from_reset_token(reset_token))
+                            self._get_data_from_reset_token(reset_token)
+                        )
 
                         identity = await local_client.update_password(
-                                identity_id, secret, data)
+                            identity_id, secret, data
+                        )
 
                         session_token = self._make_session_token(identity.id)
                         response.custom_headers["Set-Cookie"] = (
@@ -463,13 +474,15 @@ class Router:
                         response.status = http.HTTPStatus.NOT_FOUND
                     else:
                         providers = util.get_config(
-                            self.db.db_config,
+                            self.db.db_config,  # type: ignore
                             "ext::auth::AuthConfig::providers",
                             frozenset
                         )
 
-                        query = (request.url.query.decode("ascii")
-                                if request.url.query else '')
+                        query = (
+                            request.url.query.decode("ascii")
+                            if request.url.query else ''
+                        )
 
                         response.status = http.HTTPStatus.OK
                         response.content_type = b'text/html'
@@ -477,7 +490,9 @@ class Router:
                             base_path=self.base_path,
                             providers=providers,
                             redirect_to=ui_config.redirect_to,
-                            error_message=_maybe_get_search_param(query, 'error'),
+                            error_message=_maybe_get_search_param(
+                                query, 'error'
+                            ),
                             handle=_maybe_get_search_param(query, 'handle'),
                             app_name=ui_config.app_name,
                             logo_url=ui_config.logo_url,
@@ -493,8 +508,10 @@ class Router:
                     else:
                         password_provider = self._get_password_provider()
 
-                        query = (request.url.query.decode("ascii")
-                                if request.url.query else '')
+                        query = (
+                            request.url.query.decode("ascii")
+                            if request.url.query else ''
+                        )
 
                         response.status = http.HTTPStatus.OK
                         response.content_type = b'text/html'
@@ -502,7 +519,9 @@ class Router:
                             base_path=self.base_path,
                             provider_id=password_provider.provider_id,
                             redirect_to=ui_config.redirect_to,
-                            error_message=_maybe_get_search_param(query, 'error'),
+                            error_message=_maybe_get_search_param(
+                                query, 'error'
+                            ),
                             handle=_maybe_get_search_param(query, 'handle'),
                             email=_maybe_get_search_param(query, 'email'),
                             app_name=ui_config.app_name,
@@ -519,15 +538,19 @@ class Router:
                     else:
                         password_provider = self._get_password_provider()
 
-                        query = (request.url.query.decode("ascii")
-                                if request.url.query else '')
+                        query = (
+                            request.url.query.decode("ascii")
+                            if request.url.query else ''
+                        )
 
                         response.status = http.HTTPStatus.OK
                         response.content_type = b'text/html'
                         response.body = ui.render_forgot_password_page(
                             base_path=self.base_path,
                             provider_id=password_provider.provider_id,
-                            error_message=_maybe_get_search_param(query, 'error'),
+                            error_message=_maybe_get_search_param(
+                                query, 'error'
+                            ),
                             handle=_maybe_get_search_param(query, 'handle'),
                             email=_maybe_get_search_param(query, 'email'),
                             app_name=ui_config.app_name,
@@ -544,25 +567,33 @@ class Router:
                     else:
                         password_provider = self._get_password_provider()
 
-                        query = (request.url.query.decode("ascii")
-                                if request.url.query else '')
+                        query = (
+                            request.url.query.decode("ascii")
+                            if request.url.query else ''
+                        )
 
                         reset_token = _maybe_get_search_param(
                             query, 'reset_token')
 
-                        if reset_token:
+                        if reset_token is not None:
                             try:
                                 identity_id, secret = (
-                                    self._get_data_from_reset_token(reset_token))
+                                    self._get_data_from_reset_token(
+                                        reset_token
+                                    )
+                                )
 
                                 local_client = local.Client(
                                     db=self.db,
                                     provider_id=password_provider.provider_id
                                 )
 
-                                is_valid = await local_client.validate_reset_secret(
-                                    identity_id, secret)
-                            except:
+                                is_valid = await (
+                                    local_client.validate_reset_secret(
+                                        identity_id, secret
+                                    )
+                                )
+                            except Exception:
                                 is_valid = False
                         else:
                             is_valid = False
@@ -575,13 +606,14 @@ class Router:
                             is_valid=is_valid,
                             redirect_to=ui_config.redirect_to,
                             reset_token=reset_token,
-                            error_message=_maybe_get_search_param(query, 'error'),
+                            error_message=_maybe_get_search_param(
+                                query, 'error'
+                            ),
                             app_name=ui_config.app_name,
                             logo_url=ui_config.logo_url,
                             dark_logo_url=ui_config.dark_logo_url,
                             brand_color=ui_config.brand_color,
                         )
-
 
                 case ('_static', filename):
                     filepath = os.path.join(
@@ -592,9 +624,9 @@ class Router:
                         with open(filepath, 'rb') as f:
                             response.status = http.HTTPStatus.OK
                             response.content_type = (
-                                    mimetypes.guess_type(filename)[0]
-                                    or 'application/octet-stream'
-                                ).encode()
+                                mimetypes.guess_type(filename)[0]
+                                or 'application/octet-stream'
+                            ).encode()
                             response.body = f.read()
                     except FileNotFoundError:
                         response.status = http.HTTPStatus.NOT_FOUND
@@ -744,11 +776,11 @@ class Router:
         verified = jwt.JWT(key=signing_key, jwt=jwtStr)
         return json.loads(verified.claims)
 
-    def _get_data_from_reset_token(self, token: str) -> str:
+    def _get_data_from_reset_token(self, token: str) -> Tuple[str, str]:
         signing_key = self._get_auth_signing_key()
         try:
             decoded_token = jwt.JWT(key=signing_key, jwt=token)
-        except Exception as ex:
+        except Exception:
             raise errors.InvalidData("Invalid 'reset_token'")
 
         claims: dict[str, str] = json.loads(decoded_token.claims)
@@ -789,7 +821,7 @@ class Router:
         )
 
         if ui_config is not None:
-            assert(len(ui_config) == 1)
+            assert len(ui_config) == 1
 
         return list(ui_config)[0] if ui_config else None
 
@@ -804,7 +836,7 @@ class Router:
             if (util.get_config_typename(p) ==
                 'ext::auth::PasswordClientConfig')
         ]
-        assert(len(password_providers) == 1)
+        assert len(password_providers) == 1
 
         return password_providers[0]
 

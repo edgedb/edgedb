@@ -214,7 +214,8 @@ select ext::auth::PasswordCredential {
         return (local_identity, secret)
 
     async def validate_reset_secret(
-        self, db: Any, identity_id: str, secret: str):
+        self, db: Any, identity_id: str, secret: str
+    ):
 
         r = await execute.parse_execute_json(
             db=db,
@@ -244,7 +245,8 @@ filter .identity.id = identity_id;""",
         return local_identity if secret == current_secret else None
 
     async def update_password(
-        self, db: Any, identity_id: str, secret: str, input: dict[str, Any]):
+        self, db: Any, identity_id: str, secret: str, input: dict[str, Any]
+    ):
         if 'password' not in input:
             raise errors.InvalidData("Missing 'password' in data")
 
