@@ -358,6 +358,11 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_tp = e.ObjectTp({})
             result_card = e.CardAtMostOne
             result_expr = expr
+        case e.ConditionalDedupExpr(expr=inner):
+            (inner_tp, inner_ck) = synthesize_type(ctx, inner)
+            result_tp = inner_tp.tp
+            result_card = inner_tp.mode
+            result_expr = e.ConditionalDedupExpr(inner_ck)
         # case e.ObjectExpr(val=dic):
         #     s_tp = e.ObjectTp({})
         #     link_tp = e.ObjectTp({})

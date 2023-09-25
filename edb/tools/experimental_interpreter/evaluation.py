@@ -262,6 +262,14 @@ def eval_expr(ctx: EvalEnv,
             return MultiSetVal([expr])
         case e.FreeObjectExpr():
             return MultiSetVal(vals=[e.RefVal(next_id(), val=e.ObjectVal(val={}))])
+        case e.ConditionalDedupExpr(expr=inner):
+            inner_val = eval_expr(ctx, db, inner)
+            if all(val_is_primitive(v) for v in inner_val.vals):
+                return inner_val
+            elif all(val_is_ref_val(v) for v in inner_val.vals):
+                return MultiSetVal(object_dedup(inner_val.vals))
+            else:
+                raise ValueError("Expecting all references or all primitives")
         # case ObjectExpr(val=dic):
         #     result: Dict[Label, Tuple[Marker, MultiSetVal]] = {}
         #     for (key, expr) in dic.items():  # type: ignore[has-type]

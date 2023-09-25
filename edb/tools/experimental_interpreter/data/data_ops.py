@@ -617,7 +617,7 @@ Expr = (
     ObjectProjExpr | LinkPropProjExpr | WithExpr | ForExpr | OptionalForExpr |
     TpIntersectExpr | BackLinkExpr | FilterOrderExpr | OffsetLimitExpr |
     InsertExpr | UpdateExpr | MultiSetExpr | ShapedExprExpr | ShapeExpr |
-    FreeObjectExpr |
+    FreeObjectExpr | ConditionalDedupExpr |
     # ObjectExpr | 
     BindingExpr | Val | UnnamedTupleExpr | NamedTupleExpr |
     ArrExpr | Tp | UnionExpr | DetachedExpr | SubqueryExpr

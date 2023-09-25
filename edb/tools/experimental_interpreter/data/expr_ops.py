@@ -149,6 +149,8 @@ def map_expr(
                 return InsertExpr(name=name, new=recur(new))
             case e.FreeObjectExpr():
                 return e.FreeObjectExpr()
+            case e.ConditionalDedupExpr(expr=sub):
+                return e.ConditionalDedupExpr(recur(sub))
             # case ObjectExpr(val=val):
             #     return ObjectExpr(
             #         val={label: recur(item)
