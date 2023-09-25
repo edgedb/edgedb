@@ -101,6 +101,7 @@ class TraceContextBase:
     def get_local_name(
         self,
         ref: qlast.ObjectRef,
+        declaration: bool=False,
     ) -> s_name.QualName:
         return qltracer.resolve_name(
             ref,
@@ -109,6 +110,7 @@ class TraceContextBase:
             objects=self.objects,
             modaliases=None,
             local_modules=self.local_modules,
+            declaration=declaration,
         )
 
     def get_ref_name(self, ref: qlast.BaseObjectRef) -> s_name.QualName:
@@ -130,6 +132,7 @@ class TraceContextBase:
     def get_fq_name(
         self,
         decl: qlast.DDLOperation,
+        declaration: bool=False,
     ) -> Tuple[str, s_name.QualName]:
         # Get the basic name form.
         if isinstance(decl, qlast.CreateConcretePointer):
@@ -139,7 +142,7 @@ class TraceContextBase:
             name = decl.name
             parent_expected = True
         elif isinstance(decl, qlast.ObjectDDL):
-            fq_name = self.get_local_name(decl.name)
+            fq_name = self.get_local_name(decl.name, declaration=declaration)
             name = str(fq_name)
             parent_expected = False
         else:
@@ -363,7 +366,7 @@ def sdl_to_ddl(
         ctx.set_module(module_name)
         for decl_ast in declarations:
             if isinstance(decl_ast, qlast.CreateObject):
-                _, fq_name = ctx.get_fq_name(decl_ast)
+                _, fq_name = ctx.get_fq_name(decl_ast, declaration=True)
 
                 if isinstance(decl_ast, qlast.CreateObjectType):
                     ctx.objects[fq_name] = qltracer.ObjectType(fq_name)
