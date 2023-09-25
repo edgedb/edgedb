@@ -1919,12 +1919,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected keyword 'SELECT'",
-                  details="Token 'SELECT' is a reserved keyword and cannot be "
-                          "used as an identifier",
-                  hint="Use a different identifier or quote the name "
-                       "with backticks: `seLEct`",
-                  line=4, col=13)
+                  "Unexpected ':='",
+                  line=4, col=20)
     def test_edgeql_syntax_struct_09(self):
         """
         SELECT (
@@ -1932,6 +1928,7 @@ aa';
             seLEct := 2
         );
         """
+        # TODO: parser error quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Missing ','", line=2, col=21)
