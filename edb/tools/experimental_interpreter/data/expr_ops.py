@@ -124,7 +124,7 @@ def map_expr(
                 return FilterOrderExpr(
                     subject=recur(subject),
                     filter=recur(filter),
-                    order=recur(order))
+                    order={l : recur(o) for (l,o) in order.items()})
             case ShapedExprExpr(expr=expr, shape=shape):
                 return ShapedExprExpr(expr=recur(expr), shape=recur(shape))
             case ShapeExpr(shape=shape):
@@ -147,6 +147,8 @@ def map_expr(
                 return WithExpr(bound=recur(bound), next=recur(next))
             case InsertExpr(name=name, new=new):
                 return InsertExpr(name=name, new=recur(new))
+            case e.FreeObjectExpr():
+                return e.FreeObjectExpr()
             # case ObjectExpr(val=val):
             #     return ObjectExpr(
             #         val={label: recur(item)

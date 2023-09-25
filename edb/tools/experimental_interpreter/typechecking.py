@@ -354,6 +354,10 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                             raise
                         else:
                             continue
+        case e.FreeObjectExpr():
+            result_tp = e.ObjectTp({})
+            result_card = e.CardAtMostOne
+            result_expr = expr
         # case e.ObjectExpr(val=dic):
         #     s_tp = e.ObjectTp({})
         #     link_tp = e.ObjectTp({})
@@ -616,7 +620,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.MultiSetExpr(expr=arr):
             if len(arr) == 0:
                 return (e.ResultTp(e.UnifiableTp(e.next_id()),
-                                   e.CardAny), expr)  # this is a hack
+                                   e.CardAtMostOne), expr)  # this is a hack
             # assert len(arr) > 0, ("Empty multiset does not"
             #                       " support type synthesis")
             (first_tp, first_ck) = synthesize_type(ctx, arr[0])

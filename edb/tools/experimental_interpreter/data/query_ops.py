@@ -109,7 +109,7 @@ def map_query(f: Callable[[Expr, QueryLevel],
                 return FilterOrderExpr(
                     subject=recur(subject),
                     filter=sub_recur(filter),
-                    order=sub_recur(order))
+                    order={l : sub_recur(o) for (l,o) in order.items()})
             case ShapedExprExpr(expr=expr, shape=shape):
                 return ShapedExprExpr(
                     expr=recur(expr),

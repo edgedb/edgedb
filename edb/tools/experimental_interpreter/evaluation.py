@@ -260,6 +260,8 @@ def eval_expr(ctx: EvalEnv,
               | BoolVal(_)
               ):
             return MultiSetVal([expr])
+        case e.FreeObjectExpr():
+            return MultiSetVal(vals=[e.RefVal(next_id(), val=e.ObjectVal(val={}))])
         # case ObjectExpr(val=dic):
         #     result: Dict[Label, Tuple[Marker, MultiSetVal]] = {}
         #     for (key, expr) in dic.items():  # type: ignore[has-type]

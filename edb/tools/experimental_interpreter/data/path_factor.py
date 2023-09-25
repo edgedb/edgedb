@@ -290,6 +290,6 @@ def select_hoist(expr: Expr, dbschema: DBSchema) -> Expr:
     for i in reversed(list(range(len(for_paths)))):
         # print ("abstracting over path = ", for_paths[i], "on result", result)
         result = OptionalForExpr(
-            for_paths[i], abstract_over_expr(result, fresh_names[i]))
+            e.ConditionalDedupExpr(for_paths[i]), abstract_over_expr(result, fresh_names[i]))
 
     return post_process_transform(result)

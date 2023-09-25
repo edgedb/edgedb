@@ -388,9 +388,13 @@ class FunAppExpr:
 # class ObjectExpr:
 #     val: Dict[Label, Expr]
 
+@dataclass(frozen=True)
 class FreeObjectExpr:
     pass
 
+@dataclass(frozen=True)
+class ConditionalDedupExpr:
+    expr: Expr
 
 
 @dataclass(frozen=True)
