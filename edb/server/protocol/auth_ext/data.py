@@ -18,6 +18,7 @@
 
 
 import dataclasses
+import datetime
 from typing import Optional
 
 
@@ -65,9 +66,10 @@ class UserInfo:
 @dataclasses.dataclass
 class Identity:
     id: str
-    sub: str
-    iss: str
-    email: str | None
+    subject: str
+    issuer: str
+    created_at: datetime.datetime
+    modified_at: datetime.datetime
 
     def __str__(self) -> str:
         return self.id
@@ -75,10 +77,7 @@ class Identity:
 
 @dataclasses.dataclass
 class LocalIdentity(Identity):
-    handle: str
-
-    def __str__(self) -> str:
-        return self.handle
+    pass
 
 
 @dataclasses.dataclass

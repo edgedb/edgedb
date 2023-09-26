@@ -698,9 +698,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             identity = await self.con.query(
                 """
                 SELECT ext::auth::Identity
-                FILTER .sub = '1'
-                AND .iss = 'https://github.com'
-                AND .email = 'octocat@example.com'
+                FILTER .subject = '1'
+                AND .issuer = 'https://github.com'
                 """
             )
             self.assertEqual(len(identity), 1)
@@ -738,9 +737,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             same_identity = await self.con.query(
                 """
                 SELECT ext::auth::Identity
-                FILTER .sub = '1'
-                AND .iss = 'https://github.com'
-                AND .email = 'octocat+2@example.com'
+                FILTER .subject = '1'
+                AND .issuer = 'https://github.com'
                 """
             )
             self.assertEqual(len(same_identity), 1)
@@ -994,9 +992,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             identity = await self.con.query(
                 """
                 SELECT ext::auth::Identity
-                FILTER .sub = '1'
-                AND .iss = 'https://accounts.google.com'
-                AND .email = 'test@example.com'
+                FILTER .subject = '1'
+                AND .issuer = 'https://accounts.google.com'
                 """
             )
             self.assertEqual(len(identity), 1)
@@ -1404,7 +1401,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             form_data = {
                 "provider": provider_id,
                 "email": "test@example.com",
-                "handle": str(uuid.uuid4()),
                 "password": "test_password",
                 "redirect_to": "http://example.com/some/path",
             }
@@ -1422,10 +1418,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             identity = await self.con.query(
                 """
                 SELECT ext::auth::LocalIdentity
-                FILTER .email = 'test@example.com'
-                AND .handle = <str>$handle
-                """,
-                handle=form_data["handle"],
+                FILTER .<identity[is ext::auth::EmailPasswordFactor]
+                       .email = 'test@example.com';
+                """
             )
 
             self.assertEqual(len(identity), 1)
@@ -1462,7 +1457,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             password_credential = await self.con.query(
                 """
-                SELECT ext::auth::PasswordCredential { password_hash }
+                SELECT ext::auth::EmailPasswordFactor { password_hash }
                 FILTER .identity.id = <uuid>$identity
                 """,
                 identity=identity[0].id,
@@ -1516,7 +1511,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEqual(
                 parsed_query.get("error"),
-                ["User with this handle already exists"],
+                ["This user has already been registered"],
             )
 
             # Try to register the same user again (with redirect_on_failure)
@@ -1559,7 +1554,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(
                 parsed_query.get("error"),
-                ["User with this handle already exists"],
+                ["This user has already been registered"],
             )
 
     async def test_http_auth_ext_local_password_register_json_02(self):
@@ -1572,7 +1567,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             json_data = {
                 "provider": provider_id,
                 "email": "test2@example.com",
-                "handle": str(uuid.uuid4()),
                 "password": "test_password2",
             }
             json_data_encoded = json.dumps(json_data).encode()
@@ -1591,10 +1585,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             identity = await self.con.query(
                 """
                 SELECT ext::auth::LocalIdentity
-                FILTER .email = 'test2@example.com'
-                AND .handle = <str>$handle
-                """,
-                handle=json_data["handle"],
+                FILTER .<identity[is ext::auth::EmailPasswordFactor]
+                       .email = 'test2@example.com';
+                """
             )
 
             self.assertEqual(len(identity), 1)
@@ -1612,7 +1605,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             password_credential = await self.con.query(
                 """
-                SELECT ext::auth::PasswordCredential { password_hash }
+                SELECT ext::auth::EmailPasswordFactor { password_hash }
                 FILTER .identity.id = <uuid>$identity
                 """,
                 identity=identity[0].id,
@@ -1628,34 +1621,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     ):
         with self.http_con() as http_con:
             form_data = {
-                "email": "test@example.com",
-                "handle": str(uuid.uuid4()),
-                "password": "test_password",
-            }
-            form_data_encoded = urllib.parse.urlencode(form_data).encode()
-
-            _, _, status = self.http_con_request(
-                http_con,
-                None,
-                path="register",
-                method="POST",
-                body=form_data_encoded,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
-
-            self.assertEqual(status, 400)
-
-    async def test_http_auth_ext_local_password_register_form_missing_handle(
-        self,
-    ):
-        with self.http_con() as http_con:
-            provider_config = await self.get_password_client_config_by_provider(
-                "password"
-            )
-            provider_id = provider_config.provider_id
-
-            form_data = {
-                "provider": provider_id,
                 "email": "test@example.com",
                 "password": "test_password",
             }
@@ -1684,7 +1649,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             form_data = {
                 "provider": provider_id,
                 "email": "test@example.com",
-                "handle": str(uuid.uuid4()),
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
@@ -1710,7 +1674,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             form_data = {
                 "provider": provider_id,
-                "handle": str(uuid.uuid4()),
                 "password": "test_password",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -1724,28 +1687,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
-            self.assertEqual(status, 201)
-
-            identity = await self.con.query(
-                """
-                SELECT ext::auth::LocalIdentity
-                FILTER .handle = <str>$handle
-                """,
-                handle=form_data["handle"],
-            )
-
-            self.assertEqual(len(identity), 1)
-
-            password_credential = await self.con.query(
-                """
-                SELECT ext::auth::PasswordCredential { password_hash }
-                FILTER .identity.id = <uuid>$identity
-                """,
-                identity=identity[0].id,
-            )
-            self.assertTrue(
-                ph.verify(password_credential[0].password_hash, "test_password")
-            )
+            self.assertEqual(status, 400)
 
     async def test_http_auth_ext_local_password_authenticate_01(self):
         with self.http_con() as http_con:
@@ -1758,7 +1700,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             form_data = {
                 "provider": provider_id,
                 "email": "test_auth@example.com",
-                "handle": "test_auth_handle",
                 "password": "test_auth_password",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -1774,7 +1715,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             auth_data = {
                 "provider": form_data["provider"],
-                "handle": form_data["handle"],
+                "email": form_data["email"],
                 "password": form_data["password"],
             }
             auth_data_encoded = urllib.parse.urlencode(auth_data).encode()
@@ -1793,8 +1734,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             identity = await self.con.query(
                 """
                 SELECT ext::auth::LocalIdentity
-                FILTER .email = 'test_auth@example.com'
-                AND .handle = 'test_auth_handle'
+                FILTER .<identity[is ext::auth::EmailPasswordFactor]
+                       .email = 'test_auth@example.com';
                 """
             )
 
@@ -1827,7 +1768,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             # Attempt to authenticate with wrong password
             auth_data_wrong_password = {
                 "provider": form_data["provider"],
-                "handle": form_data["handle"],
+                "email": form_data["email"],
                 "password": "wrong_password",
             }
             auth_data_encoded_wrong_password = urllib.parse.urlencode(
@@ -1845,11 +1786,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEqual(wrong_password_status, 403)
 
-            # Attempt to authenticate with a random handle
-            random_handle = str(uuid.uuid4())
+            # Attempt to authenticate with a random email
+            random_email = f"{str(uuid.uuid4())}@example.com"
             auth_data_random_handle = {
                 "provider": form_data["provider"],
-                "handle": random_handle,
+                "email": random_email,
                 "password": form_data["password"],
             }
             auth_data_encoded_random_handle = urllib.parse.urlencode(
@@ -1867,10 +1808,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEqual(wrong_handle_status, 403)
 
-            # Attempt to authenticate with a random handle (redirect flow)
+            # Attempt to authenticate with a random email (redirect flow)
             auth_data_redirect_to = {
                 "provider": form_data["provider"],
-                "handle": random_handle,
+                "email": random_email,
                 "password": form_data["password"],
                 "redirect_to": "http://example.com/some/path",
             }
@@ -1916,11 +1857,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 ],
             )
 
-            # Attempt to authenticate with a random handle
+            # Attempt to authenticate with a random email
             # (redirect flow with redirect_on_failure)
             auth_data_redirect_on_failure = {
                 "provider": form_data["provider"],
-                "handle": random_handle,
+                "email": random_email,
                 "password": form_data["password"],
                 "redirect_to": "http://example.com/some/path",
                 "redirect_on_failure": "http://example.com/failure/path",
