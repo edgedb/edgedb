@@ -1084,6 +1084,8 @@ class RebaseInheritingObject(
     removed_bases = struct.Field(tuple)  # type: ignore
     added_bases = struct.Field(tuple)  # type: ignore
 
+    EXTRA_INHERITED_FIELDS: set[str] = set()
+
     def __repr__(self) -> str:
         return '<%s.%s "%s">' % (self.__class__.__module__,
                                  self.__class__.__name__,
@@ -1121,6 +1123,39 @@ class RebaseInheritingObject(
                     self.add_caused(d_root_cmd)
 
         return schema
+
+    def compute_inherited_fields(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> Dict[str, bool]:
+        result = super().compute_inherited_fields(schema, context)
+
+        # When things like indexes and constraints that use
+        # ddl_identity to define their identity are inherited, the
+        # child should inherit all of those fields, even if the object
+        # is owned in the child.
+        # Make this happen when rebasing.
+        mcls = self.get_schema_metaclass()
+        new_bases = self.get_attribute_value('bases').objects(schema)
+
+        inherit = new_bases and not new_bases[0].get_abstract(schema)
+
+        fields = {
+            field.name for field in mcls.get_fields().values()
+            if field.ddl_identity and field.inheritable
+        }
+        fields.update(self.EXTRA_INHERITED_FIELDS)
+
+        for field in fields:
+            if field not in result:
+                result[field] = (
+                    inherit
+                    and bool(new_bases[0].get_explicit_field_value(
+                        schema, field, None))
+                )
+
+        return result
 
     def canonicalize_attributes(
         self,
