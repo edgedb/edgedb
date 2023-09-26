@@ -10,6 +10,11 @@ directory gets associated with a specific EdgeDB instance and thus
 makes it the default instance to connect to. This is done by creating
 an :ref:`ref_reference_edgedb_toml` file in the project directory.
 
+.. note::
+
+    The ``edgedb instance`` command group is not intended to manage production
+    instances.
+
 .. toctree::
     :maxdepth: 3
     :hidden:

@@ -18,6 +18,11 @@ Description
 remote instance. This removes the instance name from the list of valid
 instances.
 
+.. note::
+
+    The ``edgedb instance unlink`` command is not intended for use with
+    production instances.
+
 
 Options
 =======

@@ -20,6 +20,11 @@ instance and creating a corresponding credentials file in
 ``<edgedb_config_dir>/credentials``. Run ``edgedb info`` to see the path to
 ``<edgedb_config_dir>`` on your machine.
 
+.. note::
+
+    The ``edgedb instance create`` command is not intended for use with
+    production instances.
+
 
 EdgeDB Cloud
 ------------

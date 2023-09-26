@@ -22,6 +22,12 @@ Usually there's no need to do this for local instances as
 :ref:`ref_cli_edgedb_project_init` will already set up a named
 instance.
 
+.. note::
+
+    Unlike other ``edgedb instance`` sub-commands, ``edgedb instance link`` can
+    be useful with production instances for linking to those instances. This
+    can make other operations like migrations, dumps, and restores more
+    convenient.
 
 Options
 =======
