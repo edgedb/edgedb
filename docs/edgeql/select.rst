@@ -239,7 +239,7 @@ can select all of an object's properties using the single splat:
       default::Movie {
         id: 6fe5c3ec-b776-11ed-8bef-3b2fba99fe8a,
         release_year: 2021,
-        title: 'Spiderman: No Way Home',
+        title: 'Spider-Man: No Way Home',
       },
       default::Movie {
         id: 76998656-b776-11ed-8bef-237907a987fa,
@@ -258,11 +258,11 @@ level of nested objects with the double splat:
       default::Movie {
         id: 6fe5c3ec-b776-11ed-8bef-3b2fba99fe8a,
         release_year: 2021,
-        title: 'Spiderman: No Way Home',
+        title: 'Spider-Man: No Way Home',
         characters: {
           default::Hero {
             id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
-            name: 'Spiderman'
+            name: 'Spider-Man'
           },
           default::Villain {
             id: efa2c4bc-b777-11ed-99eb-43f835d79384,
@@ -308,7 +308,7 @@ properties. Given the same schema shown above:
     {
       default::Hero {
         id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
-        name: 'Spiderman',
+        name: 'Spider-Man',
         secret_identity: 'Peter Parker'
       },
       default::Hero {
@@ -329,7 +329,7 @@ we can do this instead:
     {
       default::Hero {
         id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
-        name: 'Spiderman'
+        name: 'Spider-Man'
       },
       default::Hero {
         id: 48edcf8c-b776-11ed-8bef-c7d61b6780d2,
@@ -356,7 +356,7 @@ with their names but also get any properties defined on the ``Hero`` for those
     {
       default::Hero {
         id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
-        name: 'Spiderman'
+        name: 'Spider-Man'
         secret_identity: 'Peter Parker'
       },
       default::Hero {
@@ -394,7 +394,7 @@ properties and links on the specified type.
     {
       default::Hero {
         id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
-        name: 'Spiderman'
+        name: 'Spider-Man'
         secret_identity: 'Peter Parker',
         villains: {
           default::Villain {
