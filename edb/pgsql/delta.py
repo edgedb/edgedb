@@ -3620,8 +3620,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
 
         if len(exprs) == 0:
             raise errors.SchemaDefinitionError(
-                f'cannot index empty tuples using {root_name}',
-                context=index.get_sourcectx(schema),
+                f'cannot index empty tuples using {root_name}'
             )
 
         subject = index.get_subject(schema)
@@ -3660,7 +3659,13 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             # Don't do anything for abstract indexes
             return schema
 
-        self.pgops.add(self.create_index(index, schema, context))
+        try:
+            self.pgops.add(self.create_index(index, schema, context))
+
+        except errors.EdgeDBError as e:
+            if not e.has_source_context():
+                e.set_source_context(self.source_context)
+            raise e
 
         # FTS
         if index.has_base_with_name(schema, sn.QualName('fts', 'index')):
