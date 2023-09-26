@@ -306,6 +306,11 @@ impl Cond {
                     if non_term == pn {
                         return true;
                     }
+
+                    // When looking for a production, it might have happened
+                    // that it was inlined and superseded by one of its
+                    // arguments. That's why we save the id of the parent into
+                    // child's `inlined_ids` and check all of them here.
                     if let Some(inlined_ids) = prod.inlined_ids {
                         for prod_id in inlined_ids {
                             let (pn, _) = &ctx.spec.production_names[*prod_id];

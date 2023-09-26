@@ -180,6 +180,16 @@ impl<'s> Context<'s> {
         let idx = self.terminal_arena.push(t);
         &self.terminal_arena[idx]
     }
+
+    fn alloc_slice_and_push(&self, slice: &Option<&[usize]>, element: usize) -> &[usize] {
+        let curr_len = slice.map_or(0, |x| x.len());
+        let mut new = Vec::with_capacity(curr_len + 1);
+        if let Some(inlined_ids) = slice {
+            new.extend(*inlined_ids);
+        }
+        new.push(element);
+        self.arena.alloc_slice_clone(new.as_slice())
+    }
 }
 
 fn new_token_for_injection<'a>(kind: Kind, ctx: &'a Context) -> &'a Terminal {
@@ -254,6 +264,9 @@ pub struct Terminal {
 pub struct Production<'a> {
     pub id: usize,
     pub args: &'a [CSTNode<'a>],
+
+    /// When a production is inlined, its id is saved into the new production
+    /// This is needed when matching CST nodes by production id.
     pub inlined_ids: Option<&'a [usize]>,
 }
 
@@ -341,15 +354,8 @@ impl<'s> Parser<'s> {
 
                 // save inlined id
                 if let CSTNode::Production(new_prod) = &mut value {
-                    let curr_len = new_prod.inlined_ids.map_or(0, |x| x.len());
-                    let mut new_inlined_ids = Vec::with_capacity(curr_len + 1);
-                    if let Some(inlined_ids) = new_prod.inlined_ids {
-                        new_inlined_ids.extend(inlined_ids);
-                    }
-                    new_inlined_ids.push(inlined_id);
-
-                    let new_inlined_ids = ctx.arena.alloc_slice_copy(new_inlined_ids.as_slice());
-                    new_prod.inlined_ids = Some(new_inlined_ids);
+                    new_prod.inlined_ids =
+                        Some(ctx.alloc_slice_and_push(&new_prod.inlined_ids, inlined_id));
                 }
 
                 extend_span(&mut value, span, ctx);
