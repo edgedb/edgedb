@@ -204,33 +204,8 @@ asterisk (``**``).
 
 .. edb:youtube-embed:: 9-I1qjIp3KI
 
-If you have this schema:
-
-.. code-block:: sdl
-
-    module default {
-      abstract type Person {
-        required name: str { constraint exclusive };
-      }
-
-      type Hero extending Person {
-        secret_identity: str;
-        multi link villains := .<nemesis[is Villain];
-      }
-
-      type Villain extending Person {
-        nemesis: Hero;
-      }
-
-      type Movie {
-        required title: str { constraint exclusive };
-        required release_year: int64;
-        multi characters: Person;
-      }
-    }
-
-splats will help you more easily select all properties when using the REPL. You
-can select all of an object's properties using the single splat:
+Splats will help you more easily select all properties when using the REPL.
+You can select all of an object's properties using the single splat:
 
 .. code-block:: edgeql-repl
 
