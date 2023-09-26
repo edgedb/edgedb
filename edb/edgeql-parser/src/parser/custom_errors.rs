@@ -5,7 +5,6 @@ use super::{CSTNode, Context, Error, Parser, StackNode, Terminal};
 
 impl<'s> Parser<'s> {
     pub(super) fn custom_error(&self, ctx: &Context, token: &Terminal) -> Option<Error> {
-        // self.print_stack(ctx);
         let ltok = self.get_from_top(0).unwrap();
 
         if let Some(value) = self.custom_error_from_rule(token, ctx) {
@@ -13,11 +12,14 @@ impl<'s> Parser<'s> {
         }
 
         if matches!(token.kind, Kind::Keyword(Keyword("explain"))) {
-            let _hint = "Use `analyze` to show query performance details";
-            return Some(Error::new(format!(
-                "Unexpected keyword '{}'",
-                token.text.to_uppercase()
-            )));
+            return Some({
+                Error {
+                    message: format!("Unexpected keyword '{}'", token.text.to_uppercase()),
+                    span: Span::default(),
+                    hint: Some("Use `analyze` to show query performance details".to_string()),
+                    details: None,
+                }
+            });
         }
 
         if let Kind::Keyword(kw) = token.kind {
@@ -27,20 +29,6 @@ impl<'s> Parser<'s> {
                 return Some(unexpected_reserved_keyword(&token.text, token.span));
             }
         };
-
-        // if let CSTNode::Terminal(Terminal {
-        //     kind: Kind::Keyword(kw),
-        //     text,
-        //     span,
-        //     ..
-        // }) = ltok.value
-        // {
-        //     if kw.is_reserved() {
-        //         // Unexpected reserved keyword:
-        //         // likely an attempt to use keyword as identifier
-        //         return Some(unexpected_reserved_keyword(text, *span));
-        //     }
-        // }
 
         None
     }
@@ -54,15 +42,6 @@ impl<'s> Parser<'s> {
         // error occurred.
 
         match rule {
-            // ParserRule::Shape if matches!(token.kind, Kind::Ident) && Cond::Production.check(last) => {
-            //    // TODO:    isinstance(ltok, parsing.Nonterm)
-            //    // Make sure that the previous element in the stack
-            //    // is some kind of Nonterminal, because if it's
-            //    // not, this is probably not an issue of a missing
-            //    // COMMA.
-            //    return Some(Error::new(format!("It appears that a ',' is missing in {rule} before {}", token.text)));
-            // }
-
             ParserRule::ListOfArguments
                 // The stack is like <NodeName> LPAREN <AnyIdentifier>
                 if i == 1
@@ -97,27 +76,6 @@ impl<'s> Parser<'s> {
                     token.text
                 )));
             },
-
-            // ParserRule::ListOfArguments | ParserRule::Tuple | ParserRule::Array if matches!(
-            //     token.kind,
-            //     Kind::Ident
-            //         | Kind::IntConst
-            //         | Kind::FloatConst
-            //         | Kind::BigIntConst
-            //         | Kind::DecimalConst
-            //         | Kind::BinStr
-            //         | Kind::Str
-            //         | Kind::Keyword(Keyword("true"))
-            //         | Kind::Keyword(Keyword("false"))
-            // ) && !Cond::Terminal(Kind::Comma).check(last) =>
-            // {
-            //     // The offending token was something that could
-            //     // make an expression
-            //     return Some(Error::new(format!(
-            //         "It appears that a ',' is missing in {rule} before {}",
-            //         token.text
-            //     )));
-            // }
 
             ParserRule::Definition if token.kind == Kind::Ident => {
                 // Something went wrong in a definition, so check
