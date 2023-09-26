@@ -20,9 +20,11 @@ from datetime import timedelta
 
 import edgedb
 import decimal
+import immutables
 
 from edb import errors
 from edb.ir import statypes
+from edb.server import config
 from edb.testbase import server as tb
 
 
@@ -1363,3 +1365,24 @@ class TestEdgeQLDT(tb.QueryTestCase):
 
             with self.assertRaises(errors.InvalidValueError):
                 statypes.ConfigMemory(text)
+
+    async def test_edgeql_as_cache_key(self):
+        def make_setting_value(name, value):
+            return config.SettingValue(
+                name, value, "session", config.ConfigScope.SESSION
+            )
+
+        def make_key():
+            return immutables.Map(
+                dict(
+                    duration=make_setting_value(
+                        "duration", statypes.Duration("123")
+                    ),
+                    memory=make_setting_value(
+                        "memory", statypes.ConfigMemory("11MiB")
+                    ),
+                )
+            )
+
+        cache = {make_key(): True}
+        self.assertIn(make_key(), cache)
