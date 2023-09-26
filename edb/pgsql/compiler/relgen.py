@@ -4029,13 +4029,8 @@ def _fts_search_inner_pg(
         inner_ctx.rel, parsed_query_id, aspect='value', env=ctx.env
     )
 
-    one = pgast.NumericConstant(val='1.0')
-    weights = pgast.CoalesceExpr(
-        args=[weights, pgast.ArrayExpr(elements=[one, one, one, one])]
-    )
-    weights = pgast.TypeCast(
-        arg=weights, type_name=pgast.TypeName(name=('real',), array_bounds=[-1])
-    )
+    weights = _fts_prepare_weights(weights, ctx=inner_ctx)
+
     score_pg = pgast.FuncCall(
         name=('pg_catalog', 'ts_rank'),
         args=[weights, fts_document, parsed_query],
@@ -4043,6 +4038,56 @@ def _fts_search_inner_pg(
     where_clause = pgast.Expr(lexpr=fts_document, name='@@', rexpr=parsed_query)
 
     return score_pg, where_clause
+
+
+def _fts_prepare_weights(
+    weights: pgast.BaseExpr,
+    ctx: context.CompilerContextLevel,
+) -> pgast.BaseExpr:
+    # default value
+    default_weights = pgast.ArrayExpr(
+        elements=[
+            pgast.NumericConstant(val='1.0'),
+            pgast.NumericConstant(val='0.5'),
+            pgast.NumericConstant(val='0.25'),
+            pgast.NumericConstant(val='0.125'),
+        ]
+    )
+    weights = pgast.CoalesceExpr(args=[weights, default_weights])
+
+    # cast to reals
+    weights = pgast.TypeCast(
+        arg=weights, type_name=pgast.TypeName(name=('real',), array_bounds=[-1])
+    )
+
+    # pad with zeros
+    zero = pgast.NumericConstant(val='0.0')
+    padding_weights = pgast.ArrayExpr(elements=[zero, zero, zero, zero])
+    weights = pgast.Expr(
+        lexpr=weights,
+        name='||',
+        rexpr=padding_weights,
+    )
+
+    # put the whole expression into subrel,
+    # so it can be referenced mutiple times
+    weights_id = create_subrel_for_expr(weights, ctx=ctx)
+    weights = pathctx.get_path_var(
+        ctx.rel, weights_id, aspect='value', env=ctx.env
+    )
+
+    # return array of first 4 values, reversed
+    return pgast.ArrayExpr(
+        elements=[
+            pgast.Indirection(
+                arg=weights,
+                indirection=[
+                    pgast.Index(idx=pgast.NumericConstant(val=str(i)))
+                ],
+            )
+            for i in range(4, 0, -1)
+        ]
+    )
 
 
 def _fts_search_inner_zombo(
@@ -4086,7 +4131,7 @@ def create_subrel_for_expr(
     """
 
     # create a dummy path id for a dummy object
-    expr_id = irast.PathId.new_dummy(ctx.env.aliases.get('dummy'))
+    expr_id = irast.PathId.new_dummy(ctx.env.aliases.get('d'))
 
     with ctx.subrel() as newctx:
 
