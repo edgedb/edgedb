@@ -27,13 +27,14 @@ from edb.testbase import server as tb
 class TestEdgeQLFTSQuery(tb.QueryTestCase):
     '''Tests for fts::search.
 
-    This is intended to test the FTS query language as well as result scoring.
+    This is intended to test the FTS query language, result scoring as well as
+    various FTS schema features.
     '''
 
-    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas', 'fts0.esdl')
+    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas', 'fts.esdl')
 
     SETUP = os.path.join(
-        os.path.dirname(__file__), 'schemas', 'fts_setup0.edgeql'
+        os.path.dirname(__file__), 'schemas', 'fts_setup.edgeql'
     )
 
     async def test_edgeql_fts_search_01(self):
@@ -245,80 +246,6 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_fts_language_01(self):
-        await self.con.execute(
-            '''
-            create scalar type MyLangs
-                extending enum<English, PigLatin, Esperanto>;
-
-            create type Doc1 {
-                create required property x -> str;
-
-                create index fts::index on (
-                    fts::with_options(.x, language := MyLangs.English)
-                );
-            };
-            create type Doc2 {
-                create required property x -> str;
-            };
-            '''
-        )
-
-        async with self.assertRaisesRegexTx(
-            edgedb.UnsupportedFeatureError,
-            "languages `esperanto`, `piglatin` not supported",
-        ):
-            # In this case, language is not a constant, so we fallback to all
-            # possible values of the enum. This then fails because some of them
-            # are not supported by postgres.
-            await self.con.execute(
-                """
-                alter type Doc2 create index fts::index on (
-                  fts::with_options(.x, language :=
-                    MyLangs.English if .x = 'blah' else MyLangs.PigLatin
-                  )
-                );
-                """
-            )
-
-    async def test_edgeql_fts_ddl_01(self):
-        await self.con.execute(
-            '''
-            create type Doc {create required property text: str};
-
-            alter type Doc {
-                create index fts::index on (
-                    fts::with_options(.text, language := fts::Language.eng)
-                )
-            };
-
-            alter type Doc {
-                drop index fts::index on (
-                    fts::with_options(.text, language := fts::Language.eng)
-                )
-            };
-
-            alter type Doc {
-                create index fts::index on (
-                    fts::with_options(.text, language := fts::Language.eng)
-                )
-            };
-            '''
-        )
-
-
-class TestEdgeQLFTSFeatures(tb.QueryTestCase):
-    '''Tests for FTS features.
-
-    This is intended to test the various FTS schema features.
-    '''
-
-    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas', 'fts1.esdl')
-
-    SETUP = os.path.join(
-        os.path.dirname(__file__), 'schemas', 'fts_setup1.edgeql'
-    )
-
     async def test_edgeql_fts_inheritance_01(self):
         # Test the fts search on a bunch of types that inherit from one
         # another.
@@ -326,7 +253,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             r'''
             select fts::search(
                 Text,
-                'rabbit run around the world',
+                'rabbit runs around the world',
                 language := 'eng'
             ).object {
                 text,
@@ -424,6 +351,99 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                     'type': 'default::FancyQuotedText',
                 },
             ],
+        )
+
+    async def test_edgeql_fts_inheritance_05(self):
+        # Empty index is inherited from Ordered, so it returns no results.
+        await self.assert_query_result(
+            r'''
+            select Sentence.text;
+            ''',
+            ['This will not be indexed'],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                Sentence,
+                'indexed',
+                language := 'eng'
+            ).object.text
+            ''',
+            [],
+        )
+
+    async def test_edgeql_fts_inheritance_06(self):
+        # Search Ordered things (includes Chapter, Paragraph, Sentence). Only
+        # Chapter and Paragraph actually have non-empty index.
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                Ordered,
+                'pool indexed',
+                language := 'eng'
+            ).object.__type__.name
+            ''',
+            # We only care to validate which types got indexed
+            {'default::Chapter', 'default::Paragraph'},
+        )
+
+        # Same results regardless of whether it is a union or a common
+        # ancestor
+        await self.assert_query_result(
+            r'''
+            with
+                a := (
+                    select fts::search(
+                        Ordered,
+                        'pool indexed',
+                        language := 'eng'
+                    ).object
+                ),
+                b := (
+                    select fts::search(
+                        {Chapter, Paragraph, Sentence},
+                        'pool indexed',
+                        language := 'eng'
+                    ).object
+                )
+            select all(a in b)
+            ''',
+            {True},
+        )
+
+    async def test_edgeql_fts_inheritance_07(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            r'fts::search requires an fts::index index',
+        ):
+            await self.con.execute(
+                '''
+                select count((
+                    select fts::search(
+                        Object, 'hello', language := 'eng'
+                    )
+                ))
+                '''
+            )
+
+    async def test_edgeql_fts_inheritance_08(self):
+        await self.assert_query_result(
+            r'''
+            select fts::search(
+                Text,
+                'big AND important',
+                language := 'eng'
+            ).object {
+                text,
+                [is TitledText].title,
+            }
+            ''',
+            # We only care to validate which types got indexed
+            [{
+                'title': 'big',
+                'text': 'important',
+            }],
         )
 
     async def test_edgeql_fts_multifield_01(self):
@@ -620,7 +640,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             [],
         )
 
-    async def test_edgeql_fts_complex_query(self):
+    async def test_edgeql_fts_complex_query_01(self):
         # query is a subquery
         await self.assert_query_result(
             r'''
@@ -650,7 +670,48 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             variables=(None,),
         )
 
-    async def test_edgeql_fts_complex_lang(self):
+    async def test_edgeql_fts_complex_query_02(self):
+        # Use a property to provide the search query
+        await self.assert_query_result(
+            r'''
+            with res := fts::search(
+                Post,
+                Post.note,
+                language := 'eng',
+                weights := [0.5, 1.0],
+            )
+            select res.object {
+                title,
+                body,
+                note,
+                score := res.score
+            }
+            filter res.score > 0
+            order by res.score desc
+            ''',
+            [
+                {
+                    "title": "angry reply",
+                    "body": "No! Wrong! It's blue!",
+                    "note": "blue reply",
+                    "score": 0.4559453,
+                },
+                {
+                    "title": "random stuff",
+                    "body": "angry giraffes",
+                    "note": "random angry stuff",
+                    "score": 0.40528473,
+                },
+                {
+                    "title": "no body",
+                    "body": None,
+                    "note": "no body",
+                    "score": 0.30396354,
+                },
+            ],
+        )
+
+    async def test_edgeql_fts_lang_01(self):
         # lang is an expression
         await self.assert_query_result(
             r'''
@@ -684,7 +745,304 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             variables=(None,),
         )
 
-    async def test_edgeql_fts_weights(self):
+    async def test_edgeql_fts_lang_02(self):
+        # Establish baseline with same weights for all languages
+        await self.assert_query_result(
+            r'''
+            with res := fts::search(
+                MultiLang,
+                'pane',
+                language := 'eng',
+                weights := [1, 1, 1],
+            )
+            select res.object {
+                eng,
+                fra,
+                ita,
+                score := res.score
+            }
+            filter res.score > 0
+            order by res.score desc
+            ''',
+            # English "pane" apparently doesn't clash with other languages
+            [
+                {
+                    "eng": "The window pane is clear",
+                    "fra": "La vitre est claire",
+                    "ita": "Il vetro della finestra è chiaro",
+                    "score": 0.6079271,
+                }
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+            with res := fts::search(
+                MultiLang,
+                'pane',
+                language := 'fra',
+                weights := [1, 1, 1],
+            )
+            select res.object {
+                eng,
+                fra,
+                ita,
+                score := res.score
+            }
+            filter res.score > 0
+            order by res.score desc
+            ''',
+            # In French and Italian "pane" get's hits in both languages
+            # regardless of the search language (probably due to similar
+            # stemming).
+            [
+                {
+                    "eng": "This delicious bread",
+                    "fra": "Ce délicieux pain",
+                    "ita": "Questo pane buonissimo",
+                    "score": 0.6079271,
+                },
+                {
+                    "eng": "The breaded pork is nice",
+                    "fra": "Le porc pané est bon",
+                    "ita": "Il maiale impanato è buono",
+                    "score": 0.6079271,
+                },
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+            with res := fts::search(
+                MultiLang,
+                'pane',
+                language := 'ita',
+                weights := [1, 1, 1],
+            )
+            select res.object {
+                eng,
+                fra,
+                ita,
+                score := res.score
+            }
+            filter res.score > 0
+            order by res.score desc
+            ''',
+            # In French and Italian "pane" get's hits in both languages
+            # regardless of the search language (probably due to similar
+            # stemming).
+            [
+                {
+                    "eng": "This delicious bread",
+                    "fra": "Ce délicieux pain",
+                    "ita": "Questo pane buonissimo",
+                    "score": 0.6079271,
+                },
+                {
+                    "eng": "The breaded pork is nice",
+                    "fra": "Le porc pané est bon",
+                    "ita": "Il maiale impanato è buono",
+                    "score": 0.6079271,
+                },
+            ]
+        )
+
+    async def test_edgeql_fts_lang_03(self):
+        # Use weight categories to get only results in a given language.
+        await self.assert_query_result(
+            r'''
+            with res := fts::search(
+                MultiLang,
+                'pane',
+                language := 'eng',
+                weights := [1, 0, 0],
+            )
+            select res.object {
+                eng,
+                fra,
+                ita,
+                score := res.score
+            }
+            filter res.score > 0
+            order by res.score desc
+            ''',
+            # English "pane" apparently doesn't clash with other languages
+            [
+                {
+                    "eng": "The window pane is clear",
+                    "fra": "La vitre est claire",
+                    "ita": "Il vetro della finestra è chiaro",
+                    "score": 0.6079271,
+                }
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+            with res := fts::search(
+                MultiLang,
+                'pane',
+                language := 'fra',
+                weights := [0, 1, 0],
+            )
+            select res.object {
+                eng,
+                fra,
+                ita,
+                score := res.score
+            }
+            filter res.score > 0
+            order by res.score desc
+            ''',
+            [
+                {
+                    "eng": "The breaded pork is nice",
+                    "fra": "Le porc pané est bon",
+                    "ita": "Il maiale impanato è buono",
+                    "score": 0.6079271,
+                },
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+            with res := fts::search(
+                MultiLang,
+                'pane',
+                language := 'ita',
+                weights := [0, 0, 1],
+            )
+            select res.object {
+                eng,
+                fra,
+                ita,
+                score := res.score
+            }
+            filter res.score > 0
+            order by res.score desc
+            ''',
+            [
+                {
+                    "eng": "This delicious bread",
+                    "fra": "Ce délicieux pain",
+                    "ita": "Questo pane buonissimo",
+                    "score": 0.6079271,
+                },
+            ]
+        )
+
+    async def test_edgeql_fts_lang_04(self):
+        # Use weight categories to get only results in a given language.
+        await self.assert_query_result(
+            r'''
+            with res := fts::search(
+                MultiLang,
+                'pane',
+                language := 'eng',
+                weights := [1, 0, 0],
+            )
+            select res.object {
+                eng,
+                fra,
+                ita,
+                score := res.score
+            }
+            filter res.score > 0
+            order by res.score desc
+            ''',
+            # English "pane" apparently doesn't clash with other languages
+            [
+                {
+                    "eng": "The window pane is clear",
+                    "fra": "La vitre est claire",
+                    "ita": "Il vetro della finestra è chiaro",
+                    "score": 0.6079271,
+                }
+            ]
+        )
+
+    async def test_edgeql_fts_lang_05(self):
+        # Use a property to define the language.
+        await self.assert_query_result(
+            r'''
+            with res := fts::search(
+                DynamicLang,
+                'clear pane',
+                language := <str>DynamicLang.lang,
+            )
+            select res.object {
+                text,
+                score := res.score
+            }
+            filter res.score > 0
+            order by res.score desc
+            ''',
+            [
+                {"text": "The window pane is clear", "score": 0.6079271},
+                {"text": "Questo pane buonissimo", "score": 0.30396354},
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+            with res := fts::search(
+                DynamicLang,
+                'pain gain',
+                language := <str>DynamicLang.lang,
+            )
+            select res.object {
+                text,
+                score := res.score
+            }
+            filter res.score > 0
+            order by res.score desc
+            ''',
+            [
+                {"text": "No pain no gain", "score": 0.6079271},
+                {"text": "Ce délicieux pain", "score": 0.30396354},
+            ]
+        )
+
+    async def test_edgeql_fts_lang_06(self):
+        # A single property has mixed language.
+        await self.assert_query_result(
+            r'''
+            with res := fts::search(
+                TouristVocab,
+                'pane',
+                language := 'eng',
+                weights := [1, 0],
+            )
+            select res.object.text
+            filter res.score > 0
+            order by res.score desc
+            ''',
+            [
+                "The window pane is clear -- "
+                "Il vetro della finestra è chiaro"
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+            with res := fts::search(
+                TouristVocab,
+                'pane',
+                language := 'ita',
+                weights := [0, 1],
+            )
+            select res.object.text
+            filter res.score > 0
+            order by res.score desc
+            ''',
+            [
+                "This delicious bread -- "
+                "Questo pane buonissimo"
+            ]
+        )
+
+    async def test_edgeql_fts_weights_01(self):
+        # Use weights to search only one of the properties.
         await self.assert_query_result(
             r'''
             with res := fts::search(
@@ -694,9 +1052,10 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 weights := [1.0, 0.0]
             )
             select res.object.title
+            filter res.score > 0
             order by res.score desc
             ''',
-            ["angry reply", "random stuff"],
+            ["angry reply"],
         )
         await self.assert_query_result(
             r'''
@@ -707,63 +1066,201 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 weights := [0.0, 1.0]
             )
             select res.object.title
+            filter res.score > 0
             order by res.score desc
             ''',
-            ["random stuff", "angry reply"],
+            ["random stuff"],
         )
+
+    async def test_edgeql_fts_weights_02(self):
+        # Use weights to change search priority: default weights
         await self.assert_query_result(
             r'''
             with res := fts::search(
                 Post,
-                'angry',
+                'angry replying giraffes',
                 language := 'eng',
-                weights := [1.0, 0.0, 0.0, 0.0, 1.0, 1.0]
             )
-            select res.object.title
+            select res.object {
+                title,
+                body,
+                score := res.score
+            }
+            filter res.score > 0
             order by res.score desc
             ''',
-            ["angry reply", "random stuff"],
+            [
+                {
+                    'title': 'angry reply',
+                    'body': 'No! Wrong! It\'s blue!',
+                    'score': 0.40528473
+                },
+                {
+                    'title': 'helpful reply',
+                    'body': 'That\'s Rayleigh scattering for you',
+                    'score': 0.20264237
+                },
+                {
+                    'title': 'random stuff',
+                    'body': 'angry giraffes',
+                    'score': 0.20264237
+                },
+            ],
         )
+
+    async def test_edgeql_fts_weights_03(self):
+        # Use weights to change search priority: incomplete weights
         await self.assert_query_result(
             r'''
             with res := fts::search(
                 Post,
-                'angry',
-                language := 'eng'
+                'angry replying giraffes',
+                language := 'eng',
+                # weights get padded with 0, so B category is not searched
+                weights := [1.0],
             )
-            select res.object.title
+            select res.object {
+                title,
+                body,
+                score := res.score
+            }
+            filter res.score > 0
             order by res.score desc
             ''',
-            ["angry reply", "random stuff"],
+            [
+                {
+                    'title': 'angry reply',
+                    'body': 'No! Wrong! It\'s blue!',
+                    'score': 0.40528473,
+                },
+                {
+                    'title': 'helpful reply',
+                    'body': 'That\'s Rayleigh scattering for you',
+                    'score': 0.20264237,
+                },
+            ],
         )
 
-    async def test_edgeql_fts_updating(self):
-        # test that adding an fts index, existing objects are also indexed
-
-        await self.con.execute(
-            '''
-            create type Doc1 {
-                create required property x -> str;
-            };
-            insert Doc1 { x := 'hello world' };
-            alter type Doc1 {
-                create index fts::index on (
-                    fts::with_options(.x, language := fts::Language.eng)
-                );
-            };
-            '''
-        )
-
+    async def test_edgeql_fts_weights_04(self):
+        # Use weights to change search priority: custom weights
         await self.assert_query_result(
             r'''
-            select fts::search(Doc1, 'world', language := 'eng').object.x;
+            with res := fts::search(
+                Post,
+                'angry replying giraffes',
+                language := 'eng',
+                weights := [0.8, 1.0],
+            )
+            select res.object {
+                title,
+                body,
+                score := res.score
+            }
+            filter res.score > 0
+            order by res.score desc
             ''',
-            ['hello world'],
+            [
+                {
+                    'title': 'random stuff',
+                    'body': 'angry giraffes',
+                    'score': 0.40528473,
+                },
+                {
+                    'title': 'angry reply',
+                    'body': 'No! Wrong! It\'s blue!',
+                    'score': 0.32422778,
+                },
+                {
+                    'title': 'helpful reply',
+                    'body': 'That\'s Rayleigh scattering for you',
+                    'score': 0.16211389,
+                },
+            ],
+        )
+
+    async def test_edgeql_fts_weights_05(self):
+        # Use weights to change search priority: weights from property
+        await self.assert_query_result(
+            r'''
+            with res := fts::search(
+                Post,
+                'random angry replying giraffes',
+                language := 'eng',
+                # Note that if the weight property is {}, the default weights
+                # will be used.
+                weights := [Post.weight_a, 0.7],
+            )
+            select res.object {
+                title,
+                body,
+                score := res.score
+            }
+            filter res.score > 0
+            order by res.score desc
+            ''',
+            [
+                {
+                    'title': 'angry reply',
+                    'body': 'No! Wrong! It\'s blue!',
+                    'score': 0.30396354,
+                },
+                {
+                    'title': 'random stuff',
+                    'body': 'angry giraffes',
+                    'score': 0.22797266,
+                },
+            ],
+        )
+
+    async def test_edgeql_fts_weights_06(self):
+        # Use weights to change search priority: custom weights across
+        # multiple types.
+        await self.assert_query_result(
+            r'''
+            with res := fts::search(
+                {Post, Description},
+                'red white blue post',
+                language := 'eng',
+                weights := [0.5, 1.0, 0.7],
+            )
+            select res.object {
+                [is Post].title,
+                [is Post].body,
+                [is Description].text,
+                score := res.score
+            }
+            filter res.score > 0
+            order by res.score desc
+            ''',
+            [
+                {
+                    "title": "first post",
+                    "body": "The sky is so red.",
+                    "text": None,
+                    "score": 0.22797266,
+                },
+                {
+                    "title": None,
+                    "body": None,
+                    "text": "Item #2: red and white candy cane",
+                    "score": 0.21277449,
+                },
+                {
+                    "title": "angry reply",
+                    "body": "No! Wrong! It's blue!",
+                    "text": None,
+                    "score": 0.15198177,
+                },
+                {
+                    "title": None,
+                    "body": None,
+                    "text": "Item #1: red umbrella",
+                    "score": 0.10638724,
+                },
+            ],
         )
 
     async def test_edgeql_fts_empty_fields(self):
-        # test that adding an fts index, existing objects are also indexed
-
         await self.assert_query_result(
             r'''
             select fts::search(
