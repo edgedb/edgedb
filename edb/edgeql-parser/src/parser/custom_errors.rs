@@ -78,7 +78,7 @@ impl<'s> Parser<'s> {
                     .check(last, ctx)
             => {
                 return Some(Error {
-                    message: "Missing parenthesis around statement used as an expression"
+                    message: "Missing parentheses around statement used as an expression"
                         .to_string(),
                     span: super::get_span_of_nodes(&[last.value]).unwrap_or_default(),
                     hint: None,

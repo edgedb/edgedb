@@ -3564,7 +3564,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Missing parenthesis around statement used as an expression",
+                  "Missing parentheses around statement used as an expression",
                   line=2, col=22)
     def test_edgeql_syntax_function_12(self):
         """
@@ -3572,7 +3572,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Missing parenthesis around statement used as an expression",
+                  "Missing parentheses around statement used as an expression",
                   line=2, col=22)
     def test_edgeql_syntax_function_13(self):
         """
@@ -3580,7 +3580,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Missing parenthesis around statement used as an expression",
+                  "Missing parentheses around statement used as an expression",
                   line=2, col=22)
     def test_edgeql_syntax_function_14(self):
         """
@@ -3588,7 +3588,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Missing parenthesis around statement used as an expression",
+                  "Missing parentheses around statement used as an expression",
                   line=2, col=22)
     def test_edgeql_syntax_function_15(self):
         """
@@ -3596,7 +3596,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Missing parenthesis around statement used as an expression",
+                  "Missing parentheses around statement used as an expression",
                   line=2, col=22)
     def test_edgeql_syntax_function_16(self):
         """
@@ -3604,7 +3604,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Missing parenthesis around statement used as an expression",
+                  "Missing parentheses around statement used as an expression",
                   line=2, col=22)
     def test_edgeql_syntax_function_17(self):
         """
@@ -3612,7 +3612,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Missing parenthesis around statement used as an expression",
+                  "Missing parentheses around statement used as an expression",
                   line=2, col=23)
     def test_edgeql_syntax_function_18(self):
         """
@@ -3620,7 +3620,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Missing parenthesis around statement used as an expression",
+                  "Missing parentheses around statement used as an expression",
                   line=2, col=26)
     def test_edgeql_syntax_function_19(self):
         """
