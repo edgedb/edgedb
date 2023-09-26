@@ -136,11 +136,13 @@ def _tokenize(eql: str) -> List[ql_parser.Token]:
         # TODO: emit multiple errors
         error = result.errors()[0]
 
-        message, span = error
+        message, span, hint, details = error
         position = inflate_position(eql, span)
 
-        hint = _derive_hint(eql, message, position)
-        raise errors.EdgeQLSyntaxError(message, position=position, hint=hint)
+        hint = _derive_hint(eql, message, position) or hint
+        raise errors.EdgeQLSyntaxError(
+            message, position=position, hint=hint, details=details
+        )
 
     return result.out()
 
@@ -149,12 +151,12 @@ def _normalize(eql: str) -> ql_parser.Entry:
     try:
         return ql_parser.normalize(eql)
     except ql_parser.SyntaxError as e:
-        message, span = e.args
+        message, span, hint, details = e.args
         position = inflate_position(eql, span)
 
-        hint = _derive_hint(eql, message, position)
+        hint = _derive_hint(eql, message, position) or hint
         raise errors.EdgeQLSyntaxError(
-            message, position=position, hint=hint
+            message, position=position, hint=hint, details=details
         ) from e
 
 

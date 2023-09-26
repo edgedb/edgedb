@@ -378,11 +378,16 @@ def spec_to_json(spec: parsing.Spec) -> tuple[str, list[Callable]]:
 
         goto.append(out_goto)
 
+    production_names = [
+        tuple(prod.qualified.split('.')[-2:]) for prod in productions
+    ]
+
     res = {
         'actions': actions,
         'goto': goto,
         'start': str(spec.start_sym()),
         'inlines': inlines,
+        'production_names': production_names,
     }
     res_json = json.dumps(res)
     return (res_json, productions)

@@ -41,6 +41,8 @@ pub enum Value {
 pub struct Error {
     pub message: String,
     pub span: Span,
+    pub hint: Option<String>,
+    pub details: Option<String>,
 }
 
 impl Error {
@@ -48,11 +50,20 @@ impl Error {
         Error {
             message: message.to_string(),
             span: Span::default(),
+            hint: None,
+            details: None,
         }
     }
 
     pub fn with_span(mut self, span: Span) -> Self {
         self.span = span;
+        self
+    }
+
+    pub fn default_span_to(mut self, span: Span) -> Self {
+        if self.span == Span::default() {
+            self.span = span;
+        }
         self
     }
 }
@@ -911,13 +922,13 @@ impl<'a> fmt::Display for TokenStub<'a> {
     }
 }
 
-impl <'a> fmt::Display for Token<'a> {
+impl<'a> fmt::Display for Token<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}[{:?}]", self.text, self.kind)
     }
 }
 
-impl <'a> Token<'a> {
+impl<'a> Token<'a> {
     pub fn cloned(self) -> Token<'static> {
         Token {
             kind: self.kind,
@@ -950,7 +961,7 @@ fn check_prohibited(c: char, escape: bool) -> Result<(), Error> {
     }
 }
 
-impl <'a> std::cmp::PartialEq for Token<'a> {
+impl<'a> std::cmp::PartialEq for Token<'a> {
     fn eq(&self, other: &Self) -> bool {
         self.kind == other.kind && self.text == other.text && self.value == other.value
     }

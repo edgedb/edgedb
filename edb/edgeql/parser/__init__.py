@@ -35,6 +35,14 @@ from .. import ast as qlast
 from .. import tokenizer as qltokenizer
 
 
+ParserError = Tuple[
+    str,
+    Tuple[int, Optional[int]],
+    Optional[str],
+    Optional[str]
+]
+
+
 def append_module_aliases(tree, aliases):
     modaliases = []
     for alias, module in aliases.items():
@@ -132,11 +140,11 @@ def parse(
         # - first encountered,
         # - Unexpected before Missing,
         # - original order.
-        errs: List[Tuple[str, Tuple[int, Optional[int]]]] = result.errors()
+        errs: List[ParserError] = result.errors()
         errs.sort(key=lambda e: (e[1][0], -ord(e[0][1])))
         error = errs[0]
 
-        message, span = error
+        message, span, hint, details = error
         position = qltokenizer.inflate_position(source.text(), span)
 
         pcontext = parsing.ParserContext(
@@ -147,7 +155,12 @@ def parse(
             context_lines=10,
         )
         raise errors.EdgeQLSyntaxError(
-            message, position=position, context=pcontext)
+            message,
+            position=position,
+            hint=hint,
+            details=details,
+            context=pcontext
+        )
 
     return _cst_to_ast(
         result.out(),

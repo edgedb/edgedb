@@ -51,7 +51,7 @@ def main():
         print()
 
         for index, error in enumerate(result.errors()):
-            message, span = error
+            message, span, hint, details = error
             (start, end) = tokenizer.inflate_span(source.text(), span)
 
             print(f'Error [{index+1}/{len(result.errors())}]:')
@@ -62,11 +62,14 @@ def main():
             )
             print(
                 ' ' * (start.column - 1)
-                + '^'
-                + '-' * (end.column - start.column - 1)
+                + '^' * (end.column - start.column)
                 + ' '
                 + message
             )
+            if details:
+                print(f'  Details: {details}')
+            if hint:
+                print(f'  Hint: {hint}')
             print()
 
         if result.out():
@@ -299,6 +302,15 @@ QUERIES = [
     SELECT ((count(foo 1)));
     ''',
     '''
-    SELECT ((((count(foo, 1)))));
+    SELECT count(SELECT 1);
+    ''',
+    '''
+    SELECT (
+        # reserved keywords
+        select := 2
+    );
+    ''',
+    '''
+    SELECT INTROSPECT tuple<int64>;
     ''',
 ]
