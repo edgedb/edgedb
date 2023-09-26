@@ -737,7 +737,6 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             ["angry reply", "random stuff"],
         )
 
-
     async def test_edgeql_fts_updating(self):
         # test that adding an fts index, existing objects are also indexed
 
