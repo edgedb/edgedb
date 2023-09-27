@@ -249,7 +249,7 @@ def preload(
             for grammar in grammars:
                 spec = parsing.load_parser_spec(
                     grammar, allow_rebuild=allow_rebuild)
-                rust_parser.cache_spec(grammar.__name__, spec)
+                rust_parser.cache_spec(spec)
         except parsing.ParserSpecIncompatibleError as e:
             raise errors.InternalServerError(e.args[0]) from None
     else:
@@ -258,7 +258,7 @@ def preload(
         for grammar in grammars:
             try:
                 spec = parsing.load_parser_spec(grammar, allow_rebuild=False)
-                rust_parser.cache_spec(grammar.__name__, spec)
+                rust_parser.cache_spec(spec)
             except parsing.ParserSpecIncompatibleError:
                 parsers_to_rebuild.append(grammar)
 
@@ -277,4 +277,4 @@ def preload(
 
             for grammar in parsers_to_rebuild:
                 spec = parsing.load_parser_spec(grammar, allow_rebuild=False)
-                rust_parser.cache_spec(grammar.__name__, spec)
+                rust_parser.cache_spec(spec)

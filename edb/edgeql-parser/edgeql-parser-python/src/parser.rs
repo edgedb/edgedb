@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::OnceLock;
 
 use cpython::{
     ObjectProtocol, PyClone, PyInt, PyList, PyNone, PyObject, PyResult, PyString, PyTuple, Python,
@@ -7,29 +6,15 @@ use cpython::{
 };
 
 use edgeql_parser::parser;
-use once_cell::sync::Lazy;
 
 use crate::errors::{parser_error_into_tuple, ParserResult};
 use crate::pynormalize::value_to_py_object;
 use crate::tokenizer::OpaqueToken;
 
 pub fn parse(py: Python, start_token_name: &PyString, tokens: PyObject) -> PyResult<PyTuple> {
-    let mut spec_cache = PARSER_SPECS.lock().unwrap();
-
     let start_token_name = start_token_name.to_string(py).unwrap();
 
-    // We had setup for multiple grammars, but we inject a starting token instead.
-    let grammar_name = "edb.edgeql.parser.grammar.start";
-    let (spec, productions) = match spec_cache.get(grammar_name) {
-        Some(spec) => spec,
-        None => {
-            let parsing_mod = py.import("edb.common.parsing")?;
-            let load_parser_spec = parsing_mod.get(py, "load_parser_spec")?;
-            let grammar_mod = py.import(grammar_name)?;
-            let py_spec = load_parser_spec.call(py, (grammar_mod,), None)?;
-            load_spec(py, &mut spec_cache, grammar_name, &py_spec)?
-        }
-    };
+    let (spec, productions) = get_spec(py)?;
 
     let tokens = downcast_tokens(py, &start_token_name, tokens)?;
 
@@ -93,9 +78,7 @@ py_class!(pub class Terminal |py| {
     }
 });
 
-type ParserSpecs = HashMap<String, (parser::Spec, PyObject)>;
-
-static PARSER_SPECS: Lazy<Mutex<ParserSpecs>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static PARSER_SPECS: OnceLock<(parser::Spec, PyObject)> = OnceLock::new();
 
 fn downcast_tokens<'a>(
     py: Python,
@@ -122,23 +105,35 @@ fn downcast_tokens<'a>(
     Ok(buf)
 }
 
-pub fn cache_spec(py: Python, grammar_name: &PyString, py_spec: &PyObject) -> PyResult<PyNone> {
-    let mut parser_specs = PARSER_SPECS.lock().unwrap();
-    load_spec(
-        py,
-        &mut parser_specs,
-        grammar_name.to_string(py)?.as_ref(),
-        py_spec,
-    )?;
+pub fn cache_spec(py: Python, py_spec: &PyObject) -> PyResult<PyNone> {
+    if PARSER_SPECS.get().is_some() {
+        return Ok(PyNone);
+    }
+
+    let x = load_spec(py, py_spec)?;
+    PARSER_SPECS.set(x).ok();
     Ok(PyNone)
 }
 
-fn load_spec<'a>(
-    py: Python,
-    specs: &'a mut ParserSpecs,
-    grammar_name: &str,
-    py_spec: &PyObject,
-) -> PyResult<&'a (parser::Spec, PyObject)> {
+fn get_spec(py: Python<'_>) -> Result<&(parser::Spec, PyObject), cpython::PyErr> {
+    if let Some(x) = PARSER_SPECS.get() {
+        return Ok(x);
+    }
+
+    let parsing_mod = py.import("edb.common.parsing")?;
+    let load_parser_spec = parsing_mod.get(py, "load_parser_spec")?;
+
+    let grammar_name = "edb.edgeql.parser.grammar.start";
+    let grammar_mod = py.import(grammar_name)?;
+    let py_spec = load_parser_spec.call(py, (grammar_mod,), None)?;
+
+    let x = load_spec(py, &py_spec)?;
+
+    PARSER_SPECS.set(x).ok();
+    Ok(PARSER_SPECS.get().unwrap())
+}
+
+fn load_spec(py: Python, py_spec: &PyObject) -> PyResult<(parser::Spec, PyObject)> {
     let spec_to_json = py.import("edb.common.parsing")?.get(py, "spec_to_json")?;
 
     let res = spec_to_json.call(py, (py_spec,), None)?;
@@ -148,11 +143,8 @@ fn load_spec<'a>(
     let spec_json = spec_json.to_string(py).unwrap();
     let spec = parser::Spec::from_json(&spec_json).unwrap();
     let productions = res.get_item(py, 1);
-    let result = (spec, productions);
 
-    specs.insert(grammar_name.to_string(), result);
-
-    Ok(specs.get(grammar_name).unwrap())
+    Ok((spec, productions))
 }
 
 fn to_py_cst<'a>(cst: &'a parser::CSTNode<'a>, py: Python) -> PyResult<CSTNode> {
