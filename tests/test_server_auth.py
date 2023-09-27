@@ -28,6 +28,7 @@ import jwcrypto.jwk
 import edgedb
 
 from edb.common import secretkey
+from edb.server import args
 from edb.schema import defines as s_def
 from edb.testbase import server as tb
 
@@ -236,33 +237,28 @@ class TestServerAuth(tb.ConnectedTestCase):
             await self.con.execute(
                 f'CREATE SUPERUSER ROLE myrole_{"x" * s_def.MAX_NAME_LENGTH};')
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "cannot use CONFIGURE INSTANCE in multi-tenant mode",
+    )
     async def test_server_auth_jwt_1(self):
-        if not self.has_create_role:
-            self.skipTest("create role is not supported by the backend")
+        jwk_fd, jwk_file = tempfile.mkstemp()
 
-        if not hasattr(self.cluster, "get_jws_key"):
-            raise unittest.SkipTest("test not supported on remote cluster")
-
-        jwk = self.cluster.get_jws_key()
-
-        try:
-            # enable JWT
-            await self.con.query("""
-                CONFIGURE INSTANCE INSERT Auth {
-                    comment := 'test',
-                    priority := 0,
-                    method := (INSERT JWT {
-                        transports := cfg::ConnectionTransport.TCP
-                    }),
-                }
-            """)
-
+        key = jwcrypto.jwk.JWK(generate='EC')
+        with open(jwk_fd, "wb") as f:
+            f.write(key.export_to_pem(private_key=True, password=None))
+        jwk = secretkey.load_secret_key(pathlib.Path(jwk_file))
+        async with tb.start_edgedb_server(
+            jws_key_file=pathlib.Path(jwk_file),
+            default_auth_method=args.ServerAuthMethod.JWT,
+            extra_args=["--instance-name=localtest"],
+        ) as sd:
             # bad secret keys
             with self.assertRaisesRegex(
                 edgedb.AuthenticationError,
                 'authentication failed: malformed JWT',
             ):
-                await self.connect(secret_key='wrong')
+                await sd.connect(secret_key='wrong')
 
             sk = secretkey.generate_secret_key(jwk)
             corrupt_sk = sk[:50] + "0" + sk[51:]
@@ -271,7 +267,7 @@ class TestServerAuth(tb.ConnectedTestCase):
                 edgedb.AuthenticationError,
                 'authentication failed: Verification failed',
             ):
-                await self.connect(secret_key=corrupt_sk)
+                await sd.connect(secret_key=corrupt_sk)
 
             good_keys = [
                 [],
@@ -284,7 +280,7 @@ class TestServerAuth(tb.ConnectedTestCase):
                 params_dict = dict(params)
                 with self.subTest(**params_dict):
                     sk = secretkey.generate_secret_key(jwk, **params_dict)
-                    conn = await self.connect(secret_key=sk)
+                    conn = await sd.connect(secret_key=sk)
                     await conn.aclose()
 
             bad_keys = {
@@ -307,12 +303,7 @@ class TestServerAuth(tb.ConnectedTestCase):
                         edgedb.AuthenticationError,
                         "authentication failed: " + msg,
                     ):
-                        await self.connect(secret_key=sk)
-
-        finally:
-            await self.con.query("""
-                CONFIGURE INSTANCE RESET Auth FILTER .comment = 'test'
-            """)
+                        await sd.connect(secret_key=sk)
 
     @unittest.skipIf(
         "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
