@@ -118,21 +118,16 @@ class Client:
 with
   iss := <str>$issuer_url,
   sub := <str>$provider_id,
-  email := <optional str>$email,
 
 select (insert ext::auth::Identity {
-  iss := iss,
-  sub := sub,
-  email := email,
-} unless conflict on ((.iss, .sub)) else (
-  update ext::auth::Identity set {
-    email := email
-  }
+  issuer := iss,
+  subject := sub,
+} unless conflict on ((.issuer, .subject)) else (
+  select ext::auth::Identity
 )) { * };""",
             variables={
                 "issuer_url": self.provider.issuer_url,
                 "provider_id": user_info.sub,
-                "email": user_info.email,
             },
         )
         result_json = json.loads(r.decode())
