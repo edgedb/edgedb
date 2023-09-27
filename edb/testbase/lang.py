@@ -189,11 +189,8 @@ def should_preload_parser(
     return False
 
 
-def preload_parser(jobs: int) -> None:
-    qlparser.preload(
-        allow_rebuild=True,
-        paralellize=jobs > 1,
-    )
+def preload_parser() -> None:
+    qlparser.preload(allow_rebuild=True)
 
 
 class BaseSyntaxTest(BaseDocTest, PreloadParserGrammarMixin):

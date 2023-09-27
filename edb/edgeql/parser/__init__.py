@@ -16,13 +16,8 @@
 # limitations under the License.
 #
 
-
 from __future__ import annotations
 from typing import *
-
-import importlib
-import multiprocessing
-import types
 
 from edb import errors
 from edb.common import parsing
@@ -231,50 +226,15 @@ def _cst_to_ast(
     return result.pop()
 
 
-def _load_parser(grammar: str) -> None:
-    specmod = importlib.import_module(grammar)
-    parsing.load_parser_spec(specmod, allow_rebuild=True)
-
-
-def preload(
-    allow_rebuild: bool = True,
-    paralellize: bool = False,
-) -> None:
-    grammars = [
-        qlgrammar.start,
-    ]
-
-    if not paralellize:
-        try:
-            for grammar in grammars:
-                spec = parsing.load_parser_spec(
-                    grammar, allow_rebuild=allow_rebuild)
-                rust_parser.cache_spec(spec)
-        except parsing.ParserSpecIncompatibleError as e:
-            raise errors.InternalServerError(e.args[0]) from None
-    else:
-        parsers_to_rebuild = []
-
-        for grammar in grammars:
-            try:
-                spec = parsing.load_parser_spec(grammar, allow_rebuild=False)
-                rust_parser.cache_spec(spec)
-            except parsing.ParserSpecIncompatibleError:
-                parsers_to_rebuild.append(grammar)
-
-        if len(parsers_to_rebuild) == 0:
-            pass
-        elif len(parsers_to_rebuild) == 1:
-            spec = parsing.load_parser_spec(
-                parsers_to_rebuild[0], allow_rebuild=True)
-            rust_parser.cache_spec(parsers_to_rebuild[0].__name__, spec)
+def preload(allow_rebuild: bool = False) -> None:
+    grammar = qlgrammar.start
+    try:
+        spec = parsing.load_parser_spec(grammar, allow_rebuild=False)
+        rust_parser.cache_spec(spec)
+    except parsing.ParserSpecIncompatibleError as e:
+        if allow_rebuild:
+            spec = parsing.load_parser_spec(grammar, allow_rebuild=True)
         else:
-            with multiprocessing.Pool(len(parsers_to_rebuild)) as pool:
-                pool.map(
-                    _load_parser,
-                    [mod.__name__ for mod in parsers_to_rebuild],
-                )
+            raise errors.InternalServerError(e.args[0]) from None
 
-            for grammar in parsers_to_rebuild:
-                spec = parsing.load_parser_spec(grammar, allow_rebuild=False)
-                rust_parser.cache_spec(spec)
+    rust_parser.cache_spec(spec)

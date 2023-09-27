@@ -864,7 +864,7 @@ class ParallelTextTestRunner:
                 os.environ["EDGEDB_SERVER_JWS_KEY_FILE"] = str(jwk_file)
 
         if preload_parser:
-            tb_lang.preload_parser(jobs=self.num_workers)
+            tb_lang.preload_parser()
 
         try:
             if setup:

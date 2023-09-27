@@ -181,9 +181,7 @@ def _init_parsers():
     # Initialize parsers that are used in the server process.
     from edb.edgeql import parser as ql_parser
 
-    ql_parser.preload(
-        allow_rebuild=devmode.is_in_dev_mode(), paralellize=True
-    )
+    ql_parser.preload(allow_rebuild=devmode.is_in_dev_mode())
 
 
 async def _run_server(
