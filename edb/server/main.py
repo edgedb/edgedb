@@ -180,12 +180,9 @@ async def _init_cluster(
 def _init_parsers():
     # Initialize parsers that are used in the server process.
     from edb.edgeql import parser as ql_parser
-    from edb.edgeql.parser import grammar as ql_grammar
 
     ql_parser.preload(
-        allow_rebuild=devmode.is_in_dev_mode(),
-        paralellize=True,
-        grammars=[ql_grammar.start]
+        allow_rebuild=devmode.is_in_dev_mode(), paralellize=True
     )
 
 

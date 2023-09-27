@@ -51,7 +51,7 @@ class TokenMeta(type):
         if precedence_class is not None:
             result._precedence_class = precedence_class
 
-        if name == 'Token':
+        if name == 'Token' or name == 'GrammarToken':
             return result
 
         if token is None:

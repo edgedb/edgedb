@@ -42,23 +42,33 @@ class Token(parsing.Token, metaclass=TokenMeta,
     pass
 
 
-class T_STARTBLOCK(Token):
+class GrammarToken(Token):
+    """
+    Instead of having different grammars, we prefix each query with a special
+    grammar token which directs the parser to appropriate grammar.
+
+    This greatly reduces the combined size of grammar specifications, since the
+    overlap between grammars is substantial.
+    """
+
+
+class T_STARTBLOCK(GrammarToken):
     pass
 
 
-class T_STARTEXTENSION(Token):
+class T_STARTEXTENSION(GrammarToken):
     pass
 
 
-class T_STARTFRAGMENT(Token):
+class T_STARTFRAGMENT(GrammarToken):
     pass
 
 
-class T_STARTMIGRATION(Token):
+class T_STARTMIGRATION(GrammarToken):
     pass
 
 
-class T_STARTSDLDOCUMENT(Token):
+class T_STARTSDLDOCUMENT(GrammarToken):
     pass
 
 

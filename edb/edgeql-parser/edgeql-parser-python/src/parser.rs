@@ -112,6 +112,13 @@ fn downcast_tokens<'a>(
 
         buf.push(parser::Terminal::from_token(token));
     }
+
+    // adjust the span of the starting token for nicer error message spans
+    if buf.len() >= 2 {
+        buf[0].span.start = buf[1].span.start;
+        buf[0].span.end = buf[1].span.start;
+    }
+
     Ok(buf)
 }
 

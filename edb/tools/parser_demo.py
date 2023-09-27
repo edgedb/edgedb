@@ -30,7 +30,7 @@ from edb.tools.edb import edbcommands
 
 @edbcommands.command("parser-demo")
 def main():
-    for q in QUERIES:
+    for q in QUERIES[-10:]:
         sdl = q.startswith('sdl')
         if sdl:
             q = q[3:]
@@ -44,8 +44,9 @@ def main():
             continue
 
         start_t = qltokens.T_STARTSDLDOCUMENT if sdl else qltokens.T_STARTBLOCK
+        start_t_name = start_t.__name__[2:]
         tokens = source.tokens()
-        result, productions = rust_parser.parse(start_t.__name__[2:], tokens)
+        result, productions = rust_parser.parse(start_t_name, tokens)
 
         print('-' * 30)
         print()
@@ -300,5 +301,8 @@ QUERIES = [
     ''',
     '''
     SELECT ((((count(foo, 1)))));
+    ''',
+    '''
+    (SELECT User.name) OFFSET 2;
     ''',
 ]

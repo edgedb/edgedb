@@ -125,9 +125,6 @@ def parse(
         source = qltokenizer.Source.from_string(source)
 
     start_token_name = start_token.__name__[2:]
-
-    print(qlgrammar.start.__name__)
-
     result, productions = rust_parser.parse(start_token_name, source.tokens())
 
     if len(result.errors()) > 0:
@@ -242,12 +239,10 @@ def _load_parser(grammar: str) -> None:
 def preload(
     allow_rebuild: bool = True,
     paralellize: bool = False,
-    grammars: Optional[list[types.ModuleType]] = None,
 ) -> None:
-    if grammars is None:
-        grammars = [
-            qlgrammar.start,
-        ]
+    grammars = [
+        qlgrammar.start,
+    ]
 
     if not paralellize:
         try:

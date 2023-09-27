@@ -2,7 +2,7 @@ use append_only_vec::AppendOnlyVec;
 use indexmap::IndexMap;
 
 use crate::helpers::quote_name;
-use crate::keywords::Keyword;
+use crate::keywords::{self, Keyword};
 use crate::position::Span;
 use crate::tokenizer::{Error, Kind, Token, Value};
 
@@ -78,7 +78,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
 
                     let injection = new_token_for_injection(*token_kind, ctx);
 
-                    let cost = error_cost(token_kind);
+                    let cost = injection_cost(token_kind);
                     let error = Error::new(format!("Missing {injection}")).with_span(gap_span);
                     inject.push_error(error, cost);
 
@@ -436,12 +436,16 @@ const PARSER_COUNT_MAX: usize = 10;
 const ERROR_COST_INJECT_MAX: u16 = 15;
 const ERROR_COST_SKIP: u16 = 3;
 
-fn error_cost(kind: &Kind) -> u16 {
+fn injection_cost(kind: &Kind) -> u16 {
     use Kind::*;
 
     match kind {
         Ident => 9,
         Substitution => 8,
+
+        // A few keywords that should not be injected since they result in
+        // confusing error messages.
+        Keyword(keywords::Keyword("delete" | "update" | "link")) => 100,
         Keyword(_) => 10,
 
         Dot => 5,

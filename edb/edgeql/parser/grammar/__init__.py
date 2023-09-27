@@ -9,4 +9,4 @@ from __future__ import annotations
 
 
 from . import start as start  # noqa
-from . import tokens as tokens  # noqa
+from .tokens import GrammarToken

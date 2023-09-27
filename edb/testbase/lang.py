@@ -176,12 +176,32 @@ class BaseDocTest(unittest.TestCase, metaclass=DocTestMeta):
         )
 
 
-class BaseSyntaxTest(BaseDocTest):
+class PreloadParserGrammarMixin:
+    pass
+
+
+def should_preload_parser(
+    cases: Iterable[unittest.TestCase],
+) -> bool:
+    for cas in cases:
+        if isinstance(cas, PreloadParserGrammarMixin):
+            return True
+    return False
+
+
+def preload_parser(jobs: int) -> None:
+    qlparser.preload(
+        allow_rebuild=True,
+        paralellize=jobs > 1,
+    )
+
+
+class BaseSyntaxTest(BaseDocTest, PreloadParserGrammarMixin):
     ast_to_source: Optional[Any] = None
     markup_dump_lexer: Optional[str] = None
 
     @classmethod
-    def get_grammar(cls):
+    def get_grammar_token(cls) -> Type[qlgrammar.GrammarToken]:
         raise NotImplementedError
 
     def run_test(self, *, source, spec, expected=None):
@@ -189,7 +209,7 @@ class BaseSyntaxTest(BaseDocTest):
         if debug:
             markup.dump_code(source, lexer=self.markup_dump_lexer)
 
-        inast = qlparser.parse(self.get_grammar(), source)
+        inast = qlparser.parse(self.get_grammar_token(), source)
 
         if debug:
             markup.dump(inast)
@@ -207,57 +227,7 @@ class BaseSyntaxTest(BaseDocTest):
         self.assert_equal(expected_src, processed_src)
 
 
-class TestCasesSetup:
-    def __init__(self, grammars: list[types.ModuleType]) -> None:
-        self.grammars = grammars
 
-
-def get_test_cases_setup(
-    cases: Iterable[unittest.TestCase],
-) -> Optional[TestCasesSetup]:
-    grammars: List[types.ModuleType] = []
-
-    for case in cases:
-        if not hasattr(case, 'get_grammar'):
-            continue
-
-        grammar = case.get_grammar()
-        if not grammar:
-            continue
-        elif isinstance(grammar, list):
-            grammars.extend(grammar)
-        else:
-            grammars.append(grammar)
-
-    if not grammars:
-        return None
-    else:
-        return TestCasesSetup(set(grammars))
-
-
-def run_test_cases_setup(setup: TestCasesSetup, jobs: int) -> None:
-    qlparser.preload(
-        grammars=setup.grammars,
-        allow_rebuild=True,
-        paralellize=jobs > 1,
-    )
-
-
-class AstValueTest(BaseDocTest):
-    def run_test(self, *, source, spec=None, expected=None):
-        debug = bool(os.environ.get(self.parser_debug_flag))
-        if debug:
-            markup.dump_code(source, lexer=self.markup_dump_lexer)
-
-        inast = qlparser.parse(self.get_grammar(), source)
-
-        if debug:
-            markup.dump(inast)
-
-        for var in inast.definitions[0].variables:
-            asttype, val = expected[var.name]
-            self.assertIsInstance(var.value, asttype)
-            self.assertEqual(var.value.value, val)
 
 
 _std_schema = None
@@ -338,7 +308,7 @@ def new_compiler():
     )
 
 
-class BaseSchemaTest(BaseDocTest):
+class BaseSchemaTest(BaseDocTest, PreloadParserGrammarMixin):
     DEFAULT_MODULE = 'default'
     SCHEMA: Optional[str] = None
 
@@ -351,15 +321,6 @@ class BaseSchemaTest(BaseDocTest):
             cls.schema = cls.run_ddl(_load_std_schema(), script)
         else:
             cls.schema = _load_std_schema()
-
-    @classmethod
-    def get_grammar(cls):
-        return [
-            qlgrammar.start,
-            qlgrammar.fragment,
-            qlgrammar.sdldocument,
-            qlgrammar.extension_package_body,
-        ]
 
     @classmethod
     def run_ddl(cls, schema, ddl, default_module=defines.DEFAULT_MODULE_ALIAS):
