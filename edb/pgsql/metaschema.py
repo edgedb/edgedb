@@ -6477,6 +6477,7 @@ def _build_data_source(
     rptr: s_pointers.Pointer,
     source_idx: int,
     *,
+    always_array: bool = False,
     alias: Optional[str] = None,
 ) -> str:
 
@@ -6497,9 +6498,10 @@ def _build_data_source(
                     (q{source_idx}.val)->{ql(rptr_name)}) AS jel(val)
             ) AS {alias}'''
     else:
+        proj = '[0]' if always_array else ''
         sourceN = f'''
             (SELECT
-                (q{source_idx}.val)->{ql(rptr_name)} AS val
+                (q{source_idx}.val){proj}->{ql(rptr_name)} AS val
             ) AS {alias}'''
 
     return sourceN
@@ -6579,14 +6581,10 @@ def _generate_config_type_view(
                 (SELECT jsonb_object_agg(name, value) AS val
                 FROM edgedb._read_sys_config(NULL, {max_source}) cfg) AS q0'''
         else:
-            rptr_card = rptr.get_cardinality(schema)
-            rptr_multi = rptr_card.is_multi()
             rptr_name = rptr.get_shortname(schema).name
-            rptr_source = rptr.get_source(schema)
-            assert rptr_source
+            rptr_source = not_none(rptr.get_source(schema))
             is_rptr_ext_cfg = rptr_source.issubclass(schema, ext_cfg)
             if is_rptr_ext_cfg:
-                assert rptr_multi
                 cfg_name = str(rptr_source.get_name(schema)) + '::' + rptr_name
                 escaped_name = _escape_like(cfg_name)
 
@@ -6610,7 +6608,7 @@ def _generate_config_type_view(
                     ) AS q0
                 '''
 
-            elif rptr_multi:
+            else:
                 source0 = f'''
                     (SELECT el.val
                      FROM
@@ -6619,17 +6617,18 @@ def _generate_config_type_view(
                         WHERE name = {ql(rptr_name)}) AS cfg,
                         LATERAL jsonb_array_elements(cfg.val) AS el(val)
                     ) AS q0'''
-            else:
-                source0 = f'''
-                    (SELECT (value::jsonb) AS val
-                    FROM edgedb._read_sys_config(NULL, {max_source}) cfg
-                    WHERE name = {ql(rptr_name)}) AS q0'''
 
         sources.append(source0)
         key_start = 0
     else:
-        # XXX: The second level is broken
+        # XXX: The second level is broken for extension configs.
         # Can we solve this without code duplication?
+        root = path[0][0]
+        root_source = not_none(root.get_source(schema))
+        is_root_ext_cfg = root_source.issubclass(schema, ext_cfg)
+        assert not is_root_ext_cfg, (
+            "nested conf objects not yet supported for ext configs")
+
         key_start = 0
 
         for i, (l, exc_props) in enumerate(path):
@@ -6760,6 +6759,8 @@ def _generate_config_type_view(
     id_ptr = stype.getptr(schema, s_name.UnqualName('id'))
     target_cols[id_ptr] = f'{X(key_expr)} AS id'
 
+    base_sources = list(sources)
+
     for link in single_links:
         link_name = link.get_shortname(schema).name
         link_type = link.get_target(schema)
@@ -6797,18 +6798,16 @@ def _generate_config_type_view(
                 views.extend(desc_views)
 
         target_source = _build_data_source(
-            schema, link, self_idx, alias=link_name)
+            schema, link, self_idx, alias=link_name,
+            always_array=rptr is None,
+        )
         sources.append(target_source)
 
         target_key_source = _build_key_source(
             schema, target_exc_props, link, source_idx=link_name)
         sources.append(target_key_source)
 
-        # XXX: it doesn't seem right to *just* use the exc props?
-        if target_exc_props:
-            target_key_components = [f'k{link_name}.key']
-        else:
-            target_key_components = key_components + [f'k{link_name}.key']
+        target_key_components = key_components + [f'k{link_name}.key']
 
         target_key = _build_key_expr(target_key_components)
         target_cols[link] = f'({X(target_key)}) AS {qi(link_col)}'
@@ -6844,7 +6843,7 @@ def _generate_config_type_view(
     views.append((tabname(schema, stype), target_query))
 
     for link in multi_links:
-        target_sources = list(sources)
+        target_sources = list(base_sources)
 
         link_name = link.get_shortname(schema).name
         link_type = link.get_target(schema)

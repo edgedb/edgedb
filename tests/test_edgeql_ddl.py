@@ -16145,6 +16145,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 conf := assert_single(.extensions[is ext::_conf::Config] {
                     config_name,
                     opt_value,
+                    obj: { name, value },
                     objs: { name, value, opt_value,
                             [is ext::_conf::SubObj].extra,
                             tname := .__type__.name }
@@ -16264,6 +16265,22 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 value := 'foo',
             };
         ''')
+        await self.con.execute('''
+            configure current database insert ext::_conf::SingleObj {
+                name := 'single',
+                value := 'val',
+            };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError, ""
+        ):
+            await self.con.execute('''
+                CONFIGURE CURRENT DATABASE INSERT ext::_conf::SingleObj {
+                    name := 'fail',
+                    value := '',
+                };
+            ''')
 
         await self.con.execute('''
             configure current database set ext::_conf::Config::config_name :=
@@ -16284,6 +16301,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 dict(name='5', value='foo',
                      tname='ext::_conf::SecretObj', opt_value=None),
             ],
+            obj=dict(name='single', value='val'),
         )
 
         await self.assert_query_result(
@@ -16405,6 +16423,11 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                      'opt_value': None, 'secret': None},
                 ],
             )
+            self.assertEqual(
+                config['ext::_conf::Config::obj'],
+                {'_tname': 'ext::_conf::SingleObj',
+                 'name': 'single', 'value': 'val'},
+            )
 
         val = await self.con.query_single('''
             describe current database config
@@ -16412,6 +16435,10 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         test_expected = textwrap.dedent('''\
         CONFIGURE CURRENT DATABASE SET ext::_conf::Config::config_name := \
 'ready';
+        CONFIGURE CURRENT DATABASE INSERT ext::_conf::SingleObj {
+            name := 'single',
+            value := 'val',
+        };
         CONFIGURE CURRENT DATABASE INSERT ext::_conf::Obj {
             name := '1',
             value := 'foo',
@@ -16468,6 +16495,17 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             config_name='ready',
             opt_value=None,
             objs=[],
+            obj=dict(name='single', value='val'),
+        )
+
+        await self.con.execute('''
+            configure current database reset ext::_conf::SingleObj
+        ''')
+        await _check(
+            config_name='ready',
+            opt_value=None,
+            objs=[],
+            obj=None,
         )
 
         await self.con.execute('''
