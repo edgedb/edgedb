@@ -972,6 +972,26 @@ class ConnectedTestCase(ClusterTestCase):
                 self.add_fail_notes(msg=msg)
             raise
 
+    async def assert_index_use(self, query, *args, index_type):
+        def look(obj):
+            if isinstance(obj, dict) and obj.get('plan_type') == "IndexScan":
+                return any(
+                    prop['title'] == 'index_name'
+                    and index_type in prop['value']
+                    for prop in obj.get('properties', [])
+                )
+
+            if isinstance(obj, dict):
+                return any([look(v) for v in obj.values()])
+            elif isinstance(obj, list):
+                return any(look(v) for v in obj)
+            else:
+                return False
+
+        plan = await self.con.query_json(f'analyze {query}', *args)
+        if not look(json.loads(plan)):
+            raise AssertionError(f"query did not use the {index_type!r} index")
+
 
 class DatabaseTestCase(ConnectedTestCase):
 
