@@ -1548,6 +1548,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._block_ws(0)
             self._write_keywords('FOR ' + str(node.scope) + ' ')
 
+            if node.condition:
+                self._block_ws(1)
+                self._write_keywords('WHEN ')
+                self.write('(')
+                self.visit(node.condition)
+                self.write(')')
+                self._block_ws(-1)
+
             self._write_keywords('DO ')
             self.write('(')
             self.visit(node.expr)

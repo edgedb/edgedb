@@ -11559,7 +11559,8 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
 
             type Person {
                 required name: str;
-                trigger log_delete after insert for each do (
+                trigger log_delete after insert for each
+                when (__new__.name not like "SKIP%") do (
                     insert Log { body := __new__.name }
                 );
             }
@@ -11572,7 +11573,8 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
 
             type Person {
                 required name: str;
-                trigger log_delete after insert for each do (
+                trigger log_delete after insert for each
+                when (false) do (
                     insert Log { body := __new__.name }
                 );
             }
@@ -11669,7 +11671,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
 
             type Person extending Named {
-                trigger log_insert after insert for each do (
+                trigger log_insert after insert for each when (false) do (
                     insert Log {
                         body := __new__.__type__.name ++ ' ' ++ __new__.name,
                     }
@@ -11689,7 +11691,30 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             abstract type Named {
                 required name: str;
 
-                trigger log_insert after insert for each do (
+                trigger log_insert after insert for each when (false) do (
+                    insert Log {
+                        body := __new__.__type__.name ++ ' ' ++ __new__.name,
+                    }
+                );
+            }
+
+            type Person extending Named {
+            }
+        ''')
+
+        await self.migrate(r'''
+            type Log {
+                body: str;
+                timestamp: datetime {
+                    default := datetime_current();
+                }
+            }
+
+
+            abstract type Named {
+                required name: str;
+
+                trigger log_insert after insert for each when (true) do (
                     insert Log {
                         body := __new__.__type__.name ++ ' ' ++ __new__.name,
                     }

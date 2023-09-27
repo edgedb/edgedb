@@ -1560,16 +1560,18 @@ class TriggerDeclarationBlock(Nonterm):
             TRIGGER NodeName
             TriggerTiming TriggerKindList
             FOR TriggerScope
+            OptWhenBlock
             DO ParenExpr
             CreateTriggerSDLCommandsBlock
         """
-        _, name, timing, kinds, _, scope, _, expr, commands = kids
+        _, name, timing, kinds, _, scope, when, _, expr, commands = kids
         self.val = qlast.CreateTrigger(
             name=name.val,
             timing=timing.val,
             kinds=kinds.val,
             scope=scope.val,
             expr=expr.val,
+            condition=when.val,
             commands=commands.val,
         )
 
@@ -1580,15 +1582,17 @@ class TriggerDeclarationShort(Nonterm):
             TRIGGER NodeName
             TriggerTiming TriggerKindList
             FOR TriggerScope
+            OptWhenBlock
             DO ParenExpr
         """
-        _, name, timing, kinds, _, scope, _, expr = kids
+        _, name, timing, kinds, _, scope, when, _, expr = kids
         self.val = qlast.CreateTrigger(
             name=name.val,
             timing=timing.val,
             kinds=kinds.val,
             scope=scope.val,
             expr=expr.val,
+            condition=when.val,
         )
 
 

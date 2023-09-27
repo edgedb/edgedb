@@ -464,6 +464,7 @@ ALTER TYPE schema::Trigger {
   CREATE MULTI PROPERTY kinds -> schema::TriggerKind;
   CREATE REQUIRED PROPERTY scope -> schema::TriggerScope;
   CREATE PROPERTY expr -> std::str;
+  CREATE PROPERTY condition -> std::str;
 };
 
 ALTER TYPE schema::Rewrite {

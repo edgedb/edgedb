@@ -187,7 +187,7 @@ class AccessPolicyCommand(
 
             target = schema.get(sn.QualName('std', 'bool'), type=s_types.Type)
             expr_type = expression.irast.stype
-            if not expr_type.issubclass(schema, target):
+            if not expr_type.issubclass(expression.irast.schema, target):
                 srcctx = self.get_attribute_source_context(field)
                 raise errors.SchemaDefinitionError(
                     f'{vname} expression for {pol_name} is of invalid type: '
