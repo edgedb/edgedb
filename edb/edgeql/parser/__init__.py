@@ -230,7 +230,6 @@ def preload(allow_rebuild: bool = False) -> None:
     grammar = qlgrammar.start
     try:
         spec = parsing.load_parser_spec(grammar, allow_rebuild=False)
-        rust_parser.cache_spec(spec)
     except parsing.ParserSpecIncompatibleError as e:
         if allow_rebuild:
             spec = parsing.load_parser_spec(grammar, allow_rebuild=True)
