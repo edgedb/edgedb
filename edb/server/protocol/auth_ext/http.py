@@ -59,12 +59,15 @@ class Router:
                     provider_id = _get_search_param(
                         request.url.query.decode("ascii"), "provider"
                     )
+                    redirect_to = _get_search_param(
+                        request.url.query.decode("ascii"), "redirect_to"
+                    )
                     oauth_client = oauth.Client(
                         db=self.db, provider_id=provider_id, base_url=test_url
                     )
                     authorize_url = await oauth_client.get_authorize_url(
                         redirect_uri=self._get_callback_url(),
-                        state=self._make_state_claims(provider_id),
+                        state=self._make_state_claims(provider_id, redirect_to),
                     )
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = authorize_url
@@ -326,7 +329,7 @@ class Router:
 
         return jwk.JWK(kty="oct", k=key_bytes.decode())
 
-    def _make_state_claims(self, provider: str) -> str:
+    def _make_state_claims(self, provider: str, redirect_to: str) -> str:
         signing_key = self._get_auth_signing_key()
         expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
 
@@ -334,6 +337,7 @@ class Router:
             "iss": self.base_path,
             "provider": provider,
             "exp": expires_at.astimezone().timestamp(),
+            "redirect_to": redirect_to,
         }
         state_token = jwt.JWT(
             header={"alg": "HS256"},

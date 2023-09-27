@@ -502,9 +502,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
+            redirect_to = f"{self.http_addr}/some/path"
 
             _, headers, status = self.http_con_request(
-                http_con, {"provider": provider_id}, path="authorize"
+                http_con, {"provider": provider_id, "redirect_to": redirect_to}, path="authorize"
             )
 
             self.assertEqual(status, 302)
@@ -524,6 +525,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             claims = await self.extract_jwt_claims(state[0])
             self.assertEqual(claims.get("provider"), provider_id)
             self.assertEqual(claims.get("iss"), self.http_addr)
+            self.assertEqual(claims.get("redirect_to"), redirect_to)
 
             self.assertEqual(
                 qs.get("redirect_uri"), [f"{self.http_addr}/callback"]
