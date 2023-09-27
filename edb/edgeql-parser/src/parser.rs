@@ -608,6 +608,9 @@ impl Spec {
 
         let v = serde_json::from_str::<SpecJson>(j_spec).map_err(|e| e.to_string())?;
 
+        let spec_pack = rmp_serde::to_vec(&v).unwrap();
+        std::fs::write("./spec.mp", spec_pack).unwrap();
+
         let actions = v
             .actions
             .into_iter()

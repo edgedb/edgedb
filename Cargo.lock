@@ -220,6 +220,7 @@ dependencies = [
  "memchr",
  "num-bigint 0.3.3",
  "phf",
+ "rmp-serde",
  "serde",
  "serde_json",
  "sha2",
