@@ -1003,7 +1003,7 @@ def compile_fts_with_options(
     weight_expr = call.args[1].expr
     if not irutils.is_const(weight_expr):
         raise errors.InvalidValueError(
-            f"fts::search weight_category must be a literal",
+            f"fts::search weight_category must be a constant",
             context=weight_expr.context,
         )
     weight_const = irutils.as_const(weight_expr)
@@ -1011,6 +1011,7 @@ def compile_fts_with_options(
         weight = str(weight_const.value)
     else:
         weight = None
+        assert weight
 
     return irast.FTSDocument(
         text=call.args[2].expr,

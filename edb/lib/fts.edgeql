@@ -51,6 +51,13 @@ CREATE SCALAR TYPE fts::Language
     ';
 };
 
+CREATE SCALAR TYPE fts::Weight EXTENDING enum<A, B, C, D> {
+    CREATE ANNOTATION std::description := "
+        Weight category.
+        Weight values for each category can be provided in fts::search.
+    ";
+};
+
 CREATE ABSTRACT INDEX fts::index {
     CREATE ANNOTATION std::description :=
         "Full-text search index based on the Postgres's GIN index.";
@@ -64,7 +71,7 @@ CREATE SCALAR TYPE fts::document {
 CREATE FUNCTION fts::with_options(
     text: std::str,
     NAMED ONLY language: anyenum,
-    NAMED ONLY weight_category: optional std::str = <std::str>{},
+    NAMED ONLY weight_category: optional fts::Weight = fts::Weight.A,
 ) -> fts::document {
     CREATE ANNOTATION std::description := '
         Adds language and weight category information to a string,
