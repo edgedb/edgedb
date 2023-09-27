@@ -111,7 +111,9 @@ class Router:
                         provider_id=provider_id,
                         base_url=test_url,
                     )
-                    identity = await oauth_client.handle_callback(code)
+                    identity = await oauth_client.handle_callback(
+                        code, self._get_callback_url()
+                    )
                     session_token = self._make_session_token(identity.id)
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = redirect_to
