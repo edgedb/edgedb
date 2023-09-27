@@ -726,7 +726,7 @@ class EQLFunctionDirective(BaseEQLDirective):
 
         try:
             astnode = edgeql_parser.parse(
-                edgeql_grammar.start,
+                edgeql_grammar.tokens.T_STARTBLOCK,
                 f'create function {sig} using SQL function "xxx";')[0]
         except Exception as ex:
             raise self.error(
@@ -800,7 +800,8 @@ class EQLConstraintDirective(BaseEQLDirective):
 
         try:
             astnode = edgeql_parser.parse(
-                edgeql_grammar.start, f'create abstract constraint {sig};'
+                edgeql_grammar.tokens.T_STARTBLOCK,
+                f'create abstract constraint {sig};'
             )[0]
         except Exception as ex:
             raise self.error(
