@@ -475,8 +475,6 @@ cdef class HttpProtocol:
 
     async def handle_request(self, HttpRequest request, HttpResponse response):
         request_url = get_request_url(request, self.is_tls)
-        from edb.common import markup
-        markup.dump(request_url)
         path = urllib.parse.unquote(request_url.path.decode('ascii'))
         path = path.strip('/')
         path_parts = path.split('/')
