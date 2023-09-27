@@ -477,7 +477,7 @@ jobs:
       run: python3 .github/scripts/patches/test-downgrade.py
 
   workflow-notifications:
-    if: failure()
+    if: failure() && github.event_name != 'pull_request'
     name: Notify in Slack on failures
     needs:
       - build

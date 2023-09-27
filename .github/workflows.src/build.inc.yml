@@ -353,7 +353,7 @@
 <% endif %>
 
   workflow-notifications:
-    if: failure()
+    if: failure() && github.event_name != 'pull_request'
     name: Notify in Slack on failures
 
     needs:
