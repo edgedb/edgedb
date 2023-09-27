@@ -1432,7 +1432,7 @@ jobs:
 
 
   workflow-notifications:
-    if: failure()
+    if: failure() && github.event_name != 'pull_request'
     name: Notify in Slack on failures
     needs:
       - setup-aws-rds
@@ -1455,7 +1455,7 @@ jobs:
       actions: 'read'
     steps:
       - name: Slack Workflow Notification
-        uses: Gamesight/slack-workflow-status@master
+        uses: Gamesight/slack-workflow-status@26a36836c887f260477432e4314ec3490a84f309
         with:
           repo_token: ${{secrets.GITHUB_TOKEN}}
           slack_webhook_url: ${{secrets.ACTIONS_SLACK_WEBHOOK_URL}}
