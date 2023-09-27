@@ -22,7 +22,6 @@
 from __future__ import annotations
 from typing import *
 
-import types
 import typing
 import functools
 import os
@@ -198,7 +197,7 @@ class BaseSyntaxTest(BaseDocTest, PreloadParserGrammarMixin):
     markup_dump_lexer: Optional[str] = None
 
     @classmethod
-    def get_grammar_token(cls) -> Type[qlgrammar.GrammarToken]:
+    def get_grammar_token(cls) -> Type[qlgrammar.tokens.GrammarToken]:
         raise NotImplementedError
 
     def run_test(self, *, source, spec, expected=None):
@@ -222,9 +221,6 @@ class BaseSyntaxTest(BaseDocTest, PreloadParserGrammarMixin):
         expected_src = source if expected is None else expected
 
         self.assert_equal(expected_src, processed_src)
-
-
-
 
 
 _std_schema = None

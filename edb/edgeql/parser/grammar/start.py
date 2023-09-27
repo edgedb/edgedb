@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 from edb.common import parsing
+from edb.edgeql import ast as qlast
 
 from . import commondl
 from .expressions import Nonterm
@@ -91,7 +92,7 @@ class SingleStatement(Nonterm):
 
 
 class StatementBlock(
-    parsing.ListNonterm, element=SingleStatement, separator=Semicolons
+    parsing.ListNonterm, element=SingleStatement, separator=commondl.Semicolons
 ):  # NOQA, Semicolons are from .ddl
     pass
 

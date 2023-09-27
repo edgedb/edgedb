@@ -9,4 +9,3 @@ from __future__ import annotations
 
 
 from . import start as start  # noqa
-from .tokens import GrammarToken
