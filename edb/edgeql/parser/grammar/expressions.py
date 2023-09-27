@@ -421,16 +421,6 @@ class OptAnySubShape(Nonterm):
     def reduce_COLON_Shape(self, *_):
         pass
 
-    def reduce_LBRACE(self, *kids):
-        raise errors.EdgeQLSyntaxError(
-            f"Missing ':' before '{{' in a sub-shape",
-            context=kids[0].context)
-
-    def reduce_Shape(self, *kids):
-        raise errors.EdgeQLSyntaxError(
-            f"Missing ':' before '{{' in a sub-shape",
-            context=kids[0].context)
-
     def reduce_empty(self, *kids):
         self.val = []
 

@@ -228,6 +228,12 @@ pub fn lookup_all(s: &str) -> Option<Keyword> {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Keyword(pub &'static str);
 
+impl Keyword {
+    pub fn is_reserved(&self) -> bool {
+        FUTURE_RESERVED_KEYWORDS.contains(self.0) || CURRENT_RESERVED_KEYWORDS.contains(self.0)
+    }
+}
+
 impl From<Keyword> for &'static str {
     fn from(value: Keyword) -> Self {
         value.0

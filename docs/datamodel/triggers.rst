@@ -15,9 +15,10 @@ These can be defined in your schema.
 
 .. note::
 
-    Triggers cannot be used to modify the object that set off the trigger.
-    Instead, you should use :ref:`mutation rewrites
-    <ref_datamodel_mutation_rewrites>` for this.
+    Triggers cannot be used to *modify* the object that set off the trigger,
+    although they can be used with :eql:func:`assert` to do *validation* on
+    that object. If you need to modify the object, you can use :ref:`mutation
+    rewrites <ref_datamodel_mutation_rewrites>`.
 
 Here's an example that creates a simple audit log type so that we can keep
 track of what's happening to our users in a database. First, we will create a
@@ -247,6 +248,56 @@ object instead of one ``Log`` object per row:
         change: {'Jonathan Harker->Jonathan', 'Mina Murray->Mina'},
       },
     }
+
+Validation using triggers
+=========================
+
+Triggers may also be used for validation by calling :eql:func:`assert` inside
+the trigger. In this example, the ``Person`` type has two multi links to other
+``Person`` objects named ``friends`` and ``enemies``. These two links should be
+mutually exclusive, so we have written a trigger to make sure there are no
+common objects linked in both.
+
+.. code-block:: sdl
+
+    type Person {
+      required name: str;
+      multi friends: Person;
+      multi enemies: Person;
+
+      trigger prohibit_frenemies after insert, update for each do (
+        assert(
+          not exists (__new__.friends intersect __new__.enemies),
+          message := "Invalid frenemies",
+        )
+      )
+    }
+
+With this trigger in place, it is impossible to link the same ``Person`` as
+both a friend and an enemy of any other person.
+
+.. code-block:: edgeql-repl
+
+    db> insert Person {name := 'Quincey Morris'};
+    {default::Person {id: e4a55480-d2de-11ed-93bd-9f4224fc73af}}
+    db> insert Person {name := 'Dracula'};
+    {default::Person {id: e7f2cff0-d2de-11ed-93bd-279780478afb}}
+    db> update Person
+    ... filter .name = 'Quincey Morris'
+    ... set {
+    ...   enemies := (
+    ...     select detached Person filter .name = 'Dracula'
+    ...   )
+    ... };
+    {default::Person {id: e4a55480-d2de-11ed-93bd-9f4224fc73af}}
+    db> update Person
+    ... filter .name = 'Quincey Morris'
+    ... set {
+    ...   friends := (
+    ...     select detached Person filter .name = 'Dracula'
+    ...   )
+    ... };
+    edgedb error: EdgeDBError: Invalid frenemies
 
 
 .. list-table::

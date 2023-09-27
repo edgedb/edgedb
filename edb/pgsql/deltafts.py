@@ -45,7 +45,6 @@ from .compiler import astutils
 
 def create_fts_index(
     index: s_indexes.Index,
-    root_code: str,
     index_expr: irast.Set,
     predicate_src: Optional[str],
     sql_kwarg_exprs: Dict[str, str],

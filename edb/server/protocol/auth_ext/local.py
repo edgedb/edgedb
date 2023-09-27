@@ -68,15 +68,13 @@ class Client:
 
 class PasswordProvider:
     async def register(self, db: Any, input: dict[str, Any]):
-        email = input.get("email")
-
-        match (input.get("handle"), input.get("password")):
-            case (str(h), str(p)):
-                handle = h
+        match (input.get("email"), input.get("password")):
+            case (str(e), str(p)):
+                email = e
                 password = p
             case _:
                 raise errors.InvalidData(
-                    "Missing 'handle' or 'password' in data"
+                    "Missing 'email' or 'password' in data"
                 )
 
         try:
@@ -85,32 +83,27 @@ class PasswordProvider:
                 query="""\
     with
       email := <optional str>$email,
-      handle := <str>$handle,
       password_hash := <str>$password_hash,
       identity := (insert ext::auth::LocalIdentity {
-        iss := "local",
-        sub := "",
-        email := email,
-        handle := handle,
+        issuer := "local",
+        subject := "",
       }),
-      password := (insert ext::auth::PasswordCredential {
+      password := (insert ext::auth::EmailPasswordFactor {
         password_hash := password_hash,
+        email := email,
         identity := identity,
       }),
 
     select identity { * };""",
                 variables={
                     "email": email,
-                    "handle": handle,
                     "password_hash": ph.hash(password),
                 },
             )
         except Exception as e:
             exc = await execute.interpret_error(e, db)
             if isinstance(exc, ConstraintViolationError):
-                raise errors.UserAlreadyRegistered(
-                    "User with this handle already exists"
-                )
+                raise errors.UserAlreadyRegistered()
             else:
                 raise exc
 
@@ -120,20 +113,20 @@ class PasswordProvider:
         return data.LocalIdentity(**result_json[0])
 
     async def authenticate(self, db: Any, input: dict[str, Any]):
-        if 'handle' not in input or 'password' not in input:
-            raise errors.InvalidData("Missing 'handle' or 'password' in data")
+        if 'email' not in input or 'password' not in input:
+            raise errors.InvalidData("Missing 'email' or 'password' in data")
 
         password = input["password"]
-        handle = input["handle"]
+        email = input["email"]
         r = await execute.parse_execute_json(
             db=db,
             query="""\
 with
-  handle := <str>$handle,
-select ext::auth::PasswordCredential { password_hash, identity: { * } }
-filter .identity.handle = handle;""",
+  email := <str>$email,
+select ext::auth::EmailPasswordFactor { password_hash, identity: { * } }
+filter .email = email;""",
             variables={
-                "handle": handle,
+                "email": email,
             },
         )
 
@@ -158,14 +151,14 @@ filter .identity.handle = handle;""",
                 db=db,
                 query="""\
 with
-  handle := <str>$handle,
+  email := <str>$email,
   new_hash := <str>$new_hash,
 
-update ext::auth::PasswordCredential
-filter .identity.handle = handle
+update ext::auth::EmailPasswordFactor
+filter .email = email
 set { password_hash := new_hash };""",
                 variables={
-                    "handle": local_identity.handle,
+                    "email": email,
                     "new_hash": new_hash,
                 },
             )

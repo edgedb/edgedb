@@ -23,29 +23,46 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
 
     create module ext::auth;
 
-    create type ext::auth::Identity {
-        create required property iss: std::str;
-        create required property sub: std::str;
-        create property email: std::str;
+    create abstract type ext::auth::Auditable {
+        create required property created_at: std::datetime {
+            set default := std::datetime_current();
+            set readonly := true;
+        };
+        create required property modified_at: std::datetime {
+            create rewrite insert, update using (
+                std::datetime_current()
+            );
+        };
+    };
 
-        create constraint exclusive on ((.iss, .sub))
+    create type ext::auth::Identity extending ext::auth::Auditable {
+        create required property issuer: std::str;
+        create required property subject: std::str;
+
+        create constraint exclusive on ((.issuer, .subject));
     };
 
     create type ext::auth::LocalIdentity extending ext::auth::Identity {
-        create required property handle: std::str {
-            create constraint exclusive;
-        };
-
-        alter property sub {
+        alter property subject {
             create rewrite insert using (<str>.id);
         };
     };
 
-    create type ext::auth::PasswordCredential {
-        create required property password_hash: std::str;
+    create abstract type ext::auth::Factor extending ext::auth::Auditable {
         create required link identity: ext::auth::LocalIdentity {
             create constraint exclusive;
         };
+    };
+
+    create type ext::auth::EmailFactor extending ext::auth::Factor {
+        create required property email: str {
+            create delegated constraint exclusive;
+        };
+    };
+
+    create type ext::auth::EmailPasswordFactor
+        extending ext::auth::EmailFactor {
+        create required property password_hash: std::str;
     };
 
     create type ext::auth::ClientConfig extending cfg::ConfigObject {
@@ -119,7 +136,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     create function ext::auth::_jwt_check_signature(
         jwt: tuple<header: std::str, payload: std::str, signature: std::str>,
         key: std::str,
-        algo: ext::auth::JWTAlgo = ext::auth::JWTAlgo.RS256,
+        algo: ext::auth::JWTAlgo = ext::auth::JWTAlgo.HS256,
     ) -> std::json
     {
         set volatility := 'Stable';
@@ -176,7 +193,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     create function ext::auth::_jwt_verify(
         token: std::str,
         key: std::str,
-        algo: ext::auth::JWTAlgo = ext::auth::JWTAlgo.RS256,
+        algo: ext::auth::JWTAlgo = ext::auth::JWTAlgo.HS256,
     ) -> std::json
     {
         set volatility := 'Stable';
@@ -225,7 +242,6 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         select
             ext::auth::Identity
         filter
-            .iss = <str>json_get(jwt.claims, "iss")
-            and .sub = <str>json_get(jwt.claims, "sub")
+            .id = <uuid>json_get(jwt.claims, "sub")
     );
 };

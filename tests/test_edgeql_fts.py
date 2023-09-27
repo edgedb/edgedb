@@ -141,7 +141,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
             )
             select x.object {
                 number,
-                rank := x.score,
+                score := x.score,
             };
             ''',
             [
@@ -151,21 +151,21 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
                     # "dressed, with a pair of <b>white</b> kid <b>gloves</b> "
                     # "in one hand",
                     "number": 8,
-                    "rank": 0.6037054,
+                    "score": 0.6037054,
                 },
                 {
                     # "hl":
                     # "<b>Rabbit</b>’s little <b>white</b> kid <b>gloves</b> "
                     # "while she was talking. “How _can_ I have done",
                     "number": 14,
-                    "rank": 0.4559453,
+                    "score": 0.4559453,
                 },
                 {
                     # "hl":
                     # "<b>Rabbit</b> actually _took a <b>watch</b> out of its "
                     # "waistcoat-pocket_, and looked at it, and then",
                     "number": 3,
-                    "rank": 0.40634018,
+                    "score": 0.40634018,
                 },
             ],
         )
@@ -691,7 +691,7 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 Post,
                 'angry',
                 language := 'eng',
-                weights := [0.0, 0.0, 0.0, 1.0]
+                weights := [1.0, 0.0]
             )
             select res.object.title
             order by res.score desc
@@ -704,12 +704,37 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
                 Post,
                 'angry',
                 language := 'eng',
-                weights := [0.0, 0.0, 1.0, 0.0]
+                weights := [0.0, 1.0]
             )
             select res.object.title
             order by res.score desc
             ''',
             ["random stuff", "angry reply"],
+        )
+        await self.assert_query_result(
+            r'''
+            with res := fts::search(
+                Post,
+                'angry',
+                language := 'eng',
+                weights := [1.0, 0.0, 0.0, 0.0, 1.0, 1.0]
+            )
+            select res.object.title
+            order by res.score desc
+            ''',
+            ["angry reply", "random stuff"],
+        )
+        await self.assert_query_result(
+            r'''
+            with res := fts::search(
+                Post,
+                'angry',
+                language := 'eng'
+            )
+            select res.object.title
+            order by res.score desc
+            ''',
+            ["angry reply", "random stuff"],
         )
 
     async def test_edgeql_fts_updating(self):
@@ -747,3 +772,22 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             ''',
             [{"title": "no body", "body": None}],
         )
+
+    async def test_edgeql_fts_links(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "fts::index cannot be declared on links",
+        ):
+            await self.con.execute(
+                '''
+                create type Doc1 {
+                    create link x -> schema::ObjectType {
+                        create property y -> str;
+
+                        create index fts::index on (
+                            fts::with_options(@y, language := fts::Language.eng)
+                        );
+                    }
+                };
+                '''
+            )

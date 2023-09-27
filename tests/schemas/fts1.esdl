@@ -21,7 +21,7 @@ type Text {
     required text: str;
     index fts::index on (fts::with_options(.text,
         language := fts::Language.eng,
-        weight_category := 'A'
+        weight_category := fts::Weight.A
     ));
 }
 
@@ -42,11 +42,11 @@ type Post {
     index fts::index on ((
         fts::with_options(.title,
             language := fts::Language.eng,
-            weight_category := 'A'
+            weight_category := fts::Weight.A
         ),
         fts::with_options(.body,
             language := fts::Language.eng,
-            weight_category := 'B'
+            weight_category := fts::Weight.B
         )
     ));
 }
@@ -59,7 +59,7 @@ type Description {
     index fts::index on (
         fts::with_options(.text,
             language := fts::Language.eng,
-            weight_category := 'A'
+            weight_category := fts::Weight.A
         )
     );
 }

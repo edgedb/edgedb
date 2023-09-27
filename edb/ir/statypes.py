@@ -376,6 +376,15 @@ class Duration(ScalarType):
     def decode(cls, data: bytes) -> Duration:
         return cls(microseconds=cls._codec.unpack(data)[0])
 
+    def __hash__(self) -> int:
+        return hash(self._value)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Duration):
+            return self._value == other._value
+        else:
+            return False
+
 
 @functools.total_ordering
 class ConfigMemory(ScalarType):
@@ -475,3 +484,12 @@ class ConfigMemory(ScalarType):
 
     def __repr__(self) -> str:
         return f'<statypes.ConfigMemory {self.to_str()!r}>'
+
+    def __hash__(self) -> int:
+        return hash(self._value)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, ConfigMemory):
+            return self._value == other._value
+        else:
+            return False

@@ -265,8 +265,13 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Missing identifier",
-                  line=3, col=17)
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected keyword 'COMMIT'",
+                  details="This name is a reserved keyword and cannot be "
+                          "used as an identifier",
+                  hint="Use a different identifier or quote the name "
+                       "with backticks: `Commit`",
+                  line=3, col=18)
     def test_eschema_syntax_type_11(self):
         """
         module test {
@@ -748,7 +753,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing ':='", line=4, col=22)
+                  r"Expected 'ON', but got 'prop' instead", line=4, col=23)
     def test_eschema_syntax_index_03(self):
         """
         module test {
@@ -757,8 +762,6 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
             };
         };
         """
-        # XXX: error recovery quality regression
-        #      Expected 'ON', but got 'prop' instead
 
     def test_eschema_syntax_index_04(self):
         """

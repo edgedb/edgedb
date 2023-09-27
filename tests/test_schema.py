@@ -276,6 +276,61 @@ class TestSchema(tb.BaseSchemaLoadTest):
             type UniqueName_3 extending UniqueName, UniqueName_2;
         """
 
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "index expressions must be immutable")
+    def test_schema_index_computed_01(self):
+        """
+        type SignatureStatus {
+          required property signature -> str;
+          link memo := (
+            select Memo filter .signature = SignatureStatus.signature limit 1);
+
+          index on (.memo);
+        }
+
+        type Memo {
+          required property signature -> str {
+            constraint exclusive;
+          }
+        }
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "index expressions must be immutable")
+    def test_schema_index_computed_02(self):
+        """
+        type SignatureStatus {
+          required property signature -> str;
+          link memo := (
+            select Memo filter .signature = SignatureStatus.signature limit 1);
+
+          index on (__subject__ { lol := .memo }.lol);
+        }
+
+        type Memo {
+          required property signature -> str {
+            constraint exclusive;
+          }
+        }
+        """
+
+    def test_schema_index_computed_03(self):
+        """
+        type SignatureStatus {
+          required property signature -> str;
+          link memo_: Memo;
+          link memo := .memo_;
+
+          index on (.memo);
+        }
+
+        type Memo {
+          required property signature -> str {
+            constraint exclusive;
+          }
+        }
+        """
+
     @tb.must_fail(
         errors.InvalidLinkTargetError,
         "invalid link target type, expected object type, "
@@ -2413,6 +2468,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # different evolution branches.
         base_schema = self.load_schema('')
 
+        schemas = []
         # Evolve a schema in a series of migrations.
         multi_migration = base_schema
         for i, state in enumerate(migrations):
@@ -2432,6 +2488,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             # Perform incremental migration.
             multi_migration = self.run_ddl(multi_migration, mig_text, 'test')
+            schemas.append(multi_migration)
 
             diff = s_ddl.delta_schemas(multi_migration, cur_state)
 
@@ -2444,6 +2501,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     f'incremental migration on step {i + 1}{note}:\n'
                     f'{markup.dumps(diff)}\n'
                 )
+
+        return schemas
 
     def test_schema_get_migration_01(self):
         schema = r'''
@@ -3785,6 +3844,20 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
               required link user -> User;
               required property action -> str;
             }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_globals_funcs_01(self):
+        schema = '''
+            required global x1 -> int64 { default := 0 };
+            required global x2 -> int64 { default := 0 };
+            required global x3 -> int64 { default := 0 };
+            required global x4 -> int64 { default := 0 };
+
+            function f1() -> int64 using (
+              global x1 + global x2 + global x3 + global x4);
+            function f2() -> int64 using (f1());
         '''
 
         self._assert_migration_consistency(schema)
@@ -6670,6 +6743,27 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
             alias CurFoo := (select Foo filter .id = global current_foo)
         """])
+
+    def test_schema_migrations_equivalence_globals_funcs_02(self):
+        schema1, schema2, _ = self._assert_migration_equivalence([r"""
+            required global foo -> int64 { default := 0};
+            required global bar -> int64 { default := 0};
+
+            function f1() -> int64 using (global foo);
+            function f2() -> int64 using (f1());
+        """, r"""
+            required global foo -> int64 { default := 0};
+            required global bar -> int64 { default := 0};
+
+            function f1() -> int64 using (global foo + global bar);
+            function f2() -> int64 using (f1());
+        """])
+
+        self.assertEqual(
+            schema1.get_functions('default::f2'),
+            schema2.get_functions('default::f2'),
+            "function got deleted/recreated and should have been altered",
+        )
 
     # NOTE: array<str>, array<int16>, array<json> already exist in std
     # schema, so it's better to use array<float32> or some other
@@ -9776,6 +9870,75 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 # we'll error instead of checking this
                 """,
             )
+
+    def test_schema_describe_name_override_01(self):
+        self._assert_describe(
+            """
+            type Other {
+                obj: Object;
+            }
+            type Object;
+            """,
+
+            'DESCRIBE MODULE test',
+
+            """
+            create type test::Object;
+            create type test::Other {
+                create link obj: test::Object;
+            };
+            """
+        )
+
+    def test_schema_describe_name_override_02(self):
+        self._assert_describe(
+            """
+            type Object;
+            type Other {
+                obj: test::Object;
+            }
+            """,
+
+            'DESCRIBE MODULE test',
+
+            """
+            create type test::Object;
+            create type test::Other {
+                create link obj: test::Object;
+            };
+            """
+        )
+
+    def test_schema_describe_name_override_03(self):
+        self._assert_describe(
+            """
+            type User {
+              single link identity: Identity;
+            }
+
+            abstract type BaseObject {}
+
+            type Identity extending BaseObject {
+              link user := .<identity[is User];
+            }
+
+            type IdentityCredential extending BaseObject {}
+            """,
+
+            'DESCRIBE MODULE test',
+
+            """
+            create abstract type test::BaseObject;
+            create type test::Identity extending test::BaseObject;
+            create type test::IdentityCredential extending test::BaseObject;
+            create type test::User {
+                create single link identity: test::Identity;
+            };
+            alter type test::Identity {
+                create link user := (.<identity[is test::User]);
+            };
+            """
+        )
 
 
 class TestCreateMigration(tb.BaseSchemaTest):
