@@ -772,3 +772,22 @@ class TestEdgeQLFTSFeatures(tb.QueryTestCase):
             ''',
             [{"title": "no body", "body": None}],
         )
+
+    async def test_edgeql_fts_links(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "fts::index cannot be declared on links",
+        ):
+            await self.con.execute(
+                '''
+                create type Doc1 {
+                    create link x -> schema::ObjectType {
+                        create property y -> str;
+
+                        create index fts::index on (
+                            fts::with_options(@y, language := fts::Language.eng)
+                        );
+                    }
+                };
+                '''
+            )

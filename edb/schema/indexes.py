@@ -938,6 +938,15 @@ class CreateIndex(
         subject = referrer_ctx.scls
         assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
 
+        # FTS
+        if self.scls.has_base_with_name(schema, sn.QualName('fts', 'index')):
+
+            if isinstance(subject, s_pointers.Pointer):
+                raise errors.SchemaDefinitionError(
+                    "fts::index cannot be declared on links",
+                    context=self.source_context
+                )
+
         # Ensure that the name of the index (if given) matches an existing
         # abstract index.
         name = sn.shortname_from_fullname(
