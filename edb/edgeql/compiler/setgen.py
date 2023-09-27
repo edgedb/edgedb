@@ -286,6 +286,13 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         if isinstance(step, qlast.SpecialAnchor):
             path_tip = resolve_special_anchor(step, ctx=ctx)
 
+        elif isinstance(step, qlast.IRAnchor):
+            # Check if the starting path label is a known anchor
+            refnode = anchors.get(step.name)
+            if not refnode:
+                raise AssertionError(f'anchor {step.name} is missing')
+            path_tip = new_set_from_set(refnode, ctx=ctx)
+
         elif isinstance(step, qlast.ObjectRef):
             if i > 0:  # pragma: no cover
                 raise RuntimeError(

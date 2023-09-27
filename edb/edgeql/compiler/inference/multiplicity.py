@@ -226,6 +226,11 @@ def _infer_set(
     result = _infer_set_inner(
         ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx
     )
+    if ir.card_inference_override:
+        result = _infer_set_inner(
+            ir.card_inference_override, is_mutation=is_mutation,
+            scope_tree=scope_tree, ctx=ctx)
+
     ctx.inferred_multiplicity[ir, scope_tree, ctx.distinct_iterator] = result
 
     # The shape doesn't affect multiplicity, but requires validation.

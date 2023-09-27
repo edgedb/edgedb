@@ -734,11 +734,13 @@ class ContextLevel(compiler.ContextLevel):
     def detached(self) -> compiler.CompilerContextManager[ContextLevel]:
         return self.new(ContextSwitchMode.DETACHED)
 
-    def create_anchor(self, ir: irast.Set, name: str='v') -> qlast.Path:
+    def create_anchor(
+        self, ir: irast.Set, name: str='v', *, has_dml: bool=False
+    ) -> qlast.Path:
         alias = self.aliases.get(name)
         self.anchors[alias] = ir
         return qlast.Path(
-            steps=[qlast.ObjectRef(name=alias)],
+            steps=[qlast.IRAnchor(name=alias, has_dml=has_dml)],
         )
 
     def maybe_create_anchor(

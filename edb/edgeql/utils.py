@@ -204,8 +204,13 @@ def contains_dml(ql_expr: qlast.Base) -> bool:
     if isinstance(ql_expr, dml_types):
         return True
 
-    res = ast.find_children(ql_expr, qlast.Query,
-                            lambda x: isinstance(x, dml_types),
-                            terminate_early=True)
+    res = ast.find_children(
+        ql_expr, qlast.Base,
+        lambda x: (
+            isinstance(x, dml_types)
+            or (isinstance(x, qlast.IRAnchor) and x.has_dml)
+        ),
+        terminate_early=True,
+    )
 
     return bool(res)

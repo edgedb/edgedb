@@ -182,6 +182,10 @@ class Anchor(Expr):
     name: str
 
 
+class IRAnchor(Anchor):
+    has_dml: bool = False
+
+
 class SpecialAnchor(Anchor):
     pass
 

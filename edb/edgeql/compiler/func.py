@@ -341,7 +341,6 @@ def _special_case(name: str) -> Callable[[_SpecialCaseFunc], _SpecialCaseFunc]:
 #: A dictionary of conditional callables and the indices
 #: of the arguments that are evaluated conditionally.
 CONDITIONAL_OPS = {
-    sn.QualName('std', 'IF'): {0, 2},
     sn.QualName('std', '??'): {1},
 }
 
