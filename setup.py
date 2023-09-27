@@ -841,11 +841,7 @@ class build_parsers(setuptools.Command):
          'alongside your pure Python modules')]
 
     sources = [
-        "edb.edgeql.parser.grammar.block",
-        "edb.edgeql.parser.grammar.fragment",
-        "edb.edgeql.parser.grammar.sdldocument",
-        "edb.edgeql.parser.grammar.migration_body",
-        "edb.edgeql.parser.grammar.extension_package_body",
+        "edb.edgeql.parser.grammar.start",
     ]
 
     def initialize_options(self):
