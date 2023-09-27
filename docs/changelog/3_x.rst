@@ -1120,3 +1120,68 @@ receive support for a year and a half after their initial release.
 * Produce better errors on compiler stack overflows and properly interpret
   errors raised from SQL when using HTTP protocols
   (:eql:gh:`#6005`)
+
+
+3.4
+===
+
+* Repair instances created with rc1/rc2 to fix an issue that can
+  prevent creating migrations.
+
+* GraphQL: Fix bug with objects without editable fields.
+  (:eql:gh:`#6039`)
+
+* GraphQL: Fix issues with deeply nested modules.
+  (:eql:gh:`#6039`)
+
+* GraphQL: Fix ``__typename`` for non-default modules.
+  (:eql:gh:`#5985`)
+
+* GraphQL: Fix fragments on types from non-default module.
+  (:eql:gh:`#5985`)
+
+* GraphQL: Handle ``__typename`` in mutations.
+  (:eql:gh:`#5985`)
+
+* Make ``SET default`` of trivial values much faster
+  (:eql:gh:`#6134`)
+
+* Fix DELETE/UPDATE on parent types with children that have no policies
+  (:eql:gh:`#6136`)
+
+* Skip generating updates on abstract types, as a minor optimization
+  (:eql:gh:`#6135`)
+
+* Fix cast of empty set to type with access policy
+  (:eql:gh:`#6151`)
+
+* Fix ``group`` on backlinks in some situations
+  (:eql:gh:`#6152`)
+
+* Support using query parameters in ``SET GLOBAL`` commands
+  (:eql:gh:`#5670`)
+
+* Make using globals as defaults work
+  (:eql:gh:`#6153`)
+
+* Fix schema ordering bugs with rewrites
+  (:eql:gh:`#6154`)
+
+* Fix function params whose name collide with SQL type names
+  (:eql:gh:`#6150`)
+
+* Fix schema confusion with objects that shadow std objects
+  (:eql:gh:`#6155`)
+
+* Fix migration incomplete issues with functions that use multiple globals
+  (:eql:gh:`#6157`)
+
+* Fix several bugs in ``analyze``
+  (:eql:gh:`#5758`)
+
+* Fix spurious compiler cache misses when duration config values
+  are set in a session
+  (:eql:gh:`#6168`)
+
+* Properly reject indexes on non-immutable computeds
+  (:eql:gh:`#6170`)
