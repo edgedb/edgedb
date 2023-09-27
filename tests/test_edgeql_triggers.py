@@ -1119,3 +1119,122 @@ class TestTriggers(tb.QueryTestCase):
                 {'name': 'upd', 'note': "1"},
             ]
         )
+
+    async def test_edgeql_triggers_when_01(self):
+        await self.con.execute('''
+            alter type InsertTest {
+              create trigger log_new after insert, update for each
+              when (__new__.name not in {'a', 'f!'})
+              do (
+                insert Note { name := "new", note := __new__.name }
+              );
+            };
+        ''')
+
+        await self.do_basic_work()
+
+        await self.assert_query_result(
+            '''
+            select Note.note
+            ''',
+            tb.bag(['a!', 'b', 'b!', 'c', 'c!', 'd', 'd!', 'e', 'e!', 'f']),
+        )
+
+    async def test_edgeql_triggers_when_02(self):
+        await self.con.execute('''
+            alter type InsertTest {
+              create trigger log_new after insert, update for each
+              when (__new__.name = {'a', 'f!'})
+              do (
+                insert Note { name := "new", note := __new__.name }
+              );
+            };
+        ''')
+
+        await self.do_basic_work()
+
+        await self.assert_query_result(
+            '''
+            select Note.note
+            ''',
+            tb.bag(['a', 'f!']),
+        )
+
+    async def test_edgeql_triggers_when_03(self):
+        # Install FOR ALL triggers for everything
+        await self.con.execute('''
+            alter type InsertTest {
+              create trigger log_new after insert, update for all
+              when (count(__new__) >= 2)
+              do (
+                insert Note { name := "new", notes := __new__.name }
+              );
+              create trigger log_old after delete, update for all
+              when (count(__old__) >= 2)
+              do (
+                insert Note { name := "old", notes := __old__.name }
+              );
+            };
+        ''')
+
+        await self.do_basic_work()
+
+        res = tb.bag([
+            {"name": "new", "notes": {"c!", "e!"}},
+            {"name": "new", "notes": {"e", "f"}},
+            {"name": "new", "notes": {"b", "a!"}},
+            {"name": "new", "notes": {"b!", "d", "c"}},
+            {"name": "old", "notes": {"f", "d!"}},
+            {"name": "old", "notes": {"b", "a!"}},
+            {"name": "old", "notes": {"c", "e"}},
+            {"name": "old", "notes": ["c!", "e!", "f!"]},
+        ])
+
+        await self.assert_query_result(
+            '''
+            select Note { name, notes } order by .name
+            ''',
+            res,
+        )
+
+    async def test_edgeql_triggers_when_04(self):
+        await self.con.execute('''
+            alter type InsertTest {
+              create trigger log_new after insert, update for each
+              when (__new__.l2 < 0)
+              do (
+                insert Note { name := "new", note := __new__.name }
+              );
+            };
+        ''')
+
+        await self.con.execute('''
+            insert InsertTest { name := "a" };
+        ''')
+        await self.con.execute('''
+            insert InsertTest { name := "b", l2 := 10 };
+        ''')
+        await self.con.execute('''
+            insert InsertTest { name := "c", l2 := -42 };
+        ''')
+
+        await self.assert_query_result(
+            '''
+            select Note.note
+            ''',
+            ['c'],
+        )
+
+    async def test_edgeql_triggers_when_bad(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaDefinitionError,
+                r"data-modifying statements are not allowed"):
+            await self.con.query('''
+                alter type InsertTest {
+                  create trigger log_new after insert, update for each
+                  when (exists (insert Note { name := "!" }))
+                  do (
+                    insert Note { name := "new", note := __new__.name }
+                  );
+                };
+            ''')

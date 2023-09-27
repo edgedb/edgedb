@@ -1330,6 +1330,7 @@ class CreateTrigger(CreateObject, TriggerCommand):
     kinds: typing.List[qltypes.TriggerKind]
     scope: qltypes.TriggerScope
     expr: Expr
+    condition: typing.Optional[Expr]
 
 
 class AlterTrigger(AlterObject, TriggerCommand):

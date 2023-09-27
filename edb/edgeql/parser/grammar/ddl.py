@@ -2276,16 +2276,18 @@ class CreateTriggerStmt(Nonterm):
             CREATE TRIGGER UnqualifiedPointerName
             TriggerTiming TriggerKindList
             FOR TriggerScope
+            OptWhenBlock
             DO ParenExpr
             OptCreateTriggerCommandsBlock
         """
-        _, _, name, timing, kinds, _, scope, _, expr, commands = kids
+        _, _, name, timing, kinds, _, scope, when, _, expr, commands = kids
         self.val = qlast.CreateTrigger(
             name=name.val,
             timing=timing.val,
             kinds=kinds.val,
             scope=scope.val,
             expr=expr.val,
+            condition=when.val,
             commands=commands.val,
         )
 
@@ -2298,6 +2300,7 @@ commands_block(
     DropAnnotationValueStmt,
     RenameStmt,
     UsingStmt,
+    AccessWhenStmt,
     SetFieldStmt,
     ResetFieldStmt,
     opt=False
