@@ -17,10 +17,7 @@
 #
 
 
-import urllib.parse
 import json
-import httpx
-import httpx_cache
 
 from typing import Any
 from edb.server.protocol import execute
@@ -62,6 +59,7 @@ class Client:
                 )
             case "azure":
                 from . import azure
+
                 self.provider = azure.AzureProvider(
                     client_id=client_id,
                     client_secret=client_secret,
@@ -69,6 +67,7 @@ class Client:
                 )
             case "apple":
                 from . import apple
+
                 self.provider = apple.AppleProvider(
                     client_id=client_id,
                     client_secret=client_secret,
@@ -82,7 +81,9 @@ class Client:
             state=state, redirect_uri=redirect_uri
         )
 
-    async def handle_callback(self, code: str, redirect_uri: str) -> data.Identity:
+    async def handle_callback(
+        self, code: str, redirect_uri: str
+    ) -> data.Identity:
         response = await self.provider.exchange_code(code, redirect_uri)
         user_info = await self.provider.fetch_user_info(response)
 

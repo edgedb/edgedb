@@ -46,7 +46,9 @@ class BaseProvider:
     async def get_code_url(self, state: str, redirect_uri: str) -> str:
         raise NotImplementedError
 
-    async def exchange_code(self, code: str, redirect_uri: str) -> data.OAuthAccessTokenResponse:
+    async def exchange_code(
+        self, code: str, redirect_uri: str
+    ) -> data.OAuthAccessTokenResponse:
         raise NotImplementedError
 
     async def fetch_user_info(
@@ -95,7 +97,9 @@ class OpenIDProvider(BaseProvider):
                 },
             )
             if resp.status_code >= 400:
-                raise errors.OAuthProviderFailure(f"Failed to exchange code: {resp.text}")
+                raise errors.OAuthProviderFailure(
+                    f"Failed to exchange code: {resp.text}"
+                )
             json = resp.json()
 
             return data.OpenIDConnectAccessTokenResponse(**json)

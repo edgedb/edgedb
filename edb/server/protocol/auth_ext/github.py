@@ -45,7 +45,9 @@ class GitHubProvider(base.BaseProvider):
         encoded = urllib.parse.urlencode(params)
         return f"{self.auth_domain}/login/oauth/authorize?{encoded}"
 
-    async def exchange_code(self, code: str) -> data.OAuthAccessTokenResponse:
+    async def exchange_code(
+        self, code: str, redirect_uri: str
+    ) -> data.OAuthAccessTokenResponse:
         async with self.auth_client() as client:
             resp = await client.post(
                 "/login/oauth/access_token",
@@ -54,6 +56,7 @@ class GitHubProvider(base.BaseProvider):
                     "code": code,
                     "client_id": self.client_id,
                     "client_secret": self.client_secret,
+                    "redirect_uri": redirect_uri,
                 },
             )
             json = resp.json()

@@ -505,7 +505,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             redirect_to = f"{self.http_addr}/some/path"
 
             _, headers, status = self.http_con_request(
-                http_con, {"provider": provider_id, "redirect_to": redirect_to}, path="authorize"
+                http_con,
+                {"provider": provider_id, "redirect_to": redirect_to},
+                path="authorize",
             )
 
             self.assertEqual(status, 302)
@@ -679,15 +681,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_token = mock_provider.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                requests_for_token[0]["body"],
-                json.dumps(
-                    {
-                        "grant_type": "authorization_code",
-                        "code": "abc123",
-                        "client_id": client_id,
-                        "client_secret": client_secret,
-                    }
-                ),
+                json.loads(requests_for_token[0]["body"]),
+                {
+                    "grant_type": "authorization_code",
+                    "code": "abc123",
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "redirect_uri": f"{self.http_addr}/callback",
+                },
             )
 
             requests_for_user = mock_provider.requests[user_request]
@@ -980,15 +981,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_token = mock_provider.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                requests_for_token[0]["body"],
-                json.dumps(
-                    {
-                        "grant_type": "authorization_code",
-                        "code": "abc123",
-                        "client_id": client_id,
-                        "client_secret": client_secret,
-                    }
-                ),
+                json.loads(requests_for_token[0]["body"]),
+                {
+                    "grant_type": "authorization_code",
+                    "code": "abc123",
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "redirect_uri": f"{self.http_addr}/callback",
+                },
             )
 
             identity = await self.con.query(
@@ -1031,8 +1031,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
+            redirect_to = f"{self.http_addr}/some/path"
             _, headers, status = self.http_con_request(
-                http_con, {"provider": provider_id}, path="authorize"
+                http_con,
+                {
+                    "provider": provider_id,
+                    "redirect_to": redirect_to,
+                },
+                path="authorize",
             )
 
             self.assertEqual(status, 302)
@@ -1052,6 +1058,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             claims = await self.extract_jwt_claims(state[0])
             self.assertEqual(claims.get("provider"), provider_id)
             self.assertEqual(claims.get("iss"), self.http_addr)
+            self.assertEqual(claims.get("redirect_to"), redirect_to)
 
             self.assertEqual(
                 qs.get("redirect_uri"), [f"{self.http_addr}/callback"]
@@ -1081,8 +1088,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
+            redirect_to = f"{self.http_addr}/some/path"
             _, headers, status = self.http_con_request(
-                http_con, {"provider": provider_id}, path="authorize"
+                http_con,
+                {
+                    "provider": provider_id,
+                    "redirect_to": redirect_to,
+                },
+                path="authorize",
             )
 
             self.assertEqual(status, 302)
@@ -1102,6 +1115,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             claims = await self.extract_jwt_claims(state[0])
             self.assertEqual(claims.get("provider"), provider_id)
             self.assertEqual(claims.get("iss"), self.http_addr)
+            self.assertEqual(claims.get("redirect_to"), redirect_to)
 
             self.assertEqual(
                 qs.get("redirect_uri"), [f"{self.http_addr}/callback"]
@@ -1216,15 +1230,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_token = mock_provider.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                requests_for_token[0]["body"],
-                json.dumps(
-                    {
-                        "grant_type": "authorization_code",
-                        "code": "abc123",
-                        "client_id": client_id,
-                        "client_secret": client_secret,
-                    }
-                ),
+                json.loads(requests_for_token[0]["body"]),
+                {
+                    "grant_type": "authorization_code",
+                    "code": "abc123",
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "redirect_uri": f"{self.http_addr}/callback",
+                },
             )
 
     async def test_http_auth_ext_apple_authorize_01(self):
@@ -1247,8 +1260,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
+            redirect_to = f"{self.http_addr}/some/path"
             _, headers, status = self.http_con_request(
-                http_con, {"provider": provider_id}, path="authorize"
+                http_con,
+                {
+                    "provider": provider_id,
+                    "redirect_to": redirect_to,
+                },
+                path="authorize",
             )
 
             self.assertEqual(status, 302)
@@ -1268,6 +1287,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             claims = await self.extract_jwt_claims(state[0])
             self.assertEqual(claims.get("provider"), provider_id)
             self.assertEqual(claims.get("iss"), self.http_addr)
+            self.assertEqual(claims.get("redirect_to"), redirect_to)
 
             self.assertEqual(
                 qs.get("redirect_uri"), [f"{self.http_addr}/callback"]
@@ -1382,15 +1402,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_token = mock_provider.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                requests_for_token[0]["body"],
-                json.dumps(
-                    {
-                        "grant_type": "authorization_code",
-                        "code": "abc123",
-                        "client_id": client_id,
-                        "client_secret": client_secret,
-                    }
-                ),
+                json.loads(requests_for_token[0]["body"]),
+                {
+                    "grant_type": "authorization_code",
+                    "code": "abc123",
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "redirect_uri": f"{self.http_addr}/callback",
+                },
             )
 
     async def test_http_auth_ext_local_password_register_form_01(self):
