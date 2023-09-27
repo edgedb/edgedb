@@ -25,28 +25,7 @@ import httpx_cache
 from typing import Any
 from edb.server.protocol import execute
 
-from . import errors, util, data, base
-
-
-class HttpClient(httpx.AsyncClient):
-    def __init__(
-        self, *args, edgedb_test_url: str | None, base_url: str, **kwargs
-    ):
-        if edgedb_test_url:
-            self.edgedb_orig_base_url = urllib.parse.quote(base_url, safe='')
-            base_url = edgedb_test_url
-        cache = httpx_cache.AsyncCacheControlTransport()
-        super().__init__(*args, base_url=base_url, transport=cache, **kwargs)
-
-    async def post(self, path, *args, **kwargs):
-        if self.edgedb_orig_base_url:
-            path = f'{self.edgedb_orig_base_url}/{path}'
-        return await super().post(path, *args, **kwargs)
-
-    async def get(self, path, *args, **kwargs):
-        if self.edgedb_orig_base_url:
-            path = f'{self.edgedb_orig_base_url}/{path}'
-        return await super().get(path, *args, **kwargs)
+from . import errors, util, data, base, http_client
 
 
 class Client:
@@ -56,7 +35,7 @@ class Client:
         self.db = db
         self.db_config = db.db_config
 
-        http_factory = lambda *args, **kwargs: HttpClient(
+        http_factory = lambda *args, **kwargs: http_client.HttpClient(
             *args, edgedb_test_url=base_url, **kwargs
         )
 
