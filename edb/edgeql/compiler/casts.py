@@ -74,7 +74,14 @@ def compile_cast(
             ctx=ctx,
             srcctx=ir_expr.context)
 
-    if irutils.is_untyped_empty_array_expr(ir_expr):
+    if isinstance(new_stype, s_types.Array) and (
+        irutils.is_untyped_empty_array_expr(ir_expr)
+        or (
+            isinstance(ir_expr, irast.Set)
+            and irutils.is_untyped_empty_array_expr(
+                irutils.unwrap_set(ir_expr).expr)
+        )
+    ):
         # Ditto for empty arrays.
         new_typeref = typegen.type_to_typeref(new_stype, ctx.env)
         return setgen.ensure_set(
@@ -96,6 +103,17 @@ def compile_cast(
             f'to {new_stype.get_displayname(ctx.env.schema)!r}, use '
             f'`...[IS {new_stype.get_displayname(ctx.env.schema)}]` instead',
             context=srcctx)
+
+    # The only valid object type cast other than <uuid> is from anytype,
+    # and thus it must be an empty set.
+    if (
+        orig_stype.is_any(ctx.env.schema)
+        and new_stype.is_object_type()
+    ):
+        return setgen.new_empty_set(
+            stype=new_stype,
+            ctx=ctx,
+            srcctx=ir_expr.context)
 
     uuid_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'uuid'))
     if (

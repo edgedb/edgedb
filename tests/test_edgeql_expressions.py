@@ -3500,14 +3500,12 @@ class TestExpressions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_expr_array_21(self):
-        # it should be technically possible to infer the type of the array
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"operator 'UNION' cannot be applied to operands.*anytype.*"):
-
-            await self.con.execute("""
+        await self.assert_query_result(
+            """
                 SELECT [1, 2] UNION [];
-            """)
+            """,
+            [[1, 2], []],
+        )
 
     async def test_edgeql_expr_array_22(self):
         await self.assert_query_result(
@@ -8253,6 +8251,43 @@ aa \
             r"""
                 with test := ['']
                 select test if false else <array<str>>[];
+            """,
+            [[]],
+        )
+
+    async def test_edgeql_expr_if_else_10(self):
+        await self.assert_query_result(
+            r"""
+                select if true then 10 else {}
+            """,
+            [10],
+        )
+
+        await self.assert_query_result(
+            r"""
+                select if false then 10 else {}
+            """,
+            [],
+        )
+
+        await self.assert_query_result(
+            r"""
+                select if true then [10] else []
+            """,
+            [[10]],
+        )
+
+        await self.assert_query_result(
+            r"""
+                select if false then [10] else []
+            """,
+            [[]],
+        )
+
+        await self.assert_query_result(
+            r"""
+                with test := ['']
+                select test if false else [];
             """,
             [[]],
         )

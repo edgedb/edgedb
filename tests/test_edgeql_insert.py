@@ -6053,11 +6053,22 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             '''
+            select if <bool>$0 then (
+                insert InsertTest { l2 := 100 }
+            ) else {}
+            ''',
+            [{}],
+            variables=(True,)
+        )
+
+        await self.assert_query_result(
+            '''
             select InsertTest { l2, tname := .__type__.name } order by  .l2
             ''',
             [
                 {"l2": 2, "tname": "default::InsertTest"},
                 {"l2": 2, "tname": "default::InsertTest"},
+                {"l2": 100, "tname": "default::InsertTest"},
                 {"l2": 200, "tname": "default::DerivedTest"},
                 {"l2": 200, "tname": "default::DerivedTest"},
             ],

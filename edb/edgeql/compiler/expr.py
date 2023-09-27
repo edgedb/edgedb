@@ -476,7 +476,6 @@ def compile_GlobalExpr(
 def compile_TypeCast(
         expr: qlast.TypeCast, *, ctx: context.ContextLevel) -> irast.Set:
     target_stype = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
-    target_typeref = typegen.type_to_typeref(target_stype, env=ctx.env)
     ir_expr: Union[irast.Set, irast.Expr]
 
     if isinstance(expr.expr, qlast.Parameter):
@@ -567,14 +566,7 @@ def compile_TypeCast(
             subctx.implicit_tid_in_shapes = False
             subctx.implicit_tname_in_shapes = False
 
-        if (
-            isinstance(expr.expr, qlast.Array)
-            and not expr.expr.elements
-            and irtyputils.is_array(target_typeref)
-        ):
-            ir_expr = irast.Array(elements=[], typeref=target_typeref)
-        else:
-            ir_expr = dispatch.compile(expr.expr, ctx=subctx)
+        ir_expr = dispatch.compile(expr.expr, ctx=subctx)
 
         res = casts.compile_cast(
             ir_expr,
