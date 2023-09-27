@@ -185,10 +185,7 @@ def _init_parsers():
     ql_parser.preload(
         allow_rebuild=devmode.is_in_dev_mode(),
         paralellize=True,
-        grammars=[
-            ql_grammar.block,
-            ql_grammar.fragment,
-        ]
+        grammars=[ql_grammar.start]
     )
 
 

@@ -116,6 +116,12 @@ pub enum Kind {
     EOF,
     EOI,     // <$> (needed for LR parser)
     Epsilon, // <e> (needed for LR parser)
+
+    StartBlock,
+    StartExtension,
+    StartFragment,
+    StartMigration,
+    StartSDLDocument,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

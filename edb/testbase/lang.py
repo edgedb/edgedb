@@ -355,7 +355,7 @@ class BaseSchemaTest(BaseDocTest):
     @classmethod
     def get_grammar(cls):
         return [
-            qlgrammar.block,
+            qlgrammar.start,
             qlgrammar.fragment,
             qlgrammar.sdldocument,
             qlgrammar.extension_package_body,

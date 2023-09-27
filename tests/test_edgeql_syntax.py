@@ -36,7 +36,7 @@ class EdgeQLSyntaxTest(tb.BaseSyntaxTest):
 
     @classmethod
     def get_grammar(cls):
-        return edgeql_grammar.block
+        return edgeql_grammar.start
 
 
 class TestEdgeQLParser(EdgeQLSyntaxTest):

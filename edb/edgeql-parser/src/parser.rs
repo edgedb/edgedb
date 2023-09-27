@@ -417,7 +417,7 @@ fn extend_span<'a>(value: &mut CSTNode<'a>, span: Option<Span>, ctx: &'a Context
     };
 
     let CSTNode::Terminal(terminal) = value else {
-        return
+        return;
     };
 
     let mut new_term = terminal.clone();
@@ -490,6 +490,17 @@ impl Terminal {
             text: token.text.into(),
             value: token.value,
             span: token.span,
+            is_placeholder: false,
+        }
+    }
+
+    #[cfg(feature = "serde")]
+    pub fn from_start_name(start_name: &str) -> Self {
+        Terminal {
+            kind: get_token_kind(start_name),
+            text: "".to_string(),
+            value: None,
+            span: Default::default(),
             is_placeholder: false,
         }
     }
@@ -576,6 +587,12 @@ fn get_token_kind(token_name: &str) -> Kind {
         "NFCONST" => DecimalConst,
         "NICONST" => BigIntConst,
         "SCONST" => Str,
+
+        "STARTBLOCK" => StartBlock,
+        "STARTEXTENSION" => StartExtension,
+        "STARTFRAGMENT" => StartFragment,
+        "STARTMIGRATION" => StartMigration,
+        "STARTSDLDOCUMENT" => StartSDLDocument,
 
         "+=" => AddAssign,
         "->" => Arrow,

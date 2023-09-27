@@ -30,6 +30,7 @@ from edb.common import parsing
 import edb._edgeql_parser as rust_parser
 
 from . import grammar as qlgrammar
+from .grammar import tokens
 
 from .. import ast as qlast
 from .. import tokenizer as qltokenizer
@@ -53,7 +54,7 @@ def parse_fragment(
     source: Union[qltokenizer.Source, str],
     filename: Optional[str] = None,
 ) -> qlast.Expr:
-    res = parse(qlgrammar.fragment, source, filename=filename)
+    res = parse(tokens.T_STARTFRAGMENT, source, filename=filename)
     assert isinstance(res, qlast.Expr)
     return res
 
@@ -82,7 +83,7 @@ def parse_block(
     source: qltokenizer.Source | str,
     module_aliases: Optional[Mapping[Optional[str], str]] = None,
 ) -> list[qlast.Base]:
-    trees = parse(qlgrammar.block, source)
+    trees = parse(tokens.T_STARTBLOCK, source)
     if module_aliases:
         for tree in trees:
             append_module_aliases(tree, module_aliases)
@@ -97,7 +98,7 @@ def parse_migration_body_block(
     # (without braces)", so we just hack around this by adding braces.
     # This is only really workable because we only use this in a place
     # where the source contexts don't matter anyway.
-    return parse(qlgrammar.migration_body, f"{{{source}}}")
+    return parse(tokens.T_STARTMIGRATION, f"{{{source}}}")
 
 
 def parse_extension_package_body_block(
@@ -108,22 +109,26 @@ def parse_extension_package_body_block(
     # (without braces)", so we just hack around this by adding braces.
     # This is only really workable because we only use this in a place
     # where the source contexts don't matter anyway.
-    return parse(qlgrammar.extension_package_body, f"{{{source}}}")
+    return parse(tokens.T_STARTEXTENSION, f"{{{source}}}")
 
 
 def parse_sdl(expr: str):
-    return parse(qlgrammar.sdldocument, expr)
+    return parse(tokens.T_STARTSDLDOCUMENT, expr)
 
 
 def parse(
-    grammar: types.ModuleType,
+    start_token: Type[tokens.Token],
     source: Union[str, qltokenizer.Source],
     filename: Optional[str] = None,
 ):
     if isinstance(source, str):
         source = qltokenizer.Source.from_string(source)
 
-    result, productions = rust_parser.parse(grammar.__name__, source.tokens())
+    start_token_name = start_token.__name__[2:]
+
+    print(qlgrammar.start.__name__)
+
+    result, productions = rust_parser.parse(start_token_name, source.tokens())
 
     if len(result.errors()) > 0:
         # TODO: emit multiple errors
@@ -241,11 +246,7 @@ def preload(
 ) -> None:
     if grammars is None:
         grammars = [
-            qlgrammar.block,
-            qlgrammar.fragment,
-            qlgrammar.sdldocument,
-            qlgrammar.extension_package_body,
-            qlgrammar.migration_body,
+            qlgrammar.start,
         ]
 
     if not paralellize:

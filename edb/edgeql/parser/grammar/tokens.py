@@ -42,6 +42,26 @@ class Token(parsing.Token, metaclass=TokenMeta,
     pass
 
 
+class T_STARTBLOCK(Token):
+    pass
+
+
+class T_STARTEXTENSION(Token):
+    pass
+
+
+class T_STARTFRAGMENT(Token):
+    pass
+
+
+class T_STARTMIGRATION(Token):
+    pass
+
+
+class T_STARTSDLDOCUMENT(Token):
+    pass
+
+
 class T_DOT(Token, lextoken='.'):
     pass
 
