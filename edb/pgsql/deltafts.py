@@ -23,7 +23,6 @@ from edb import errors
 from edb.schema import indexes as s_indexes
 from edb.schema import types as s_types
 from edb.schema import expr as s_expr
-from edb.schema import links as s_links
 from edb.schema import schema as s_schema
 from edb.schema import delta as sd
 
@@ -46,7 +45,6 @@ from .compiler import astutils
 
 def create_fts_index(
     index: s_indexes.Index,
-    root_code: str,
     index_expr: irast.Set,
     predicate_src: Optional[str],
     sql_kwarg_exprs: Dict[str, str],
@@ -56,11 +54,6 @@ def create_fts_index(
 ) -> dbops.Command:
     subject = index.get_subject(schema)
     assert isinstance(subject, s_indexes.IndexableSubject)
-
-    if isinstance(subject, s_links.Link):
-        raise errors.SchemaDefinitionError(
-            "fts::index cannot be declared on links"
-        )
 
     effective, has_overridden = s_indexes.get_effective_fts_index(
         subject, schema

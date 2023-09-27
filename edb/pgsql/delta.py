@@ -3606,7 +3606,6 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         if root_name == sn.QualName('fts', 'index'):
             return deltafts.create_fts_index(
                 index,
-                root_code,
                 ir.expr,
                 predicate_src,
                 sql_kwarg_exprs,
