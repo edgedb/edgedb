@@ -57,7 +57,7 @@ py_module_initializer!(
         m.add(
             py,
             "cache_spec",
-            py_fn!(py, cache_spec(grammar_name: &PyString, py_spec: &PyObject)),
+            py_fn!(py, cache_spec(py_spec: &PyObject)),
         )?;
         m.add(py, "CSTNode", py.get_type::<CSTNode>())?;
         m.add(py, "Production", py.get_type::<Production>())?;

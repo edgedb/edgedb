@@ -16,13 +16,8 @@
 # limitations under the License.
 #
 
-
 from __future__ import annotations
 from typing import *
-
-import importlib
-import multiprocessing
-import types
 
 from edb import errors
 from edb.common import parsing
@@ -30,6 +25,7 @@ from edb.common import parsing
 import edb._edgeql_parser as rust_parser
 
 from . import grammar as qlgrammar
+from .grammar import tokens
 
 from .. import ast as qlast
 from .. import tokenizer as qltokenizer
@@ -61,7 +57,7 @@ def parse_fragment(
     source: Union[qltokenizer.Source, str],
     filename: Optional[str] = None,
 ) -> qlast.Expr:
-    res = parse(qlgrammar.fragment, source, filename=filename)
+    res = parse(tokens.T_STARTFRAGMENT, source, filename=filename)
     assert isinstance(res, qlast.Expr)
     return res
 
@@ -90,7 +86,7 @@ def parse_block(
     source: qltokenizer.Source | str,
     module_aliases: Optional[Mapping[Optional[str], str]] = None,
 ) -> list[qlast.Base]:
-    trees = parse(qlgrammar.block, source)
+    trees = parse(tokens.T_STARTBLOCK, source)
     if module_aliases:
         for tree in trees:
             append_module_aliases(tree, module_aliases)
@@ -105,7 +101,7 @@ def parse_migration_body_block(
     # (without braces)", so we just hack around this by adding braces.
     # This is only really workable because we only use this in a place
     # where the source contexts don't matter anyway.
-    return parse(qlgrammar.migration_body, f"{{{source}}}")
+    return parse(tokens.T_STARTMIGRATION, f"{{{source}}}")
 
 
 def parse_extension_package_body_block(
@@ -116,22 +112,23 @@ def parse_extension_package_body_block(
     # (without braces)", so we just hack around this by adding braces.
     # This is only really workable because we only use this in a place
     # where the source contexts don't matter anyway.
-    return parse(qlgrammar.extension_package_body, f"{{{source}}}")
+    return parse(tokens.T_STARTEXTENSION, f"{{{source}}}")
 
 
 def parse_sdl(expr: str):
-    return parse(qlgrammar.sdldocument, expr)
+    return parse(tokens.T_STARTSDLDOCUMENT, expr)
 
 
 def parse(
-    grammar: types.ModuleType,
+    start_token: Type[tokens.Token],
     source: Union[str, qltokenizer.Source],
     filename: Optional[str] = None,
 ):
     if isinstance(source, str):
         source = qltokenizer.Source.from_string(source)
 
-    result, productions = rust_parser.parse(grammar.__name__, source.tokens())
+    start_token_name = start_token.__name__[2:]
+    result, productions = rust_parser.parse(start_token_name, source.tokens())
 
     if len(result.errors()) > 0:
         # TODO: emit multiple errors
@@ -242,56 +239,14 @@ def _cst_to_ast(
     return result.pop()
 
 
-def _load_parser(grammar: str) -> None:
-    specmod = importlib.import_module(grammar)
-    parsing.load_parser_spec(specmod, allow_rebuild=True)
-
-
-def preload(
-    allow_rebuild: bool = True,
-    paralellize: bool = False,
-    grammars: Optional[list[types.ModuleType]] = None,
-) -> None:
-    if grammars is None:
-        grammars = [
-            qlgrammar.block,
-            qlgrammar.fragment,
-            qlgrammar.sdldocument,
-            qlgrammar.extension_package_body,
-            qlgrammar.migration_body,
-        ]
-
-    if not paralellize:
-        try:
-            for grammar in grammars:
-                spec = parsing.load_parser_spec(
-                    grammar, allow_rebuild=allow_rebuild)
-                rust_parser.cache_spec(grammar.__name__, spec)
-        except parsing.ParserSpecIncompatibleError as e:
-            raise errors.InternalServerError(e.args[0]) from None
-    else:
-        parsers_to_rebuild = []
-
-        for grammar in grammars:
-            try:
-                spec = parsing.load_parser_spec(grammar, allow_rebuild=False)
-                rust_parser.cache_spec(grammar.__name__, spec)
-            except parsing.ParserSpecIncompatibleError:
-                parsers_to_rebuild.append(grammar)
-
-        if len(parsers_to_rebuild) == 0:
-            pass
-        elif len(parsers_to_rebuild) == 1:
-            spec = parsing.load_parser_spec(
-                parsers_to_rebuild[0], allow_rebuild=True)
-            rust_parser.cache_spec(parsers_to_rebuild[0].__name__, spec)
+def preload(allow_rebuild: bool = False) -> None:
+    grammar = qlgrammar.start
+    try:
+        spec = parsing.load_parser_spec(grammar, allow_rebuild=False)
+    except parsing.ParserSpecIncompatibleError as e:
+        if allow_rebuild:
+            spec = parsing.load_parser_spec(grammar, allow_rebuild=True)
         else:
-            with multiprocessing.Pool(len(parsers_to_rebuild)) as pool:
-                pool.map(
-                    _load_parser,
-                    [mod.__name__ for mod in parsers_to_rebuild],
-                )
+            raise errors.InternalServerError(e.args[0]) from None
 
-            for grammar in parsers_to_rebuild:
-                spec = parsing.load_parser_spec(grammar, allow_rebuild=False)
-                rust_parser.cache_spec(grammar.__name__, spec)
+    rust_parser.cache_spec(spec)

@@ -179,7 +179,8 @@ fn is_operator(token: &Token) -> bool {
         | OpenBrace | CloseBrace | Dot | Semicolon | Colon | Add | Sub | Mul | Div | Modulo
         | Pow | Less | Greater | Eq | Ampersand | Pipe | At => true,
         DecimalConst | FloatConst | IntConst | BigIntConst | BinStr | Argument | Str
-        | BacktickName | Keyword(_) | Ident | Substitution | EOF | EOI | Epsilon => false,
+        | BacktickName | Keyword(_) | Ident | Substitution | EOF | EOI | Epsilon | StartBlock
+        | StartExtension | StartFragment | StartMigration | StartSDLDocument => false,
     }
 }
 

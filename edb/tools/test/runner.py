@@ -824,7 +824,7 @@ class ParallelTextTestRunner:
         )
         setup = tb.get_test_cases_setup(cases)
         server_used = tb.test_cases_use_server(cases)
-        lang_setup = tb_lang.get_test_cases_setup(cases)
+        preload_parser = tb_lang.should_preload_parser(cases)
         bootstrap_time_taken = 0
         tests_time_taken = 0
         result = None
@@ -863,8 +863,8 @@ class ParallelTextTestRunner:
 
                 os.environ["EDGEDB_SERVER_JWS_KEY_FILE"] = str(jwk_file)
 
-        if lang_setup:
-            tb_lang.run_test_cases_setup(lang_setup, jobs=self.num_workers)
+        if preload_parser:
+            tb_lang.preload_parser()
 
         try:
             if setup:
