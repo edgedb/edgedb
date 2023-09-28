@@ -342,27 +342,34 @@ def _compile_dml_ifelse(
             steps=[qlast.ObjectRef(name=alias)],
         )
 
-        if_b = qlast.ForQuery(
-            iterator_alias='__',
-            iterator=qlast.SelectQuery(
-                result=qlast.Tuple(elements=[]),
-                where=cond_path,
-            ),
-            result=subctx.create_anchor(if_ir, has_dml=True),
-        )
-        else_b = qlast.ForQuery(
-            iterator_alias='__',
-            iterator=qlast.SelectQuery(
-                result=qlast.Tuple(elements=[]),
-                where=qlast.UnaryOp(op='NOT', operand=cond_path),
-            ),
-            result=subctx.create_anchor(else_ir, has_dml=True),
-        )
+        els: list[qlast.Expr] = []
+
+        if not isinstance(irutils.unwrap_set(if_ir), irast.EmptySet):
+            if_b = qlast.ForQuery(
+                iterator_alias='__',
+                iterator=qlast.SelectQuery(
+                    result=qlast.Tuple(elements=[]),
+                    where=cond_path,
+                ),
+                result=subctx.create_anchor(if_ir, has_dml=True),
+            )
+            els.append(if_b)
+
+        if not isinstance(irutils.unwrap_set(else_ir), irast.EmptySet):
+            else_b = qlast.ForQuery(
+                iterator_alias='__',
+                iterator=qlast.SelectQuery(
+                    result=qlast.Tuple(elements=[]),
+                    where=qlast.UnaryOp(op='NOT', operand=cond_path),
+                ),
+                result=subctx.create_anchor(else_ir, has_dml=True),
+            )
+            els.append(else_b)
 
         full = qlast.ForQuery(
             iterator_alias=alias,
             iterator=subctx.create_anchor(cond_ir, 'b'),
-            result=qlast.Set(elements=[if_b, else_b]),
+            result=qlast.Set(elements=els) if len(els) != 1 else els[0],
         )
 
         res = dispatch.compile(full, ctx=subctx)
