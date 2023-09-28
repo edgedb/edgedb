@@ -308,7 +308,7 @@ def compile_Array(
 
 
 def _compile_dml_ifelse(
-        ir: irast.Set, *, ctx: context.ContextLevel) -> irast.Set:
+        expr: qlast.IfElse, *, ctx: context.ContextLevel) -> irast.Set:
     """Transform an IF/ELSE that contains DML into FOR loops
 
     The basic approach is to extract the pieces from the if/then/else and
@@ -321,20 +321,31 @@ def _compile_dml_ifelse(
         )
     """
 
-    # Extract the IR parts from the IF/THEN/ELSE
-    # Note that cond_ir will be unfenced while if_ir and else_ir
-    # will have been compiled under fences.
-    match ir.expr:
-        case irast.OperatorCall(args=[
-            irast.CallArg(expr=if_ir),
-            irast.CallArg(expr=cond_ir),
-            irast.CallArg(expr=else_ir),
-        ]):
-            pass
-        case _:
-            raise AssertionError('malformed DML IF/ELSE')
+    with ctx.newscope(fenced=False) as subctx:
+        # We have to compile it under a factoring fence to prevent
+        # correlation with outside things. We can't just rely on the
+        # factoring fences inserted when compiling the FORs, since we
+        # are going to need to explicitly exempt the iterator
+        # expression from that.
+        subctx.path_scope.factoring_fence = True
 
-    with ctx.new() as subctx:
+        ir = func.compile_operator(
+            expr, op_name='std::IF',
+            qlargs=[expr.if_expr, expr.condition, expr.else_expr], ctx=subctx)
+
+        # Extract the IR parts from the IF/THEN/ELSE
+        # Note that cond_ir will be unfenced while if_ir and else_ir
+        # will have been compiled under fences.
+        match ir.expr:
+            case irast.OperatorCall(args=[
+                irast.CallArg(expr=if_ir),
+                irast.CallArg(expr=cond_ir),
+                irast.CallArg(expr=else_ir),
+            ]):
+                pass
+            case _:
+                raise AssertionError('malformed DML IF/ELSE')
+
         subctx.anchors = subctx.anchors.copy()
 
         alias = ctx.aliases.get('b')
@@ -372,6 +383,7 @@ def _compile_dml_ifelse(
             result=qlast.Set(elements=els) if len(els) != 1 else els[0],
         )
 
+        subctx.iterator_path_ids |= {cond_ir.path_id}
         res = dispatch.compile(full, ctx=subctx)
         # Indicate that the original IF/ELSE code should determine the
         # cardinality/multiplicity.
@@ -384,15 +396,15 @@ def _compile_dml_ifelse(
 def compile_IfElse(
         expr: qlast.IfElse, *, ctx: context.ContextLevel) -> irast.Set:
 
-    res = func.compile_operator(
-        expr, op_name='std::IF',
-        qlargs=[expr.if_expr, expr.condition, expr.else_expr], ctx=ctx)
-
     if (
         utils.contains_dml(expr.if_expr)
         or utils.contains_dml(expr.else_expr)
     ):
-        res = _compile_dml_ifelse(res, ctx=ctx)
+        return _compile_dml_ifelse(expr, ctx=ctx)
+
+    res = func.compile_operator(
+        expr, op_name='std::IF',
+        qlargs=[expr.if_expr, expr.condition, expr.else_expr], ctx=ctx)
 
     return res
 

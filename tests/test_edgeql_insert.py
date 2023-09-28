@@ -6053,7 +6053,8 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             '''
-            select if <bool>$0 then (
+            with go := <bool>$0
+            select if go then (
                 insert InsertTest { l2 := 100 }
             ) else {}
             ''',
