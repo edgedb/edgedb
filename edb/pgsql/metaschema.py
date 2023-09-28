@@ -6569,9 +6569,7 @@ def _generate_config_type_view(
                     FROM (VALUES
                         (NULL, '{CONFIG_ID[None]}'::uuid),
                         ('database',
-                         '{CONFIG_ID[qltypes.ConfigScope.DATABASE]}'::uuid),
-                        ('system override',
-                         '{CONFIG_ID[qltypes.ConfigScope.INSTANCE]}'::uuid)
+                         '{CONFIG_ID[qltypes.ConfigScope.DATABASE]}'::uuid)
                     ) AS s(scope, scope_id)
                 ) AS q0
             '''
@@ -6594,9 +6592,7 @@ def _generate_config_type_view(
                      FROM (VALUES
                          (NULL, '{CONFIG_ID[None]}'::uuid),
                          ('database',
-                          '{CONFIG_ID[qltypes.ConfigScope.DATABASE]}'::uuid),
-                         ('system override',
-                          '{CONFIG_ID[qltypes.ConfigScope.INSTANCE]}'::uuid)
+                          '{CONFIG_ID[qltypes.ConfigScope.DATABASE]}'::uuid)
                      ) AS s(scope, scope_id),
                      LATERAL (
                          SELECT (value::jsonb) AS val

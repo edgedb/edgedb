@@ -16166,16 +16166,6 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             objs=[],
         )
 
-        if not in_tx:
-            await self.con.execute('''
-                configure instance set ext::_conf::Config::config_name :=
-                    "instance";
-            ''')
-            await _check(
-                config_name='instance',
-                objs=[],
-            )
-
         await self.con.execute('''
             configure current database set ext::_conf::Config::config_name :=
                 "test";
@@ -16204,11 +16194,12 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         )
 
         if not in_tx:
-            await _check(
-                'InstanceConfig',
-                config_name='instance',
-                objs=[],
-            )
+            with self.assertRaisesRegex(
+                    edgedb.ConfigurationError, "is not allowed"):
+                await self.con.execute('''
+                    configure instance set ext::_conf::Config::config_name :=
+                        "session!";
+                ''')
 
         # TODO: This should all work, instead!
         async with self.assertRaisesRegexTx(
@@ -16514,15 +16505,6 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         await self.con.execute('''
             configure current database reset ext::_conf::Config::config_name;
         ''')
-        if not in_tx:
-            await _check(
-                config_name='instance',
-                objs=[],
-            )
-
-            await self.con.execute('''
-                configure instance reset ext::_conf::Config::config_name;
-            ''')
 
         await _check(
             config_name='',
