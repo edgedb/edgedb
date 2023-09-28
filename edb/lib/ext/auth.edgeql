@@ -125,7 +125,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
                 "Configuration for auth provider clients";
         };
 
-        create multi link ui -> ext::auth::UIConfig {
+        create link ui -> ext::auth::UIConfig {
             create annotation std::description :=
                 "Configuration for builtin auth UI. If not set the builtin \
                 UI is disabled";

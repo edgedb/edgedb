@@ -181,21 +181,21 @@ set { password_hash := new_hash };""",
         return local_identity
 
     async def get_identity_and_secret(self, db: Any, input: dict[str, Any]):
-        if 'handle' not in input:
-            raise errors.InvalidData("Missing 'handle' in data")
+        if 'email' not in input:
+            raise errors.InvalidData("Missing 'email' in data")
 
-        handle = input["handle"]
+        email = input["email"]
         r = await execute.parse_execute_json(
             db=db,
             query="""
 with
-  handle := <str>$handle,
-select ext::auth::PasswordCredential {
+  email := <str>$email,
+select ext::auth::EmailPasswordFactor {
   password_hash,
   identity: { * }
-} filter .identity.handle = handle""",
+} filter .email = email""",
             variables={
-                "handle": handle,
+                "email": email,
             }
         )
 
@@ -222,7 +222,7 @@ select ext::auth::PasswordCredential {
             query="""\
 with
   identity_id := <uuid><str>$identity_id,
-select ext::auth::PasswordCredential { password_hash, identity: { * } }
+select ext::auth::EmailPasswordFactor { password_hash, identity: { * } }
 filter .identity.id = identity_id;""",
             variables={
                 "identity_id": identity_id,
@@ -266,7 +266,7 @@ filter .identity.id = identity_id;""",
 with
   identity_id := <uuid><str>$identity_id,
   new_hash := <str>$new_hash,
-update ext::auth::PasswordCredential
+update ext::auth::EmailPasswordFactor
 filter .identity.id = identity_id
 set { password_hash := new_hash };""",
             variables={

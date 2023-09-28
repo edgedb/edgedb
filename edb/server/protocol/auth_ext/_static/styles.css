@@ -41,7 +41,7 @@ form {
   padding: 24px;
   padding-bottom: 16px;
   width: 326px;
-  border-radius: 8px;
+  border-radius: 16px;
   box-shadow: 0px 2px 2px rgba(3, 7, 18, 0.02),
               0px 7px 7px rgba(3, 7, 18, 0.03),
               0px 16px 16px rgba(3, 7, 18, 0.05);

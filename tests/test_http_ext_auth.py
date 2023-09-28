@@ -2184,7 +2184,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             form_data = {
                 "provider": provider_id,
                 "email": "test_auth_forgot@example.com",
-                "handle": "test_auth_handle_forgot",
                 "password": "test_auth_password",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -2202,7 +2201,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             form_data = {
                 "provider": provider_id,
                 "reset_url": "https://example.com/reset-password",
-                "handle": form_data['handle'],
+                "email": form_data['email'],
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
@@ -2219,17 +2218,18 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             identity = await self.con.query(
                 """
-                SELECT ext::auth::LocalIdentity
-                FILTER .handle = <str>$handle
+                with module ext::auth
+                SELECT LocalIdentity
+                FILTER .<identity[is EmailPasswordFactor].email = <str>$email
                 """,
-                handle=form_data["handle"],
+                email=form_data["email"],
             )
             self.assertEqual(len(identity), 1)
 
             data = json.loads(body)
 
             assert_data_shape.assert_data_shape(data, {
-                "email": "test_auth_forgot@example.com",
+                "email_sent": "test_auth_forgot@example.com",
                 "reset_url": str
             }, self.fail)
 
@@ -2244,17 +2244,17 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(claims.get("sub"), str(identity[0].id))
             self.assertEqual(claims.get("iss"), str(self.http_addr))
             now = utcnow()
-            tomorrow = now + datetime.timedelta(minutes=10)
+            tenMinutesLater = now + datetime.timedelta(minutes=10)
             self.assertTrue(
                 claims.get("exp") > now.timestamp()
             )
             self.assertTrue(
-                claims.get("exp") < tomorrow.timestamp()
+                claims.get("exp") < tenMinutesLater.timestamp()
             )
 
             password_credential = await self.con.query(
                 """
-                SELECT ext::auth::PasswordCredential { password_hash }
+                SELECT ext::auth::EmailPasswordFactor { password_hash }
                 FILTER .identity.id = <uuid>$identity
                 """,
                 identity=identity[0].id,
@@ -2298,7 +2298,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             assert_data_shape.assert_data_shape(parsed_query, {
-                "email": ["test_auth_forgot@example.com"],
+                "email_sent": ["test_auth_forgot@example.com"],
                 "reset_url": [str]
             }, self.fail)
 
@@ -2310,7 +2310,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 method="POST",
                 body=urllib.parse.urlencode({
                     **form_data,
-                    "handle": "invalid",
+                    "email": "invalid@example.com",
                 }).encode(),
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
@@ -2325,7 +2325,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 method="POST",
                 body=urllib.parse.urlencode({
                     **form_data,
-                    "handle": "invalid",
+                    "email": "invalid@example.com",
                     "redirect_to": "https://example.com/forgot-password"
                 }).encode(),
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -2365,7 +2365,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 method="POST",
                 body=urllib.parse.urlencode({
                     **form_data,
-                    "handle": "invalid",
+                    "email": "invalid@example.com",
                     "redirect_to": "https://example.com/forgot-password",
                     "redirect_on_failure":
                         "https://example.com/forgot-password-failed"
@@ -2409,7 +2409,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             form_data = {
                 "provider": provider_id,
                 "email": "test_auth_forgot@example.com",
-                "handle": "test_auth_handle_forgot",
                 "password": "test_auth_password",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -2427,7 +2426,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             form_data = {
                 "provider": provider_id,
                 "reset_url": "https://example.com/reset-password",
-                "handle": form_data['handle'],
+                "email": form_data['email'],
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
@@ -2471,8 +2470,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             identity = await self.con.query(
                 """
-                SELECT ext::auth::LocalIdentity
-                FILTER .handle = 'test_auth_handle_forgot'
+                with module ext::auth
+                SELECT LocalIdentity
+                FILTER .<identity[is EmailPasswordFactor].email
+                        = 'test_auth_forgot@example.com'
                 """
             )
 

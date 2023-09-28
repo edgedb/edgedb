@@ -33,8 +33,10 @@ from edb import errors as edb_errors
 from edb.common import debug
 from edb.common import markup
 from edb.ir import statypes
+from edb.server.config.types import CompositeConfigType
 
 from . import oauth, local, errors, util, pkce, ui
+
 
 class Router:
     def __init__(self, *, db: Any, base_path: str, test_mode: bool):
@@ -245,7 +247,6 @@ class Router:
                             redirect_params = urllib.parse.urlencode(
                                 {
                                     "error": str(ex),
-                                    "handle": data.get('handle', ''),
                                     "email": data.get('email', '')
                                 }
                             )
@@ -306,7 +307,7 @@ class Router:
                             redirect_params = urllib.parse.urlencode(
                                 {
                                     "error": str(ex),
-                                    "handle": data.get('handle', ''),
+                                    "email": data.get('email', ''),
                                 }
                             )
                             redirect_url = (
@@ -352,11 +353,11 @@ class Router:
                         return_data = (
                             # TODO: Remove this once email tests set up
                             {
-                                "email": identity.email,
+                                "email_sent": data.get('email'),
                                 "reset_url": reset_url
                             } if self.test_mode else
                             {
-                                "email": identity.email,
+                                "email_sent": data.get('email'),
                             }
                         )
 
@@ -384,7 +385,7 @@ class Router:
                             redirect_params = urllib.parse.urlencode(
                                 {
                                     "error": str(ex),
-                                    "handle": data.get('handle', ''),
+                                    "email": data.get('email', ''),
                                 }
                             )
                             redirect_url = (
@@ -472,12 +473,19 @@ class Router:
 
                     if ui_config is None:
                         response.status = http.HTTPStatus.NOT_FOUND
+                        response.body = b'Auth UI not enabled'
                     else:
-                        providers = util.get_config(
+                        providers = util.maybe_get_config(
                             self.db.db_config,  # type: ignore
                             "ext::auth::AuthConfig::providers",
                             frozenset
                         )
+
+                        if providers is None or len(providers) == 0:
+                            raise errors.MissingConfiguration(
+                                'ext::auth::AuthConfig::providers',
+                                'No providers are configured'
+                            )
 
                         query = (
                             request.url.query.decode("ascii")
@@ -493,7 +501,7 @@ class Router:
                             error_message=_maybe_get_search_param(
                                 query, 'error'
                             ),
-                            handle=_maybe_get_search_param(query, 'handle'),
+                            email=_maybe_get_search_param(query, 'email'),
                             app_name=ui_config.app_name,
                             logo_url=ui_config.logo_url,
                             dark_logo_url=ui_config.dark_logo_url,
@@ -502,12 +510,19 @@ class Router:
 
                 case ('signup',):
                     ui_config = self._get_ui_config()
+                    password_provider = (
+                        self._get_password_provider()
+                        if ui_config is not None
+                        else None
+                    )
 
-                    if ui_config is None:
+                    if ui_config is None or password_provider is None:
                         response.status = http.HTTPStatus.NOT_FOUND
+                        response.body = (
+                            b'Password provider not configured'
+                            if ui_config else b'Auth UI not enabled'
+                        )
                     else:
-                        password_provider = self._get_password_provider()
-
                         query = (
                             request.url.query.decode("ascii")
                             if request.url.query else ''
@@ -522,7 +537,6 @@ class Router:
                             error_message=_maybe_get_search_param(
                                 query, 'error'
                             ),
-                            handle=_maybe_get_search_param(query, 'handle'),
                             email=_maybe_get_search_param(query, 'email'),
                             app_name=ui_config.app_name,
                             logo_url=ui_config.logo_url,
@@ -532,12 +546,19 @@ class Router:
 
                 case ('forgot-password',):
                     ui_config = self._get_ui_config()
+                    password_provider = (
+                        self._get_password_provider()
+                        if ui_config is not None
+                        else None
+                    )
 
-                    if ui_config is None:
+                    if ui_config is None or password_provider is None:
                         response.status = http.HTTPStatus.NOT_FOUND
+                        response.body = (
+                            b'Password provider not configured'
+                            if ui_config else b'Auth UI not enabled'
+                        )
                     else:
-                        password_provider = self._get_password_provider()
-
                         query = (
                             request.url.query.decode("ascii")
                             if request.url.query else ''
@@ -551,8 +572,10 @@ class Router:
                             error_message=_maybe_get_search_param(
                                 query, 'error'
                             ),
-                            handle=_maybe_get_search_param(query, 'handle'),
                             email=_maybe_get_search_param(query, 'email'),
+                            email_sent=_maybe_get_search_param(
+                                query, 'email_sent'
+                            ),
                             app_name=ui_config.app_name,
                             logo_url=ui_config.logo_url,
                             dark_logo_url=ui_config.dark_logo_url,
@@ -561,12 +584,19 @@ class Router:
 
                 case ('reset-password',):
                     ui_config = self._get_ui_config()
+                    password_provider = (
+                        self._get_password_provider()
+                        if ui_config is not None
+                        else None
+                    )
 
-                    if ui_config is None:
+                    if ui_config is None or password_provider is None:
                         response.status = http.HTTPStatus.NOT_FOUND
+                        response.body = (
+                            b'Password provider not configured'
+                            if ui_config else b'Auth UI not enabled'
+                        )
                     else:
-                        password_provider = self._get_password_provider()
-
                         query = (
                             request.url.query.decode("ascii")
                             if request.url.query else ''
@@ -815,15 +845,10 @@ class Router:
                 )
 
     def _get_ui_config(self):
-        ui_config = util.maybe_get_config(
+        return util.maybe_get_config(
             self.db.db_config, "ext::auth::AuthConfig::ui",
-            frozenset
+            CompositeConfigType
         )
-
-        if ui_config is not None:
-            assert len(ui_config) == 1
-
-        return list(ui_config)[0] if ui_config else None
 
     def _get_password_provider(self):
         providers = util.get_config(
@@ -836,9 +861,8 @@ class Router:
             if (util.get_config_typename(p) ==
                 'ext::auth::PasswordClientConfig')
         ]
-        assert len(password_providers) == 1
 
-        return password_providers[0]
+        return password_providers[0] if len(password_providers) == 1 else None
 
 
 def _fail_with_error(

@@ -24,7 +24,7 @@ from .util import get_config_typename
 
 
 oauth_provider_names = {
-    'github': 'Github',
+    'github': 'GitHub',
     'google': 'Google',
     'apple': 'Apple',
     'azure': 'Azure'
@@ -36,7 +36,7 @@ def render_login_page(
     base_path: str,
     providers: frozenset,
     error_message: Optional[str] = None,
-    handle: Optional[str] = None,
+    email: Optional[str] = None,
     # config
     redirect_to: str,
     app_name: Optional[str] = None,
@@ -69,14 +69,28 @@ def render_login_page(
         for p in oauth_providers
     ])
 
+    forgot_link_script = f'''<script>
+        const forgotLink = document.getElementById("forgot-password-link");
+        const emailInput = document.getElementById("email");
+
+        emailInput.addEventListener("input", (e) => {{
+        forgotLink.href = `forgot-password?email=${{
+            encodeURIComponent(e.target.value)
+        }}`
+        }});
+        forgotLink.href = `forgot-password?email=${{
+        encodeURIComponent(emailInput.value)
+        }}`
+        </script>''' if password_provider is not None else ''
+
     return _render_base_page(
         title=f'Sign in{f" to {app_name}" if app_name else ""}',
         logo_url=logo_url,
         dark_logo_url=dark_logo_url,
         brand_color=brand_color,
-        cleanup_search_params=['error', 'handle'],
+        cleanup_search_params=['error', 'email'],
         content=f'''
-    <form method="POST" action="authenticate">
+    <form method="POST" action="authenticate" novalidate>
       <h1>{f'<span>Sign in to</span> {html.escape(app_name)}'
            if app_name else '<span>Sign in</span>'}</h1>
 
@@ -107,8 +121,8 @@ def render_login_page(
 
       {_render_error_message(error_message)}
 
-      <label for="username">Username</label>
-      <input id="username" name="handle" type="text" value="{handle or ''}" />
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" value="{email or ''}" />
 
       <div class="field-header">
         <label for="password">Password</label>
@@ -126,19 +140,7 @@ def render_login_page(
       </div>""" if password_provider is not None else ''
     }
     </form>
-    <script>
-    const forgotLink = document.getElementById("forgot-password-link");
-    const usernameInput = document.getElementById("username");
-
-    usernameInput.addEventListener("input", (e) => {{
-      forgotLink.href = `forgot-password?handle=${{
-        encodeURIComponent(e.target.value)
-      }}`
-    }});
-    forgotLink.href = `forgot-password?handle=${{
-      encodeURIComponent(usernameInput.value)
-    }}`
-    </script>'''
+    {forgot_link_script}'''
     )
 
 
@@ -147,7 +149,6 @@ def render_signup_page(
     base_path: str,
     provider_id: str,
     error_message: Optional[str] = None,
-    handle: Optional[str] = None,
     email: Optional[str] = None,
     # config
     redirect_to: str,
@@ -161,9 +162,9 @@ def render_signup_page(
         logo_url=logo_url,
         dark_logo_url=dark_logo_url,
         brand_color=brand_color,
-        cleanup_search_params=['error', 'handle', 'email'],
+        cleanup_search_params=['error', 'email'],
         content=f'''
-    <form method="POST" action="register">
+    <form method="POST" action="register" novalidate>
       <h1>{f'<span>Sign up to</span> {html.escape(app_name)}'
            if app_name else '<span>Sign up</span>'}</h1>
 
@@ -176,9 +177,6 @@ def render_signup_page(
 
       <label for="email">Email</label>
       <input id="email" name="email" type="text" value="{email or ''}" />
-
-      <label for="username">Username</label>
-      <input id="username" name="handle" type="text" value="{handle or ''}" />
 
       <label for="password">Password</label>
       <input id="password" name="password" type="password" />
@@ -198,17 +196,17 @@ def render_forgot_password_page(
     base_path: str,
     provider_id: str,
     error_message: Optional[str] = None,
-    handle: Optional[str] = None,
     email: Optional[str] = None,
+    email_sent: Optional[str] = None,
     # config
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = None
 ):
-    if email is not None:
+    if email_sent is not None:
         content = _render_success_message(
-            f'Password reset email has been sent to <b>{email}</b>'
+            f'Password reset email has been sent to <b>{email_sent}</b>'
         )
     else:
         content = f'''
@@ -222,8 +220,8 @@ def render_forgot_password_page(
         <input type="hidden" name="reset_url" value="{
             base_path}/reset-password" />
 
-        <label for="username">Username</label>
-        <input id="username" name="handle" type="text" value="{handle or ''}" />
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" value="{email or ''}" />
 
         {_render_button('Send Reset Email')}'''
 
@@ -232,7 +230,7 @@ def render_forgot_password_page(
         logo_url=logo_url,
         dark_logo_url=dark_logo_url,
         brand_color=brand_color,
-        cleanup_search_params=['error', 'handle', 'email'],
+        cleanup_search_params=['error', 'email', 'email_sent'],
         content=f'''
     <form method="POST" action="send_reset_email">
       <h1>{f'<span>Reset password for</span> {html.escape(app_name)}'
