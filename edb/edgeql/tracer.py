@@ -882,8 +882,8 @@ def trace_Path(
 
 
 @trace.register
-def trace_SpecialAnchor(
-    node: qlast.SpecialAnchor, *, ctx: TracerContext
+def trace_Anchor(
+    node: qlast.Anchor, *, ctx: TracerContext
 ) -> Optional[ObjectLike]:
     if name := ctx.anchors.get(node.name):
         return ctx.objects[name]

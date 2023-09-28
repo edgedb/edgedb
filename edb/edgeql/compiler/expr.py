@@ -42,6 +42,7 @@ from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import utils
 
 from . import astutils
 from . import casts
@@ -306,13 +307,106 @@ def compile_Array(
     return setgen.new_array_set(elements, ctx=ctx, srcctx=expr.context)
 
 
+def _compile_dml_ifelse(
+        expr: qlast.IfElse, *, ctx: context.ContextLevel) -> irast.Set:
+    """Transform an IF/ELSE that contains DML into FOR loops
+
+    The basic approach is to extract the pieces from the if/then/else and
+    rewrite them into:
+        for b in COND union (
+          {
+            (for _ in (select () filter b) union (IF_BRANCH)),
+            (for _ in (select () filter not b) union (ELSE_BRANCH)),
+          }
+        )
+    """
+
+    with ctx.newscope(fenced=False) as subctx:
+        # We have to compile it under a factoring fence to prevent
+        # correlation with outside things. We can't just rely on the
+        # factoring fences inserted when compiling the FORs, since we
+        # are going to need to explicitly exempt the iterator
+        # expression from that.
+        subctx.path_scope.factoring_fence = True
+
+        ir = func.compile_operator(
+            expr, op_name='std::IF',
+            qlargs=[expr.if_expr, expr.condition, expr.else_expr], ctx=subctx)
+
+        # Extract the IR parts from the IF/THEN/ELSE
+        # Note that cond_ir will be unfenced while if_ir and else_ir
+        # will have been compiled under fences.
+        match ir.expr:
+            case irast.OperatorCall(args=[
+                irast.CallArg(expr=if_ir),
+                irast.CallArg(expr=cond_ir),
+                irast.CallArg(expr=else_ir),
+            ]):
+                pass
+            case _:
+                raise AssertionError('malformed DML IF/ELSE')
+
+        subctx.anchors = subctx.anchors.copy()
+
+        alias = ctx.aliases.get('b')
+        cond_path = qlast.Path(
+            steps=[qlast.ObjectRef(name=alias)],
+        )
+
+        els: list[qlast.Expr] = []
+
+        if not isinstance(irutils.unwrap_set(if_ir), irast.EmptySet):
+            if_b = qlast.ForQuery(
+                iterator_alias='__',
+                iterator=qlast.SelectQuery(
+                    result=qlast.Tuple(elements=[]),
+                    where=cond_path,
+                ),
+                result=subctx.create_anchor(if_ir, check_dml=True),
+            )
+            els.append(if_b)
+
+        if not isinstance(irutils.unwrap_set(else_ir), irast.EmptySet):
+            else_b = qlast.ForQuery(
+                iterator_alias='__',
+                iterator=qlast.SelectQuery(
+                    result=qlast.Tuple(elements=[]),
+                    where=qlast.UnaryOp(op='NOT', operand=cond_path),
+                ),
+                result=subctx.create_anchor(else_ir, check_dml=True),
+            )
+            els.append(else_b)
+
+        full = qlast.ForQuery(
+            iterator_alias=alias,
+            iterator=subctx.create_anchor(cond_ir, 'b'),
+            result=qlast.Set(elements=els) if len(els) != 1 else els[0],
+        )
+
+        subctx.iterator_path_ids |= {cond_ir.path_id}
+        res = dispatch.compile(full, ctx=subctx)
+        # Indicate that the original IF/ELSE code should determine the
+        # cardinality/multiplicity.
+        res.card_inference_override = ir
+
+        return res
+
+
 @dispatch.compile.register(qlast.IfElse)
 def compile_IfElse(
         expr: qlast.IfElse, *, ctx: context.ContextLevel) -> irast.Set:
 
-    return func.compile_operator(
+    if (
+        utils.contains_dml(expr.if_expr)
+        or utils.contains_dml(expr.else_expr)
+    ):
+        return _compile_dml_ifelse(expr, ctx=ctx)
+
+    res = func.compile_operator(
         expr, op_name='std::IF',
         qlargs=[expr.if_expr, expr.condition, expr.else_expr], ctx=ctx)
+
+    return res
 
 
 @dispatch.compile.register(qlast.UnaryOp)
@@ -401,7 +495,6 @@ def compile_GlobalExpr(
 def compile_TypeCast(
         expr: qlast.TypeCast, *, ctx: context.ContextLevel) -> irast.Set:
     target_stype = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
-    target_typeref = typegen.type_to_typeref(target_stype, env=ctx.env)
     ir_expr: Union[irast.Set, irast.Expr]
 
     if isinstance(expr.expr, qlast.Parameter):
@@ -492,14 +585,7 @@ def compile_TypeCast(
             subctx.implicit_tid_in_shapes = False
             subctx.implicit_tname_in_shapes = False
 
-        if (
-            isinstance(expr.expr, qlast.Array)
-            and not expr.expr.elements
-            and irtyputils.is_array(target_typeref)
-        ):
-            ir_expr = irast.Array(elements=[], typeref=target_typeref)
-        else:
-            ir_expr = dispatch.compile(expr.expr, ctx=subctx)
+        ir_expr = dispatch.compile(expr.expr, ctx=subctx)
 
         res = casts.compile_cast(
             ir_expr,

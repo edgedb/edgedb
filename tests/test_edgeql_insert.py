@@ -2532,22 +2532,6 @@ class TestInsert(tb.QueryTestCase):
                     (INSERT Subordinate { name := 'no way' });
             ''')
 
-    async def test_edgeql_insert_in_conditional_bad_02(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                'INSERT statements cannot be used inside '
-                'conditional expressions'):
-            await self.con.execute(r'''
-                SELECT
-                    (SELECT Subordinate FILTER .name = 'foo')
-                    IF EXISTS Subordinate
-                    ELSE (
-                        (SELECT Subordinate)
-                        UNION
-                        (INSERT Subordinate { name := 'no way' })
-                    );
-            ''')
-
     async def test_edgeql_insert_correlated_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -6010,3 +5994,96 @@ class TestInsert(tb.QueryTestCase):
             ''',
             [{"sub": {"name": str, "@note": "!"}}] * 10,
         )
+
+    async def test_edgeql_insert_conditional_01(self):
+        await self.assert_query_result(
+            '''
+            select if <bool>$0 then (
+                insert InsertTest { l2 := 2 }
+            ) else (
+                insert DerivedTest { l2 := 200 }
+            )
+            ''',
+            [{}],
+            variables=(True,)
+        )
+
+        await self.assert_query_result(
+            '''
+            select InsertTest { l2, tname := .__type__.name }
+            ''',
+            [
+                {"l2": 2, "tname": "default::InsertTest"},
+            ],
+        )
+
+        await self.assert_query_result(
+            '''
+            select if <bool>$0 then (
+                insert InsertTest { l2 := 2 }
+            ) else (
+                insert DerivedTest { l2 := 200 }
+            )
+            ''',
+            [{}],
+            variables=(False,)
+        )
+
+        await self.assert_query_result(
+            '''
+            select InsertTest { l2, tname := .__type__.name } order by  .l2
+            ''',
+            [
+                {"l2": 2, "tname": "default::InsertTest"},
+                {"l2": 200, "tname": "default::DerivedTest"},
+            ],
+        )
+
+        await self.assert_query_result(
+            '''
+            select if array_unpack(<array<bool>>$0) then (
+                insert InsertTest { l2 := 2 }
+            ) else (
+                insert DerivedTest { l2 := 200 }
+            )
+            ''',
+            [{}, {}],
+            variables=([True, False],)
+        )
+
+        await self.assert_query_result(
+            '''
+            with go := <bool>$0
+            select if go then (
+                insert InsertTest { l2 := 100 }
+            ) else {}
+            ''',
+            [{}],
+            variables=(True,)
+        )
+
+        await self.assert_query_result(
+            '''
+            select InsertTest { l2, tname := .__type__.name } order by  .l2
+            ''',
+            [
+                {"l2": 2, "tname": "default::InsertTest"},
+                {"l2": 2, "tname": "default::InsertTest"},
+                {"l2": 100, "tname": "default::InsertTest"},
+                {"l2": 200, "tname": "default::DerivedTest"},
+                {"l2": 200, "tname": "default::DerivedTest"},
+            ],
+        )
+
+    async def test_edgeql_insert_conditional_02(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.errors.QueryError,
+            "cannot reference correlated set",
+        ):
+            await self.con.execute('''
+                select ((if ExceptTest.deleted then (
+                    insert InsertTest { l2 := 2 }
+                ) else (
+                    insert DerivedTest { l2 := 200 }
+                )), (select ExceptTest.deleted limit 1));
+            ''')

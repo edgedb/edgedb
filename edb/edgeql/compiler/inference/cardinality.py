@@ -519,6 +519,12 @@ def _infer_set(
             ir, is_mutation=is_mutation,
             scope_tree=scope_tree, ctx=ctx)
 
+        # But actually! Check if it is overridden
+        if ir.card_inference_override:
+            result = _infer_set_inner(
+                ir.card_inference_override, is_mutation=is_mutation,
+                scope_tree=scope_tree, ctx=ctx)
+
         # We need to cache the main result before doing the shape,
         # since sometimes the shape will refer to the enclosing set.
         ctx.inferred_cardinality[ir] = result

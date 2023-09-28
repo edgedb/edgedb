@@ -1175,3 +1175,33 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         AT_LEAST_ONE
         """
+
+    def test_edgeql_ir_card_inference_139(self):
+        """
+        if <bool>$0 then
+            (insert User { name := "test" })
+        else
+            (insert User { name := "???" })
+% OK %
+        ONE
+        """
+
+    def test_edgeql_ir_card_inference_140(self):
+        """
+        if <bool>$0 then
+            (insert User { name := "test" })
+        else
+            {(insert User { name := "???" }), (insert User { name := "!!!" })}
+% OK %
+        AT_LEAST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_141(self):
+        """
+        if <bool>$0 then
+            (insert User { name := "test" })
+        else
+            <User>{}
+% OK %
+        AT_MOST_ONE
+        """

@@ -76,7 +76,7 @@ def is_union_expr(ir: irast.Base) -> bool:
     )
 
 
-def is_empty_array_expr(ir: irast.Base) -> bool:
+def is_empty_array_expr(ir: Optional[irast.Base]) -> TypeGuard[irast.Array]:
     """Return True if the given *ir* expression is an empty array expression.
     """
     return (
@@ -85,14 +85,16 @@ def is_empty_array_expr(ir: irast.Base) -> bool:
     )
 
 
-def is_untyped_empty_array_expr(ir: irast.Base) -> bool:
+def is_untyped_empty_array_expr(
+    ir: Optional[irast.Base]
+) -> TypeGuard[irast.Array]:
     """Return True if the given *ir* expression is an empty
        array expression of an uknown type.
     """
     return (
         is_empty_array_expr(ir)
-        and (ir.typeref is None                    # type: ignore
-             or typeutils.is_generic(ir.typeref))  # type: ignore
+        and (ir.typeref is None
+             or typeutils.is_generic(ir.typeref))
     )
 
 

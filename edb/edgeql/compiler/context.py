@@ -37,6 +37,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
 from edb.ir import ast as irast
+from edb.ir import utils as irutils
 from edb.ir import typeutils as irtyputils
 
 from edb.schema import expraliases as s_aliases
@@ -734,11 +735,16 @@ class ContextLevel(compiler.ContextLevel):
     def detached(self) -> compiler.CompilerContextManager[ContextLevel]:
         return self.new(ContextSwitchMode.DETACHED)
 
-    def create_anchor(self, ir: irast.Set, name: str='v') -> qlast.Path:
+    def create_anchor(
+        self, ir: irast.Set, name: str='v', *, check_dml: bool=False
+    ) -> qlast.Path:
         alias = self.aliases.get(name)
+        # TODO: We should probably always check for DML, but I'm
+        # concerned about perf, since we don't cache it at all.
+        has_dml = check_dml and irutils.contains_dml(ir)
         self.anchors[alias] = ir
         return qlast.Path(
-            steps=[qlast.ObjectRef(name=alias)],
+            steps=[qlast.IRAnchor(name=alias, has_dml=has_dml)],
         )
 
     def maybe_create_anchor(
