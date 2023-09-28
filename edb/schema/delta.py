@@ -4244,7 +4244,9 @@ class AlterObjectProperty(Command):
             return qlast.SetField(
                 name=self.property,
                 value=expr_ql,
-                special_syntax=(self.property == 'expr'),
+                special_syntax=(
+                    self.property == 'expr' or field.special_ddl_syntax
+                ),
             )
 
     def __repr__(self) -> str:
