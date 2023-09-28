@@ -91,6 +91,11 @@ def coerce_object_set(
     spec: spec.Spec, setting: spec.Setting, values: Any
 ) -> Any:
     assert isinstance(setting.type, types.ConfigTypeSpec)
+    if not setting.set_of and len(values) > 1:
+        raise errors.ConstraintViolationError(
+            f'cannot have multiple values for single setting {setting.name!r}'
+        )
+
     new_values = set()
     for jv in values:
         new_value = types.CompositeConfigType.from_pyvalue(
@@ -112,10 +117,10 @@ def _report_constraint_error(setting: spec.Setting) -> NoReturn:
         if f.unique:
             props.append(f.name)
 
-    if len(props) > 1:
-        props_s = f' ({", ".join(props)}) violate'
-    else:
+    if len(props) == 1:
         props_s = f'.{props[0]} violates'
+    else:
+        props_s = f' ({", ".join(props)}) violate'
 
     raise errors.ConstraintViolationError(
         f'{setting.type.__name__}{props_s} '
@@ -141,7 +146,7 @@ class Operation(NamedTuple):
                      allow_missing: bool = False):
         if isinstance(setting.type, types.ConfigTypeSpec):
             try:
-                if setting.set_of and self.opcode is OpCode.CONFIG_SET:
+                if self.opcode is OpCode.CONFIG_SET:
                     return coerce_object_set(spec, setting, self.value)
                 else:
                     return types.CompositeConfigType.from_pyvalue(
@@ -327,7 +332,10 @@ def value_to_json_value(setting: spec.Setting, value: Any):
             return list(value)
     else:
         if isinstance(setting.type, types.ConfigTypeSpec):
-            return value.to_json_value()
+            # We always store objects as list at the top-level, even
+            # if they are single, because it simplifies things in the
+            # config handling SQL.
+            return [value.to_json_value()] if value is not None else []
         elif _issubclass(setting.type, statypes.Duration) and value is not None:
             return value.to_iso8601()
         elif (_issubclass(setting.type, statypes.ConfigMemory) and
@@ -350,8 +358,14 @@ def value_from_json_value(spec: spec.Spec, setting: spec.Setting, value: Any):
             return frozenset(value)
     else:
         if isinstance(setting.type, types.ConfigTypeSpec):
+            if not value:
+                return None
+            if len(value) > 1:
+                raise errors.ConfigurationError(
+                    f'multiple entries for single object {setting.name}'
+                )
             return types.CompositeConfigType.from_pyvalue(
-                value, spec=spec, tspec=setting.type,
+                value[0], spec=spec, tspec=setting.type,
             )
         elif _issubclass(setting.type, statypes.Duration):
             return statypes.Duration.from_iso8601(value)

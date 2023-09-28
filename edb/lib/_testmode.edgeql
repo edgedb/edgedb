@@ -122,6 +122,14 @@ create extension package _conf VERSION '1.0' {
     set sql_extensions := [];
     create module ext::_conf;
 
+    create type ext::_conf::SingleObj extending cfg::ConfigObject {
+        create required property name -> std::str {
+            set readonly := true;
+        };
+        create required property value -> std::str {
+            set readonly := true;
+        };
+    };
     create type ext::_conf::Obj extending cfg::ConfigObject {
         create required property name -> std::str {
             set readonly := true;
@@ -146,8 +154,17 @@ create extension package _conf VERSION '1.0' {
         };
     };
 
+    create type ext::_conf::Obj2 extending cfg::ConfigObject {
+        create required property name -> std::str {
+            set readonly := true;
+            create constraint std::exclusive;
+        };
+    };
+
     create type ext::_conf::Config extending cfg::ExtensionConfig {
         create multi link objs -> ext::_conf::Obj;
+        create link obj -> ext::_conf::SingleObj;
+        create multi link objs2 -> ext::_conf::Obj2;
 
         create property config_name -> std::str {
             set default := "";

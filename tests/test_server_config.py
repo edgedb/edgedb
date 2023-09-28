@@ -164,7 +164,7 @@ class TestServerConfigUtils(unittest.TestCase):
                 },
                 'port': {
                     'name': 'port',
-                    'value': testspec1['port'].default.to_json_value(),
+                    'value': [testspec1['port'].default.to_json_value()],
                     'source': 'system override',
                     'scope': qltypes.ConfigScope.INSTANCE,
                 },
