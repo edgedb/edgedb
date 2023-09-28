@@ -239,6 +239,9 @@ class Tenant(ha_base.ClusterProtocol):
     def is_online(self) -> bool:
         return self._readiness is not srvargs.ReadinessState.Offline
 
+    def is_blocked(self) -> bool:
+        return self._readiness is srvargs.ReadinessState.Blocked
+
     def is_ready(self) -> bool:
         return (
             self._readiness is srvargs.ReadinessState.Default

@@ -595,10 +595,26 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.debug_print("SASLResponse", len(client_final))
         return client_final
 
+    def check_readiness(self):
+        if self.tenant.is_blocked():
+            readiness_reason = self.tenant.get_readiness_reason()
+            msg = "the server is not accepting requests"
+            if readiness_reason:
+                msg = f"{msg}: {readiness_reason}"
+            raise pgerror.CannotConnectNowError(msg)
+        elif not self.tenant.is_online():
+            readiness_reason = self.tenant.get_readiness_reason()
+            msg = "the server is going offline"
+            if readiness_reason:
+                msg = f"{msg}: {readiness_reason}"
+            raise pgerror.CannotConnectNowError(msg)
+
     async def authenticate(self):
         cdef:
             WriteBuffer msg_buf
             WriteBuffer buf
+
+        self.check_readiness()
 
         params = {}
         while True:
@@ -738,11 +754,22 @@ cdef class PgConnection(frontend.FrontendConnection):
                     action.invalidate()
 
     async def main_step(self, char mtype):
+        try:
+            await self._main_step(mtype)
+        except pgerror.BackendError as ex:
+            self.write_error(ex)
+            self.write(self.ready_for_query())
+            self.flush()
+            self.stop()
+
+    async def _main_step(self, char mtype):
         cdef:
             WriteBuffer buf
             ConnectionView dbv
 
         dbv = self._dbview
+
+        self.check_readiness()
 
         if self.debug:
             self.debug_print("main_step", repr(chr(mtype)))

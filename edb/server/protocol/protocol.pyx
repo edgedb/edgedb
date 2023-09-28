@@ -455,7 +455,7 @@ cdef class HttpProtocol:
 
         try:
             await self.handle_request(request, response)
-        except errors.UnknownTenantError as ex:
+        except errors.AvailabilityError as ex:
             self._close_with_error(
                 b"503 Service Unavailable",
                 f'{type(ex).__name__}: {ex}'.encode(),
@@ -473,6 +473,20 @@ cdef class HttpProtocol:
         else:
             self.resume()
 
+    def check_readiness(self):
+        if self.tenant.is_blocked():
+            readiness_reason = self.tenant.get_readiness_reason()
+            msg = "the server is not accepting requests"
+            if readiness_reason:
+                msg = f"{msg}: {readiness_reason}"
+            raise errors.ServerBlockedError(msg)
+        elif not self.tenant.is_online():
+            readiness_reason = self.tenant.get_readiness_reason()
+            msg = "the server is going offline"
+            if readiness_reason:
+                msg = f"{msg}: {readiness_reason}"
+            raise errors.ServerOfflineError(msg)
+
     async def handle_request(self, HttpRequest request, HttpResponse response):
         request_url = get_request_url(request, self.is_tls)
         path = urllib.parse.unquote(request_url.path.decode('ascii'))
@@ -483,6 +497,7 @@ cdef class HttpProtocol:
 
         if self.tenant is None and route in ['db', 'auth']:
             self.tenant = self.server.get_default_tenant()
+            self.check_readiness()
             if self.tenant.is_accepting_connections():
                 return await self.tenant.create_task(
                     self.handle_request(request, response),
