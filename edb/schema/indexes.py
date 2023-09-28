@@ -127,6 +127,14 @@ def is_index_valid_for_type(
                 schema,
                 schema.get('ext::pgvector::vector', type=s_scalars.ScalarType),
             )
+        case (
+            'ext::pg_trgm::gin'
+            | 'ext::pg_trgm::gist'
+        ):
+            return expr_type.issubclass(
+                schema,
+                schema.get('std::str', type=s_scalars.ScalarType),
+            )
 
     return False
 
