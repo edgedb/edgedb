@@ -351,7 +351,7 @@ def _compile_dml_ifelse(
                     result=qlast.Tuple(elements=[]),
                     where=cond_path,
                 ),
-                result=subctx.create_anchor(if_ir, has_dml=True),
+                result=subctx.create_anchor(if_ir, check_dml=True),
             )
             els.append(if_b)
 
@@ -362,7 +362,7 @@ def _compile_dml_ifelse(
                     result=qlast.Tuple(elements=[]),
                     where=qlast.UnaryOp(op='NOT', operand=cond_path),
                 ),
-                result=subctx.create_anchor(else_ir, has_dml=True),
+                result=subctx.create_anchor(else_ir, check_dml=True),
             )
             els.append(else_b)
 
