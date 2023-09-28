@@ -135,3 +135,14 @@ class OpenIDConnectAccessTokenResponse(OAuthAccessTokenResponse):
             if field.name in kwargs:
                 setattr(self, field.name, kwargs.pop(field.name))
         self._extra_fields = kwargs
+
+
+@dataclasses.dataclass(repr=False)
+class PKCE:
+    """
+    Object that represents the ext::auth::PKCE type
+    """
+
+    id: str
+    challenge: str
+    identity_id: str | None
