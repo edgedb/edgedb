@@ -133,6 +133,8 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
 
         // has any parser recovered?
         if new_parsers.len() > 1 {
+            new_parsers.sort_by_key(Parser::adjusted_cost);
+
             let recovered = new_parsers.iter().position(Parser::has_recovered);
 
             if let Some(recovered) = recovered {
@@ -152,7 +154,6 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
 
         // prune: pick only X best parsers
         if new_parsers.len() > PARSER_COUNT_MAX {
-            new_parsers.sort_by_key(Parser::adjusted_cost);
             new_parsers.drain(PARSER_COUNT_MAX..);
         }
 
