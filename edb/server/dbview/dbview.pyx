@@ -1090,13 +1090,6 @@ cdef class DatabaseConnectionView:
         error_constructor,
         reason,
     ):
-        if not self.tenant.is_online():
-            readiness_reason = self.tenant.get_readiness_reason()
-            msg = "the server is going offline"
-            if readiness_reason:
-                msg = f"{msg}: {readiness_reason}"
-            raise errors.ServerOfflineError(msg)
-
         if query_capabilities & ~self._capability_mask:
             # _capability_mask is currently only used for system database
             raise query_capabilities.make_error(

@@ -1034,13 +1034,30 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.flush()
 
+    def check_readiness(self):
+        if self.tenant.is_blocked():
+            readiness_reason = self.tenant.get_readiness_reason()
+            msg = "the server is not accepting requests"
+            if readiness_reason:
+                msg = f"{msg}: {readiness_reason}"
+            raise errors.ServerBlockedError(msg)
+        elif not self.tenant.is_online():
+            readiness_reason = self.tenant.get_readiness_reason()
+            msg = "the server is going offline"
+            if readiness_reason:
+                msg = f"{msg}: {readiness_reason}"
+            raise errors.ServerOfflineError(msg)
+
     async def authenticate(self):
+        self.check_readiness()
         params = await self.do_handshake()
         await self.auth(params)
         self.server.on_binary_client_authed(self)
 
     async def main_step(self, char mtype):
         try:
+            self.check_readiness()
+
             if mtype == b'O':
                 await self.execute()
 
@@ -1111,13 +1128,19 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             ex = await self.interpret_error(ex)
 
             self.write_error(ex)
-            self.flush()
 
-            if isinstance(ex, errors.ServerOfflineError):
-                # This server is going into "offline" mode,
+            if isinstance(
+                ex,
+                (errors.ServerOfflineError, errors.ServerBlockedError),
+            ):
+                # This server is going into "offline" or "blocked" mode,
                 # close the connection.
+                self.write(self.sync_status())
+                self.flush()
                 self.close()
                 return
+
+            self.flush()
 
             # The connection was aborted while we were
             # interpreting the error (via compiler/errmech.py).

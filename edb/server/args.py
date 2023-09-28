@@ -103,7 +103,12 @@ class ReadinessState(enum.StrEnum):
 
     Offline = "offline"
     """Any existing connections are gracefully terminated and no new
-    connections are allowed."""
+    connections are accepted."""
+
+    Blocked = "blocked"
+    """Any existing connections are gracefully terminated and all
+    new connections are accepted but are immediately terminated
+    with a ServerBlockedError."""
 
 
 class ServerAuthMethod(enum.StrEnum):
