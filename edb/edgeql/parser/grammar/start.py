@@ -32,6 +32,15 @@ from .session import *  # NOQA
 from .config import *  # NOQA
 
 
+# The main EdgeQL grammar, all of whose productions should start with a
+# GrammarToken, that determines the "subgrammar" to use.
+#
+# To add a new "subgrammar":
+# - add a new GrammarToken in tokens.py,
+# - add a new production here,
+# - add a new token kind in tokenizer.rs,
+# - add a mapping from the Python token name into the Rust token kind
+#   in parser.rs `fn get_token_kind`
 class EdgeQLGrammar(Nonterm):
     "%start"
 
