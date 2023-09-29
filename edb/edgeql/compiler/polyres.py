@@ -578,7 +578,6 @@ def compile_arg(
     arg_ql: qlast.Expr,
     typemod: ft.TypeModifier,
     *,
-    in_conditional: bool=False,
     prefer_subquery_args: bool=False,
     ctx: context.ContextLevel,
 ) -> irast.Set:
@@ -595,9 +594,6 @@ def compile_arg(
 
     new = ctx.newscope(fenced=False) if branched else ctx.new()
     with new as argctx:
-        if in_conditional:
-            argctx.disallow_dml = "inside conditional expressions"
-
         if optional:
             argctx.path_scope.mark_as_optional()
 
