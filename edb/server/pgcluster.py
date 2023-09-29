@@ -660,12 +660,12 @@ class Cluster(BaseCluster):
         self._connection_addr = None
         connected = False
 
-        for n in range(timeout + 1):
-            # pg usually comes up pretty quickly, but not so
-            # quickly that we don't hit the wait case. Make our
-            # first sleep pretty short, to shave almost a second
-            # off the happy case.
-            sleep_time = 1 if n else 0.10
+        for n in range(timeout + 9):
+            # pg usually comes up pretty quickly, but not so quickly
+            # that we don't hit the wait case. Make our first several
+            # waits pretty short, to shave almost a second off the
+            # happy case.
+            sleep_time = 1.0 if n >= 10 else 0.1
 
             try:
                 conn_addr = self._get_connection_addr()

@@ -301,6 +301,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._sys_pgcon_reconnect_evt = asyncio.Event()
 
     async def init(self) -> None:
+        logger.debug("starting database introspection")
         async with self.use_sys_pgcon() as syscon:
             result = await syscon.sql_fetch_val(
                 b"""\
@@ -312,6 +313,7 @@ class Tenant(ha_base.ClusterProtocol):
             await self._fetch_roles(syscon)
             if self._server.get_compiler_pool() is None:
                 # Parse global schema in I/O process if this is done only once
+                logger.debug("parsing global schema locally")
                 global_schema_pickle = pickle.dumps(
                     await self._server.introspect_global_schema(syscon), -1
                 )
@@ -322,10 +324,12 @@ class Tenant(ha_base.ClusterProtocol):
                 compiler_pool = self._server.get_compiler_pool()
 
         if data is not None:
+            logger.debug("parsing global schema")
             global_schema_pickle = (
                 await compiler_pool.parse_global_schema(data)
             )
 
+        logger.info("loading system config")
         sys_config = await self._load_sys_config()
         default_sysconfig = await self._load_sys_config("sysconfig_default")
         await self._load_reported_config()

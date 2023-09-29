@@ -1056,6 +1056,7 @@ class Server(BaseServer):
         return self._tenant.get_sys_config()
 
     async def init(self) -> None:
+        logger.debug("starting server init")
         await self._tenant.init_sys_pgcon()
         await self._load_instance_data()
         await self._maybe_patch()
@@ -1258,6 +1259,7 @@ class Server(BaseServer):
         return res
 
     async def _load_instance_data(self):
+        logger.info("loading instance data")
         async with self._tenant.use_sys_pgcon() as syscon:
             patch_count = await self.get_patch_count(syscon)
             version_key = pg_patches.get_version_key(patch_count)
