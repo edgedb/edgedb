@@ -145,6 +145,16 @@ class Router:
                     code = _get_search_param(query, "code")
                     verifier = _get_search_param(query, "verifier")
 
+                    verifier_size = len(verifier)
+
+                    if verifier_size < 43:
+                        raise errors.InvalidData(
+                            "Verifier token must be at least 43 characters long"
+                        )
+                    if verifier_size > 128:
+                        raise errors.InvalidData(
+                            "Verifier token must be shorter than 128 characters long"
+                        )
                     try:
                         pkce_object = await pkce.get_by_id(self.db, code)
                     except Exception:

@@ -508,7 +508,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             challenge = (
                 base64.urlsafe_b64encode(
                     hashlib.sha256(
-                        base64.urlsafe_b64encode(os.urandom(40)).rstrip(b'=')
+                        base64.urlsafe_b64encode(os.urandom(43)).rstrip(b'=')
                     ).digest()
                 )
                 .rstrip(b'=')
@@ -677,7 +677,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             challenge = (
                 base64.urlsafe_b64encode(
                     hashlib.sha256(
-                        base64.urlsafe_b64encode(os.urandom(40)).rstrip(b'=')
+                        base64.urlsafe_b64encode(os.urandom(43)).rstrip(b'=')
                     ).digest()
                 )
                 .rstrip(b'=')
@@ -992,7 +992,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             challenge = (
                 base64.urlsafe_b64encode(
                     hashlib.sha256(
-                        base64.urlsafe_b64encode(os.urandom(40)).rstrip(b'=')
+                        base64.urlsafe_b64encode(os.urandom(43)).rstrip(b'=')
                     ).digest()
                 )
                 .rstrip(b'=')
@@ -1083,7 +1083,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             challenge = (
                 base64.urlsafe_b64encode(
                     hashlib.sha256(
-                        base64.urlsafe_b64encode(os.urandom(40)).rstrip(b'=')
+                        base64.urlsafe_b64encode(os.urandom(43)).rstrip(b'=')
                     ).digest()
                 )
                 .rstrip(b'=')
@@ -1291,7 +1291,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             challenge = (
                 base64.urlsafe_b64encode(
                     hashlib.sha256(
-                        base64.urlsafe_b64encode(os.urandom(40)).rstrip(b'=')
+                        base64.urlsafe_b64encode(os.urandom(43)).rstrip(b'=')
                     ).digest()
                 )
                 .rstrip(b'=')
@@ -1361,7 +1361,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             challenge = (
                 base64.urlsafe_b64encode(
                     hashlib.sha256(
-                        base64.urlsafe_b64encode(os.urandom(40)).rstrip(b'=')
+                        base64.urlsafe_b64encode(os.urandom(43)).rstrip(b'=')
                     ).digest()
                 )
                 .rstrip(b'=')
@@ -1501,7 +1501,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             challenge = (
                 base64.urlsafe_b64encode(
                     hashlib.sha256(
-                        base64.urlsafe_b64encode(os.urandom(40)).rstrip(b'=')
+                        base64.urlsafe_b64encode(os.urandom(43)).rstrip(b'=')
                     ).digest()
                 )
                 .rstrip(b'=')
@@ -2074,7 +2074,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     async def test_http_auth_ext_token_01(self):
         with self.http_con() as http_con:
             # Create a PKCE challenge and verifier
-            verifier = base64.urlsafe_b64encode(os.urandom(40)).rstrip(b'=')
+            verifier = base64.urlsafe_b64encode(os.urandom(43)).rstrip(b'=')
             challenge = base64.urlsafe_b64encode(
                 hashlib.sha256(verifier).digest()
             ).rstrip(b'=')
@@ -2100,7 +2100,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 http_con,
                 {
                     "code": pkce.id,
-                    "verifier": base64.urlsafe_b64encode(os.urandom(40))
+                    "verifier": base64.urlsafe_b64encode(os.urandom(43))
                     .rstrip(b"=")
                     .decode(),
                 },
@@ -2138,3 +2138,33 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             self.assertEqual(replay_attack_status, 403)
+
+    async def test_http_auth_ext_token_02(self):
+        with self.http_con() as http_con:
+            # Too short: 32-octet -> 43-octet base64url
+            verifier = base64.urlsafe_b64encode(os.urandom(31)).rstrip(b'=')
+            (_, _, status) = self.http_con_request(
+                http_con,
+                {
+                    "code": str(uuid.uuid4()),
+                    "verifier": verifier.decode(),
+                },
+                path="token",
+            )
+
+            self.assertEqual(status, 400)
+
+    async def test_http_auth_ext_token_03(self):
+        with self.http_con() as http_con:
+            # Too long: 96-octet -> 128-octet base64url
+            verifier = base64.urlsafe_b64encode(os.urandom(97)).rstrip(b'=')
+            (_, _, status) = self.http_con_request(
+                http_con,
+                {
+                    "code": str(uuid.uuid4()),
+                    "verifier": verifier.decode(),
+                },
+                path="token",
+            )
+
+            self.assertEqual(status, 400)
