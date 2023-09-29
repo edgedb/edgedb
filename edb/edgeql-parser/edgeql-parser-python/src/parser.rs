@@ -1,4 +1,4 @@
-use std::sync::OnceLock;
+use once_cell::sync::OnceCell;
 
 use cpython::{
     ObjectProtocol, PyClone, PyInt, PyList, PyNone, PyObject, PyResult, PyString, PyTuple, Python,
@@ -78,7 +78,7 @@ py_class!(pub class Terminal |py| {
     }
 });
 
-static PARSER_SPECS: OnceLock<(parser::Spec, PyObject)> = OnceLock::new();
+static PARSER_SPECS: OnceCell<(parser::Spec, PyObject)> = OnceCell::new();
 
 fn downcast_tokens<'a>(
     py: Python,
