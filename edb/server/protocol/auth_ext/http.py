@@ -148,7 +148,12 @@ class Router:
                     verifier = _get_search_param(query, "verifier")
 
                     pkce_client = pkce.PKCE(self.db)
-                    pkce_object = await pkce_client.get_by_id(code)
+                    try:
+                        pkce_object = await pkce_client.get_by_id(code)
+                    except Exception:
+                        raise errors.NoIdentityFound(
+                            "Could not find a matching PKCE code"
+                        )
 
                     if pkce_object.identity_id is None:
                         raise errors.InvalidData(
@@ -177,7 +182,7 @@ class Router:
                             }
                         ).encode()
                     else:
-                        response.status = http.HTTPStatus.UNAUTHORIZED
+                        response.status = http.HTTPStatus.FORBIDDEN
 
                 case ("register",):
                     content_type = request.content_type
