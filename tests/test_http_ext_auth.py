@@ -505,7 +505,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
             redirect_to = f"{self.http_addr}/some/path"
-            challenge = "a" * 32
+            challenge = (
+                base64.urlsafe_b64encode(
+                    hashlib.sha256(
+                        base64.urlsafe_b64encode(os.urandom(40)).rstrip(b'=')
+                    ).digest()
+                )
+                .rstrip(b'=')
+                .decode()
+            )
 
             _, headers, status = self.http_con_request(
                 http_con,
@@ -666,7 +674,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-            challenge = "a" * 32
+            challenge = (
+                base64.urlsafe_b64encode(
+                    hashlib.sha256(
+                        base64.urlsafe_b64encode(os.urandom(40)).rstrip(b'=')
+                    ).digest()
+                )
+                .rstrip(b'=')
+                .decode()
+            )
             await self.con.query(
                 """
                 insert ext::auth::PKCE {
@@ -973,7 +989,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-            challenge = "a" * 32
+            challenge = (
+                base64.urlsafe_b64encode(
+                    hashlib.sha256(
+                        base64.urlsafe_b64encode(os.urandom(40)).rstrip(b'=')
+                    ).digest()
+                )
+                .rstrip(b'=')
+                .decode()
+            )
             await self.con.query(
                 """
                 insert ext::auth::PKCE {
@@ -1056,7 +1080,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
-            challenge = "a" * 32
+            challenge = (
+                base64.urlsafe_b64encode(
+                    hashlib.sha256(
+                        base64.urlsafe_b64encode(os.urandom(40)).rstrip(b'=')
+                    ).digest()
+                )
+                .rstrip(b'=')
+                .decode()
+            )
 
             discovery_request = (
                 "GET",
@@ -1256,7 +1288,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-            challenge = "a" * 32
+            challenge = (
+                base64.urlsafe_b64encode(
+                    hashlib.sha256(
+                        base64.urlsafe_b64encode(os.urandom(40)).rstrip(b'=')
+                    ).digest()
+                )
+                .rstrip(b'=')
+                .decode()
+            )
             await self.con.query(
                 """
                 insert ext::auth::PKCE {
@@ -1318,7 +1358,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
-            challenge = "a" * 32
+            challenge = (
+                base64.urlsafe_b64encode(
+                    hashlib.sha256(
+                        base64.urlsafe_b64encode(os.urandom(40)).rstrip(b'=')
+                    ).digest()
+                )
+                .rstrip(b'=')
+                .decode()
+            )
 
             discovery_request = (
                 "GET",
@@ -1450,7 +1498,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-            challenge = "a" * 32
+            challenge = (
+                base64.urlsafe_b64encode(
+                    hashlib.sha256(
+                        base64.urlsafe_b64encode(os.urandom(40)).rstrip(b'=')
+                    ).digest()
+                )
+                .rstrip(b'=')
+                .decode()
+            )
             await self.con.query(
                 """
                 insert ext::auth::PKCE {
