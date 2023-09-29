@@ -61,3 +61,11 @@ def is_container(obj):
 
 def is_container_type(type_):
     return isinstance(type_, type) and _is_container_type(type_)
+
+
+def dedup(old: Collection[T]) -> List[T]:
+    new: List[T] = []
+    for x in old:
+        if x not in new:
+            new.append(x)
+    return new
