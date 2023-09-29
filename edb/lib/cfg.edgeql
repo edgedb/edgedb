@@ -118,11 +118,14 @@ ALTER TYPE cfg::AbstractConfig {
             'How long an individual query can run before being aborted.';
     };
 
-    CREATE REQUIRED PROPERTY listen_port -> std::int16 {
+    CREATE REQUIRED PROPERTY listen_port -> std::int32 {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION std::description :=
             'The TCP port the server listens on.';
         SET default := 5656;
+        # Really we want a uint16, but oh well
+        CREATE CONSTRAINT std::min_value(0);
+        CREATE CONSTRAINT std::max_value(65535);
     };
 
     CREATE MULTI PROPERTY listen_addresses -> std::str {
