@@ -26,6 +26,8 @@ import datetime
 import http.server
 import threading
 import argon2
+import os
+import hashlib
 
 from typing import Any, Callable
 from jwcrypto import jwt, jwk
@@ -503,10 +505,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
             redirect_to = f"{self.http_addr}/some/path"
+            challenge = "a" * 32
 
             _, headers, status = self.http_con_request(
                 http_con,
-                {"provider": provider_id, "redirect_to": redirect_to},
+                {
+                    "provider": provider_id,
+                    "redirect_to": redirect_to,
+                    "challenge": challenge,
+                },
                 path="authorize",
             )
 
@@ -533,6 +540,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 qs.get("redirect_uri"), [f"{self.http_addr}/callback"]
             )
             self.assertEqual(qs.get("client_id"), [client_id])
+
+            pkce = await self.con.query(
+                """
+                select ext::auth::PKCE
+                filter .challenge = <str>$challenge
+                """,
+                challenge=challenge,
+            )
+            self.assertEqual(len(pkce), 1)
 
     async def test_http_auth_ext_github_callback_missing_provider_01(self):
         with MockAuthProvider(), self.http_con() as http_con:
@@ -650,6 +666,16 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
+            challenge = "a" * 32
+            await self.con.query(
+                """
+                insert ext::auth::PKCE {
+                    challenge := <str>$challenge,
+                }
+                """,
+                challenge=challenge,
+            )
+
             signing_key = await self.get_signing_key()
 
             expires_at = now + datetime.timedelta(minutes=5)
@@ -658,6 +684,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": str(provider_id),
                 "exp": expires_at.astimezone().timestamp(),
                 "redirect_to": f"{self.http_addr}/some/path",
+                "challenge": challenge,
             }
             state_token = self.generate_state_value(state_claims, signing_key)
 
@@ -946,6 +973,16 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
+            challenge = "a" * 32
+            await self.con.query(
+                """
+                insert ext::auth::PKCE {
+                    challenge := <str>$challenge,
+                }
+                """,
+                challenge=challenge,
+            )
+
             signing_key = await self.get_signing_key()
 
             expires_at = now + datetime.timedelta(minutes=5)
@@ -954,6 +991,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": str(provider_id),
                 "exp": expires_at.astimezone().timestamp(),
                 "redirect_to": f"{self.http_addr}/some/path",
+                "challenge": challenge,
             }
             state_token = self.generate_state_value(state_claims, signing_key)
 
@@ -1018,6 +1056,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
+            challenge = "a" * 32
 
             discovery_request = (
                 "GET",
@@ -1037,6 +1076,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 {
                     "provider": provider_id,
                     "redirect_to": redirect_to,
+                    "challenge": challenge,
                 },
                 path="authorize",
             )
@@ -1068,6 +1108,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_discovery = mock_provider.requests[discovery_request]
             self.assertEqual(len(requests_for_discovery), 1)
 
+            pkce = await self.con.query(
+                """
+                select ext::auth::PKCE
+                filter .challenge = <str>$challenge
+                """,
+                challenge=challenge,
+            )
+            self.assertEqual(len(pkce), 1)
+
     async def test_http_auth_ext_azure_authorize_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
             provider_config = await self.get_oauth_client_config_by_provider(
@@ -1075,6 +1124,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
+            challenge = "a" * 32
 
             discovery_request = (
                 "GET",
@@ -1094,6 +1144,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 {
                     "provider": provider_id,
                     "redirect_to": redirect_to,
+                    "challenge": challenge,
                 },
                 path="authorize",
             )
@@ -1124,6 +1175,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             requests_for_discovery = mock_provider.requests[discovery_request]
             self.assertEqual(len(requests_for_discovery), 1)
+
+            pkce = await self.con.query(
+                """
+                select ext::auth::PKCE
+                filter .challenge = <str>$challenge
+                """,
+                challenge=challenge,
+            )
+            self.assertEqual(len(pkce), 1)
 
     async def test_http_auth_ext_azure_callback_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
@@ -1196,6 +1256,16 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
+            challenge = "a" * 32
+            await self.con.query(
+                """
+                insert ext::auth::PKCE {
+                    challenge := <str>$challenge,
+                }
+                """,
+                challenge=challenge,
+            )
+
             signing_key = await self.get_signing_key()
 
             expires_at = now + datetime.timedelta(minutes=5)
@@ -1204,6 +1274,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": str(provider_id),
                 "exp": expires_at.astimezone().timestamp(),
                 "redirect_to": f"{self.http_addr}/some/path",
+                "challenge": challenge,
             }
             state_token = self.generate_state_value(state_claims, signing_key)
 
@@ -1247,6 +1318,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             provider_id = provider_config.provider_id
             client_id = provider_config.client_id
+            challenge = "a" * 32
 
             discovery_request = (
                 "GET",
@@ -1266,6 +1338,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 {
                     "provider": provider_id,
                     "redirect_to": redirect_to,
+                    "challenge": challenge,
                 },
                 path="authorize",
             )
@@ -1296,6 +1369,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             requests_for_discovery = mock_provider.requests[discovery_request]
             self.assertEqual(len(requests_for_discovery), 1)
+
+            pkce = await self.con.query(
+                """
+                select ext::auth::PKCE
+                filter .challenge = <str>$challenge
+                """,
+                challenge=challenge,
+            )
+            self.assertEqual(len(pkce), 1)
 
     async def test_http_auth_ext_apple_callback_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
@@ -1368,6 +1450,16 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
+            challenge = "a" * 32
+            await self.con.query(
+                """
+                insert ext::auth::PKCE {
+                    challenge := <str>$challenge,
+                }
+                """,
+                challenge=challenge,
+            )
+
             signing_key = await self.get_signing_key()
 
             expires_at = now + datetime.timedelta(minutes=5)
@@ -1376,6 +1468,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": str(provider_id),
                 "exp": expires_at.astimezone().timestamp(),
                 "redirect_to": f"{self.http_addr}/some/path",
+                "challenge": challenge,
             }
             state_token = self.generate_state_value(state_claims, signing_key)
 
@@ -1921,3 +2014,71 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 ),
                 auth_data_redirect_on_failure["redirect_on_failure"],
             )
+
+    async def test_http_auth_ext_token_01(self):
+        with self.http_con() as http_con:
+            # Create a PKCE challenge and verifier
+            verifier = base64.urlsafe_b64encode(os.urandom(40)).rstrip(b'=')
+            challenge = base64.urlsafe_b64encode(
+                hashlib.sha256(verifier).digest()
+            ).rstrip(b'=')
+            pkce = await self.con.query_single(
+                """
+                select (
+                    insert ext::auth::PKCE {
+                        challenge := <str>$challenge,
+                        identity := (
+                            insert ext::auth::Identity {
+                                issuer := "http://example.com",
+                                subject := "abcdefg",
+                            }
+                        ),
+                    }
+                ) { id, challenge, identity_id := .identity.id }
+                """,
+                challenge=challenge.decode(),
+            )
+
+            # Correct code, random verifier
+            (_, _, wrong_verifier_status) = self.http_con_request(
+                http_con,
+                {
+                    "code": pkce.id,
+                    "verifier": base64.urlsafe_b64encode(os.urandom(40))
+                    .rstrip(b"=")
+                    .decode(),
+                },
+                path="token",
+            )
+
+            self.assertEqual(wrong_verifier_status, 403)
+
+            # Correct code, correct verifier
+            (
+                body,
+                _,
+                status,
+            ) = self.http_con_request(
+                http_con,
+                {"code": pkce.id, "verifier": verifier.decode()},
+                path="token",
+            )
+
+            self.assertEqual(status, 200)
+            body_json = json.loads(body)
+            self.assertEqual(
+                body_json,
+                {
+                    "auth_token": body_json["auth_token"],
+                    "identity_id": str(pkce.identity_id),
+                },
+            )
+
+            # Correct code, correct verifier, already used PKCE
+            (_, _, replay_attack_status) = self.http_con_request(
+                http_con,
+                {"code": pkce.id, "verifier": verifier.decode()},
+                path="token",
+            )
+
+            self.assertEqual(replay_attack_status, 403)
