@@ -69,7 +69,9 @@ class PKCE:
               id,
               challenge,
               identity_id := .identity.id
-            } filter .id = <uuid>$id
+            }
+            filter .id = <uuid>$id
+            and (datetime_current() - .created_at) < <duration>'10 minutes';
             """,
             variables={"id": id},
         )
