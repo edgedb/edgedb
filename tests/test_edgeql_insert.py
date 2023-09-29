@@ -6087,3 +6087,22 @@ class TestInsert(tb.QueryTestCase):
                     insert DerivedTest { l2 := 200 }
                 )), (select ExceptTest.deleted limit 1));
             ''')
+
+    async def test_edgeql_insert_conditional_03(self):
+        await self.assert_query_result(
+            '''
+            select (for n in array_unpack(<array<int64>>$0) union (
+                if n % 2 = 0 then
+                  (insert InsertTest { l2 := n }) else {}
+            )) { l2 } order by .l2;
+            ''',
+            [{'l2': 2}, {'l2': 4}],
+            variables=([1, 2, 3, 4, 5],),
+        )
+
+        await self.assert_query_result(
+            '''
+            select InsertTest { l2 } order by .l2;
+            ''',
+            [{'l2': 2}, {'l2': 4}],
+        )

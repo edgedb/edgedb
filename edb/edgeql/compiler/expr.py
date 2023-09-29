@@ -328,6 +328,7 @@ def _compile_dml_ifelse(
         # are going to need to explicitly exempt the iterator
         # expression from that.
         subctx.path_scope.factoring_fence = True
+        subctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
 
         ir = func.compile_operator(
             expr, op_name='std::IF',
