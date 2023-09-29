@@ -8302,6 +8302,40 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             """,
         ])
 
+    def test_schema_migrations_inh_ordering_01(self):
+        self._assert_migration_equivalence([
+            r"""
+            type Tag extending Named {
+              index on (.name);
+              constraint expression on (.name != "");
+              constraint max_value(10) on (.cnt);
+            }
+
+            abstract type Named  {
+              required property name -> str;
+              required property cnt -> int64;
+              index on (.name);
+              constraint expression on (.name != "");
+              constraint max_value(10) on (.cnt);
+            }
+            """,
+            r"""
+            abstract type Named  {
+              required property name -> str;
+              required property cnt -> int64;
+              index on (.name);
+              constraint expression on (.name != "");
+              constraint max_value(10) on (.cnt);
+            }
+
+            type Tag extending Named {
+              index on (.name);
+              constraint expression on (.name != "");
+              constraint max_value(10) on (.cnt);
+            }
+            """,
+        ])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
