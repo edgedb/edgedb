@@ -66,7 +66,9 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     };
 
     create type ext::auth::PKCE extending ext::auth::Auditable {
-        create required property challenge: std::str;
+        create required property challenge: std::str {
+            create constraint exclusive;
+        };
         create link identity: ext::auth::Identity;
     };
 
