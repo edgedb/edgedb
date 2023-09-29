@@ -20,10 +20,11 @@ import uuid
 import urllib.parse
 import json
 
+from typing import Callable
 from jwcrypto import jwt, jwk
 from datetime import datetime
 
-from . import data, errors
+from . import data, errors, http_client
 
 
 class BaseProvider:
@@ -34,7 +35,7 @@ class BaseProvider:
         client_id: str,
         client_secret: str,
         *,
-        http_factory,
+        http_factory: Callable[..., http_client.HttpClient],
     ):
         self.name = name
         self.issuer_url = issuer_url
@@ -45,7 +46,9 @@ class BaseProvider:
     async def get_code_url(self, state: str, redirect_uri: str) -> str:
         raise NotImplementedError
 
-    async def exchange_code(self, code: str) -> data.OAuthAccessTokenResponse:
+    async def exchange_code(
+        self, code: str, redirect_uri: str
+    ) -> data.OAuthAccessTokenResponse:
         raise NotImplementedError
 
     async def fetch_user_info(
@@ -75,7 +78,7 @@ class OpenIDProvider(BaseProvider):
         return f"{oidc_config.authorization_endpoint}?{encoded}"
 
     async def exchange_code(
-        self, code: str
+        self, code: str, redirect_uri: str
     ) -> data.OpenIDConnectAccessTokenResponse:
         oidc_config = await self._get_oidc_config()
 
@@ -90,8 +93,13 @@ class OpenIDProvider(BaseProvider):
                     "code": code,
                     "client_id": self.client_id,
                     "client_secret": self.client_secret,
+                    "redirect_uri": redirect_uri,
                 },
             )
+            if resp.status_code >= 400:
+                raise errors.OAuthProviderFailure(
+                    f"Failed to exchange code: {resp.text}"
+                )
             json = resp.json()
 
             return data.OpenIDConnectAccessTokenResponse(**json)

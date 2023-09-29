@@ -59,12 +59,15 @@ class Router:
                     provider_id = _get_search_param(
                         request.url.query.decode("ascii"), "provider"
                     )
+                    redirect_to = _get_search_param(
+                        request.url.query.decode("ascii"), "redirect_to"
+                    )
                     oauth_client = oauth.Client(
                         db=self.db, provider_id=provider_id, base_url=test_url
                     )
                     authorize_url = await oauth_client.get_authorize_url(
                         redirect_uri=self._get_callback_url(),
-                        state=self._make_state_claims(provider_id),
+                        state=self._make_state_claims(provider_id, redirect_to),
                     )
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = authorize_url
@@ -87,9 +90,11 @@ class Router:
                             error_description = _maybe_get_search_param(
                                 query, "error_description"
                             )
-                        redirect_to = self._get_from_claims(
-                            state, "redirect_to"
-                        )
+                        try:
+                            claims = self._verify_and_extract_claims(state)
+                            redirect_to = claims["redirect_to"]
+                        except Exception:
+                            raise errors.InvalidData("Invalid state token")
                         response.status = http.HTTPStatus.FOUND
                         params = {
                             "error": error,
@@ -101,14 +106,20 @@ class Router:
                         ] = f"{redirect_to}?{urllib.parse.urlencode(params)}"
                         return
 
-                    provider_id = self._get_from_claims(state, "provider")
-                    redirect_to = self._get_from_claims(state, "redirect_to")
+                    try:
+                        claims = self._verify_and_extract_claims(state)
+                        provider_id = claims["provider"]
+                        redirect_to = claims["redirect_to"]
+                    except Exception:
+                        raise errors.InvalidData("Invalid state token")
                     oauth_client = oauth.Client(
                         db=self.db,
                         provider_id=provider_id,
                         base_url=test_url,
                     )
-                    identity = await oauth_client.handle_callback(code)
+                    identity = await oauth_client.handle_callback(
+                        code, self._get_callback_url()
+                    )
                     session_token = self._make_session_token(identity.id)
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = redirect_to
@@ -326,7 +337,7 @@ class Router:
 
         return jwk.JWK(kty="oct", k=key_bytes.decode())
 
-    def _make_state_claims(self, provider: str) -> str:
+    def _make_state_claims(self, provider: str, redirect_to: str) -> str:
         signing_key = self._get_auth_signing_key()
         expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
 
@@ -334,6 +345,7 @@ class Router:
             "iss": self.base_path,
             "provider": provider,
             "exp": expires_at.astimezone().timestamp(),
+            "redirect_to": redirect_to,
         }
         state_token = jwt.JWT(
             header={"alg": "HS256"},
@@ -365,17 +377,10 @@ class Router:
         session_token.make_signed_token(signing_key)
         return session_token.serialize()
 
-    def _get_from_claims(self, state: str, key: str) -> str:
+    def _verify_and_extract_claims(self, jwtStr: str) -> dict[str, str]:
         signing_key = self._get_auth_signing_key()
-        try:
-            state_token = jwt.JWT(key=signing_key, jwt=state)
-        except Exception:
-            raise errors.InvalidData("Invalid state token")
-        state_claims: dict[str, str] = json.loads(state_token.claims)
-        value = state_claims.get(key)
-        if value is None:
-            raise errors.InvalidData("Invalid state token")
-        return value
+        verified = jwt.JWT(key=signing_key, jwt=jwtStr)
+        return json.loads(verified.claims)
 
 
 def _fail_with_error(
