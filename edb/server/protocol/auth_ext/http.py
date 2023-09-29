@@ -149,11 +149,12 @@ class Router:
 
                     if verifier_size < 43:
                         raise errors.InvalidData(
-                            "Verifier token must be at least 43 characters long"
+                            "Verifier must be at least 43 characters long"
                         )
                     if verifier_size > 128:
                         raise errors.InvalidData(
-                            "Verifier token must be shorter than 128 characters long"
+                            "Verifier must be shorter than 128 "
+                            "characters long"
                         )
                     try:
                         pkce_object = await pkce.get_by_id(self.db, code)
