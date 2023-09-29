@@ -551,7 +551,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             pkce = await self.con.query(
                 """
-                select ext::auth::PKCE
+                select ext::auth::PKCEChallenge
                 filter .challenge = <str>$challenge
                 """,
                 challenge=challenge,
@@ -685,7 +685,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             await self.con.query(
                 """
-                insert ext::auth::PKCE {
+                insert ext::auth::PKCEChallenge {
                     challenge := <str>$challenge,
                 }
                 """,
@@ -1000,7 +1000,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             await self.con.query(
                 """
-                insert ext::auth::PKCE {
+                insert ext::auth::PKCEChallenge {
                     challenge := <str>$challenge,
                 }
                 """,
@@ -1142,7 +1142,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             pkce = await self.con.query(
                 """
-                select ext::auth::PKCE
+                select ext::auth::PKCEChallenge
                 filter .challenge = <str>$challenge
                 """,
                 challenge=challenge,
@@ -1210,7 +1210,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             pkce = await self.con.query(
                 """
-                select ext::auth::PKCE
+                select ext::auth::PKCEChallenge
                 filter .challenge = <str>$challenge
                 """,
                 challenge=challenge,
@@ -1299,7 +1299,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             await self.con.query(
                 """
-                insert ext::auth::PKCE {
+                insert ext::auth::PKCEChallenge {
                     challenge := <str>$challenge,
                 }
                 """,
@@ -1420,7 +1420,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             pkce = await self.con.query(
                 """
-                select ext::auth::PKCE
+                select ext::auth::PKCEChallenge
                 filter .challenge = <str>$challenge
                 """,
                 challenge=challenge,
@@ -1509,7 +1509,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             await self.con.query(
                 """
-                insert ext::auth::PKCE {
+                insert ext::auth::PKCEChallenge {
                     challenge := <str>$challenge,
                 }
                 """,
@@ -2081,7 +2081,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             pkce = await self.con.query_single(
                 """
                 select (
-                    insert ext::auth::PKCE {
+                    insert ext::auth::PKCEChallenge {
                         challenge := <str>$challenge,
                         identity := (
                             insert ext::auth::Identity {

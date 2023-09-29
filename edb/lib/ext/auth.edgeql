@@ -65,7 +65,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property password_hash: std::str;
     };
 
-    create type ext::auth::PKCE extending ext::auth::Auditable {
+    create type ext::auth::PKCEChallenge extending ext::auth::Auditable {
         create required property challenge: std::str {
             create constraint exclusive;
         };

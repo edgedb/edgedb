@@ -64,8 +64,7 @@ class Router:
                     oauth_client = oauth.Client(
                         db=self.db, provider_id=provider_id, base_url=test_url
                     )
-                    pkce_client = pkce.PKCE(self.db)
-                    await pkce_client.create(challenge)
+                    await pkce.create(self.db, challenge)
                     authorize_url = await oauth_client.get_authorize_url(
                         redirect_uri=self._get_callback_url(),
                         state=self._make_state_claims(
@@ -124,9 +123,8 @@ class Router:
                     identity = await oauth_client.handle_callback(
                         code, self._get_callback_url()
                     )
-                    pkce_client = pkce.PKCE(self.db)
-                    pkce_code = await pkce_client.link_identity_challenge(
-                        identity.id, challenge
+                    pkce_code = await pkce.link_identity_challenge(
+                        self.db, identity.id, challenge
                     )
                     parsed_url = urllib.parse.urlparse(redirect_to)
                     query_params = urllib.parse.parse_qs(parsed_url.query)
@@ -147,9 +145,8 @@ class Router:
                     code = _get_search_param(query, "code")
                     verifier = _get_search_param(query, "verifier")
 
-                    pkce_client = pkce.PKCE(self.db)
                     try:
-                        pkce_object = await pkce_client.get_by_id(code)
+                        pkce_object = await pkce.get_by_id(self.db, code)
                     except Exception:
                         raise errors.NoIdentityFound(
                             "Could not find a matching PKCE code"
@@ -169,7 +166,7 @@ class Router:
                         base64_url_encoded_verifier.decode()
                         == pkce_object.challenge
                     ):
-                        await pkce_client.delete(code)
+                        await pkce.delete(self.db, code)
                         session_token = self._make_session_token(
                             pkce_object.identity_id
                         )

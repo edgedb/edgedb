@@ -18,77 +18,85 @@
 
 
 import json
+import dataclasses
 
 from edb.server.protocol import execute
-from . import data
 
 
-class PKCE:
-    def __init__(self, db):
-        self.db = db
+@dataclasses.dataclass(repr=False)
+class PKCEChallenge:
+    """
+    Object that represents the ext::auth::PKCEChallenge type
+    """
 
-    async def create(self, challenge: str):
-        await execute.parse_execute_json(
-            self.db,
-            """
-            insert ext::auth::PKCE {
-              challenge := <str>$challenge,
-            }
-            """,
-            variables={
-                "challenge": challenge,
-            },
-        )
+    id: str
+    challenge: str
+    identity_id: str | None
 
-    async def link_identity_challenge(
-        self, identity_id: str, challenge: str
-    ) -> str:
-        r = await execute.parse_execute_json(
-            self.db,
-            """
-            update ext::auth::PKCE
-            filter .challenge = <str>$challenge
-            set { identity := <ext::auth::Identity><uuid>$identity_id }
-            """,
-            variables={
-                "challenge": challenge,
-                "identity_id": identity_id,
-            },
-        )
 
-        result_json = json.loads(r.decode())
-        assert len(result_json) == 1
+async def create(db, challenge: str):
+    await execute.parse_execute_json(
+        db,
+        """
+        insert ext::auth::PKCEChallenge {
+            challenge := <str>$challenge,
+        }
+        """,
+        variables={
+            "challenge": challenge,
+        },
+    )
 
-        return result_json[0]["id"]
 
-    async def get_by_id(self, id: str) -> data.PKCE:
-        r = await execute.parse_execute_json(
-            self.db,
-            """
-            select ext::auth::PKCE {
-              id,
-              challenge,
-              identity_id := .identity.id
-            }
-            filter .id = <uuid>$id
-            and (datetime_current() - .created_at) < <duration>'10 minutes';
-            """,
-            variables={"id": id},
-        )
+async def link_identity_challenge(db, identity_id: str, challenge: str) -> str:
+    r = await execute.parse_execute_json(
+        db,
+        """
+        update ext::auth::PKCEChallenge
+        filter .challenge = <str>$challenge
+        set { identity := <ext::auth::Identity><uuid>$identity_id }
+        """,
+        variables={
+            "challenge": challenge,
+            "identity_id": identity_id,
+        },
+    )
 
-        result_json = json.loads(r.decode())
-        assert len(result_json) == 1
+    result_json = json.loads(r.decode())
+    assert len(result_json) == 1
 
-        return data.PKCE(**result_json[0])
+    return result_json[0]["id"]
 
-    async def delete(self, id: str) -> None:
-        r = await execute.parse_execute_json(
-            self.db,
-            """
-            delete ext::auth::PKCE filter .id = <uuid>$id
-            """,
-            variables={"id": id},
-        )
 
-        result_json = json.loads(r.decode())
-        assert len(result_json) == 1
+async def get_by_id(db, id: str) -> PKCEChallenge:
+    r = await execute.parse_execute_json(
+        db,
+        """
+        select ext::auth::PKCEChallenge {
+            id,
+            challenge,
+            identity_id := .identity.id
+        }
+        filter .id = <uuid>$id
+        and (datetime_current() - .created_at) < <duration>'10 minutes';
+        """,
+        variables={"id": id},
+    )
+
+    result_json = json.loads(r.decode())
+    assert len(result_json) == 1
+
+    return PKCEChallenge(**result_json[0])
+
+
+async def delete(db, id: str) -> None:
+    r = await execute.parse_execute_json(
+        db,
+        """
+        delete ext::auth::PKCEChallenge filter .id = <uuid>$id
+        """,
+        variables={"id": id},
+    )
+
+    result_json = json.loads(r.decode())
+    assert len(result_json) == 1
