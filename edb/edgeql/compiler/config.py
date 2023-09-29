@@ -332,6 +332,13 @@ def _validate_op(
                 'is not yet implemented'
             )
 
+        # This error is legit, though
+        if is_ext_config and expr.scope == qltypes.ConfigScope.INSTANCE:
+            raise errors.ConfigurationError(
+                'INSTANCE configuration of extension-defined config variables '
+                'is not allowed'
+            )
+
         # expr.name is the actual name of the property.
         ptr = cfg_host_type.maybe_get_ptr(ctx.env.schema, sn.UnqualName(name))
         if ptr is not None:
