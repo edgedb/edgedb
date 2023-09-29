@@ -114,6 +114,12 @@ query will return the ``User`` object. This in effect gives us a query that
 will insert a ``User`` object with a ``role`` of ``admin`` if none exists or
 return that object if it *does* exist.
 
+.. note::
+
+    If you're trying to conditionally run DML in response to a violation of an
+    exclusivity constraint, you don't need this workaround. You should use
+    :ref:`unless conflict <ref_eql_insert_conflicts>` instead.
+
 .. list-table::
   :class: seealso
 
