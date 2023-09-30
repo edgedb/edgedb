@@ -338,13 +338,6 @@ def _special_case(name: str) -> Callable[[_SpecialCaseFunc], _SpecialCaseFunc]:
     return func
 
 
-#: A dictionary of conditional callables and the indices
-#: of the arguments that are evaluated conditionally.
-CONDITIONAL_OPS = {
-    sn.QualName('std', '??'): {1},
-}
-
-
 def compile_operator(
         qlexpr: qlast.Base, op_name: str, qlargs: List[qlast.Expr], *,
         ctx: context.ContextLevel) -> irast.Set:
@@ -357,9 +350,6 @@ def compile_operator(
         raise errors.QueryError(
             f'no operator matches the given name and argument types',
             context=qlexpr.context)
-
-    fq_op_name = next(iter(opers)).get_shortname(ctx.env.schema)
-    conditional_args = CONDITIONAL_OPS.get(fq_op_name)
 
     typemods = polyres.find_callable_typemods(
         opers, num_args=len(qlargs), kwargs_names=set(), ctx=ctx)
@@ -374,7 +364,6 @@ def compile_operator(
         arg_ir = polyres.compile_arg(
             qlarg,
             typemods[ai],
-            in_conditional=bool(conditional_args and ai in conditional_args),
             prefer_subquery_args=prefer_subquery_args,
             ctx=ctx,
         )

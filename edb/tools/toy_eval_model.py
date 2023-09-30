@@ -898,6 +898,8 @@ def eval_Shape(node: qlast.Shape, ctx: EvalContext) -> Result:
 def eval_For(node: qlast.ForQuery, ctx: EvalContext) -> Result:
     ctx = eval_aliases(node, ctx)
     iter_vals = strip_shapes(subquery(node.iterator, ctx=ctx))
+    if node.optional and not iter_vals:
+        iter_vals = [None]
     qil = ctx.query_input_list + [(IORef(node.iterator_alias),)]
     out = []
     for val in iter_vals:

@@ -2520,18 +2520,6 @@ class TestInsert(tb.QueryTestCase):
             [2],
         )
 
-    async def test_edgeql_insert_in_conditional_bad_01(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                'INSERT statements cannot be used inside '
-                'conditional expressions'):
-            await self.con.execute(r'''
-                SELECT
-                    (SELECT Subordinate FILTER .name = 'foo')
-                    ??
-                    (INSERT Subordinate { name := 'no way' });
-            ''')
-
     async def test_edgeql_insert_correlated_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -6087,3 +6075,129 @@ class TestInsert(tb.QueryTestCase):
                     insert DerivedTest { l2 := 200 }
                 )), (select ExceptTest.deleted limit 1));
             ''')
+
+    async def test_edgeql_insert_conditional_03(self):
+        await self.assert_query_result(
+            '''
+            select (for n in array_unpack(<array<int64>>$0) union (
+                if n % 2 = 0 then
+                  (insert InsertTest { l2 := n }) else {}
+            )) { l2 } order by .l2;
+            ''',
+            [{'l2': 2}, {'l2': 4}],
+            variables=([1, 2, 3, 4, 5],),
+        )
+
+        await self.assert_query_result(
+            '''
+            select InsertTest { l2 } order by .l2;
+            ''',
+            [{'l2': 2}, {'l2': 4}],
+        )
+
+    async def test_edgeql_insert_coalesce_01(self):
+        await self.assert_query_result(
+            '''
+            select (select InsertTest filter .l2 = 2) ??
+              (insert InsertTest { l2 := 2 });
+            ''',
+            [{}],
+        )
+
+        await self.assert_query_result(
+            '''
+            select (select InsertTest filter .l2 = 2) ??
+              (insert InsertTest { l2 := 2 });
+            ''',
+            [{}],
+        )
+
+        await self.assert_query_result(
+            '''
+            select count((delete InsertTest))
+            ''',
+            [1],
+        )
+
+    @test.xfail('''
+        This is broken because of #6057
+    ''')
+    async def test_edgeql_insert_coalesce_02(self):
+        await self.assert_query_result(
+            '''
+            select ((select InsertTest filter .l2 = 2), true) ??
+              ((insert InsertTest { l2 := 2 }), false);
+            ''',
+            [({}, False)],
+        )
+
+        await self.assert_query_result(
+            '''
+            select ((select InsertTest filter .l2 = 2), true) ??
+              ((insert InsertTest { l2 := 2 }), false);
+            ''',
+            [({}, True)],
+        )
+
+    async def test_edgeql_insert_coalesce_03(self):
+        await self.assert_query_result(
+            '''
+            select (
+                (update InsertTest filter .l2 = 2 set { name := "!" }) ??
+                  (insert InsertTest { l2 := 2, name := "?" })
+            ) { l2, name }
+            ''',
+            [{'l2': 2, 'name': "?"}],
+        )
+
+        await self.assert_query_result(
+            '''
+            select (
+                (update InsertTest filter .l2 = 2 set { name := "!" }) ??
+                  (insert InsertTest { l2 := 2, name := "?" })
+            ) { l2, name }
+            ''',
+            [{'l2': 2, 'name': "!"}],
+        )
+
+        await self.assert_query_result(
+            '''
+            select InsertTest { l2, name }
+            ''',
+            [{'l2': 2, 'name': "!"}],
+        )
+
+        await self.assert_query_result(
+            '''
+            select count((delete InsertTest))
+            ''',
+            [1],
+        )
+
+    async def test_edgeql_insert_coalesce_04(self):
+        Q = '''
+        select (for n in array_unpack(<array<int64>>$0) union (
+            (update InsertTest filter .l2 = n set { name := "!" }) ??
+              (insert InsertTest { l2 := n, name := "?" })
+        )) { l2, name, new := .id not in InsertTest.id } order by .l2
+        '''
+
+        await self.assert_query_result(
+            Q,
+            [
+                {'l2': 1, 'name': "?", 'new': True},
+                {'l2': 2, 'name': "?", 'new': True},
+            ],
+            variables=([1, 2],)
+        )
+
+        await self.assert_query_result(
+            Q,
+            [
+                {'l2': 0, 'name': "?", 'new': True},
+                {'l2': 1, 'name': "!", 'new': False},
+                {'l2': 2, 'name': "!", 'new': False},
+                {'l2': 3, 'name': "?", 'new': True},
+            ],
+            variables=([0, 1, 2, 3],)
+        )

@@ -2160,17 +2160,6 @@ class TestUpdate(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_update_in_conditional_bad_01(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                'UPDATE statements cannot be used'):
-            await self.con.execute(r'''
-                SELECT
-                    (SELECT UpdateTest)
-                    ??
-                    (UPDATE UpdateTest SET { name := 'no way' });
-            ''')
-
     async def test_edgeql_update_correlated_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,

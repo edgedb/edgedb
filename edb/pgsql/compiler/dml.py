@@ -535,6 +535,7 @@ def compile_iterator_cte(
             parent=last_iterator)
 
     with ctx.newrel() as ictx:
+        ictx.scope_tree = ctx.scope_tree
         ictx.path_scope[iterator_set.path_id] = ictx.rel
 
         # Correlate with enclosing iterators

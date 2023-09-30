@@ -480,17 +480,6 @@ class TestDelete(tb.QueryTestCase):
             }],
         )
 
-    async def test_edgeql_delete_in_conditional_bad_01(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                'DELETE statements cannot be used'):
-            await self.con.execute(r'''
-                SELECT
-                    (SELECT DeleteTest2)
-                    ??
-                    (DELETE DeleteTest2);
-            ''')
-
     async def test_edgeql_delete_abstract_01(self):
         await self.con.execute(r"""
 

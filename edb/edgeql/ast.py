@@ -602,6 +602,8 @@ class DeleteQuery(PipelinedQuery):
 
 
 class ForQuery(Query):
+    from_desugaring: bool = False
+    optional: bool = False
     iterator: Expr
     iterator_alias: str
 

@@ -127,6 +127,9 @@ def compile_BinOp(
             )
             return dispatch.compile(balanced, ctx=ctx)
 
+    if expr.op == '??' and utils.contains_dml(expr.right):
+        return _compile_dml_coalesce(expr, ctx=ctx)
+
     op_node = func.compile_operator(
         expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=ctx)
 
@@ -307,6 +310,93 @@ def compile_Array(
     return setgen.new_array_set(elements, ctx=ctx, srcctx=expr.context)
 
 
+def _compile_dml_coalesce(
+        expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
+    """Transform a coalesce that contains DML into FOR loops
+
+    The basic approach is to extract the pieces from the ?? and
+    rewrite them into:
+        for optional x in (LHS,) union (
+          {
+            x.0,
+            (for _ in (select () filter not exists x) union (RHS)),
+          }
+        )
+
+    Optional for is needed because the LHS needs to be bound in a for
+    in order to get put in a CTE and only executed once, but the RHS
+    needs to be dependent on the LHS being empty.
+
+    We hackily wrap the LHS in a 1-ary tuple and then project it back
+    out because the OPTIONAL FOR implementation doesn't properly
+    handle object-type iterators. OPTIONAL FOR relies on having a
+    non-NULL identity ref but objects use their actual id, which
+    will be NULL.
+    """
+    with ctx.newscope(fenced=False) as subctx:
+        # We have to compile it under a factoring fence to prevent
+        # correlation with outside things. We can't just rely on the
+        # factoring fences inserted when compiling the FORs, since we
+        # are going to need to explicitly exempt the iterator
+        # expression from that.
+        subctx.path_scope.factoring_fence = True
+        subctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
+
+        ir = func.compile_operator(
+            expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=subctx)
+
+        # Extract the IR parts from the ??
+        # Note that lhs_ir will be unfenced while rhs_ir
+        # will have been compiled under fences.
+        match ir.expr:
+            case irast.OperatorCall(args=[
+                irast.CallArg(expr=lhs_ir),
+                irast.CallArg(expr=rhs_ir),
+            ]):
+                pass
+            case _:
+                raise AssertionError('malformed DML ??')
+
+        subctx.anchors = subctx.anchors.copy()
+
+        alias = ctx.aliases.get('b')
+        cond_path = qlast.Path(
+            steps=[qlast.ObjectRef(name=alias)],
+        )
+
+        rhs_b = qlast.ForQuery(
+            iterator_alias='__',
+            iterator=qlast.SelectQuery(
+                result=qlast.Tuple(elements=[]),
+                where=qlast.UnaryOp(
+                    op='NOT',
+                    operand=qlast.UnaryOp(op='EXISTS', operand=cond_path),
+                ),
+            ),
+            result=subctx.create_anchor(rhs_ir, check_dml=True),
+        )
+
+        full = qlast.ForQuery(
+            iterator_alias=alias,
+            iterator=qlast.Tuple(elements=[subctx.create_anchor(lhs_ir, 'b')]),
+            result=qlast.Set(elements=[
+                qlast.Path(steps=[
+                    cond_path, qlast.Ptr(ptr=qlast.ObjectRef(name='0'))
+                ]),
+                rhs_b
+            ]),
+            optional=True,
+        )
+
+        subctx.iterator_path_ids |= {lhs_ir.path_id}
+        res = dispatch.compile(full, ctx=subctx)
+        # Indicate that the original ?? code should determine the
+        # cardinality/multiplicity.
+        res.card_inference_override = ir
+
+        return res
+
+
 def _compile_dml_ifelse(
         expr: qlast.IfElse, *, ctx: context.ContextLevel) -> irast.Set:
     """Transform an IF/ELSE that contains DML into FOR loops
@@ -328,6 +418,7 @@ def _compile_dml_ifelse(
         # are going to need to explicitly exempt the iterator
         # expression from that.
         subctx.path_scope.factoring_fence = True
+        subctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
 
         ir = func.compile_operator(
             expr, op_name='std::IF',
