@@ -20,7 +20,7 @@
 import urllib.parse
 import functools
 
-from . import base, data
+from . import base, data, errors
 
 
 class GitHubProvider(base.BaseProvider):
@@ -58,7 +58,14 @@ class GitHubProvider(base.BaseProvider):
                     "client_secret": self.client_secret,
                     "redirect_uri": redirect_uri,
                 },
+                headers={
+                    "accept": "application/json",
+                }
             )
+            if resp.status_code >= 400:
+                raise errors.OAuthProviderFailure(
+                    f"Failed to exchange code: {resp.text}"
+                )
             json = resp.json()
 
             return data.OAuthAccessTokenResponse(**json)
