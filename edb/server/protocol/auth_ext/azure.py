@@ -26,5 +26,6 @@ class AzureProvider(base.OpenIDProvider):
             "azure",
             "https://login.microsoftonline.com/common/v2.0",
             *args,
+            content_type=base.ContentType.FORM_ENCODED,
             **kwargs,
         )
