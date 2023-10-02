@@ -21,7 +21,7 @@ EdgeDB instance.
 .. note::
 
     The ``edgedb instance start`` command is not intended for use with
-    self-hosted production instances.
+    self-hosted instances.
 
 
 Options

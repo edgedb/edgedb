@@ -21,7 +21,7 @@ bulk.
 .. note::
 
     The ``edgedb instance upgrade`` command is not intended for use with
-    self-hosted production instances.
+    self-hosted instances.
 
 
 Options

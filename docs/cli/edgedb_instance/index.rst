@@ -10,8 +10,7 @@ for managing EdgeDB instances.
 .. note::
 
     Most commands in the ``edgedb instance`` command group are not intended to
-    manage self-hosted production instances. See individual commands for more
-    details.
+    manage self-hosted instances. See individual commands for more details.
 
 .. toctree::
     :maxdepth: 3

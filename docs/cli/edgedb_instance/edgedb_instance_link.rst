@@ -25,8 +25,8 @@ instance.
 .. note::
 
     Unlike other ``edgedb instance`` sub-commands, ``edgedb instance link`` is
-    recommended to link self-hosted production instances. This can make other
-    operations like migrations, dumps, and restores more convenient.
+    recommended to link self-hosted instances. This can make other operations
+    like migrations, dumps, and restores more convenient.
 
     Linking is not required for EdgeDB Cloud instances. They can always be
     accessed via CLI using ``<github-username>/<instance-name>``.

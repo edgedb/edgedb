@@ -22,7 +22,7 @@ EdgeDB instance. This is a necessary step before
 .. note::
 
     The ``edgedb instance stop`` command is not intended for use with
-    self-hosted production instances.
+    self-hosted instances.
 
 
 Options

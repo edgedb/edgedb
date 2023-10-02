@@ -23,9 +23,9 @@ instance and creating a corresponding credentials file in
 .. note::
 
     The ``edgedb instance create`` command is not intended for use with
-    self-hosted production instances. You can follow one of our
-    :ref:`deployment guides <ref_guide_deployment>` for information on how to
-    create one of these instances.
+    self-hosted instances. You can follow one of our :ref:`deployment guides
+    <ref_guide_deployment>` for information on how to create one of these
+    instances.
 
 
 EdgeDB Cloud

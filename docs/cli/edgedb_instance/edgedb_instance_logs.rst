@@ -21,7 +21,7 @@ for a given EdgeDB instance.
 .. note::
 
     The ``edgedb instance logs`` command is not intended for use with
-    self-hosted production instances.
+    self-hosted instances.
 
 
 Options

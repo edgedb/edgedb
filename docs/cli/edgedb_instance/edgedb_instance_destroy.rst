@@ -21,7 +21,7 @@ instance and all its data.
 .. note::
 
     The ``edgedb instance destroy`` command is not intended for use with
-    self-hosted production instances.
+    self-hosted instances.
 
 
 Options
