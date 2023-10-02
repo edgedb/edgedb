@@ -106,13 +106,13 @@ And the following inserts:
   ...   name := "Spider-Man",
   ...   secret_identity := "Peter Parker" 
   ... };
-  {default::Hero {id: ... }}
+  {default::Hero {id: 6be1c9c6...}}
 
   db> insert Hero { 
   ...   name := "Iron Man", 
   ...   secret_identity := "Tony Stark" 
   ... };
-  {default::Hero {id: ... }}
+  {default::Hero {id: 6bf7115a... }}
 
   db> for n in { "Sandman", "Electro", "Green Goblin", "Doc Ock" } 
   ...   union (
@@ -121,17 +121,17 @@ And the following inserts:
   ...     nemesis := (select Hero filter .name = "Spider-Man")
   ...  });
   {
-    default::Villain {id: ... },
-    default::Villain {id: ... },
-    default::Villain {id: ... },
-    default::Villain {id: ... },
+    default::Villain {id: 6c22bdf0...},
+    default::Villain {id: 6c22c3d6...},
+    default::Villain {id: 6c22c46c...},
+    default::Villain {id: 6c22c502...},
   }
 
   db> insert Villain {
   ...   name := "Obadiah Stane",
   ...   nemesis := (select Hero filter .name = "Iron Man")
   ... };
-  {default::Villain {id: ... }}
+  {default::Villain {id: 6c42c4ec...}}
 
   db> insert Movie {
   ...  title := "Spider-Man: No Way Home",
@@ -139,7 +139,7 @@ And the following inserts:
   ...  characters := (select Person filter .name in 
   ...    { "Spider-Man", "Sandman", "Electro", "Green Goblin", "Doc Ock" })
   ...  };
-  {default::Movie {id: ... }}
+  {default::Movie {id: 6c60c28a...}}
 
   db> insert Movie {
   ...  title := "Iron Man",
@@ -147,19 +147,21 @@ And the following inserts:
   ...  characters := (select Person filter .name in 
   ...   { "Iron Man", "Obadiah Stane" })
   ...  };
-  {default::Movie {id: ... }}
+  {default::Movie {id: 6d1f430e...}}
 
 Let's start by selecting all ``Villain`` objects in the database. In this
-example, there are only three. Remember, ``Villain`` is a :ref:`reference
+example, there are only five. Remember, ``Villain`` is a :ref:`reference
 <ref_eql_set_references>` to the set of all Villain objects.
 
 .. code-block:: edgeql-repl
 
   db> select Villain;
   {
-    default::Villain {id: ea7bad4c...},
-    default::Villain {id: 6ddbb04a...},
-    default::Villain {id: b233ca98...},
+    default::Villain {id: 6c22bdf0...},
+    default::Villain {id: 6c22c3d6...},
+    default::Villain {id: 6c22c46c...},
+    default::Villain {id: 6c22c502...},
+    default::Villain {id: 6c42c4ec...},
   }
 
 .. note::
@@ -172,9 +174,11 @@ this result would look like this:
 .. code-block::
 
   [
-    {"id": "ea7bad4c-35d6-11ec-9519-0361f8abd380"},
-    {"id": "6ddbb04a-3c23-11ec-b81f-7b7516f2a868"},
-    {"id": "b233ca98-3c23-11ec-b81f-6ba8c4f0084e"},
+    {"id": "6c22bdf0-5c03-11ee-99ff-dfaea4d947ce"},
+    {"id": "6c22c3d6-5c03-11ee-99ff-734255881e5d"},
+    {"id": "6c22c46c-5c03-11ee-99ff-c79f24cf638b"},
+    {"id": "6c22c502-5c03-11ee-99ff-cbacc3918129"},
+    {"id": "6c42c4ec-5c03-11ee-99ff-872c9906a467"}
   ]
 
 Learn to select objects by trying it in `our interactive object query
@@ -193,11 +197,11 @@ shape can be attached to any object type expression in EdgeQL.
 
   db> select Villain { id, name };
   {
-    default::Villain {id: 11ccc7e6..., name: 'Sandman'},
-    default::Villain {id: 11ccd664..., name: 'Electro'},
-    default::Villain {id: 11ccd718..., name: 'Green Goblin'},
-    default::Villain {id: 11ccd790..., name: 'Doc Ock'},
-    default::Villain {id: 14bcc320..., name: 'Obadiah Stane'},
+    default::Villain {id: 6c22bdf0..., name: 'Sandman'},
+    default::Villain {id: 6c22c3d6..., name: 'Electro'},
+    default::Villain {id: 6c22c46c..., name: 'Green Goblin'},
+    default::Villain {id: 6c22c502..., name: 'Doc Ock'},
+    default::Villain {id: 6c42c4ec..., name: 'Obadiah Stane'},
   }
 
 To learn to use shapes by trying them yourself, see `our interactive shapes
@@ -217,7 +221,7 @@ fetch all ``Villain`` objects and their nemeses.
   ... };
   {
     default::Villain {
-      name: 'Green Goblin',
+      name: 'Sandman',
       nemesis: default::Hero {name: 'Spider-Man'},
     },
     ...
@@ -267,12 +271,12 @@ You can select all of an object's properties using the single splat:
     db> select Movie {*};
     {
       default::Movie {
-        id: 6fe5c3ec-b776-11ed-8bef-3b2fba99fe8a,
+        id: 6c60c28a-5c03-11ee-99ff-dfa425012a05,
         release_year: 2021,
         title: 'Spider-Man: No Way Home',
       },
       default::Movie {
-        id: 76998656-b776-11ed-8bef-237907a987fa,
+        id: 6d1f430e-5c03-11ee-99ff-e731e8da06d9,
         release_year: 2008,
         title: 'Iron Man'
       },
@@ -286,43 +290,43 @@ level of nested objects with the double splat:
     db> select Movie {**};
     {
       default::Movie {
-        id: 6fe5c3ec-b776-11ed-8bef-3b2fba99fe8a,
+        id: 6c60c28a-5c03-11ee-99ff-dfa425012a05,
         release_year: 2021,
         title: 'Spider-Man: No Way Home',
         characters: {
           default::Hero {
-            id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
+            id: 6be1c9c6-5c03-11ee-99ff-63b1127d75f2,
             name: 'Spider-Man'
           },
           default::Villain {
-            id: efa2c4bc-b777-11ed-99eb-43f876d7937e,
+            id: 6c22bdf0-5c03-11ee-99ff-dfaea4d947ce,
             name: 'Sandman'
           },
           default::Villain {
-            id: efa2c4bc-b777-11ed-99eb-43f835d79384,
+            id: 6c22c3d6-5c03-11ee-99ff-734255881e5d,
             name: 'Electro'
           },
           default::Villain {
-            id: f2c99a96-b775-11ed-8f7e-0b4a4a8e433e,
+            id: 6c22c46c-5c03-11ee-99ff-c79f24cf638b,,
             name: 'Green Goblin'
           },
           default::Villain {
-            id: f8ca354a-b775-11ed-8bef-273145019e1d,
+            id: 6c22c502-5c03-11ee-99ff-cbacc3918129,
             name: 'Doc Ock'
           },
         },
       },
       default::Movie {
-        id: 76998656-b776-11ed-8bef-237907a987fa,
+        id: 6d1f430e-5c03-11ee-99ff-e731e8da06d9,
         release_year: 2008,
         title: 'Iron Man',
         characters: {
           default::Hero {
-            id: 48edcf8c-b776-11ed-8bef-c7d61b6780d2,
+            id: 6bf7115a-5c03-11ee-99ff-c79c07f0e2db,
             name: 'Iron Man'
           },
           default::Villain {
-            id: 335f4104-b777-11ed-81eb-ab4de34e9c36,
+            id: 6c42c4ec-5c03-11ee-99ff-872c9906a467,
             name: 'Obadiah Stane'
           },
         },
@@ -341,12 +345,12 @@ properties:
     db> select Hero {*};
     {
       default::Hero {
-        id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
+        id: 6be1c9c6-5c03-11ee-99ff-63b1127d75f2,
         name: 'Spider-Man',
         secret_identity: 'Peter Parker'
       },
       default::Hero {
-        id: 48edcf8c-b776-11ed-8bef-c7d61b6780d2,
+        id: 6bf7115a-5c03-11ee-99ff-c79c07f0e2db,
         name: 'Iron Man',
         secret_identity: 'Tony Stark'
       },
@@ -362,11 +366,11 @@ we can do this instead:
     db> select Hero {Person.*};
     {
       default::Hero {
-        id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
+        id: 6be1c9c6-5c03-11ee-99ff-63b1127d75f2,
         name: 'Spider-Man'
       },
       default::Hero {
-        id: 48edcf8c-b776-11ed-8bef-c7d61b6780d2,
+        id: 6bf7115a-5c03-11ee-99ff-c79c07f0e2db,
         name: 'Iron Man'
       },
     }
@@ -390,37 +394,37 @@ with their names but also get any properties defined on the ``Hero`` for those
     {
       default::Hero {
         name: 'Spider-Man',
-        id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
+        id: 6be1c9c6-5c03-11ee-99ff-63b1127d75f2,
         secret_identity: 'Peter Parker'
       },
       default::Hero {
         name: 'Iron Man'
-        id: 48edcf8c-b776-11ed-8bef-c7d61b6780d2,
+        id: 6bf7115a-5c03-11ee-99ff-c79c07f0e2db,
         secret_identity: 'Tony Stark'
       },
       default::Villain {
         name: 'Sandman', 
-        id: 11ccc7e6-5bfa-11ee-b007-9f1e01dd9dde, 
+        id: 6c22bdf0-5c03-11ee-99ff-dfaea4d947ce, 
         secret_identity: {}
       },
       default::Villain {
         name: 'Electro',
-        id: 11ccd664-5bfa-11ee-b007-f75b106d666e,
+        id: 6c22c3d6-5c03-11ee-99ff-734255881e5d,
         secret_identity: {}
       },
       default::Villain {
         name: 'Green Goblin',
-        id: 11ccd718-5bfa-11ee-b007-1314d5d18e2a,
+        id: 6c22c46c-5c03-11ee-99ff-c79f24cf638b,
         secret_identity: {}
       },
       default::Villain {
         name: 'Doc Ock',
-        id: 11ccd790-5bfa-11ee-b007-2f4254ec9417,
+        id: 6c22c502-5c03-11ee-99ff-cbacc3918129,
         secret_identity: {}
       },
       default::Villain {
         name: 'Obadiah Stane',
-        id: 14bcc320-5bfa-11ee-b007-efcd22143229,
+        id: 6c42c4ec-5c03-11ee-99ff-872c9906a467,
         secret_identity: {}
       },
     }
@@ -437,54 +441,54 @@ properties and links on the specified type.
     {
       default::Villain {
         name: 'Sandman', 
-        id: 11ccc7e6-5bfa-11ee-b007-9f1e01dd9dde, 
+        id: 6c22bdf0-5c03-11ee-99ff-dfaea4d947ce,
         secret_identity: {}, 
         villains: {}
       },
       default::Villain {
         name: 'Electro', 
-        id: 11ccd664-5bfa-11ee-b007-f75b106d666e, 
+        id: 6c22c3d6-5c03-11ee-99ff-734255881e5d, 
         secret_identity: {}, 
         villains: {}
       },
       default::Villain {
         name: 'Green Goblin', 
-        id: 11ccd718-5bfa-11ee-b007-1314d5d18e2a, 
+        id: 6c22c46c-5c03-11ee-99ff-c79f24cf638b, 
         secret_identity: {}, 
         villains: {}
       },
       default::Villain {
         name: 'Doc Ock', 
-        id: 11ccd790-5bfa-11ee-b007-2f4254ec9417, 
+        id: 6c22c502-5c03-11ee-99ff-cbacc3918129, 
         secret_identity: {}, 
         villains: {}
       },
       default::Villain {
         name: 'Obadiah Stane', 
-        id: 14bcc320-5bfa-11ee-b007-efcd22143229, 
+        id: 6c42c4ec-5c03-11ee-99ff-872c9906a467, 
         secret_identity: {}, 
         villains: {}
       },
       default::Hero {
         name: 'Spider-Man',
-        id: 969669de-5bf3-11ee-8c4f-6b8ab246ca1e,
+        id: 6be1c9c6-5c03-11ee-99ff-63b1127d75f2,
         secret_identity: 'Peter Parker',
         villains: {
           default::Villain {
             name: 'Electro', 
-            id: 11ccd664-5bfa-11ee-b007-f75b106d666e
+            id: 6c22c3d6-5c03-11ee-99ff-734255881e5d
           },
           default::Villain {
             name: 'Sandman', 
-            id: 11ccc7e6-5bfa-11ee-b007-9f1e01dd9dde
+            id: 6c22bdf0-5c03-11ee-99ff-dfaea4d947ce
           },
           default::Villain {
             name: 'Doc Ock', 
-            id: 11ccd790-5bfa-11ee-b007-2f4254ec9417
+            id: 6c22c502-5c03-11ee-99ff-cbacc3918129
           },
           default::Villain {
             name: 'Green Goblin', 
-            id: 11ccd718-5bfa-11ee-b007-1314d5d18e2a
+            id: 6c22c46c-5c03-11ee-99ff-c79f24cf638b
           },
         },
       },
@@ -512,7 +516,7 @@ we use ``Villain.name``.
 
   db> select Villain {id, name}
   ... filter Villain.name = "Doc Ock";
-  {default::Villain {id: b233ca98..., name: 'Doc Ock'}}
+  {default::Villain {id: 6c22c502..., name: 'Doc Ock'}}
 
 
 .. note::
@@ -547,10 +551,10 @@ To filter by ``id``, remember to cast the desired ID to :ref:`uuid
 .. code-block:: edgeql-repl
 
   db> select Villain {id, name}
-  ... filter .id = <uuid>"b233ca98-3c23-11ec-b81f-6ba8c4f0084e";
+  ... filter .id = <uuid>"6c22c502-5c03-11ee-99ff-cbacc3918129";
   {
     default::Villain {
-      id: 'b233ca98-3c23-11ec-b81f-6ba8c4f0084e',
+      id: '6c22c502-5c03-11ee-99ff-cbacc3918129',
       name: 'Doc Ock'
     }
   }
@@ -734,7 +738,7 @@ refer to the properties and links of the object type currently *in scope*.
   ... };
   {
     default::Villain {
-      id: 4114dd56...,
+      id: 6c22bdf0...,
       name: 'Sandman',
       name_upper: 'SANDMAN',
     },
@@ -756,7 +760,7 @@ As with nested filters, the *current scope* changes inside nested shapes.
   ... };
   {
     default::Villain {
-      id: 6ddbb04a...,
+      id: 6c22bdf0...,
       name: 'Sandman',
       name_upper: 'SANDMAN',
       nemesis: default::Hero {
