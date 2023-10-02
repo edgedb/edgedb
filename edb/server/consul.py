@@ -68,14 +68,19 @@ class ConsulKVProtocol(asyncwatcher.AsyncWatcherProtocol):
 
     def on_message_complete(self) -> None:
         try:
-            if self._parser.get_status_code() == 200:
+            code = self._parser.get_status_code()
+            if code == 200:
+                self._watcher.incr_metrics_counter("watch-update")
                 payload = json.loads(b"".join(self._buffers))[0]
                 last_modify_index = payload["ModifyIndex"]
                 self._watcher.on_update(payload["Value"])
                 if self._last_modify_index == last_modify_index:
-                    self._last_modify_index = 0
+                    self._watcher.incr_metrics_counter("watch-timeout")
+                    self._last_modify_index = None
                 else:
                     self._last_modify_index = last_modify_index
+            else:
+                self._watcher.incr_metrics_counter(f"watch-err-{code}")
             self.request()
 
         finally:

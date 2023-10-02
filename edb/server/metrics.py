@@ -97,3 +97,9 @@ background_errors = registry.new_labeled_counter(
     'Number of unhandled errors in background server routines.',
     labels=('source',)
 )
+
+ha_events_total = registry.new_labeled_counter(
+    "ha_events_total",
+    "Number of each high-availability watch event.",
+    labels=("dsn", "event"),
+)

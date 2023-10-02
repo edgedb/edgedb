@@ -105,6 +105,7 @@ class StolonBackend(base.HABackend):
                 )
                 self._master_addr = master_addr
                 if self._failover_cb is not None:
+                    self.incr_metrics_counter("failover")
                     self._failover_cb()
 
         if self._waiter is not None:
@@ -149,7 +150,7 @@ class StolonConsulBackend(StolonBackend):
         )
         return pr  # type: ignore [return-value]
 
-    @property
+    @functools.cached_property
     def dsn(self) -> str:
         proto = "http" if self._ssl is None else "https"
         return (

@@ -41,6 +41,7 @@ class AsyncWatcherProtocol(asyncio.Protocol):
         self.request()
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
+        self._watcher.incr_metrics_counter("watch-disconnect")
         self._watcher.on_connection_lost()
 
     def request(self) -> None:
@@ -66,6 +67,7 @@ class AsyncWatcher:
                 self._protocol = await self._start_watching()
                 return True
             except BaseException:
+                self.incr_metrics_counter("watch-start-err")
                 self._watching = False
                 raise
         return False
@@ -119,3 +121,6 @@ class AsyncWatcher:
         # For rate limit - tries to consume the given number of tokens, returns
         # non-zero values as seconds to wait if unsuccessful
         return 0
+
+    def incr_metrics_counter(self, event: str, value: float = 1.0) -> None:
+        pass
