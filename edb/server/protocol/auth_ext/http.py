@@ -34,8 +34,10 @@ from edb.common import debug
 from edb.common import markup
 from edb.ir import statypes
 from edb.server.config.types import CompositeConfigType
+from edb.server.ext import errors as ext_errors
+from edb.server.ext import util
 
-from . import oauth, local, errors, util, pkce, ui
+from . import oauth, local, errors, pkce, ui
 
 
 class Router:
@@ -482,7 +484,7 @@ class Router:
                         )
 
                         if providers is None or len(providers) == 0:
-                            raise errors.MissingConfiguration(
+                            raise ext_errors.MissingConfiguration(
                                 'ext::auth::AuthConfig::providers',
                                 'No providers are configured'
                             )
@@ -680,7 +682,7 @@ class Router:
                 ex_type=edb_errors.ProtocolError,
             )
 
-        except errors.MissingConfiguration as ex:
+        except ext_errors.MissingConfiguration as ex:
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.INTERNAL_SERVER_ERROR,

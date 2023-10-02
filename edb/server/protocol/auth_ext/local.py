@@ -23,9 +23,10 @@ import base64
 
 from typing import Any
 from edb.errors import ConstraintViolationError
+from edb.server.ext import util
 from edb.server.protocol import execute
 
-from . import errors, util, data
+from . import errors, data
 
 ph = argon2.PasswordHasher()
 

@@ -20,7 +20,7 @@ from typing import *
 
 import html
 
-from .util import get_config_typename
+from edb.server.ext.util import get_config_typename
 
 
 oauth_provider_names = {
