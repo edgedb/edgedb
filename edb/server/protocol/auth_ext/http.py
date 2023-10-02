@@ -22,6 +22,7 @@ import http
 import json
 import urllib.parse
 import base64
+import hashlib
 
 from typing import *
 from jwcrypto import jwk, jwt
@@ -31,7 +32,7 @@ from edb.common import debug
 from edb.common import markup
 from edb.ir import statypes
 
-from . import oauth, local, errors, util
+from . import oauth, local, errors, util, pkce
 
 
 class Router:
@@ -56,18 +57,19 @@ class Router:
         try:
             match args:
                 case ("authorize",):
-                    provider_id = _get_search_param(
-                        request.url.query.decode("ascii"), "provider"
-                    )
-                    redirect_to = _get_search_param(
-                        request.url.query.decode("ascii"), "redirect_to"
-                    )
+                    query = request.url.query.decode("ascii")
+                    provider_id = _get_search_param(query, "provider")
+                    redirect_to = _get_search_param(query, "redirect_to")
+                    challenge = _get_search_param(query, "challenge")
                     oauth_client = oauth.Client(
                         db=self.db, provider_id=provider_id, base_url=test_url
                     )
+                    await pkce.create(self.db, challenge)
                     authorize_url = await oauth_client.get_authorize_url(
                         redirect_uri=self._get_callback_url(),
-                        state=self._make_state_claims(provider_id, redirect_to),
+                        state=self._make_state_claims(
+                            provider_id, redirect_to, challenge
+                        ),
                     )
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = authorize_url
@@ -110,6 +112,7 @@ class Router:
                         claims = self._verify_and_extract_claims(state)
                         provider_id = claims["provider"]
                         redirect_to = claims["redirect_to"]
+                        challenge = claims["challenge"]
                     except Exception:
                         raise errors.InvalidData("Invalid state token")
                     oauth_client = oauth.Client(
@@ -120,13 +123,74 @@ class Router:
                     identity = await oauth_client.handle_callback(
                         code, self._get_callback_url()
                     )
+                    pkce_code = await pkce.link_identity_challenge(
+                        self.db, identity.id, challenge
+                    )
+                    parsed_url = urllib.parse.urlparse(redirect_to)
+                    query_params = urllib.parse.parse_qs(parsed_url.query)
+                    query_params["code"] = [pkce_code]
+                    new_query = urllib.parse.urlencode(query_params, doseq=True)
+                    new_url = parsed_url._replace(query=new_query).geturl()
+
                     session_token = self._make_session_token(identity.id)
                     response.status = http.HTTPStatus.FOUND
-                    response.custom_headers["Location"] = redirect_to
+                    response.custom_headers["Location"] = new_url
                     response.custom_headers["Set-Cookie"] = (
                         f"edgedb-session={session_token}; "
                         f"HttpOnly; Secure; SameSite=Strict"
                     )
+
+                case ("token",):
+                    query = request.url.query.decode("ascii")
+                    code = _get_search_param(query, "code")
+                    verifier = _get_search_param(query, "verifier")
+
+                    verifier_size = len(verifier)
+
+                    if verifier_size < 43:
+                        raise errors.InvalidData(
+                            "Verifier must be at least 43 characters long"
+                        )
+                    if verifier_size > 128:
+                        raise errors.InvalidData(
+                            "Verifier must be shorter than 128 "
+                            "characters long"
+                        )
+                    try:
+                        pkce_object = await pkce.get_by_id(self.db, code)
+                    except Exception:
+                        raise errors.NoIdentityFound(
+                            "Could not find a matching PKCE code"
+                        )
+
+                    if pkce_object.identity_id is None:
+                        raise errors.InvalidData(
+                            "Code is not associated with an Identity"
+                        )
+
+                    hashed_verifier = hashlib.sha256(verifier.encode()).digest()
+                    base64_url_encoded_verifier = base64.urlsafe_b64encode(
+                        hashed_verifier
+                    ).rstrip(b'=')
+
+                    if (
+                        base64_url_encoded_verifier.decode()
+                        == pkce_object.challenge
+                    ):
+                        await pkce.delete(self.db, code)
+                        session_token = self._make_session_token(
+                            pkce_object.identity_id
+                        )
+                        response.status = http.HTTPStatus.OK
+                        response.content_type = b"application/json"
+                        response.body = json.dumps(
+                            {
+                                "auth_token": session_token,
+                                "identity_id": pkce_object.identity_id,
+                            }
+                        ).encode()
+                    else:
+                        response.status = http.HTTPStatus.FORBIDDEN
 
                 case ("register",):
                     content_type = request.content_type
@@ -337,7 +401,9 @@ class Router:
 
         return jwk.JWK(kty="oct", k=key_bytes.decode())
 
-    def _make_state_claims(self, provider: str, redirect_to: str) -> str:
+    def _make_state_claims(
+        self, provider: str, redirect_to: str, challenge: str
+    ) -> str:
         signing_key = self._get_auth_signing_key()
         expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
 
@@ -346,6 +412,7 @@ class Router:
             "provider": provider,
             "exp": expires_at.astimezone().timestamp(),
             "redirect_to": redirect_to,
+            "challenge": challenge,
         }
         state_token = jwt.JWT(
             header={"alg": "HS256"},
