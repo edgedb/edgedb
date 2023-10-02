@@ -386,7 +386,8 @@ def _describe_config_object(
         ):
             pn = str(ptr_name)
             if (
-                pn in ('id', '__type__')
+                pn == 'id'
+                or p.get_protected(schema)
                 or p.get_annotation(
                     schema,
                     s_name.QualName('cfg', 'internal'),

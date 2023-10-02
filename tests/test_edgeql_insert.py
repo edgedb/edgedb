@@ -5486,10 +5486,21 @@ class TestInsert(tb.QueryTestCase):
 
         )
 
+    async def test_edgeql_insert_specified_type(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "cannot assign to link '__type__'"):
+            await self.con.execute('''
+                INSERT Person {
+                    __type__ := (introspect Object),
+                    name := "test",
+                 }
+            ''')
+
     async def test_edgeql_insert_explicit_id_00(self):
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
-                "cannot assign to id"):
+                "cannot assign to property 'id'"):
             await self.con.execute('''
                 INSERT Person {
                     id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff',

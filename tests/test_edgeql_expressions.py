@@ -7944,7 +7944,8 @@ aa \
 
     async def test_edgeql_expr_cannot_assign_id_01(self):
         with self.assertRaisesRegex(
-                edgedb.QueryError, r'cannot assign to id'):
+                edgedb.QueryError, r"cannot assign to property 'id'",
+                _hint=None):
             await self.con.execute(r"""
                 SELECT Text {
                     id := <uuid>'77841036-8e35-49ce-b509-2cafa0c25c4f'

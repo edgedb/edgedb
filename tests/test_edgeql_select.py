@@ -1417,7 +1417,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         # equivalent to re-writing it.
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'cannot access id on a polymorphic shape element'):
+                r"cannot access property 'id' on a polymorphic shape element"):
             await self.con.query(r'''
                 SELECT User {
                     [IS Named].id,
