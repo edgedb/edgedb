@@ -885,6 +885,24 @@ async def get_remote_pg_cluster(
         addr = await ha_backend.get_cluster_consensus()
         dsn = 'postgresql://{}:{}'.format(*addr)
 
+        if parsed.query:
+            # Allow passing through Postgres connection parameters from the HA
+            # backend DSN as "pg" prefixed query strings. For example, an HA
+            # backend DSN with `?pgpassword=123` will result an actual backend
+            # DSN with `?password=123`. They have higher priority than the `PG`
+            # prefixed environment variables like `PGPASSWORD`.
+            pq = urllib.parse.parse_qs(parsed.query, strict_parsing=True)
+            query = {}
+            for k, v in pq.items():
+                if k.startswith("pg") and k not in ["pghost", "pgport"]:
+                    if isinstance(v, list):
+                        val = v[-1]
+                    else:
+                        val = cast(str, v)
+                    query[k[2:]] = val
+            if query:
+                dsn += f"?{urllib.parse.urlencode(query)}"
+
     addrs, params = pgconnparams.parse_dsn(dsn)
     if len(addrs) > 1:
         raise ValueError('multiple hosts in Postgres DSN are not supported')
