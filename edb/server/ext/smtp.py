@@ -23,11 +23,11 @@ import email
 
 import aiosmtplib
 
+from edb import errors
 from edb.common import retryloop
 from edb.ir import statypes
 
 from . import util
-from ... import errors
 
 
 async def send_email(
@@ -40,7 +40,7 @@ async def send_email(
     ],
     sender: Optional[str] = None,
     recipients: Optional[Union[str, Sequence[str]]] = None,
-):
+) -> None:
     if db.db_config is None:
         await db.introspection()
 
@@ -54,7 +54,7 @@ async def send_email(
     # This is a carefully-written loop to deal with concurrent updates.
     while True:
         concurrency = util.get_config(
-            db.db_config,
+            db.db_config,  # type: ignore
             "ext::smtp::ServerConfig::concurrency",
             expected_type=int,
         )
@@ -86,42 +86,43 @@ async def send_email(
         await semaphore.acquire()
 
     host = util.maybe_get_config(
-        db.db_config,
+        db.db_config,  # type: ignore
         "ext::smtp::ServerConfig::host",
     )
     port = util.maybe_get_config(
-        db.db_config,
+        db.db_config,  # type: ignore
         "ext::smtp::ServerConfig::port",
         expected_type=int,
     )
     username = util.maybe_get_config(
-        db.db_config,
+        db.db_config,  # type: ignore
         "ext::smtp::ServerConfig::username",
     )
     password = util.maybe_get_config(
-        db.db_config,
+        db.db_config,  # type: ignore
         "ext::smtp::ServerConfig::password",
     )
     timeout_per_attempt = util.get_config(
-        db.db_config,
+        db.db_config,  # type: ignore
         "ext::smtp::ServerConfig::timeout_per_attempt",
         expected_type=statypes.Duration,
     )
     req_timeout = timeout_per_attempt.to_microseconds() / 1_000_000.0
     timeout_per_email = util.get_config(
-        db.db_config,
+        db.db_config,  # type: ignore
         "ext::smtp::ServerConfig::timeout_per_email",
         expected_type=statypes.Duration,
     )
     validate_certs = util.get_config(
-        db.db_config,
+        db.db_config,  # type: ignore
         "ext::smtp::ServerConfig::validate_certs",
         expected_type=bool,
     )
     security = util.get_config(
-        db.db_config,
+        db.db_config,  # type: ignore
         "ext::smtp::ServerConfig::security",
     )
+    start_tls: bool | None
     match security:
         case "PlainText":
             use_tls = False
