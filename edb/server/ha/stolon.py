@@ -24,10 +24,12 @@ import base64
 import functools
 import json
 import logging
+import os
 import ssl
 import urllib.parse
 
 from edb.common import asyncwatcher
+from edb.common import token_bucket
 from edb.server import consul
 
 from . import base
@@ -126,6 +128,13 @@ class StolonConsulBackend(StolonBackend):
         self._port = port
         self._ssl = ssl
 
+        # This means we can request for 10 consecutive requests immediately
+        # after each response without delay, and then we're capped to 0.1
+        # request(token) per second, or 1 request per 10 seconds.
+        cap = float(os.environ.get("EDGEDB_SERVER_CONSUL_TOKEN_CAPACITY", 10))
+        rate = float(os.environ.get("EDGEDB_SERVER_CONSUL_TOKEN_RATE", 0.1))
+        self._token_bucket = token_bucket.TokenBucket(cap, rate)
+
     async def _start_watching(self) -> asyncwatcher.AsyncWatcherProtocol:
         _, pr = await asyncio.get_running_loop().create_connection(
             functools.partial(
@@ -147,6 +156,9 @@ class StolonConsulBackend(StolonBackend):
             f"stolon+consul+{proto}://"
             f"{self._host}:{self._port}/{self._cluster_name}"
         )
+
+    def consume_tokens(self, tokens: int) -> float:
+        return self._token_bucket.consume(tokens)
 
 
 def get_backend(

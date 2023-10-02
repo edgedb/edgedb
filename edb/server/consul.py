@@ -19,8 +19,10 @@
 from __future__ import annotations
 from typing import *
 
+import asyncio
 import json
 import logging
+import random
 import urllib.parse
 
 import httptools
@@ -70,13 +72,22 @@ class ConsulKVProtocol(asyncwatcher.AsyncWatcherProtocol):
                 payload = json.loads(b"".join(self._buffers))[0]
                 last_modify_index = payload["ModifyIndex"]
                 self._watcher.on_update(payload["Value"])
-                if self._last_modify_index != last_modify_index:
+                if self._last_modify_index == last_modify_index:
+                    self._last_modify_index = 0
+                else:
                     self._last_modify_index = last_modify_index
-                    self.request()
+            self.request()
+
         finally:
             self._buffers.clear()
 
     def request(self) -> None:
+        delay = self._watcher.consume_tokens(1)
+        if delay > 0:
+            asyncio.get_running_loop().call_later(
+                delay + random.random() * 0.1, self.request
+            )
+            return
         uri = urllib.parse.urljoin("/v1/kv/", self._key)
         if self._last_modify_index is not None:
             uri += f"?index={self._last_modify_index}"

@@ -114,3 +114,8 @@ class AsyncWatcher:
 
     async def _start_watching(self) -> AsyncWatcherProtocol:
         raise NotImplementedError
+
+    def consume_tokens(self, tokens: int) -> float:
+        # For rate limit - tries to consume the given number of tokens, returns
+        # non-zero values as seconds to wait if unsuccessful
+        return 0
