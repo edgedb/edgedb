@@ -12,8 +12,8 @@ an :ref:`ref_reference_edgedb_toml` file in the project directory.
 
 .. note::
 
-    The ``edgedb instance`` command group is not intended to manage production
-    instances.
+    The ``edgedb project`` command group is not intended to manage remote
+    instances. See individual commands for more details.
 
 .. toctree::
     :maxdepth: 3
