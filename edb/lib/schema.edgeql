@@ -423,7 +423,7 @@ ALTER TYPE std::BaseObject {
     # when operating on tables directly.
     CREATE REQUIRED LINK __type__ -> schema::ObjectType {
         SET readonly := True;
-        SET _protected := True;
+        SET protected := True;
     };
 };
 

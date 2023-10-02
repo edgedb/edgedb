@@ -454,7 +454,7 @@ class Pointer(referencing.NamedReferencedInheritingObject,
         compcoef=0.909,
     )
 
-    _protected = so.SchemaField(
+    protected = so.SchemaField(
         bool,
         default=False,
         compcoef=0.909,
@@ -755,9 +755,6 @@ class Pointer(referencing.NamedReferencedInheritingObject,
 
     def is_link_property(self, schema: s_schema.Schema) -> bool:
         raise NotImplementedError
-
-    def get_protected(self, schema: s_schema.Schema) -> bool:
-        return self.get__protected(schema)
 
     def is_dumpable(self, schema: s_schema.Schema) -> bool:
         return (
