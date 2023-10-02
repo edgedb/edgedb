@@ -18,11 +18,6 @@ Description
 This command provides information about the project instance, such as
 name and the project path.
 
-.. note::
-
-    The ``edgedb project info`` command is not intended for use with
-    self-hosted production instances.
-
 
 Options
 =======

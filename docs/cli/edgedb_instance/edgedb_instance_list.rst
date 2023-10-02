@@ -19,11 +19,6 @@ Description
 registered EdgeDB instances and some relevant information about them
 (status, port, etc.).
 
-.. note::
-
-    The ``edgedb instance list`` command is not intended for use with
-    production instances.
-
 
 Options
 =======

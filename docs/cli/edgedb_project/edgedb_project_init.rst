@@ -21,11 +21,6 @@ to convert an existing directory to a project directory, connecting the
 existing instance to the project. Typically this tool will prompt for specific
 details about how the project should be setup.
 
-.. note::
-
-    The ``edgedb project init`` command is not intended for use with
-    self-hosted production instances.
-
 
 EdgeDB Cloud
 ------------

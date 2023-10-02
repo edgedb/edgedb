@@ -20,11 +20,6 @@ This command unlinks the project directory from the instance. By
 default the EdgeDB instance remains untouched, but it can also be
 destroyed with an explicit option.
 
-.. note::
-
-    The ``edgedb project unlink`` command is not intended for use with
-    self-hosted production instances.
-
 
 Options
 =======

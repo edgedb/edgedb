@@ -18,11 +18,6 @@ Description
 ``edgedb instance status`` is a terminal command for displaying the
 information about EdgeDB instances.
 
-.. note::
-
-    The ``edgedb instance status`` command is not intended for use with
-    production instances.
-
 
 Options
 =======
