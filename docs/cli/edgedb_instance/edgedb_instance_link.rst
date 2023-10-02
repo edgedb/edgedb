@@ -25,8 +25,8 @@ instance.
 .. note::
 
     Unlike other ``edgedb instance`` sub-commands, ``edgedb instance link`` can
-    be useful with production instances for linking to those instances. This
-    can make other operations like migrations, dumps, and restores more
+    be useful with self-hosted production instances for linking to those instances.
+    This can make other operations like migrations, dumps, and restores more
     convenient.
 
 Options

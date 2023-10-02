@@ -20,8 +20,8 @@ name and the project path.
 
 .. note::
 
-    The ``edgedb project info`` command is not intended for use with production
-    instances.
+    The ``edgedb project info`` command is not intended for use with
+    self-hosted production instances.
 
 
 Options

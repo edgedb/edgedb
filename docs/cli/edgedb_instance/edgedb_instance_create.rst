@@ -23,7 +23,7 @@ instance and creating a corresponding credentials file in
 .. note::
 
     The ``edgedb instance create`` command is not intended for use with
-    production instances.
+    self-hosted production instances.
 
 
 EdgeDB Cloud

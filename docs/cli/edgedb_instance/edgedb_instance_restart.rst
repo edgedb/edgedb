@@ -21,7 +21,7 @@ EdgeDB instance.
 .. note::
 
     The ``edgedb instance restart`` command is not intended for use with
-    production instances.
+    self-hosted production instances.
 
 
 Options

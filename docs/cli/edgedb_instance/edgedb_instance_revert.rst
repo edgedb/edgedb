@@ -24,7 +24,7 @@ version of EdgeDB server is used to run it.
 .. note::
 
     The ``edgedb instance revert`` command is not intended for use with
-    production instances.
+    self-hosted production instances.
 
 
 Options

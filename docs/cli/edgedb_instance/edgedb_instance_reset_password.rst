@@ -21,7 +21,7 @@ or updating the password for a user of an EdgeDB instance.
 .. note::
 
     The ``edgedb instance reset-password`` command is not intended for use with
-    production instances.
+    self-hosted production instances.
 
 
 Options

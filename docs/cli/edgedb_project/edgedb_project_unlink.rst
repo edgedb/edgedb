@@ -23,7 +23,7 @@ destroyed with an explicit option.
 .. note::
 
     The ``edgedb project unlink`` command is not intended for use with
-    production instances.
+    self-hosted production instances.
 
 
 Options

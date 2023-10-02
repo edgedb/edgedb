@@ -23,8 +23,8 @@ details about how the project should be setup.
 
 .. note::
 
-    The ``edgedb project init`` command is not intended for use with production
-    instances.
+    The ``edgedb project init`` command is not intended for use with
+    self-hosted production instances.
 
 
 EdgeDB Cloud
