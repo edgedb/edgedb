@@ -16243,6 +16243,8 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 extra := 42,
             };
         ''')
+
+        # This is fine, constraint on value is delegated
         await self.con.execute('''
             configure current database insert ext::_conf::SecretObj {
                 name := '4',
@@ -16250,10 +16252,22 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 secret := '123456',
             };
         ''')
+
+        # But this collides
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError, "value violate"
+        ):
+            await self.con.execute('''
+                configure current database insert ext::_conf::SecretObj {
+                    name := '5',
+                    value := 'foo',
+                };
+            ''')
+
         await self.con.execute('''
             configure current database insert ext::_conf::SecretObj {
                 name := '5',
-                value := 'foo',
+                value := 'quux',
             };
         ''')
         async with self.assertRaisesRegexTx(
@@ -16300,7 +16314,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                      tname='ext::_conf::SubObj', opt_value=None),
                 dict(name='4', value='foo',
                      tname='ext::_conf::SecretObj', opt_value=None),
-                dict(name='5', value='foo',
+                dict(name='5', value='quux',
                      tname='ext::_conf::SecretObj', opt_value=None),
             ],
             obj=dict(name='single', value='val', fixed='fixed!'),
@@ -16421,7 +16435,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                      'name': '4', 'value': 'foo',
                      'opt_value': None, 'secret': {'redacted': True}},
                     {'_tname': 'ext::_conf::SecretObj',
-                     'name': '5', 'value': 'foo',
+                     'name': '5', 'value': 'quux',
                      'opt_value': None, 'secret': None},
                 ],
             )
@@ -16458,7 +16472,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         CONFIGURE CURRENT DATABASE INSERT ext::_conf::SecretObj {
             name := '5',
             secret := {},  # REDACTED
-            value := 'foo',
+            value := 'quux',
         };
         CONFIGURE CURRENT DATABASE INSERT ext::_conf::SubObj {
             extra := 42,
