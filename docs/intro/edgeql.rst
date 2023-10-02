@@ -235,7 +235,7 @@ Similarly, it provides a comprehensive set of built-in operators.
     // boolean
     e.op(e.int64(2), "+", e.int64(2));
     // number
-    e.op(e.str("Hello "), "++", e.str("World!"));
+    e.op(e.str("Hello"), "++", e.str(" world!"));
     // string
     e.op(e.str("😄"), "if", e.bool(true), "else", e.str("😢"));
     // string
@@ -361,7 +361,7 @@ Fetch linked objects with a nested shape.
     }));
 
     const result = await query.run(client);
-    // {id: string; title: string, actors: {name: string}[]}[]
+    // {id: string; title: string; actors: {name: string}[]}[]
 
 See :ref:`Docs > EdgeQL > Select > Shapes <ref_eql_shapes>`.
 
@@ -419,15 +419,15 @@ Every new set of curly braces introduces a new scope. You can add ``filter``,
 
   .. code-tab:: typescript
 
-    e.select(e.Movie, movie => ({
+    const query = e.select(e.Movie, movie => ({
       title: true,
-      characters: c => ({
+      actors: actor => ({
         name: true,
-        filter: e.op(c.name, "ilike", "chris%"),
+        filter: e.op(actor.name, "ilike", "chris%"),
       }),
       filter: e.op(movie.title, "ilike", "%avengers%"),
     }));
-    // => { characters: { name: string; }[]; title: string; }[]
+    // => { actors: { name: string; }[]; title: string; }[]
 
     const result = await query.run(client);
     // {id: string; title: number}[]
@@ -510,11 +510,13 @@ Selection shapes can contain computed properties.
 
   .. code-tab:: typescript
 
-    e.select(e.Movie, movie => ({
+    const query = e.select(e.Movie, movie => ({
       title: true,
       title_upper: e.str_upper(movie.title),
       cast_size: e.count(movie.actors)
-    }))
+    }));
+
+    const result = await query.run(client);
     // {title: string; title_upper: string; cast_size: number}[]
 
 A common use for computed properties is to query a link in reverse; this is
@@ -533,13 +535,15 @@ known as a *backlink* and it has special syntax.
 
   .. code-tab:: typescript
 
-    e.select(e.Person, person => ({
+    const query = e.select(e.Person, person => ({
       name: true,
       acted_in: e.select(person["<actors[is Content]"], () => ({
         title: true,
       })),
     }));
-    // {name: string; acted_in: {title: string}[];}[]
+
+    const result = await query.run(client);
+    // {name: string; acted_in: {title: string}[]}[]
 
 See :ref:`Docs > EdgeQL > Select > Computed <ref_eql_select>` and
 :ref:`Docs > EdgeQL > Select > Backlinks <ref_eql_select>`.
@@ -587,7 +591,7 @@ subtracted from with ``-=``, or overwritten with ``:=``.
 
   .. code-tab:: typescript
 
-    e.update(e.Movie, (movie) => ({
+    const query = e.update(e.Movie, (movie) => ({
       filter: e.op(movie.title, '=', 'Doctor Strange 2'),
       set: {
         actors: {
@@ -597,6 +601,9 @@ subtracted from with ``-=``, or overwritten with ``:=``.
         }
       },
     }));
+
+    const result = await query.run(client);
+    // {id: string}
 
 See :ref:`Docs > EdgeQL > Update <ref_eql_update>`.
 
@@ -618,6 +625,7 @@ The ``delete`` statement can contain ``filter``, ``order by``, ``offset``, and
 
     const query = e.delete(e.Movie, (movie) => ({
       filter: e.op(movie.title, 'ilike', "the avengers%"),
+      limit: 3
     }));
 
     const result = await query.run(client);
@@ -683,9 +691,9 @@ executing a query.
     client = edgedb.create_async_client()
 
     async def main():
-
-        result = await client.query("select <str>$param", param="Play it, Sam")
-        # => "Play it, Sam"
+        query = "select <str>$param"
+        result = await client.query(query, param="Play it, Sam.")
+        # => "Play it, Sam."
 
   .. code-tab:: go
 
@@ -766,7 +774,7 @@ useful, for instance, when performing nested mutations.
     }));
 
     // select actors
-    const actors = e.select(e.Person, person => ({
+    const benedicts = e.select(e.Person, person => ({
       filter: e.op(person.name, 'in', e.set(
         'Benedict Cumberbatch',
         'Benedict Wong'
@@ -775,8 +783,11 @@ useful, for instance, when performing nested mutations.
 
     // add actors to cast of drStrange
     const query = e.update(drStrange, ()=>({
-      actors: { "+=": actors }
+      actors: { "+=": benedicts }
     }));
+    
+    const result = await query.run(client);
+    // {id: string}
 
 We can also use subqueries to fetch properties of an object we just inserted.
 
@@ -864,13 +875,13 @@ properties from known subtypes.
 
     const query = e.select(e.Content, (content) => ({
       title: true,
-      ...e.is(e.Movie, {release_year: true}),
       ...e.is(e.TVShow, {num_seasons: true}),
+      ...e.is(e.Movie, {release_year: true}),
     }));
     /* {
       title: string;
-      release_year: number | null;
       num_seasons: number | null;
+      release_year: number | null;
     }[] */
 
 See :ref:`Docs > EdgeQL > Select > Polymorphic queries
@@ -895,13 +906,16 @@ groupings of objects.
       const release_year = movie.release_year;
       return {
         title: true,
+        actors: {
+          name: true
+        },
         by: {release_year},
       };
     });
     /* {
       grouping: string[];
       key: { release_year: number | null };
-      elements: { title: string; }[];
+      elements: { title: string; actors: {name: string}[] }[];
     }[] */
 
 See :ref:`Docs > EdgeQL > Group <ref_eql_group>`.
