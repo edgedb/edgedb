@@ -28,6 +28,9 @@ instance.
     recommended to link self-hosted production instances. This can make other
     operations like migrations, dumps, and restores more convenient.
 
+    Linking is not required for EdgeDB Cloud instances. They can always be
+    accessed via CLI using ``<github-username>/<instance-name>``.
+
 Options
 =======
 
