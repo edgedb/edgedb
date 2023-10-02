@@ -31,7 +31,7 @@ if upgrading from nightly to the stable version).
 .. note::
 
     The ``edgedb project upgrade`` command is not intended for use with
-    production instances.
+    self-hosted production instances.
 
 
 Options
