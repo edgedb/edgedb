@@ -2,7 +2,7 @@ from typing import Callable, List, Optional
 
 from .data_ops import (BackLinkExpr, BindingExpr, BoolVal, DBSchema,
                        DetachedExpr, Expr, FilterOrderExpr, FreeVarExpr,
-                       LinkPropProjExpr, ObjectProjExpr,
+                       LinkPropProjExpr, ObjectProjExpr, TpIntersectExpr,
                        OptionalForExpr, next_name, StrLabel)
 from . import data_ops as e
 from .expr_ops import (
@@ -11,18 +11,20 @@ from .expr_ops import (
 from .query_ops import QueryLevel, map_query, map_sub_and_semisub_queries
 
 
-def all_prefixes_of_a_path(e: Expr) -> List[Expr]:
-    match e:
+def all_prefixes_of_a_path(expr: Expr) -> List[Expr]:
+    match expr:
         case FreeVarExpr(_):
-            return [e]
+            return [expr]
         case LinkPropProjExpr(subject=subject, linkprop=_):
-            return [*all_prefixes_of_a_path(subject), e]
+            return [*all_prefixes_of_a_path(subject), expr]
         case ObjectProjExpr(subject=subject, label=_):
-            return [*all_prefixes_of_a_path(subject), e]
+            return [*all_prefixes_of_a_path(subject), expr]
+        case e.TpIntersectExpr(subject=BackLinkExpr(subject=subject, label=_), tp=_):
+            return [*all_prefixes_of_a_path(subject), expr]
         case BackLinkExpr(subject=subject, label=_):
-            return [*all_prefixes_of_a_path(subject), e]
+            return [*all_prefixes_of_a_path(subject), expr]
         case _:
-            raise ValueError("not a path", e)
+            raise ValueError("not a path", expr)
 
 
 def path_lexicographic_key(e: Expr) -> str:
@@ -33,6 +35,8 @@ def path_lexicographic_key(e: Expr) -> str:
             return path_lexicographic_key(subject) + "@" + linkprop
         case ObjectProjExpr(subject=subject, label=label):
             return path_lexicographic_key(subject) + "." + label
+        case TpIntersectExpr(subject=subject, tp=tp):
+            return path_lexicographic_key(subject) + "[is]" + tp
         case BackLinkExpr(subject=subject, label=label):
             return path_lexicographic_key(subject) + ".<" + label
         case _:
@@ -163,16 +167,57 @@ def separate_common_longest_path_prefix_in_set(
     return result
 
 
-def toppath_for_factoring(e: Expr, dbschema: DBSchema) -> List[Expr]:
-    all_paths = get_all_paths(e)
-    top_level_paths = get_all_proper_top_level_paths(e, dbschema)
+def toppath_for_factoring(expr: Expr, dbschema: DBSchema) -> List[Expr]:
+    all_paths = get_all_paths(expr)
+    top_level_paths = get_all_proper_top_level_paths(expr, dbschema)
     # print("All Proper Top Level Paths", top_level_paths)
     clpp_a = common_longest_path_prefix_in_set(top_level_paths)
     c_i = [separate_common_longest_path_prefix_in_set(
         top_level_paths, [b]) for b in all_paths]
+    c_all = [p for c in c_i for p in c]
+    d = []
+    for p in [*clpp_a, *c_all]:
+        match p:
+            case e.LinkPropProjExpr(subject=subject, linkprop=linkprop):
+                match subject:
+                    case e.ObjectProjExpr(subject=subject, label=label):
+                        d.append(subject)
+                    case e.TpIntersectExpr(subject=(e.BackLinkExpr(subject=subject, label=label)), tp=tp):
+                        d.append(subject)
+                    case e.BackLinkExpr(subject=subject, label=label):
+                        d.append(subject)
+                    case _:
+                        pass
+            case _:
+                pass
     return sorted(
-        list(set([p for c in c_i for p in c] + clpp_a)),
+        list(set(c_all + clpp_a + d)),
         key=path_lexicographic_key)
+
+def insert_conditional_dedup(path):
+    match path:
+        case FreeVarExpr(_):
+            return path
+        case LinkPropProjExpr(subject=subject, linkprop=linkprop):
+            return e.ConditionalDedupExpr(
+                e.LinkPropProjExpr(subject=insert_conditional_dedup(subject), 
+                                   linkprop=linkprop))
+        case ObjectProjExpr(subject=subject, label=label):
+            return e.ConditionalDedupExpr(
+                e.ObjectProjExpr(subject=insert_conditional_dedup(subject), 
+                                 label=label))
+        case e.TpIntersectExpr(subject=BackLinkExpr(subject=subject, label=label), tp=tp):
+            return e.ConditionalDedupExpr(
+                e.TpIntersectExpr(subject=e.BackLinkExpr(
+                                    subject=insert_conditional_dedup(subject), 
+                                    label=label),
+                                  tp=tp))
+        case BackLinkExpr(subject=subject, label=label):
+            return e.ConditionalDedupExpr(
+                e.BackLinkExpr(subject=insert_conditional_dedup(subject), 
+                               label=label))
+        case _:
+            raise ValueError("not a path", e)
 
 
 def trace_input_output(func):
@@ -210,8 +255,9 @@ def sub_select_hoist(e: Expr, dbschema: DBSchema) -> Expr:
 def select_hoist(expr: Expr, dbschema: DBSchema) -> Expr:
     # Optimization: do not factor single path, this helps to
     # keep select_hoist as an idempotent operation
-    if is_path(expr):
-        return expr
+    # this is not good for link properties
+    # if is_path(expr):
+    #     return insert_conditional_dedup(expr)
     top_paths = toppath_for_factoring(expr, dbschema)
     fresh_names: List[str] = [next_name() for p in top_paths]
     # print("Paths and Names:", top_paths, fresh_names)
@@ -290,6 +336,6 @@ def select_hoist(expr: Expr, dbschema: DBSchema) -> Expr:
     for i in reversed(list(range(len(for_paths)))):
         # print ("abstracting over path = ", for_paths[i], "on result", result)
         result = OptionalForExpr(
-            e.ConditionalDedupExpr(for_paths[i]), abstract_over_expr(result, fresh_names[i]))
+            insert_conditional_dedup(for_paths[i]), abstract_over_expr(result, fresh_names[i]))
 
     return post_process_transform(result)

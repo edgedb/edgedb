@@ -571,6 +571,8 @@ def is_path(e: Expr) -> bool:
             return is_path(subject)
         case BackLinkExpr(subject=subject, label=_):
             return is_path(subject)
+        case TpIntersectExpr(subject=BackLinkExpr(subject=subject, label=_), tp=_):
+            return is_path(subject)
         case _:
             return False
 

@@ -156,6 +156,10 @@ def show_expr(expr: e.Expr) -> str:
                 else_branch=else_branch):
             return (show_expr(then_branch) + " if " + show_expr(condition) +
                     " else " + show_expr(else_branch))
+        case e.ConditionalDedupExpr(expr=inner):
+            return "cond_dedup(" + show_expr(inner) + ")"
+        case e.FreeObjectExpr():
+            return "{<free>}"
         case _:
             raise ValueError('Unimplemented', expr)
 

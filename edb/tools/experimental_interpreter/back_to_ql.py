@@ -169,7 +169,11 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
                 return qlast.FunctionCall(func=fname,
                                           args=[reverse_elab(arg)
                                                 for arg in args])
-                # raise ValueError ("Unimplemented")
+        case e.ConditionalDedupExpr(expr=inner):
+            return qlast.FunctionCall(func="cond_dedup",
+                                        args=[reverse_elab(inner)])
+        case e.FreeObjectExpr():
+            return qlast.Path(steps=[qlast.ObjectRef(name="std::FreeObject")])
         case ObjectProjExpr(subject=subject, label=label):
             label_path_component = qlast.Ptr(
                 ptr=qlast.ObjectRef(name=label),
