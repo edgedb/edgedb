@@ -19,6 +19,11 @@ Description
 EdgeDB instance. This is a necessary step before
 :ref:`destroying <ref_cli_edgedb_instance_destroy>` an instance.
 
+.. note::
+
+    The ``edgedb instance stop`` command is not intended for use with
+    self-hosted instances.
+
 
 Options
 =======
