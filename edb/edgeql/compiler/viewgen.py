@@ -1686,6 +1686,18 @@ def _normalize_view_ptr_expr(
             context=compexpr and compexpr.context,
         )
 
+    if (
+        s_ctx.exprtype.is_mutation()
+        and ptrcls
+        and ptrcls.get_protected(ctx.env.schema)
+        and not from_default
+    ):
+        raise errors.QueryError(
+            f'cannot assign to {ptrcls.get_verbosename(ctx.env.schema)}: '
+            f'it is protected',
+            context=compexpr and compexpr.context,
+        )
+
     # Prohibit invalid operations on id
     id_access = (
         ptrcls
@@ -1699,13 +1711,16 @@ def _normalize_view_ptr_expr(
         (compexpr is not None or is_polymorphic)
         and id_access and not from_default and ptrcls
     ):
-        ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
+        vn = ptrcls.get_verbosename(ctx.env.schema)
         if is_polymorphic:
-            msg = (f'cannot access {ptrcls_sn.name} on a polymorphic '
+            msg = (f'cannot access {vn} on a polymorphic '
                    f'shape element')
         else:
-            msg = f'cannot assign to {ptrcls_sn.name}'
-        if not ctx.env.options.allow_user_specified_id:
+            msg = f'cannot assign to {vn}'
+        if (
+            not ctx.env.options.allow_user_specified_id
+            and s_ctx.exprtype.is_mutation()
+        ):
             hint = (
                 'consider enabling the "allow_user_specified_id" '
                 'configuration parameter to allow setting custom object ids'

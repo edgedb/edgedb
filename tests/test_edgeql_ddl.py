@@ -16145,7 +16145,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 conf := assert_single(.extensions[is ext::_conf::Config] {
                     config_name,
                     opt_value,
-                    obj: { name, value },
+                    obj: { name, value, fixed },
                     objs: { name, value, opt_value,
                             [is ext::_conf::SubObj].extra,
                             tname := .__type__.name }
@@ -16256,6 +16256,17 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 value := 'foo',
             };
         ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError, "protected"
+        ):
+            await self.con.execute('''
+                configure current database insert ext::_conf::SingleObj {
+                    name := 'single',
+                    value := 'val',
+                    fixed := 'variable??',
+                };
+            ''')
+
         await self.con.execute('''
             configure current database insert ext::_conf::SingleObj {
                 name := 'single',
@@ -16292,7 +16303,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 dict(name='5', value='foo',
                      tname='ext::_conf::SecretObj', opt_value=None),
             ],
-            obj=dict(name='single', value='val'),
+            obj=dict(name='single', value='val', fixed='fixed!'),
         )
 
         await self.assert_query_result(
@@ -16417,7 +16428,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             self.assertEqual(
                 config['ext::_conf::Config::obj'],
                 {'_tname': 'ext::_conf::SingleObj',
-                 'name': 'single', 'value': 'val'},
+                 'name': 'single', 'value': 'val', 'fixed': 'fixed!'},
             )
 
         val = await self.con.query_single('''

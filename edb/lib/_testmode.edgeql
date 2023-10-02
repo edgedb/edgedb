@@ -129,6 +129,11 @@ create extension package _conf VERSION '1.0' {
         create required property value -> std::str {
             set readonly := true;
         };
+        create required property fixed -> std::str {
+            set default := "fixed!";
+            set readonly := true;
+            set protected := true;
+        };
     };
     create type ext::_conf::Obj extending cfg::ConfigObject {
         create required property name -> std::str {

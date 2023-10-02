@@ -291,7 +291,8 @@ def resolve_relation(
         pointers = obj.get_pointers(ctx.schema).objects(ctx.schema)
 
         for p in pointers:
-            if p.is_protected_pointer(ctx.schema):
+            # TODO: We ought to support type
+            if p.get_shortname(ctx.schema).name == '__type__':
                 continue
             card = p.get_cardinality(ctx.schema)
             if card.is_multi():

@@ -454,6 +454,12 @@ class Pointer(referencing.NamedReferencedInheritingObject,
         compcoef=0.909,
     )
 
+    protected = so.SchemaField(
+        bool,
+        default=False,
+        compcoef=0.909,
+    )
+
     # For non-derived pointers this is strongly correlated with
     # "expr" below.  Derived pointers might have "computable" set,
     # but expr=None.
@@ -749,10 +755,6 @@ class Pointer(referencing.NamedReferencedInheritingObject,
 
     def is_link_property(self, schema: s_schema.Schema) -> bool:
         raise NotImplementedError
-
-    def is_protected_pointer(self, schema: s_schema.Schema) -> bool:
-        sn = self.get_shortname(schema).name
-        return sn == '__type__'
 
     def is_dumpable(self, schema: s_schema.Schema) -> bool:
         return (
