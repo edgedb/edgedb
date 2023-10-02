@@ -539,6 +539,7 @@ async def run_server(
     try:
         pg_cluster_init_by_us = await cluster.ensure_initialized()
         cluster_status = await cluster.get_status()
+        logger.debug("postgres cluster status: %s", cluster_status)
 
         if isinstance(cluster, pgcluster.Cluster):
             is_local_cluster = True
@@ -562,6 +563,8 @@ async def run_server(
             is_local_cluster = False
             if cluster_status != "running":
                 abort('specified PostgreSQL instance is not running')
+
+        logger.info("postgres cluster is running")
 
         new_instance, compiler_state = await _init_cluster(cluster, args)
 
