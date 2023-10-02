@@ -372,6 +372,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         path="server-info",
                     )
                     data = json.loads(rdata)
+                    if 'databases' not in data:
+                        # multi-tenant instance - use the first tenant
+                        data = next(iter(data['tenants'].values()))
                     config = data['databases'][dbname]['config']
                     if 'ext::auth::AuthConfig::providers' not in config:
                         raise AssertionError('database config not ready')

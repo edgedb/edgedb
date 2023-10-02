@@ -16387,6 +16387,9 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                             path="server-info",
                         )
                         data = json.loads(rdata)
+                        if 'databases' not in data:
+                            # multi-tenant instance - use the first tenant
+                            data = next(iter(data['tenants'].values()))
                         db_data = data['databases'][self.get_database_name()]
                         config = db_data['config']
                         assert (
