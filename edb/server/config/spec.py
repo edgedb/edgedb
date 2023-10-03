@@ -141,8 +141,7 @@ class FlatSpec(Spec):
     def _register_type(self, t: types.ConfigTypeSpec) -> None:
         self._types_by_name[t.name] = t
         for subclass in t.children:
-            self._types_by_name[subclass.name] = downcast(
-                types.ConfigTypeSpec, subclass)
+            self._register_type(downcast(types.ConfigTypeSpec, subclass))
 
         for field in t.fields.values():
             f_type = field.type
