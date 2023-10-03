@@ -142,6 +142,7 @@ create extension package _conf VERSION '1.0' {
         };
         create required property value -> std::str {
             set readonly := true;
+            create delegated constraint std::exclusive;
         };
         create property opt_value -> std::str {
             set readonly := true;

@@ -447,7 +447,10 @@ def object_type_to_spec(
         exclusive = schema.get('std::exclusive', type=s_constr.Constraint)
         unique = (
             not ptype.is_object_type()
-            and any(c.issubclass(schema, exclusive) for c in constraints)
+            and any(
+                c.issubclass(schema, exclusive) and not c.get_delegated(schema)
+                for c in constraints
+            )
         )
         fields[str_pn] = statypes.CompositeTypeSpecField(
             name=str_pn,

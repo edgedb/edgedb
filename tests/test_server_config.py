@@ -57,10 +57,13 @@ def make_port_value(*, protocol='graphql+http',
                     user='test',
                     concurrency=4,
                     port=1000,
+                    address=None,
                     **kwargs):
+    if address is None:
+        address = frozenset([f'localhost/{database}'])
     return dict(
         protocol=protocol, user=user, database=database,
-        concurrency=concurrency, port=port, **kwargs)
+        concurrency=concurrency, port=port, address=address, **kwargs)
 
 
 Field = statypes.CompositeTypeSpecField
@@ -74,11 +77,12 @@ Port = types.ConfigTypeSpec(
     name='Port',
     fields=_mk_fields(
         Field('protocol', str),
-        Field('database', str),
+        Field('database', str, unique=True),
         Field('port', int),
         Field('concurrency', int),
         Field('user', str),
-        Field('address', frozenset[str], default=frozenset({'localhost'})),
+        Field('address',
+              frozenset[str], default=frozenset({'localhost'}), unique=True),
     ),
 )
 
@@ -235,7 +239,8 @@ class TestServerConfigUtils(unittest.TestCase):
             config.lookup('ports', storage3, spec=testspec1),
             {
                 Port.from_pyvalue(
-                    make_port_value(database='f2'), spec=testspec1),
+                    make_port_value(database='f2'),
+                    spec=testspec1),
             })
 
         op = ops.Operation(
