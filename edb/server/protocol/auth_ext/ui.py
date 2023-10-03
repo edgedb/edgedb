@@ -22,7 +22,7 @@ import html
 from email.mime import multipart
 from email.mime import text as mime_text
 
-from edb.server.ext.util import get_config_typename
+from .util import get_config_typename
 
 
 oauth_provider_names = {

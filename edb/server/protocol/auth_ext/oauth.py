@@ -20,10 +20,9 @@
 import json
 
 from typing import Any
-from edb.server.ext import util
 from edb.server.protocol import execute
 
-from . import errors, data, base, http_client
+from . import errors, util, data, base, http_client
 
 
 class Client:

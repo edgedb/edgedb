@@ -20,7 +20,6 @@
 from typing import TypeVar, Type, Mapping, overload, Any
 
 from edb.server.config.ops import SettingValue
-
 from . import errors
 
 T = TypeVar("T")
