@@ -19,7 +19,7 @@
 
 CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     set ext_module := "ext::auth";
-    set dependencies := ["pgcrypto==1.3"];
+    set dependencies := ["pgcrypto==1.3", "smtp==1.0"];
 
     create module ext::auth;
 
@@ -143,6 +143,12 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
                 "The time after which an auth token expires. A value of 0 \
                 indicates that the token should never expire.";
             set default := <std::duration>'336 hours';
+        };
+
+        create property email_from -> std::str {
+            create annotation std::description :=
+                "The \"From\" address of system emails sent for e.g. \
+                password reset, etc.";
         };
     };
 

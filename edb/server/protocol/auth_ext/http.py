@@ -35,6 +35,7 @@ from edb.common import markup
 from edb.ir import statypes
 from edb.server.config.types import CompositeConfigType
 from edb.server.ext import errors as ext_errors
+from edb.server.ext import smtp
 from edb.server.ext import util
 
 from . import oauth, local, errors, pkce, ui
@@ -349,8 +350,30 @@ class Router:
                             "reset_token": new_reset_token
                         })
                         reset_url = f"{data['reset_url']}?{reset_token_params}"
-                        # TODO: Send an email with this url
-                        print(reset_url)
+
+                        from_addr = util.get_config(
+                            self.db.db_config,  # type: ignore
+                            "ext::auth::AuthConfig::email_from",
+                        )
+                        ui_config = self._get_ui_config()
+                        if ui_config is None:
+                            args = {}
+                        else:
+                            args = dict(
+                                app_name=ui_config.app_name,
+                                logo_url=ui_config.logo_url,
+                                dark_logo_url=ui_config.dark_logo_url,
+                                brand_color=ui_config.brand_color,
+                            )
+                        msg = ui.render_password_reset_email(
+                            from_addr=from_addr,
+                            to_addr=data["email"],
+                            reset_url=reset_url,
+                            **args,
+                        )
+                        await smtp.send_email(
+                            self.db, msg, from_addr, data["email"]
+                        )
 
                         return_data = (
                             # TODO: Remove this once email tests set up
