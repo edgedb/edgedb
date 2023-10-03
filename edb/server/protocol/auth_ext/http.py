@@ -354,9 +354,9 @@ class Router:
                         )
                         ui_config = self._get_ui_config()
                         if ui_config is None:
-                            args = {}
+                            email_args = {}
                         else:
-                            args = dict(
+                            email_args = dict(
                                 app_name=ui_config.app_name,
                                 logo_url=ui_config.logo_url,
                                 dark_logo_url=ui_config.dark_logo_url,
@@ -366,7 +366,7 @@ class Router:
                             from_addr=from_addr,
                             to_addr=data["email"],
                             reset_url=reset_url,
-                            **args,
+                            **email_args,
                         )
                         await smtp.send_email(
                             self.db, msg, from_addr, data["email"]
