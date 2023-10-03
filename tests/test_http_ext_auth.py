@@ -194,7 +194,7 @@ class MockHttpServerHandler(http.server.BaseHTTPRequestHandler):
         pass
 
 
-ResponseType = tuple[dict[str, Any] | list[dict[str, Any]], int]
+ResponseType = tuple[str, int]
 
 
 class MockAuthProvider:
@@ -261,10 +261,38 @@ class MockAuthProvider:
                 raise
         else:
             response, status = registered_handler
-        data = json.dumps(response).encode()
+
+        if "headers" in request_details and isinstance(
+            request_details["headers"], dict
+        ):
+            accept_header = request_details["headers"].get(
+                "accept", "application/json"
+            )
+        else:
+            accept_header = "application/json"
+
+        if (
+            accept_header.startswith("application/json")
+            or (
+                accept_header.startswith("application/")
+                and "vnd." in accept_header
+                and "+json" in accept_header
+            )
+            or accept_header == "*/*"
+        ):
+            content_type = 'application/json'
+        elif accept_header.startswith("application/x-www-form-urlencoded"):
+            content_type = 'application/x-www-form-urlencoded'
+        else:
+            handler.send_error(
+                415, f"Unsupported accept header: {accept_header}"
+            )
+            return
+
+        data = response.encode()
 
         handler.send_response(status)
-        handler.send_header('Content-Type', 'application/json')
+        handler.send_header('Content-Type', content_type)
         handler.send_header('Content-Length', str(len(data)))
         handler.end_headers()
         handler.wfile.write(data)
@@ -650,11 +678,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             mock_provider.register_route_handler(*token_request)(
                 (
-                    {
-                        "access_token": "github_access_token",
-                        "scope": "read:user",
-                        "token_type": "bearer",
-                    },
+                    json.dumps(
+                        {
+                            "access_token": "github_access_token",
+                            "scope": "read:user",
+                            "token_type": "bearer",
+                        }
+                    ),
                     200,
                 )
             )
@@ -662,14 +692,16 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             user_request = ("GET", "https://api.github.com", "/user")
             mock_provider.register_route_handler(*user_request)(
                 (
-                    {
-                        "id": 1,
-                        "login": "octocat",
-                        "name": "monalisa octocat",
-                        "email": "octocat@example.com",
-                        "avatar_url": "http://example.com/example.jpg",
-                        "updated_at": now.isoformat(),
-                    },
+                    json.dumps(
+                        {
+                            "id": 1,
+                            "login": "octocat",
+                            "name": "monalisa octocat",
+                            "email": "octocat@example.com",
+                            "avatar_url": "http://example.com/example.jpg",
+                            "updated_at": now.isoformat(),
+                        }
+                    ),
                     200,
                 )
             )
@@ -763,14 +795,16 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             mock_provider.register_route_handler(*user_request)(
                 (
-                    {
-                        "id": 1,
-                        "login": "octocat",
-                        "name": "monalisa octocat",
-                        "email": "octocat+2@example.com",
-                        "avatar_url": "http://example.com/example.jpg",
-                        "updated_at": now.isoformat(),
-                    },
+                    json.dumps(
+                        {
+                            "id": 1,
+                            "login": "octocat",
+                            "name": "monalisa octocat",
+                            "email": "octocat+2@example.com",
+                            "avatar_url": "http://example.com/example.jpg",
+                            "updated_at": now.isoformat(),
+                        }
+                    ),
                     200,
                 )
             )
@@ -810,11 +844,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             mock_provider.register_route_handler(*token_request)(
                 (
-                    {
-                        "access_token": "github_access_token",
-                        "scope": "read:user",
-                        "token_type": "bearer",
-                    },
+                    json.dumps(
+                        {
+                            "access_token": "github_access_token",
+                            "scope": "read:user",
+                            "token_type": "bearer",
+                        }
+                    ),
                     200,
                 )
             )
@@ -874,11 +910,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             mock_provider.register_route_handler(*token_request)(
                 (
-                    {
-                        "access_token": "github_access_token",
-                        "scope": "read:user",
-                        "token_type": "bearer",
-                    },
+                    json.dumps(
+                        {
+                            "access_token": "github_access_token",
+                            "scope": "read:user",
+                            "token_type": "bearer",
+                        }
+                    ),
                     200,
                 )
             )
@@ -936,7 +974,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             mock_provider.register_route_handler(*discovery_request)(
                 (
-                    GOOGLE_DISCOVERY_DOCUMENT,
+                    json.dumps(GOOGLE_DISCOVERY_DOCUMENT),
                     200,
                 )
             )
@@ -956,7 +994,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             mock_provider.register_route_handler(*jwks_request)(
                 (
-                    jwk_set,
+                    json.dumps(jwk_set),
                     200,
                 )
             )
@@ -979,12 +1017,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             mock_provider.register_route_handler(*token_request)(
                 (
-                    {
-                        "access_token": "google_access_token",
-                        "id_token": id_token.serialize(),
-                        "scope": "openid",
-                        "token_type": "bearer",
-                    },
+                    json.dumps(
+                        {
+                            "access_token": "google_access_token",
+                            "id_token": id_token.serialize(),
+                            "scope": "openid",
+                            "token_type": "bearer",
+                        }
+                    ),
                     200,
                 )
             )
@@ -1025,7 +1065,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 path="callback",
             )
 
-            print(f"data={data}")
             self.assertEqual(data, b"")
             self.assertEqual(status, 302)
 
@@ -1097,7 +1136,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             mock_provider.register_route_handler(*discovery_request)(
                 (
-                    GOOGLE_DISCOVERY_DOCUMENT,
+                    json.dumps(GOOGLE_DISCOVERY_DOCUMENT),
                     200,
                 )
             )
@@ -1165,7 +1204,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             mock_provider.register_route_handler(*discovery_request)(
                 (
-                    AZURE_DISCOVERY_DOCUMENT,
+                    json.dumps(AZURE_DISCOVERY_DOCUMENT),
                     200,
                 )
             )
@@ -1235,7 +1274,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             mock_provider.register_route_handler(*discovery_request)(
                 (
-                    AZURE_DISCOVERY_DOCUMENT,
+                    json.dumps(AZURE_DISCOVERY_DOCUMENT),
                     200,
                 )
             )
@@ -1255,7 +1294,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             mock_provider.register_route_handler(*jwks_request)(
                 (
-                    jwk_set,
+                    json.dumps(jwk_set),
                     200,
                 )
             )
@@ -1278,12 +1317,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             mock_provider.register_route_handler(*token_request)(
                 (
-                    {
-                        "access_token": "azure_access_token",
-                        "id_token": id_token.serialize(),
-                        "scope": "openid",
-                        "token_type": "bearer",
-                    },
+                    json.dumps(
+                        {
+                            "access_token": "azure_access_token",
+                            "id_token": id_token.serialize(),
+                            "scope": "openid",
+                            "token_type": "bearer",
+                        }
+                    ),
                     200,
                 )
             )
@@ -1341,13 +1382,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_token = mock_provider.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                json.loads(requests_for_token[0]["body"]),
+                urllib.parse.parse_qs(requests_for_token[0]["body"]),
                 {
-                    "grant_type": "authorization_code",
-                    "code": "abc123",
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "redirect_uri": f"{self.http_addr}/callback",
+                    "grant_type": ["authorization_code"],
+                    "code": ["abc123"],
+                    "client_id": [client_id],
+                    "client_secret": [client_secret],
+                    "redirect_uri": [f"{self.http_addr}/callback"],
                 },
             )
 
@@ -1375,7 +1416,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             mock_provider.register_route_handler(*discovery_request)(
                 (
-                    APPLE_DISCOVERY_DOCUMENT,
+                    json.dumps(APPLE_DISCOVERY_DOCUMENT),
                     200,
                 )
             )
@@ -1445,7 +1486,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             mock_provider.register_route_handler(*discovery_request)(
                 (
-                    APPLE_DISCOVERY_DOCUMENT,
+                    json.dumps(APPLE_DISCOVERY_DOCUMENT),
                     200,
                 )
             )
@@ -1465,7 +1506,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             mock_provider.register_route_handler(*jwks_request)(
                 (
-                    jwk_set,
+                    json.dumps(jwk_set),
                     200,
                 )
             )
@@ -1488,12 +1529,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             mock_provider.register_route_handler(*token_request)(
                 (
-                    {
-                        "access_token": "apple_access_token",
-                        "id_token": id_token.serialize(),
-                        "scope": "openid",
-                        "token_type": "bearer",
-                    },
+                    json.dumps(
+                        {
+                            "access_token": "apple_access_token",
+                            "id_token": id_token.serialize(),
+                            "scope": "openid",
+                            "token_type": "bearer",
+                        }
+                    ),
                     200,
                 )
             )

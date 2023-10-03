@@ -19,6 +19,7 @@
 import uuid
 import urllib.parse
 import json
+import enum
 
 from typing import Callable
 from jwcrypto import jwt, jwk
@@ -60,9 +61,22 @@ class BaseProvider:
         return datetime.fromisoformat(value).timestamp() if value else None
 
 
+class ContentType(enum.StrEnum):
+    JSON = "application/json"
+    FORM_ENCODED = "application/x-www-form-urlencoded"
+
+
 class OpenIDProvider(BaseProvider):
-    def __init__(self, name: str, issuer_url: str, *args, **kwargs):
+    def __init__(
+        self,
+        name: str,
+        issuer_url: str,
+        *args,
+        content_type: ContentType = ContentType.JSON,
+        **kwargs,
+    ):
         super().__init__(name, issuer_url, *args, **kwargs)
+        self.content_type = content_type
 
     async def get_code_url(self, state: str, redirect_uri: str) -> str:
         oidc_config = await self._get_oidc_config()
@@ -86,23 +100,40 @@ class OpenIDProvider(BaseProvider):
         async with self.http_factory(
             base_url=f"{token_endpoint.scheme}://{token_endpoint.netloc}"
         ) as client:
-            resp = await client.post(
-                token_endpoint.path,
-                json={
-                    "grant_type": "authorization_code",
-                    "code": code,
-                    "client_id": self.client_id,
-                    "client_secret": self.client_secret,
-                    "redirect_uri": redirect_uri,
-                },
-            )
+            request_body = {
+                "grant_type": "authorization_code",
+                "code": code,
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "redirect_uri": redirect_uri,
+            }
+            headers = {"Accept": ContentType.JSON.value}
+            if self.content_type == ContentType.JSON:
+                resp = await client.post(
+                    token_endpoint.path,
+                    json=request_body,
+                    headers=headers,
+                )
+            else:
+                resp = await client.post(
+                    token_endpoint.path,
+                    data=request_body,
+                    headers=headers,
+                )
             if resp.status_code >= 400:
                 raise errors.OAuthProviderFailure(
                     f"Failed to exchange code: {resp.text}"
                 )
-            json = resp.json()
+            content_type = resp.headers.get('Content-Type', self.content_type)
+            if content_type.startswith(str(ContentType.JSON)):
+                response_body = resp.json()
+            else:
+                response_body = {
+                    k: v[0] if len(v) == 1 else v
+                    for k, v in urllib.parse.parse_qs(resp.text).items()
+                }
 
-            return data.OpenIDConnectAccessTokenResponse(**json)
+            return data.OpenIDConnectAccessTokenResponse(**response_body)
 
     async def fetch_user_info(
         self, token_response: data.OAuthAccessTokenResponse
@@ -133,10 +164,11 @@ class OpenIDProvider(BaseProvider):
             raise errors.MisconfiguredProvider(
                 "Failed to parse ID token with provider keyset"
             ) from e
-        if payload.get("iss") != self.issuer_url:
-            raise errors.InvalidData("Invalid value for iss in id_token")
         if payload.get("aud") != self.client_id:
-            raise errors.InvalidData("Invalid value for aud in id_token")
+            raise errors.InvalidData(
+                "Invalid value for aud in id_token: "
+                f"{payload.get('aud')} != {self.client_id}"
+            )
 
         return data.UserInfo(
             sub=str(payload["sub"]),
