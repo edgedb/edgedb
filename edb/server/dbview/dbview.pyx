@@ -184,7 +184,6 @@ cdef class Database:
         self.reflection_cache = reflection_cache
         self.backend_ids = backend_ids
         self.extensions = extensions
-        self.extension_states = {}
 
     @property
     def server(self):

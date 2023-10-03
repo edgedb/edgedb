@@ -34,9 +34,8 @@ from edb.common import debug
 from edb.common import markup
 from edb.ir import statypes
 from edb.server.config.types import CompositeConfigType
-from edb.server.ext import smtp
 
-from . import oauth, local, errors, util, pkce, ui
+from . import oauth, local, errors, util, pkce, smtp, ui
 
 
 class Router:
@@ -351,7 +350,7 @@ class Router:
 
                         from_addr = util.get_config(
                             self.db.db_config,  # type: ignore
-                            "ext::auth::AuthConfig::email_from",
+                            "ext::auth::SMTPConfig::sender",
                         )
                         ui_config = self._get_ui_config()
                         if ui_config is None:

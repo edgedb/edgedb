@@ -19,7 +19,7 @@
 
 CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     set ext_module := "ext::auth";
-    set dependencies := ["pgcrypto==1.3", "smtp==1.0"];
+    set dependencies := ["pgcrypto==1.3"];
 
     create module ext::auth;
 
@@ -145,10 +145,57 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             set default := <std::duration>'336 hours';
         };
 
-        create property email_from -> std::str {
+    };
+
+    create scalar type ext::auth::SMTPSecurity extending enum<PlainText, TLS, STARTTLS, STARTTLSOrPlainText>;
+
+    create type ext::auth::SMTPConfig extending cfg::ExtensionConfig {
+        create property sender -> std::str {
             create annotation std::description :=
-                "The \"From\" address of system emails sent for e.g. \
+                "\"From\" address of system emails sent for e.g. \
                 password reset, etc.";
+        };
+        create property host -> std::str {
+            create annotation std::description :=
+                "Host of SMTP server to use for sending emails. \
+                If not set, \"localhost\" will be used.";
+        };
+        create property port -> std::int32 {
+            create annotation std::description :=
+                "Port of SMTP server to use for sending emails. \
+                If not set, common defaults will be used depending on security: \
+                465 for TLS, 587 for STARTTLS, 25 otherwise.";
+        };
+        create property username -> std::str {
+            create annotation std::description :=
+                "Username to login as after connected to SMTP server.";
+        };
+        create property password -> std::str {
+            set secret := true;
+            create annotation std::description :=
+                "Password for login after connected to SMTP server.";
+        };
+        create required property security -> ext::auth::SMTPSecurity {
+            set default := ext::auth::SMTPSecurity.STARTTLSOrPlainText;
+            create annotation std::description :=
+                "Security mode of the connection to SMTP server. \
+                By default, initiate a STARTTLS upgrade if supported by the \
+                server, or fallback to PlainText.";
+        };
+        create required property validate_certs -> std::bool {
+            set default := true;
+            create annotation std::description :=
+                "Determines if SMTP server certificates are validated.";
+        };
+        create required property timeout_per_email -> std::duration {
+            set default := <std::duration>'60 seconds';
+            create annotation std::description :=
+                "Maximum time to send an email, including retry attempts.";
+        };
+        create required property timeout_per_attempt -> std::duration {
+            set default := <std::duration>'15 seconds';
+            create annotation std::description :=
+                "Maximum time for each SMTP request.";
         };
     };
 

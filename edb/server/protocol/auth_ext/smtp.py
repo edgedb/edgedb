@@ -20,14 +20,17 @@ from typing import *
 
 import asyncio
 import email
+import os
 
 import aiosmtplib
 
-from edb import errors
 from edb.common import retryloop
 from edb.ir import statypes
 
 from . import util
+
+
+_semaphore: asyncio.BoundedSemaphore | None = None
 
 
 async def send_email(
@@ -41,86 +44,48 @@ async def send_email(
     sender: Optional[str] = None,
     recipients: Optional[Union[str, Sequence[str]]] = None,
 ) -> None:
-    if db.db_config is None:
-        await db.introspection()
-
-    if "smtp" not in db.extensions:
-        raise errors.UnsupportedFeatureError(
-            "The smtp extension is not enabled."
+    global _semaphore
+    if _semaphore is None:
+        _semaphore = asyncio.BoundedSemaphore(
+            int(os.environ.get("EDGEDB_SERVER_AUTH_SMTP_CONCURRENCY", 5))
         )
-
-    semaphore = db.extension_states.get("smtp_semaphore")
-    # Initialize or adjust the size of the semaphore for concurrency control.
-    # This is a carefully-written loop to deal with concurrent updates.
-    while True:
-        concurrency = util.get_config(
-            db.db_config,  # type: ignore
-            "ext::smtp::ServerConfig::concurrency",
-            expected_type=int,
-        )
-        if semaphore is None:
-            semaphore = asyncio.Semaphore(concurrency)
-            db.extension_states["smtp_semaphore_size"] = concurrency
-            db.extension_states["smtp_semaphore"] = semaphore
-            break
-
-        size = db.extension_states["smtp_semaphore_size"]
-        if concurrency > size:
-            for _ in range(concurrency - size):
-                semaphore.release()
-            db.extension_states["smtp_semaphore_size"] = concurrency
-            break
-
-        while concurrency < size and not semaphore.locked():
-            # Fast-reducing path, no concurrent update here
-            size -= 1
-            db.extension_states["smtp_semaphore_size"] = size
-            await semaphore.acquire()
-
-        if concurrency == size:
-            break
-
-        # At last, this will block. We consume only 1 token every time here,
-        # so that we can restart with fresh values in the next iteration.
-        db.extension_states["smtp_semaphore_size"] = size - 1
-        await semaphore.acquire()
 
     host = util.maybe_get_config(
         db.db_config,  # type: ignore
-        "ext::smtp::ServerConfig::host",
+        "ext::auth::SMTPConfig::host",
     )
     port = util.maybe_get_config(
         db.db_config,  # type: ignore
-        "ext::smtp::ServerConfig::port",
+        "ext::auth::SMTPConfig::port",
         expected_type=int,
     )
     username = util.maybe_get_config(
         db.db_config,  # type: ignore
-        "ext::smtp::ServerConfig::username",
+        "ext::auth::SMTPConfig::username",
     )
     password = util.maybe_get_config(
         db.db_config,  # type: ignore
-        "ext::smtp::ServerConfig::password",
+        "ext::auth::SMTPConfig::password",
     )
     timeout_per_attempt = util.get_config(
         db.db_config,  # type: ignore
-        "ext::smtp::ServerConfig::timeout_per_attempt",
+        "ext::auth::SMTPConfig::timeout_per_attempt",
         expected_type=statypes.Duration,
     )
     req_timeout = timeout_per_attempt.to_microseconds() / 1_000_000.0
     timeout_per_email = util.get_config(
         db.db_config,  # type: ignore
-        "ext::smtp::ServerConfig::timeout_per_email",
+        "ext::auth::SMTPConfig::timeout_per_email",
         expected_type=statypes.Duration,
     )
     validate_certs = util.get_config(
         db.db_config,  # type: ignore
-        "ext::smtp::ServerConfig::validate_certs",
+        "ext::auth::SMTPConfig::validate_certs",
         expected_type=bool,
     )
     security = util.get_config(
         db.db_config,  # type: ignore
-        "ext::smtp::ServerConfig::security",
+        "ext::auth::SMTPConfig::security",
     )
     start_tls: bool | None
     match security:
@@ -156,7 +121,7 @@ async def send_email(
     )
     async for iteration in rloop:
         async with iteration:
-            async with semaphore:
+            async with _semaphore:
                 # Currently we are not reusing SMTP connections, but ideally we
                 # should replace this with a pool of connections, and drop idle
                 # connections after configured time.

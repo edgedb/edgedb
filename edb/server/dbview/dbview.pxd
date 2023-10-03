@@ -90,7 +90,6 @@ cdef class Database:
         readonly object reflection_cache
         readonly object backend_ids
         readonly object extensions
-        readonly dict extension_states
 
     cdef schedule_config_update(self)
 
