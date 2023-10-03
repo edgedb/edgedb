@@ -16244,6 +16244,17 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             };
         ''')
 
+        async with self.assertRaisesRegexTx(
+            edgedb.ConfigurationError, "invalid setting value"
+        ):
+            await self.con.execute('''
+                configure current database insert ext::_conf::SubObj {
+                    name := '3!',
+                    value := 'asdf_wrong',
+                    extra := 42,
+                };
+            ''')
+
         # This is fine, constraint on value is delegated
         await self.con.execute('''
             configure current database insert ext::_conf::SecretObj {
