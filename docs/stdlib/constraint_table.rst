@@ -1,10 +1,10 @@
 .. list-table::
 
     * - :eql:constraint:`exclusive`
-      - Enforce uniqueness among all instances of the containing type
+      - Enforce uniqueness (disallow duplicate values)
 
     * - :eql:constraint:`expression`
-      - Custom constraint expression
+      - Custom constraint expression (followed by keyword ``on``)
 
     * - :eql:constraint:`one_of`
       - A list of allowable values
@@ -15,18 +15,18 @@
     * - :eql:constraint:`max_ex_value`
       - Maximum value numerically/lexicographically (exclusive range)
 
-    * - :eql:constraint:`max_len_value`
-      - Maximum length (strings only)
-
     * - :eql:constraint:`min_value`
       - Minimum value numerically/lexicographically
 
     * - :eql:constraint:`min_ex_value`
       - Minimum value numerically/lexicographically (exclusive range)
 
+    * - :eql:constraint:`max_len_value`
+      - Maximum length (``str`` only)
+
     * - :eql:constraint:`min_len_value`
-      - Minimum length (strings only)
+      - Minimum length (``str`` only)
 
     * - :eql:constraint:`regexp`
-      - Regex constraint (strings only)
+      - Regex constraint (``str`` only)
 
