@@ -260,9 +260,15 @@ class MockAuthProvider:
         else:
             response, status = registered_handler
 
-        accept_header = request_details["headers"].get(
-            "accept", "application/json"
-        )
+        if "headers" in request_details and isinstance(
+            request_details["headers"], dict
+        ):
+            accept_header = request_details["headers"].get(
+                "accept", "application/json"
+            )
+        else:
+            accept_header = "application/json"
+
         if (
             accept_header.startswith("application/json")
             or (
@@ -275,7 +281,14 @@ class MockAuthProvider:
             data = json.dumps(response).encode()
             content_type = 'application/json'
         elif accept_header.startswith("application/x-www-form-urlencoded"):
-            data = urllib.parse.urlencode(response).encode()
+            if isinstance(response, dict):
+                data = urllib.parse.urlencode(response).encode()
+            elif isinstance(response, list):
+                data = b'&'.join(
+                    urllib.parse.urlencode(item).encode() for item in response
+                )
+            else:
+                raise TypeError("Unexpected type for response")
             content_type = 'application/x-www-form-urlencoded'
         else:
             handler.send_error(
