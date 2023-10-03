@@ -25,12 +25,7 @@ from email.mime import text as mime_text
 from .util import get_config_typename
 
 
-oauth_provider_names = {
-    'github': 'GitHub',
-    'google': 'Google',
-    'apple': 'Apple',
-    'azure': 'Azure'
-}
+known_oauth_provider_names = ['github', 'google', 'apple', 'azure']
 
 
 def render_login_page(
@@ -46,27 +41,23 @@ def render_login_page(
     dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = None
 ):
-    password_providers = [
-        p for p in providers
-        if get_config_typename(p) == 'ext::auth::PasswordClientConfig'
-    ]
-    assert len(password_providers) <= 1
-    password_provider = (
-        password_providers[0] if len(password_providers) > 0
-        else None
-    )
+    password_provider = None
+    for p in providers:
+        if p.name == 'builtin::local_emailpassword':
+            password_provider = p
+            break
 
     oauth_providers = [
         p for p in providers
-        if get_config_typename(p) == 'ext::auth::OAuthClientConfig'
+        if p.name.startswith('builtin::oauth_')
     ]
 
     oauth_buttons = '\n'.join([
         f'''
-        <a href="authorize?provider={p.provider_id}">
-        <img src="_static/icon_{p.provider_name}.svg" alt="{
-            oauth_provider_names[p.provider_name]} Icon" />
-        <span>Sign in with {oauth_provider_names[p.provider_name]}</span>
+        <a href="authorize?provider={p.name}">
+        {'<img src="_static/icon_'+p.name[15]+'.svg" alt="'+p.display_name+' Icon" />'
+         if p.name in known_oauth_provider_names else ''}
+        <span>Sign in with {p.display_name}</span>
         </a>'''
         for p in oauth_providers
     ])
@@ -114,7 +105,7 @@ def render_login_page(
     {
       f"""
       <input type="hidden" name="provider" value="{
-        password_provider.provider_id}" />
+        password_provider.name}" />
       <input type="hidden" name="redirect_on_failure" value="{
         base_path}/ui/signin" />
       <input type="hidden" name="redirect_to" value="{redirect_to}" />
@@ -147,7 +138,7 @@ def render_login_page(
 def render_signup_page(
     *,
     base_path: str,
-    provider_id: str,
+    provider_name: str,
     error_message: Optional[str] = None,
     email: Optional[str] = None,
     # config
@@ -170,7 +161,7 @@ def render_signup_page(
 
       {_render_error_message(error_message)}
 
-      <input type="hidden" name="provider" value="{provider_id}" />
+      <input type="hidden" name="provider" value="{provider_name}" />
       <input type="hidden" name="redirect_on_failure" value="{
         base_path}/ui/signup" />
       <input type="hidden" name="redirect_to" value="{redirect_to}" />
@@ -194,7 +185,7 @@ def render_signup_page(
 def render_forgot_password_page(
     *,
     base_path: str,
-    provider_id: str,
+    provider_name: str,
     error_message: Optional[str] = None,
     email: Optional[str] = None,
     email_sent: Optional[str] = None,
@@ -212,7 +203,7 @@ def render_forgot_password_page(
         content = f'''
         {_render_error_message(error_message)}
 
-        <input type="hidden" name="provider" value="{provider_id}" />
+        <input type="hidden" name="provider" value="{provider_name}" />
         <input type="hidden" name="redirect_on_failure" value="{
           base_path}/ui/forgot-password" />
         <input type="hidden" name="redirect_to" value="{
@@ -249,7 +240,7 @@ def render_forgot_password_page(
 def render_reset_password_page(
     *,
     base_path: str,
-    provider_id: str,
+    provider_name: str,
     is_valid: bool,
     redirect_to: str,
     reset_token: Optional[str] = None,
@@ -270,7 +261,7 @@ def render_reset_password_page(
         content = f'''
         {_render_error_message(error_message)}
 
-        <input type="hidden" name="provider" value="{provider_id}" />
+        <input type="hidden" name="provider" value="{provider_name}" />
         <input type="hidden" name="reset_token" value="{reset_token}" />
         <input type="hidden" name="redirect_on_failure" value="{
           base_path}/ui/reset-password" />
