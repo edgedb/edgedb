@@ -198,6 +198,11 @@ Constraints
             }
         }
 
+    This constraint has an additional effect of creating an
+    implicit :ref:`index <ref_datamodel_indexes>` on a property. 
+    This means that there's no need to add explicit indexes 
+    for the ``name`` property of ``type User``.
+
     Sometimes it may be necessary to create a type where each *combination*
     of properties is unique. This can be achieved by defining an
     ``exclusive`` constraint for the combination, rather than on each
@@ -233,13 +238,6 @@ Constraints
       allowed.
     * Only ``Immutable`` functions are allowed in the constraint
       expression.
-
-    .. note::
-
-        This constraint has an additional effect of creating an
-        implicit :ref:`index <ref_datamodel_indexes>` on a link or
-        link property. This means that in the ``User`` example there's no need
-        to add explicit indexes for the ``name`` property.
 
 .. list-table::
   :class: seealso
