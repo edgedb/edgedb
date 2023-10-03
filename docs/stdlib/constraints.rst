@@ -20,7 +20,7 @@ Constraints
             constraint expression on (__subject__[0] = 'A');
         }
 
-    Example of using an ``expression`` constraint based on a two
+    Example of using an ``expression`` constraint based on two
     object properties to restrict maximum magnitude for a vector:
 
     .. code-block:: sdl
@@ -236,7 +236,7 @@ Constraints
 
     .. note::
 
-        This constraint also has an additional effect of creating an
+        This constraint has an additional effect of creating an
         implicit :ref:`index <ref_datamodel_indexes>` on a link or
         link property. This means that in the ``User`` example there's no need
         to add explicit indexes for the ``name`` property.
