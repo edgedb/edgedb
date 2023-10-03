@@ -2520,6 +2520,34 @@ class TestInsert(tb.QueryTestCase):
             [2],
         )
 
+    async def test_edgeql_insert_collection_05(self):
+        # Make sure that empty arrays are accepted for inserts even when types
+        # are not explicitly specified.
+        await self.con.execute(r"""
+            INSERT CollectionTest {
+                str_array := [],
+                float_array := [],
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT
+                    CollectionTest {
+                        str_array,
+                        float_array
+                    }
+                FILTER
+                    len(.float_array) = 0;
+            """,
+            [
+                {
+                    'str_array': [],
+                    'float_array': [],
+                },
+            ]
+        )
+
     async def test_edgeql_insert_correlated_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
