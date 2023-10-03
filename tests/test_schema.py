@@ -931,7 +931,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.InvalidDefinitionError,
-        "field 'foo' .*was already declared"
+        "link or property 'foo' .*was already declared"
     )
     def test_schema_field_dupe_03(self):
         """
