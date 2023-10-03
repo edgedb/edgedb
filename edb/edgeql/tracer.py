@@ -88,6 +88,10 @@ class ConcreteIndex(NamedObject):
     pass
 
 
+class Field(NamedObject):
+    pass
+
+
 class Type(NamedObject):
     def is_scalar(self) -> bool:
         return False
