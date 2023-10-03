@@ -1185,7 +1185,7 @@ cdef class DatabaseIndex:
             return self._dbs[dbname]
         except KeyError:
             raise errors.UnknownDatabaseError(
-                f'database {dbname!r} does not exist')
+                f'database {dbname!r} does not exist; please specify another')
 
     def maybe_get_db(self, dbname):
         return self._dbs.get(dbname)
