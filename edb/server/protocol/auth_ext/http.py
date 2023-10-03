@@ -120,12 +120,23 @@ class Router:
                         provider_id=provider_id,
                         base_url=test_url,
                     )
-                    identity = await oauth_client.handle_callback(
+                    (
+                        identity,
+                        auth_token,
+                        refresh_token,
+                    ) = await oauth_client.handle_callback(
                         code, self._get_callback_url()
                     )
                     pkce_code = await pkce.link_identity_challenge(
                         self.db, identity.id, challenge
                     )
+                    if auth_token or refresh_token:
+                        await pkce.add_provider_tokens(
+                            self.db,
+                            id=pkce_code,
+                            auth_token=auth_token,
+                            refresh_token=refresh_token,
+                        )
                     parsed_url = urllib.parse.urlparse(redirect_to)
                     query_params = urllib.parse.parse_qs(parsed_url.query)
                     query_params["code"] = [pkce_code]
@@ -187,6 +198,10 @@ class Router:
                             {
                                 "auth_token": session_token,
                                 "identity_id": pkce_object.identity_id,
+                                "provider_token": pkce_object.auth_token,
+                                "provider_refresh_token": (
+                                    pkce_object.refresh_token
+                                ),
                             }
                         ).encode()
                     else:

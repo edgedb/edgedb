@@ -31,6 +31,8 @@ class PKCEChallenge:
 
     id: str
     challenge: str
+    auth_token: str | None
+    refresh_token: str | None
     identity_id: str | None
 
 
@@ -68,6 +70,32 @@ async def link_identity_challenge(db, identity_id: str, challenge: str) -> str:
     return result_json[0]["id"]
 
 
+async def add_provider_tokens(
+    db, id: str, auth_token: str | None, refresh_token: str | None
+):
+    r = await execute.parse_execute_json(
+        db,
+        """
+        update ext::auth::PKCEChallenge
+        filter .id = <uuid>$id
+        set {
+            auth_token := <optional str>$auth_token,
+            refresh_token := <optional str>$refresh_token,
+        }
+        """,
+        variables={
+            "id": id,
+            "auth_token": auth_token,
+            "refresh_token": refresh_token,
+        },
+    )
+
+    result_json = json.loads(r.decode())
+    assert len(result_json) == 1
+
+    return result_json[0]["id"]
+
+
 async def get_by_id(db, id: str) -> PKCEChallenge:
     r = await execute.parse_execute_json(
         db,
@@ -75,6 +103,8 @@ async def get_by_id(db, id: str) -> PKCEChallenge:
         select ext::auth::PKCEChallenge {
             id,
             challenge,
+            auth_token,
+            refresh_token,
             identity_id := .identity.id
         }
         filter .id = <uuid>$id

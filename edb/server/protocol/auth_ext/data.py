@@ -112,12 +112,14 @@ class OAuthAccessTokenResponse:
     access_token: str
     token_type: str
     expires_in: int
-    refresh_token: str
+    refresh_token: str | None
 
     def __init__(self, **kwargs):
         for field in dataclasses.fields(self):
             if field.name in kwargs:
                 setattr(self, field.name, kwargs.pop(field.name))
+            else:
+                setattr(self, field.name, None)
         self._extra_fields = kwargs
 
 
