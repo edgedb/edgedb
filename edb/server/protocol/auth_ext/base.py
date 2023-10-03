@@ -107,17 +107,18 @@ class OpenIDProvider(BaseProvider):
                 "client_secret": self.client_secret,
                 "redirect_uri": redirect_uri,
             }
+            headers = {"Accept": ContentType.JSON.value}
             if self.content_type == ContentType.JSON:
                 resp = await client.post(
                     token_endpoint.path,
                     json=request_body,
-                    headers={"Accept": "application/json"},
+                    headers=headers,
                 )
             else:
                 resp = await client.post(
                     token_endpoint.path,
                     data=request_body,
-                    headers={"Accept": "application/x-www-form-urlencoded"},
+                    headers=headers,
                 )
             if resp.status_code >= 400:
                 raise errors.OAuthProviderFailure(
