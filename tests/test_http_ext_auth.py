@@ -454,7 +454,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             """
             SELECT assert_exists(assert_single(
                 cfg::Config.extensions[is ext::auth::AuthConfig].providers {
-                    *
+                    *,
+                    [is ext::auth::OAuthProviderConfig].client_id,
+                    [is ext::auth::OAuthProviderConfig].additional_scope,
                 } filter .name = 'builtin::' ++ <str>$0
             ));
             """,
@@ -515,7 +517,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_config = await self.get_builtin_provider_config_by_name(
                 "oauth_github"
             )
-            provider_id = provider_config.provider_id
+            provider_name = provider_config.name
             client_id = provider_config.client_id
             redirect_to = f"{self.http_addr}/some/path"
             challenge = (
@@ -531,7 +533,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             _, headers, status = self.http_con_request(
                 http_con,
                 {
-                    "provider": provider_id,
+                    "provider": provider_name,
                     "redirect_to": redirect_to,
                     "challenge": challenge,
                 },
@@ -553,7 +555,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             assert state is not None
 
             claims = await self.extract_jwt_claims(state[0])
-            self.assertEqual(claims.get("provider"), provider_id)
+            self.assertEqual(claims.get("provider"), provider_name)
             self.assertEqual(claims.get("iss"), self.http_addr)
             self.assertEqual(claims.get("redirect_to"), redirect_to)
 
@@ -599,7 +601,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_config = await self.get_builtin_provider_config_by_name(
                 "oauth_github"
             )
-            provider_id = provider_config.provider_id
+            provider_name = provider_config.name
             signing_key = jwk.JWK(
                 k=base64.b64encode(("abcd" * 8).encode()).decode(), kty="oct"
             )
@@ -609,7 +611,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             missing_provider_state_claims = {
                 "iss": self.http_addr,
-                "provider": provider_id,
+                "provider": provider_name,
                 "exp": expires_at.timestamp(),
             }
             state_token_value = self.generate_state_value(
@@ -651,7 +653,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_config = await self.get_builtin_provider_config_by_name(
                 "oauth_github"
             )
-            provider_id = provider_config.provider_id
+            provider_name = provider_config.name
             client_id = provider_config.client_id
             client_secret = GITHUB_SECRET
 
@@ -714,7 +716,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             expires_at = now + datetime.timedelta(minutes=5)
             state_claims = {
                 "iss": self.http_addr,
-                "provider": str(provider_id),
+                "provider": str(provider_name),
                 "exp": expires_at.timestamp(),
                 "redirect_to": f"{self.http_addr}/some/path",
                 "challenge": challenge,
@@ -832,7 +834,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_config = await self.get_builtin_provider_config_by_name(
                 "oauth_github"
             )
-            provider_id = provider_config.provider_id
+            provider_name = provider_config.name
 
             now = utcnow()
             token_request = (
@@ -858,7 +860,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             expires_at = now + datetime.timedelta(minutes=5)
             state_claims = {
                 "iss": self.http_addr,
-                "provider": str(provider_id),
+                "provider": str(provider_name),
                 "exp": expires_at.timestamp(),
                 "redirect_to": f"{self.http_addr}/some/path",
             }
@@ -898,7 +900,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_config = await self.get_builtin_provider_config_by_name(
                 "oauth_github"
             )
-            provider_id = provider_config.provider_id
+            provider_name = provider_config.name
 
             now = utcnow()
             token_request = (
@@ -924,7 +926,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             expires_at = now + datetime.timedelta(minutes=5)
             state_claims = {
                 "iss": self.http_addr,
-                "provider": str(provider_id),
+                "provider": str(provider_name),
                 "exp": expires_at.timestamp(),
                 "redirect_to": f"{self.http_addr}/some/path",
             }
@@ -959,7 +961,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_config = await self.get_builtin_provider_config_by_name(
                 "oauth_google"
             )
-            provider_id = provider_config.provider_id
+            provider_name = provider_config.name
             client_id = provider_config.client_id
             client_secret = GOOGLE_SECRET
 
@@ -1050,7 +1052,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             expires_at = now + datetime.timedelta(minutes=5)
             state_claims = {
                 "iss": self.http_addr,
-                "provider": str(provider_id),
+                "provider": str(provider_name),
                 "exp": expires_at.timestamp(),
                 "redirect_to": f"{self.http_addr}/some/path",
                 "challenge": challenge,
@@ -1115,7 +1117,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_config = await self.get_builtin_provider_config_by_name(
                 "oauth_google"
             )
-            provider_id = provider_config.provider_id
+            provider_name = provider_config.name
             client_id = provider_config.client_id
             challenge = (
                 base64.urlsafe_b64encode(
@@ -1143,7 +1145,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             _, headers, status = self.http_con_request(
                 http_con,
                 {
-                    "provider": provider_id,
+                    "provider": provider_name,
                     "redirect_to": redirect_to,
                     "challenge": challenge,
                 },
@@ -1165,7 +1167,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             assert state is not None
 
             claims = await self.extract_jwt_claims(state[0])
-            self.assertEqual(claims.get("provider"), provider_id)
+            self.assertEqual(claims.get("provider"), provider_name)
             self.assertEqual(claims.get("iss"), self.http_addr)
             self.assertEqual(claims.get("redirect_to"), redirect_to)
 
@@ -1191,7 +1193,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_config = await self.get_builtin_provider_config_by_name(
                 "oauth_azure"
             )
-            provider_id = provider_config.provider_id
+            provider_name = provider_config.name
             client_id = provider_config.client_id
             challenge = "a" * 32
 
@@ -1211,7 +1213,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             _, headers, status = self.http_con_request(
                 http_con,
                 {
-                    "provider": provider_id,
+                    "provider": provider_name,
                     "redirect_to": redirect_to,
                     "challenge": challenge,
                 },
@@ -1233,7 +1235,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             assert state is not None
 
             claims = await self.extract_jwt_claims(state[0])
-            self.assertEqual(claims.get("provider"), provider_id)
+            self.assertEqual(claims.get("provider"), provider_name)
             self.assertEqual(claims.get("iss"), self.http_addr)
             self.assertEqual(claims.get("redirect_to"), redirect_to)
 
@@ -1259,7 +1261,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_config = await self.get_builtin_provider_config_by_name(
                 "oauth_azure"
             )
-            provider_id = provider_config.provider_id
+            provider_name = provider_config.name
             client_id = provider_config.client_id
             client_secret = AZURE_SECRET
 
@@ -1350,7 +1352,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             expires_at = now + datetime.timedelta(minutes=5)
             state_claims = {
                 "iss": self.http_addr,
-                "provider": str(provider_id),
+                "provider": str(provider_name),
                 "exp": expires_at.timestamp(),
                 "redirect_to": f"{self.http_addr}/some/path",
                 "challenge": challenge,
@@ -1395,7 +1397,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_config = await self.get_builtin_provider_config_by_name(
                 "oauth_apple"
             )
-            provider_id = provider_config.provider_id
+            print(provider_config)
+            provider_name = provider_config.name
             client_id = provider_config.client_id
             challenge = (
                 base64.urlsafe_b64encode(
@@ -1423,7 +1426,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             _, headers, status = self.http_con_request(
                 http_con,
                 {
-                    "provider": provider_id,
+                    "provider": provider_name,
                     "redirect_to": redirect_to,
                     "challenge": challenge,
                 },
@@ -1445,7 +1448,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             assert state is not None
 
             claims = await self.extract_jwt_claims(state[0])
-            self.assertEqual(claims.get("provider"), provider_id)
+            self.assertEqual(claims.get("provider"), provider_name)
             self.assertEqual(claims.get("iss"), self.http_addr)
             self.assertEqual(claims.get("redirect_to"), redirect_to)
 
@@ -1471,7 +1474,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_config = await self.get_builtin_provider_config_by_name(
                 "oauth_apple"
             )
-            provider_id = provider_config.provider_id
+            provider_name = provider_config.name
             client_id = provider_config.client_id
             client_secret = APPLE_SECRET
 
@@ -1562,7 +1565,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             expires_at = now + datetime.timedelta(minutes=5)
             state_claims = {
                 "iss": self.http_addr,
-                "provider": str(provider_id),
+                "provider": str(provider_name),
                 "exp": expires_at.timestamp(),
                 "redirect_to": f"{self.http_addr}/some/path",
                 "challenge": challenge,
@@ -1612,10 +1615,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_config = await self.get_builtin_provider_config_by_name(
                 "local_emailpassword"
             )
-            provider_id = provider_config.provider_id
+            provider_name = provider_config.name
 
             form_data = {
-                "provider": provider_id,
+                "provider": provider_name,
                 "email": "test@example.com",
                 "password": "test_password",
                 "redirect_to": "http://example.com/some/path",
@@ -1775,13 +1778,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_local_password_register_json_02(self):
         with self.http_con() as http_con:
-            provider_config = await self.get_builtin_provider_config_by_name(
-                "local_emailpassword"
-            )
-            provider_id = provider_config.provider_id
+            provider_name = "builtin::local_emailpassword"
 
             json_data = {
-                "provider": provider_id,
+                "provider": provider_name,
                 "email": "test2@example.com",
                 "password": "test_password2",
             }
@@ -1860,10 +1860,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_config = await self.get_builtin_provider_config_by_name(
                 "local_emailpassword"
             )
-            provider_id = provider_config.provider_id
+            provider_name = provider_config.name
 
             form_data = {
-                "provider": provider_id,
+                "provider": provider_name,
                 "email": "test@example.com",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -1886,10 +1886,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_config = await self.get_builtin_provider_config_by_name(
                 "local_emailpassword"
             )
-            provider_id = provider_config.provider_id
+            provider_name = provider_config.name
 
             form_data = {
-                "provider": provider_id,
+                "provider": provider_name,
                 "password": "test_password",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -1910,11 +1910,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_config = await self.get_builtin_provider_config_by_name(
                 "local_emailpassword"
             )
-            provider_id = provider_config.provider_id
+            provider_name = provider_config.name
 
             # Register a new user
             form_data = {
-                "provider": provider_id,
+                "provider": provider_name,
                 "email": "test_auth@example.com",
                 "password": "test_auth_password",
             }
@@ -2229,14 +2229,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_local_password_forgot_form_01(self):
         with self.http_con() as http_con:
-            provider_config = await self.get_builtin_provider_config_by_name(
-                "local_emailpassword"
-            )
-            provider_id = provider_config.provider_id
+            provider_name = "builtin::local_emailpassword"
 
             # Register a new user
             form_data = {
-                "provider": provider_id,
+                "provider": provider_name,
                 "email": "test_auth_forgot@example.com",
                 "password": "test_auth_password",
             }
@@ -2253,7 +2250,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             # Send reset
             form_data = {
-                "provider": provider_id,
+                "provider": provider_name,
                 "reset_url": "https://example.com/reset-password",
                 "email": form_data['email'],
             }
@@ -2465,14 +2462,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_local_password_reset_form_01(self):
         with self.http_con() as http_con:
-            provider_config = await self.get_builtin_provider_config_by_name(
-                "local_emailpassword"
-            )
-            provider_id = provider_config.provider_id
+            provider_name = 'builtin::local_emailpassword'
 
             # Register a new user
             form_data = {
-                "provider": provider_id,
+                "provider": provider_name,
                 "email": "test_auth_forgot@example.com",
                 "password": "test_auth_password",
             }
@@ -2489,7 +2483,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             # Send reset
             form_data = {
-                "provider": provider_id,
+                "provider": provider_name,
                 "reset_url": "https://example.com/reset-password",
                 "email": form_data['email'],
             }
@@ -2528,7 +2522,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             # Update password
             auth_data = {
-                "provider": provider_id,
+                "provider": provider_name,
                 "reset_token": reset_token,
                 "password": "new password",
             }

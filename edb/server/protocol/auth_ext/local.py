@@ -67,7 +67,6 @@ class Client:
         provider_client_config = util.get_config(
             self.db, "ext::auth::AuthConfig::providers", frozenset
         )
-        provider_name: str | None = None
         for cfg in provider_client_config:
             if cfg.name == provider_name:
                 return cfg

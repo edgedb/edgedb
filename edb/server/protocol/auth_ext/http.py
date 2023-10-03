@@ -78,7 +78,9 @@ class Router:
                     redirect_to = _get_search_param(query, "redirect_to")
                     challenge = _get_search_param(query, "challenge")
                     oauth_client = oauth.Client(
-                        db=self.db, provider_name=provider_name, base_url=test_url
+                        db=self.db,
+                        provider_name=provider_name,
+                        base_url=test_url
                     )
                     await pkce.create(self.db, challenge)
                     authorize_url = await oauth_client.get_authorize_url(

@@ -22,10 +22,13 @@ import html
 from email.mime import multipart
 from email.mime import text as mime_text
 
-from .util import get_config_typename
 
-
-known_oauth_provider_names = ['github', 'google', 'apple', 'azure']
+known_oauth_provider_names = [
+    'builtin::oauth_github',
+    'builtin::oauth_google',
+    'builtin::oauth_apple',
+    'builtin::oauth_azure',
+]
 
 
 def render_login_page(
@@ -55,8 +58,10 @@ def render_login_page(
     oauth_buttons = '\n'.join([
         f'''
         <a href="authorize?provider={p.name}">
-        {'<img src="_static/icon_'+p.name[15]+'.svg" alt="'+p.display_name+' Icon" />'
-         if p.name in known_oauth_provider_names else ''}
+        {(
+            '<img src="_static/icon_' + p.name[15:] + '.svg" alt="' +
+            p.display_name+' Icon" />'
+        ) if p.name in known_oauth_provider_names else ''}
         <span>Sign in with {p.display_name}</span>
         </a>'''
         for p in oauth_providers

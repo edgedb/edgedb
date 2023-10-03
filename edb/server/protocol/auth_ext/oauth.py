@@ -28,7 +28,12 @@ from . import errors, util, data, base, http_client
 class Client:
     provider: base.BaseProvider
 
-    def __init__(self, db: Any, provider_name: str, base_url: str | None = None):
+    def __init__(
+        self,
+        db: Any,
+        provider_name: str,
+        base_url: str | None = None
+    ):
         self.db = db
 
         http_factory = lambda *args, **kwargs: http_client.HttpClient(
