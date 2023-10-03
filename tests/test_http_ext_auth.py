@@ -799,12 +799,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 { id, auth_token, refresh_token }
                 filter .identity.id = <uuid>$identity_id
                 """,
-                identity_id=identity[0].id
+                identity_id=identity[0].id,
             )
 
             self.assertEqual(len(pkce_object), 1)
-            self.assertEqual(pkce_object[0].auth_token, "github_access_token");
-            self.assertIsNone(pkce_object[0].refresh_token);
+            self.assertEqual(pkce_object[0].auth_token, "github_access_token")
+            self.assertIsNone(pkce_object[0].refresh_token)
 
             mock_provider.register_route_handler(*user_request)(
                 (
