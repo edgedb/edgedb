@@ -375,15 +375,14 @@ class Router:
                             **email_args,
                         )
                         await smtp.send_email(
-                            self.db, msg, from_addr, data["email"]
+                            self.db,
+                            msg,
+                            sender=from_addr,
+                            recipients=data["email"],
+                            test_mode=self.test_mode,
                         )
 
                         return_data = (
-                            # TODO: Remove this once email tests set up
-                            {
-                                "email_sent": data.get('email'),
-                                "reset_url": reset_url
-                            } if self.test_mode else
                             {
                                 "email_sent": data.get('email'),
                             }

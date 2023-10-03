@@ -21,6 +21,7 @@ from typing import *
 import asyncio
 import email
 import os
+import pickle
 
 import aiosmtplib
 
@@ -43,6 +44,7 @@ async def send_email(
     ],
     sender: Optional[str] = None,
     recipients: Optional[Union[str, Sequence[str]]] = None,
+    test_mode: bool = False,
 ) -> None:
     global _semaphore
     if _semaphore is None:
@@ -125,7 +127,7 @@ async def send_email(
                 # Currently we are not reusing SMTP connections, but ideally we
                 # should replace this with a pool of connections, and drop idle
                 # connections after configured time.
-                await aiosmtplib.send(
+                args = dict(
                     message=message,
                     sender=sender,
                     recipients=recipients,
@@ -138,3 +140,13 @@ async def send_email(
                     start_tls=start_tls,
                     validate_certs=validate_certs,
                 )
+                if test_mode:
+                    test_file = os.environ.get(
+                        "EDGEDB_TEST_EMAIL_FILE", "/tmp/edb-test-email.pickle"
+                    )
+                    if os.path.exists(test_file):
+                        os.unlink(test_file)
+                    with open(test_file, "wb") as f:
+                        pickle.dump(args, f)
+                else:
+                    await aiosmtplib.send(**args)  # type: ignore
