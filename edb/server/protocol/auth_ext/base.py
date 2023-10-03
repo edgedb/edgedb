@@ -127,7 +127,10 @@ class OpenIDProvider(BaseProvider):
             if content_type.startswith(str(ContentType.JSON)):
                 response_body = resp.json()
             else:
-                response_body = urllib.parse.parse_qs(resp.text)
+                response_body = {
+                    k: v[0] if len(v) == 1 else v
+                    for k, v in urllib.parse.parse_qs(resp.text).items()
+                }
 
             return data.OpenIDConnectAccessTokenResponse(**response_body)
 
@@ -162,7 +165,8 @@ class OpenIDProvider(BaseProvider):
             ) from e
         if payload.get("aud") != self.client_id:
             raise errors.InvalidData(
-                f"Invalid value for aud in id_token: {payload.get('aud')} != {self.client_id}"
+                "Invalid value for aud in id_token: "
+                f"{payload.get('aud')} != {self.client_id}"
             )
 
         return data.UserInfo(

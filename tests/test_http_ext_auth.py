@@ -259,10 +259,32 @@ class MockAuthProvider:
                 raise
         else:
             response, status = registered_handler
-        data = json.dumps(response).encode()
+
+        accept_header = request_details["headers"].get(
+            "accept", "application/json"
+        )
+        if (
+            accept_header.startswith("application/json")
+            or (
+                accept_header.startswith("application/")
+                and "vnd." in accept_header
+                and "+json" in accept_header
+            )
+            or accept_header == "*/*"
+        ):
+            data = json.dumps(response).encode()
+            content_type = 'application/json'
+        elif accept_header.startswith("application/x-www-form-urlencoded"):
+            data = urllib.parse.urlencode(response).encode()
+            content_type = 'application/x-www-form-urlencoded'
+        else:
+            handler.send_error(
+                415, f"Unsupported accept header: {accept_header}"
+            )
+            return
 
         handler.send_response(status)
-        handler.send_header('Content-Type', 'application/json')
+        handler.send_header('Content-Type', content_type)
         handler.send_header('Content-Length', str(len(data)))
         handler.end_headers()
         handler.wfile.write(data)
@@ -1230,13 +1252,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_token = mock_provider.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                json.loads(requests_for_token[0]["body"]),
+                urllib.parse.parse_qs(requests_for_token[0]["body"]),
                 {
-                    "grant_type": "authorization_code",
-                    "code": "abc123",
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "redirect_uri": f"{self.http_addr}/callback",
+                    "grant_type": ["authorization_code"],
+                    "code": ["abc123"],
+                    "client_id": [client_id],
+                    "client_secret": [client_secret],
+                    "redirect_uri": [f"{self.http_addr}/callback"],
                 },
             )
 
