@@ -211,7 +211,7 @@ def get_verbosename_from_fqname(
     assert traceobj is not None
 
     name = str(fq_name)
-    clsname = traceobj.__class__.__name__.lower()
+    clsname = traceobj.get_schema_class_displayname()
     ofobj = ''
 
     if isinstance(traceobj, qltracer.Alias):
@@ -654,6 +654,8 @@ def _trace_item_layout(
                 qltracer.Property
                 if isinstance(decl, qlast.CreateConcreteProperty) else
                 qltracer.Link
+                if isinstance(decl, qlast.CreateConcreteProperty) else
+                qltracer.UnknownPointer
             )
             ptr = PointerType(
                 s_name.QualName('__', pn.name),
