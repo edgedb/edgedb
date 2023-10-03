@@ -98,7 +98,8 @@ class TestDatabase(tb.ConnectedTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.UnknownDatabaseError,
-                r'database "databasename" does not exist; please specify another'):
+                r'database "databasename" does not exist; \
+                    please specify another'):
             await self.con.execute('DROP DATABASE databasename;')
 
     async def test_database_drop_recreate(self):
