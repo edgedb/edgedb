@@ -9,18 +9,18 @@ Constraints
 
 .. eql:constraint:: std::expression on (expr)
 
-    A constraint based on an arbitrary boolean expression.
+    A constraint based on an arbitrary expression returning a boolean.
 
     The ``expression`` constraint may be used as in this example to create a
     custom scalar type:
 
     .. code-block:: sdl
 
-        scalar type starts_with_a extending str {
+        scalar type StartsWithA extending str {
             constraint expression on (__subject__[0] = 'A');
         }
 
-    Example of using an ``expression`` constraint based on a couple of
+    Example of using an ``expression`` constraint based on a two
     object properties to restrict maximum magnitude for a vector:
 
     .. code-block:: sdl
@@ -64,7 +64,7 @@ Constraints
 
     .. code-block:: sdl
 
-        scalar type max_100 extending int64 {
+        scalar type Max100 extending int64 {
             constraint max_value(100);
         }
 
@@ -76,12 +76,12 @@ Constraints
 
     .. code-block:: sdl
 
-        scalar type maxex_100 extending int64 {
+        scalar type Under100 extending int64 {
             constraint max_ex_value(100);
         }
 
-    In the example above, in contrast to the ``max_value`` constraint, a value
-    of the ``maxex_100`` type cannot be ``100`` since the valid range of
+    In this example, in contrast to the ``max_value`` constraint, a value
+    of the ``Under100`` type cannot be ``100`` since the valid range of
     ``max_ex_value`` does not include the value specified in the constraint.
 
 .. eql:constraint:: std::max_len_value(max: int64)
@@ -104,7 +104,7 @@ Constraints
 
     .. code-block:: sdl
 
-        scalar type non_negative extending int64 {
+        scalar type NonNegative extending int64 {
             constraint min_value(0);
         }
 
@@ -116,12 +116,12 @@ Constraints
 
     .. code-block:: sdl
 
-        scalar type positive_float extending float64 {
+        scalar type PositiveFloat extending float64 {
             constraint min_ex_value(0);
         }
 
-    In the example above, in contrast to the ``min_value`` constraint, a value
-    of the ``positive_float`` type cannot be ``0`` since the valid range of
+    In this example, in contrast to the ``min_value`` constraint, a value
+    of the ``PositiveFloat`` type cannot be ``0`` since the valid range of
     ``mix_ex_value`` does not include the value specified in the constraint.
 
 .. eql:constraint:: std::min_len_value(min: int64)
@@ -132,8 +132,8 @@ Constraints
 
     .. code-block:: sdl
 
-        scalar type four_decimal_places extending int64 {
-            constraint min_len_value(4);
+        scalar type EmailAddress extending str {
+            constraint min_len_value(3);
         }
 
 .. eql:constraint:: std::regexp(pattern: str)
@@ -198,9 +198,9 @@ Constraints
             }
         }
 
-    Sometimes it's necessary to create a type where each combination
+    Sometimes it may be necessary to create a type where each *combination*
     of properties is unique. This can be achieved by defining an
-    ``exclusive`` constraint for the type, rather than on each
+    ``exclusive`` constraint for the combination, rather than on each
     property:
 
     .. code-block:: sdl
@@ -224,9 +224,8 @@ Constraints
             constraint exclusive on ( (.x, .y) );
         }
 
-    In principle, many possible expressions can appear in the ``on
-    (<expr>)`` clause of the ``exclusive`` constraint with a few
-    caveats:
+    Any possible expression can appear in the ``on (<expr>)`` clause of
+    the ``exclusive`` constraint as long as it adheres to the following:
 
     * The expression can only contain references to the immediate
       properties or links of the type.
@@ -238,9 +237,9 @@ Constraints
     .. note::
 
         This constraint also has an additional effect of creating an
-        implicit :ref:`index <ref_datamodel_indexes>` on the link or
-        property. This means that in the above example there's no need to
-        add explicit indexes for the ``name`` property.
+        implicit :ref:`index <ref_datamodel_indexes>` on a link or
+        link property. This means that in the ``User`` example there's no need
+        to add explicit indexes for the ``name`` property.
 
 .. list-table::
   :class: seealso
