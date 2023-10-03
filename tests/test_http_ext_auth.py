@@ -793,6 +793,19 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 session_claims.get("exp") < tomorrow.astimezone().timestamp()
             )
 
+            pkce_object = await self.con.query(
+                """
+                SELECT ext::auth::PKCEChallenge
+                { id, auth_token, refresh_token }
+                filter .identity.id = <uuid>$identity_id
+                """,
+                identity_id=identity[0].id
+            )
+
+            self.assertEqual(len(pkce_object), 1)
+            self.assertEqual(pkce_object[0].auth_token, "github_access_token");
+            self.assertIsNone(pkce_object[0].refresh_token);
+
             mock_provider.register_route_handler(*user_request)(
                 (
                     json.dumps(
@@ -2126,6 +2139,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 select (
                     insert ext::auth::PKCEChallenge {
                         challenge := <str>$challenge,
+                        auth_token := <str>$auth_token,
+                        refresh_token := <str>$refresh_token,
                         identity := (
                             insert ext::auth::Identity {
                                 issuer := "http://example.com",
@@ -2133,9 +2148,17 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                             }
                         ),
                     }
-                ) { id, challenge, identity_id := .identity.id }
+                ) {
+                    id,
+                    challenge,
+                    auth_token,
+                    refresh_token,
+                    identity_id := .identity.id
+                }
                 """,
                 challenge=challenge.decode(),
+                auth_token="a_provider_token",
+                refresh_token="a_refresh_token",
             )
 
             # Correct code, random verifier
@@ -2170,6 +2193,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 {
                     "auth_token": body_json["auth_token"],
                     "identity_id": str(pkce.identity_id),
+                    "provider_token": "a_provider_token",
+                    "provider_refresh_token": "a_refresh_token",
                 },
             )
 
