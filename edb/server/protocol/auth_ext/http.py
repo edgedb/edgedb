@@ -20,6 +20,7 @@
 import datetime
 import http
 import json
+import logging
 import urllib.parse
 import base64
 import hashlib
@@ -27,6 +28,8 @@ import os
 import mimetypes
 
 from typing import *
+
+import aiosmtplib
 from jwcrypto import jwk, jwt
 
 from edb import errors as edb_errors
@@ -36,6 +39,9 @@ from edb.ir import statypes
 from edb.server.config.types import CompositeConfigType
 
 from . import oauth, local, errors, util, pkce, smtp, ui
+
+
+logger = logging.getLogger('edb.server')
 
 
 class Router:
@@ -398,6 +404,15 @@ class Router:
                             response.body = json.dumps(
                                 return_data
                             ).encode()
+                    except aiosmtplib.SMTPException as ex:
+                        if not debug.flags.server:
+                            logger.warning(
+                                "Failed to send emails via SMTP", exc_info=True
+                            )
+                        raise edb_errors.InternalServerError(
+                            "Failed to send the email, please try again later."
+                        ) from ex
+
                     except Exception as ex:
                         redirect_on_failure = data.get(
                             "redirect_on_failure", data.get("redirect_to")

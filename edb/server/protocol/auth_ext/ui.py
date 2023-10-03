@@ -427,6 +427,7 @@ def render_password_reset_email(
     msg["From"] = from_addr
     msg["To"] = to_addr
     msg["Subject"] = "Reset password"
+    alternative = multipart.MIMEMultipart('alternative')
     plain_text_msg = mime_text.MIMEText(
         f"""
         {reset_url}
@@ -434,13 +435,19 @@ def render_password_reset_email(
         "plain",
         "utf-8",
     )
-    msg.attach(plain_text_msg)
+    alternative.attach(plain_text_msg)
     html_msg = mime_text.MIMEText(
         f"""
-        <a href="{reset_url}">Reset password</a>
+<!DOCTYPE html>
+<html>
+  <body>
+    <a href="{reset_url}">Reset password</a>
+  </body>
+</html>
         """,
         "html",
         "utf-8",
     )
-    msg.attach(html_msg)
+    alternative.attach(html_msg)
+    msg.attach(alternative)
     return msg

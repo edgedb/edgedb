@@ -53,7 +53,7 @@ async def send_email(
     host = util.maybe_get_config(
         db.db_config,  # type: ignore
         "ext::auth::SMTPConfig::host",
-    )
+    ) or "localhost"
     port = util.maybe_get_config(
         db.db_config,  # type: ignore
         "ext::auth::SMTPConfig::port",
