@@ -165,6 +165,11 @@ Constraints
     This constraint is only valid for concrete links and properties.
     Scalar type definitions cannot include this constraint.
 
+    This constraint has an additional effect of creating an
+    implicit :ref:`index <ref_datamodel_indexes>` on a property. 
+    This means that there's no need to add explicit indexes 
+    for properties with this constraint.
+
     Example:
 
     .. code-block:: sdl
@@ -175,6 +180,8 @@ Constraints
             required property name -> str {
                 constraint exclusive;
             }
+            # Already indexed, don't need to do this:
+            # index on (.name) 
 
             # Make sure none of the "owned" items belong
             # to any other user.
@@ -190,6 +197,8 @@ Constraints
             required name: str {
                 constraint exclusive;
             }
+            # Already indexed, don't need to do this:
+            # index on (.name)
 
             # Make sure none of the "owned" items belong
             # to any other user.
@@ -197,11 +206,6 @@ Constraints
                 constraint exclusive;
             }
         }
-
-    This constraint has an additional effect of creating an
-    implicit :ref:`index <ref_datamodel_indexes>` on a property. 
-    This means that there's no need to add explicit indexes 
-    for the ``name`` property of ``type User``.
 
     Sometimes it may be necessary to create a type where each *combination*
     of properties is unique. This can be achieved by defining an
