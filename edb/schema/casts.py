@@ -457,3 +457,18 @@ class AlterCast(CastCommand, sd.AlterObject[Cast]):
 
 class DeleteCast(CastCommand, sd.DeleteObject[Cast]):
     astnode = qlast.DropCast
+
+    def _delete_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._delete_begin(schema, context)
+        if not context.canonical:
+            from_type = self.scls.get_from_type(schema)
+            if op := from_type.as_type_delete_if_dead(schema):
+                self.add_caused(op)
+            to_type = self.scls.get_to_type(schema)
+            if op := to_type.as_type_delete_if_dead(schema):
+                self.add_caused(op)
+        return schema

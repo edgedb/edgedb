@@ -33,6 +33,7 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import triggers as s_triggers
 from edb.schema import types as s_types
 
+from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
 from . import context
@@ -93,8 +94,22 @@ def compile_trigger(
                 sctx.iterator_path_ids |= {ir.path_id}
             sctx.anchors[name] = ir
 
-        trigger_set = dispatch.compile(
-            trigger.get_expr(schema).qlast, ctx=sctx)
+        trigger_ast = trigger.get_expr(schema).qlast
+
+        # A conditional trigger desugars to a FOR query that puts the
+        # condition in the FILTER of a trivial SELECT.
+        condition = trigger.get_condition(schema)
+        if condition:
+            trigger_ast = qlast.ForQuery(
+                iterator_alias='__',
+                iterator=qlast.SelectQuery(
+                    result=qlast.Tuple(elements=[]),
+                    where=condition.qlast,
+                ),
+                result=trigger_ast,
+            )
+
+        trigger_set = dispatch.compile(trigger_ast, ctx=sctx)
 
     typeref = typegen.type_to_typeref(source, env=ctx.env)
     taffected = {

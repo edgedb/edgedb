@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 from typing import *
+from typing import overload
 
 import abc
 import collections
@@ -54,6 +55,8 @@ if TYPE_CHECKING:
         ],
     ]
 
+EXT_MODULE = sn.UnqualName('ext')
+
 STD_MODULES = (
     sn.UnqualName('std'),
     sn.UnqualName('schema'),
@@ -64,6 +67,8 @@ STD_MODULES = (
     sn.UnqualName('pg'),
     sn.UnqualName('std::_test'),
     sn.UnqualName('fts'),
+    EXT_MODULE,
+    sn.UnqualName('std::enc'),
 )
 
 # Specifies the order of processing of files and directories in lib/
@@ -75,6 +80,7 @@ STD_SOURCES = (
     sn.UnqualName('cfg'),
     sn.UnqualName('cal'),
     sn.UnqualName('ext'),
+    sn.UnqualName('enc'),
     sn.UnqualName('pg'),
 )
 TESTMODE_SOURCES = (
@@ -213,7 +219,7 @@ class Schema(abc.ABC):
         ...
 
     @overload
-    def get_referrers(  # NoQA: F811
+    def get_referrers(
         self,
         scls: so.Object,
         *,
@@ -223,7 +229,7 @@ class Schema(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_referrers(  # NoQA: F811
+    def get_referrers(
         self,
         scls: so.Object,
         *,
@@ -255,7 +261,7 @@ class Schema(abc.ABC):
         ...
 
     @overload
-    def get_by_id(  # NoQA: F811
+    def get_by_id(
         self,
         obj_id: uuid.UUID,
         default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
@@ -265,7 +271,7 @@ class Schema(abc.ABC):
         ...
 
     @overload
-    def get_by_id(  # NoQA: F811
+    def get_by_id(
         self,
         obj_id: uuid.UUID,
         default: None = None,
@@ -274,7 +280,7 @@ class Schema(abc.ABC):
     ) -> Optional[so.Object_T]:
         ...
 
-    def get_by_id(  # NoQA: F811
+    def get_by_id(
         self,
         obj_id: uuid.UUID,
         default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
@@ -303,7 +309,7 @@ class Schema(abc.ABC):
         ...
 
     @overload
-    def get_global(  # NoQA: F811
+    def get_global(
         self,
         objtype: Type[so.Object_T],
         name: Union[str, sn.Name],
@@ -311,7 +317,7 @@ class Schema(abc.ABC):
     ) -> Optional[so.Object_T]:
         ...
 
-    def get_global(  # NoQA: F811
+    def get_global(
         self,
         objtype: Type[so.Object_T],
         name: Union[str, sn.Name],
@@ -329,7 +335,7 @@ class Schema(abc.ABC):
         raise NotImplementedError
 
     @overload
-    def get(  # NoQA: F811
+    def get(
         self,
         name: Union[str, sn.Name],
         default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
@@ -342,7 +348,7 @@ class Schema(abc.ABC):
         ...
 
     @overload
-    def get(  # NoQA: F811
+    def get(
         self,
         name: Union[str, sn.Name],
         default: None,
@@ -355,7 +361,7 @@ class Schema(abc.ABC):
         ...
 
     @overload
-    def get(  # NoQA: F811
+    def get(
         self,
         name: Union[str, sn.Name],
         default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
@@ -369,7 +375,7 @@ class Schema(abc.ABC):
         ...
 
     @overload
-    def get(  # NoQA: F811
+    def get(
         self,
         name: Union[str, sn.Name],
         default: None,
@@ -383,7 +389,7 @@ class Schema(abc.ABC):
         ...
 
     @overload
-    def get(  # NoQA: F811
+    def get(
         self,
         name: Union[str, sn.Name],
         default: Union[so.Object, so.NoDefaultT, None] = so.NoDefault,
@@ -396,7 +402,7 @@ class Schema(abc.ABC):
     ) -> Optional[so.Object]:
         ...
 
-    def get(  # NoQA: F811
+    def get(
         self,
         name: Union[str, sn.Name],
         default: Union[so.Object, so.NoDefaultT, None] = so.NoDefault,
@@ -418,7 +424,7 @@ class Schema(abc.ABC):
         )
 
     @abc.abstractmethod
-    def _get(  # NoQA: F811
+    def _get(
         self,
         name: Union[str, sn.Name],
         default: Union[so.Object, so.NoDefaultT, None],
@@ -943,9 +949,9 @@ class FlatSchema(Schema):
         else:
             new_refs = {}
             for field in object_ref_fields:
-                ref = data[field.index]
-                if ref is not None:
-                    ref = field.type.schema_refs_from_data(ref)
+                ref_data = data[field.index]
+                if ref_data is not None:
+                    ref = field.type.schema_refs_from_data(ref_data)
                     new_refs[field.name] = ref
             refs_to = self._update_refs_to(id, sclass, None, new_refs)
 
@@ -1296,7 +1302,7 @@ class FlatSchema(Schema):
 
             return result  # type: ignore
 
-    def _get_by_id(  # NoQA: F811
+    def _get_by_id(
         self,
         obj_id: uuid.UUID,
         default: Union[so.Object_T, so.NoDefaultT, None],
@@ -1482,6 +1488,9 @@ class FlatSchema(Schema):
     def __repr__(self) -> str:
         return (
             f'<{type(self).__name__} gen:{self._generation} at {id(self):#x}>')
+
+
+EMPTY_SCHEMA = FlatSchema()
 
 
 def upgrade_schema(schema: FlatSchema) -> FlatSchema:

@@ -1,5 +1,3 @@
-# mypy: ignore-errors
-
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -22,7 +20,12 @@
 from __future__ import annotations
 
 import functools
+import dataclasses
+import uuid
 from typing import *
+from typing import overload
+
+from edb.common.typeutils import not_none
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
@@ -33,6 +36,8 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
 from edb.schema import schema as s_schema
+from edb.schema import types as s_types
+from edb.schema import pointers as s_pointers
 
 from . import common
 
@@ -81,6 +86,18 @@ type_to_range_name_map = {
     ('edgedb', 'date_t'): ('daterange',),
 }
 
+# Construct a multirange map based on type_to_range_name_map by replacing
+# 'range' with 'multirange' in the names.
+#
+# The multiranges are created automatically when ranges are created. They
+# have the same names except with "multi" in front of the "range".
+type_to_multirange_name_map = {}
+for key, val in type_to_range_name_map.items():
+    *pre, name = val
+    pre.append(name.replace('range', 'multirange'))
+    type_to_multirange_name_map[key] = tuple(pre)
+
+
 base_type_name_map_r = {
     'character varying': sn.QualName('std', 'str'),
     'character': sn.QualName('std', 'str'),
@@ -127,19 +144,109 @@ base_type_name_map_r = {
     'memory_t': sn.QualName('cfg', 'memory'),
 }
 
+pg_tsvector_typeref = irast.TypeRef(
+    id=uuid.UUID('44d73839-8882-419f-80e5-84f7a3402919'),
+    name_hint=sn.QualName('pg_catalog', 'tsvector'),
+    is_scalar=True,
+    sql_type='pg_catalog.tsvector',
+)
 
-def is_builtin_scalar(schema, scalar):
+pg_oid_typeref = irast.TypeRef(
+    id=uuid.UUID('44d73839-8882-419f-80e5-84f7a3402920'),
+    name_hint=sn.QualName('pg_catalog', 'oid'),
+    is_scalar=True,
+    sql_type='pg_catalog.oid',
+)
+
+pg_langs = {
+    'simple',
+    'arabic',
+    'armenian',
+    'basque',
+    'catalan',
+    'danish',
+    'dutch',
+    'english',
+    'finnish',
+    'french',
+    'german',
+    'greek',
+    'hindi',
+    'hungarian',
+    'indonesian',
+    'irish',
+    'italian',
+    'lithuanian',
+    'nepali',
+    'norwegian',
+    'portuguese',
+    'romanian',
+    'russian',
+    'serbian',
+    'spanish',
+    'swedish',
+    'tamil',
+    'turkish',
+    'yiddish',
+}
+
+
+pg_langs_by_iso_639_3 = {
+    'ara': 'arabic',
+    'hye': 'armenian',
+    'eus': 'basque',
+    'cat': 'catalan',
+    'dan': 'danish',
+    'nld': 'dutch',
+    'eng': 'english',
+    'fin': 'finnish',
+    'fra': 'french',
+    'deu': 'german',
+    'ell': 'greek',
+    'hin': 'hindi',
+    'hun': 'hungarian',
+    'ind': 'indonesian',
+    'gle': 'irish',
+    'ita': 'italian',
+    'lit': 'lithuanian',
+    'npi': 'nepali',
+    'nor': 'norwegian',
+    'por': 'portuguese',
+    'ron': 'romanian',
+    'rus': 'russian',
+    'srp': 'serbian',
+    'spa': 'spanish',
+    'swe': 'swedish',
+    'tam': 'tamil',
+    'tur': 'turkish',
+    'yid': 'yiddish',
+}
+
+
+def to_regconfig(language: str) -> str:
+    "Analogous to edgedb.fts_to_regconfig function in metaschema"
+    language = language.lower()
+    if language.startswith('xxx_'):
+        return language[4:]
+    else:
+        return pg_langs_by_iso_639_3.get(language, language)
+
+
+def is_builtin_scalar(
+    schema: s_schema.Schema, scalar: s_scalars.ScalarType
+) -> bool:
     return scalar.id in base_type_name_map
 
 
-def type_has_stable_oid(typ):
+def type_has_stable_oid(typ: s_types.Type) -> bool:
     pg_type = base_type_name_map.get(typ.id)
     return pg_type is not None and len(pg_type) == 1
 
 
-def get_scalar_base(schema, scalar) -> Tuple[str, ...]:
-    base = base_type_name_map.get(scalar.id)
-    if base is not None:
+def get_scalar_base(
+    schema: s_schema.Schema, scalar: s_scalars.ScalarType
+) -> Tuple[str, ...]:
+    if base := base_type_name_map.get(scalar.id):
         return base
 
     for ancestor in scalar.get_ancestors(schema).objects(schema):
@@ -148,11 +255,12 @@ def get_scalar_base(schema, scalar) -> Tuple[str, ...]:
             # another domain.
             if base := base_type_name_map.get(ancestor.id):
                 pass
-            elif typstr := ancestor.get_sql_type(schema):
+            elif typstr := ancestor.resolve_sql_type(schema):
                 base = tuple(typstr.split('.'))
             else:
                 base = common.get_backend_name(
                     schema, ancestor, catenate=False)
+                assert base
 
             return base
 
@@ -161,8 +269,8 @@ def get_scalar_base(schema, scalar) -> Tuple[str, ...]:
 
 
 def pg_type_from_scalar(
-        schema: s_schema.Schema,
-        scalar: s_scalars.ScalarType) -> Tuple[str, ...]:
+    schema: s_schema.Schema, scalar: s_scalars.ScalarType
+) -> Tuple[str, ...]:
 
     if scalar.is_polymorphic(schema):
         return ('anynonarray',)
@@ -170,10 +278,11 @@ def pg_type_from_scalar(
     column_type = base_type_name_map.get(scalar.id)
     if column_type:
         pass
-    elif typstr := scalar.get_sql_type(schema):
+    elif typstr := scalar.resolve_sql_type(schema):
         column_type = tuple(typstr.split('.'))
     else:
         column_type = common.get_backend_name(schema, scalar, catenate=False)
+    assert column_type
 
     return column_type
 
@@ -189,6 +298,10 @@ def pg_type_range(tp: Tuple[str, ...]) -> Tuple[str, ...]:
     return type_to_range_name_map[tp]
 
 
+def pg_type_multirange(tp: Tuple[str, ...]) -> Tuple[str, ...]:
+    return type_to_multirange_name_map[tp]
+
+
 def pg_type_from_object(
     schema: s_schema.Schema, obj: s_obj.Object, persistent_tuples: bool = False
 ) -> Tuple[str, ...]:
@@ -196,16 +309,19 @@ def pg_type_from_object(
     if isinstance(obj, s_scalars.ScalarType):
         return pg_type_from_scalar(schema, obj)
 
-    elif obj.is_type() and obj.is_anytuple(schema):
+    elif isinstance(obj, s_types.Type) and obj.is_anytuple(schema):
         return ('record',)
 
     elif isinstance(obj, s_abc.Tuple):
         if persistent_tuples:
-            return common.get_tuple_backend_name(obj.id, catenate=False)
+            return cast(
+                Tuple[str, ...],
+                common.get_tuple_backend_name(obj.id, catenate=False),
+            )
         else:
             return ('record',)
 
-    elif isinstance(obj, s_abc.Array):
+    elif isinstance(obj, s_types.Array):
         if obj.is_polymorphic(schema):
             return ('anyarray',)
         else:
@@ -214,7 +330,7 @@ def pg_type_from_object(
                 persistent_tuples=persistent_tuples)
             return pg_type_array(tp)
 
-    elif isinstance(obj, s_abc.Range):
+    elif isinstance(obj, s_types.Range):
         if obj.is_polymorphic(schema):
             return ('anyrange',)
         else:
@@ -223,10 +339,19 @@ def pg_type_from_object(
                 persistent_tuples=persistent_tuples)
             return pg_type_range(tp)
 
+    elif isinstance(obj, s_types.MultiRange):
+        if obj.is_polymorphic(schema):
+            return ('anymultirange',)
+        else:
+            tp = pg_type_from_object(
+                schema, obj.get_subtypes(schema)[0],
+                persistent_tuples=persistent_tuples)
+            return pg_type_multirange(tp)
+
     elif isinstance(obj, s_objtypes.ObjectType):
         return ('uuid',)
 
-    elif obj.is_type() and obj.is_any(schema):
+    elif isinstance(obj, s_types.Type) and obj.is_any(schema):
         return ('anyelement',)
 
     else:
@@ -250,7 +375,7 @@ def pg_type_from_ir_typeref(
                 persistent_tuples=persistent_tuples)
             return pg_type_array(tp)
 
-    if irtyputils.is_range(ir_typeref):
+    elif irtyputils.is_range(ir_typeref):
         if (irtyputils.is_generic(ir_typeref)
                 or (irtyputils.is_abstract(ir_typeref.subtypes[0])
                     and irtyputils.is_scalar(ir_typeref.subtypes[0]))):
@@ -262,6 +387,18 @@ def pg_type_from_ir_typeref(
                 persistent_tuples=persistent_tuples)
             return pg_type_range(tp)
 
+    elif irtyputils.is_multirange(ir_typeref):
+        if (irtyputils.is_generic(ir_typeref)
+                or (irtyputils.is_abstract(ir_typeref.subtypes[0])
+                    and irtyputils.is_scalar(ir_typeref.subtypes[0]))):
+            return ('anymultirange',)
+        else:
+            tp = pg_type_from_ir_typeref(
+                ir_typeref.subtypes[0],
+                serialized=serialized,
+                persistent_tuples=persistent_tuples)
+            return pg_type_multirange(tp)
+
     elif irtyputils.is_anytuple(ir_typeref):
         return ('record',)
 
@@ -272,11 +409,14 @@ def pg_type_from_ir_typeref(
             material = ir_typeref
 
         if persistent_tuples or material.in_schema:
-            return common.get_tuple_backend_name(material.id, catenate=False)
+            return cast(
+                Tuple[str, str],
+                common.get_tuple_backend_name(material.id, catenate=False),
+            )
         else:
             return ('record',)
 
-    elif irtyputils.is_any(ir_typeref):
+    elif irtyputils.is_any(ir_typeref) or irtyputils.is_anyobject(ir_typeref):
         return ('anyelement',)
 
     else:
@@ -298,6 +438,7 @@ def pg_type_from_ir_typeref(
             pg_type = base_type_name_map.get(material.id)
             if pg_type is None:
                 real_name_hint = material.orig_name_hint or material.name_hint
+                assert isinstance(real_name_hint, sn.QualName)
                 # User-defined scalar type
                 pg_type = common.get_scalar_backend_name(
                     material.id, real_name_hint.module, catenate=False)
@@ -305,131 +446,82 @@ def pg_type_from_ir_typeref(
             return pg_type
 
 
-class _PointerStorageInfo:
-    @classmethod
-    def _source_table_info(cls, schema, pointer):
-        table = common.get_backend_name(
-            schema, pointer.get_source(schema), catenate=False)
-        ptr_name = pointer.get_shortname(schema).name
-        if ptr_name.startswith('__') or ptr_name == 'id':
-            col_name = ptr_name
-        else:
-            col_name = str(pointer.id)
-        table_type = 'ObjectType'
+TableInfo = Tuple[Tuple[str, str], str, str]
 
-        return table, table_type, col_name
 
-    @classmethod
-    def _pointer_table_info(cls, schema, pointer):
-        table = common.get_backend_name(
-            schema, pointer, catenate=False)
-        col_name = 'target'
-        table_type = 'link'
+def _source_table_info(
+    schema: s_schema.Schema, pointer: s_pointers.Pointer
+) -> TableInfo:
+    table = common.get_backend_name(
+        schema, not_none(pointer.get_source(schema)), catenate=False
+    )
+    ptr_name = pointer.get_shortname(schema).name
+    if ptr_name.startswith('__') or ptr_name == 'id':
+        col_name = ptr_name
+    else:
+        col_name = str(pointer.id)
+    table_type = 'ObjectType'
 
-        return table, table_type, col_name
+    return table, table_type, col_name
 
-    @classmethod
-    def _resolve_type(cls, schema, pointer):
-        pointer_target = pointer.get_target(schema)
-        if pointer_target is not None:
-            if pointer_target.is_object_type():
-                column_type = ('uuid',)
-            elif pointer_target.is_tuple(schema):
-                column_type = common.get_backend_name(schema, pointer_target,
-                                                      catenate=False)
-            else:
-                column_type = pg_type_from_object(
-                    schema, pointer_target, persistent_tuples=True
-                )
-        else:
-            # The target may not be known in circular object-to-object
-            # linking scenarios.
+
+def _pointer_table_info(
+    schema: s_schema.Schema, pointer: s_pointers.Pointer
+) -> TableInfo:
+    table = common.get_backend_name(schema, pointer, catenate=False)
+    col_name = 'target'
+    table_type = 'link'
+
+    return table, table_type, col_name
+
+
+def _resolve_type(
+    schema: s_schema.Schema, pointer: s_pointers.Pointer
+) -> Tuple[str, ...]:
+    column_type: Tuple[str, ...]
+
+    pointer_target = pointer.get_target(schema)
+    if pointer_target is not None:
+        if pointer_target.is_object_type():
             column_type = ('uuid',)
-
-        return column_type
-
-    @classmethod
-    def _storable_in_source(cls, schema, pointer):
-        return pointer.singular(schema)
-
-    @classmethod
-    def _storable_in_pointer(cls, schema, pointer):
-        return (
-            not pointer.singular(schema) or
-            pointer.has_user_defined_properties(schema))
-
-    def __new__(cls, schema, pointer, source=None, resolve_type=True,
-                link_bias=False):
-
-        if source is None:
-            source = pointer.get_source(schema)
-
-        is_lprop = pointer.is_link_property(schema)
-
-        if resolve_type and schema is None:
-            msg = 'PointerStorageInfo needs a schema to resolve column_type'
-            raise ValueError(msg)
-
-        if is_lprop and pointer.issubclass(schema, schema.get('std::target')):
-            # Normalize link@target to link
-            pointer = source
-            is_lprop = False
-
-        if isinstance(pointer, irast.TupleIndirectionLink):
-            table = None
-            table_type = 'ObjectType'
-            col_name = pointer.get_shortname(schema).name
-        elif is_lprop:
-            table = common.get_backend_name(
-                schema, source, catenate=False)
-            table_type = 'link'
-            if pointer.get_shortname(schema).name == 'source':
-                col_name = 'source'
-            else:
-                col_name = str(pointer.id)
+        elif pointer_target.is_tuple(schema):
+            column_type = common.get_backend_name(
+                schema, pointer_target, catenate=False
+            )
         else:
-            if isinstance(source, s_scalars.ScalarType):
-                # This is a pseudo-link on an scalar (__type__)
-                table = None
-                table_type = 'ObjectType'
-                col_name = None
-            elif cls._storable_in_source(schema, pointer) and not link_bias:
-                table, table_type, col_name = cls._source_table_info(
-                    schema, pointer)
-            elif cls._storable_in_pointer(schema, pointer):
-                table, table_type, col_name = cls._pointer_table_info(
-                    schema, pointer)
-            else:
-                return None
+            column_type = pg_type_from_object(
+                schema, pointer_target, persistent_tuples=True
+            )
+    else:
+        # The target may not be known in circular object-to-object
+        # linking scenarios.
+        column_type = ('uuid',)
 
-        if resolve_type:
-            column_type = cls._resolve_type(schema, pointer)
-        else:
-            column_type = None
+    return column_type
 
-        result = super().__new__(cls)
 
-        result.table_name = table
-        result.table_type = table_type
-        result.column_name = col_name
-        result.column_type = column_type
+def _pointer_storable_in_source(
+    schema: s_schema.Schema, pointer: s_pointers.Pointer
+) -> bool:
+    return pointer.singular(schema)
 
-        return result
 
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def __repr__(self):
-        return \
-            '<{} (table_name={}, table_type={}, column_name={}, ' \
-            'column_type={}) at 0x{:x}>'.format(
-                self.__class__.__name__, '.'.join(self.table_name),
-                self.table_type, self.column_name, self.column_type, id(self))
+def _pointer_storable_in_pointer(
+    schema: s_schema.Schema, pointer: s_pointers.Pointer
+) -> bool:
+    return not pointer.singular(schema) or pointer.has_user_defined_properties(
+        schema
+    )
 
 
 @functools.lru_cache()
 def get_pointer_storage_info(
-    pointer, *, schema, source=None, resolve_type=True, link_bias=False
+    pointer: s_pointers.Pointer,
+    *,
+    schema: s_schema.Schema,
+    source: Optional[s_obj.InheritingObject] = None,
+    resolve_type: bool = True,
+    link_bias: bool = False,
 ) -> PointerStorageInfo:
     assert not pointer.generic(
         schema
@@ -440,12 +532,64 @@ def get_pointer_storage_info(
         schema, material_ptrcls = pointer.material_type(schema)
     if material_ptrcls is not None:
         pointer = material_ptrcls
-    return _PointerStorageInfo(
-        schema, pointer, source=source, resolve_type=resolve_type,
-        link_bias=link_bias)
+
+    if source is None:
+        source = pointer.get_source(schema)
+
+    is_lprop = pointer.is_link_property(schema)
+
+    if resolve_type and schema is None:
+        msg = 'PointerStorageInfo needs a schema to resolve column_type'
+        raise ValueError(msg)
+
+    if is_lprop and pointer.issubclass(
+        schema, schema.get('std::target', type=s_obj.SubclassableObject)
+    ):
+        # Normalize link@target to link
+        assert isinstance(source, s_pointers.Pointer)
+        pointer = source
+        is_lprop = False
+
+    if isinstance(pointer, irast.TupleIndirectionLink):
+        table = None
+        table_type = 'ObjectType'
+        col_name = pointer.get_shortname(schema).name
+    elif is_lprop:
+        assert source
+        table = common.get_backend_name(schema, source, catenate=False)
+        table_type = 'link'
+        if pointer.get_shortname(schema).name == 'source':
+            col_name = 'source'
+        else:
+            col_name = str(pointer.id)
+    else:
+        if isinstance(source, s_scalars.ScalarType):
+            # This is a pseudo-link on an scalar (__type__)
+            table = None
+            table_type = 'ObjectType'
+            col_name = None
+        elif _pointer_storable_in_source(schema, pointer) and not link_bias:
+            table, table_type, col_name = _source_table_info(schema, pointer)
+        elif _pointer_storable_in_pointer(schema, pointer):
+            table, table_type, col_name = _pointer_table_info(schema, pointer)
+        else:
+            return None  # type: ignore
+
+    if resolve_type:
+        column_type = _resolve_type(schema, pointer)
+    else:
+        column_type = None
+
+    return PointerStorageInfo(
+        table_name=table,
+        table_type=table_type,
+        column_name=col_name,  # type: ignore
+        column_type=column_type,  # type: ignore
+    )
 
 
-class PointerStorageInfo(NamedTuple):
+@dataclasses.dataclass(kw_only=True, eq=False, slots=True)
+class PointerStorageInfo:
 
     table_name: Optional[Tuple[str, str]]
     table_type: str
@@ -464,7 +608,7 @@ def get_ptrref_storage_info(
 
 
 @overload
-def get_ptrref_storage_info(  # NoQA: F811
+def get_ptrref_storage_info(
     ptrref: irast.BasePointerRef, *,
     resolve_type: bool=...,
     link_bias: bool=...,
@@ -473,10 +617,13 @@ def get_ptrref_storage_info(  # NoQA: F811
     ...
 
 
-def get_ptrref_storage_info(  # NoQA: F811
-        ptrref: irast.BasePointerRef, *,
-        resolve_type=True, link_bias=False,
-        allow_missing=False) -> Optional[PointerStorageInfo]:
+def get_ptrref_storage_info(
+    ptrref: irast.BasePointerRef,
+    *,
+    resolve_type: bool = True,
+    link_bias: bool = False,
+    allow_missing: bool = False,
+) -> Optional[PointerStorageInfo]:
     # We wrap the real version because of bad mypy interactions
     # with lru_cache.
     return _get_ptrref_storage_info(
@@ -489,9 +636,12 @@ def get_ptrref_storage_info(  # NoQA: F811
 
 @functools.lru_cache()
 def _get_ptrref_storage_info(
-        ptrref: irast.BasePointerRef, *,
-        resolve_type=True, link_bias=False,
-        allow_missing=False) -> Optional[PointerStorageInfo]:
+    ptrref: irast.BasePointerRef,
+    *,
+    resolve_type: bool = True,
+    link_bias: bool = False,
+    allow_missing: bool = False,
+) -> Optional[PointerStorageInfo]:
 
     if ptrref.material_ptr:
         ptrref = ptrref.material_ptr
@@ -503,38 +653,43 @@ def _get_ptrref_storage_info(
             f'cannot determine backend storage parameters for the '
             f'{ptrref.name!r} pointer: the cardinality is not known')
 
-    is_lprop = ptrref.source_ptr is not None
-
-    if is_lprop:
-        source = ptrref.source_ptr
-    else:
-        source = ptrref.out_source
-
     target = ptrref.out_target
 
-    if isinstance(ptrref, irast.TupleIndirectionPointerRef):
+    if isinstance(
+        ptrref, (irast.TupleIndirectionPointerRef, irast.SpecialPointerRef)
+    ):
         table = None
         table_type = 'ObjectType'
         col_name = ptrref.shortname.name
 
-    elif is_lprop:
+    elif ptrref.source_ptr is not None:
+        # link property
+        assert isinstance(ptrref, irast.PointerRef)
+        source_ptr = ptrref.source_ptr
+
         table = common.get_pointer_backend_name(
-            source.id, source.name.module, catenate=False)
+            source_ptr.id, source_ptr.name.module, catenate=False
+        )
         table_type = 'link'
         if ptrref.shortname.name in ('source', 'target'):
             col_name = ptrref.shortname.name
         else:
             col_name = str(ptrref.id)
     else:
+        assert isinstance(ptrref, irast.PointerRef)
+        source = ptrref.out_source
+
         if irtyputils.is_scalar(source):
             # This is a pseudo-link on an scalar (__type__)
             table = None
             table_type = 'ObjectType'
             col_name = None
 
-        elif _storable_in_source(ptrref) and not link_bias:
+        elif _ptrref_storable_in_source(ptrref) and not link_bias:
+            assert isinstance(source.name_hint, sn.QualName)
             table = common.get_objtype_backend_name(
-                source.id, source.name_hint.module, catenate=False)
+                source.id, source.name_hint.module, catenate=False
+            )
             ptrname = ptrref.shortname.name
             if ptrname.startswith('__') or ptrname == 'id':
                 col_name = ptrname
@@ -542,7 +697,7 @@ def _get_ptrref_storage_info(
                 col_name = str(ptrref.id)
             table_type = 'ObjectType'
 
-        elif _storable_in_pointer(ptrref):
+        elif _ptrref_storable_in_pointer(ptrref):
             table = common.get_pointer_backend_name(
                 ptrref.id, ptrref.name.module, catenate=False)
             col_name = 'target'
@@ -556,6 +711,7 @@ def _get_ptrref_storage_info(
         else:
             return None
 
+    column_type: Tuple[str, ...] | None
     if resolve_type:
         if irtyputils.is_object(target):
             column_type = ('uuid',)
@@ -566,18 +722,22 @@ def _get_ptrref_storage_info(
         column_type = None
 
     return PointerStorageInfo(
-        table_name=table, table_type=table_type,
-        column_name=col_name, column_type=column_type
+        table_name=table,
+        table_type=table_type,
+        column_name=col_name,  # type: ignore
+        column_type=column_type,  # type: ignore
     )
 
 
-def _storable_in_source(ptrref: irast.PointerRef) -> bool:
+def _ptrref_storable_in_source(ptrref: irast.BasePointerRef) -> bool:
     return ptrref.out_cardinality.is_single()
 
 
-def _storable_in_pointer(ptrref: irast.PointerRef) -> bool:
+def _ptrref_storable_in_pointer(ptrref: irast.BasePointerRef) -> bool:
     if ptrref.union_components:
-        return all(_storable_in_pointer(c) for c in ptrref.union_components)
+        return all(
+            _ptrref_storable_in_pointer(c) for c in ptrref.union_components
+        )
     else:
         return (
             ptrref.out_cardinality.is_multi()

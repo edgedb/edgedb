@@ -1,5 +1,3 @@
-# mypy: ignore-errors
-
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -22,7 +20,6 @@
 from __future__ import annotations
 from typing import *
 
-import collections
 import dataclasses
 import functools
 import json
@@ -34,9 +31,10 @@ import immutables
 
 from edb import errors
 
+from edb.common.typeutils import not_none
+
 from edb.server import defines
 from edb.server import config
-from edb.pgsql import compiler as pg_compiler
 
 from edb import edgeql
 from edb.common import debug
@@ -52,6 +50,7 @@ from edb.ir import ast as irast
 
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as s_delta
+from edb.schema import extensions as s_ext
 from edb.schema import functions as s_func
 from edb.schema import links as s_links
 from edb.schema import properties as s_props
@@ -61,10 +60,14 @@ from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import reflection as s_refl
+from edb.schema import roles as s_role
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 
 from edb.pgsql import ast as pgast
+from edb.pgsql import compiler as pg_compiler
+from edb.pgsql import codegen as pg_codegen
+from edb.pgsql import debug as pg_debug
 from edb.pgsql import common as pg_common
 from edb.pgsql import dbops as pg_dbops
 from edb.pgsql import params as pg_params
@@ -79,10 +82,10 @@ from . import status
 from . import ddl
 
 if TYPE_CHECKING:
-    from edb.server import metaschema
+    from edb.pgsql import metaschema
 
 
-EMPTY_MAP = immutables.Map()
+EMPTY_MAP: immutables.Map[Any, Any] = immutables.Map()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -100,8 +103,7 @@ class CompileContext:
     state: dbstate.CompilerConnectionState
     output_format: enums.OutputFormat
     expected_cardinality_one: bool
-    protocol_version: Tuple[int, int]
-    skip_first: bool = False
+    protocol_version: defines.ProtocolVersion
     expect_rollback: bool = False
     json_parameters: bool = False
     schema_reflection_mode: bool = False
@@ -109,7 +111,8 @@ class CompileContext:
     inline_typeids: bool = False
     inline_typenames: bool = False
     inline_objectids: bool = True
-    schema_object_ids: Optional[Mapping[s_name.Name, uuid.UUID]] = None
+    schema_object_ids: Optional[
+        Mapping[tuple[s_name.Name, Optional[str]], uuid.UUID]] = None
     source: Optional[edgeql.Source] = None
     backend_runtime_params: pg_params.BackendRuntimeParams = (
         pg_params.get_default_runtime_params())
@@ -178,8 +181,8 @@ class CompileContext:
         return mstate
 
 
-DEFAULT_MODULE_ALIASES_MAP = immutables.Map(
-    {None: defines.DEFAULT_MODULE_ALIAS})
+DEFAULT_MODULE_ALIASES_MAP: immutables.Map[Optional[str], str] = (
+    immutables.Map({None: defines.DEFAULT_MODULE_ALIAS}))
 
 
 def compile_edgeql_script(
@@ -202,17 +205,19 @@ def new_compiler(
     backend_runtime_params: Optional[pg_params.BackendRuntimeParams] = None,
     local_intro_query: Optional[str] = None,
     global_intro_query: Optional[str] = None,
-    load_config: bool = False
+    config_spec: Optional[config.Spec] = None,
 ) -> Compiler:
     """Create and return a compiler instance."""
+
+    # XXX: THIS IS NOT GREAT
+    assert isinstance(std_schema, s_schema.FlatSchema)
+    assert isinstance(reflection_schema, s_schema.FlatSchema)
 
     if not backend_runtime_params:
         backend_runtime_params = pg_params.get_default_runtime_params()
 
-    config_spec = None
-    if load_config:
+    if not config_spec:
         config_spec = config.load_spec_from_schema(std_schema)
-        config.set_settings(config_spec)
 
     return Compiler(CompilerState(
         std_schema=std_schema,
@@ -242,7 +247,7 @@ async def new_compiler_from_pg(con: metaschema.PGConnection) -> Compiler:
         global_intro_query=await load_schema_intro_query(
             con, num_patches, 'global_intro_query'
         ),
-        load_config=True
+        config_spec=None,
     )
 
 
@@ -250,7 +255,7 @@ def new_compiler_context(
     *,
     compiler_state: CompilerState,
     user_schema: s_schema.Schema,
-    global_schema: s_schema.Schema=s_schema.FlatSchema(),
+    global_schema: s_schema.Schema=s_schema.EMPTY_SCHEMA,
     modaliases: Optional[Mapping[Optional[str], str]] = None,
     expected_cardinality_one: bool = False,
     json_parameters: bool = False,
@@ -258,7 +263,7 @@ def new_compiler_context(
     output_format: enums.OutputFormat = enums.OutputFormat.BINARY,
     bootstrap_mode: bool = False,
     internal_schema_mode: bool = False,
-    protocol_version: Tuple[int, int] = defines.CURRENT_PROTOCOL,
+    protocol_version: defines.ProtocolVersion = defines.CURRENT_PROTOCOL,
     backend_runtime_params: pg_params.BackendRuntimeParams = (
         pg_params.get_default_runtime_params()),
 ) -> CompileContext:
@@ -298,8 +303,8 @@ async def get_patch_count(backend_conn: metaschema.PGConnection) -> int:
             WHERE key = 'num_patches';
         ''',
     )
-    num_patches = json.loads(num_patches) if num_patches else 0
-    return num_patches
+    res: int = json.loads(num_patches) if num_patches else 0
+    return res
 
 
 async def load_cached_schema(
@@ -317,7 +322,7 @@ async def load_cached_schema(
         args=[key.encode("utf-8")],
     )
     try:
-        res = pickle.loads(data)
+        res: s_schema.FlatSchema = pickle.loads(data)
         if vkey != pg_patches.get_version_key(len(pg_patches.PATCHES)):
             res = s_schema.upgrade_schema(res)
         return res
@@ -339,13 +344,13 @@ async def load_schema_intro_query(
     kind: str,
 ) -> str:
     kind += pg_patches.get_version_key(patches)
-    return await backend_conn.sql_fetch_val(
+    return (await backend_conn.sql_fetch_val(
         b"""
         SELECT text FROM edgedbinstdata.instdata
         WHERE key = $1::text;
         """,
         args=[kind.encode("utf-8")],
-    )
+    )).decode('utf-8')
 
 
 async def load_schema_class_layout(
@@ -361,7 +366,7 @@ async def load_schema_class_layout(
         args=[key.encode("utf-8")],
     )
     try:
-        return pickle.loads(data)
+        return cast(s_refl.SchemaClassLayout, pickle.loads(data))
     except Exception as e:
         raise RuntimeError(
             'could not load schema class layout pickle') from e
@@ -375,10 +380,18 @@ class CompilerState:
     schema_class_layout: s_refl.SchemaClassLayout
 
     backend_runtime_params: pg_params.BackendRuntimeParams
-    config_spec: Optional[config.Spec]
+    config_spec: config.Spec
 
     local_intro_query: Optional[str]
     global_intro_query: Optional[str]
+
+    @functools.cached_property
+    def state_serializer_factory(self) -> sertypes.StateSerializerFactory:
+        # TODO: This factory will probably need to become per-db once
+        # config spec differs between databases. See also #5836.
+        return sertypes.StateSerializerFactory(
+            self.std_schema, self.config_spec
+        )
 
 
 class Compiler:
@@ -389,9 +402,10 @@ class Compiler:
         self.state = state
 
     @staticmethod
-    def try_compile_rollback(
-        eql: Union[edgeql.Source, bytes], protocol_version: tuple[int, int]
-    ):
+    def _try_compile_rollback(eql: Union[edgeql.Source, bytes]) -> tuple[
+        dbstate.QueryUnitGroup, int
+    ]:
+        source: Union[str, edgeql.Source]
         if isinstance(eql, edgeql.Source):
             source = eql
         else:
@@ -413,16 +427,11 @@ class Compiler:
             unit = dbstate.QueryUnit(
                 status=b'ROLLBACK TO SAVEPOINT',
                 sql=(sql,),
-                tx_savepoint_rollback=stmt.name,
+                tx_savepoint_rollback=True,
                 sp_name=stmt.name,
                 cacheable=False)
 
         if unit is not None:
-            if protocol_version < (0, 12):
-                if unit.in_type_id == sertypes.NULL_TYPE_ID.bytes:
-                    unit.in_type_id = sertypes.EMPTY_TUPLE_ID.bytes
-                    unit.in_type_data = sertypes.EMPTY_TUPLE_DESC
-
             rv = dbstate.QueryUnitGroup()
             rv.append(unit)
             return rv, len(statements) - 1
@@ -435,13 +444,18 @@ class Compiler:
         self,
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema,
-        reflection_cache: Mapping[str, Tuple[str, ...]],
-        database_config: Mapping[str, config.SettingValue],
-        system_config: Mapping[str, config.SettingValue],
+        reflection_cache: immutables.Map[str, Tuple[str, ...]],
+        database_config: immutables.Map[str, config.SettingValue],
+        system_config: immutables.Map[str, config.SettingValue],
         queries: List[str],
-        protocol_version: Tuple[int, int],
+        protocol_version: defines.ProtocolVersion,
         implicit_limit: int = 0,
-    ) -> List[dbstate.QueryUnit]:
+    ) -> List[
+        Tuple[
+            bool,
+            Union[dbstate.QueryUnit, Tuple[str, str, Dict[int, str]]]
+        ]
+    ]:
 
         state = dbstate.CompilerConnectionState(
             user_schema=user_schema,
@@ -458,7 +472,7 @@ class Compiler:
         result: List[
             Tuple[
                 bool,
-                Union[dbstate.QueryUnit, Tuple[str, str, Dict[str, str]]]
+                Union[dbstate.QueryUnit, Tuple[str, str, Dict[int, str]]]
             ]
         ] = []
 
@@ -499,11 +513,12 @@ class Compiler:
         self,
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema,
-        reflection_cache: Mapping[str, Tuple[str, ...]],
-        database_config: Mapping[str, config.SettingValue],
-        system_config: Mapping[str, config.SettingValue],
+        reflection_cache: immutables.Map[str, Tuple[str, ...]],
+        database_config: immutables.Map[str, config.SettingValue],
+        system_config: immutables.Map[str, config.SettingValue],
         query_str: str,
         tx_state: dbstate.SQLTransactionState,
+        prepared_stmt_map: Mapping[str, str],
         current_database: str,
         current_user: str,
     ) -> List[dbstate.SQLQueryUnit]:
@@ -533,6 +548,40 @@ class Compiler:
                 if isinstance(arg, pgast.StringConstant)
             ]
 
+        def translate_query(stmt: pgast.Base) -> pg_codegen.SQLSource:
+            args = {}
+            try:
+                search_path = tx_state.get("search_path")
+            except KeyError:
+                search_path = None
+            if isinstance(search_path, str):
+                args['search_path'] = parse_search_path(search_path)
+            options = pg_resolver.Options(
+                current_user=current_user,
+                current_database=current_database,
+                current_query=query_str,
+                **args
+            )
+            resolved = pg_resolver.resolve(stmt, schema, options)
+            return pg_codegen.generate(
+                resolved, with_translation_data=True
+            )
+
+        def compute_stmt_name(text: str) -> str:
+            stmt_hash = hashlib.sha1(text.encode("utf-8"))
+            for setting_name in sorted(fe_settings_mutable):
+                try:
+                    setting_value = tx_state.get(setting_name)
+                except KeyError:
+                    pass
+                else:
+                    stmt_hash.update(
+                        f"{setting_name}:{setting_value}".encode("utf-8"))
+            return f"edb{stmt_hash.hexdigest()}"
+
+        pg_gen_source = functools.partial(
+            pg_codegen.generate_source, pretty=False)
+
         # frontend-only settings (key) and their mutability (value)
         fe_settings_mutable = {
             'search_path': True,
@@ -542,13 +591,28 @@ class Compiler:
         stmts = pg_parser.parse(query_str)
         sql_units = []
         for stmt in stmts:
+            orig_text = pg_gen_source(stmt)
+
+            if debug.flags.sql_input:
+                debug.header('SQL Input')
+                debug.dump_code(
+                    pg_codegen.generate_source(stmt, pretty=True), lexer='sql'
+                )
+
+            unit_ctor = functools.partial(
+                dbstate.SQLQueryUnit,
+                orig_query=orig_text,
+                fe_settings=tx_state.current_fe_settings(),
+            )
+
             if isinstance(stmt, pgast.VariableSetStmt):
                 # GOTCHA: setting is frontend-only regardless of its mutability
                 fe_only = stmt.name in fe_settings_mutable
 
                 args = {
-                    "query": pg_codegen.generate_source(stmt),
+                    "query": orig_text,
                     "frontend_only": fe_only,
+                    "command_tag": b"SET",
                     "is_local": stmt.scope == pgast.OptionsScope.TRANSACTION,
                 }
                 if fe_only:
@@ -557,7 +621,7 @@ class Compiler:
                             f'parameter "{stmt.name}" cannot be changed',
                             pgext_code='55P02',  # cant_change_runtime_param
                         )
-                    value = pg_codegen.generate_source(stmt.args, pretty=False)
+                    value = pg_codegen.generate_source(stmt.args)
                     args["set_vars"] = {stmt.name: value}
                 elif stmt.scope == pgast.OptionsScope.SESSION:
                     if len(stmt.args.args) == 1 and isinstance(
@@ -566,79 +630,77 @@ class Compiler:
                         # this value is unquoted for restoring state in pgcon
                         value = stmt.args.args[0].val
                     else:
-                        value = pg_codegen.generate_source(stmt.args)
+                        value = pg_gen_source(stmt.args)
                     args["set_vars"] = {stmt.name: value}
-                unit = dbstate.SQLQueryUnit(**args)
+                unit = unit_ctor(**args)
             elif isinstance(stmt, pgast.VariableResetStmt):
                 fe_only = stmt.name in fe_settings_mutable
-                if fe_only and not fe_settings_mutable[stmt.name]:
+                if (
+                    fe_only and stmt.name
+                    and not fe_settings_mutable[stmt.name]
+                ):
                     raise errors.QueryError(
                         f'parameter "{stmt.name}" cannot be changed',
                         pgext_code='55P02',  # cant_change_runtime_param
                     )
                 args = {
-                    "query": pg_codegen.generate_source(stmt),
+                    "query": orig_text,
                     "frontend_only": fe_only,
+                    "command_tag": b"RESET",
                     "is_local": stmt.scope == pgast.OptionsScope.TRANSACTION,
                 }
                 if fe_only or stmt.scope == pgast.OptionsScope.SESSION:
                     args["set_vars"] = {stmt.name: None}
-                unit = dbstate.SQLQueryUnit(**args)
+                unit = unit_ctor(**args)
             elif isinstance(stmt, pgast.VariableShowStmt):
-                source = pg_codegen.generate_source(stmt)
-                unit = dbstate.SQLQueryUnit(
-                    query=source,
+                unit = unit_ctor(
+                    query=orig_text,
                     get_var=stmt.name,
                     frontend_only=stmt.name in fe_settings_mutable,
+                    command_tag=b"SHOW",
                 )
             elif isinstance(stmt, pgast.SetTransactionStmt):
-                args = {"query": pg_codegen.generate_source(stmt)}
+                args = {"query": orig_text}
                 if stmt.scope == pgast.OptionsScope.SESSION:
                     args["set_vars"] = {
                         f"default_{name}": value.val
                         if isinstance(value, pgast.StringConstant)
-                        else pg_codegen.generate_source(value)
+                        else pg_gen_source(value)
                         for name, value in stmt.options.options.items()
                     }
-                unit = dbstate.SQLQueryUnit(**args)
+                unit = unit_ctor(**args)
             elif isinstance(stmt, (pgast.BeginStmt, pgast.StartStmt)):
-                source = pg_codegen.generate_source(stmt)
-                unit = dbstate.SQLQueryUnit(
-                    query=source,
+                unit = unit_ctor(
+                    query=orig_text,
                     tx_action=dbstate.TxAction.START,
                 )
             elif isinstance(stmt, pgast.CommitStmt):
-                source = pg_codegen.generate_source(stmt)
-                unit = dbstate.SQLQueryUnit(
-                    query=source,
+                unit = unit_ctor(
+                    query=orig_text,
                     tx_action=dbstate.TxAction.COMMIT,
                     tx_chain=stmt.chain or False,
                 )
             elif isinstance(stmt, pgast.RollbackStmt):
-                source = pg_codegen.generate_source(stmt)
-                unit = dbstate.SQLQueryUnit(
-                    query=source,
+                unit = unit_ctor(
+                    query=orig_text,
                     tx_action=dbstate.TxAction.ROLLBACK,
                     tx_chain=stmt.chain or False,
                 )
             elif isinstance(stmt, pgast.SavepointStmt):
-                source = pg_codegen.generate_source(stmt)
-                unit = dbstate.SQLQueryUnit(
-                    query=source,
+                unit = unit_ctor(
+                    query=orig_text,
                     tx_action=dbstate.TxAction.DECLARE_SAVEPOINT,
                     sp_name=stmt.savepoint_name,
                 )
             elif isinstance(stmt, pgast.ReleaseStmt):
-                source = pg_codegen.generate_source(stmt)
-                unit = dbstate.SQLQueryUnit(
-                    query=source,
+                unit = unit_ctor(
+                    query=orig_text,
                     tx_action=dbstate.TxAction.RELEASE_SAVEPOINT,
                     sp_name=stmt.savepoint_name,
                 )
             elif isinstance(stmt, pgast.RollbackToStmt):
-                source = pg_codegen.generate_source(stmt)
-                unit = dbstate.SQLQueryUnit(
-                    query=source,
+                unit = unit_ctor(
+                    query=orig_text,
                     tx_action=dbstate.TxAction.ROLLBACK_TO_SAVEPOINT,
                     sp_name=stmt.savepoint_name,
                 )
@@ -647,66 +709,122 @@ class Compiler:
                     "two-phase transactions are not supported"
                 )
             elif isinstance(stmt, pgast.PrepareStmt):
-                raise NotImplementedError
+                # Translate the underlying query.
+                stmt_source = translate_query(stmt.query)
+                if stmt.argtypes:
+                    param_types = []
+                    for pt in stmt.argtypes:
+                        param_types.append(pg_gen_source(pt))
+                    param_text = f"({', '.join(param_types)})"
+                else:
+                    param_text = ""
+
+                sql_trailer = f"{param_text} AS ({stmt_source.text})"
+
+                mangled_stmt_name = compute_stmt_name(
+                    f"PREPARE {pg_common.quote_ident(stmt.name)}{sql_trailer}"
+                )
+
+                sql_text = (
+                    f"PREPARE {pg_common.quote_ident(mangled_stmt_name)}"
+                    f"{sql_trailer}"
+                )
+
+                unit = unit_ctor(
+                    query=sql_text,
+                    prepare=dbstate.PrepareData(
+                        stmt_name=stmt.name,
+                        be_stmt_name=mangled_stmt_name.encode("utf-8"),
+                        query=stmt_source.text,
+                        translation_data=stmt_source.translation_data,
+                    ),
+                    command_tag=b"PREPARE",
+                )
             elif isinstance(stmt, pgast.ExecuteStmt):
-                raise NotImplementedError
+                orig_name = stmt.name
+                mangled_name = prepared_stmt_map.get(orig_name)
+                if not mangled_name:
+                    raise errors.QueryError(
+                        f"prepared statement \"{orig_name}\" does "
+                        f"not exist",
+                        pgext_code='26000',  # invalid_sql_statement_name
+                    )
+                stmt.name = mangled_name
+
+                unit = unit_ctor(
+                    query=pg_gen_source(stmt),
+                    execute=dbstate.ExecuteData(
+                        stmt_name=orig_name,
+                        be_stmt_name=mangled_name.encode("utf-8"),
+                    ),
+                )
+            elif isinstance(stmt, pgast.DeallocateStmt):
+                orig_name = stmt.name
+                mangled_name = prepared_stmt_map.get(orig_name)
+                if not mangled_name:
+                    raise errors.QueryError(
+                        f"prepared statement \"{orig_name}\" does "
+                        f"not exist",
+                        pgext_code='26000',  # invalid_sql_statement_name
+                    )
+                stmt.name = mangled_name
+                unit = unit_ctor(
+                    query=pg_gen_source(stmt),
+                    deallocate=dbstate.DeallocateData(
+                        stmt_name=orig_name,
+                        be_stmt_name=mangled_name.encode("utf-8"),
+                    ),
+                    command_tag=b"DEALLOCATE",
+                )
             elif isinstance(stmt, pgast.LockStmt):
                 if stmt.mode not in ('ACCESS SHARE', 'ROW SHARE', 'SHARE'):
                     raise NotImplementedError(
                         "exclusive lock is not supported"
                     )
                 # just ignore
-                unit = dbstate.SQLQueryUnit(query="DO $$ BEGIN END $$;")
+                unit = unit_ctor(query="DO $$ BEGIN END $$;")
             else:
-                args = {}
-                try:
-                    search_path = tx_state.get("search_path")
-                except KeyError:
-                    pass
-                else:
-                    args['search_path'] = parse_search_path(search_path)
-                options = pg_resolver.Options(
-                    current_user=current_user,
-                    current_database=current_database,
-                    current_query=query_str,
-                    **args
+                source = translate_query(stmt)
+                unit = unit_ctor(
+                    query=source.text,
+                    translation_data=source.translation_data,
                 )
-                resolved = pg_resolver.resolve(stmt, schema, options)
-                source, tl_data = (
-                    pg_codegen.generate_source_with_translation_data(
-                        resolved
-                    ))
 
-                unit = dbstate.SQLQueryUnit(
-                    query=source,
-                    translation_data=tl_data)
+            if debug.flags.sql_output:
+                debug.header('SQL Output')
+                debug.dump_code(unit.query, lexer='sql')
+
+            unit.stmt_name = compute_stmt_name(unit.query).encode("utf-8")
 
             tx_state.apply(unit)
-            unit.stmt_name = b"s" + hashlib.sha1(
-                unit.query.encode("utf-8")).hexdigest().encode("latin1")
             sql_units.append(unit)
+
         if not sql_units:
             # Cluvio will try to execute an empty query
-            sql_units.append(dbstate.SQLQueryUnit(query=""))
+            sql_units.append(dbstate.SQLQueryUnit(
+                orig_query='',
+                query='',
+                fe_settings=tx_state.current_fe_settings()
+            ))
+
         return sql_units
 
     def compile(
         self,
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema,
-        reflection_cache: Mapping[str, Tuple[str, ...]],
-        database_config: Optional[Mapping[str, config.SettingValue]],
-        system_config: Optional[Mapping[str, config.SettingValue]],
+        reflection_cache: immutables.Map[str, Tuple[str, ...]],
+        database_config: Optional[immutables.Map[str, config.SettingValue]],
+        system_config: Optional[immutables.Map[str, config.SettingValue]],
         source: edgeql.Source,
-        sess_modaliases: Optional[immutables.Map],
-        sess_config: Optional[immutables.Map],
+        sess_modaliases: Optional[immutables.Map[Optional[str], str]],
+        sess_config: Optional[immutables.Map[str, config.SettingValue]],
         output_format: enums.OutputFormat,
         expect_one: bool,
         implicit_limit: int,
         inline_typeids: bool,
         inline_typenames: bool,
-        skip_first: bool,
-        protocol_version: Tuple[int, int],
+        protocol_version: defines.ProtocolVersion,
         inline_objectids: bool = True,
         json_parameters: bool = False,
     ) -> Tuple[dbstate.QueryUnitGroup,
@@ -723,9 +841,6 @@ class Compiler:
 
         if sess_modaliases is None:
             sess_modaliases = DEFAULT_MODULE_ALIASES_MAP
-
-        assert isinstance(sess_modaliases, immutables.Map)
-        assert isinstance(sess_config, immutables.Map)
 
         state = dbstate.CompilerConnectionState(
             user_schema=user_schema,
@@ -746,7 +861,6 @@ class Compiler:
             inline_typeids=inline_typeids,
             inline_typenames=inline_typenames,
             inline_objectids=inline_objectids,
-            skip_first=skip_first,
             json_parameters=json_parameters,
             source=source,
             protocol_version=protocol_version,
@@ -774,8 +888,7 @@ class Compiler:
         implicit_limit: int,
         inline_typeids: bool,
         inline_typenames: bool,
-        skip_first: bool,
-        protocol_version: Tuple[int, int],
+        protocol_version: defines.ProtocolVersion,
         inline_objectids: bool = True,
         json_parameters: bool = False,
         expect_rollback: bool = False,
@@ -787,9 +900,7 @@ class Compiler:
         ):
             # This is a special case when COMMIT MIGRATION fails, the compiler
             # doesn't have the right transaction state, so we just roll back.
-            return (
-                self.try_compile_rollback(source, protocol_version)[0], state
-            )
+            return self._try_compile_rollback(source)[0], state
         else:
             state.sync_tx(txid)
 
@@ -802,7 +913,6 @@ class Compiler:
             inline_typeids=inline_typeids,
             inline_typenames=inline_typenames,
             inline_objectids=inline_objectids,
-            skip_first=skip_first,
             source=source,
             protocol_version=protocol_version,
             json_parameters=json_parameters,
@@ -811,25 +921,138 @@ class Compiler:
 
         return compile(ctx=ctx, source=source), ctx.state
 
+    def interpret_backend_error(
+        self,
+        user_schema: bytes,
+        global_schema: bytes,
+        error_fields: dict[str, str],
+        from_graphql: bool,
+    ) -> errors.EdgeDBError:
+        from . import errormech
+
+        schema = s_schema.ChainedSchema(
+            self.state.std_schema,
+            pickle.loads(user_schema),
+            pickle.loads(global_schema),
+        )
+        rv: errors.EdgeDBError = errormech.interpret_backend_error(
+            schema, error_fields, from_graphql=from_graphql
+        )
+        return rv
+
+    def parse_json_schema(
+        self,
+        schema_json: bytes,
+        base_schema: s_schema.Schema | None,
+    ) -> s_schema.Schema:
+        if base_schema is None:
+            base_schema = self.state.std_schema
+        else:
+            base_schema = s_schema.ChainedSchema(
+                self.state.std_schema,
+                s_schema.EMPTY_SCHEMA,
+                base_schema,
+            )
+
+        return s_refl.parse_into(
+            base_schema=base_schema,
+            schema=s_schema.EMPTY_SCHEMA,
+            data=schema_json,
+            schema_class_layout=self.state.schema_class_layout,
+        )
+
+    def parse_db_config(
+        self, db_config_json: bytes, user_schema: s_schema.Schema
+    ) -> immutables.Map[str, config.SettingValue]:
+        spec = config.ChainedSpec(
+            self.state.config_spec,
+            config.load_ext_spec_from_schema(
+                user_schema,
+                self.state.std_schema,
+            ),
+        )
+        return config.from_json(spec, db_config_json)
+
+    def parse_global_schema(self, global_schema_json: bytes) -> bytes:
+        global_schema = self.parse_json_schema(global_schema_json, None)
+        return pickle.dumps(global_schema, -1)
+
+    def parse_user_schema_db_config(
+        self,
+        user_schema_json: bytes,
+        db_config_json: bytes,
+        global_schema_pickle: bytes,
+    ) -> dbstate.ParsedDatabase:
+        global_schema = pickle.loads(global_schema_pickle)
+        user_schema = self.parse_json_schema(user_schema_json, global_schema)
+        db_config = self.parse_db_config(db_config_json, user_schema)
+        ext_config_settings = config.load_ext_settings_from_schema(
+            s_schema.ChainedSchema(
+                self.state.std_schema,
+                user_schema,
+                s_schema.EMPTY_SCHEMA,
+            )
+        )
+        state_serializer = self.state.state_serializer_factory.make(
+            user_schema,
+            global_schema,
+            defines.CURRENT_PROTOCOL,
+        )
+        return dbstate.ParsedDatabase(
+            user_schema_pickle=pickle.dumps(user_schema, -1),
+            database_config=db_config,
+            ext_config_settings=ext_config_settings,
+            protocol_version=defines.CURRENT_PROTOCOL,
+            state_serializer=state_serializer,
+        )
+
+    def make_state_serializer(
+        self,
+        protocol_version: defines.ProtocolVersion,
+        user_schema_pickle: bytes,
+        global_schema_pickle: bytes,
+    ) -> sertypes.StateSerializer:
+        user_schema = pickle.loads(user_schema_pickle)
+        global_schema = pickle.loads(global_schema_pickle)
+        return self.state.state_serializer_factory.make(
+            user_schema,
+            global_schema,
+            protocol_version,
+        )
+
     def describe_database_dump(
         self,
-        user_schema: s_schema.Schema,
-        global_schema: s_schema.Schema,
-        database_config: immutables.Map[str, config.SettingValue],
-        protocol_version: Tuple[int, int],
+        user_schema_json: bytes,
+        global_schema_json: bytes,
+        db_config_json: bytes,
+        protocol_version: defines.ProtocolVersion,
+        with_secrets: bool,
     ) -> DumpDescriptor:
+        global_schema = self.parse_json_schema(global_schema_json, None)
+        user_schema = self.parse_json_schema(user_schema_json, global_schema)
+        database_config = self.parse_db_config(db_config_json, user_schema)
         schema = s_schema.ChainedSchema(
             self.state.std_schema,
             user_schema,
             global_schema
         )
 
-        config_ddl = config.to_edgeql(config.get_settings(), database_config)
+        sys_config_ddl = config.to_edgeql(
+            self.state.config_spec, database_config, with_secrets=with_secrets,
+        )
+        # We need to put extension DDL configs *after* we have
+        # reloaded the schema
+        user_config_ddl = config.to_edgeql(
+            config.load_ext_spec_from_schema(
+                user_schema, self.state.std_schema),
+            database_config,
+            with_secrets=with_secrets,
+        )
 
         schema_ddl = s_ddl.ddl_text_from_schema(
             schema, include_migrations=True)
 
-        all_objects = schema.get_objects(
+        all_objects: Iterable[s_obj.Object] = schema.get_objects(
             exclude_stdlib=True,
             exclude_global=True,
         )
@@ -856,8 +1079,11 @@ class Compiler:
         )
         descriptors = []
 
+        cfg_object = schema.get('cfg::ConfigObject', type=s_objtypes.ObjectType)
         for objtype in objtypes:
             if objtype.is_union_type(schema) or objtype.is_view(schema):
+                continue
+            if objtype.issubclass(schema, cfg_object):
                 continue
             descriptors.extend(_describe_object(schema, objtype,
                                                 protocol_version))
@@ -873,7 +1099,7 @@ class Compiler:
             )
 
         return DumpDescriptor(
-            schema_ddl=config_ddl + '\n' + schema_ddl,
+            schema_ddl='\n'.join([sys_config_ddl, schema_ddl, user_config_ddl]),
             schema_dynamic_ddl=tuple(dynamic_ddl),
             schema_ids=ids,
             blocks=descriptors,
@@ -881,14 +1107,14 @@ class Compiler:
 
     def describe_database_restore(
         self,
-        user_schema: s_schema.Schema,
-        global_schema: s_schema.Schema,
-        dump_server_ver_str: Optional[str],
+        user_schema_pickle: bytes,
+        global_schema_pickle: bytes,
+        dump_server_ver_str: str,
         dump_catalog_version: Optional[int],
         schema_ddl: bytes,
         schema_ids: List[Tuple[str, str, bytes]],
         blocks: List[Tuple[bytes, bytes]],  # type_id, typespec
-        protocol_version: Tuple[int, int],
+        protocol_version: defines.ProtocolVersion,
     ) -> RestoreDescriptor:
         schema_object_ids = {
             (
@@ -898,36 +1124,15 @@ class Compiler:
             for name, qltype, objid in schema_ids
         }
 
-        # dump_server_ver_str can be None in dumps generated by early
-        # EdgeDB alphas, so we call that 0.0.
-        if dump_server_ver_str is not None:
-            dump_server_ver = verutils.parse_version(dump_server_ver_str)
-        else:
-            dump_server_ver = verutils.Version(
-                0, 0, verutils.VersionState.DEV, 0, ())
+        dump_server_ver = verutils.parse_version(dump_server_ver_str)
 
         # catalog_version didn't exist until late in the 3.0 cycle,
         # but we can just treat that as being version 0
         dump_catalog_version = dump_catalog_version or 0
 
-        if (
-            (dump_server_ver.major, dump_server_ver.minor) == (1, 0)
-            and dump_server_ver.stage is verutils.VersionStage.DEV
-        ):
-            # Pre-1.0 releases post RC3 have DEV in their stage,
-            # but for compatibility comparisons below we need to revert
-            # to the pre-1.0-rc3 layout
-            dump_server_ver = dump_server_ver._replace(
-                stage=verutils.VersionStage.RC,
-                stage_no=3,
-                local=(
-                    ('dev', dump_server_ver.stage_no) + dump_server_ver.local
-                ),
-            )
-
         state = dbstate.CompilerConnectionState(
-            user_schema=user_schema,
-            global_schema=global_schema,
+            user_schema=pickle.loads(user_schema_pickle),
+            global_schema=pickle.loads(global_schema_pickle),
             modaliases=DEFAULT_MODULE_ALIASES_MAP,
             session_config=EMPTY_MAP,
             database_config=EMPTY_MAP,
@@ -975,7 +1180,11 @@ class Compiler:
             )
 
         ddl_source = edgeql.Source.from_string(schema_ddl_text)
+
+        # The state serializer generated below is somehow inappropriate,
+        # so it's simply ignored here and the I/O process will do it on its own
         units = compile(ctx=ctx, source=ddl_source).units
+
         schema = ctx.state.current_tx().get_schema(
             ctx.compiler_state.std_schema)
 
@@ -995,12 +1204,12 @@ class Compiler:
 
         restore_blocks = []
         tables = []
-        for schema_object_id, typedesc in blocks:
-            schema_object_id = uuidgen.from_bytes(schema_object_id)
+        for schema_object_id_bytes, typedesc in blocks:
+            schema_object_id = uuidgen.from_bytes(schema_object_id_bytes)
             obj = schema.get_by_id(schema_object_id)
             desc = sertypes.parse(typedesc, protocol_version)
             elided_col_set = set()
-            mending_desc = []
+            mending_desc: list[Optional[DataMendingDescriptor]] = []
 
             if isinstance(obj, s_props.Property):
                 assert isinstance(desc, sertypes.NamedTupleDesc)
@@ -1146,7 +1355,7 @@ def compile_schema_storage_in_delta(
     delta: s_delta.Command,
     block: pg_dbops.SQLBlock,
     context: Optional[s_delta.CommandContext] = None,
-):
+) -> None:
 
     current_tx = ctx.state.current_tx()
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
@@ -1163,7 +1372,7 @@ def compile_schema_storage_in_delta(
         context.renames.clear()
         context.early_renames.clear()
 
-    s_refl.write_meta(
+    s_refl.generate_metadata_write_edgeql(
         delta,
         classlayout=ctx.compiler_state.schema_class_layout,
         schema=schema,
@@ -1196,7 +1405,7 @@ def compile_schema_storage_in_delta(
                 # We drop first instead of using or_replace, in case
                 # something about the arguments changed.
                 df = pg_dbops.DropFunction(
-                    name=func.name, args=func.args, if_exists=True
+                    name=func.name, args=func.args or (), if_exists=True
                 )
                 df.generate(block)
 
@@ -1219,7 +1428,7 @@ def compile_schema_storage_in_delta(
 def _compile_schema_storage_stmt(
     ctx: CompileContext,
     eql: str,
-) -> Tuple[str, Dict[str, int]]:
+) -> tuple[str, Sequence[dbstate.Param]]:
 
     schema = ctx.state.current_tx().get_schema(ctx.compiler_state.std_schema)
 
@@ -1231,7 +1440,7 @@ def _compile_schema_storage_stmt(
             s_schema.ChainedSchema(
                 ctx.compiler_state.std_schema,
                 ctx.compiler_state.refl_schema,
-                s_schema.FlatSchema()
+                s_schema.EMPTY_SCHEMA
             )
         )
 
@@ -1266,7 +1475,7 @@ def _compile_schema_storage_stmt(
             )
 
         sql = sql_stmts[0].strip(b';').decode()
-        argmap = unit_group[0].in_type_args
+        argmap: Optional[Sequence[dbstate.Param]] = unit_group[0].in_type_args
         if argmap is None:
             argmap = ()
 
@@ -1303,11 +1512,6 @@ def _get_compile_options(
     can_have_implicit_fields = (
         ctx.output_format is enums.OutputFormat.BINARY)
 
-    disable_constant_folding = _get_config_val(
-        ctx,
-        '__internal_no_const_folding',
-    )
-
     return qlcompiler.CompilerOptions(
         modaliases=ctx.state.current_tx().get_modaliases(),
         implicit_tid_in_shapes=(
@@ -1319,7 +1523,6 @@ def _get_compile_options(
         implicit_id_in_shapes=(
             can_have_implicit_fields and ctx.inline_objectids
         ),
-        constant_folding=not disable_constant_folding,
         json_parameters=ctx.json_parameters,
         implicit_limit=ctx.implicit_limit,
         bootstrap_mode=ctx.bootstrap_mode,
@@ -1357,11 +1560,11 @@ def _compile_ql_explain(
 ) -> dbstate.BaseQuery:
     args = {k: v for k, (_, v) in EXPLAIN_PARAMS.items()}
 
+    current_tx = ctx.state.current_tx()
+    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
+
     # Evaluate and typecheck arguments
     if ql.args:
-        current_tx = ctx.state.current_tx()
-        schema = current_tx.get_schema(ctx.compiler_state.std_schema)
-
         for el in ql.args.elements:
             name = el.name.name
             if name not in EXPLAIN_PARAMS:
@@ -1376,7 +1579,7 @@ def _compile_ql_explain(
                     modaliases=current_tx.get_modaliases(),
                 ),
             )
-            exp_typ = schema.get(EXPLAIN_PARAMS[name][0])
+            exp_typ = schema.get(EXPLAIN_PARAMS[name][0], type=s_types.Type)
             if not arg_ir.stype.issubclass(schema, exp_typ):
                 raise errors.QueryError(
                     f"incorrect type for ANALYZE argument '{name}': "
@@ -1406,9 +1609,19 @@ def _compile_ql_explain(
     query = _compile_ql_query(
         ctx, ql.query, script_info=script_info,
         explain_data=explain_data, cacheable=False)
-    assert len(query.sql) == 1
+    if isinstance(query, dbstate.NullQuery):
+        raise errors.QueryError(
+            f"cannot ANALYZE inside of a migration",
+            context=ql.context,
+        )
 
-    out_type_data, out_type_id = sertypes.describe_str()
+    assert len(query.sql) == 1, query.sql
+
+    out_type_data, out_type_id = sertypes.describe(
+        schema,
+        schema.get("std::str", type=s_types.Type),
+        protocol_version=ctx.protocol_version,
+    )
 
     sql_bytes = exp_command.encode('utf-8') + query.sql[0]
     sql_hash = _hash_sql(
@@ -1449,8 +1662,10 @@ def _compile_ql_administer(
             )
 
         return dbstate.MaintenanceQuery(sql=(b'ANALYZE',))
-    elif ql.expr.func == 'repair_schema':
+    elif ql.expr.func == 'schema_repair':
         return ddl.administer_repair_schema(ctx, ql)
+    elif ql.expr.func == 'reindex':
+        return ddl.administer_reindex(ctx, ql)
     else:
         raise errors.QueryError(
             'Unknown ADMINISTER function',
@@ -1460,13 +1675,13 @@ def _compile_ql_administer(
 
 def _compile_ql_query(
     ctx: CompileContext,
-    ql: qlast.Base,
+    ql: qlast.Query | qlast.Command,
     *,
     script_info: Optional[irast.ScriptInfo] = None,
     cacheable: bool = True,
     migration_block_query: bool = False,
     explain_data: object = None,
-) -> dbstate.BaseQuery:
+) -> dbstate.Query | dbstate.NullQuery:
 
     is_explain = explain_data is not None
     current_tx = ctx.state.current_tx()
@@ -1482,18 +1697,17 @@ def _compile_ql_query(
 
     result_cardinality = enums.cardinality_from_ir_value(ir.cardinality)
 
-    qtree, sql_text, argmap = pg_compiler.compile_ir_to_tree_and_sql(
+    sql_res = pg_compiler.compile_ir_to_sql_tree(
         ir,
-        pretty=(
-            debug.flags.edgeql_compile
-            or debug.flags.edgeql_compile_sql_text
-            or debug.flags.delta_execute
-        ),
         expected_cardinality_one=ctx.expected_cardinality_one,
         output_format=_convert_format(ctx.output_format),
         backend_runtime_params=ctx.backend_runtime_params,
         expand_inhviews=options.expand_inhviews,
     )
+
+    sql_text = pg_codegen.generate_source(sql_res.ast)
+
+    pg_debug.dump_ast_and_query(sql_res.ast, ir)
 
     if (
         (mstate := current_tx.get_migration_state())
@@ -1508,14 +1722,6 @@ def _compile_ql_query(
 
     sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
 
-    in_type_args = None
-    params: list[tuple[str, s_obj.Object, bool]] = []
-    has_named_params = False
-    if ir.params:
-        params, in_type_args = _extract_params(
-            ir.params, argmap=argmap, script_info=script_info,
-            schema=ir.schema, ctx=ctx)
-
     globals = None
     if ir.globals:
         globals = [
@@ -1523,6 +1729,7 @@ def _compile_ql_query(
             for glob in ir.globals
         ]
 
+    out_type_id: uuid.UUID
     if ctx.output_format is enums.OutputFormat.NONE:
         out_type_id = sertypes.NULL_TYPE_ID
         out_type_data = sertypes.NULL_TYPE_DESC
@@ -1534,35 +1741,15 @@ def _compile_ql_query(
             inline_typenames=ctx.inline_typenames,
             protocol_version=ctx.protocol_version)
     else:
-        out_type_data, out_type_id = sertypes.describe_str()
-
-    if ctx.protocol_version >= (0, 12):
-        in_type_data, in_type_id = sertypes.describe_params(
-            schema=ir.schema,
-            params=params,
+        out_type_data, out_type_id = sertypes.describe(
+            ir.schema,
+            ir.schema.get("std::str", type=s_types.Type),
             protocol_version=ctx.protocol_version,
         )
-    else:
-        # Legacy protocol support - for restoring pre-0.12 dumps
-        if params:
-            pschema, params_type = s_types.Tuple.create(
-                ir.schema,
-                element_types=collections.OrderedDict(
-                    # keep only param_name/param_type
-                    [param[:2] for param in params]
-                ),
-                named=has_named_params)
-        else:
-            pschema, params_type = s_types.Tuple.create(
-                ir.schema,
-                element_types={},
-                named=has_named_params)
 
-        in_type_data, in_type_id = sertypes.describe(
-            pschema,
-            params_type,
-            protocol_version=ctx.protocol_version,
-        )
+    in_type_args, in_type_data, in_type_id = describe_params(
+        ctx, ir, sql_res.argmap, script_info
+    )
 
     sql_hash = _hash_sql(
         sql_bytes,
@@ -1576,9 +1763,9 @@ def _compile_ql_query(
             ir.schema = s_schema.ChainedSchema(
                 top_schema=ir.schema._top_schema,
                 global_schema=ir.schema._global_schema,
-                base_schema=s_schema.FlatSchema(),
+                base_schema=s_schema.EMPTY_SCHEMA,
             )
-        query_asts = pickle.dumps((ql, ir, qtree, explain_data))
+        query_asts = pickle.dumps((ql, ir, sql_res.ast, explain_data))
     else:
         query_asts = None
 
@@ -1593,9 +1780,35 @@ def _compile_ql_query(
         out_type_id=out_type_id.bytes,
         out_type_data=out_type_data,
         cacheable=cacheable,
-        has_dml=ir.dml_exprs,
+        has_dml=bool(ir.dml_exprs),
         query_asts=query_asts,
     )
+
+
+def describe_params(
+    ctx: CompileContext,
+    ir: irast.Statement | irast.ConfigCommand,
+    argmap: Dict[str, pgast.Param],
+    script_info: Optional[irast.ScriptInfo],
+) -> Tuple[Optional[list[dbstate.Param]], bytes, uuid.UUID]:
+    in_type_args = None
+    params: list[tuple[str, s_types.Type, bool]] = []
+    assert ir.schema
+    if ir.params:
+        params, in_type_args = _extract_params(
+            ir.params,
+            argmap=argmap,
+            script_info=script_info,
+            schema=ir.schema,
+            ctx=ctx,
+        )
+
+    in_type_data, in_type_id = sertypes.describe_params(
+        schema=ir.schema,
+        params=params,
+        protocol_version=ctx.protocol_version,
+    )
+    return in_type_args, in_type_data, in_type_id
 
 
 def _compile_ql_transaction(
@@ -1624,13 +1837,13 @@ def _compile_ql_transaction(
 
         ctx.state.start_tx()
 
-        sql = 'START TRANSACTION'
+        sqls = 'START TRANSACTION'
         if ql.access is not None:
-            sql += f' {ql.access.value}'
+            sqls += f' {ql.access.value}'
         if ql.deferrable is not None:
-            sql += f' {ql.deferrable.value}'
-        sql += ';'
-        sql = (sql.encode(),)
+            sqls += f' {ql.deferrable.value}'
+        sqls += ';'
+        sql = (sqls.encode(),)
 
         action = dbstate.TxAction.START
         cacheable = False
@@ -1643,7 +1856,7 @@ def _compile_ql_transaction(
         final_cached_reflection = cur_tx.get_cached_reflection_if_updated()
         final_global_schema = cur_tx.get_global_schema_if_updated()
 
-        new_state: dbstate.TransactionState = ctx.state.commit_tx()
+        new_state = ctx.state.commit_tx()
         modaliases = new_state.modaliases
 
         sql = (b'COMMIT',)
@@ -1652,7 +1865,7 @@ def _compile_ql_transaction(
         action = dbstate.TxAction.COMMIT
 
     elif isinstance(ql, qlast.RollbackTransaction):
-        new_state: dbstate.TransactionState = ctx.state.rollback_tx()
+        new_state = ctx.state.rollback_tx()
         modaliases = new_state.modaliases
 
         sql = (b'ROLLBACK',)
@@ -1680,8 +1893,7 @@ def _compile_ql_transaction(
 
     elif isinstance(ql, qlast.RollbackToSavepoint):
         tx = ctx.state.current_tx()
-        new_state: dbstate.TransactionState = tx.rollback_to_savepoint(
-            ql.name)
+        new_state = tx.rollback_to_savepoint(ql.name)
         modaliases = new_state.modaliases
 
         pgname = pg_common.quote_ident(ql.name)
@@ -1708,7 +1920,9 @@ def _compile_ql_transaction(
     )
 
 
-def _compile_ql_sess_state(ctx: CompileContext, ql: qlast.SessionCommand):
+def _compile_ql_sess_state(
+    ctx: CompileContext, ql: qlast.SessionCommand
+) -> dbstate.SessionStateQuery:
     current_tx = ctx.state.current_tx()
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
 
@@ -1744,7 +1958,110 @@ def _compile_ql_sess_state(ctx: CompileContext, ql: qlast.SessionCommand):
     )
 
 
-def _compile_ql_config_op(ctx: CompileContext, ql: qlast.Base):
+def _get_config_spec(
+    ctx: CompileContext, config_op: config.Operation
+) -> config.Spec:
+    config_spec = ctx.compiler_state.config_spec
+    if config_op.setting_name not in config_spec:
+        # We don't typically bother tracking the user config spec in
+        # the compiler workers (to avoid needing to bother with
+        # transmitting, caching, or computing it). If we hit a config
+        # op that needs it, load the spec.
+        config_spec = config.ChainedSpec(
+            config_spec,
+            config.load_ext_spec_from_schema(
+                ctx.state.current_tx().get_user_schema(),
+                ctx.compiler_state.std_schema,
+            ),
+        )
+    return config_spec
+
+
+def _inject_config_cache_clear(sql_ast: pgast.Base) -> pgast.Base:
+    """Inject a call to clear the config cache into a config op.
+
+    The trickiness here is that we can't just do the delete in a
+    statement before the config op, since RESET config ops query the
+    views and so might populate the cache, and we can't do it in a
+    statement directly after (unless we rework the server), since then
+    the query won't return anything.
+
+    So we instead fiddle around with the query to inject a call.
+    """
+    assert isinstance(sql_ast, pgast.Query)
+    ctes = sql_ast.ctes or []
+    sql_ast.ctes = None
+
+    ctes.append(pgast.CommonTableExpr(
+        name="_conv_rel",
+        query=sql_ast,
+    ))
+    clear_qry = pgast.SelectStmt(
+        target_list=[
+            pgast.ResTarget(
+                name="_dummy",
+                val=pgast.FuncCall(
+                    name=('edgedb', '_clear_sys_config_cache'),
+                    args=[],
+                ),
+            ),
+        ],
+    )
+    ctes.append(pgast.CommonTableExpr(
+        name="_clear_cache",
+        query=clear_qry,
+        materialized=True,
+    ))
+    force_qry = pgast.UpdateStmt(
+        targets=[pgast.UpdateTarget(
+            name='flag', val=pgast.BooleanConstant(val=True)
+        )],
+        relation=pgast.RelRangeVar(relation=pgast.Relation(
+            schemaname='edgedb', name='_dml_dummy')),
+        where_clause=pgast.Expr(
+            name="=",
+            lexpr=pgast.ColumnRef(name=["id"]),
+            rexpr=pgast.SelectStmt(
+                from_clause=[pgast.RelRangeVar(relation=ctes[-1])],
+                target_list=[
+                    pgast.ResTarget(
+                        val=pgast.FuncCall(
+                            name=('count',), args=[pgast.Star()]),
+                    )
+                ],
+            ),
+        )
+    )
+
+    if (
+        not isinstance(sql_ast, pgast.DMLQuery)
+        or sql_ast.returning_list
+    ):
+        ctes.append(pgast.CommonTableExpr(
+            name="_force_clear",
+            query=force_qry,
+            materialized=True,
+        ))
+        sql_ast = pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(val=pgast.ColumnRef(
+                    name=["_conv_rel", pgast.Star()])),
+            ],
+            ctes=ctes,
+            from_clause=[
+                pgast.RelRangeVar(relation=ctes[-3]),
+            ],
+        )
+    else:
+        sql_ast = force_qry
+        force_qry.ctes = ctes
+
+    return sql_ast
+
+
+def _compile_ql_config_op(
+    ctx: CompileContext, ql: qlast.ConfigOp
+) -> dbstate.SessionStateQuery:
 
     current_tx = ctx.state.current_tx()
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
@@ -1779,37 +2096,67 @@ def _compile_ql_config_op(ctx: CompileContext, ql: qlast.Base):
             for glob in ir.globals
         ]
 
-    is_backend_setting = bool(getattr(ir, 'backend_setting', None))
-    requires_restart = bool(getattr(ir, 'requires_restart', False))
-    is_system_config = bool(getattr(ir, 'is_system_config', False))
+    if isinstance(ir, irast.Statement):
+        cfg_ir = ir.expr.expr
+    else:
+        cfg_ir = ir
 
-    sql_text, _ = pg_compiler.compile_ir_to_sql(
+    is_backend_setting = bool(getattr(cfg_ir, 'backend_setting', None))
+    requires_restart = bool(getattr(cfg_ir, 'requires_restart', False))
+    is_system_config = bool(getattr(cfg_ir, 'is_system_config', False))
+
+    sql_res = pg_compiler.compile_ir_to_sql_tree(
         ir,
-        pretty=(debug.flags.edgeql_compile
-                or debug.flags.edgeql_compile_sql_text),
         backend_runtime_params=ctx.backend_runtime_params,
     )
 
-    sql = (sql_text.encode(),)
+    sql_ast = sql_res.ast
+    if not ctx.bootstrap_mode and ql.scope in (
+        qltypes.ConfigScope.DATABASE,
+        qltypes.ConfigScope.SESSION,
+    ):
+        sql_ast = _inject_config_cache_clear(sql_ast)
+
+    pretty = bool(
+        debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_text)
+    sql_text = pg_codegen.generate_source(
+        sql_ast,
+        pretty=pretty,
+    )
+    if pretty:
+        debug.dump_code(sql_text, lexer='sql')
+
+    sql: tuple[bytes, ...] = (
+        sql_text.encode(),
+    )
+
+    in_type_args, in_type_data, in_type_id = describe_params(
+        ctx, ir, sql_res.argmap, None
+    )
 
     single_unit = False
     if ql.scope is qltypes.ConfigScope.SESSION:
         config_op = ireval.evaluate_to_config_op(ir, schema=schema)
 
         session_config = config_op.apply(
-            config.get_settings(),
+            _get_config_spec(ctx, config_op),
             session_config,
         )
         current_tx.update_session_config(session_config)
 
     elif ql.scope is qltypes.ConfigScope.DATABASE:
-        config_op = ireval.evaluate_to_config_op(ir, schema=schema)
-
-        database_config = config_op.apply(
-            config.get_settings(),
-            database_config,
-        )
-        current_tx.update_database_config(database_config)
+        try:
+            config_op = ireval.evaluate_to_config_op(ir, schema=schema)
+        except ireval.UnsupportedExpressionError:
+            # This is a complex config object operation, the
+            # op will be produced by the compiler as json.
+            config_op = None
+        else:
+            database_config = config_op.apply(
+                _get_config_spec(ctx, config_op),
+                database_config,
+            )
+            current_tx.update_database_config(database_config)
 
     elif ql.scope in (
             qltypes.ConfigScope.INSTANCE, qltypes.ConfigScope.GLOBAL):
@@ -1833,6 +2180,9 @@ def _compile_ql_config_op(ctx: CompileContext, ql: qlast.Base):
         single_unit=single_unit,
         config_op=config_op,
         globals=globals,
+        in_type_args=in_type_args,
+        in_type_data=in_type_data,
+        in_type_id=in_type_id.bytes,
     )
 
 
@@ -1858,7 +2208,7 @@ def _compile_dispatch_ql(
         else:  # DESCRIBE CURRENT MIGRATION
             return query, enums.Capability(0)
 
-    elif isinstance(ql, (qlast.DatabaseCommand, qlast.DDL)):
+    elif isinstance(ql, qlast.DDLCommand):
         return (
             ddl.compile_and_apply_ddl_stmt(ctx, ql, source=source),
             enums.Capability.DDL,
@@ -1870,7 +2220,7 @@ def _compile_dispatch_ql(
             enums.Capability.TRANSACTION,
         )
 
-    elif isinstance(ql, qlast.SessionCommand):
+    elif isinstance(ql, qlast.SessionCommand_tuple):
         return (
             _compile_ql_sess_state(ctx, ql),
             enums.Capability.SESSION_CONFIG,
@@ -1912,6 +2262,7 @@ def _compile_dispatch_ql(
         return (query, caps)
 
     else:
+        assert isinstance(ql, (qlast.Query, qlast.Command))
         query = _compile_ql_query(ctx, ql, script_info=script_info)
         caps = enums.Capability(0)
         if (
@@ -1967,15 +2318,6 @@ def _try_compile(
     statements = edgeql.parse_block(source)
     statements_len = len(statements)
 
-    if ctx.skip_first:
-        statements = statements[1:]
-        if not statements:  # pragma: no cover
-            # Shouldn't ever happen as the server tracks the number
-            # of statements (via the "try_compile_rollback()" method)
-            # before using skip_first.
-            raise errors.ProtocolError(
-                f'no statements to compile in skip_first mode')
-
     if not len(statements):  # pragma: no cover
         raise errors.ProtocolError('nothing to compile')
 
@@ -1999,6 +2341,8 @@ def _try_compile(
         )
         non_trailing_ctx = dataclasses.replace(
             ctx, output_format=enums.OutputFormat.NONE)
+
+    final_user_schema: Optional[s_schema.Schema] = None
 
     for i, stmt in enumerate(statements):
         is_trailing_stmt = i == statements_len - 1
@@ -2037,7 +2381,7 @@ def _try_compile(
                     context=stmt.context,
                 )
 
-            if not comp.single_unit:
+            if not getattr(comp, 'single_unit', None):
                 raise errors.InternalServerError(
                     'non-transactional compilation units must '
                     'be single-unit'
@@ -2078,28 +2422,42 @@ def _try_compile(
             unit.create_db = comp.create_db
             unit.drop_db = comp.drop_db
             unit.create_db_template = comp.create_db_template
-            unit.create_ext = comp.create_ext
-            unit.drop_ext = comp.drop_ext
-            unit.has_role_ddl = comp.has_role_ddl
             unit.ddl_stmt_id = comp.ddl_stmt_id
             if comp.user_schema is not None:
+                final_user_schema = comp.user_schema
                 unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                unit.extensions, unit.ext_config_settings = (
+                    _extract_extensions(ctx, comp.user_schema)
+                )
             if comp.cached_reflection is not None:
                 unit.cached_reflection = \
                     pickle.dumps(comp.cached_reflection, -1)
             if comp.global_schema is not None:
                 unit.global_schema = pickle.dumps(comp.global_schema, -1)
+                unit.roles = _extract_roles(comp.global_schema)
 
             unit.config_ops.extend(comp.config_ops)
 
         elif isinstance(comp, dbstate.TxControlQuery):
+            if is_script:
+                raise errors.QueryError(
+                    "Explicit transaction control commands cannot be executed "
+                    "in an implicit transaction block"
+                )
             unit.sql = comp.sql
             unit.cacheable = comp.cacheable
             if comp.user_schema is not None:
+                final_user_schema = comp.user_schema
                 unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                unit.extensions, unit.ext_config_settings = (
+                    _extract_extensions(ctx, comp.user_schema)
+                )
             if comp.cached_reflection is not None:
                 unit.cached_reflection = \
                     pickle.dumps(comp.cached_reflection, -1)
+            if comp.global_schema is not None:
+                unit.global_schema = pickle.dumps(comp.global_schema, -1)
+                unit.roles = _extract_roles(comp.global_schema)
 
             if comp.modaliases is not None:
                 unit.modaliases = comp.modaliases
@@ -2125,7 +2483,11 @@ def _try_compile(
             unit.sql = comp.sql
             unit.cacheable = comp.cacheable
             if comp.user_schema is not None:
+                final_user_schema = comp.user_schema
                 unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                unit.extensions, unit.ext_config_settings = (
+                    _extract_extensions(ctx, comp.user_schema)
+                )
             if comp.cached_reflection is not None:
                 unit.cached_reflection = \
                     pickle.dumps(comp.cached_reflection, -1)
@@ -2159,10 +2521,11 @@ def _try_compile(
 
                 unit.system_config = True
             elif comp.config_scope is qltypes.ConfigScope.GLOBAL:
-                unit.set_global = True
+                unit.needs_readback = True
 
             elif comp.config_scope is qltypes.ConfigScope.DATABASE:
                 unit.database_config = True
+                unit.needs_readback = True
 
             if comp.is_backend_setting:
                 unit.backend_config = True
@@ -2175,6 +2538,13 @@ def _try_compile(
 
             if comp.config_op is not None:
                 unit.config_ops.append(comp.config_op)
+
+            if comp.in_type_args:
+                unit.in_type_args = comp.in_type_args
+            if comp.in_type_data:
+                unit.in_type_data = comp.in_type_data
+            if comp.in_type_id:
+                unit.in_type_id = comp.in_type_id
 
             unit.has_set = True
 
@@ -2212,24 +2582,24 @@ def _try_compile(
             argmap=None, script_info=None, schema=script_info.schema,
             ctx=ctx)
 
-        if ctx.protocol_version >= (0, 12):
-            in_type_data, in_type_id = sertypes.describe_params(
-                schema=script_info.schema,
-                params=params,
-                protocol_version=ctx.protocol_version,
-            )
-            rv.in_type_id = in_type_id.bytes
-            rv.in_type_args = in_type_args
-            rv.in_type_data = in_type_data
+        in_type_data, in_type_id = sertypes.describe_params(
+            schema=script_info.schema,
+            params=params,
+            protocol_version=ctx.protocol_version,
+        )
+        rv.in_type_id = in_type_id.bytes
+        rv.in_type_args = in_type_args
+        rv.in_type_data = in_type_data
 
+    if final_user_schema is not None:
+        rv.state_serializer = ctx.compiler_state.state_serializer_factory.make(
+            final_user_schema,
+            ctx.state.current_tx().get_global_schema(),
+            ctx.protocol_version,
+        )
+
+    # Sanity checks
     for unit in rv:  # pragma: no cover
-        if ctx.protocol_version < (0, 12):
-            if unit.in_type_id == sertypes.NULL_TYPE_ID.bytes:
-                unit.in_type_id = sertypes.EMPTY_TUPLE_ID.bytes
-                unit.in_type_data = sertypes.EMPTY_TUPLE_DESC
-
-        # Sanity checks
-
         na_cardinality = (
             unit.cardinality is enums.Cardinality.NO_RESULT
         )
@@ -2273,7 +2643,7 @@ def _extract_params(
     argmap: Optional[Dict[str, pgast.Param]],
     script_info: Optional[irast.ScriptInfo],
     ctx: CompileContext,
-) -> Tuple[List[tuple], List[dbstate.Param]]:
+) -> Tuple[List[tuple[str, s_types.Type, bool]], List[dbstate.Param]]:
     first_param = next(iter(params)) if params else None
     has_named_params = first_param and not first_param.name.isdecimal()
 
@@ -2295,8 +2665,9 @@ def _extract_params(
     else:
         outer_mapping = None
 
-    oparams = [None] * user_params
-    in_type_args = [None] * user_params
+    oparams: list[Optional[tuple[str, s_obj.Object, bool]]] = (
+        [None] * user_params)
+    in_type_args: list[Optional[dbstate.Param]] = [None] * user_params
     for idx, param in enumerate(params):
         if param.is_sub_param:
             continue
@@ -2312,7 +2683,7 @@ def _extract_params(
             schema_type = param.schema_type
 
         array_tid = None
-        if schema_type.is_array():
+        if isinstance(schema_type, s_types.Array):
             el_type = schema_type.get_element_type(schema)
             array_tid = el_type.id
 
@@ -2334,9 +2705,9 @@ def _extract_params(
 
         if param.sub_params:
             assert not ctx.json_parameters
-            array_tids = []
+            array_tids: list[Optional[uuid.UUID]] = []
             for p in param.sub_params.params:
-                if p.schema_type.is_array():
+                if isinstance(p.schema_type, s_types.Array):
                     el_type = p.schema_type.get_element_type(schema)
                     array_tids.append(el_type.id)
                 else:
@@ -2355,13 +2726,13 @@ def _extract_params(
             sub_params=sub_params,
         )
 
-    return oparams, in_type_args
+    return oparams, in_type_args  # type: ignore[return-value]
 
 
 def _describe_object(
     schema: s_schema.Schema,
     source: s_obj.Object,
-    protocol_version: Tuple[int, int],
+    protocol_version: defines.ProtocolVersion,
 ) -> List[DumpBlockDescriptor]:
 
     cols = []
@@ -2372,8 +2743,8 @@ def _describe_object(
         schema, prop_tuple = s_types.Tuple.from_subtypes(
             schema,
             {
-                'source': schema.get('std::uuid'),
-                'target': source.get_target(schema),
+                'source': schema.get('std::uuid', type=s_types.Type),
+                'target': not_none(source.get_target(schema)),
             },
             {'named': True},
         )
@@ -2406,7 +2777,8 @@ def _describe_object(
 
             cols.append(stor_info.column_name)
 
-            props[ptr.get_shortname(schema).name] = ptr.get_target(schema)
+            props[ptr.get_shortname(schema).name] = not_none(
+                ptr.get_target(schema))
 
         schema, link_tuple = s_types.Tuple.from_subtypes(
             schema,
@@ -2422,6 +2794,7 @@ def _describe_object(
         )
 
     else:
+        assert isinstance(source, s_objtypes.ObjectType)
         for ptr in source.get_pointers(schema).objects(schema):
             if not ptr.is_dumpable(schema):
                 continue
@@ -2467,7 +2840,7 @@ def _describe_object(
 
     return [DumpBlockDescriptor(
         schema_object_id=source.id,
-        schema_object_class=type(source).get_ql_class(),
+        schema_object_class=type(source).get_ql_class_or_die(),
         schema_deps=tuple(p.schema_object_id for p in ptrdesc),
         type_desc_id=type_id,
         type_desc=type_data,
@@ -2564,7 +2937,7 @@ def _check_force_database_error(
             hint=err.get('hint'),
             details=err.get('details'),
             filename=filename,
-            position=position,
+            position=position,  # type: ignore
         )
     except Exception:
         raise errors.ConfigurationError(
@@ -2590,11 +2963,13 @@ def _get_config_val(
         current_tx.get_session_config(),
         current_tx.get_database_config(),
         current_tx.get_system_config(),
+        spec=ctx.compiler_state.config_spec,
         allow_unrecognized=True,
     )
 
 
 def _get_compilation_config_vals(ctx: CompileContext) -> Any:
+    assert ctx.compiler_state.config_spec is not None
     return {
         k: _get_config_val(ctx, k)
         for k in ctx.compiler_state.config_spec
@@ -2617,7 +2992,7 @@ def _convert_format(inp: enums.OutputFormat) -> pg_compiler.OutputFormat:
         raise RuntimeError(f"Output format {inp!r} is not supported")
 
 
-def _hash_sql(sql: bytes, **kwargs: bytes):
+def _hash_sql(sql: bytes, **kwargs: bytes) -> bytes:
     h = hashlib.sha1(sql)
     for param, val in kwargs.items():
         h.update(param.encode('latin1'))
@@ -2625,10 +3000,42 @@ def _hash_sql(sql: bytes, **kwargs: bytes):
     return h.hexdigest().encode('latin1')
 
 
+def _extract_extensions(
+    ctx: CompileContext, user_schema: s_schema.Schema
+) -> tuple[set[str], list[config.Setting]]:
+    # XXX: Do we need to return None if extensions/config_spec didn't change?
+    names = {
+        ext.get_name(user_schema).name
+        for ext in user_schema.get_objects(type=s_ext.Extension)
+    }
+    if names:
+        schema = s_schema.ChainedSchema(
+            ctx.compiler_state.std_schema, user_schema, s_schema.EMPTY_SCHEMA
+        )
+        settings = config.load_ext_settings_from_schema(schema)
+    else:
+        settings = []
+    return names, settings
+
+
+def _extract_roles(
+    global_schema: s_schema.Schema
+) -> immutables.Map[str, immutables.Map[str, Any]]:
+    roles = {}
+    for role in global_schema.get_objects(type=s_role.Role):
+        role_name = str(role.get_name(global_schema))
+        roles[role_name] = immutables.Map(
+            name=role_name,
+            superuser=role.get_superuser(global_schema),
+            password=role.get_password(global_schema),
+        )
+    return immutables.Map(roles)
+
+
 class DumpDescriptor(NamedTuple):
 
     schema_ddl: str
-    schema_dynamic_ddl: Tuple[str]
+    schema_dynamic_ddl: Tuple[str, ...]
     schema_ids: List[Tuple[str, str, bytes]]
     blocks: Sequence[DumpBlockDescriptor]
 

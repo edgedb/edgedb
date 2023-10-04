@@ -78,6 +78,10 @@ def is_ql_empty_set(expr: qlast.Expr) -> bool:
     return isinstance(expr, qlast.Set) and len(expr.elements) == 0
 
 
+def is_ql_empty_array(expr: qlast.Expr) -> bool:
+    return isinstance(expr, qlast.Array) and len(expr.elements) == 0
+
+
 def is_ql_path(qlexpr: qlast.Expr) -> bool:
     if isinstance(qlexpr, qlast.Shape):
         if qlexpr.expr:

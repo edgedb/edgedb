@@ -83,6 +83,15 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
             '_irast': None,
         }
 
+    def __eq__(self, rhs: object) -> bool:
+        if not isinstance(rhs, Expression):
+            return NotImplemented
+        return (
+            self.text == rhs.text
+            and self.refs == rhs.refs
+            and self.origin == rhs.origin
+        )
+
     @property
     def qlast(self) -> qlast_.Expr:
         if self._qlast is None:
@@ -176,9 +185,11 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         *,
         options: Optional[qlcompiler.CompilerOptions] = None,
         as_fragment: bool = False,
+        detached: bool = False,
     ) -> CompiledExpression:
 
         from edb.ir import ast as irast_
+        from edb.edgeql import ast as qlast
 
         if as_fragment:
             ir: irast_.Command = qlcompiler.compile_ast_fragment_to_ir(
@@ -187,8 +198,15 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
                 options=options,
             )
         else:
+            ql_expr = self.qlast
+            if detached:
+                ql_expr = qlast.DetachedExpr(
+                    expr=ql_expr,
+                    preserve_path_prefix=True,
+                )
+
             ir = qlcompiler.compile_ast_to_ir(
-                self.qlast,
+                ql_expr,
                 schema=schema,
                 options=options,
             )

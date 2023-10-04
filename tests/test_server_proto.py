@@ -109,11 +109,11 @@ class TestServerProto(tb.QueryTestCase):
                 await self.con.query('select syntax error')
 
             with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
-                                        'Unexpected end of line'):
+                                        r"Missing '\)'"):
                 await self.con.query('select (')
 
             with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
-                                        'Unexpected end of line'):
+                                        r"Missing '\)'"):
                 await self.con.query_json('select (')
 
             for _ in range(10):
@@ -2293,19 +2293,13 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                         )
 
                         self.assertEqual(status, http.HTTPStatus.OK)
-                        self.assertEqual(
+                        self.assert_data_shape(
                             response,
                             {
                                 'kind': 'results',
                                 'results': [
                                     {
                                         'kind': 'data',
-                                        'data': [
-                                            'AAAAAAAAAAAAAAAAAAABBQ==',
-                                            'AgAAAAAAAAAAAAAAAAAAAQU=',
-                                            'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
-                                            'U0VMRUNU'
-                                        ]
                                     },
                                 ],
                             },
@@ -2324,19 +2318,13 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                         )
 
                         self.assertEqual(status, http.HTTPStatus.OK)
-                        self.assertEqual(
+                        self.assert_data_shape(
                             response,
                             {
                                 'kind': 'results',
                                 'results': [
                                     {
                                         'kind': 'data',
-                                        'data': [
-                                            'AAAAAAAAAAAAAAAAAAABBQ==',
-                                            'AgAAAAAAAAAAAAAAAAAAAQU=',
-                                            'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
-                                            'U0VMRUNU'
-                                        ]
                                     },
                                 ],
                             },

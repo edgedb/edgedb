@@ -67,6 +67,10 @@ class InfCtx(NamedTuple):
     singletons: FrozenSet[irast.PathId]
     distinct_iterator: Optional[irast.PathId]
     ignore_computed_cards: bool
+    # Whether to make updates to the cardinality fields in the IR/schema.
+    # This is used in cases where we need to do a "hypothetical"
+    # inference, but don't want to affect real state.
+    make_updates: bool
 
 
 def make_ctx(env: context.Environment) -> InfCtx:
@@ -77,4 +81,5 @@ def make_ctx(env: context.Environment) -> InfCtx:
         singletons=frozenset(env.singletons),
         distinct_iterator=None,
         ignore_computed_cards=False,
+        make_updates=True,
     )

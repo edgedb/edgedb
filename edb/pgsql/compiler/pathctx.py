@@ -135,13 +135,6 @@ def get_path_var(
         rel = rel.query
 
     if flavor == 'normal':
-        # Check if we already have a var, before remapping the path_id.
-        # This is useful for serialized aspect disambiguation in tuples,
-        # since process_set_as_tuple() records serialized vars with
-        # original path_id.
-        if (path_id, aspect) in rel.path_namespace:
-            return rel.path_namespace[path_id, aspect]
-
         if rel.view_path_id_map:
             path_id = map_path_id(path_id, rel.view_path_id_map)
 
@@ -1018,7 +1011,7 @@ def _get_rel_path_output(
             ptrref = actual_ptrref
 
     ptr_info = None
-    if ptrref:
+    if ptrref and not isinstance(ptrref, irast.TypeIntersectionPointerRef):
         ptr_info = pg_types.get_ptrref_storage_info(
             ptrref, resolve_type=False, link_bias=False)
 
@@ -1176,7 +1169,7 @@ def _get_path_output(
         # The VALUES() construct seems to always expose its
         # value as "column1".
         alias = 'column1'
-        ref = pgast.ColumnRef(name=[alias])
+        ref = pgast.ColumnRef(name=[alias], nullable=rel.nullable)
     else:
         ref = get_path_var(rel, path_id, aspect=aspect, flavor=flavor, env=env)
 
@@ -1191,24 +1184,16 @@ def _get_path_output(
     if isinstance(ref, pgast.TupleVarBase):
         elements = []
         for el in ref.elements:
-            el_path_id = reverse_map_path_id(
-                el.path_id, rel.view_path_id_map)
+            element = _get_path_output(
+                rel, el.path_id, aspect=aspect,
+                disable_output_fusion=disable_output_fusion,
+                flavor=flavor,
+                allow_nullable=allow_nullable, env=env)
 
-            try:
-                # Similarly to get_path_var(), check for outer path_id
-                # first for tuple serialized var disambiguation.
-                element = _get_path_output(
-                    rel, el_path_id, aspect=aspect,
-                    disable_output_fusion=disable_output_fusion,
-                    flavor=flavor,
-                    allow_nullable=allow_nullable, env=env)
-            except LookupError:
-                element = get_path_output(
-                    rel, el_path_id, aspect=aspect,
-                    disable_output_fusion=disable_output_fusion,
-                    flavor=flavor,
-                    allow_nullable=allow_nullable, env=env)
-
+            # We need to reverse the mapping for the element path in
+            # the output TupleVar, since it will be used *outside*
+            # this rel, and so without the map applied.
+            el_path_id = reverse_map_path_id(el.path_id, rel.view_path_id_map)
             elements.append(pgast.TupleElement(
                 path_id=el_path_id, val=element, name=element))
 

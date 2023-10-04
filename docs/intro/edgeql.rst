@@ -611,7 +611,7 @@ The ``delete`` statement can contain ``filter``, ``order by``, ``offset``, and
   .. code-tab:: edgeql
 
     delete Movie
-    filter .ilike "the avengers%"
+    filter .title ilike "the avengers%"
     limit 3;
 
   .. code-tab:: typescript
@@ -714,6 +714,25 @@ executing a query.
         query := "select <str>$0"
         err = client.Query(ctx, query, &result, param)
         // ...
+    }
+
+  .. code-tab:: rust
+
+    // [dependencies]
+    // edgedb-tokio = "0.5.0"
+    // tokio = { version = "1.28.1", features = ["macros", "rt-multi-thread"] }
+
+    #[tokio::main]
+    async fn main() {
+        let conn = edgedb_tokio::create_client()
+            .await
+            .expect("Client initiation");
+        let param = "Play it, Sam.";
+        let val = conn
+            .query_required_single::<String, _>("select <str>$0", &(param,))
+            .await
+            .expect("Returning value");
+        println!("{val}");
     }
 
 See :ref:`Docs > EdgeQL > Parameters <ref_eql_params>`.

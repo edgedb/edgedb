@@ -30,9 +30,12 @@ ERROR_INVALID_DATETIME_FORMAT = '22007'
 ERROR_DATETIME_FIELD_OVERFLOW = '22008'
 ERROR_DIVISION_BY_ZERO = '22012'
 ERROR_INTERVAL_FIELD_OVERFLOW = '22015'
+ERROR_CHARACTER_NOT_IN_REPERTOIRE = '22021'
 ERROR_INVALID_PARAMETER_VALUE = '22023'
 ERROR_INVALID_TEXT_REPRESENTATION = '22P02'
 ERROR_INVALID_REGULAR_EXPRESSION = '2201B'
+ERROR_INVALID_LOGARITHM_ARGUMENT = '2201E'
+ERROR_INVALID_POWER_ARGUMENT = '2201F'
 ERROR_INVALID_ROW_COUNT_IN_LIMIT_CLAUSE = '2201W'
 ERROR_INVALID_ROW_COUNT_IN_RESULT_OFFSET_CLAUSE = '2201X'
 
@@ -175,6 +178,13 @@ class ProtocolViolation(BackendError):
     def __init__(self, message="protocol violation", **kwargs):
         super().__init__(fields=_build_fields(
             ERROR_PROTOCOL_VIOLATION, message, **kwargs
+        ))
+
+
+class CannotConnectNowError(BackendError):
+    def __init__(self, message="cannot connect now", **kwargs):
+        super().__init__(fields=_build_fields(
+            ERROR_CANNOT_CONNECT_NOW, message, **kwargs
         ))
 
 

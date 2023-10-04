@@ -29,6 +29,8 @@ from edb import edgeql
 from edb.server import defines as edbdef
 from edb.server.protocol import execute
 
+from edb.schema import schema as s_schema
+
 from edb.common import debug
 from edb.common import markup
 
@@ -44,9 +46,9 @@ from edb.server.pgproto.pgproto cimport WriteBuffer
 async def handle_request(
     object request,
     object response,
-    object db,
+    dbview.Database db,
     list args,
-    object server,
+    object tenant,
 ):
     if args != []:
         response.body = b'Unknown path'
@@ -131,15 +133,12 @@ async def handle_request(
         if debug.flags.server:
             markup.dump(ex)
 
-        ex_type = type(ex)
-        if not issubclass(ex_type, errors.EdgeDBError):
-            # XXX Fix this when LSP "location" objects are implemented
-            ex_type = errors.InternalServerError
+        ex = await execute.interpret_error(ex, db)
 
         err_dct = {
             'message': str(ex),
-            'type': str(ex_type.__name__),
-            'code': ex_type.get_code(),
+            'type': str(type(ex).__name__),
+            'code': ex.get_code(),
         }
 
         response.body = json.dumps({'error': err_dct}).encode()

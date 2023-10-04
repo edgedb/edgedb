@@ -181,6 +181,9 @@ def __infer_type_introspection(
     elif irtyputils.is_range(ir.typeref):
         return cast(s_objtypes.ObjectType,
                     env.schema.get('schema::Range'))
+    elif irtyputils.is_multirange(ir.typeref):
+        return cast(s_objtypes.ObjectType,
+                    env.schema.get('schema::MultiRange'))
     else:
         raise errors.QueryError(
             'unexpected type in INTROSPECT', context=ir.context)
@@ -286,6 +289,14 @@ def __infer_anytupleref(
     env: context.Environment,
 ) -> s_types.Type:
     return s_pseudo.PseudoType.get(env.schema, 'anytuple')
+
+
+@_infer_type.register
+def __infer_anyobjectref(
+    ir: irast.AnyObjectRef,
+    env: context.Environment,
+) -> s_types.Type:
+    return s_pseudo.PseudoType.get(env.schema, 'anyobject')
 
 
 @_infer_type.register
@@ -549,6 +560,16 @@ def __infer_trigger_anchor(
 ) -> s_types.Type:
     env.schema, t = irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
     return t
+
+
+@_infer_type.register
+def __infer_fts_document(
+    ir: irast.FTSDocument,
+    env: context.Environment,
+) -> s_types.Type:
+    return env.schema.get(
+        s_name.QualName('fts', 'document'), type=s_scalars.ScalarType
+    )
 
 
 def infer_type(ir: irast.Base, env: context.Environment) -> s_types.Type:

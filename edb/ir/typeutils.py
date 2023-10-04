@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 from typing import *
+from typing import overload
 
 import uuid
 
@@ -88,6 +89,11 @@ def is_range(typeref: irast.TypeRef) -> bool:
     return typeref.collection == s_types.Range.get_schema_name()
 
 
+def is_multirange(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes a multirange type."""
+    return typeref.collection == s_types.MultiRange.get_schema_name()
+
+
 def is_any(typeref: irast.TypeRef) -> bool:
     """Return True if *typeref* describes the ``anytype`` generic type."""
     return isinstance(typeref, irast.AnyTypeRef)
@@ -98,12 +104,17 @@ def is_anytuple(typeref: irast.TypeRef) -> bool:
     return isinstance(typeref, irast.AnyTupleRef)
 
 
+def is_anyobject(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes the ``anyobject`` generic type."""
+    return isinstance(typeref, irast.AnyObjectRef)
+
+
 def is_generic(typeref: irast.TypeRef) -> bool:
     """Return True if *typeref* describes a generic type."""
     if is_collection(typeref):
         return any(is_generic(st) for st in typeref.subtypes)
     else:
-        return is_any(typeref) or is_anytuple(typeref)
+        return is_any(typeref) or is_anytuple(typeref) or is_anyobject(typeref)
 
 
 def is_abstract(typeref: irast.TypeRef) -> bool:
@@ -241,6 +252,12 @@ def type_to_typeref(
             name_hint=name_hint,
             orig_name_hint=orig_name_hint,
         )
+    elif t.is_anyobject(schema):
+        result = irast.AnyObjectRef(
+            id=t.id,
+            name_hint=name_hint,
+            orig_name_hint=orig_name_hint,
+        )
     elif t.is_any(schema):
         result = irast.AnyTypeRef(
             id=t.id,
@@ -326,7 +343,7 @@ def type_to_typeref(
         sql_type = None
         needs_custom_json_cast = False
         if isinstance(t, s_scalars.ScalarType):
-            sql_type = t.get_sql_type(schema)
+            sql_type = t.resolve_sql_type(schema)
             if material_typeref is None:
                 cast_name = s_casts.get_cast_fullname_from_names(
                     orig_name_hint or name_hint,
@@ -432,6 +449,9 @@ def ir_typeref_to_type(
     if is_anytuple(typeref):
         return schema, s_pseudo.PseudoType.get(schema, 'anytuple')
 
+    if is_anyobject(typeref):
+        return schema, s_pseudo.PseudoType.get(schema, 'anyobject')
+
     elif is_any(typeref):
         return schema, s_pseudo.PseudoType.get(schema, 'anytype')
 
@@ -477,7 +497,7 @@ def ptrref_from_ptrcls(
 
 
 @overload
-def ptrref_from_ptrcls(  # NoQA: F811
+def ptrref_from_ptrcls(
     *,
     schema: s_schema.Schema,
     ptrcls: s_pointers.PointerLike,
@@ -487,7 +507,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
     ...
 
 
-def ptrref_from_ptrcls(  # NoQA: F811
+def ptrref_from_ptrcls(
     *,
     schema: s_schema.Schema,
     ptrcls: s_pointers.PointerLike,
@@ -724,14 +744,14 @@ def ptrcls_from_ptrref(
 
 
 @overload
-def ptrcls_from_ptrref(  # NoQA: F811
+def ptrcls_from_ptrref(
     ptrref: irast.BasePointerRef, *,
     schema: s_schema.Schema,
 ) -> Tuple[s_schema.Schema, s_pointers.PointerLike]:
     ...
 
 
-def ptrcls_from_ptrref(  # NoQA: F811
+def ptrcls_from_ptrref(
     ptrref: irast.BasePointerRef, *,
     schema: s_schema.Schema,
 ) -> Tuple[s_schema.Schema, s_pointers.PointerLike]:
@@ -1021,6 +1041,20 @@ def replace_pathid_prefix(
             continue
         dir = part.rptr_dir()
         assert dir
+
+        if (
+            isinstance(ptrref, irast.TupleIndirectionPointerRef)
+            and result.target.collection == 'tuple'
+        ):
+            # For tuple indirections, we want to update the target
+            # type when we get mapped to a subtype.
+            idx = get_tuple_element_index(ptrref)
+            target = result.target
+            if target.id != target.subtypes[idx].id:
+                ptrref = ptrref.replace(
+                    out_source=target,
+                    out_target=target.subtypes[idx],
+                )
 
         if ptrref.source_ptr:
             result = result.ptr_path()

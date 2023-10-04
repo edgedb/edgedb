@@ -36,7 +36,6 @@ from typing import *
 
 import immutables as immu
 
-from edb.common import uuidgen
 from edb.common.typeutils import downcast, not_none
 
 from edb.edgeql import ast as qlast
@@ -122,6 +121,13 @@ def init_dml_stmt(
                 typerefs.extend(irtyputils.get_typeref_descendants(component))
 
         typerefs.extend(irtyputils.get_typeref_descendants(top_typeref))
+
+        # Only update/delete concrete types. (Except in the degenerate
+        # corner case where there are none, in which case keep using
+        # everything so as to avoid needing a more complex special case.)
+        concrete_typerefs = [t for t in typerefs if not t.is_abstract]
+        if concrete_typerefs:
+            typerefs = concrete_typerefs
 
     dml_map = {}
 
@@ -529,6 +535,7 @@ def compile_iterator_cte(
             parent=last_iterator)
 
     with ctx.newrel() as ictx:
+        ictx.scope_tree = ctx.scope_tree
         ictx.path_scope[iterator_set.path_id] = ictx.rel
 
         # Correlate with enclosing iterators
@@ -1478,12 +1485,7 @@ def compile_insert_else_body(
 
             # Set up a dummy path to represent all of the rows
             # that *aren't* being filtered out
-            dummy_pathid = irast.PathId.from_typeref(
-                typeref=irast.TypeRef(
-                    id=uuidgen.uuid1mc(),
-                    name_hint=sn.QualName(
-                        module='__derived__',
-                        name=ctx.env.aliases.get('dummy'))))
+            dummy_pathid = irast.PathId.new_dummy(ctx.env.aliases.get('dummy'))
             with ictx.subrel() as dctx:
                 dummy_q = dctx.rel
                 relctx.ensure_transient_identity_for_path(

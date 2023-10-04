@@ -18,6 +18,11 @@ Description
 ``edgedb instance restart`` is a terminal command for restarting an
 EdgeDB instance.
 
+.. note::
+
+    The ``edgedb instance restart`` command is not intended for use with
+    self-hosted instances.
+
 
 Options
 =======

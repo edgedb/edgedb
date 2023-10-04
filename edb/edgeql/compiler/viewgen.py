@@ -245,9 +245,7 @@ def _process_view(
 
     if view_rptr is not None and view_rptr.ptrcls is None:
         target_scls = stype if is_mutation else view_scls
-        derive_ptrcls(
-            view_rptr, target_scls=target_scls,
-            transparent=True, ctx=ctx)
+        derive_ptrcls(view_rptr, target_scls=target_scls, ctx=ctx)
 
     pointers: Dict[s_pointers.Pointer, EarlyShapePtr] = {}
 
@@ -476,9 +474,9 @@ def _process_view(
     # Produce the shape. The main thing here is that we need to fixup
     # all of the rptrs to properly point back at ir_set.
     for _, ptrcls, shape_op, ptr_set in shape_ptrs:
-        srcctx = None
+        psrcctx = None
         if ptrcls in ctx.env.pointer_specified_info:
-            _, _, srcctx = ctx.env.pointer_specified_info[ptrcls]
+            _, _, psrcctx = ctx.env.pointer_specified_info[ptrcls]
 
         if ptr_set:
             src_path_id = path_id
@@ -502,7 +500,7 @@ def _process_view(
             # already has a context, since for explain output that
             # seems nicer, but this is what we want for producing
             # actual error messages.
-            ptr_set.context = srcctx
+            ptr_set.context = psrcctx
 
             _setup_shape_source(ptr_set, ctx=ctx)
 
@@ -512,7 +510,7 @@ def _process_view(
                 ir_set,
                 ptrcls,
                 same_computable_scope=True,
-                srcctx=srcctx,
+                srcctx=psrcctx or srcctx,
                 ctx=ctx,
             )
 
@@ -640,6 +638,8 @@ def _expand_splat(
     for ptr in pointers.objects(ctx.env.schema):
         if not isinstance(ptr, s_props.Property):
             continue
+        if ptr.get_secret(ctx.env.schema):
+            continue
         sname = ptr.get_shortname(ctx.env.schema)
         if sname.name in skip_ptrs:
             continue
@@ -752,6 +752,15 @@ def _gen_pointers_from_defaults(
 
         with ctx.new() as scopectx:
             scopectx.active_defaults |= {stype}
+
+            # add __source__ to anchors
+            source_set = ir_set
+            scopectx.path_scope.attach_path(
+                source_set.path_id, context=None,
+                optional=False,
+            )
+            scopectx.iterator_path_ids |= {source_set.path_id}
+            scopectx.anchors['__source__'] = source_set
 
             pointer, ptr_set = _normalize_view_ptr_expr(
                 ir_set,
@@ -1495,10 +1504,19 @@ def _normalize_view_ptr_expr(
             )
 
             try:
+                is_linkprop_mutation = (
+                    is_linkprop
+                    and s_ctx.view_rptr is not None
+                    and s_ctx.view_rptr.exprtype.is_mutation()
+                )
+
                 ptrcls = setgen.resolve_ptr(
                     ptrsource,
                     ptrname,
-                    track_ref=False,
+                    track_ref=(
+                        False if not is_linkprop_mutation
+                        else shape_el_desc.ptr_ql
+                    ),
                     ctx=ctx,
                 )
 
@@ -1508,11 +1526,7 @@ def _normalize_view_ptr_expr(
                 # Check if we aren't inside of modifying statement
                 # for link property, otherwise this is a NEW
                 # computable pointer, it's fine.
-                if (
-                    s_ctx.view_rptr is not None
-                    and s_ctx.view_rptr.exprtype.is_mutation()
-                    and is_linkprop
-                ):
+                if is_linkprop_mutation:
                     raise
 
         qlexpr = astutils.ensure_ql_query(compexpr)
@@ -1589,11 +1603,11 @@ def _normalize_view_ptr_expr(
             # so that the alias delta machinery can pick them up.
             ctx.env.created_schema_objects.add(ptr_target)
 
-        anytype = ptr_target.find_any(ctx.env.schema)
-        if anytype is not None:
+        generic_type = ptr_target.find_generic(ctx.env.schema)
+        if generic_type is not None:
             raise errors.QueryError(
                 'expression returns value of indeterminate type',
-                context=ctx.env.type_origins.get(anytype),
+                context=ctx.env.type_origins.get(generic_type),
             )
 
         # Validate that the insert/update expression is
@@ -1672,6 +1686,18 @@ def _normalize_view_ptr_expr(
             context=compexpr and compexpr.context,
         )
 
+    if (
+        s_ctx.exprtype.is_mutation()
+        and ptrcls
+        and ptrcls.get_protected(ctx.env.schema)
+        and not from_default
+    ):
+        raise errors.QueryError(
+            f'cannot assign to {ptrcls.get_verbosename(ctx.env.schema)}: '
+            f'it is protected',
+            context=compexpr and compexpr.context,
+        )
+
     # Prohibit invalid operations on id
     id_access = (
         ptrcls
@@ -1685,13 +1711,16 @@ def _normalize_view_ptr_expr(
         (compexpr is not None or is_polymorphic)
         and id_access and not from_default and ptrcls
     ):
-        ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
+        vn = ptrcls.get_verbosename(ctx.env.schema)
         if is_polymorphic:
-            msg = (f'cannot access {ptrcls_sn.name} on a polymorphic '
+            msg = (f'cannot access {vn} on a polymorphic '
                    f'shape element')
         else:
-            msg = f'cannot assign to {ptrcls_sn.name}'
-        if not ctx.env.options.allow_user_specified_id:
+            msg = f'cannot assign to {vn}'
+        if (
+            not ctx.env.options.allow_user_specified_id
+            and s_ctx.exprtype.is_mutation()
+        ):
             hint = (
                 'consider enabling the "allow_user_specified_id" '
                 'configuration parameter to allow setting custom object ids'
@@ -1921,10 +1950,10 @@ def _normalize_view_ptr_expr(
 
 
 def derive_ptrcls(
-        view_rptr: context.ViewRPtr, *,
-        target_scls: s_types.Type,
-        transparent: bool=False,
-        ctx: context.ContextLevel) -> s_pointers.Pointer:
+    view_rptr: context.ViewRPtr, *,
+    target_scls: s_types.Type,
+    ctx: context.ContextLevel
+) -> s_pointers.Pointer:
 
     if view_rptr.ptrcls is None:
         if view_rptr.base_ptrcls is None:
@@ -2049,7 +2078,7 @@ def _inline_type_computable(
 
     ptr: Optional[s_pointers.Pointer]
     try:
-        ptr = setgen.resolve_ptr(stype, compname, track_ref=None, ctx=ctx)
+        ptr = setgen.resolve_ptr(stype, compname, track_ref=False, ctx=ctx)
         # The pointer might exist on the base type. That doesn't count,
         # and we need to re-inject it.
         if ptr not in ctx.env.source_map:
@@ -2092,7 +2121,7 @@ def _inline_type_computable(
             # we see through that.
             base_stype = stype.get_nearest_non_derived_parent(ctx.env.schema)
             base_ir_set = setgen.ensure_set(
-                ir_set, type_override=base_stype, ctx=ctx)
+                ir_set, type_override=base_stype, ctx=scopectx)
 
             scopectx.anchors[qlast.Source().name] = base_ir_set
             ptr, ptr_set = _normalize_view_ptr_expr(
@@ -2104,19 +2133,17 @@ def _inline_type_computable(
                 ctx=scopectx
             )
 
-        ctx.env.schema = ptr.set_field_value(
-            ctx.env.schema, 'cardinality', qltypes.SchemaCardinality.One)
+    # even if the pointer was not created here, or was already present in
+    # the shape, we set defined_here, so it is not inlined in `extend_path`.
+    ctx.env.schema = ptr.set_field_value(
+        ctx.env.schema, 'defined_here', True
+    )
 
     view_shape = ctx.env.view_shapes[stype]
     view_shape_ptrs = {p for p, _ in view_shape}
     if ptr not in view_shape_ptrs:
         if ptr not in ctx.env.pointer_specified_info:
             ctx.env.pointer_specified_info[ptr] = (None, None, None)
-
-        ctx.env.schema = ptr.set_field_value(
-            ctx.env.schema, 'defined_here', True
-        )
-
         view_shape.insert(0, (ptr, qlast.ShapeOp.ASSIGN))
         shape_ptrs.insert(
             0, ShapePtr(ir_set, ptr, qlast.ShapeOp.ASSIGN, ptr_set))

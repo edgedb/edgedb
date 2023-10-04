@@ -6,6 +6,16 @@ FastAPI
 
 :edb-alt-title: Building a REST API with EdgeDB and FastAPI
 
+.. warning::
+
+    FastAPI currently has some compatibility issues with Pydantic V2. As they
+    work to iron out those issues, you may need to fall back to older Pydantic
+    to run this example project.
+
+    .. code-block:: bash
+
+        $ pip install --force-reinstall -v "pydantic==1.10"
+
 Because FastAPI encourages and facilitates strong typing, it's a natural
 pairing with EdgeDB. Our Python code generation generates not only typed
 query functions but result types you can use to annotate your endpoint handler
@@ -23,15 +33,7 @@ endpoints.
 Watch our video tour of this example project to get a preview of what you'll be
 building in this guide:
 
-.. lint-off
-
-.. raw:: html
-
-    <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
-       <iframe src="https://www.youtube.com/embed/OZ_UURzDkow" frameborder="0" allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe>
-    </div>
-
-.. lint-on
+.. edb:youtube-embed:: OZ_UURzDkow
 
 Prerequisites
 =============
@@ -787,7 +789,7 @@ First, we need a query. Create a file ``app/queries/create_event.edgeql`` and
 drop this query into it:
 
 .. code-block:: edgeql
-   
+
     with name := <str>$name,
         address := <str>$address,
         schedule := <str>$schedule,
@@ -1137,7 +1139,7 @@ Browse the endpoints using the native OpenAPI doc
 FastAPI automatically generates OpenAPI schema from the API endpoints and uses
 those to build the API docs. While the ``uvicorn`` server is running, go to
 your browser and head over to
-`http://localhost:5001/docs <http://locahost:5001/docs>`_. You should see an
+`http://localhost:5001/docs <http://localhost:5001/docs>`_. You should see an
 API navigator like this:
 
 .. image::

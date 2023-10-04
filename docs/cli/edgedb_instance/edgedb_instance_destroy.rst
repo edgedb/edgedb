@@ -18,6 +18,11 @@ Description
 ``edgedb instance destroy`` is a terminal command for removing an EdgeDB
 instance and all its data.
 
+.. note::
+
+    The ``edgedb instance destroy`` command is not intended for use with
+    self-hosted instances.
+
 
 Options
 =======

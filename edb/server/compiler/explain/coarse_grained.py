@@ -46,7 +46,7 @@ class _Index:
         by_id = {}
         ancestors: list[fine_grained.Plan] = []
 
-        def index(node: fine_grained.Plan):
+        def index(node: fine_grained.Plan) -> None:
             pinfo = _PlanInfo(
                 plan=node,
                 ancestors=list(reversed(ancestors)),
@@ -71,10 +71,10 @@ class _PlanInfo:
     shape_mark: Optional[str] = None
 
     @property
-    def id(self):
+    def id(self) -> uuid.UUID:
         return self.plan.pipeline[-1].plan_id
 
-    def self_and_ancestors(self, index) -> Iterator[_PlanInfo]:
+    def self_and_ancestors(self, index: _Index) -> Iterator[_PlanInfo]:
         yield self
         for node in self.ancestors:
             yield index.by_id[id(node)]
@@ -136,8 +136,11 @@ def _build_shape(
     for name, pointer in shape.pointers.items():
         subpath = f"{path}.{name}"
 
-        if pointer.main_alias:
-            info = index.by_alias[pointer.main_alias]
+        if (
+            pointer.main_alias is not None and
+            (c_info := index.by_alias.get(pointer.main_alias)) is not None
+        ):
+            info = c_info
         else:
             for alias in pointer.aliases:
                 if c_info := index.by_alias.get(alias):

@@ -1,7 +1,5 @@
-use combine::{StreamOnce, Positioned};
-use combine::easy::Error;
-
 use crate::position::Pos;
+use crate::tokenizer::Tokenizer;
 use crate::tokenizer;
 
 
@@ -58,12 +56,12 @@ pub fn validate(text: &str) -> Result<(), SchemaFileError> {
     use SchemaFileError::*;
     use tokenizer::Kind::*;
 
-    let mut token_stream = tokenizer::TokenStream::new(text);
+    let mut token_stream = Tokenizer::new(text);
     let mut brackets = Vec::new();
     loop {
-        let pos = token_stream.position();
-        match token_stream.uncons() {
-            Ok(tok) =>  match tok.kind {
+        let pos = token_stream.current_pos();
+        match token_stream.next() {
+            Some(Ok(tok)) =>  match tok.kind {
                 OpenParen => brackets.push(('(', ')', pos)),
                 OpenBrace => brackets.push(('{', '}', pos)),
                 OpenBracket => brackets.push(('[', ']', pos)),
@@ -72,11 +70,11 @@ pub fn validate(text: &str) -> Result<(), SchemaFileError> {
                 CloseBracket => match_bracket('[', ']', pos, &mut brackets)?,
                 _ => {}
             }
-            Err(e) if e == Error::end_of_input() => break,
-            Err(e) => {
+            None => break,
+            Some(Err(e)) => {
                 return Err(TokenizerError {
-                    pos: token_stream.position(),
-                    error: e.to_string(),
+                    pos: token_stream.current_pos(),
+                    error: e.message,
                 });
             }
         }
@@ -139,7 +137,7 @@ mod test {
     fn test_str() {
         assert_eq!(check("create type X { \"} "),
             "1:17: tokenizer error: \
-                Unexpected unterminated string, quoted by `\"`");
+                unterminated string, quoted by `\"`");
     }
 }
 

@@ -57,7 +57,7 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest):
             'SELECT "AAAA"',
         ])
 
-        self.assertEqual(
+        self.assert_data_shape(
             results,
             {
                 'kind': 'results',
@@ -65,19 +65,19 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest):
                     {
                         'kind': 'data',
                         'data': [
-                            'AAAAAAAAAAAAAAAAAAABBQ==',
-                            'AgAAAAAAAAAAAAAAAAAAAQU=',
+                            str,
+                            str,
                             'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
-                            'U0VMRUNU'
+                            str,
                         ]
                     },
                     {
                         'kind': 'data',
                         'data': [
-                            'AAAAAAAAAAAAAAAAAAABAQ==',
-                            'AgAAAAAAAAAAAAAAAAAAAQE=',
+                            str,
+                            str,
                             'RAAAAA4AAQAAAARBQUFB',
-                            'U0VMRUNU'
+                            str,
                         ]
                     },
                 ]
@@ -91,7 +91,7 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest):
             'SELECT 55',
         ])
 
-        self.assertEqual(
+        self.assert_data_shape(
             results,
             {
                 'kind': 'results',
@@ -99,10 +99,10 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest):
                     {
                         'kind': 'data',
                         'data': [
-                            'AAAAAAAAAAAAAAAAAAABBQ==',
-                            'AgAAAAAAAAAAAAAAAAAAAQU=',
+                            str,
+                            str,
                             'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
-                            'U0VMRUNU'
+                            str,
                         ]
                     },
                     {
@@ -172,7 +172,7 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest):
             'SELECT 2'
         ])
 
-        self.assertEqual(
+        self.assert_data_shape(
             results,
             {
                 'kind': 'results',
@@ -180,16 +180,18 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest):
                     {
                         'kind': 'data',
                         'data': [
-                            'AAAAAAAAAAAAAAAAAAABBQ==',
-                            'AgAAAAAAAAAAAAAAAAAAAQU=',
+                            str,
+                            str,
                             'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
-                            'U0VMRUNU'
+                            str,
                         ]
                     },
                     {
                         'kind': 'error',
                         'error': [
-                            'Error', 'array index 2 is out of bounds', {}
+                            'InvalidValueError',
+                            'array index 2 is out of bounds',
+                            {},
                         ]
                     }
                 ]
@@ -222,15 +224,15 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest):
 
         self.assertNotIn('error', results['results'][0])
 
-        self.assertEqual(
+        self.assert_data_shape(
             results['results'][1],
             {
                 'kind': 'data',
                 'data': [
-                    'AAAAAAAAAAAAAAAAAAABBQ==',
-                    'AgAAAAAAAAAAAAAAAAAAAQU=',
+                    str,
+                    str,
                     'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
-                    'U0VMRUNU'
+                    str,
                 ]
             },
         )
@@ -245,15 +247,15 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest):
         self.assertNotIn('error', results['results'][0])
         self.assertNotIn('error', results['results'][1])
 
-        self.assertEqual(
+        self.assert_data_shape(
             results['results'][2],
             {
                 'kind': 'data',
                 'data': [
-                    'AAAAAAAAAAAAAAAAAAABBQ==',
-                    'AgAAAAAAAAAAAAAAAAAAAQU=',
+                    str,
+                    str,
                     'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
-                    'U0VMRUNU'
+                    str,
                 ]
             },
         )

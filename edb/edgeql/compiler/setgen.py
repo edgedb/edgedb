@@ -230,6 +230,7 @@ def new_tuple_set(
 
 def new_array_set(
         elements: Sequence[irast.Set], *,
+        stype: Optional[s_types.Type]=None,
         ctx: context.ContextLevel,
         srcctx: Optional[parsing.ParserContext]=None) -> irast.Set:
 
@@ -237,6 +238,11 @@ def new_array_set(
     arr = irast.Array(elements=elements, typeref=dummy_typeref)
     if elements:
         stype = inference.infer_type(arr, env=ctx.env)
+    elif stype is not None and stype.is_array():
+        # When constructing an empty array, we should skip explicit cast any
+        # time that we would skip it for an empty set because we can infer it
+        # from the context.
+        pass
     else:
         anytype = s_pseudo.PseudoType.get(ctx.env.schema, 'anytype')
         ctx.env.schema, stype = s_types.Array.from_subtypes(
@@ -285,6 +291,13 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
         if isinstance(step, qlast.SpecialAnchor):
             path_tip = resolve_special_anchor(step, ctx=ctx)
+
+        elif isinstance(step, qlast.IRAnchor):
+            # Check if the starting path label is a known anchor
+            refnode = anchors.get(step.name)
+            if not refnode:
+                raise AssertionError(f'anchor {step.name} is missing')
+            path_tip = new_set_from_set(refnode, ctx=ctx)
 
         elif isinstance(step, qlast.ObjectRef):
             if i > 0:  # pragma: no cover
@@ -830,7 +843,14 @@ def resolve_ptr_with_intersections(
 
     err = errors.InvalidReferenceError(msg, context=source_context)
 
-    if direction is s_pointers.PointerDirection.Outbound:
+    if (
+        direction is s_pointers.PointerDirection.Outbound
+        # In some call sites, we call resolve_ptr "experimentally",
+        # not tracking references and swallowing failures. Don't do an
+        # expensive (30% of compilation time in some benchmarks!)
+        # error enrichment for cases that won't really error.
+        and track_ref is not False
+    ):
         s_utils.enrich_schema_lookup_error(
             err,
             s_name.UnqualName(pointer_name),
@@ -841,6 +861,34 @@ def resolve_ptr_with_intersections(
         )
 
     raise err
+
+
+def _check_secret_ptr(
+    ptrcls: s_pointers.Pointer,
+    *,
+    srcctx: Optional[parsing.ParserContext]=None,
+    ctx: context.ContextLevel,
+) -> None:
+    module = ptrcls.get_name(ctx.env.schema).module
+
+    func_name = ctx.env.options.func_name
+    if func_name and func_name.module == module:
+        return
+
+    view_name = ctx.env.options.result_view_name  # type: ignore
+    if view_name and view_name.module == module:
+        return
+
+    if ctx.current_schema_views:
+        view_name = ctx.current_schema_views[-1].get_name(ctx.env.schema)
+        if view_name.module == module:
+            return
+
+    vn = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
+    raise errors.QueryError(
+        f"cannot access {vn} because it is secret",
+        context=srcctx,
+    )
 
 
 def extend_path(
@@ -893,6 +941,9 @@ def extend_path(
         ns=ctx.path_id_namespace,
         ctx=ctx,
     )
+
+    if ptrcls.get_secret(ctx.env.schema):
+        _check_secret_ptr(ptrcls, srcctx=srcctx, ctx=ctx)
 
     target = orig_ptrcls.get_far_endpoint(ctx.env.schema, direction)
     assert isinstance(target, s_types.Type)

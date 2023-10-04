@@ -257,11 +257,11 @@ operator.
     prohibit this.
 
     .. code-block:: sdl
-        
+
           type Person {
             required name: str;
-            multi friends: User;
-            multi enemies: User;
+            multi friends: Person;
+            multi enemies: Person;
 
             trigger prohibit_frenemies after insert, update for each do (
               assert(
@@ -280,16 +280,20 @@ operator.
         {default::Person {id: e4a55480-d2de-11ed-93bd-9f4224fc73af}}
         db> insert Person {name := 'Dracula'};
         {default::Person {id: e7f2cff0-d2de-11ed-93bd-279780478afb}}
-        db> update User
+        db> update Person
         ... filter .name = 'Quincey Morris'
         ... set {
-        ...   enemies := (select Person filter .name = 'Dracula')
+        ...   enemies := (
+        ...     select detached Person filter .name = 'Dracula'
+        ...   )
         ... };
         {default::Person {id: e4a55480-d2de-11ed-93bd-9f4224fc73af}}
-        db> update User
+        db> update Person
         ... filter .name = 'Quincey Morris'
         ... set {
-        ...   friends := (select Person filter .name = 'Dracula')
+        ...   friends := (
+        ...     select detached Person filter .name = 'Dracula'
+        ...   )
         ... };
         edgedb error: EdgeDBError: Invalid frenemies
 

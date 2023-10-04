@@ -57,6 +57,7 @@ from edb.edgeql import desugar_group
 from . import astutils
 from . import clauses
 from . import context
+from . import config_desc
 from . import dispatch
 from . import inference
 from . import pathctx
@@ -192,9 +193,31 @@ def compile_ForQuery(
 
         view_scope_info = sctx.env.path_scope_map[iterator_view]
 
+        if (
+            qlstmt.optional
+            and not qlstmt.from_desugaring
+            and not ctx.env.options.devmode
+        ):
+            raise errors.UnsupportedFeatureError(
+                "'FOR OPTIONAL' is an internal testing feature",
+                context=qlstmt.context,
+            )
+
+        if qlstmt.optional and iterator_stmt.path_id.is_objtype_path():
+            # FIXME: Object-type iterators are busted because the
+            # identity is NULL, which breaks volatility refs among
+            # other things. Probably to make it work we'll need to arrange
+            # to generate a fresh uuid for identity in the optional wrapper
+            # for these.
+            raise errors.UnsupportedFeatureError(
+                "'FOR OPTIONAL' doesn't work with object-type iterators yet",
+                context=qlstmt.context,
+            )
+
         pathctx.register_set_in_scope(
             iterator_stmt,
             path_scope=sctx.path_scope,
+            optional=qlstmt.optional,
             ctx=sctx,
         )
 
@@ -854,26 +877,16 @@ def compile_DescribeStmt(
 
         elif ql.object is qlast.DescribeGlobal.DatabaseConfig:
             if ql.language is qltypes.DescribeLanguage.DDL:
-                function_call = dispatch.compile(
-                    qlast.FunctionCall(
-                        func=('cfg', '_describe_database_config_as_ddl'),
-                    ),
-                    ctx=ictx)
-                assert isinstance(function_call, irast.Set), function_call
-                stmt.result = function_call
+                stmt.result = config_desc.compile_describe_config(
+                    qltypes.ConfigScope.DATABASE, ctx=ictx)
             else:
                 raise errors.QueryError(
                     f'cannot describe config as {ql.language}')
 
         elif ql.object is qlast.DescribeGlobal.InstanceConfig:
             if ql.language is qltypes.DescribeLanguage.DDL:
-                function_call = dispatch.compile(
-                    qlast.FunctionCall(
-                        func=('cfg', '_describe_system_config_as_ddl'),
-                    ),
-                    ctx=ictx)
-                assert isinstance(function_call, irast.Set), function_call
-                stmt.result = function_call
+                stmt.result = config_desc.compile_describe_config(
+                    qltypes.ConfigScope.INSTANCE, ctx=ictx)
             else:
                 raise errors.QueryError(
                     f'cannot describe config as {ql.language}')
@@ -885,7 +898,6 @@ def compile_DescribeStmt(
                         func=('sys', '_describe_roles_as_ddl'),
                     ),
                     ctx=ictx)
-                assert isinstance(function_call, irast.Set), function_call
                 stmt.result = function_call
             else:
                 raise errors.QueryError(
@@ -901,14 +913,15 @@ def compile_DescribeStmt(
             itemclass = objref.itemclass
 
             if itemclass is qltypes.SchemaObjectClass.MODULE:
+                mod = s_name.UnqualName(str(s_utils.ast_ref_to_name(objref)))
                 if not ctx.env.schema.get_global(
-                        s_mod.Module, objref.name, None):
+                        s_mod.Module, mod, None):
                     raise errors.InvalidReferenceError(
-                        f"module '{objref.name}' does not exist",
+                        f"module '{mod}' does not exist",
                         context=objref.context,
                     )
 
-                modules.append(s_utils.ast_ref_to_unqualname(objref))
+                modules.append(mod)
             else:
                 itemtype: Optional[Type[s_obj.Object]] = None
 
@@ -1349,6 +1362,13 @@ def compile_result_clause(
             expr = setgen.new_empty_set(
                 stype=sctx.empty_result_type_hint,
                 alias=ctx.aliases.get('e'),
+                ctx=sctx,
+                srcctx=result_expr.context,
+            )
+        elif astutils.is_ql_empty_array(result_expr):
+            expr = setgen.new_array_set(
+                [],
+                stype=sctx.empty_result_type_hint,
                 ctx=sctx,
                 srcctx=result_expr.context,
             )

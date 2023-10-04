@@ -434,9 +434,10 @@ def _infer_pointer_cardinality(
         required, card = ptr_card.to_schema_value()
         env.schema = ptrcls.set_field_value(env.schema, 'cardinality', card)
         env.schema = ptrcls.set_field_value(env.schema, 'required', required)
-        _update_cardinality_in_derived(ptrcls, env=ctx.env)
+        if ctx.make_updates:
+            _update_cardinality_in_derived(ptrcls, env=ctx.env)
 
-    if ptrref:
+    if ptrref and ctx.make_updates:
         out_card, in_card = typeutils.cardinality_from_ptrcls(
             env.schema, ptrcls)
         assert in_card is not None
@@ -517,6 +518,12 @@ def _infer_set(
         result = _infer_set_inner(
             ir, is_mutation=is_mutation,
             scope_tree=scope_tree, ctx=ctx)
+
+        # But actually! Check if it is overridden
+        if ir.card_inference_override:
+            result = _infer_set_inner(
+                ir.card_inference_override, is_mutation=is_mutation,
+                scope_tree=scope_tree, ctx=ctx)
 
         # We need to cache the main result before doing the shape,
         # since sometimes the shape will refer to the enclosing set.
@@ -663,6 +670,48 @@ def _infer_set_inner(
     return card
 
 
+def _typemod_to_card(typemod: qltypes.TypeModifier) -> qltypes.Cardinality:
+    return (
+        MANY if typemod is qltypes.TypeModifier.SetOfType else
+        AT_MOST_ONE if typemod is qltypes.TypeModifier.OptionalType else
+        ONE
+    )
+
+
+def _standard_call_cardinality(
+    ir: irast.Call,
+    cards: Sequence[qltypes.Cardinality],
+    *,
+    ctx: inference_context.InfCtx,
+) -> qltypes.Cardinality:
+    # For regular functions and operators, the general rule of
+    # Cartesian cardinality of arguments applies, although we still
+    # have to account for the declared return cardinality, as the
+    # function might be OPTIONAL or SET OF in its return type.
+    #
+    # We compute the Cartesian cardinality of the functions's
+    # _non-SET OF_ arguments and its return, but with the lower bound
+    # of any optional arguments set to CB_ONE.
+    non_aggregate_args = []
+    non_aggregate_arg_cards = []
+
+    for arg, card, typemod in zip(ir.args, cards, ir.params_typemods):
+        if typemod is qltypes.TypeModifier.SingletonType:
+            non_aggregate_args.append(arg.expr)
+            non_aggregate_arg_cards.append(card)
+        elif typemod is qltypes.TypeModifier.OptionalType:
+            non_aggregate_args.append(arg.expr)
+            non_aggregate_arg_cards.append(
+                _bounds_to_card(CB_ONE, _card_to_bounds(card).upper)
+            )
+
+    _check_op_volatility(
+        non_aggregate_args, non_aggregate_arg_cards, ctx=ctx)
+
+    return cartesian_cardinality(
+        non_aggregate_arg_cards + [_typemod_to_card(ir.typemod)])
+
+
 @_infer_cardinality.register
 def __infer_func_call(
     ir: irast.FunctionCall,
@@ -670,31 +719,34 @@ def __infer_func_call(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
-    return_card = (
-        MANY if ir.typemod is qltypes.TypeModifier.SetOfType else
-        AT_MOST_ONE if ir.typemod is qltypes.TypeModifier.OptionalType else
-        ONE
-    )
-
-    ret_lower_bound, ret_upper_bound = _card_to_bounds(return_card)
 
     for glob_arg in (ir.global_args or ()):
         infer_cardinality(glob_arg, scope_tree=scope_tree, ctx=ctx)
 
+    cards = []
+    for arg in ir.args:
+        card = infer_cardinality(arg.expr, scope_tree=scope_tree, ctx=ctx)
+        cards.append(card)
+        if ctx.make_updates:
+            arg.cardinality = card
+
     if ir.preserves_optionality or ir.preserves_upper_cardinality:
+        ret_lower_bound, ret_upper_bound = _card_to_bounds(
+            _typemod_to_card(ir.typemod))
+
         # This is a generic aggregate function which preserves the
         # optionality and/or upper cardinality of its generic
         # argument.  For simplicity we are deliberately not checking
         # the parameters here as that would have been done at the time
         # of declaration.
         arg_cards = []
+        force_multi = False
 
-        for arg, typemod in zip(ir.args, ir.params_typemods):
-            arg.cardinality = infer_cardinality(
-                arg.expr, scope_tree=scope_tree, ctx=ctx)
-
+        for card, typemod in zip(cards, ir.params_typemods):
             if typemod is not qltypes.TypeModifier.OptionalType:
-                arg_cards.append(arg.cardinality)
+                arg_cards.append(card)
+            else:
+                force_multi |= card.is_multi()
 
         arg_card = zip(*(_card_to_bounds(card) for card in arg_cards))
         arg_lower, arg_upper = arg_card
@@ -703,53 +755,13 @@ def __infer_func_call(
             CB_ONE if ir.func_shortname == sn.QualName('std', 'assert_exists')
             else ret_lower_bound
         )
-        upper = (max(arg_upper) if ir.preserves_upper_cardinality
+        upper = (CB_MANY if force_multi
+                 else max(arg_upper) if ir.preserves_upper_cardinality
                  else ret_upper_bound)
         return _bounds_to_card(lower, upper)
 
     else:
-        # For regular non-OPTIONAL functions, the general rule of
-        # Cartesian cardinality of arguments applies, although we still
-        # have to account for the declared return cardinality, as the
-        # function might be OPTIONAL or SET OF in its return type.
-        #
-        # If a function is OPTIONAL in its parameters, which includes
-        # aggregate functions, then we compute a Cartesian cardinality
-        # of functions's _non-OPTIONAL_ arguments and its return
-        # cardinality, but only in the upper bound, since we cannot know
-        # how the function behaves in OPTIONAL arguments.
-        non_aggregate_args = []
-        non_aggregate_arg_cards = []
-        singleton_args = []
-        singleton_arg_cards = []
-        all_singletons = True
-
-        for arg, typemod in zip(ir.args, ir.params_typemods):
-            arg.cardinality = infer_cardinality(
-                arg.expr, scope_tree=scope_tree, ctx=ctx)
-            if typemod is not qltypes.TypeModifier.SetOfType:
-                non_aggregate_args.append(arg.expr)
-                non_aggregate_arg_cards.append(arg.cardinality)
-            if typemod is qltypes.TypeModifier.SingletonType:
-                singleton_args.append(arg.expr)
-                singleton_arg_cards.append(arg.cardinality)
-            else:
-                all_singletons = False
-
-        if non_aggregate_args:
-            _check_op_volatility(
-                non_aggregate_args, non_aggregate_arg_cards, ctx=ctx)
-
-        if not singleton_args:
-            # Either no arguments at all, or all arguments are non-singletons,
-            # so the declared return cardinality is as specific as we can get.
-            return return_card
-        else:
-            result = cartesian_cardinality(singleton_arg_cards + [return_card])
-            if not all_singletons:
-                result = _bounds_to_card(
-                    ret_lower_bound, _card_to_bounds(result).upper)
-            return result
+        return _standard_call_cardinality(ir, cards, ctx=ctx)
 
 
 @_infer_cardinality.register
@@ -761,9 +773,10 @@ def __infer_oper_call(
 ) -> qltypes.Cardinality:
     cards = []
     for arg in ir.args:
-        arg.cardinality = infer_cardinality(
-            arg.expr, scope_tree=scope_tree, ctx=ctx)
-        cards.append(arg.cardinality)
+        card = infer_cardinality(arg.expr, scope_tree=scope_tree, ctx=ctx)
+        cards.append(card)
+        if ctx.make_updates:
+            arg.cardinality = card
 
     if str(ir.func_shortname) == 'std::UNION':
         # UNION needs to "add up" cardinalities.
@@ -781,39 +794,10 @@ def __infer_oper_call(
     elif str(ir.func_shortname) == 'std::??':
         # Coalescing takes the maximum of both lower and upper bounds.
         return max_cardinality(cards)
+    elif str(ir.func_shortname) in ('std::DISTINCT', 'std::IF'):
+        return cartesian_cardinality(cards)
     else:
-        args: List[irast.Base] = []
-        all_optional = False
-
-        if ir.typemod is qltypes.TypeModifier.SetOfType:
-            # this is DISTINCT and IF..ELSE
-            args = [a.expr for a in ir.args]
-        else:
-            all_optional = True
-            for arg, typemod in zip(ir.args, ir.params_typemods):
-                if typemod is not qltypes.TypeModifier.SetOfType:
-                    all_optional &= (
-                        typemod is qltypes.TypeModifier.OptionalType
-                    )
-                    args.append(arg.expr)
-
-        if args:
-            card = _common_cardinality(
-                args, scope_tree=scope_tree, ctx=ctx,
-            )
-            if all_optional:
-                # An operator that has all optional arguments and
-                # doesn't return a SET OF returns at least ONE result
-                # (we currently don't have operators that return
-                # OPTIONAL). So we upgrade the lower bound.
-                card = _bounds_to_card(CB_ONE, _card_to_bounds(card).upper)
-
-            return card
-        else:
-            if ir.typemod is qltypes.TypeModifier.OptionalType:
-                return AT_MOST_ONE
-            else:
-                return ONE
+        return _standard_call_cardinality(ir, cards, ctx=ctx)
 
 
 @_infer_cardinality.register
@@ -899,6 +883,12 @@ def _is_ptr_or_self_ref(
                     and not rptr.ptrref.is_computable
                     and _is_ptr_or_self_ref(rptr.source, result_expr, env)
                 )
+                or (
+                    ir_set.rptr is None
+                    and irutils.is_implicit_wrapper(ir_set.expr)
+                    and _is_ptr_or_self_ref(
+                        ir_set.expr.result, result_expr, env)
+                )
             )
         )
 
@@ -917,8 +907,7 @@ def extract_filters(
     expr = filter_set.expr
     if isinstance(expr, irast.OperatorCall):
         if str(expr.func_shortname) == 'std::=':
-            left, right = (a.expr for a in expr.args)
-
+            left, right = [a.expr for a in expr.args]
             op_card = _common_cardinality(
                 [left, right], scope_tree=scope_tree, ctx=ctx
             )
@@ -945,6 +934,8 @@ def extract_filters(
                         _ptr = left_stype.getptr(schema, sn.UnqualName('id'))
                         ptrs.append(_ptr)
                     else:
+                        if left.rptr is None:
+                            left = irutils.unwrap_set(left)
                         while left.path_id != result_set.path_id:
                             assert left.rptr is not None
                             _ptr = env.schema.get(left.rptr.ptrref.name,
@@ -956,7 +947,7 @@ def extract_filters(
                     return [(ptrs, right)]
 
         elif str(expr.func_shortname) == 'std::AND':
-            left, right = (a.expr for a in expr.args)
+            left, right = (irutils.unwrap_set(a.expr) for a in expr.args)
 
             left_filters = extract_filters(
                 result_set, left, scope_tree, ctx
@@ -1100,6 +1091,8 @@ def _infer_matset_cardinality(
 ) -> None:
     if not materialized_sets:
         return
+    if not ctx.make_updates:
+        return
 
     for mat_set in materialized_sets.values():
         if (len(mat_set.uses) <= 1
@@ -1121,6 +1114,8 @@ def _infer_dml_check_cardinality(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> None:
+    if not ctx.make_updates:
+        return
     pctx = ctx._replace(singletons=ctx.singletons | {ir.result.path_id})
     for read_pol in ir.read_policies.values():
         read_pol.cardinality = infer_cardinality(
@@ -1426,6 +1421,18 @@ def __infer_trigger_anchor(
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
     return MANY
+
+
+@_infer_cardinality.register
+def __infer_searchable_string(
+    ir: irast.FTSDocument,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inference_context.InfCtx,
+) -> qltypes.Cardinality:
+    return _common_cardinality(
+        (ir.text, ir.language), scope_tree=scope_tree, ctx=ctx
+    )
 
 
 def infer_cardinality(

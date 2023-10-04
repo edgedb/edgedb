@@ -191,19 +191,21 @@ def compile_iterator_expr(
 
         # If the iterator value is nullable, add a null test. This
         # makes sure that we don't spuriously produce output when
-        # iterating over options pointers.
-        if isinstance(iterator_query, pgast.SelectStmt):
-            iterator_var = pathctx.get_path_value_var(
-                iterator_query, path_id=iterator_expr.path_id, env=ctx.env)
-            if iterator_var.nullable:
-                iterator_query.where_clause = astutils.extend_binop(
-                    iterator_query.where_clause,
-                    pgast.NullTest(arg=iterator_var, negated=True))
-        elif isinstance(iterator_query, pgast.Relation):
-            # will never be null
-            pass
-        else:
-            raise NotImplementedError()
+        # iterating over optional pointers.
+        is_optional = ctx.scope_tree.is_optional(iterator_expr.path_id)
+        if not is_optional:
+            if isinstance(iterator_query, pgast.SelectStmt):
+                iterator_var = pathctx.get_path_value_var(
+                    iterator_query, path_id=iterator_expr.path_id, env=ctx.env)
+                if iterator_var.nullable:
+                    iterator_query.where_clause = astutils.extend_binop(
+                        iterator_query.where_clause,
+                        pgast.NullTest(arg=iterator_var, negated=True))
+            elif isinstance(iterator_query, pgast.Relation):
+                # will never be null
+                pass
+            else:
+                raise NotImplementedError()
 
         # Regardless of result type, we use transient identity,
         # for path identity of the iterator expression.  This is
@@ -214,6 +216,9 @@ def compile_iterator_expr(
         if not already_existed:
             relctx.ensure_bond_for_expr(
                 iterator_expr.expr.result, iterator_query, ctx=subctx)
+            if is_optional:
+                relctx.ensure_bond_for_expr(
+                    iterator_expr, iterator_query, ctx=subctx)
 
     return iterator_rvar
 
@@ -397,9 +402,7 @@ def fini_toplevel(
     stmt.ctes[:0] = list(ctx.param_ctes.values())
     stmt.ctes[:0] = list(ctx.type_ctes.values())
 
-    stmt.argnames = argmap = ctx.argmap
-
-    if not ctx.env.use_named_params:
+    if ctx.env.named_param_prefix is None:
         # Adding unused parameters into a CTE
 
         # Find the used parameters by searching the query, so we don't
@@ -411,7 +414,7 @@ def fini_toplevel(
 
         targets = []
         for param in ctx.env.query_params:
-            pgparam = argmap[param.name]
+            pgparam = ctx.argmap[param.name]
             if pgparam.index in used or param.sub_params:
                 continue
             targets.append(pgast.ResTarget(val=pgast.TypeCast(
@@ -439,7 +442,10 @@ def populate_argmap(
     logical_index = 1
     for map_extra in (False, True):
         for param in params:
-            if ctx.env.use_named_params and not param.name.isdecimal():
+            if (
+                ctx.env.named_param_prefix is not None
+                and not param.name.isdecimal()
+            ):
                 continue
             if param.name.startswith('__edb_arg_') != map_extra:
                 continue

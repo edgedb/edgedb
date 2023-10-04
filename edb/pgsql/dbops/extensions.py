@@ -40,16 +40,25 @@ class Extension:
 
 
 class CreateExtension(ddl.DDLOperation):
-    def __init__(self, extension, *, conditions=None, neg_conditions=None):
+    def __init__(
+        self,
+        extension,
+        *,
+        conditions=None,
+        neg_conditions=None,
+        conditional=False,
+    ):
         super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.extension = extension
         self.opid = extension.name
+        self.conditional = conditional
 
     def code(self, block: base.PLBlock) -> str:
         ext = self.extension
         name = qi(ext.get_extension_name())
         schema = qi(ext.schema)
-        return f'CREATE EXTENSION {name} WITH SCHEMA {schema}'
+        condition = "IF NOT EXISTS " if self.conditional else ''
+        return f'CREATE EXTENSION {condition}{name} WITH SCHEMA {schema}'
 
 
 class DropExtension(ddl.DDLOperation):

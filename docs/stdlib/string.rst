@@ -635,6 +635,7 @@ Strings
                   std::to_str(val: bigint, fmt: optional str={}) -> str
                   std::to_str(val: decimal, fmt: optional str={}) -> str
                   std::to_str(val: json, fmt: optional str={}) -> str
+                  std::to_str(val: bytes) -> str
                   std::to_str(val: cal::local_datetime, \
                               fmt: optional str={}) -> str
                   std::to_str(val: cal::local_date, \
@@ -642,7 +643,7 @@ Strings
                   std::to_str(val: cal::local_time, \
                               fmt: optional str={}) -> str
 
-    :index: stringify dumps join array_to_string
+    :index: stringify dumps join array_to_string decode TextDecoder
 
     Return string representation of the input value.
 
@@ -651,12 +652,12 @@ Strings
     converter functions from :eql:type:`str` back to the specific
     types, which share the meaning of the format argument *fmt*.
 
-    When converting :eql:type:`datetime`, :eql:type:`cal::local_datetime`,
-    :eql:type:`cal::local_date`, :eql:type:`cal::local_time`,
-    :eql:type:`duration` this function is the inverse of
-    :eql:func:`to_datetime`, :eql:func:`cal::to_local_datetime`,
-    :eql:func:`cal::to_local_date`, :eql:func:`cal::to_local_time`,
-    :eql:func:`to_duration`, correspondingly.
+    When converting :eql:type:`bytes`, :eql:type:`datetime`,
+    :eql:type:`cal::local_datetime`, :eql:type:`cal::local_date`,
+    :eql:type:`cal::local_time`, :eql:type:`duration` this function
+    is the inverse of :eql:func:`to_bytes`, :eql:func:`to_datetime`,
+    :eql:func:`cal::to_local_datetime`, :eql:func:`cal::to_local_date`,
+    :eql:func:`cal::to_local_time`, :eql:func:`to_duration`, correspondingly.
 
     For valid date and time formatting patterns see
     :ref:`here <ref_std_converters_datetime_fmt>`.

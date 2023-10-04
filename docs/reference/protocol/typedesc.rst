@@ -4,6 +4,12 @@
 Type descriptors
 ================
 
+.. note::
+
+  This page describes the type descriptor formats as implemented in protocol
+  version 2.0 (EdgeDB 4.0 and later).  See :ref:`ref_proto_typedesc_1_0` for
+  type descriptor implementation in protocol versino 1.0 and earlier.
+
 This section describes how type information for query input and results
 is encoded.  Specifically, this is needed to decode the server response to
 the :ref:`ref_protocol_msg_command_data_description` message.
@@ -18,7 +24,7 @@ While parsing the *blocks*, a database driver can assemble an
 *encoder* or a *decoder* of the EdgeDB binary data.
 
 An *encoder* is used to encode objects, native to the driver's runtime,
-to binary data that EdegDB can decode and work with.
+to binary data that EdgeDB can decode and work with.
 
 A *decoder* is used to decode data from EdgeDB native format to
 data types native to the driver.
@@ -31,6 +37,17 @@ to represent the input descriptor when a query does not receive any arguments,
 or the state descriptor for an empty/default state.
 
 
+Descriptor and type IDs
+=======================
+
+The descriptor and type IDs in structures below are intended to be semi-stable
+unique identifiers of a type.  Fundamental types have globally stable known
+IDs, and type IDs for schema-defined types (i.e. with
+``schema_defined = true``) persist.  Ephemeral type ids are derived from
+type structure and are not guaranteed to be stable, but are still useful
+as cache keys.
+
+
 Set Descriptor
 ==============
 
@@ -38,76 +55,49 @@ Set Descriptor
 
     struct SetDescriptor {
         // Indicates that this is a Set value descriptor.
-        uint8   type = 0;
+        uint8   tag = 0;
 
         // Descriptor ID.
         uuid    id;
 
         // Set element type descriptor index.
-        uint16  type_pos;
+        uint16  type;
     };
 
 Set values are encoded on the wire as
 :ref:`single-dimensional arrays <ref_protocol_fmt_array>`.
 
 
-Object Shape Descriptor
-=======================
+Scalar Type Descriptor
+======================
 
 .. code-block:: c
 
-    struct ObjectShapeDescriptor {
-        // Indicates that this is an
-        // Object Shape descriptor.
-        uint8           type = 1;
+    struct ScalarTypeDescriptor {
+        // Indicates that this is a
+        // Scalar Type descriptor.
+        uint8   tag = 3;
 
-        // Descriptor ID.
-        uuid            id;
+        // Schema type ID.
+        uuid    id;
 
-        // Number of elements in shape.
-        uint16          element_count;
+        // Schema type name.
+        string  name;
 
-        ShapeElement    elements[element_count];
+        // Whether the type is defined in the schema
+        // or is ephemeral.
+        bool    schema_defined;
+
+        // Number of ancestor scalar types.
+        uint16  ancestors_count;
+
+        // Indexes of ancestor scalar type descriptors
+        // in ancestor resolution order (C3).
+        uint16  ancestors[ancestors_count];
     };
 
-    struct ShapeElement {
-        // Field flags:
-        //   1 << 0: the field is implicit
-        //   1 << 1: the field is a link property
-        //   1 << 2: the field is a link
-        uint32          flags;
-
-        uint8<Cardinality> cardinality;
-
-        // Field name.
-        string          name;
-
-        // Field type descriptor index.
-        uint16          type_pos;
-    };
-
-.. eql:struct:: edb.protocol.enums.Cardinality
-
-Objects are encoded on the wire as :ref:`tuples <ref_protocol_fmt_tuple>`.
-
-
-Base Scalar Type Descriptor
-===========================
-
-.. code-block:: c
-
-    struct BaseScalarTypeDescriptor {
-        // Indicates that this is an
-        // Base Scalar Type descriptor.
-        uint8           type = 2;
-
-        // Descriptor ID.
-        uuid            id;
-    };
-
-
-The descriptor IDs for base scalar types are constant.
-The following table lists all EdgeDB base types descriptor IDs:
+The descriptor IDs for fundamental scalar types are constant.
+The following table lists all EdgeDB fundamental type descriptor IDs:
 
 .. list-table::
    :header-rows: 1
@@ -175,23 +165,6 @@ The following table lists all EdgeDB base types descriptor IDs:
    * - ``00000000-0000-0000-0000-000000000130``
      - :ref:`cfg::memory <ref_protocol_fmt_memory>`
 
-Scalar Type Descriptor
-======================
-
-.. code-block:: c
-
-    struct ScalarTypeDescriptor {
-        // Indicates that this is a
-        // Scalar Type descriptor.
-        uint8           type = 3;
-
-        // Descriptor ID.
-        uuid            id;
-
-        // Parent type descriptor index.
-        uint16          base_type_pos;
-    };
-
 
 Tuple Type Descriptor
 =====================
@@ -201,10 +174,24 @@ Tuple Type Descriptor
     struct TupleTypeDescriptor {
         // Indicates that this is a
         // Tuple Type descriptor.
-        uint8     type = 4;
+        uint8     tag = 4;
 
-        // Descriptor ID.
+        // Schema type ID.
         uuid      id;
+
+        // Schema type name.
+        string    name;
+
+        // Whether the type is defined in the schema
+        // or is ephemeral.
+        bool      schema_defined;
+
+        // Number of ancestor scalar types.
+        uint16    ancestors_count;
+
+        // Indexes of ancestor scalar type descriptors
+        // in ancestor resolution order (C3).
+        uint16    ancestors[ancestors_count];
 
         // The number of elements in tuple.
         uint16    element_count;
@@ -225,16 +212,30 @@ Named Tuple Type Descriptor
     struct NamedTupleTypeDescriptor {
         // Indicates that this is a
         // Named Tuple Type descriptor.
-        uint8        type = 5;
+        uint8         tag = 5;
 
-        // Descriptor ID.
-        uuid         id;
+        // Schema type ID.
+        uuid          id;
+
+        // Schema type name.
+        string        name;
+
+        // Whether the type is defined in the schema
+        // or is ephemeral.
+        bool          schema_defined;
+
+        // Number of ancestor scalar types.
+        uint16        ancestors_count;
+
+        // Indexes of ancestor scalar type descriptors
+        // in ancestor resolution order (C3).
+        uint16        ancestors[ancestors_count];
 
         // The number of elements in tuple.
-        uint16       element_count;
+        uint16        element_count;
 
-        // Indexes of element type descriptors.
-        TupleElement elements[element_count];
+        // Indexes of element descriptors.
+        TupleElement  elements[element_count];
     };
 
     struct TupleElement {
@@ -242,7 +243,7 @@ Named Tuple Type Descriptor
         string  name;
 
         // Field type descriptor index.
-        int16   type_pos;
+        int16   type;
     };
 
 
@@ -254,20 +255,34 @@ Array Type Descriptor
     struct ArrayTypeDescriptor {
         // Indicates that this is an
         // Array Type descriptor.
-        uint8        type = 6;
+        uint8   tag = 6;
 
-        // Descriptor ID.
-        uuid         id;
+        // Schema type ID.
+        uuid    id;
 
-        // Element type descriptor index.
-        uint16       type_pos;
+        // Schema type name.
+        string  name;
+
+        // Whether the type is defined in the schema
+        // or is ephemeral.
+        bool    schema_defined;
+
+        // Number of ancestor scalar types.
+        uint16  ancestors_count;
+
+        // Indexes of ancestor scalar type descriptors
+        // in ancestor resolution order (C3).
+        uint16  ancestors[ancestors_count];
+
+        // Array element type.
+        uint16  type;
 
         // The number of array dimensions, at least 1.
-        uint16       dimension_count;
+        uint16  dimension_count;
 
         // Sizes of array dimensions, -1 indicates
         // unbound dimension.
-        uint32       dimensions[dimension_count];
+        int32   dimensions[dimension_count];
     };
 
 
@@ -279,18 +294,180 @@ Enumeration Type Descriptor
     struct EnumerationTypeDescriptor {
         // Indicates that this is an
         // Enumeration Type descriptor.
-        uint8        type = 7;
+        uint8   tag = 7;
 
-        // Descriptor ID.
-        uuid         id;
+        // Schema type ID.
+        uuid    id;
+
+        // Schema type name.
+        string  name;
+
+        // Whether the type is defined in the schema
+        // or is ephemeral.
+        bool    schema_defined;
+
+        // Number of ancestor scalar types.
+        uint16  ancestors_count;
+
+        // Indexes of ancestor scalar type descriptors
+        // in ancestor resolution order (C3).
+        uint16  ancestors[ancestors_count];
 
         // The number of enumeration members.
-        uint16       member_count;
+        uint16  member_count;
 
         // Names of enumeration members.
-        string       members[member_count];
+        string  members[member_count];
     };
 
+
+Range Type Descriptor
+=====================
+
+.. code-block:: c
+
+    struct RangeTypeDescriptor {
+        // Indicates that this is a
+        // Range Type descriptor.
+        uint8   tag = 9;
+
+        // Schema type ID.
+        uuid    id;
+
+        // Schema type name.
+        string  name;
+
+        // Whether the type is defined in the schema
+        // or is ephemeral.
+        bool    schema_defined;
+
+        // Number of ancestor scalar types.
+        uint16  ancestors_count;
+
+        // Indexes of ancestor scalar type descriptors
+        // in ancestor resolution order (C3).
+        uint16  ancestors[ancestors_count];
+
+        // Range type descriptor index.
+        uint16  type;
+    };
+
+Ranges are encoded on the wire as :ref:`ranges <ref_protocol_fmt_range>`.
+
+
+Object Type Descriptor
+======================
+
+.. code-block:: c
+
+    struct ObjectTypeDescriptor {
+        // Indicates that this is an
+        // object type descriptor.
+        uint8   tag = 10;
+
+        // Schema type ID.
+        uuid    id;
+
+        // Schema type name (can be empty for ephemeral free object types).
+        string  name;
+
+        // Whether the type is defined in the schema
+        // or is ephemeral.
+        bool    schema_defined;
+    };
+
+
+Compound Type Descriptor
+========================
+
+.. code-block:: c
+
+    struct CompoundTypeDescriptor {
+        // Indicates that this is a
+        // compound type descriptor.
+        uint8                 tag = 11;
+
+        // Schema type ID.
+        uuid                  id;
+
+        // Schema type name.
+        string                name;
+
+        // Whether the type is defined in the schema
+        // or is ephemeral.
+        bool                  schema_defined;
+
+        // Compound type operation, see TypeOperation below.
+        uint8<TypeOperation>  op;
+
+        // Number of compound type components.
+        uint16                component_count;
+
+        // Compound type component type descriptor indexes.
+        uint16                components[component_count];
+    };
+
+    enum TypeOperation {
+        // Foo | Bar
+        UNION         = 1;
+
+        // Foo & Bar
+        INTERSECTION  = 2;
+    };
+
+
+Object Output Shape Descriptor
+==============================
+
+.. code-block:: c
+
+    struct ObjectShapeDescriptor {
+        // Indicates that this is an
+        // Object Shape descriptor.
+        uint8         tag = 1;
+
+        // Descriptor ID.
+        uuid          id;
+
+        // Whether is is an ephemeral free shape,
+        // if true, then `type` would always be 0
+        // and should not be interpreted.
+        bool          ephemeral_free_shape;
+
+        // Object type descriptor index.
+        uint16        type;
+
+        // Number of elements in shape.
+        uint16        element_count;
+
+        // Array of shape elements.
+        ShapeElement  elements[element_count];
+    };
+
+    struct ShapeElement {
+        // Field flags:
+        //   1 << 0: the field is implicit
+        //   1 << 1: the field is a link property
+        //   1 << 2: the field is a link
+        uint32              flags;
+
+        // The cardinality of the shape element.
+        uint8<Cardinality>  cardinality;
+
+        // Element name.
+        string              name;
+
+        // Element type descriptor index.
+        uint16              type;
+
+        // Source schema type descriptor index
+        // (useful for polymorphic queries).
+        uint16              source_type;
+    };
+
+.. eql:struct:: edb.protocol.enums.Cardinality
+
+Objects are encoded on the wire as :ref:`tuples <ref_protocol_fmt_tuple>`.
 
 
 Input Shape Descriptor
@@ -301,78 +478,53 @@ Input Shape Descriptor
     struct InputShapeDescriptor {
         // Indicates that this is an
         // Object Shape descriptor.
-        uint8           type = 8;
+        uint8              tag = 8;
 
         // Descriptor ID.
-        uuid            id;
+        uuid               id;
 
         // Number of elements in shape.
-        uint16          element_count;
+        uint16             element_count;
 
-        ShapeElement    elements[element_count];
+        // Shape elements.
+        InputShapeElement  elements[element_count];
+    };
+
+    struct InputShapeElement {
+        // Field flags, currently always zero.
+        uint32              flags;
+
+        // The cardinality of the shape element.
+        uint8<Cardinality>  cardinality;
+
+        // Element name.
+        string              name;
+
+        // Element type descriptor index.
+        uint16              type;
     };
 
 Input objects are encoded on the wire as
 :ref:`sparse objects <ref_protocol_fmt_sparse_obj>`.
 
 
-Range Type Descriptor
-===========================
-
-.. code-block:: c
-
-    struct RangeTypeDescriptor {
-        // Indicates that this is a
-        // Range Type descriptor.
-        uint8        type = 9;
-
-        // Descriptor ID.
-        uuid         id;
-
-        // Range type descriptor index.
-        uint16       type_pos;
-    };
-
-Ranges are encoded on the wire as :ref:`ranges <ref_protocol_fmt_range>`.
-
-
-Scalar Type Name Annotation
-===========================
-
-Part of the type descriptor when the :ref:`ref_protocol_msg_execute`
-client message has the ``INLINE_TYPENAMES`` header set.  Every non-builtin
-base scalar type and all enum types would have their full schema name
-provided via this annotation.
-
-.. code-block:: c
-
-    struct TypeAnnotationDescriptor {
-        uint8        type = 0xff;
-
-        // ID of the scalar type.
-        uuid         id;
-
-        // Type name.
-        string       type_name;
-    };
-
-
-Type Annotation Descriptor
-==========================
-
-Drivers must ignore unknown type annotations.
+Type Annotation Text Descriptor
+===============================
 
 .. code-block:: c
 
     struct TypeAnnotationDescriptor {
         // Indicates that this is an
         // Type Annotation descriptor.
-        uint8        type = 0x80..0xfe;
+        uint8   tag = 127;
 
-        // ID of the descriptor the
+        // Index of the descriptor the
         // annotation is for.
-        uuid         id;
+        uint16  descriptor;
 
-        // Annotation text.
-        string       annotation;
+        // Annotation key.
+        string  key;
+
+        // Annotation value.
+        string  value;
     };

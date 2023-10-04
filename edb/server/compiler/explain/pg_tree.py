@@ -101,7 +101,7 @@ class FromJson(ast.AST, to_json.ToJson):
 
         return result
 
-    def to_json(self):
+    def to_json(self) -> Any:
         dic = super().to_json()
         dic['node_type'] = self.__class__.__name__
         return dic
@@ -264,7 +264,7 @@ important = Important()
 
 @dataclasses.dataclass
 class PropInfo:
-    type: Type
+    type: Type[object]
     enum_type: PropType
     important: bool
 
@@ -345,7 +345,7 @@ class Plan(FromJson, CostMixin):
 
     __subclasses: ClassVar[dict[str, Type[Plan]]] = dict()
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: Any):
         super().__init_subclass__(**kwargs)
         cls.__subclasses[cls.__name__] = cls
 

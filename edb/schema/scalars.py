@@ -27,6 +27,8 @@ from edb.common import checked
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
+from edb.common.typeutils import downcast
+
 from . import abc as s_abc
 from . import annos as s_anno
 from . import casts as s_casts
@@ -60,7 +62,29 @@ class ScalarType(
     )
 
     sql_type = so.SchemaField(
-        str, default=None, compcoef=0.9)
+        str, default=None, inheritable=False, compcoef=0.9)
+
+    # A type scheme for supporting type mods in scalar types.
+    # If present, describes what the sql_type of children scalars
+    # should be, such as 'varchar({__arg_0__})'.
+    sql_type_scheme = so.SchemaField(
+        str, default=None, inheritable=False, compcoef=0.9)
+
+    # The number of parameters that the type takes. Currently all parameters
+    # must be integer literals.
+    # This is an internal API and might change.
+    num_params = so.SchemaField(
+        int, default=None,
+        inheritable=False,
+        compcoef=0.8,
+    )
+
+    # Arguments to fill in a parent type's parameterized type scheme.
+    arg_values = so.SchemaField(
+        checked.FrozenCheckedList[str], default=None,
+        inheritable=False,
+        coerce=True, compcoef=0.8,
+    )
 
     @classmethod
     def get_schema_class_displayname(cls) -> str:
@@ -235,6 +259,37 @@ class ScalarType(
         dname = self.get_displayname(schema)
         return f"{clsname} '{dname}'"
 
+    def resolve_sql_type_scheme(
+        self, schema: s_schema.Schema,
+    ) -> tuple[Optional[str], Optional[str]]:
+        if sql := self.get_sql_type(schema):
+            return sql, None
+        if self.get_arg_values(schema) is None:
+            return None, None
+        bases = self.get_bases(schema).objects(schema)
+        if len(bases) != 1:
+            return None, None
+        if scheme := bases[0].get_sql_type_scheme(schema):
+            base_sql_type = bases[0].get_sql_type(schema)
+            assert base_sql_type is not None
+            return base_sql_type, scheme
+        return None, None
+
+    def resolve_sql_type(
+        self, schema: s_schema.Schema,
+    ) -> Optional[str]:
+        type, scheme = self.resolve_sql_type_scheme(schema)
+        if scheme:
+            return constraints.interpolate_errmessage(
+                scheme,
+                {
+                    f'__arg_{i}__': v
+                    for i, v in enumerate(self.get_arg_values(schema) or ())
+                },
+            )
+        else:
+            return type
+
     def as_alter_delta(
         self,
         other: ScalarType,
@@ -254,8 +309,9 @@ class ScalarType(
 
         # If this is an enum and enum_values changed, we need to
         # generate a rebase.
+        old_enum_values = self.get_enum_values(self_schema)
         enum_values = alter.get_local_attribute_value('enum_values')
-        if enum_values is not None:
+        if old_enum_values and enum_values:
             assert isinstance(alter.classname, s_name.QualName)
             rebase = RebaseScalarType(
                 classname=alter.classname,
@@ -266,6 +322,11 @@ class ScalarType(
             )
             alter.add(rebase)
 
+        # Changing enum_values is the respoinsiblity of the rebase command.
+        # Either it's in the one we synthesized above, or, the rebase is doomed
+        # to throw. When we run the ddl directly, the ALTER will not have a
+        # enum_values set, so discard here for symmetry.
+        alter.discard_attribute('enum_values')
         return alter
 
 
@@ -304,6 +365,35 @@ class ScalarTypeCommand(
     s_anno.AnnotationSubjectCommand[ScalarType],
     context_class=ScalarTypeCommandContext,
 ):
+    def validate_object(
+        self, schema: s_schema.Schema, context: sd.CommandContext
+    ) -> None:
+        if (
+            self.scls.resolve_sql_type_scheme(schema)[0]
+        ):
+            if len(self.scls.get_constraints(schema)):
+                raise errors.SchemaError(
+                    f'parameterized scalar types may not have constraints',
+                    context=self.source_context,
+                )
+
+        if args := self.scls.get_arg_values(schema):
+            base = self.scls.get_bases(schema).objects(schema)[0]
+            num_params = base.get_num_params(schema)
+            if not num_params:
+                raise errors.SchemaDefinitionError(
+                    f'base type {base.get_name(schema)} does not '
+                    f'accept parameters',
+                    context=self.source_context,
+                )
+            if num_params != len(args):
+                raise errors.SchemaDefinitionError(
+                    f'incorrect number of arguments provided to base type '
+                    f'{base.get_name(schema)}: expected {num_params} '
+                    f'but got {len(args)}',
+                    context=self.source_context,
+                )
+
     def validate_scalar_ancestors(
         self,
         ancestors: Sequence[so.SubclassableObject],
@@ -398,7 +488,8 @@ class CreateScalarType(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
     ) -> sd.Command:
-        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        cmd = super()._cmd_tree_from_ast(
+            schema, astnode.replace(bases=[]), context)
 
         if isinstance(cmd, sd.CommandGroup):
             for subcmd in cmd.get_subcommands():
@@ -419,6 +510,7 @@ class CreateScalarType(
                     metaclass=ScalarType,
                     modaliases=context.modaliases,
                     schema=schema,
+                    allow_generalized_bases=True,
                 )
                 for b in (astnode.bases or [])
             ]
@@ -479,6 +571,34 @@ class CreateScalarType(
                         collection_type=so.ObjectList,
                     )
                 )
+            else:
+                if any(b.extra_args for b in bases):
+                    if len(bases) > 1:
+                        raise errors.SchemaDefinitionError(
+                            'scalars with parameterized bases may '
+                            'only have one',
+                            context=astnode.bases[0].context,
+                        )
+                    base = bases[0]
+                    args = []
+                    for x in (base.extra_args or ()):
+                        if (
+                            not isinstance(x, qlast.TypeExprLiteral)
+                            or not isinstance(x.val, qlast.IntegerConstant)
+                        ):
+                            raise errors.SchemaDefinitionError(
+                                'invalid scalar type argument',
+                                context=x.context,
+                            )
+                        args.append(x.val.value)
+                    cmd.set_attribute_value('arg_values', args)
+
+                cmd.set_attribute_value(
+                    'bases',
+                    so.ObjectCollectionShell(
+                        bases, collection_type=so.ObjectList),
+                    # source_context=srcctx,
+                )
 
         return cmd
 
@@ -528,6 +648,16 @@ class CreateScalarType(
                 ]
             else:
                 super()._apply_field_ast(schema, context, node, op)
+                if arg_values := self.get_local_attribute_value('arg_values'):
+                    frags = [
+                        s_expr.Expression(text=x).qlast for x in arg_values]
+                    assert isinstance(node, qlast.BasedOnTuple)
+                    node.bases[0].subtypes = [
+                        qlast.TypeExprLiteral(
+                            val=downcast(qlast.BaseConstant, frag)
+                        )
+                        for frag in frags
+                    ]
         else:
             super()._apply_field_ast(schema, context, node, op)
 
@@ -553,54 +683,48 @@ class RebaseScalarType(
         self.scls = scls
         assert isinstance(scls, ScalarType)
 
-        cur_labels = scls.get_enum_values(schema)
-
-        if cur_labels:
-
+        if self.scls.is_concrete_enum(schema):
             if self.removed_bases and not self.added_bases:
                 raise errors.SchemaError(
                     f'cannot DROP EXTENDING enum')
 
-            all_bases = []
+            if self.added_bases:
+                first_bases = self.added_bases[0]
+                new_bases, pos = first_bases
 
-            for bases, pos in self.added_bases:
-                # Check that there aren't any non-enum bases.
-                for base in bases:
-                    if isinstance(base, AnonymousEnumTypeShell):
-                        is_enum_base = True
-                    elif isinstance(base, s_types.TypeShell):
-                        is_enum_base = base.resolve(schema).is_enum(schema)
-                    else:
-                        is_enum_base = base.is_enum(schema)
+                if len(self.added_bases) > 1 or len(new_bases) > 1:
+                    dn = self.scls.get_displayname(schema)
+                    raise errors.SchemaError(
+                        f'enum {dn} may not have multiple supertypes')
 
-                    if not is_enum_base:
-                        raise errors.SchemaError(
-                            f'cannot add another type as supertype, '
-                            f'enumeration must be the only supertype specified'
-                        )
+                new_base = new_bases[0]
+                if isinstance(new_base, AnonymousEnumTypeShell):
+                    new_name = _prettyprint_enum(new_base.elements)
+                else:
+                    if isinstance(new_base, so.ObjectShell):
+                        new_base = new_base.resolve(schema)
+                    assert isinstance(new_base, s_types.Type)
+                    new_name = new_base.get_verbosename(schema)
 
-                # Since all bases are enums at this point, error
-                # messages only mention about enums.
+                if self.removed_bases and not scls.is_view(schema):
+                    # enum to enum rebases come without removed_bases
+                    assert not new_base.is_enum(schema)
+                    raise errors.SchemaError(
+                        f'cannot change the base of enum type '
+                        f'{scls.get_displayname(schema)} to {new_name}')
+
                 if pos:
                     raise errors.SchemaError(
-                        f'cannot add another enum as supertype, '
-                        f'use EXTENDING without position qualification')
+                        f'cannot add supertype {new_name} '
+                        f'to enum type {scls.get_displayname(schema)}')
 
-                all_bases.extend(bases)
-
-            if len(all_bases) > 1:
-                raise errors.SchemaError(
-                    f'cannot set more than one enum as supertype')
-
-            new_base = all_bases[0]
-            new_labels = new_base.elements
-
+            assert isinstance(new_base, AnonymousEnumTypeShell)
             schema = self._validate_enum_change(
-                scls, cur_labels, new_labels, schema, context)
-
-            self.validate_scalar_bases(schema, context)
+                scls, new_base.elements, schema)
 
             schema = super().apply(schema, context)
+
+            self.validate_scalar_bases(schema, context)
 
         else:
             old_concrete = self.scls.maybe_get_topmost_concrete_base(schema)
@@ -618,8 +742,22 @@ class RebaseScalarType(
 
             new_concrete = self.scls.maybe_get_topmost_concrete_base(schema)
             if old_concrete != new_concrete and not scls.is_view(schema):
+                old_name = (old_concrete.get_displayname(schema) if old_concrete
+                            else 'None')
+
+                if self.scls.is_concrete_enum(schema):
+                    values = self.scls.get_enum_values(schema)
+                    assert values is not None
+                    new_name = _prettyprint_enum(values)
+                elif new_concrete:
+                    new_name = new_concrete.get_displayname(schema)
+                else:
+                    new_name = 'None'
+
                 raise errors.SchemaError(
-                    f'cannot change concrete base of a scalar type')
+                    f'cannot change concrete base of scalar type '
+                    f'{scls.get_displayname(schema)} from '
+                    f'{old_name} to {new_name}')
 
         return schema
 
@@ -644,10 +782,8 @@ class RebaseScalarType(
     def _validate_enum_change(
         self,
         stype: s_types.Type,
-        cur_labels: Sequence[str],
         new_labels: Sequence[str],
         schema: s_schema.Schema,
-        context: sd.CommandContext,
     ) -> s_schema.Schema:
         new_set = set(new_labels)
         if len(new_set) != len(new_labels):
@@ -657,6 +793,10 @@ class RebaseScalarType(
         self.set_attribute_value('enum_values', new_labels)
         schema = stype.set_field_value(schema, 'enum_values', new_labels)
         return schema
+
+
+def _prettyprint_enum(elements: Iterable[str]) -> str:
+    return f"enum<{', '.join(elements)}>"
 
 
 class AlterScalarType(

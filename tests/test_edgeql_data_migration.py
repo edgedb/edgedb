@@ -173,14 +173,26 @@ class EdgeQLDataMigrationTestCase(tb.DDLTestCase):
             self.add_fail_notes(serialization='json')
             raise
 
-    async def start_migration(self, migration, *,
-                              populate: bool = False,
-                              module: str = 'test'):
-        mig = f"""
-            START MIGRATION TO {{
+    async def start_migration(
+        self,
+        migration,
+        *,
+        populate: bool = False,
+        module: str = 'test',
+        explicit_modules: bool = False,
+    ):
+        if explicit_modules:
+            migration_text = migration
+        else:
+            migration_text = f'''
                 module {module} {{
                     {migration}
                 }}
+            '''
+
+        mig = f"""
+            START MIGRATION TO {{
+                {migration_text}
             }};
         """
         await self.con.execute(mig)
@@ -193,11 +205,16 @@ class EdgeQLDataMigrationTestCase(tb.DDLTestCase):
         *,
         populate: bool = False,
         module: str = 'test',
+        explicit_modules: bool = False,
         user_input: Optional[Iterable[str]] = None,
     ):
         async with self.con.transaction():
             await self.start_migration(
-                migration, populate=populate, module=module)
+                migration,
+                populate=populate,
+                module=module,
+                explicit_modules=explicit_modules,
+            )
             await self.fast_forward_describe_migration(user_input=user_input)
 
     async def interact(self, parts, check_complete=True):
@@ -10183,6 +10200,21 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 }
             ''')
 
+    async def test_edgeql_migration_union_02(self):
+        await self.migrate('''
+            type Target1;
+            type Target1Child extending Target1;
+            type Target2;
+
+            type Source1 {
+                link tgt_union_restrict -> Target1 | Target2;
+                multi link tgt_union_m2m_del_source -> Target1 | Target2;
+            }
+
+            type Source3 extending Source1;
+        ''')
+        await self.migrate('')
+
     async def test_edgeql_migration_backlink_01(self):
         await self.migrate('''
             type User {
@@ -11212,6 +11244,20 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
         """)
 
+        await self.migrate(r"""
+            abstract type Parent {
+                access policy asdf allow all;
+            }
+            type Test2 extending Parent;
+        """)
+
+        await self.migrate(r"""
+            abstract type Parent {
+                access policy asdf when (true) allow all;
+            }
+            type Test2 extending Parent;
+        """)
+
     async def test_edgeql_migration_access_policy_02(self):
         # Make sure policies don't interfere with constraints or indexes
         await self.migrate(r"""
@@ -11425,26 +11471,30 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         """)
 
     async def test_edgeql_migration_abstract_index_01(self):
-        await self.migrate(r"""
-            abstract index MyIndex(language := 'english')
-                extending fts::textsearch;
+        await self.migrate(
+            r"""
+            abstract index MyIndex extending fts::index;
             type Base {
                 property name -> str;
-                index MyIndex on (.name);
-                index fts::textsearch(language:='english') on (.name);
+                index MyIndex on (
+                    fts::with_options(.name, language := fts::Language.eng)
+                );
             };
-        """)
+            """
+        )
 
-        await self.migrate(r"""
-            abstract index MyIndex(language := 'english')
-                extending fts::textsearch;
+        await self.migrate(
+            r"""
+            abstract index MyIndex extending fts::index;
             type Base {
                 property name -> str;
-                index MyIndex on (.name);
-                index fts::textsearch(language:='english') on (.name);
+                index MyIndex on (
+                    fts::with_options(.name, language := fts::Language.eng)
+                );
             };
             type Child extending Base;
-        """)
+            """
+        )
 
         async with self.assertRaisesRegexTx(
                 edgedb.SchemaError,
@@ -11453,31 +11503,33 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 drop abstract index test::MyIndex
             ''')
 
-        await self.migrate(r"""
-            abstract index MyIndex(language := 'german')
-                extending fts::textsearch;
+        await self.migrate(
+            r"""
+            abstract index MyIndex extending fts::index;
             type Base {
                 property name -> str;
-                index MyIndex on (.name);
-                index fts::textsearch(language:='english') on (.name);
+                index MyIndex on (
+                    fts::with_options(.name, language := fts::Language.eng)
+                );
             };
             type Child extending Base;
-        """)
+            """
+        )
 
-        await self.migrate(r"""
-            abstract index MyIndex(language := 'german')
-                extending fts::textsearch {
-              annotation title := "test";
+        await self.migrate(
+            r"""
+            abstract index MyIndex extending fts::index {
+                annotation title := "test";
             }
             type Base {
                 property name -> str;
-                index MyIndex on (.name);
-                index fts::textsearch(language:='english') on (.name) {
-                   annotation description := "test";
-                };
+                index MyIndex on (
+                    fts::with_options(.name, language := fts::Language.eng)
+                );
             };
             type Child extending Base;
-        """)
+            """
+        )
 
         await self.migrate("")
 
@@ -11507,7 +11559,8 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
 
             type Person {
                 required name: str;
-                trigger log_delete after insert for each do (
+                trigger log_delete after insert for each
+                when (__new__.name not like "SKIP%") do (
                     insert Log { body := __new__.name }
                 );
             }
@@ -11520,7 +11573,8 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
 
             type Person {
                 required name: str;
-                trigger log_delete after insert for each do (
+                trigger log_delete after insert for each
+                when (false) do (
                     insert Log { body := __new__.name }
                 );
             }
@@ -11617,7 +11671,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
 
             type Person extending Named {
-                trigger log_insert after insert for each do (
+                trigger log_insert after insert for each when (false) do (
                     insert Log {
                         body := __new__.__type__.name ++ ' ' ++ __new__.name,
                     }
@@ -11637,7 +11691,30 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             abstract type Named {
                 required name: str;
 
-                trigger log_insert after insert for each do (
+                trigger log_insert after insert for each when (false) do (
+                    insert Log {
+                        body := __new__.__type__.name ++ ' ' ++ __new__.name,
+                    }
+                );
+            }
+
+            type Person extending Named {
+            }
+        ''')
+
+        await self.migrate(r'''
+            type Log {
+                body: str;
+                timestamp: datetime {
+                    default := datetime_current();
+                }
+            }
+
+
+            abstract type Named {
+                required name: str;
+
+                trigger log_insert after insert for each when (true) do (
                     insert Log {
                         body := __new__.__type__.name ++ ' ' ++ __new__.name,
                     }
@@ -11908,6 +11985,67 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
         ''')
         self.assertEqual(len(res), 1)
 
+    async def test_edgeql_migration_extension_01(self):
+        # Test migrations getting from an array in integers to vector and then
+        # revert to an array of floats.
+        if not self.is_superuser:
+            self.skipTest('the backend is not running with superuser')
+
+        await self.migrate('''
+            module default {
+                type Foo {
+                    required data: array<int64>
+                }
+            }
+        ''', explicit_modules=True)
+
+        # Populate with some data.
+        await self.con.execute('''
+            insert Foo {data := [3, 1, 4]};
+            insert Foo {data := [5, 6, 0]};
+        ''')
+
+        # Add vector and migrate automatically (because we have an assignment
+        # cast available from array<int64> to vector).
+        await self.migrate('''
+            using extension pgvector version '0.4';
+
+            module default {
+                scalar type v3 extending ext::pgvector::vector<3>;
+                type Foo {
+                    property data: v3;
+                };
+            }
+        ''', explicit_modules=True)
+
+        await self.assert_query_result(
+            r"""
+                select Foo.data
+            """,
+            tb.bag([[3, 1, 4], [5, 6, 0]]),
+            json_only=True,
+        )
+
+        await self.migrate(
+            '''
+            module default {
+                type Foo {
+                    property data: array<float32>;
+                };
+            }
+            ''',
+            explicit_modules=True,
+            # This migration needs the conversion expression
+            user_input=["<array<float32>>.data"]
+        )
+
+        await self.assert_query_result(
+            r"""
+                select Foo.data
+            """,
+            tb.bag([[3, 1, 4], [5, 6, 0]]),
+        )
+
 
 class EdgeQLMigrationRewriteTestCase(EdgeQLDataMigrationTestCase):
     DEFAULT_MODULE = 'default'
@@ -12145,9 +12283,11 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
 
 
 class TestEdgeQLMigrationRewriteNonisolated(TestEdgeQLMigrationRewrite):
+    # N.B: This test suite duplicates all the tests in the above
+    # TestEdgeQLMigrationRewrite, but not in transactions.
     TRANSACTION_ISOLATION = False
 
-    TEARDOWN_COMMANDS = [
+    PER_TEST_TEARDOWN = [
         'rollback;',  # just in case, avoid extra errors
         '''
             start migration to { module default {}; };

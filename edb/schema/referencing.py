@@ -483,8 +483,6 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
                             astnode: qlast.NamedDDL,
                             context: sd.CommandContext
                             ) -> sn.QualName:
-        name = super()._classname_from_ast(schema, astnode, context)
-
         parent_ctx = cls.get_referrer_context(context)
         if parent_ctx is not None:
             assert isinstance(parent_ctx.op, sd.QualifiedObjectCommand)
@@ -492,6 +490,8 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
             name = cls._classname_from_ast_and_referrer(
                 schema, referrer_name, astnode, context
             )
+        else:
+            name = super()._classname_from_ast(schema, astnode, context)
 
         assert isinstance(name, sn.QualName)
         return name

@@ -87,11 +87,7 @@ def tuple_getattr(
     if irtyputils.is_persistent_tuple(tuple_typeref):
         set_expr = pgast.Indirection(
             arg=tuple_val,
-            indirection=[
-                pgast.ColumnRef(
-                    name=[attr],
-                ),
-            ],
+            indirection=[pgast.RecordIndirectionOp(name=attr)],
         )
     else:
         set_expr = pgast.SelectStmt(
@@ -172,7 +168,8 @@ def each_base_rvar(rvar: pgast.BaseRangeVar) -> Iterator[pgast.BaseRangeVar]:
     while stack:
         rvar = stack.pop()
         if isinstance(rvar, pgast.JoinExpr):
-            stack.append(rvar.rarg)
+            for clause in reversed(rvar.joins):
+                stack.append(clause.rarg)
             stack.append(rvar.larg)
         else:
             yield rvar
@@ -522,6 +519,14 @@ def collapse_query(query: pgast.Query) -> pgast.BaseExpr:
         return query
 
     if (
+        isinstance(query, pgast.SelectStmt)
+        and len(query.target_list) == 1
+        and len(query.from_clause) == 0
+        and select_is_simple(query)
+    ):
+        return query.target_list[0].val
+
+    if (
         not isinstance(query, pgast.SelectStmt)
         or len(query.target_list) != 1
         or len(query.from_clause) != 1
@@ -548,3 +553,13 @@ def compile_typeref(expr: irast.TypeRef) -> pgast.BaseExpr:
         )
 
     return result
+
+
+def maybe_unpack_row(expr: pgast.Base) -> Sequence[pgast.BaseExpr]:
+    assert isinstance(expr, pgast.BaseExpr)
+    match expr:
+        case pgast.ImplicitRowExpr():
+            return expr.args
+        case pgast.RowExpr():
+            return expr.args
+    return (expr,)

@@ -27,11 +27,13 @@ import json
 import os.path
 import pathlib
 import random
+import signal
 import subprocess
 import ssl
 import sys
 import tempfile
 import time
+import unittest
 
 import edgedb
 from edgedb import errors
@@ -43,6 +45,25 @@ from edb.protocol import protocol as edb_protocol  # type: ignore
 from edb.server import args, pgcluster, pgconnparams
 from edb.server import cluster as edbcluster
 from edb.testbase import server as tb
+
+
+class TestServerApi(tb.ClusterTestCase):
+    async def test_server_healthchecks(self):
+        with self.http_con() as http_con:
+            _, _, status = self.http_con_request(
+                http_con,
+                path='/server/status/alive',
+            )
+
+            self.assertEqual(status, http.HTTPStatus.OK)
+
+        with self.http_con() as http_con:
+            _, _, status = self.http_con_request(
+                http_con,
+                path='/server/status/ready',
+            )
+
+            self.assertEqual(status, http.HTTPStatus.OK)
 
 
 class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
@@ -96,6 +117,10 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     (ConnectionError, edgedb.ClientConnectionError)):
                 await sd.connect(wait_until_available=0)
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "--bootstrap-command is not supported in multi-tenant mode",
+    )
     async def test_server_ops_bootstrap_script(self) -> None:
         # Test that "edgedb-server" works as expected with the
         # following arguments:
@@ -136,6 +161,10 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 f'STDERR: {stderr.decode()}',
             )
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "--bootstrap-command is not supported in multi-tenant mode",
+    )
     async def test_server_ops_bootstrap_script_server(self):
         # Test that "edgedb-server" works as expected with the
         # following arguments:
@@ -152,6 +181,75 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             finally:
                 await con.aclose()
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "--background is not supported in multi-tenante mode"
+    )
+    async def test_server_ops_background(self) -> None:
+        # Test that "edgedb-server" works as expected with the
+        # following arguments:
+        #
+        # * "--background"
+        debug = False
+
+        status_fd, status_file = tempfile.mkstemp()
+        os.close(status_fd)
+
+        cmd = [
+            sys.executable, '-m', 'edb.server.main',
+            '--port', 'auto',
+            '--testmode',
+            '--temp-dir',
+            '--log-level=debug',
+            '--background',
+            '--emit-server-status', status_file,
+            '--tls-cert-mode=generate_self_signed',
+            '--jose-key-mode=generate',
+        ]
+
+        proc = None
+
+        def _read(filename: str) -> str:
+            with open(filename, 'r') as f:
+                while True:
+                    result = f.readline()
+                    if not result:
+                        time.sleep(0.1)
+                    else:
+                        return result
+
+        async def _waiter() -> Tuple[str, Mapping[str, Any]]:
+            loop = asyncio.get_running_loop()
+            line = await loop.run_in_executor(None, _read, status_file)
+            status, _, dataline = line.partition('=')
+            return status, json.loads(dataline)
+
+        pid = None
+
+        try:
+            if debug:
+                print(*cmd)
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=None if debug else subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
+            )
+
+            status, data = await asyncio.wait_for(_waiter(), timeout=240)
+            self.assertEqual(status, 'READY')
+            self.assertIsNotNone(data.get('socket_dir'))
+            self.assertIsNotNone(data.get('port'))
+            pid = data.get('main_pid')
+            self.assertIsNotNone(pid)
+
+        finally:
+            if proc and proc.returncode is None:
+                await self.kill_process(proc)
+            os.unlink(status_file)
+
+            if pid is not None:
+                os.kill(pid, signal.SIGTERM)
+
     async def test_server_ops_emit_server_status_to_file(self) -> None:
         debug = False
 
@@ -165,14 +263,17 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             sys.executable, '-m', 'edb.server.main',
             '--port', 'auto',
             '--testmode',
-            '--temp-dir',
             '--log-level=debug',
-            '--max-backend-connections', '10',
             '--emit-server-status', status_file,
             '--emit-server-status', status_file_2,
             '--tls-cert-mode=generate_self_signed',
             '--jose-key-mode=generate',
         ]
+        if "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" not in os.environ:
+            cmd.extend([
+                '--temp-dir',
+                '--max-backend-connections', '10',
+            ])
 
         proc = None
 
@@ -682,6 +783,10 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             finally:
                 await con.aclose()
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "--readiness-state-file is not allowed in multi-tenant mode",
+    )
     async def test_server_ops_readiness(self):
         rf_no, rf_name = tempfile.mkstemp(text=True)
         rf = open(rf_no, "wt")
@@ -777,6 +882,10 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 rf.close()
                 os.unlink(rf_name)
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "--readiness-state-file is not allowed in multi-tenant mode",
+    )
     async def test_server_ops_readonly(self):
         rf_no, rf_name = tempfile.mkstemp(text=True)
         rf = open(rf_no, "wt")
@@ -832,6 +941,98 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 ):
                     async with tr:
                         await conn.execute("insert A")
+
+                await conn.aclose()
+        finally:
+            if os.path.exists(rf_name):
+                rf.close()
+                os.unlink(rf_name)
+
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "covered in test_server_ops_multi_tenant",
+    )
+    async def test_server_ops_offline(self):
+        rf_no, rf_name = tempfile.mkstemp(text=True)
+        rf = open(rf_no, "wt")
+
+        try:
+            print("default", file=rf, flush=True)
+
+            async with tb.start_edgedb_server(
+                readiness_state_file=rf_name,
+            ) as sd:
+                conn = await sd.connect()
+                await conn.execute("select 1")
+
+                # Go offline
+                rf.seek(0)
+                print("offline", file=rf, flush=True)
+                await asyncio.sleep(0.01)
+
+                with self.assertRaises(
+                    (edgedb.AvailabilityError, edgedb.ClientConnectionError),
+                ):
+                    await conn.execute("select 1")
+
+                # Clear read-only by removing the file
+                rf.close()
+                os.unlink(rf_name)
+                await asyncio.sleep(0.05)
+                async for tr in self.try_until_succeeds(
+                    ignore=(errors.ClientConnectionError,),
+                ):
+                    async with tr:
+                        await conn.execute("select 1")
+
+                await conn.aclose()
+        finally:
+            if os.path.exists(rf_name):
+                rf.close()
+                os.unlink(rf_name)
+
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "covered in test_server_ops_multi_tenant",
+    )
+    async def test_server_ops_blocked(self):
+        rf_no, rf_name = tempfile.mkstemp(text=True)
+        rf = open(rf_no, "wt")
+
+        try:
+            print("default", file=rf, flush=True)
+
+            async with tb.start_edgedb_server(
+                readiness_state_file=rf_name,
+            ) as sd:
+                conn = await sd.connect()
+                await conn.execute("select 1")
+
+                # Go blocked
+                rf.seek(0)
+                print("blocked:quota exceeded", file=rf, flush=True)
+                await asyncio.sleep(0.01)
+
+                with self.assertRaisesRegex(
+                    edgedb.AvailabilityError,
+                    "quota exceeded"
+                ):
+                    await conn.execute("select 1")
+
+                await asyncio.sleep(0.01)
+                self.assertTrue(conn.is_closed())
+
+                # Clear read-only by removing the file
+                rf.close()
+                os.unlink(rf_name)
+                await asyncio.sleep(0.05)
+                async for tr in self.try_until_succeeds(
+                    ignore=(
+                        edgedb.AvailabilityError,
+                    ),
+                ):
+                    async with tr:
+                        await conn.execute("select 1")
 
                 await conn.aclose()
         finally:
@@ -916,3 +1117,191 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             self.assertTrue(rsids)
         finally:
             await con.aclose()
+
+    async def _init_pg_cluster(self, path):
+        cluster = await pgcluster.get_local_pg_cluster(path, log_level='s')
+        cluster.set_connection_params(
+            pgconnparams.ConnectionParameters(
+                user='postgres',
+                database='template1',
+            ),
+        )
+        self.assertTrue(await cluster.ensure_initialized())
+        await cluster.start()
+        try:
+            runstate_dir = None if devmode.is_in_dev_mode() else path
+            async with tb.start_edgedb_server(
+                runstate_dir=runstate_dir,
+                backend_dsn=f'postgres:///?user=postgres&host={path}',
+                reset_auth=True,
+                auto_shutdown_after=1,
+            ) as sd:
+                connect_args = {
+                    k: v
+                    for k, v in sd.get_connect_args().items()
+                    if k in {"user", "password"}
+                }
+        except Exception:
+            await cluster.stop()
+            raise
+        return cluster, connect_args
+
+    async def test_server_ops_multi_tenant(self):
+        with (
+            tempfile.TemporaryDirectory() as td1,
+            tempfile.TemporaryDirectory() as td2,
+            tempfile.NamedTemporaryFile("w+") as conf_file,
+            tempfile.NamedTemporaryFile("w+") as rd1,
+            tempfile.NamedTemporaryFile("w+") as rd2,
+        ):
+            fs = []
+            conf = {}
+            for i, td, rd in [(1, td1, rd1), (2, td2, rd2)]:
+                rd.file.write("default:ok")
+                rd.file.flush()
+                fs.append(self.loop.create_task(self._init_pg_cluster(td)))
+                conf[f"{i}.localhost"] = {
+                    "instance-name": f"localtest{i}",
+                    "backend-dsn": f'postgres:///?user=postgres&host={td}',
+                    "max-backend-connections": 10,
+                    "readiness-state-file": rd.name,
+                }
+            await asyncio.wait(fs)
+            cluster1, args1 = await fs[0]
+            cluster2, args2 = await fs[1]
+            args1["server_hostname"] = "1.localhost"
+            args2["server_hostname"] = "2.localhost"
+            try:
+                json.dump(conf, conf_file.file)
+                conf_file.file.flush()
+
+                runstate_dir = None if devmode.is_in_dev_mode() else td1
+                srv = tb.start_edgedb_server(
+                    runstate_dir=runstate_dir,
+                    multitenant_config=conf_file.name,
+                    max_allowed_connections=None,
+                )
+                async with srv as sd:
+                    mtargs = MultiTenantArgs(
+                        srv, sd, conf_file, conf, args1, args2, rd1, rd2
+                    )
+                    for i in range(1, 6):
+                        name = f"_test_server_ops_multi_tenant_{i}"
+                        with self.subTest(name):
+                            await getattr(self, name)(mtargs)
+            finally:
+                try:
+                    await cluster1.stop()
+                finally:
+                    await cluster2.stop()
+
+    async def _test_server_ops_multi_tenant_1(
+        self, mtargs: MultiTenantArgs, **kwargs
+    ):
+        conn = await mtargs.sd.connect(**mtargs.args1, **kwargs)
+        try:
+            rv = await conn.query_single("select sys::get_instance_name()")
+            self.assertEqual(rv, "localtest1")
+        finally:
+            await conn.aclose()
+
+    async def _test_server_ops_multi_tenant_2(self, mtargs: MultiTenantArgs):
+        conn = await mtargs.sd.connect(**mtargs.args2)
+        try:
+            rv = await conn.query_single("select sys::get_instance_name()")
+            self.assertEqual(rv, "localtest2")
+        finally:
+            await conn.aclose()
+
+    async def _test_server_ops_multi_tenant_3(self, mtargs: MultiTenantArgs):
+        conf1 = mtargs.conf.pop("1.localhost")
+        mtargs.reload_server()
+
+        async for tr in self.try_until_fails(
+            wait_for=errors.AvailabilityError
+        ):
+            async with tr:
+                await self._test_server_ops_multi_tenant_1(mtargs)
+
+        await self._test_server_ops_multi_tenant_2(mtargs)
+
+        mtargs.conf["1.localhost"] = conf1
+        mtargs.reload_server()
+
+        async for tr in self.try_until_succeeds(
+            ignore=errors.AvailabilityError
+        ):
+            async with tr:
+                await self._test_server_ops_multi_tenant_1(mtargs)
+
+        await self._test_server_ops_multi_tenant_2(mtargs)
+
+    async def _test_server_ops_multi_tenant_4(self, mtargs: MultiTenantArgs):
+        mtargs.rd1.file.seek(0)
+        mtargs.rd1.file.truncate(0)
+        mtargs.rd1.file.write("offline:test")
+        mtargs.rd1.file.flush()
+
+        async for tr in self.try_until_fails(
+            wait_for=errors.ClientConnectionClosedError
+        ):
+            async with tr:
+                await self._test_server_ops_multi_tenant_1(
+                    mtargs,
+                    timeout=1,
+                    wait_until_available=0,
+                )
+
+        await self._test_server_ops_multi_tenant_2(mtargs)
+
+        mtargs.rd1.file.seek(0)
+        mtargs.rd1.file.truncate(0)
+        mtargs.rd1.file.write("default:ok")
+        mtargs.rd1.file.flush()
+
+        await self._test_server_ops_multi_tenant_1(mtargs)
+        await self._test_server_ops_multi_tenant_2(mtargs)
+
+    async def _test_server_ops_multi_tenant_5(self, mtargs: MultiTenantArgs):
+        mtargs.rd1.file.seek(0)
+        mtargs.rd1.file.truncate(0)
+        mtargs.rd1.file.write("blocked:test")
+        mtargs.rd1.file.flush()
+
+        async for tr in self.try_until_fails(
+            wait_for=errors.AvailabilityError
+        ):
+            async with tr:
+                await self._test_server_ops_multi_tenant_1(
+                    mtargs,
+                    timeout=1,
+                    wait_until_available=0,
+                )
+
+        await self._test_server_ops_multi_tenant_2(mtargs)
+
+        mtargs.rd1.file.seek(0)
+        mtargs.rd1.file.truncate(0)
+        mtargs.rd1.file.write("default:ok")
+        mtargs.rd1.file.flush()
+
+        await self._test_server_ops_multi_tenant_1(mtargs)
+        await self._test_server_ops_multi_tenant_2(mtargs)
+
+
+class MultiTenantArgs(NamedTuple):
+    srv: tb._EdgeDBServer
+    sd: tb._EdgeDBServerData
+    conf_file: tempfile._TemporaryFileWrapper
+    conf: dict[str, dict[str, Any]]
+    args1: dict[str, str]
+    args2: dict[str, str]
+    rd1: tempfile._TemporaryFileWrapper
+    rd2: tempfile._TemporaryFileWrapper
+
+    def reload_server(self):
+        self.conf_file.file.seek(0)
+        self.conf_file.file.truncate(0)
+        json.dump(self.conf, self.conf_file.file)
+        self.conf_file.file.flush()
+        self.srv.proc.send_signal(signal.SIGHUP)

@@ -28,11 +28,11 @@ from edb.edgeql import qltypes
 
 from . import annos as s_anno
 from . import delta as sd
+from . import name as sn
 from . import objects as so
 from . import schema as s_schema
 
 RESERVED_MODULE_NAMES = {
-    'ext',
     'super',
 }
 
@@ -66,7 +66,10 @@ class ModuleCommand(
         super()._validate_legal_command(schema, context)
 
         last = str(self.classname)
+        first = last
+        enclosing = None
         if '::' in str(self.classname):
+            first, _, _ = str(self.classname).partition('::')
             enclosing, _, last = str(self.classname).rpartition('::')
             if not schema.has_module(enclosing):
                 raise errors.UnknownModuleError(
@@ -78,11 +81,11 @@ class ModuleCommand(
 
         if (
             not context.stdmode and not context.testmode
-            and (modname := self.classname) in s_schema.STD_MODULES
+            and sn.UnqualName(first) in s_schema.STD_MODULES
         ):
             raise errors.SchemaDefinitionError(
                 f'cannot {self._delta_action} {self.get_verbosename()}: '
-                f'module {modname} is read-only',
+                f'module {first} is read-only',
                 context=self.source_context)
 
 

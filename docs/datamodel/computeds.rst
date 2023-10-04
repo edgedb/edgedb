@@ -20,14 +20,14 @@ the fly* whenever that field is queried.
 
     type Person {
       property name -> str;
-      property all_caps_name := str_upper(__subject__.name);
+      property all_caps_name := str_upper(__source__.name);
     }
 
 .. code-block:: sdl
 
     type Person {
       name: str;
-      property all_caps_name := str_upper(__subject__.name);
+      property all_caps_name := str_upper(__source__.name);
     }
 
 Computed fields are associated with an EdgeQL expression. This expression
@@ -54,11 +54,11 @@ field is referenced in a query.
 Leading dot notation
 --------------------
 
-The example above used the special keyword ``__subject__`` to refer to the
+The example above used the special keyword ``__source__`` to refer to the
 current object; it's analogous to ``this`` or ``self``  in many object-oriented
 languages.
 
-However, explicitly using ``__subject__`` is optional here; inside the scope of
+However, explicitly using ``__source__`` is optional here; inside the scope of
 an object type declaration, you can omit it entirely and use the ``.<name>``
 shorthand.
 

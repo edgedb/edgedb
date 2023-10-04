@@ -3,8 +3,25 @@ use std::str::{from_utf8, Utf8Error};
 
 use unicode_width::UnicodeWidthStr;
 
+/// Span of an element in source code
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Span {
+    /// Byte offset in the original file
+    ///
+    /// Technically you can read > 4Gb file on 32bit machine so it may
+    /// not fit in usize
+    pub start: u64,
+
+    /// Byte offset in the original file
+    ///
+    /// Technically you can read > 4Gb file on 32bit machine so it may
+    /// not fit in usize
+    pub end: u64,
+}
 /// Original position of element in source code
 #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Default, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Pos {
     /// One-based line number
     pub line: usize,
@@ -16,7 +33,6 @@ pub struct Pos {
     /// not fit in usize
     pub offset: u64,
 }
-
 
 /// This contains position in all forms that EdgeDB needs
 #[derive(Clone, Copy, Debug)]
@@ -56,6 +72,15 @@ impl fmt::Display for Pos {
     }
 }
 
+impl Span {
+    pub fn combine(self, right: Span) -> Span {
+        Span {
+            start: self.start,
+            end: right.end,
+        }
+    }
+}
+
 fn new_lines_in_fragment(data: &[u8]) -> u64 {
     let mut was_lf = false;
     let mut lines = 0;
@@ -79,12 +104,16 @@ fn new_lines_in_fragment(data: &[u8]) -> u64 {
     return lines;
 }
 
-
 impl InflatedPos {
+    pub fn from_offset(data: &[u8], offset: u64) -> Result<InflatedPos, InflatingError> {
+        let res = Self::from_offsets(data, &[offset as usize])?;
+        Ok(res.into_iter().next().unwrap())
+    }
 
-    pub fn from_offsets(data: &[u8], offsets: &[usize])
-        -> Result<Vec<InflatedPos>, InflatingError>
-    {
+    pub fn from_offsets(
+        data: &[u8],
+        offsets: &[usize],
+    ) -> Result<Vec<InflatedPos>, InflatingError> {
         let mut result = Vec::with_capacity(offsets.len());
         // TODO(tailhook) optimize calculation if offsets are growing
         for &offset in offsets {
@@ -92,16 +121,14 @@ impl InflatedPos {
                 return Err(InflatingError::OutOfRange);
             }
             let prefix = &data[..offset];
-            let prefix_s = from_utf8(prefix)
-                .map_err(InflatingError::Utf8)?;
+            let prefix_s = from_utf8(prefix).map_err(InflatingError::Utf8)?;
             let line_offset;
             let line;
-            if let Some(loff) = prefix_s.rfind(|c| c == '\r' || c == '\n')
-            {
-                line_offset = loff+1;
+            if let Some(loff) = prefix_s.rfind(|c| c == '\r' || c == '\n') {
+                line_offset = loff + 1;
                 let mut lines = &prefix[..loff];
-                if data[loff] == b'\n' && loff > 0 && data[loff-1] == b'\r' {
-                    lines = &lines[..lines.len()-1];
+                if data[loff] == b'\n' && loff > 0 && data[loff - 1] == b'\r' {
+                    lines = &lines[..lines.len() - 1];
                 }
                 line = new_lines_in_fragment(lines) + 1;
             } else {
@@ -119,11 +146,19 @@ impl InflatedPos {
         }
         return Ok(result);
     }
+
+    pub fn deflate(self) -> Pos {
+        Pos {
+            line: self.line as usize + 1,
+            column: self.column as usize + 1,
+            offset: self.offset,
+        }
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use super::{InflatedPos, new_lines_in_fragment};
+    use super::{new_lines_in_fragment, InflatedPos};
 
     fn mkpos(s: &str, off: usize) -> InflatedPos {
         InflatedPos::from_offsets(s.as_bytes(), &[off]).unwrap()[0]
@@ -150,8 +185,8 @@ mod test {
             let pos = mkpos(line, off);
             let off = off as u64;
             assert_eq!(pos.line, 1);
-            assert_eq!(pos.column, off-6);
-            assert_eq!(pos.utf16column, off-6);
+            assert_eq!(pos.column, off - 6);
+            assert_eq!(pos.utf16column, off - 6);
             assert_eq!(pos.offset, off);
             assert_eq!(pos.char_offset, off);
         }
@@ -174,8 +209,8 @@ mod test {
     fn char_offsets() {
         let pos = mkpos("bomb = '💣'", 12);
         assert_eq!(pos.line, 0);
-        assert_eq!(pos.column, 10);       // bomb is 2 char width
-        assert_eq!(pos.utf16column, 10);  // and also 2 utf8 codepoints
+        assert_eq!(pos.column, 10); // bomb is 2 char width
+        assert_eq!(pos.utf16column, 10); // and also 2 utf8 codepoints
         assert_eq!(pos.offset, 12);
         assert_eq!(pos.char_offset, 9);
 

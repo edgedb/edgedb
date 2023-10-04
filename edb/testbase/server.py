@@ -54,13 +54,13 @@ from edb.server import args as edgedb_args
 from edb.server import cluster as edgedb_cluster
 from edb.server import pgcluster
 from edb.server import defines as edgedb_defines
-from edb.server import main as edgedb_main
 from edb.server import pgconnparams
 
 from edb.common import assert_data_shape
 from edb.common import devmode
 from edb.common import debug
 from edb.common import retryloop
+from edb.common import secretkey
 from edb.common import taskgroup
 
 from edb.protocol import protocol as test_protocol
@@ -99,8 +99,8 @@ def get_test_cases(tests):
 
 bag = assert_data_shape.bag
 
-generate_jwk = edgedb_main.generate_jwk
-generate_tls_cert = edgedb_main.generate_tls_cert
+generate_jwk = secretkey.generate_jwk
+generate_tls_cert = secretkey.generate_tls_cert
 
 
 class StubbornHttpConnection(http.client.HTTPSConnection):
@@ -325,13 +325,26 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
         }
 
 
+class RollbackChanges:
+    def __init__(self, test):
+        self._conn = test.con
+
+    async def __aenter__(self):
+        self._tx = self._conn.transaction()
+        await self._tx.start()
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self._tx.rollback()
+
+
 class BaseHTTPTestCase(TestCase):
     @classmethod
     def get_api_prefix(cls):
         return ''
 
+    @classmethod
     @contextlib.contextmanager
-    def http_con(self, server, keep_alive=True):
+    def http_con(cls, server, keep_alive=True):
         conn_args = server.get_connect_args()
         tls_context = ssl.create_default_context(
             ssl.Purpose.SERVER_AUTH,
@@ -354,18 +367,21 @@ class BaseHTTPTestCase(TestCase):
         finally:
             con.true_close()
 
+    @classmethod
     def http_con_send_request(
-        self,
+        cls,
         http_con: http.client.HTTPConnection,
         params: Optional[dict[str, str]] = None,
         *,
+        prefix: Optional[str] = None,
         headers: Optional[dict[str, str]] = None,
         method: str = "GET",
         body: bytes = b"",
         path: str = "",
     ):
         url = f'https://{http_con.host}:{http_con.port}'
-        prefix = self.get_api_prefix()
+        if prefix is None:
+            prefix = cls.get_api_prefix()
         if prefix:
             url = f'{url}{prefix}'
         if path:
@@ -376,48 +392,55 @@ class BaseHTTPTestCase(TestCase):
             headers = {}
         http_con.request(method, url, body=body, headers=headers)
 
+    @classmethod
     def http_con_read_response(
-        self,
+        cls,
         http_con: http.client.HTTPConnection,
     ) -> tuple[bytes, dict[str, str], int]:
         resp = http_con.getresponse()
         resp_body = resp.read()
-        resp_headers = {k.lower(): v.lower() for k, v in resp.getheaders()}
+        resp_headers = {k.lower(): v for k, v in resp.getheaders()}
         return resp_body, resp_headers, resp.status
 
+    @classmethod
     def http_con_request(
-        self,
+        cls,
         http_con: http.client.HTTPConnection,
         params: Optional[dict[str, str]] = None,
         *,
+        prefix: Optional[str] = None,
         headers: Optional[dict[str, str]] = None,
         method: str = "GET",
         body: bytes = b"",
         path: str = "",
     ) -> tuple[bytes, dict[str, str], int]:
-        self.http_con_send_request(
+        cls.http_con_send_request(
             http_con,
             params,
+            prefix=prefix,
             headers=headers,
             method=method,
             body=body,
             path=path,
         )
-        return self.http_con_read_response(http_con)
+        return cls.http_con_read_response(http_con)
 
+    @classmethod
     def http_con_json_request(
-        self,
+        cls,
         http_con: http.client.HTTPConnection,
         params: Optional[dict[str, str]] = None,
         *,
+        prefix: Optional[str] = None,
         body: Any,
         path: str = "",
     ):
-        response, headers, status = self.http_con_request(
+        response, headers, status = cls.http_con_request(
             http_con,
             params,
             method="POST",
             body=json.dumps(body).encode(),
+            prefix=prefix,
             headers={"Content-Type": "application/json"},
             path=path,
         )
@@ -626,8 +649,9 @@ class ClusterTestCase(BaseHTTPTestCase):
     # library (e.g. declaring casts).
     INTERNAL_TESTMODE = True
 
-    SETUP_COMMANDS: Sequence[str] = ()
-    TEARDOWN_COMMANDS: Sequence[str] = ()
+    # Setup and teardown commands that run per test
+    PER_TEST_SETUP: Sequence[str] = ()
+    PER_TEST_TEARDOWN: Sequence[str] = ()
 
     @classmethod
     def setUpClass(cls):
@@ -640,20 +664,15 @@ class ClusterTestCase(BaseHTTPTestCase):
         )
         cls.has_create_database = cls.cluster.has_create_database()
         cls.has_create_role = cls.cluster.has_create_role()
+        cls.is_superuser = cls.has_create_database and cls.has_create_role
         cls.backend_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
+        if getattr(cls, 'BACKEND_SUPERUSER', False):
+            if not cls.is_superuser:
+                raise unittest.SkipTest('skipped due to lack of superuser')
 
     @classmethod
     async def tearDownSingleDB(cls):
-        await cls.con.execute(
-            'START MIGRATION TO {};\n'
-            'POPULATE MIGRATION;\n'
-            'COMMIT MIGRATION;'
-        )
-        while m := await cls.con.query_single(
-            "SELECT schema::Migration { name } "
-            "FILTER NOT EXISTS .<parents LIMIT 1"
-        ):
-            await cls.con.execute(f"DROP MIGRATION {m.name}")
+        await cls.con.execute("RESET SCHEMA TO initial;")
 
     @classmethod
     def fetch_metrics(cls) -> str:
@@ -708,47 +727,6 @@ class ClusterTestCase(BaseHTTPTestCase):
                 f'{self._testMethodName!r}:\n\n{errors}'
             )
 
-    def setUp(self):
-        if self.INTERNAL_TESTMODE:
-            self.loop.run_until_complete(
-                self.con.execute(
-                    'CONFIGURE SESSION SET __internal_testmode := true;'))
-
-        if self.TRANSACTION_ISOLATION:
-            self.xact = self.con.transaction()
-            self.loop.run_until_complete(self.xact.start())
-
-        for cmd in self.SETUP_COMMANDS:
-            self.loop.run_until_complete(self.con.execute(cmd))
-
-        super().setUp()
-
-    def tearDown(self):
-        try:
-            self.ensure_no_background_server_errors()
-
-            for cmd in self.TEARDOWN_COMMANDS:
-                self.loop.run_until_complete(self.con.execute(cmd))
-        finally:
-            try:
-                if self.TRANSACTION_ISOLATION:
-                    self.loop.run_until_complete(self.xact.rollback())
-                    del self.xact
-
-                if self.con.is_in_transaction():
-                    self.loop.run_until_complete(
-                        self.con.query('ROLLBACK'))
-                    raise AssertionError(
-                        'test connection is still in transaction '
-                        '*after* the test')
-
-                if not self.TRANSACTION_ISOLATION:
-                    self.loop.run_until_complete(
-                        self.con.execute('RESET ALIAS *;'))
-
-            finally:
-                super().tearDown()
-
     @contextlib.asynccontextmanager
     async def assertRaisesRegexTx(self, exception, regex, msg=None, **kwargs):
         """A version of assertRaisesRegex with automatic transaction recovery
@@ -772,10 +750,11 @@ class ClusterTestCase(BaseHTTPTestCase):
             finally:
                 await tx.rollback()
 
+    @classmethod
     @contextlib.contextmanager
-    def http_con(self, server=None):
+    def http_con(cls, server=None):
         if server is None:
-            server = self
+            server = cls
         with super().http_con(server) as http_con:
             yield http_con
 
@@ -799,19 +778,76 @@ class ClusterTestCase(BaseHTTPTestCase):
         return tls_context
 
 
-class RollbackChanges:
-    def __init__(self, test):
-        self._conn = test.con
+class ConnectedTestCase(ClusterTestCase):
 
-    async def __aenter__(self):
-        self._tx = self._conn.transaction()
-        await self._tx.start()
+    BASE_TEST_CLASS = True
 
-    async def __aexit__(self, exc_type, exc, tb):
-        await self._tx.rollback()
+    con: Any  # XXX: the real type?
 
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.loop.run_until_complete(cls.setup_and_connect())
 
-class ConnectedTestCaseMixin:
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            cls.loop.run_until_complete(cls.teardown_and_disconnect())
+        finally:
+            super().tearDownClass()
+
+    @classmethod
+    async def setup_and_connect(cls):
+        cls.con = await cls.connect()
+
+    @classmethod
+    async def teardown_and_disconnect(cls):
+        await cls.con.aclose()
+        # Give event loop another iteration so that connection
+        # transport has a chance to properly close.
+        await asyncio.sleep(0)
+        cls.con = None
+
+    def setUp(self):
+        if self.INTERNAL_TESTMODE:
+            self.loop.run_until_complete(
+                self.con.execute(
+                    'CONFIGURE SESSION SET __internal_testmode := true;'))
+
+        if self.TRANSACTION_ISOLATION:
+            self.xact = self.con.transaction()
+            self.loop.run_until_complete(self.xact.start())
+
+        for cmd in self.PER_TEST_SETUP:
+            self.loop.run_until_complete(self.con.execute(cmd))
+
+        super().setUp()
+
+    def tearDown(self):
+        try:
+            self.ensure_no_background_server_errors()
+
+            for cmd in self.PER_TEST_TEARDOWN:
+                self.loop.run_until_complete(self.con.execute(cmd))
+        finally:
+            try:
+                if self.TRANSACTION_ISOLATION:
+                    self.loop.run_until_complete(self.xact.rollback())
+                    del self.xact
+
+                if self.con.is_in_transaction():
+                    self.loop.run_until_complete(
+                        self.con.query('ROLLBACK'))
+                    raise AssertionError(
+                        'test connection is still in transaction '
+                        '*after* the test')
+
+                if not self.TRANSACTION_ISOLATION:
+                    self.loop.run_until_complete(
+                        self.con.execute('RESET ALIAS *;'))
+
+            finally:
+                super().tearDown()
 
     @classmethod
     async def connect(
@@ -866,6 +902,10 @@ class ConnectedTestCaseMixin:
 
     def _run_and_rollback(self):
         return RollbackChanges(self)
+
+    def assert_data_shape(self, data, shape, message=None):
+        assert_data_shape.assert_data_shape(
+            data, shape, self.fail, message=message)
 
     async def assert_query_result(self, query,
                                   exp_result_json,
@@ -932,85 +972,41 @@ class ConnectedTestCaseMixin:
                 self.add_fail_notes(msg=msg)
             raise
 
+    async def assert_index_use(self, query, *args, index_type):
+        def look(obj):
+            if isinstance(obj, dict) and obj.get('plan_type') == "IndexScan":
+                return any(
+                    prop['title'] == 'index_name'
+                    and index_type in prop['value']
+                    for prop in obj.get('properties', [])
+                )
 
-class CLITestCaseMixin:
-
-    def run_cli(self, *args, input: Optional[str] = None) -> None:
-        conn_args = self.get_connect_args()
-        self.run_cli_on_connection(conn_args, *args, input=input)
-
-    @classmethod
-    def run_cli_on_connection(
-        cls, conn_args: Dict[str, Any], *args, input: Optional[str] = None
-    ) -> None:
-        cmd_args = [
-            '--host', conn_args['host'],
-            '--port', str(conn_args['port']),
-            '--tls-ca-file', conn_args['tls_ca_file']
-        ]
-        if conn_args.get('user'):
-            cmd_args += ['--user', conn_args['user']]
-        if conn_args.get('password'):
-            cmd_args += ['--password-from-stdin']
-            if input is not None:
-                input = f"{conn_args['password']}\n{input}"
+            if isinstance(obj, dict):
+                return any([look(v) for v in obj.values()])
+            elif isinstance(obj, list):
+                return any(look(v) for v in obj)
             else:
-                input = f"{conn_args['password']}\n"
-        cmd_args += args
-        cmd = ['edgedb'] + cmd_args
-        try:
-            subprocess.run(
-                cmd,
-                input=input.encode() if input else None,
-                check=True,
-                capture_output=True,
-            )
-        except subprocess.CalledProcessError as e:
-            output = '\n'.join(getattr(out, 'decode', out.__str__)()
-                               for out in [e.output, e.stderr] if out)
-            raise AssertionError(
-                f'command {cmd} returned non-zero exit status {e.returncode}'
-                f'\n{output}'
-            ) from e
+                return False
+
+        plan = await self.con.query_json(f'analyze {query}', *args)
+        if not look(json.loads(plan)):
+            raise AssertionError(f"query did not use the {index_type!r} index")
 
 
-class ConnectedTestCase(ClusterTestCase, ConnectedTestCaseMixin):
-
-    BASE_TEST_CLASS = True
-
-    con: Any  # XXX: the real type?
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.con = cls.loop.run_until_complete(cls.connect())
-
-    @classmethod
-    def tearDownClass(cls):
-        try:
-            cls.loop.run_until_complete(cls.con.aclose())
-            # Give event loop another iteration so that connection
-            # transport has a chance to properly close.
-            cls.loop.run_until_complete(asyncio.sleep(0))
-            cls.con = None
-        finally:
-            super().tearDownClass()
-
-
-class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
+class DatabaseTestCase(ConnectedTestCase):
 
     SETUP: Optional[Union[str, List[str]]] = None
     TEARDOWN: Optional[str] = None
     SCHEMA: Optional[Union[str, pathlib.Path]] = None
     DEFAULT_MODULE: str = 'default'
+    EXTENSIONS: List[str] = []
 
     BASE_TEST_CLASS = True
 
     con: Any  # XXX: the real type?
 
     @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
+    async def setup_and_connect(cls):
         dbname = cls.get_database_name()
 
         cls.admin_conn = None
@@ -1021,19 +1017,17 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         # Only open an extra admin connection if necessary.
         if class_set_up == 'run':
             script = f'CREATE DATABASE {dbname};'
-            cls.admin_conn = cls.loop.run_until_complete(cls.connect())
-            cls.loop.run_until_complete(cls.admin_conn.execute(script))
+            cls.admin_conn = await cls.connect()
+            await cls.admin_conn.execute(script)
 
         elif class_set_up == 'inplace':
             dbname = edgedb_defines.EDGEDB_SUPERUSER_DB
 
         elif cls.uses_database_copies():
-            cls.admin_conn = cls.loop.run_until_complete(cls.connect())
+            cls.admin_conn = await cls.connect()
 
-            orig_testmode = cls.loop.run_until_complete(
-                cls.admin_conn.query(
-                    'SELECT cfg::Config.__internal_testmode',
-                ),
+            orig_testmode = await cls.admin_conn.query(
+                'SELECT cfg::Config.__internal_testmode',
             )
             if not orig_testmode:
                 orig_testmode = False
@@ -1042,10 +1036,8 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
             # Enable testmode to unblock the template database syntax below.
             if not orig_testmode:
-                cls.loop.run_until_complete(
-                    cls.admin_conn.execute(
-                        'CONFIGURE SESSION SET __internal_testmode := true;',
-                    ),
+                await cls.admin_conn.execute(
+                    'CONFIGURE SESSION SET __internal_testmode := true;',
                 )
 
             base_db_name, _, _ = dbname.rpartition('_')
@@ -1065,28 +1057,26 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                                 FROM {qlquote.quote_ident(base_db_name)}
                             ''',
                         )
-            cls.loop.run_until_complete(create_db())
+            await create_db()
 
             if not orig_testmode:
-                cls.loop.run_until_complete(
-                    cls.admin_conn.execute(
-                        'CONFIGURE SESSION SET __internal_testmode := false;',
-                    ),
+                await cls.admin_conn.execute(
+                    'CONFIGURE SESSION SET __internal_testmode := false;',
                 )
 
-        cls.con = cls.loop.run_until_complete(cls.connect(database=dbname))
+        cls.con = await cls.connect(database=dbname)
 
         if class_set_up != 'skip':
             script = cls.get_setup_script()
             if script:
-                cls.loop.run_until_complete(cls.con.execute(script))
+                await cls.con.execute(script)
 
     @staticmethod
     def get_set_up():
         return os.environ.get('EDGEDB_TEST_CASES_SET_UP', 'run')
 
     @classmethod
-    def tearDownClass(cls):
+    async def teardown_and_disconnect(cls):
         script = ''
 
         class_set_up = cls.get_set_up()
@@ -1096,30 +1086,23 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
         try:
             if script:
-                cls.loop.run_until_complete(
-                    cls.con.execute(script))
+                await cls.con.execute(script)
             if class_set_up == 'inplace':
-                cls.loop.run_until_complete(cls.tearDownSingleDB())
+                await cls.tearDownSingleDB()
         finally:
             try:
-                cls.loop.run_until_complete(cls.con.aclose())
+                await cls.con.aclose()
 
                 if class_set_up == 'inplace':
                     pass
 
                 elif class_set_up == 'run' or cls.uses_database_copies():
                     dbname = qlquote.quote_ident(cls.get_database_name())
-
-                    cls.loop.run_until_complete(
-                        drop_db(cls.admin_conn, dbname))
+                    await drop_db(cls.admin_conn, dbname)
 
             finally:
-                try:
-                    if cls.admin_conn is not None:
-                        cls.loop.run_until_complete(
-                            cls.admin_conn.aclose())
-                finally:
-                    super().tearDownClass()
+                if cls.admin_conn is not None:
+                    await cls.admin_conn.aclose()
 
     @classmethod
     def get_database_name(cls):
@@ -1150,18 +1133,26 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         if cls.INTERNAL_TESTMODE:
             script += '\nCONFIGURE SESSION SET __internal_testmode := true;'
 
+        if getattr(cls, 'BACKEND_SUPERUSER', False):
+            is_superuser = getattr(cls, 'is_superuser', True)
+            if not is_superuser:
+                raise unittest.SkipTest('skipped due to lack of superuser')
+
+        schema = []
+        # Incude the extensions before adding schemas.
+        for ext in cls.EXTENSIONS:
+            schema.append(f'using extension {ext};')
+
         # Look at all SCHEMA entries and potentially create multiple
         # modules, but always create the test module, if not `default`.
         if cls.DEFAULT_MODULE != 'default':
-            schema = [f'\nmodule {cls.DEFAULT_MODULE} {{}}']
-        else:
-            schema = []
+            schema.append(f'\nmodule {cls.DEFAULT_MODULE} {{}}')
         for name in dir(cls):
             m = re.match(r'^SCHEMA(?:_(\w+))?', name)
             if m:
                 module_name = (
                     (m.group(1) or cls.DEFAULT_MODULE)
-                    .lower().replace('__', '.')
+                    .lower().replace('_', '::')
                 )
 
                 schema_fn = getattr(cls, name)
@@ -1319,6 +1310,47 @@ class SQLQueryTestCase(BaseQueryTestCase):
             self.assertListEqual(column_names, list(res[0].keys()))
 
 
+class CLITestCaseMixin:
+
+    def run_cli(self, *args, input: Optional[str] = None) -> None:
+        conn_args = self.get_connect_args()
+        self.run_cli_on_connection(conn_args, *args, input=input)
+
+    @classmethod
+    def run_cli_on_connection(
+        cls, conn_args: Dict[str, Any], *args, input: Optional[str] = None
+    ) -> None:
+        cmd_args = [
+            '--host', conn_args['host'],
+            '--port', str(conn_args['port']),
+            '--tls-ca-file', conn_args['tls_ca_file']
+        ]
+        if conn_args.get('user'):
+            cmd_args += ['--user', conn_args['user']]
+        if conn_args.get('password'):
+            cmd_args += ['--password-from-stdin']
+            if input is not None:
+                input = f"{conn_args['password']}\n{input}"
+            else:
+                input = f"{conn_args['password']}\n"
+        cmd_args += args
+        cmd = ['edgedb'] + cmd_args
+        try:
+            subprocess.run(
+                cmd,
+                input=input.encode() if input else None,
+                check=True,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as e:
+            output = '\n'.join(getattr(out, 'decode', out.__str__)()
+                               for out in [e.output, e.stderr] if out)
+            raise AssertionError(
+                f'command {cmd} returned non-zero exit status {e.returncode}'
+                f'\n{output}'
+            ) from e
+
+
 class DumpCompatTestCaseMeta(TestCaseMeta):
 
     def __new__(
@@ -1459,7 +1491,6 @@ class StablePGDumpTestCase(BaseQueryTestCase):
 
     BASE_TEST_CLASS = True
     ISOLATED_METHODS = False
-    STABLE_DUMP = True
     TRANSACTION_ISOLATION = False
 
     def run_pg_dump(self, *args, input: Optional[str] = None) -> None:
@@ -1696,7 +1727,11 @@ def get_test_cases_setup(
         if not hasattr(case, 'get_setup_script'):
             continue
 
-        setup_script = case.get_setup_script()
+        try:
+            setup_script = case.get_setup_script()
+        except unittest.SkipTest:
+            continue
+
         if not setup_script:
             continue
 
@@ -1897,6 +1932,7 @@ class _EdgeDBServer:
         jws_key_file: Optional[os.PathLike] = None,
         jwt_sub_allowlist_file: Optional[os.PathLike] = None,
         jwt_revocation_list_file: Optional[os.PathLike] = None,
+        multitenant_config: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
         extra_args: Optional[List[str]] = None,
     ) -> None:
@@ -1928,6 +1964,7 @@ class _EdgeDBServer:
         self.jws_key_file = jws_key_file
         self.jwt_sub_allowlist_file = jwt_sub_allowlist_file
         self.jwt_revocation_list_file = jwt_revocation_list_file
+        self.multitenant_config = multitenant_config
         self.env = env
         self.extra_args = extra_args
 
@@ -2016,6 +2053,8 @@ class _EdgeDBServer:
             cmd += [
                 '--backend-dsn', pgdsn
             ]
+        elif self.multitenant_config:
+            cmd += ['--multitenant-config-file', self.multitenant_config]
         elif self.data_dir:
             cmd += ['--data-dir', self.data_dir]
         else:
@@ -2101,6 +2140,7 @@ class _EdgeDBServer:
         env = os.environ.copy()
         if self.env:
             env.update(self.env)
+        env.pop("EDGEDB_SERVER_MULTITENANT_CONFIG_FILE", None)
 
         stat_reader, stat_writer = await asyncio.open_connection(sock=status_r)
 
@@ -2150,7 +2190,7 @@ class _EdgeDBServer:
             data = status_task.result()
 
         return _EdgeDBServerData(
-            host='127.0.0.1',
+            host='localhost',
             port=data['port'],
             password=password,
             server_data=data,
@@ -2215,6 +2255,7 @@ def start_edgedb_server(
     jws_key_file: Optional[os.PathLike] = None,
     jwt_sub_allowlist_file: Optional[os.PathLike] = None,
     jwt_revocation_list_file: Optional[os.PathLike] = None,
+    multitenant_config: Optional[str] = None,
     env: Optional[Dict[str, str]] = None,
     extra_args: Optional[List[str]] = None,
 ):
@@ -2225,15 +2266,29 @@ def start_edgedb_server(
                   'runstate_dir; the test is likely to fail or hang. '
                   'Consider specifying the runstate_dir parameter.')
 
-    if adjacent_to and data_dir:
+    if mt_conf := os.environ.get("EDGEDB_SERVER_MULTITENANT_CONFIG_FILE"):
+        if multitenant_config is None and max_allowed_connections == 10:
+            if not any(
+                (adjacent_to, data_dir, backend_dsn, compiler_pool_mode)
+            ):
+                multitenant_config = mt_conf
+                max_allowed_connections = None
+
+    params = locals()
+    exclusives = [
+        name
+        for name in [
+            "adjacent_to",
+            "data_dir",
+            "backend_dsn",
+            "multitenant_config",
+        ]
+        if params[name]
+    ]
+    if len(exclusives) > 1:
         raise RuntimeError(
-            'adjacent_to and data_dir options are mutually exclusive')
-    if backend_dsn and data_dir:
-        raise RuntimeError(
-            'backend_dsn and data_dir options are mutually exclusive')
-    if backend_dsn and adjacent_to:
-        raise RuntimeError(
-            'backend_dsn and adjacent_to options are mutually exclusive')
+            " and ".join(exclusives) + " options are mutually exclusive"
+        )
 
     if not runstate_dir and data_dir:
         runstate_dir = data_dir
@@ -2265,6 +2320,7 @@ def start_edgedb_server(
         jws_key_file=jws_key_file,
         jwt_sub_allowlist_file=jwt_sub_allowlist_file,
         jwt_revocation_list_file=jwt_revocation_list_file,
+        multitenant_config=multitenant_config,
         env=env,
         extra_args=extra_args,
     )

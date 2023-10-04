@@ -6,4 +6,4 @@ on:
     inputs: {}
 
 jobs:
-  <<- workflow(targets, subdist="testing", publish_all=True) ->>
+  <<- workflow(targets, publications, subdist="testing", publish_all=True) ->>

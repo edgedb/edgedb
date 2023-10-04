@@ -91,14 +91,15 @@ def _compile_set_impl(
 
     is_toplevel = ctx.toplevel_stmt is context.NO_STMT
 
-    if isinstance(ir_set.expr, irast.BaseConstant):
+    if isinstance(ir_set.expr, (irast.BaseConstant, irast.Parameter)):
         # Avoid creating needlessly complicated constructs for
         # constant expressions.  Besides being an optimization,
         # this helps in GROUP BY queries.
         value = dispatch.compile(ir_set.expr, ctx=ctx)
         if is_toplevel:
             ctx.rel = ctx.toplevel_stmt = pgast.SelectStmt()
-        pathctx.put_path_value_var(ctx.rel, ir_set.path_id, value)
+        pathctx.put_path_value_var_if_not_exists(
+            ctx.rel, ir_set.path_id, value)
         if (output.in_serialization_ctx(ctx) and ir_set.shape
                 and not ctx.env.ignore_object_shapes):
             _compile_shape(ir_set, ir_set.shape, ctx=ctx)
@@ -125,9 +126,9 @@ def compile_Parameter(
     params = [p for p in ctx.env.query_params if p.name == expr.name]
     param = params[0] if params else None
 
-    if not is_decimal and ctx.env.use_named_params:
+    if not is_decimal and ctx.env.named_param_prefix is not None:
         result = pgast.ColumnRef(
-            name=(expr.name, ),
+            name=ctx.env.named_param_prefix + (expr.name,),
             nullable=not expr.required,
         )
     elif param and param.sub_params:
@@ -646,6 +647,9 @@ def compile_FunctionCall(
         expr: irast.FunctionCall, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
+    if sfunc := relgen._SIMPLE_SPECIAL_FUNCTIONS.get(str(expr.func_shortname)):
+        return sfunc(expr, ctx=ctx)
+
     if expr.typemod is ql_ft.TypeModifier.SetOfType:
         raise errors.UnsupportedFeatureError(
             'set returning functions are not supported in simple expressions')
@@ -784,11 +788,19 @@ def _compile_set_in_singleton_mode(
                 raise errors.UnsupportedFeatureError(
                     'unexpectedly long path in simple expr')
 
+            # In most cases, we don't need to reference the rvar (since there
+            # will be only one in scope), but sometimes we do (for example NEW
+            # in trigger functions).
+            rvar_name = []
+            if src := ctx.env.external_rvars.get((source.path_id, 'source')):
+                rvar_name = [src.alias.aliasname]
+
+            # compile column name
             ptr_stor_info = pg_types.get_ptrref_storage_info(
                 ptrref, resolve_type=False)
 
             colref = pgast.ColumnRef(
-                name=[ptr_stor_info.column_name],
+                name=rvar_name + [ptr_stor_info.column_name],
                 nullable=node.rptr.dir_cardinality.can_be_zero())
         else:
             name = [common.edgedb_name_to_pg_name(str(node.typeref.id))]
@@ -798,3 +810,15 @@ def _compile_set_in_singleton_mode(
             colref = pgast.ColumnRef(name=name)
 
         return colref
+
+
+@dispatch.compile.register(irast.FTSDocument)
+def compile_FTSDocument(
+    expr: irast.FTSDocument, *, ctx: context.CompilerContextLevel
+) -> pgast.BaseExpr:
+    return pgast.FTSDocument(
+        text=dispatch.compile(expr.text, ctx=ctx),
+        language=dispatch.compile(expr.language, ctx=ctx),
+        language_domain=expr.language_domain,
+        weight=expr.weight,
+    )

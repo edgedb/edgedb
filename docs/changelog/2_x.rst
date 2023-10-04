@@ -1010,8 +1010,8 @@ Other changes
 2.14
 ====
 
-Schema repair on upgades
-------------------------
+Schema repair on upgrades
+-------------------------
 
 Previously, certain bug fixes and changes (such as the fix to
 cardinality inferenced of ``required multi`` pointers released in 2.13

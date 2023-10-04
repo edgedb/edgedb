@@ -41,6 +41,63 @@ from edb.schema.reflection import structure as sr_struct
 
 
 @functools.singledispatch
+def generate_metadata_write_edgeql(
+    cmd: sd.Command,
+    *,
+    classlayout: Dict[Type[so.Object], sr_struct.SchemaTypeLayout],
+    schema: s_schema.Schema,
+    context: sd.CommandContext,
+    blocks: List[Tuple[str, Dict[str, Any]]],
+    internal_schema_mode: bool,
+    stdmode: bool,
+) -> None:
+
+    _hoist_if_unused_deletes(cmd)
+
+    return write_meta(
+        cmd,
+        classlayout=classlayout, schema=schema, context=context,
+        blocks=blocks, internal_schema_mode=internal_schema_mode,
+        stdmode=stdmode)
+
+
+def _hoist_if_unused_deletes(
+    cmd: sd.Command,
+    target: Optional[sd.DeleteObject[so.Object]] = None,
+) -> None:
+    """Hoist up if_unused deletes higher in the tree.
+
+    if_unused deletes for things like union and collection types need
+    to be done *after* the referring object that triggered the
+    deletion is deleted. There is special handling in the write_meta
+    case for DeleteObject to support this, but we need to also handle
+    the case where the delete of the union/collection happens down in
+    a nested delete of a child.
+
+    Work around this by hoisting up if_unused to the outermost enclosing
+    delete.  (We can't just hoist to the actual toplevel, because that
+    might move the command after something that needs to go *after*,
+    like a delete of one of the union components.)
+
+    FIXME: Could we instead *generate* the deletions at the outermost point?
+    """
+    new_target = target
+    if not new_target and isinstance(cmd, sd.DeleteObject):
+        new_target = cmd
+
+    for sub in cmd.get_subcommands():
+        if (
+            isinstance(sub, sd.DeleteObject)
+            and target
+            and sub.if_unused
+        ):
+            cmd.discard(sub)
+            target.add_caused(sub)
+        else:
+            _hoist_if_unused_deletes(sub, new_target)
+
+
+@functools.singledispatch
 def write_meta(
     cmd: sd.Command,
     *,
@@ -469,27 +526,34 @@ def _build_object_mutation_shape(
             issubclass(mcls, (s_scalars.ScalarType, s_types.Collection))
             and not issubclass(mcls, s_types.CollectionExprAlias)
             and not cmd.get_attribute_value('abstract')
+            and not cmd.get_attribute_value('transient')
         ):
             kind = f'"schema::{mcls.__name__}"'
 
-            if issubclass(mcls, (s_types.Array, s_types.Range)):
+            if issubclass(mcls, (s_types.Array,
+                                 s_types.Range,
+                                 s_types.MultiRange)):
                 assignments.append(
                     f'backend_id := sys::_get_pg_type_for_edgedb_type('
                     f'<uuid>$__{var_prefix}id, '
                     f'{kind}, '
                     f'<uuid>$__{var_prefix}element_type, '
-                    f'<str>$__{var_prefix}sql_type), '
+                    f'<str>$__{var_prefix}sql_type2), '
                 )
             else:
                 assignments.append(
                     f'backend_id := sys::_get_pg_type_for_edgedb_type('
                     f'<uuid>$__{var_prefix}id, {kind}, <uuid>{{}}, '
-                    f'<str>$__{var_prefix}sql_type), '
+                    f'<str>$__{var_prefix}sql_type2), '
                 )
+            sql_type = None
+            if isinstance(cmd.scls, s_scalars.ScalarType):
+                sql_type, _ = cmd.scls.resolve_sql_type_scheme(schema)
+
             variables[f'__{var_prefix}id'] = json.dumps(
                 str(cmd.get_attribute_value('id')))
-            variables[f'__{var_prefix}sql_type'] = json.dumps(
-                cmd.get_attribute_value('sql_type'))
+            variables[f'__{var_prefix}sql_type2'] = json.dumps(
+                sql_type)
 
     shape = ',\n'.join(assignments)
 
@@ -1019,6 +1083,8 @@ def write_meta_delete_object(
 
             parent_variables = {}
 
+            if not hasattr(target, 'id'):
+                breakpoint()
             parent_variables[f'__{target_link}'] = (
                 json.dumps(str(target.id))
             )

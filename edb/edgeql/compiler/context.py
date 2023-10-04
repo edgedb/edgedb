@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 from typing import *
+from typing import overload
 
 import collections
 import dataclasses
@@ -36,6 +37,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
 from edb.ir import ast as irast
+from edb.ir import utils as irutils
 from edb.ir import typeutils as irtyputils
 
 from edb.schema import expraliases as s_aliases
@@ -319,7 +321,7 @@ class Environment:
             self.schema_ref_exprs.setdefault(sobj, set()).add(expr)
 
     @overload
-    def get_schema_object_and_track(  # NoQA: F811
+    def get_schema_object_and_track(
         self,
         name: s_name.Name,
         expr: Optional[qlast.Base],
@@ -333,7 +335,7 @@ class Environment:
         ...
 
     @overload
-    def get_schema_object_and_track(  # NoQA: F811
+    def get_schema_object_and_track(
         self,
         name: s_name.Name,
         expr: Optional[qlast.Base],
@@ -346,7 +348,7 @@ class Environment:
     ) -> Optional[s_obj.Object]:
         ...
 
-    def get_schema_object_and_track(  # NoQA: F811
+    def get_schema_object_and_track(
         self,
         name: s_name.Name,
         expr: Optional[qlast.Base],
@@ -529,6 +531,9 @@ class ContextLevel(compiler.ContextLevel):
     defining_view: Optional[s_objtypes.ObjectType]
     """Whether a view is currently being defined (as opposed to be compiled)"""
 
+    current_schema_views: tuple[s_types.Type, ...]
+    """Which schema views are currently being compiled"""
+
     recompiling_schema_alias: bool
     """Whether we are currently recompiling a schema-level expression alias."""
 
@@ -598,6 +603,7 @@ class ContextLevel(compiler.ContextLevel):
             self.special_computables_in_mutation_shape = frozenset()
             self.empty_result_type_hint = None
             self.defining_view = None
+            self.current_schema_views = ()
             self.compiling_update_shape = False
             self.active_computeds = ordered.OrderedSet()
             self.recompiling_schema_alias = False
@@ -640,6 +646,7 @@ class ContextLevel(compiler.ContextLevel):
                 prevlevel.special_computables_in_mutation_shape
             self.empty_result_type_hint = prevlevel.empty_result_type_hint
             self.defining_view = prevlevel.defining_view
+            self.current_schema_views = prevlevel.current_schema_views
             self.compiling_update_shape = prevlevel.compiling_update_shape
             self.active_computeds = prevlevel.active_computeds
             self.recompiling_schema_alias = prevlevel.recompiling_schema_alias
@@ -728,11 +735,16 @@ class ContextLevel(compiler.ContextLevel):
     def detached(self) -> compiler.CompilerContextManager[ContextLevel]:
         return self.new(ContextSwitchMode.DETACHED)
 
-    def create_anchor(self, ir: irast.Set, name: str='v') -> qlast.Path:
+    def create_anchor(
+        self, ir: irast.Set, name: str='v', *, check_dml: bool=False
+    ) -> qlast.Path:
         alias = self.aliases.get(name)
+        # TODO: We should probably always check for DML, but I'm
+        # concerned about perf, since we don't cache it at all.
+        has_dml = check_dml and irutils.contains_dml(ir)
         self.anchors[alias] = ir
         return qlast.Path(
-            steps=[qlast.ObjectRef(name=alias)],
+            steps=[qlast.IRAnchor(name=alias, has_dml=has_dml)],
         )
 
     def maybe_create_anchor(

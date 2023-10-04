@@ -149,11 +149,18 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
         UNIQUE
         """
 
-    def test_edgeql_ir_mult_inference_14(self):
+    def test_edgeql_ir_mult_inference_14a(self):
         """
         SELECT 1 + {2, 3}
 % OK %
         UNIQUE
+        """
+
+    def test_edgeql_ir_mult_inference_14b(self):
+        """
+        SELECT 0 * {2, 3}
+% OK %
+        DUPLICATE
         """
 
     def test_edgeql_ir_mult_inference_15(self):
@@ -475,7 +482,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
         UNIQUE
         """
 
-    def test_edgeql_ir_mult_inference_55(self):
+    def test_edgeql_ir_mult_inference_55a(self):
         """
         FOR x IN {'fire', 'water'}
         UNION (
@@ -486,7 +493,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
         UNIQUE
         """
 
-    def test_edgeql_ir_mult_inference_55a(self):
+    def test_edgeql_ir_mult_inference_55b(self):
         """
         FOR letter IN {'I', 'B'}
         UNION (
@@ -827,4 +834,34 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
         select 1 + ({2, 2} except {3, 3})
 % OK %
         DUPLICATE
+        """
+
+    def test_edgeql_ir_mult_inference_90(self):
+        """
+        if <bool>$0 then
+            (insert User { name := "test" })
+        else
+            (insert User { name := "???" })
+% OK %
+        UNIQUE
+        """
+
+    def test_edgeql_ir_mult_inference_91(self):
+        """
+        if <bool>$0 then
+            (insert User { name := "test" })
+        else
+            {(insert User { name := "???" }), (insert User { name := "!!!" })}
+% OK %
+        UNIQUE
+        """
+
+    def test_edgeql_ir_mult_inference_92(self):
+        """
+        if <bool>$0 then
+            (insert User { name := "test" })
+        else
+            <User>{}
+% OK %
+        UNIQUE
         """

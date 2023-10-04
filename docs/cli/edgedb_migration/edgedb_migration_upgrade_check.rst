@@ -5,17 +5,23 @@
 edgedb migration upgrade-check
 ==============================
 
-Checks your schema against the new EdgeDB version. You can add ``--to-version
-<version>``, ``--to-testing``, ``--to-nightly``, or ``--to-channel <channel>``
-to check against a specific version.
+Checks your schema against a different EdgeDB version.
 
 .. cli:synopsis::
 
-    edgedb migration update-check [<options>]
+    edgedb migration upgrade-check [<options>]
 
 .. note::
 
     The upgrade check is performed automatically when you perform an upgrade.
+
+Description
+===========
+
+By default, ``upgrade-check`` checks your schema against the latest stable
+release of EdgeDB. You can add ``--to-version <version>``, ``--to-testing``,
+``--to-nightly``, or ``--to-channel <channel>`` to check against a specific
+version.
 
 Options
 =======

@@ -34,7 +34,6 @@ from jwcrypto import jwk
 
 from edb import buildmeta
 from edb.common import devmode
-from edb.common import secretkey
 from edb.edgeql import quote
 
 from edb.server import args as edgedb_args
@@ -72,6 +71,9 @@ class BaseCluster:
     ):
         self._edgedb_cmd = [sys.executable, '-m', 'edb.server.main']
 
+        if "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" not in os.environ:
+            self._edgedb_cmd.append('--instance-name=localtest')
+
         self._edgedb_cmd.append('--tls-cert-mode=generate_self_signed')
         self._edgedb_cmd.append('--jose-key-mode=generate')
 
@@ -80,10 +82,9 @@ class BaseCluster:
 
         compiler_addr = os.getenv('EDGEDB_TEST_REMOTE_COMPILER')
         if compiler_addr:
+            compiler_pool_mode = edgedb_args.CompilerPoolMode.Remote
             self._edgedb_cmd.extend(
                 [
-                    '--compiler-pool-mode',
-                    'remote',
                     '--compiler-pool-addr',
                     compiler_addr,
                 ]
@@ -422,26 +423,6 @@ class Cluster(BaseCluster):
     def get_data_dir(self) -> pathlib.Path:
         return self._data_dir
 
-    def get_runstate_dir(self) -> pathlib.Path:
-        return self._runstate_dir
-
-    def get_jws_key(self) -> jwk.JWK:
-        if self._jws_key is None:
-            self._jws_key = self._load_jws_key()
-        return self._jws_key
-
-    def _load_jws_key(self) -> jwk.JWK:
-        try:
-            return secretkey.load_secret_key(self._get_jws_key_path())
-        except secretkey.SecretKeyReadError as e:
-            raise ClusterError(e.args[0]) from e
-
-    def _get_jws_key_path(self) -> pathlib.Path:
-        if path := os.environ.get("EDGEDB_SERVER_JWS_KEY_FILE"):
-            return pathlib.Path(path)
-        else:
-            return self.get_runstate_dir() / edgedb_args.JWS_KEY_FILE_NAME
-
     async def init(
         self,
         *,
@@ -570,6 +551,10 @@ class TempClusterWithRemotePg(BaseCluster):
             ),
         )
         self._backend_dsn = backend_dsn
+        mt = "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ
+        if mt:
+            compiler_pool_mode = edgedb_args.CompilerPoolMode.MultiTenant
+
         super().__init__(
             runstate_dir,
             env=env,
@@ -579,7 +564,8 @@ class TempClusterWithRemotePg(BaseCluster):
             http_endpoint_security=http_endpoint_security,
             compiler_pool_mode=compiler_pool_mode,
         )
-        self._edgedb_cmd.extend(['--backend-dsn', backend_dsn])
+        if not mt:
+            self._edgedb_cmd.extend(['--backend-dsn', backend_dsn])
 
     async def _new_pg_cluster(self) -> pgcluster.BaseCluster:
         return await pgcluster.get_remote_pg_cluster(self._backend_dsn)

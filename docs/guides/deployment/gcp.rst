@@ -68,7 +68,7 @@ Then create a Cloud SQL instance and set the password.
 .. code-block:: bash
 
    $ gcloud sql instances create ${PROJECT}-postgres \
-       --database-version=POSTGRES_13 \
+       --database-version=POSTGRES_14 \
        --cpu=1 \
        --memory=3840MiB \
        --region=us-west2 \
@@ -229,7 +229,7 @@ To test it, try opening a REPL:
 .. code-block:: bash
 
     $ edgedb --dsn $EDGEDB_DSN --tls-security insecure
-    EdgeDB 2.x (repl 2.x)
+    EdgeDB 3.x (repl 3.x)
     Type \help for help, \quit to quit.
     edgedb> select "hello world!";
 

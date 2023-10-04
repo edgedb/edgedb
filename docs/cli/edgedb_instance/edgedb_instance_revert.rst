@@ -21,6 +21,11 @@ upgrade on an instance the old instance data is kept around. The
 replaces it with the old copy. It also ensures that the previous
 version of EdgeDB server is used to run it.
 
+.. note::
+
+    The ``edgedb instance revert`` command is not intended for use with
+    self-hosted instances.
+
 
 Options
 =======

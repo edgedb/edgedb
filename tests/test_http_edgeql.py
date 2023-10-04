@@ -32,6 +32,9 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
     SCHEMA_OTHER = os.path.join(os.path.dirname(__file__), 'schemas',
                                 'graphql_other.esdl')
 
+    SCHEMA_OTHER_DEEP = os.path.join(os.path.dirname(__file__), 'schemas',
+                                     'graphql_schema_other_deep.esdl')
+
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'graphql_setup.edgeql')
 
@@ -267,6 +270,14 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                 bar=(1, 'test'),
             )
         )
+
+    def test_http_edgeql_query_14(self):
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                r'Minimum allowed value for positive_int_t is 0'):
+            self.edgeql_query(
+                r'''SELECT <positive_int_t>-1''',
+            )
 
     def test_http_edgeql_query_globals_01(self):
         Q = r'''select GlobalTest { gstr, garray, gid, gdef, gdef2 }'''

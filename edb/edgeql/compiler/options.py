@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from edb.schema import pointers as s_pointers
     from edb.ir import pathid
 
-    SourceOrPathId = Union[s_types.Type, s_pointers.Pointer, pathid.PathId]
+    SourceOrPathId = s_types.Type | s_pointers.Pointer | pathid.PathId
 
 
 @dataclass
@@ -52,9 +52,6 @@ class GlobalCompilerOptions:
     #: Whether to allow specifying 'id' explicitly in INSERT
     allow_user_specified_id: bool = False
 
-    #: Enables constant folding optimization (enabled by default).
-    constant_folding: bool = True
-
     #: Force types of all parameters to std::json
     json_parameters: bool = False
 
@@ -71,6 +68,9 @@ class GlobalCompilerOptions:
     #: schema object, i.e. a constraint expression, or a pointer default,
     #: this contains the type of the schema object.
     schema_object_context: Optional[Type[s_obj.Object]] = None
+
+    #: When compiling a function body, the function name.
+    func_name: Optional[s_name.QualName] = None
 
     #: When compiling a function body, specifies function parameter
     #: definitions.
@@ -135,13 +135,13 @@ class CompilerOptions(GlobalCompilerOptions):
     #: as singletons in the context of this compilation.
     #: If a tuple is provided, the boolean argument indicates it is optional.
     singletons: Collection[
-        Union[SourceOrPathId, tuple[SourceOrPathId, bool]]
+        SourceOrPathId | tuple[SourceOrPathId, bool]
     ] = frozenset()
 
     #: Type references that should be remaped to another type.  This
     #: is for dealing with remapping explicit type names in schema
     #: expressions to their subtypes when necessary.
-    type_remaps: Dict[s_obj.Object, s_types.Type] = dc_field(
+    type_remaps: Dict[s_obj.Object, s_obj.Object] = dc_field(
         default_factory=dict
     )
 

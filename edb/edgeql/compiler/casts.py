@@ -74,7 +74,14 @@ def compile_cast(
             ctx=ctx,
             srcctx=ir_expr.context)
 
-    if irutils.is_untyped_empty_array_expr(ir_expr):
+    if isinstance(new_stype, s_types.Array) and (
+        irutils.is_untyped_empty_array_expr(ir_expr)
+        or (
+            isinstance(ir_expr, irast.Set)
+            and irutils.is_untyped_empty_array_expr(
+                irutils.unwrap_set(ir_expr).expr)
+        )
+    ):
         # Ditto for empty arrays.
         new_typeref = typegen.type_to_typeref(new_stype, ctx.env)
         return setgen.ensure_set(
@@ -97,6 +104,17 @@ def compile_cast(
             f'`...[IS {new_stype.get_displayname(ctx.env.schema)}]` instead',
             context=srcctx)
 
+    # The only valid object type cast other than <uuid> is from anytype,
+    # and thus it must be an empty set.
+    if (
+        orig_stype.is_any(ctx.env.schema)
+        and new_stype.is_object_type()
+    ):
+        return setgen.new_empty_set(
+            stype=new_stype,
+            ctx=ctx,
+            srcctx=ir_expr.context)
+
     uuid_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'uuid'))
     if (
         orig_stype.issubclass(ctx.env.schema, uuid_t)
@@ -105,8 +123,13 @@ def compile_cast(
         return _find_object_by_id(ir_expr, new_stype, ctx=ctx)
 
     json_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'json'))
-
-    if isinstance(ir_set.expr, irast.Array):
+    if (
+        isinstance(ir_set.expr, irast.Array)
+        and (
+            isinstance(new_stype, s_types.Array)
+            or new_stype.issubclass(ctx.env.schema, json_t)
+        )
+    ):
         return _cast_array_literal(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
@@ -114,17 +137,72 @@ def compile_cast(
         return _cast_tuple(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
-    if orig_stype.is_array() and not s_types.is_type_compatible(
-        orig_stype, new_stype, schema=ctx.env.schema
-    ):
+    if isinstance(orig_stype, s_types.Array):
+        if not s_types.is_type_compatible(
+            orig_stype, new_stype, schema=ctx.env.schema
+        ) and (
+            not isinstance(new_stype, s_types.Array)
+            and isinstance(
+                (el_type := orig_stype.get_subtypes(ctx.env.schema)[0]),
+                s_scalars.ScalarType,
+            )
+        ):
+            # We're not casting to another array, so for purposes of matching
+            # the right cast we want to reduce orig_stype to an array of the
+            # built-in base type as that's what the cast will actually
+            # expect.
+            ir_set = _cast_to_base_array(
+                ir_set, el_type, orig_stype, ctx=ctx)
+
         return _cast_array(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
-    if orig_stype.is_range() and not s_types.is_type_compatible(
-        orig_stype, new_stype, schema=ctx.env.schema
-    ):
-        return _cast_range(
-            ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
+    if isinstance(orig_stype, s_types.Range):
+        if s_types.is_type_compatible(
+            orig_stype, new_stype, schema=ctx.env.schema
+        ):
+            # Casting between compatible types is unnecessary. It is important
+            # to catch things like RangeExprAlias and Range being of the same
+            # type and not neding a cast.
+            return ir_set
+        else:
+            if isinstance(new_stype, s_types.MultiRange):
+                # For multirange target type we might need to first upcast the
+                # range into corresponding multirange and then do a separate
+                # cast for the subtype.
+                if (
+                    (ost := orig_stype.get_subtypes(schema=ctx.env.schema)) !=
+                        new_stype.get_subtypes(schema=ctx.env.schema)
+                ):
+                    ctx.env.schema, mr_stype = \
+                        s_types.MultiRange.from_subtypes(ctx.env.schema, ost)
+                    ir_set = _inheritance_cast_to_ir(
+                        ir_set, orig_stype, mr_stype,
+                        cardinality_mod=cardinality_mod, ctx=ctx)
+                    return _cast_multirange(
+                        ir_set, mr_stype, new_stype, srcctx=srcctx, ctx=ctx)
+
+                else:
+                    # The subtypes match, so this is a direct upcast from
+                    # range to multirange.
+                    return _inheritance_cast_to_ir(
+                        ir_set, orig_stype, new_stype,
+                        cardinality_mod=cardinality_mod, ctx=ctx)
+
+            return _cast_range(
+                ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
+
+    if orig_stype.is_multirange():
+        if s_types.is_type_compatible(
+            orig_stype, new_stype, schema=ctx.env.schema
+        ):
+            # Casting between compatible types is unnecessary. It is important
+            # to catch things like MultiRangeExprAlias and MultiRange being of
+            # the same type and not neding a cast.
+            return ir_set
+        else:
+            return _cast_multirange(
+                ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
     if orig_stype.issubclass(ctx.env.schema, new_stype):
         # The new type is a supertype of the old type,
@@ -152,31 +230,25 @@ def compile_cast(
         # JSON casts of objects are special: we want the full shape
         # and not just an identity.
         viewgen.late_compile_view_shapes(ir_set, ctx=ctx)
-    else:
-        if orig_stype.issubclass(ctx.env.schema, json_t) and new_stype.is_enum(
-            ctx.env.schema
-        ):
-            # Casts from json to enums need some special handling
-            # here, where we have access to the enum type. Just turn
-            # it into json->str and str->enum.
-            str_typ = ctx.env.get_schema_type_and_track(
-                sn.QualName('std', 'str')
-            )
-            str_ir = compile_cast(ir_expr, str_typ, srcctx=srcctx, ctx=ctx)
+    elif orig_stype.issubclass(ctx.env.schema, json_t):
+
+        if base_stype := _get_concrete_scalar_base(new_stype, ctx):
+            # Casts from json to custom scalars may have special handling.
+            # So we turn the type cast json->x into json->base and base->x.
+            base_ir = compile_cast(ir_expr, base_stype, srcctx=srcctx, ctx=ctx)
+
             return compile_cast(
-                str_ir,
+                base_ir,
                 new_stype,
                 cardinality_mod=cardinality_mod,
                 srcctx=srcctx,
                 ctx=ctx,
             )
 
-        if (
-            orig_stype.issubclass(ctx.env.schema, json_t)
-            and isinstance(new_stype, s_types.Array)
-            and not new_stype.get_subtypes(ctx.env.schema)[0].issubclass(
-                ctx.env.schema, json_t
-            )
+        elif isinstance(
+            new_stype, s_types.Array
+        ) and not new_stype.get_subtypes(ctx.env.schema)[0].issubclass(
+            ctx.env.schema, json_t
         ):
             # Turn casts from json->array<T> into json->array<json>
             # and array<json>->array<T>.
@@ -194,9 +266,7 @@ def compile_cast(
                 json_array_ir, new_stype, srcctx=srcctx, ctx=ctx
             )
 
-        if orig_stype.issubclass(ctx.env.schema, json_t) and isinstance(
-            new_stype, s_types.Tuple
-        ):
+        elif isinstance(new_stype, s_types.Tuple):
             return _cast_json_to_tuple(
                 ir_set,
                 orig_stype,
@@ -206,10 +276,18 @@ def compile_cast(
                 ctx=ctx,
             )
 
-        if orig_stype.issubclass(ctx.env.schema, json_t) and isinstance(
-            new_stype, s_types.Range
-        ):
+        elif isinstance(new_stype, s_types.Range):
             return _cast_json_to_range(
+                ir_set,
+                orig_stype,
+                new_stype,
+                cardinality_mod,
+                srcctx=srcctx,
+                ctx=ctx,
+            )
+
+        elif isinstance(new_stype, s_types.MultiRange):
+            return _cast_json_to_multirange(
                 ir_set,
                 orig_stype,
                 new_stype,
@@ -258,6 +336,23 @@ def _has_common_concrete_scalar(
         and (new_base := new_stype.maybe_get_topmost_concrete_base(schema))
         and orig_base == new_base
     )
+
+
+def _get_concrete_scalar_base(
+    stype: s_types.Type,
+    ctx: context.ContextLevel
+) -> Optional[s_types.Type]:
+    """Returns None if stype is not scalar or if it is already topmost"""
+
+    if stype.is_enum(ctx.env.schema):
+        return ctx.env.get_schema_type_and_track(sn.QualName('std', 'str'))
+
+    if not isinstance(stype, s_scalars.ScalarType):
+        return None
+    if topmost := stype.maybe_get_topmost_concrete_base(ctx.env.schema):
+        if topmost != stype:
+            return topmost
+    return None
 
 
 def _compile_cast(
@@ -706,6 +801,73 @@ def _cast_range(
         return dispatch.compile(cast, ctx=subctx)
 
 
+def _cast_multirange(
+        ir_set: irast.Set,
+        orig_stype: s_types.Type,
+        new_stype: s_types.Type, *,
+        srcctx: Optional[parsing.ParserContext],
+        ctx: context.ContextLevel) -> irast.Set:
+
+    assert isinstance(orig_stype, s_types.MultiRange)
+
+    direct_cast = _find_cast(orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
+    if direct_cast is not None:
+        return _cast_to_ir(
+            ir_set, direct_cast, orig_stype, new_stype, ctx=ctx
+        )
+
+    if not new_stype.is_multirange():
+        raise errors.QueryError(
+            f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
+            f'to {new_stype.get_displayname(ctx.env.schema)!r}',
+            context=srcctx)
+    assert isinstance(new_stype, s_types.MultiRange)
+    el_type = new_stype.get_subtypes(ctx.env.schema)[0]
+    orig_el_type = orig_stype.get_subtypes(ctx.env.schema)[0]
+
+    el_cast = _find_cast(orig_el_type, el_type, srcctx=srcctx, ctx=ctx)
+    if el_cast is None:
+        raise errors.QueryError(
+            f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
+            f'to {new_stype.get_displayname(ctx.env.schema)!r}',
+            context=srcctx)
+
+    ctx.env.schema, new_range_type = s_types.Range.from_subtypes(
+        ctx.env.schema, [el_type])
+    ql_range_type = typegen.type_to_ql_typeref(new_range_type, ctx=ctx)
+    with ctx.new() as subctx:
+        subctx.anchors = subctx.anchors.copy()
+        source_path = subctx.create_anchor(ir_set, 'a')
+
+        # multirange(
+        #     array_agg(
+        #         <range<el_type>>multirange_unpack(orig)
+        #     )
+        # )
+        cast = qlast.FunctionCall(
+            func=('__std__', 'multirange'),
+            args=[
+                qlast.FunctionCall(
+                    func=('__std__', 'array_agg'),
+                    args=[
+                        qlast.TypeCast(
+                            expr=qlast.FunctionCall(
+                                func=('__std__', 'multirange_unpack'),
+                                args=[source_path],
+                            ),
+                            type=ql_range_type,
+                        ),
+                    ],
+                ),
+            ],
+        )
+
+        if el_type.contains_json(subctx.env.schema):
+            subctx.inhibit_implicit_limit = True
+
+        return dispatch.compile(cast, ctx=subctx)
+
+
 def _cast_json_to_range(
         ir_set: irast.Set,
         orig_stype: s_types.Type,
@@ -814,6 +976,57 @@ def _cast_json_to_range(
         return dispatch.compile(cast, ctx=subctx)
 
 
+def _cast_json_to_multirange(
+        ir_set: irast.Set,
+        orig_stype: s_types.Type,
+        new_stype: s_types.MultiRange,
+        cardinality_mod: Optional[qlast.CardinalityModifier],
+        *,
+        srcctx: Optional[parsing.ParserContext],
+        ctx: context.ContextLevel) -> irast.Set:
+
+    ctx.env.schema, new_range_type = s_types.Range.from_subtypes(
+        ctx.env.schema, new_stype.get_subtypes(ctx.env.schema))
+    ctx.env.schema, new_array_type = s_types.Array.from_subtypes(
+        ctx.env.schema, [new_range_type])
+    ql_array_range_type = typegen.type_to_ql_typeref(new_array_type, ctx=ctx)
+    with ctx.new() as subctx:
+        # We effectively want to do the following:
+        # multirange(<array<range<subtype>>>a)
+        subctx.anchors = subctx.anchors.copy()
+        source_path = subctx.create_anchor(ir_set, 'a')
+
+        cast = qlast.FunctionCall(
+            func=('__std__', 'multirange'),
+            args=[
+                qlast.TypeCast(
+                    expr=source_path,
+                    type=ql_array_range_type,
+                ),
+            ],
+        )
+
+        return dispatch.compile(cast, ctx=subctx)
+
+
+def _cast_to_base_array(
+    ir_set: irast.Set,
+    el_stype: s_scalars.ScalarType,
+    orig_stype: s_types.Array,
+    ctx: context.ContextLevel,
+    cardinality_mod: Optional[qlast.CardinalityModifier]=None
+) -> irast.Set:
+
+    base_stype = el_stype.get_base_for_cast(ctx.env.schema)
+    assert isinstance(base_stype, s_types.Type)
+    ctx.env.schema, new_stype = s_types.Array.from_subtypes(
+        ctx.env.schema, [base_stype])
+
+    return _inheritance_cast_to_ir(
+        ir_set, orig_stype, new_stype,
+        cardinality_mod=cardinality_mod, ctx=ctx)
+
+
 def _cast_array(
         ir_set: irast.Set,
         orig_stype: s_types.Type,
@@ -833,8 +1046,13 @@ def _cast_array(
                 context=srcctx)
         assert isinstance(new_stype, s_types.Array)
         el_type = new_stype.get_subtypes(ctx.env.schema)[0]
-    else:
+    elif new_stype.is_json(ctx.env.schema):
         el_type = new_stype
+    else:
+        # We're casting an array into something that's not an array (e.g. a
+        # vector), so we don't need to match element types.
+        return _cast_to_ir(
+            ir_set, direct_cast, orig_stype, new_stype, ctx=ctx)
 
     orig_el_type = orig_stype.get_subtypes(ctx.env.schema)[0]
 
@@ -939,7 +1157,6 @@ def _cast_array_literal(
 
     intermediate_typeref = typegen.type_to_typeref(
         intermediate_stype, env=ctx.env)
-
     casted_els = []
     for el in ir_set.expr.elements:
         el = compile_cast(el, el_type,

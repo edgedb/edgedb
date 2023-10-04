@@ -1417,7 +1417,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         # equivalent to re-writing it.
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'cannot access id on a polymorphic shape element'):
+                r"cannot access property 'id' on a polymorphic shape element"):
             await self.con.query(r'''
                 SELECT User {
                     [IS Named].id,
@@ -2227,7 +2227,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             edgedb.QueryError,
             "cannot redefine the cardinality of link 'related_to': it is "
             "defined as 'multi' in the base object type 'default::Issue'",
-            _position=73,
+            _position=74,
         ):
             await self.con.execute("""
                 SELECT Issue {
@@ -2253,7 +2253,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             edgedb.QueryError,
             "cannot redefine link 'status' as optional: it is "
             "defined as required in the base object type 'default::Issue'",
-            _position=71,
+            _position=72,
         ):
             await self.con.execute("""
                 SELECT Issue {
@@ -8104,3 +8104,32 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_params_03(self):
         with self.assertRaisesRegex(edgedb.QueryError, "missing a type cast"):
             await self.con.query("select ($0, <std::int64>$0)")
+
+    async def test_edgeql_type_pointer_inlining_01(self):
+        await self.con._fetchall(
+            r'''
+            with
+            data := {0, 1, 2},
+            items := (
+                for item in data union (
+                    with
+                    user := (select schema::Object limit 1)
+                    select user
+                )
+            )
+            select items;
+            ''',
+            __typenames__=True
+        )
+
+    async def test_edgeql_type_pointer_inlining_02(self):
+        await self.con._fetchall(
+            r'''
+            with
+              object_type := (select schema::ObjectType limit 1),
+              pointers := object_type.pointers,
+              pointers_2 := (select pointers limit 1),
+            select pointers_2;
+            ''',
+            __typenames__=True
+        )

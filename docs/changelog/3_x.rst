@@ -1,34 +1,21 @@
-==========
-v3.0 (dev)
-==========
+====
+v3.0
+====
 
-:edb-alt-title: EdgeDB v3 (dev)
-
-.. warning::
-
-    The latest stable EdgeDB release is 2.x. EdgeDB 3.0 stable will be released
-    soon.
+:edb-alt-title: EdgeDB v3
 
 .. image:: images/v3_betelgeuse.jpg
     :width: 100%
 
-EdgeDB 3.0 is currently in pre-release. We would like to thank our community
-for reporting issues and contributing fixes. You are awesome! ❤️
+EdgeDB 3.0 was released on June 22nd, 2023. Read the announcement
+blog post `here <v3anno_>`_.
 
 To play with the new features, install the CLI using `our installation guide
 <https://www.edgedb.com/install>`_ and initialize a new project.
 
 .. code-block:: bash
 
-  $ edgedb project init --server-version=3.0-rc.1
-
-.. note::
-
-    Good news, everyone! Upgrades across pre-release versions of 3.0 and then
-    from pre-release 3.0 to the final 3.0 release will *not* require a dump and
-    restore. 🎉 You can try out 3.0 with the assurance that your initial
-    upgrade to any 3.0 pre-release version will be the last dump and restore
-    that is required of you.
+  $ edgedb project init
 
 
 Upgrading
@@ -42,13 +29,13 @@ directory.
 
 .. code-block:: bash
 
-  $ edgedb project upgrade --to-testing
+  $ edgedb project upgrade
 
 Alternatively, specify an instance name if you aren't using a project.
 
 .. code-block:: bash
 
-  $ edgedb instance upgrade --to-testing -I my_instance
+  $ edgedb instance upgrade -I my_instance
 
 The CLI will first check to see if your schema will migrate cleanly to EdgeDB
 3.0.
@@ -112,25 +99,25 @@ dump-and-restore process.
 
        $ echo deb [signed-by=/usr/local/share/keyrings/edgedb-keyring.gpg] \
            https://packages.edgedb.com/apt \
-           $(grep "VERSION_CODENAME=" /etc/os-release | cut -d= -f2) testing \
+           $(grep "VERSION_CODENAME=" /etc/os-release | cut -d= -f2) main \
            | sudo tee /etc/apt/sources.list.d/edgedb.list
 
    Use this command for installation under Debian/Ubuntu:
 
    .. code-block:: bash
 
-       $ sudo apt-get update && sudo apt-get install edgedb-3-rc1
+       $ sudo apt-get update && sudo apt-get install edgedb-3
 
    Under CentOS/RHEL, use this installation command:
 
    .. code-block:: bash
 
-       $ sudo yum install edgedb-3-rc1
+       $ sudo yum install edgedb-3
 
    In any required ``systemctl`` commands, replace ``edgedb-server-2`` with
    ``edgedb-server-3``.
 
-   Under any Docker setups, supply the ``3.0-rc.1`` tag.
+   Under any Docker setups, supply the ``3.0`` tag.
 
 2. Take your application offline, then dump your v2.x database with the CLI
 
@@ -214,6 +201,8 @@ versioned sections of the documentation to the new syntax.
 Query performance analysis
 --------------------------
 
+.. edb:youtube-embed:: WoHJu0nq5z0
+
 Among other improvements, the UI now includes a visual query analyzer to help
 you tweak performance on your EdgeQL queries. Just drop the ``analyze`` keyword
 in front of your query in the UI's "Query Editor" tab to see the query analyzer
@@ -229,6 +218,8 @@ directly using the ``edgedb analyze <query>`` command.
 
 UI improvements
 ---------------
+
+.. edb:youtube-embed:: iwnP_6tkKgc
 
 The EdgeDB UI got a lot of love in this release. In addition to the visual
 query planning shown above, you'll see a number of improvements.
@@ -267,6 +258,8 @@ even when you're just learning EdgeQL.
 
 ``edgedb watch`` and a new development workflow
 -----------------------------------------------
+
+.. edb:youtube-embed:: _IUSPBm2xEA
 
 The new ``edgedb watch`` CLI command starts a long-running process that watches
 for changes in schema files in your project's ``dbschema`` directory and
@@ -319,6 +312,8 @@ these are ready to commit and push to your remote to share with your team.
 Triggers
 --------
 
+.. edb:youtube-embed:: ImgMfb_jCJQ?start=41
+
 Our new triggers feature is one of the most anticipated 3.0 features! Triggers
 allow you to define an expression to be executed whenever a given query type is
 run on an object type. The original query will *trigger* your pre-defined
@@ -348,6 +343,8 @@ You can read more about our triggers implementation in `the triggers RFC
 Mutation rewrites
 -----------------
 
+.. edb:youtube-embed:: ImgMfb_jCJQ?end=41
+
 The mutation rewrites feature is the sibling, or at least the first cousin, of
 triggers. Both are automatically invoked when a write operation occurs on the
 type they're on, but triggers are not able to make changes to the object that
@@ -374,6 +371,8 @@ Learn about our mutation rewrites implementation in `the mutation rewrites RFC
 
 Splats
 ------
+
+.. edb:youtube-embed:: 9-I1qjIp3KI
 
 This is one of the most fun features in 3.0, both to say _and_ to use! With
 splats, you can easily select all properties in your queries without typing all
@@ -421,8 +420,58 @@ Read more about splats in `our splats RFC
 <https://github.com/edgedb/rfcs/blob/master/text/1023-splats.rst>`_.
 
 
+ext::pgvector
+-------------
+
+The new ``ext::pgvector`` extension can be used to efficiently store
+and query vectors (commonly used to store so called text embeddings.)
+
+Using the extension is quite straightforward and self-explanatory:
+
+.. tabs::
+
+  .. code-tab:: sdl
+    :caption: In your schema
+
+    using extension pgvector;
+
+    module default {
+      scalar type GPTEmbedding extending
+        ext::pgvector::vector<1536>;
+
+      type Document {
+        required content: str;
+        embedding: GPTEmbedding;
+
+        index ext::pgvector::ivfflat_cosine(lists := 100)
+          on (.embedding);
+      }
+    }
+
+  .. code-tab:: edgeql
+    :caption: In your queries
+
+    with
+      vec as module ext::pgvector,
+      target := <GPTEmbedding>$target_embedding,
+      threshold := <float64>$threshold
+
+    select Document {
+      *,
+      dist := vec::cosine_distance(target, .embedding)
+    }
+    filter .dist < threshold
+    order by .dist empty last
+    limit 5
+
+For more details about ``ext::pgvector``, please refer to :ref:`the dedicated
+ext::pgvector documentation <ref_ext_pgvector>`.
+
+
 SQL support
 -----------
+
+.. edb:youtube-embed:: 0KdY2MPb2oc
 
 EdgeDB supports running read-only SQL queries via the Postgres protocol to
 enable connecting EdgeDB to existing BI and analytics solutions. Any
@@ -565,8 +614,8 @@ EdgeQL
   .. code-block:: sdl
 
     type User {
-      required property email -> str { constraint exclusive; };
-      required property is_admin -> bool { default := false };
+      required email: str { constraint exclusive; };
+      required is_admin: bool { default := false };
       access policy admin_only
         allow all
         using (global current_user.is_admin ?? false) {
@@ -630,7 +679,7 @@ EdgeQL
   .. code-block:: sdl
 
       type User {
-        required property name -> str;
+        required name: str;
         index pg::spgist on (.name);
       };
 
@@ -670,6 +719,8 @@ CLI
 
 Bug fixes
 ---------
+
+.. edb:collapsed::
 
 * Fix crash on cycle between defaults in insert (:eql:gh:`#5355`)
 
@@ -730,74 +781,6 @@ Bug fixes
 * Fix protocol state confusion after rollback
   (:eql:gh:`#4970`), (:eql:gh:`#4953`)
 
-
-Deprecations
-------------
-
-The support of version pre-1.0 binary protocol is deprecated in EdgeDB 3.0, and
-will be completely dropped in EdgeDB 4.0. If you're still using a deprecated
-version of the binary protocol or any client libraries that *only* support the
-pre-1.0 binary protocol as listed below, please consider upgrading to a newer
-version.
-
-* edgedb-js / edgedb-deno v0.20 or lower
-* edgedb-python v0.23 or lower
-* edgedb-go v0.10 or lower
-* edgedb-tokio (Rust) v0.2 or lower
-* EdgeDB.NET v0.2 or lower
-* edgedb-elixir v0.3 or lower
-
-
-New release schedule
-====================
-
-Unfortunately, the 3.0 release will not include full-text search. We have many
-requirements for this new API (see `the FTS RFC
-<https://github.com/edgedb/rfcs/blob/master/text/1015-full-text-search.rst>`_
-for details), and, while we’ve made significant progress, we have unfortunately
-run out of time to be 100% sure that it is ready for prime time.
-
-We don’t want this delay to hold back the release of EdgeDB 3.0, which includes
-many other exciting features that are ready for you to start using right now.
-That’s why we’ve decided to delay only the FTS feature rather than delaying the
-entire 3.0 release.
-
-That said we’re working hard to get FTS ready as soon as possible. After the
-release of 3.0, we'll be moving to a much more frequent release cycle so that
-features like FTS can be in your hands as soon as they're ready.
-
-Going forward, expect EdgeDB releases every four months. These releases will
-naturally incorporate fewer features than our past releases, but we think the
-more predictable cadence will be worth it. Every third release starting with
-3.0 will be a long-term support (LTS) release. These releases will continue to
-receive support for a year and a half after their initial release.
-
-3.0 RC 1
-========
-
-Changes to new 3.0 features
----------------------------
-* Fix indirect references to properties in triggers
-  (:eql:gh:`#5450`)
-
-* Fix rewrites of aliases types
-  (:eql:gh:`#5461`)
-
-* Do nicer translation of relation names in ``ANALYZE``
-  (:eql:gh:`#5467`)
-
-* Fix schema ordering bug when ``INSERT`` appears in triggers
-  (:eql:gh:`#5489`)
-
-* Produce correct error source locations in the SQL interface
-  (:eql:gh:`#5462`)
-
-* Fix deleting a pointer with rewrites in a migration
-  (:eql:gh:`#5503`)
-
-
-Other changes and fixes
------------------------
 * Support disabling dynamic configuration of system config
   (:eql:gh:`#5425`)
 
@@ -866,18 +849,6 @@ Other changes and fixes
 * Make failovers more resilient
   (:eql:gh:`#5511`)
 
-3.0 RC 2
-========
-
-Changes to new 3.0 features
----------------------------
-* Improve the error reporting for missing pointers in inserts in
-  rewrites and triggers
-  (:eql:gh:`#5562`)
-
-Other changes and fixes
------------------------
-
 * Fix support for Postgres 15
   (:eql:gh:`#5534`)
 
@@ -927,3 +898,290 @@ Other changes and fixes
 
 * Sort composite type display names consistently
   (:eql:gh:`#5580`)
+
+* Make stdlib objects immutable
+  (:eql:gh:`#5599`)
+
+* Slightly improve generated SQL around parameter uses
+  (:eql:gh:`#5605`)
+
+* Fix coalesce with type intersection
+  (:eql:gh:`#5600`)
+
+* Do not corrupt cardinality inference results when doing group analysis
+  (:eql:gh:`#5611`)
+
+* Fix some obscure optional bugs in the presence of tuple projections
+  (:eql:gh:`#5610`)
+
+* Fix casts from json to custom scalars
+  (:eql:gh:`#5624`)
+
+* Fix ``pg_namespace`` emulation in SQL layer
+  (:eql:gh:`#5594`)
+
+* Fix json output of arrays of ranges
+  (:eql:gh:`#5629`)
+
+* Fix ISE when using ``__subject__`` in default
+  (:eql:gh:`#5633`)
+
+* Make default expressions in the schema always compiled
+  as ``detached``
+  (:eql:gh:`#5606`)
+
+* Bump ``max_locks_per_transaction`` to 1024
+  (:eql:gh:`#5636`)
+
+* Disallow partial paths in the defaults of link properties
+  (:eql:gh:`#5560`)
+
+* Expose the ``maintenance_work_mem`` database configuration variable.
+  This may need to be tuned in order to build large pgvector indexes
+
+* Add an ``ADMINISTER reindex(...)`` function to reindex objects.
+  ``ADMINISTER reindex(Obj)`` will reindex all indexes on the table
+  backing ``Obj`` while ``ADMINISTER reindex(Obj.ptr)`` will reindex
+  any indexes referencing ``ptr``.
+  (:eql:gh:`#5659`)
+
+* Fix referring to ``__source__`` in defaults
+  (:eql:gh:`#5667`)
+
+* Fix constraints on custom abstract scalars
+  (:eql:gh:`#5666`)
+
+* Ensure changing scalar base types throws appropriately
+  (:eql:gh:`#5664`)
+
+
+Deprecations
+------------
+
+The support of version pre-1.0 binary protocol is deprecated in EdgeDB 3.0, and
+will be completely dropped in EdgeDB 4.0. If you're still using a deprecated
+version of the binary protocol or any client libraries that *only* support the
+pre-1.0 binary protocol as listed below, please consider upgrading to a newer
+version.
+
+* edgedb-js / edgedb-deno v0.20 or lower
+* edgedb-python v0.23 or lower
+* edgedb-go v0.10 or lower
+* edgedb-tokio (Rust) v0.2 or lower
+* EdgeDB.NET v0.2 or lower
+* edgedb-elixir v0.3 or lower
+
+
+New release schedule
+====================
+
+Unfortunately, the 3.0 release will not include full-text search. We have many
+requirements for this new API (see `the FTS RFC
+<https://github.com/edgedb/rfcs/blob/master/text/1015-full-text-search.rst>`_
+for details), and, while we’ve made significant progress, we have unfortunately
+run out of time to be 100% sure that it is ready for prime time.
+
+We don’t want this delay to hold back the release of EdgeDB 3.0, which includes
+many other exciting features that are ready for you to start using right now.
+That’s why we’ve decided to delay only the FTS feature rather than delaying the
+entire 3.0 release.
+
+That said we’re working hard to get FTS ready as soon as possible. After the
+release of 3.0, we'll be moving to a much more frequent release cycle so that
+features like FTS can be in your hands as soon as they're ready.
+
+Going forward, expect EdgeDB releases every four months. These releases will
+naturally incorporate fewer features than our past releases, but we think the
+more predictable cadence will be worth it. Every third release starting with
+3.0 will be a long-term support (LTS) release. These releases will continue to
+receive support for a year and a half after their initial release.
+
+.. _v3anno:
+    https://www.edgedb.com/blog/edgedb-3-0
+
+3.1
+===
+
+* Add support for "offline" readiness state
+  (:eql:gh:`#5730`)
+
+* Bump ``max_pred_locks_per_transaction`` to 1024
+  (:eql:gh:`#5694`)
+
+* Be more permissive about differing postgres versions when using
+  remote compiler pool
+  (:eql:gh:`#5698`)
+
+* Do not lose constraint ``errmessage`` when a constraint is ALTERed
+  (:eql:gh:`#5701`)
+
+* Properly track implicit dependance on ``__type__`` in function calls
+  (:eql:gh:`#5715`)
+
+* Avoid very slow error formatting in non-error cases
+  (:eql:gh:`#5706`)
+
+* Push Docker images to ghcr.io also
+  (:eql:gh:`#5700`)
+
+* Fix tuple derefencing and top-level casting in exclusive constraints
+  (:eql:gh:`#5724`)
+
+* Add support for statement variants of prepared statement comands in
+  SQL mode
+  (:eql:gh:`#5685`)
+
+* Respect ``cfg::`` annotations on object configuration
+  (:eql:gh:`#5746`)
+
+* Avoid leaking database existence information to unauthenticated users
+  (:eql:gh:`#5744`)
+
+
+3.2
+===
+* Fix empty queries in the SQL layer
+  (:eql:gh:`#5776`)
+
+* Expand list of supported SQL range functions
+  (:eql:gh:`#5777`)
+
+* Fix psql ``\dt``
+  (:eql:gh:`#5779`)
+
+* Fix bugs in casting between ranges and json on empty set inputs
+  (:eql:gh:`#5792`)
+
+* Fix globals of scalar types defined later in the schema
+  (:eql:gh:`#5764`)
+
+* Fix moving access policy from child to parent
+  (:eql:gh:`#5786`)
+
+* Modestly speed up type creation in large schemas
+  (:eql:gh:`#5814`)
+
+3.3
+===
+* Fix creating roles in transactions
+  (:eql:gh:`#5925`)
+
+* Fix database check in JWT authentication
+  (:eql:gh:`#5928`)
+
+* Create extensions conditionally
+  (:eql:gh:`#5894`)
+
+* Stop putting deletes of self before alters of self in when making schema
+  deltas
+  (:eql:gh:`#5897`)
+
+* Fix dropping of extensions with nontrivial schemas
+  (:eql:gh:`#5897`)
+
+* Fix healthchecks on single-database instances
+  (:eql:gh:`#5900`)
+
+* Fix a bug in SQL name resolving
+  (:eql:gh:`#5860`)
+
+* Add hacky support for pgadmin
+  (:eql:gh:`#5877`)
+
+* Fix some issues with nontrivial function parameter defaults
+  (:eql:gh:`#5970`)
+
+* Fix named-tuple params that also appear in the schema
+  (:eql:gh:`#5964`)
+
+* Disallow more broken sorts of function overloads
+  (:eql:gh:`#5992`)
+
+* Prevent user modifications to extension modules
+  (:eql:gh:`#5993`)
+
+* Fix use of certain empty sets from multiple optional arguments
+  (:eql:gh:`#5990`)
+
+* Fix a casting bug.
+
+* Do not stack overflow on long arrays and similar
+  (:eql:gh:`#6004`)
+
+* Fix collisions between function parameters named id and the property
+  (:eql:gh:`#6000`)
+
+* Fix an infinite recursion when casting object->json in some cases
+  (:eql:gh:`#6007`)
+
+* Fix object to json casts inside functions
+  (:eql:gh:`#6016`)
+
+* Produce better errors on compiler stack overflows and properly interpret
+  errors raised from SQL when using HTTP protocols
+  (:eql:gh:`#6005`)
+
+
+3.4
+===
+
+* Repair instances created with rc1/rc2 to fix an issue that can
+  prevent creating migrations.
+
+* GraphQL: Fix bug with objects without editable fields.
+  (:eql:gh:`#6039`)
+
+* GraphQL: Fix issues with deeply nested modules.
+  (:eql:gh:`#6039`)
+
+* GraphQL: Fix ``__typename`` for non-default modules.
+  (:eql:gh:`#5985`)
+
+* GraphQL: Fix fragments on types from non-default module.
+  (:eql:gh:`#5985`)
+
+* GraphQL: Handle ``__typename`` in mutations.
+  (:eql:gh:`#5985`)
+
+* Make ``SET default`` of trivial values much faster
+  (:eql:gh:`#6134`)
+
+* Fix DELETE/UPDATE on parent types with children that have no policies
+  (:eql:gh:`#6136`)
+
+* Skip generating updates on abstract types, as a minor optimization
+  (:eql:gh:`#6135`)
+
+* Fix cast of empty set to type with access policy
+  (:eql:gh:`#6151`)
+
+* Fix ``group`` on backlinks in some situations
+  (:eql:gh:`#6152`)
+
+* Support using query parameters in ``SET GLOBAL`` commands
+  (:eql:gh:`#5670`)
+
+* Make using globals as defaults work
+  (:eql:gh:`#6153`)
+
+* Fix schema ordering bugs with rewrites
+  (:eql:gh:`#6154`)
+
+* Fix function params whose name collide with SQL type names
+  (:eql:gh:`#6150`)
+
+* Fix schema confusion with objects that shadow std objects
+  (:eql:gh:`#6155`)
+
+* Fix migration incomplete issues with functions that use multiple globals
+  (:eql:gh:`#6157`)
+
+* Fix several bugs in ``analyze``
+  (:eql:gh:`#5758`)
+
+* Fix spurious compiler cache misses when duration config values
+  are set in a session
+  (:eql:gh:`#6168`)
+
+* Properly reject indexes on non-immutable computeds
+  (:eql:gh:`#6170`)

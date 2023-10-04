@@ -209,6 +209,10 @@ class AnyTupleRef(TypeRef):
     pass
 
 
+class AnyObjectRef(TypeRef):
+    pass
+
+
 class BasePointerRef(ImmutableBase):
     __abstract_node__ = True
 
@@ -354,6 +358,11 @@ class TupleIndirectionLink(s_pointers.PseudoPointer):
 
 
 class TupleIndirectionPointerRef(BasePointerRef):
+    pass
+
+
+class SpecialPointerRef(BasePointerRef):
+    """Pointer ref used for internal columns, such as __fts_document__"""
     pass
 
 
@@ -524,6 +533,12 @@ class Set(Base):
     # insertions to BaseObject.
     ignore_rewrites: bool = False
 
+    # An expression to use instead of this one for the purpose of
+    # cardinality/multiplicity inference. This is used for when something
+    # is desugared in a way that doesn't preserve cardinality, but we
+    # need to anyway.
+    card_inference_override: typing.Optional[Set] = None
+
     def __repr__(self) -> str:
         return f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'
 
@@ -612,12 +627,12 @@ class ParamScalar(ParamTransType):
 
 @dataclasses.dataclass(eq=False)
 class ParamTuple(ParamTransType):
-    typs: tuple[ParamTransType, ...]
+    typs: tuple[tuple[typing.Optional[str], ParamTransType], ...]
 
     def flatten(self) -> tuple[typing.Any, ...]:
         return (
             (int(qltypes.TypeTag.TUPLE), self.idx)
-            + tuple(x.flatten() for x in self.typs)
+            + tuple(x.flatten() for _, x in self.typs)
         )
 
 
@@ -779,7 +794,7 @@ class BytesConstant(BaseConstant):
 
 class ConstantSet(ConstExpr, ImmutableExpr):
 
-    elements: typing.Tuple[BaseConstant, ...]
+    elements: typing.Tuple[BaseConstant | Parameter, ...]
 
 
 class Parameter(ImmutableExpr):
@@ -864,6 +879,7 @@ class Call(ImmutableExpr):
     force_return_cast: bool
 
     # Bound arguments.
+    # Named arguments will come first, followed by positional arguments.
     args: typing.List[CallArg]
 
     # Typemods of parameters.  This list corresponds to ".args"
@@ -887,6 +903,11 @@ class Call(ImmutableExpr):
     # arguments (NULL inputs lead to NULL results). If not, we need to
     # filter at the call site.
     impl_is_strict: bool = False
+
+    # Kind of a hack: indicates that when possible we should pass arguments
+    # to this function as a subquery-as-an-expression.
+    # See comment in schema/functions.py for more discussion.
+    prefer_subquery_args: bool = False
 
 
 class FunctionCall(Call):
@@ -1212,6 +1233,9 @@ class ConfigCommand(Command, Expr):
     globals: typing.Optional[typing.List[Global]] = None
     scope_tree: typing.Optional[ScopeTreeNode] = None
 
+    params: typing.List[Param] = ast.field(factory=list)
+    schema: typing.Optional[s_schema.Schema] = None
+
 
 class ConfigSet(ConfigCommand):
 
@@ -1228,3 +1252,19 @@ class ConfigReset(ConfigCommand):
 class ConfigInsert(ConfigCommand):
 
     expr: Set
+
+
+class FTSDocument(Expr):
+    """
+    Text and information on how to search through it.
+
+    Constructed with `fts::with_options`.
+    """
+
+    text: Set
+
+    language: Set
+
+    language_domain: typing.Set[str]
+
+    weight: typing.Optional[str]

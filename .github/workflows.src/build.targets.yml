@@ -1,3 +1,8 @@
+publications:
+    - name: prod
+      suffix: ""
+      server: sftp://uploader@package-upload.edgedb.net:22/
+
 targets:
     linux:
         - name: debian-buster-x86_64
@@ -20,6 +25,16 @@ targets:
         - name: debian-bullseye-aarch64
           platform: debian
           platform_version: bullseye
+          family: debian
+          runs_on: [self-hosted, linux, arm64]
+        - name: debian-bookworm-x86_64
+          platform: debian
+          platform_version: bookworm
+          family: debian
+          runs_on: [self-hosted, linux, x64]
+        - name: debian-bookworm-aarch64
+          platform: debian
+          platform_version: bookworm
           family: debian
           runs_on: [self-hosted, linux, arm64]
         - name: ubuntu-bionic-x86_64
@@ -65,6 +80,16 @@ targets:
         - name: centos-8-aarch64
           platform: centos
           platform_version: 8
+          family: redhat
+          runs_on: [self-hosted, linux, arm64]
+        - name: rockylinux-9-x86_64
+          platform: rockylinux
+          platform_version: 9
+          family: redhat
+          runs_on: [self-hosted, linux, x64]
+        - name: rockylinux-9-aarch64
+          platform: rockylinux
+          platform_version: 9
           family: redhat
           runs_on: [self-hosted, linux, arm64]
         - name: linux-x86_64

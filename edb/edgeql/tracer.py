@@ -51,6 +51,10 @@ class NamedObject:
     def get_name(self, schema: s_schema.Schema) -> sn.QualName:
         return self.name
 
+    @classmethod
+    def get_schema_class_displayname(cls) -> str:
+        return cls.__name__.lower()
+
 
 SentinelObject = NamedObject(
     name=sn.QualName(module='__unknown__', name='__unknown__'),
@@ -85,6 +89,10 @@ class Index(NamedObject):
 
 
 class ConcreteIndex(NamedObject):
+    pass
+
+
+class Field(NamedObject):
     pass
 
 
@@ -253,6 +261,18 @@ class Link(Pointer):
         return False
 
 
+class UnknownPointer(Pointer):
+    def is_property(
+        self,
+        schema: s_schema.Schema,
+    ) -> bool:
+        return False
+
+    @classmethod
+    def get_schema_class_displayname(cls) -> str:
+        return 'link or property'
+
+
 class AccessPolicy(NamedObject):
 
     def __init__(
@@ -352,6 +372,7 @@ def resolve_name(
     objects: Dict[sn.QualName, Optional[ObjectLike]],
     modaliases: Optional[Dict[Optional[str], str]],
     local_modules: AbstractSet[str],
+    declaration: bool=False,
 ) -> sn.QualName:
     """Resolve a name into a fully-qualified one.
 
@@ -359,7 +380,7 @@ def resolve_name(
     """
     module = ref.module
 
-    no_std = False
+    no_std = declaration
     if module and module.startswith('__current__::'):
         no_std = True
         module = f'{current_module}::{module.removeprefix("__current__::")}'
@@ -377,15 +398,13 @@ def resolve_name(
             module = fq_module + sep + rest
 
     qname = sn.QualName(module=module, name=ref.name)
-    if type is None:
-        return qname
 
     # check if there's a name in default module
-    # actually registered to the right type
+    # that matches
     if not no_std and not (
         ref.module and ref.module in local_modules
     ) and not (
-        isinstance(objects.get(qname), type)
+        objects.get(qname)
         or schema.get(
             qname, default=None, type=so.Object) is not None
     ):
@@ -883,8 +902,8 @@ def trace_Path(
 
 
 @trace.register
-def trace_SpecialAnchor(
-    node: qlast.SpecialAnchor, *, ctx: TracerContext
+def trace_Anchor(
+    node: qlast.Anchor, *, ctx: TracerContext
 ) -> Optional[ObjectLike]:
     if name := ctx.anchors.get(node.name):
         return ctx.objects[name]

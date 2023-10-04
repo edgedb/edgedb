@@ -27,11 +27,10 @@ from typing import *
 from edb import errors
 
 from edb.common import context as ctx_utils
-from edb.edgeql import qltypes as ft
 
 from edb.ir import ast as irast
-from edb.ir import staeval as ireval
 from edb.ir import typeutils as irtyputils
+from edb.ir import utils as irutils
 
 from edb.schema import abc as s_abc
 from edb.schema import constraints as s_constr
@@ -39,11 +38,11 @@ from edb.schema import globals as s_globals
 from edb.schema import indexes as s_indexes
 from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
-from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import utils
 
 from . import astutils
 from . import casts
@@ -128,14 +127,11 @@ def compile_BinOp(
             )
             return dispatch.compile(balanced, ctx=ctx)
 
+    if expr.op == '??' and utils.contains_dml(expr.right):
+        return _compile_dml_coalesce(expr, ctx=ctx)
+
     op_node = func.compile_operator(
         expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=ctx)
-
-    if ctx.env.options.constant_folding:
-        op_node.expr = cast(irast.OperatorCall, op_node.expr)
-        folded = try_fold_binop(op_node.expr, ctx=ctx)
-        if folded is not None:
-            return folded
 
     return op_node
 
@@ -192,7 +188,10 @@ def compile_Set(
                     left=l, right=r, rebalanced=True, context=c),
                 expr.context
             )
-            return dispatch.compile(bigunion, ctx=ctx)
+            res = dispatch.compile(bigunion, ctx=ctx)
+            if cres := try_constant_set(res):
+                res = setgen.ensure_set(cres, ctx=ctx)
+            return res
     else:
         return setgen.new_empty_set(
             alias=ctx.aliases.get('e'),
@@ -256,113 +255,6 @@ def compile_BaseConstant(
     return setgen.ensure_set(node_cls(value=value, typeref=ct), ctx=ctx)
 
 
-def try_fold_binop(
-        opcall: irast.OperatorCall, *,
-        ctx: context.ContextLevel) -> Optional[irast.Set]:
-    try:
-        const = ireval.evaluate(opcall, schema=ctx.env.schema)
-    except ireval.UnsupportedExpressionError:
-        anyreal = ctx.env.schema.get('std::anyreal', type=s_scalars.ScalarType)
-
-        if (str(opcall.func_shortname) in ('std::+', 'std::*') and
-                opcall.operator_kind is ft.OperatorKind.Infix and
-                all(setgen.get_set_type(a.expr, ctx=ctx).issubclass(
-                    ctx.env.schema, anyreal)
-                    for a in opcall.args)):
-            return try_fold_associative_binop(opcall, ctx=ctx)
-        else:
-            return None
-    else:
-        return setgen.ensure_set(const, ctx=ctx)
-
-
-def try_fold_associative_binop(
-        opcall: irast.OperatorCall, *,
-        ctx: context.ContextLevel) -> Optional[irast.Set]:
-
-    # Let's check if we have (CONST + (OTHER_CONST + X))
-    # tree, which can be optimized to ((CONST + OTHER_CONST) + X)
-
-    op = opcall.func_shortname
-    my_const = opcall.args[0].expr
-    other_binop = opcall.args[1].expr
-    folded = None
-
-    if isinstance(other_binop.expr, irast.BaseConstant):
-        my_const, other_binop = other_binop, my_const
-
-    if (isinstance(my_const.expr, irast.BaseConstant) and
-            isinstance(other_binop.expr, irast.OperatorCall) and
-            other_binop.expr.func_shortname == op and
-            other_binop.expr.operator_kind is ft.OperatorKind.Infix):
-
-        other_const = other_binop.expr.args[0].expr
-        other_binop_node = other_binop.expr.args[1].expr
-
-        if isinstance(other_binop_node.expr, irast.BaseConstant):
-            other_binop_node, other_const = \
-                other_const, other_binop_node
-
-        if isinstance(other_const.expr, irast.BaseConstant):
-            try:
-                new_const = ireval.evaluate(
-                    irast.OperatorCall(
-                        args=[
-                            irast.CallArg(
-                                expr=other_const,
-                            ),
-                            irast.CallArg(
-                                expr=my_const,
-                            ),
-                        ],
-                        func_shortname=op,
-                        func_polymorphic=opcall.func_polymorphic,
-                        sql_function=opcall.sql_function,
-                        func_sql_expr=opcall.func_sql_expr,
-                        sql_operator=opcall.sql_operator,
-                        force_return_cast=opcall.force_return_cast,
-                        operator_kind=opcall.operator_kind,
-                        params_typemods=opcall.params_typemods,
-                        context=opcall.context,
-                        typeref=opcall.typeref,
-                        typemod=opcall.typemod,
-                        tuple_path_ids=opcall.tuple_path_ids,
-                        volatility=opcall.volatility,
-                    ),
-                    schema=ctx.env.schema,
-                )
-            except ireval.UnsupportedExpressionError:
-                pass
-            else:
-                folded_binop = irast.OperatorCall(
-                    args=[
-                        irast.CallArg(
-                            expr=setgen.ensure_set(new_const, ctx=ctx),
-                        ),
-                        irast.CallArg(
-                            expr=other_binop_node,
-                        ),
-                    ],
-                    func_shortname=op,
-                    func_polymorphic=opcall.func_polymorphic,
-                    sql_function=opcall.sql_function,
-                    func_sql_expr=opcall.func_sql_expr,
-                    sql_operator=opcall.sql_operator,
-                    force_return_cast=opcall.force_return_cast,
-                    operator_kind=opcall.operator_kind,
-                    params_typemods=opcall.params_typemods,
-                    context=opcall.context,
-                    typeref=opcall.typeref,
-                    typemod=opcall.typemod,
-                    tuple_path_ids=opcall.tuple_path_ids,
-                    volatility=opcall.volatility,
-                )
-
-                folded = setgen.ensure_set(folded_binop, ctx=ctx)
-
-    return folded
-
-
 @dispatch.compile.register(qlast.NamedTuple)
 def compile_NamedTuple(
         expr: qlast.NamedTuple, *, ctx: context.ContextLevel) -> irast.Set:
@@ -418,31 +310,202 @@ def compile_Array(
     return setgen.new_array_set(elements, ctx=ctx, srcctx=expr.context)
 
 
+def _compile_dml_coalesce(
+        expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
+    """Transform a coalesce that contains DML into FOR loops
+
+    The basic approach is to extract the pieces from the ?? and
+    rewrite them into:
+        for optional x in (LHS,) union (
+          {
+            x.0,
+            (for _ in (select () filter not exists x) union (RHS)),
+          }
+        )
+
+    Optional for is needed because the LHS needs to be bound in a for
+    in order to get put in a CTE and only executed once, but the RHS
+    needs to be dependent on the LHS being empty.
+
+    We hackily wrap the LHS in a 1-ary tuple and then project it back
+    out because the OPTIONAL FOR implementation doesn't properly
+    handle object-type iterators. OPTIONAL FOR relies on having a
+    non-NULL identity ref but objects use their actual id, which
+    will be NULL.
+    """
+    with ctx.newscope(fenced=False) as subctx:
+        # We have to compile it under a factoring fence to prevent
+        # correlation with outside things. We can't just rely on the
+        # factoring fences inserted when compiling the FORs, since we
+        # are going to need to explicitly exempt the iterator
+        # expression from that.
+        subctx.path_scope.factoring_fence = True
+        subctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
+
+        ir = func.compile_operator(
+            expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=subctx)
+
+        # Extract the IR parts from the ??
+        # Note that lhs_ir will be unfenced while rhs_ir
+        # will have been compiled under fences.
+        match ir.expr:
+            case irast.OperatorCall(args=[
+                irast.CallArg(expr=lhs_ir),
+                irast.CallArg(expr=rhs_ir),
+            ]):
+                pass
+            case _:
+                raise AssertionError('malformed DML ??')
+
+        subctx.anchors = subctx.anchors.copy()
+
+        alias = ctx.aliases.get('b')
+        cond_path = qlast.Path(
+            steps=[qlast.ObjectRef(name=alias)],
+        )
+
+        rhs_b = qlast.ForQuery(
+            iterator_alias='__',
+            iterator=qlast.SelectQuery(
+                result=qlast.Tuple(elements=[]),
+                where=qlast.UnaryOp(
+                    op='NOT',
+                    operand=qlast.UnaryOp(op='EXISTS', operand=cond_path),
+                ),
+            ),
+            result=subctx.create_anchor(rhs_ir, check_dml=True),
+        )
+
+        full = qlast.ForQuery(
+            iterator_alias=alias,
+            iterator=qlast.Tuple(elements=[subctx.create_anchor(lhs_ir, 'b')]),
+            result=qlast.Set(elements=[
+                qlast.Path(steps=[
+                    cond_path, qlast.Ptr(ptr=qlast.ObjectRef(name='0'))
+                ]),
+                rhs_b
+            ]),
+            optional=True,
+        )
+
+        subctx.iterator_path_ids |= {lhs_ir.path_id}
+        res = dispatch.compile(full, ctx=subctx)
+        # Indicate that the original ?? code should determine the
+        # cardinality/multiplicity.
+        res.card_inference_override = ir
+
+        return res
+
+
+def _compile_dml_ifelse(
+        expr: qlast.IfElse, *, ctx: context.ContextLevel) -> irast.Set:
+    """Transform an IF/ELSE that contains DML into FOR loops
+
+    The basic approach is to extract the pieces from the if/then/else and
+    rewrite them into:
+        for b in COND union (
+          {
+            (for _ in (select () filter b) union (IF_BRANCH)),
+            (for _ in (select () filter not b) union (ELSE_BRANCH)),
+          }
+        )
+    """
+
+    with ctx.newscope(fenced=False) as subctx:
+        # We have to compile it under a factoring fence to prevent
+        # correlation with outside things. We can't just rely on the
+        # factoring fences inserted when compiling the FORs, since we
+        # are going to need to explicitly exempt the iterator
+        # expression from that.
+        subctx.path_scope.factoring_fence = True
+        subctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
+
+        ir = func.compile_operator(
+            expr, op_name='std::IF',
+            qlargs=[expr.if_expr, expr.condition, expr.else_expr], ctx=subctx)
+
+        # Extract the IR parts from the IF/THEN/ELSE
+        # Note that cond_ir will be unfenced while if_ir and else_ir
+        # will have been compiled under fences.
+        match ir.expr:
+            case irast.OperatorCall(args=[
+                irast.CallArg(expr=if_ir),
+                irast.CallArg(expr=cond_ir),
+                irast.CallArg(expr=else_ir),
+            ]):
+                pass
+            case _:
+                raise AssertionError('malformed DML IF/ELSE')
+
+        subctx.anchors = subctx.anchors.copy()
+
+        alias = ctx.aliases.get('b')
+        cond_path = qlast.Path(
+            steps=[qlast.ObjectRef(name=alias)],
+        )
+
+        els: list[qlast.Expr] = []
+
+        if not isinstance(irutils.unwrap_set(if_ir), irast.EmptySet):
+            if_b = qlast.ForQuery(
+                iterator_alias='__',
+                iterator=qlast.SelectQuery(
+                    result=qlast.Tuple(elements=[]),
+                    where=cond_path,
+                ),
+                result=subctx.create_anchor(if_ir, check_dml=True),
+            )
+            els.append(if_b)
+
+        if not isinstance(irutils.unwrap_set(else_ir), irast.EmptySet):
+            else_b = qlast.ForQuery(
+                iterator_alias='__',
+                iterator=qlast.SelectQuery(
+                    result=qlast.Tuple(elements=[]),
+                    where=qlast.UnaryOp(op='NOT', operand=cond_path),
+                ),
+                result=subctx.create_anchor(else_ir, check_dml=True),
+            )
+            els.append(else_b)
+
+        full = qlast.ForQuery(
+            iterator_alias=alias,
+            iterator=subctx.create_anchor(cond_ir, 'b'),
+            result=qlast.Set(elements=els) if len(els) != 1 else els[0],
+        )
+
+        subctx.iterator_path_ids |= {cond_ir.path_id}
+        res = dispatch.compile(full, ctx=subctx)
+        # Indicate that the original IF/ELSE code should determine the
+        # cardinality/multiplicity.
+        res.card_inference_override = ir
+
+        return res
+
+
 @dispatch.compile.register(qlast.IfElse)
 def compile_IfElse(
         expr: qlast.IfElse, *, ctx: context.ContextLevel) -> irast.Set:
 
-    return func.compile_operator(
+    if (
+        utils.contains_dml(expr.if_expr)
+        or utils.contains_dml(expr.else_expr)
+    ):
+        return _compile_dml_ifelse(expr, ctx=ctx)
+
+    res = func.compile_operator(
         expr, op_name='std::IF',
         qlargs=[expr.if_expr, expr.condition, expr.else_expr], ctx=ctx)
+
+    return res
 
 
 @dispatch.compile.register(qlast.UnaryOp)
 def compile_UnaryOp(
         expr: qlast.UnaryOp, *, ctx: context.ContextLevel) -> irast.Set:
 
-    result = func.compile_operator(
+    return func.compile_operator(
         expr, op_name=expr.op, qlargs=[expr.operand], ctx=ctx)
-
-    try:
-        result = setgen.ensure_set(
-            ireval.evaluate(result, schema=ctx.env.schema),
-            ctx=ctx,
-        )
-    except ireval.UnsupportedExpressionError:
-        pass
-
-    return result
 
 
 @dispatch.compile.register(qlast.GlobalExpr)
@@ -523,7 +586,6 @@ def compile_GlobalExpr(
 def compile_TypeCast(
         expr: qlast.TypeCast, *, ctx: context.ContextLevel) -> irast.Set:
     target_stype = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
-    target_typeref = typegen.type_to_typeref(target_stype, env=ctx.env)
     ir_expr: Union[irast.Set, irast.Expr]
 
     if isinstance(expr.expr, qlast.Parameter):
@@ -614,14 +676,7 @@ def compile_TypeCast(
             subctx.implicit_tid_in_shapes = False
             subctx.implicit_tname_in_shapes = False
 
-        if (
-            isinstance(expr.expr, qlast.Array)
-            and not expr.expr.elements
-            and irtyputils.is_array(target_typeref)
-        ):
-            ir_expr = irast.Array(elements=[], typeref=target_typeref)
-        else:
-            ir_expr = dispatch.compile(expr.expr, ctx=subctx)
+        ir_expr = dispatch.compile(expr.expr, ctx=subctx)
 
         res = casts.compile_cast(
             ir_expr,
@@ -759,3 +814,31 @@ def collect_binop(expr: qlast.BinOp) -> List[qlast.Expr]:
             elements.append(el)
 
     return elements
+
+
+def try_constant_set(expr: irast.Base) -> Optional[irast.ConstantSet]:
+    elements = []
+
+    stack: list[Optional[irast.Base]] = [expr]
+    while stack:
+        el = stack.pop()
+        if isinstance(el, irast.Set):
+            stack.append(el.expr)
+        elif (
+            isinstance(el, irast.OperatorCall)
+            and str(el.func_shortname) == 'std::UNION'
+        ):
+            stack.extend([el.args[1].expr.expr, el.args[0].expr.expr])
+        elif el and irutils.is_trivial_select(el):
+            stack.append(el.result)
+        elif isinstance(el, (irast.BaseConstant, irast.Parameter)):
+            elements.append(el)
+        else:
+            return None
+
+    if elements:
+        return irast.ConstantSet(
+            elements=tuple(elements), typeref=elements[0].typeref
+        )
+    else:
+        return None
