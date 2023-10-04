@@ -81,7 +81,7 @@ cdef class Database:
         object _views
         object _introspection_lock
         object _state_serializers
-        object user_config_spec
+        readonly object user_config_spec
 
         readonly str name
         readonly object dbver

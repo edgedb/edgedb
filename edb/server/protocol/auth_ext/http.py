@@ -359,7 +359,7 @@ class Router:
                         reset_url = f"{data['reset_url']}?{reset_token_params}"
 
                         from_addr = util.get_config(
-                            self.db.db_config,  # type: ignore
+                            self.db,
                             "ext::auth::SMTPConfig::sender",
                         )
                         ui_config = self._get_ui_config()
@@ -524,7 +524,7 @@ class Router:
                         response.body = b'Auth UI not enabled'
                     else:
                         providers = util.maybe_get_config(
-                            self.db.db_config,  # type: ignore
+                            self.db,
                             "ext::auth::AuthConfig::providers",
                             frozenset
                         )
@@ -767,7 +767,7 @@ class Router:
 
     def _get_auth_signing_key(self) -> jwk.JWK:
         auth_signing_key = util.get_config(
-            self.db.db_config, "ext::auth::AuthConfig::auth_signing_key"
+            self.db, "ext::auth::AuthConfig::auth_signing_key"
         )
         key_bytes = base64.b64encode(auth_signing_key.encode())
 
@@ -798,7 +798,7 @@ class Router:
     def _make_session_token(self, identity_id: str) -> str:
         signing_key = self._get_auth_signing_key()
         auth_expiration_time = util.get_config(
-            self.db.db_config,
+            self.db,
             "ext::auth::AuthConfig::token_time_to_live",
             statypes.Duration,
         )
@@ -894,13 +894,13 @@ class Router:
 
     def _get_ui_config(self):
         return util.maybe_get_config(
-            self.db.db_config, "ext::auth::AuthConfig::ui",
+            self.db, "ext::auth::AuthConfig::ui",
             CompositeConfigType
         )
 
     def _get_password_provider(self):
         providers = util.get_config(
-            self.db.db_config,
+            self.db,
             "ext::auth::AuthConfig::providers",
             frozenset
         )
