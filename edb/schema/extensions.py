@@ -36,11 +36,9 @@ from edb.common import checked
 from . import annos as s_anno
 from . import casts as s_casts
 from . import delta as sd
-from . import modules as s_mod
 from . import name as sn
 from . import objects as so
 from . import schema as s_schema
-from . import types as s_types
 
 
 class ExtensionPackage(
@@ -503,7 +501,6 @@ class DeleteExtension(
             self.add(sd.compile_ddl(schema, subast, context=context))
 
         return schema
-
 
     def apply(
         self,
