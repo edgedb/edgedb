@@ -25,17 +25,24 @@ from . import base
 
 class AppleProvider(base.OpenIDProvider):
     def __init__(self, *args, **kwargs):
-        super().__init__("apple", "https://appleid.apple.com", *args, **kwargs)
+        super().__init__(
+            "apple",
+            "https://appleid.apple.com",
+            *args,
+            content_type=base.ContentType.FORM_ENCODED,
+            **kwargs,
+        )
 
     async def get_code_url(self, state: str, redirect_uri: str) -> str:
         oidc_config = await self._get_oidc_config()
         params = {
             "client_id": self.client_id,
-            "scope": "openid profile name",  # Non-standard "name" scope
+            "scope": "openid email name",  # Non-standard "name" scope
             "state": state,
             "redirect_uri": redirect_uri,
             "nonce": str(uuid.uuid4()),
-            "response_type": "code",
+            "response_type": "code id_token",
+            "response_mode": "form_post",
         }
         encoded = urllib.parse.urlencode(params)
         return f"{oidc_config.authorization_endpoint}?{encoded}"

@@ -75,29 +75,44 @@ class Router:
                     response.custom_headers["Location"] = authorize_url
 
                 case ("callback",):
-                    query = request.url.query.decode("ascii")
-                    state = _get_search_param(query, "state")
-                    try:
-                        code = _get_search_param(query, "code")
-                    except (
-                        errors.InvalidData,
-                        errors.MisconfiguredProvider,
-                    ) as ex:
-                        error_description = None
-                        if isinstance(ex, errors.MisconfiguredProvider):
-                            error = "misconfigured_provider"
-                            error_description = ex.description
-                        else:
-                            error = _get_search_param(query, "error")
-                            error_description = _maybe_get_search_param(
-                                query, "error_description"
-                            )
+                    if request.method == b"POST" and (
+                        request.content_type
+                        == b"application/x-www-form-urlencoded"
+                    ):
+                        form_data = urllib.parse.parse_qs(request.body.decode())
+                        state = _maybe_get_form_field(form_data, "state")
+                        code = _maybe_get_form_field(form_data, "code")
+
+                        error = _maybe_get_form_field(form_data, "error")
+                        error_description = _maybe_get_form_field(
+                            form_data, "error_description"
+                        )
+                    elif request.url.query is not None:
+                        query = request.url.query.decode("ascii")
+                        state = _maybe_get_search_param(query, "state")
+                        code = _maybe_get_search_param(query, "code")
+                        error = _maybe_get_search_param(query, "error")
+                        error_description = _maybe_get_search_param(
+                            query, "error_description"
+                        )
+                    else:
+                        raise errors.OAuthProviderFailure(
+                            "Provider did not respond with expected data"
+                        )
+
+                    if state is None:
+                        raise errors.InvalidData(
+                            "Provider did not include the 'state' parameter in "
+                            "callback"
+                        )
+
+                    if error is not None:
                         try:
                             claims = self._verify_and_extract_claims(state)
                             redirect_to = claims["redirect_to"]
                         except Exception:
                             raise errors.InvalidData("Invalid state token")
-                        response.status = http.HTTPStatus.FOUND
+
                         params = {
                             "error": error,
                         }
@@ -106,7 +121,14 @@ class Router:
                         response.custom_headers[
                             "Location"
                         ] = f"{redirect_to}?{urllib.parse.urlencode(params)}"
+                        response.status = http.HTTPStatus.FOUND
                         return
+
+                    if code is None:
+                        raise errors.InvalidData(
+                            "Provider did not include the 'code' parameter in "
+                            "callback"
+                        )
 
                     try:
                         claims = self._verify_and_extract_claims(state)
@@ -364,6 +386,7 @@ class Router:
             )
 
         except errors.InvalidData as ex:
+            markup.dump(ex)
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.BAD_REQUEST,
@@ -492,3 +515,12 @@ def _get_search_param(query: str, key: str) -> str:
     if val is None:
         raise errors.InvalidData(f"Missing query parameter: {key}")
     return val
+
+
+def _maybe_get_form_field(
+    form_dict: dict[str, list[str]], key: str
+) -> str | None:
+    maybe_val = form_dict.get(key)
+    if maybe_val is None:
+        return None
+    return maybe_val[0]
