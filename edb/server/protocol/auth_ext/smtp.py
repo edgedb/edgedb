@@ -103,7 +103,7 @@ async def send_email(
             use_tls = False
             start_tls = True
 
-        case "PreferSTARTTLS":
+        case "STARTTLSOrPlainText":
             use_tls = False
             start_tls = None
 
