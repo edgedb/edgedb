@@ -270,8 +270,9 @@ First insert an ``Instrument``, a ukulele:
     ... };
     {default::Instrument {id: 0d3b3bc8-6013-11ee-8bab-6b7c6f4da55a}}
 
-Then a ``Musician`` with a link to the instrument. (Note the ability to cast
-from a ``uuid`` to an object type, which was added in EdgeDB 3.0!)
+Then a ``Musician`` with a link to the instrument. (Note the ability to 
+:ref:`cast <ref_eql_casts>` from a ``uuid`` to an object type, which was
+added in EdgeDB 3.0!)
 
 .. code-block:: edgeql-repl
     
