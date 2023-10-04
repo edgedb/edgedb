@@ -16081,6 +16081,8 @@ class TestDDLNonIsolated(tb.DDLTestCase):
           };
           create type ext::varchar::ChildTest
               extending ext::varchar::ParentTest;
+          create type ext::varchar::GrandChildTest
+              extending ext::varchar::ChildTest;
         };
         ''')
         try:

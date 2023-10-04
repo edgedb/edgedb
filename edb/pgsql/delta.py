@@ -3839,7 +3839,7 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand,
         for sub in self.get_subcommands(type=s_pointers.DeletePointer):
             if has_table(sub.scls, orig_schema):
                 self.pgops.add(dbops.DropView(common.get_backend_name(
-                    eff_schema, sub.scls, catenate=False)))
+                    orig_schema, sub.scls, catenate=False)))
 
         if isinstance(self, sd.DeleteObject):
             self.pgops.add(dbops.DropView(common.get_backend_name(
