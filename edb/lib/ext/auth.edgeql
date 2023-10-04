@@ -115,13 +115,6 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create property additional_scope: std::str;
     };
 
-    # create type ext::auth::OpenIdProviderConfig
-    #     extending ext::auth::ProviderConfig {
-    #     alter property name {
-    #         create constraint expression on (__subject__[:9] != 'builtin::');
-    #     };
-    # };
-
     create type ext::auth::AppleOAuthProvider
         extending ext::auth::OAuthProviderConfig {
         alter property name {
