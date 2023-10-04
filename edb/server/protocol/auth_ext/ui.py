@@ -98,9 +98,7 @@ def render_login_page(
 
     {
       f"""
-      <div class="oauth-buttons{' extended'
-                                if password_provider is None
-                                else ''}">
+      <div class="oauth-buttons">
         {oauth_buttons}
       </div>""" if len(oauth_providers) > 0 else ''
     }
@@ -337,8 +335,7 @@ def _render_base_page(
     <title>{html.escape(title)}</title>
     {cleanup_script}
   </head>
-  <body {'style="--brand-color: '+html.escape(brand_color)+'"'
-          if brand_color else ''}>
+  <body {'style="'+get_colour_vars(brand_color or '1f8aed')+'"'}>
     {logo}
     {content}
   </body>
@@ -451,3 +448,85 @@ def render_password_reset_email(
     alternative.attach(html_msg)
     msg.attach(alternative)
     return msg
+
+
+# Colour utils
+
+
+def get_colour_vars(bg_hex: str):
+    bg_rgb = hex_to_rgb(bg_hex)
+    bg_hsl = rgb_to_hsl(*bg_rgb)
+    luma = rgb_to_luma(*bg_rgb)
+    luma_dark = luma < 0.6
+
+    return f'''--accent-bg-color: #{bg_hex};
+        --accent-bg-text-color: #{rgb_to_hex(
+            *hsl_to_rgb(
+                bg_hsl[0],
+                bg_hsl[1],
+                95 if luma_dark else max(10, min(25, luma * 100 - 60))
+            )
+        )};
+        --accent-bg-hover-color: #{rgb_to_hex(
+            *hsl_to_rgb(
+                bg_hsl[0], bg_hsl[1], bg_hsl[2] + (5 if luma_dark else -5)
+            )
+        )};
+        --accent-text-color: #{rgb_to_hex(
+            *hsl_to_rgb(
+                bg_hsl[0], bg_hsl[1], min(90 if luma_dark else 35, bg_hsl[2])
+            )
+        )};
+        --accent-text-dark-color: #{rgb_to_hex(
+            *hsl_to_rgb(bg_hsl[0], bg_hsl[1], max(60, bg_hsl[2]))
+        )}'''
+
+
+def hex_to_rgb(hex: str) -> tuple[float, float, float]:
+    return (
+        int(hex[0:2], base=16),
+        int(hex[2:4], base=16),
+        int(hex[4:6], base=16),
+    )
+
+
+def rgb_to_hex(r: float, g: float, b: float) -> str:
+    return '%02x%02x%02x' % (int(r), int(g), int(b))
+
+
+def rgb_to_luma(r: float, g: float, b: float) -> float:
+    return (r * 0.299 + g * 0.587 + b * 0.114) / 255
+
+
+def rgb_to_hsl(r: float, g: float, b: float) -> tuple[float, float, float]:
+    r /= 255
+    g /= 255
+    b /= 255
+    l = max(r, g, b)
+    s = l - min(r, g, b)
+    h = (
+        ((g - b) / s) if l == r else
+        (2 + (b - r) / s) if l == g else
+        (4 + (r - g) / s)
+    ) if s != 0 else 0
+    return (
+        60 * h + 360 if 60 * h < 0 else 60 * h,
+        100 * (
+            (s / (2 * l - s) if l <= 0.5 else s / (2 - (2 * l - s)))
+            if s != 0 else 0
+        ),
+        (100 * (2 * l - s)) / 2,
+    )
+
+
+def hsl_to_rgb(h: float, s: float, l: float) -> tuple[float, float, float]:
+    s /= 100
+    l /= 100
+    k = lambda n: (n + h / 30) % 12
+    a = s * min(l, 1 - l)
+    f = lambda n: l - a * max(-1, min(k(n) - 3, min(9 - k(n), 1)))
+    return (
+        round(255 * f(0)),
+        round(255 * f(8)),
+        round(255 * f(4)),
+    )

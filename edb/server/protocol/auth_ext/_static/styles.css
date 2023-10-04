@@ -17,7 +17,6 @@ body {
   justify-content: center;
   justify-items: center;
   font-family: 'Roboto Flex', sans-serif;
-  --accent-color: var(--brand-color, #1F8AED);
 }
 body:after {
   content: '';
@@ -90,9 +89,9 @@ form button {
   padding: 0 12px;
   height: 46px;
   border-radius: 8px;
-  background: var(--accent-color);
+  background: var(--accent-bg-color);
   border: none;
-  color: #fff;
+  color: var(--accent-bg-text-color);
   font-family: inherit;
   font-size: 18px;
   font-weight: 550;
@@ -106,6 +105,9 @@ form button svg {
   margin-left: 8px;
   justify-self: end;
 }
+form button:hover {
+  background: var(--accent-bg-hover-color);
+}
 
 .field-header {
   display: flex;
@@ -118,43 +120,32 @@ form button svg {
   text-decoration: none;
 }
 a.field-note:hover {
-  color: var(--accent-color);
+  color: var(--accent-text-color);
 }
 
 .oauth-buttons {
   display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
   gap: 16px;
 }
 .oauth-buttons a {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 46px;
+  justify-content: start;
   height: 46px;
   border-radius: 8px;
+  padding: 0 12px;
   border: 1px solid #DEE2E6;
   text-decoration: none;
   color: #495057;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 450;
 }
 .oauth-buttons a:hover {
   background: #f5f6f8;
 }
 .oauth-buttons a span {
-  display: none;
-}
-.oauth-buttons.extended {
-  flex-direction: column;
-  margin-bottom: 8px;
-}
-.oauth-buttons.extended a {
-  width: auto;
-  justify-content: start;
-  padding: 0 12px;
-}
-.oauth-buttons.extended a span {
-  display: inline;
   margin-left: 12px;
 }
 
@@ -165,7 +156,7 @@ a.field-note:hover {
   font-size: 16px;
   font-weight: 450;
   line-height: 19px;
-  margin-top: 20px;
+  margin-top: 12px;
   margin-bottom: 16px;
 }
 .divider span {
@@ -186,7 +177,7 @@ a.field-note:hover {
   margin-top: 4px;
 }
 .bottom-note a {
-  color: var(--accent-color);
+  color: var(--accent-text-color);
   text-decoration: none;
 }
 
@@ -208,7 +199,7 @@ a.field-note:hover {
   flex-shrink: 0;
 }
 .error-message a, .success-message a {
-  color: var(--accent-color);
+  color: var(--accent-text-color);
   text-decoration: none;
 }
 .error-message b, .success-message b {
@@ -246,6 +237,9 @@ a.field-note:hover {
   .field-note {
     color: #ADB5BD;
   }
+  a.field-note:hover {
+    color: var(--accent-text-dark-color);
+  }
 
   .oauth-buttons a {
     border-color: #495057;
@@ -265,7 +259,13 @@ a.field-note:hover {
   .bottom-note {
     color: #CED4DA;
   }
+  .bottom-note a {
+    color: var(--accent-text-dark-color);
+  }
 
+  .error-message a, .success-message a {
+    color: var(--accent-text-dark-color);
+  }
   .error-message {
     background: #423336;
     border-color: #A1433D;
