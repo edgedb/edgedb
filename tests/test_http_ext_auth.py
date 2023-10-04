@@ -27,6 +27,8 @@ import http.server
 import threading
 import argon2
 import os
+import pickle
+import re
 import hashlib
 
 from typing import Any, Callable
@@ -314,6 +316,21 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::token_time_to_live := <duration>'24 hours';
+
+        CONFIGURE CURRENT DATABASE SET
+        ext::auth::SMTPConfig::sender := 'noreply@example.com';
+
+        CONFIGURE CURRENT DATABASE SET
+        ext::auth::SMTPConfig::timeout_per_attempt := <duration>'1 seconds';
+
+        CONFIGURE CURRENT DATABASE SET
+        ext::auth::SMTPConfig::timeout_per_email := <duration>'1 seconds';
+
+        CONFIGURE CURRENT DATABASE SET
+        ext::auth::SMTPConfig::validate_certs := true;
+
+        CONFIGURE CURRENT DATABASE SET
+        ext::auth::SMTPConfig::security := ext::auth::SMTPSecurity.TLS;
 
         CONFIGURE CURRENT DATABASE
         INSERT ext::auth::OAuthClientConfig {{
@@ -2230,10 +2247,22 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             assert_data_shape.assert_data_shape(data, {
                 "email_sent": "test_auth_forgot@example.com",
-                "reset_url": str
             }, self.fail)
 
-            reset_url = data['reset_url']
+            test_file = os.environ.get(
+                "EDGEDB_TEST_EMAIL_FILE", "/tmp/edb-test-email.pickle"
+            )
+            with open(test_file, "rb") as f:
+                email_args = pickle.load(f)
+            self.assertEqual(email_args["sender"], "noreply@example.com")
+            self.assertEqual(
+                email_args["recipients"], "test_auth_forgot@example.com"
+            )
+            html_msg = email_args["message"].get_payload(0).get_payload(1)
+            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            match = re.search(r'<a href=[\'"]?([^\'" >]+)', html_email)
+            self.assertIsNotNone(match)
+            reset_url = match.group(1)
             self.assertTrue(
                 reset_url.startswith(form_data['reset_url'] + '?reset_token=')
             )
@@ -2299,7 +2328,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             assert_data_shape.assert_data_shape(parsed_query, {
                 "email_sent": ["test_auth_forgot@example.com"],
-                "reset_url": [str]
             }, self.fail)
 
             # Try sending reset for non existent user
@@ -2430,7 +2458,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
-            body, _, status = self.http_con_request(
+            _, _, status = self.http_con_request(
                 http_con,
                 None,
                 path="send_reset_email",
@@ -2440,9 +2468,21 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             self.assertEqual(status, 200)
-            data = json.loads(body)
 
-            reset_url = data['reset_url']
+            test_file = os.environ.get(
+                "EDGEDB_TEST_EMAIL_FILE", "/tmp/edb-test-email.pickle"
+            )
+            with open(test_file, "rb") as f:
+                email_args = pickle.load(f)
+            self.assertEqual(email_args["sender"], "noreply@example.com")
+            self.assertEqual(
+                email_args["recipients"], "test_auth_forgot@example.com"
+            )
+            html_msg = email_args["message"].get_payload(0).get_payload(1)
+            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            match = re.search(r'<a href=[\'"]?([^\'" >]+)', html_email)
+            self.assertIsNotNone(match)
+            reset_url = match.group(1)
             self.assertTrue(
                 reset_url.startswith(form_data['reset_url'] + '?reset_token=')
             )

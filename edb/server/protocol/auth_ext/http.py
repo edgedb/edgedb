@@ -17,16 +17,21 @@
 #
 
 
+import asyncio
 import datetime
 import http
 import json
+import logging
 import urllib.parse
 import base64
 import hashlib
 import os
+import random
 import mimetypes
 
 from typing import *
+
+import aiosmtplib
 from jwcrypto import jwk, jwt
 
 from edb import errors as edb_errors
@@ -34,15 +39,20 @@ from edb.common import debug
 from edb.common import markup
 from edb.ir import statypes
 from edb.server.config.types import CompositeConfigType
+from edb.server import tenant as edbtenant
 
-from . import oauth, local, errors, util, pkce, ui
+from . import oauth, local, errors, util, pkce, smtp, ui
+
+
+logger = logging.getLogger('edb.server')
 
 
 class Router:
-    def __init__(self, *, db: Any, base_path: str, test_mode: bool):
+    def __init__(self, *, db: Any, base_path: str, tenant: edbtenant.Tenant):
         self.db = db
         self.base_path = base_path
-        self.test_mode = test_mode
+        self.tenant = tenant
+        self.test_mode = tenant.server.in_test_mode()
 
     async def handle_request(
         self, request: Any, response: Any, args: list[str]
@@ -347,15 +357,44 @@ class Router:
                             "reset_token": new_reset_token
                         })
                         reset_url = f"{data['reset_url']}?{reset_token_params}"
-                        # TODO: Send an email with this url
-                        print(reset_url)
+
+                        from_addr = util.get_config(
+                            self.db.db_config,  # type: ignore
+                            "ext::auth::SMTPConfig::sender",
+                        )
+                        ui_config = self._get_ui_config()
+                        if ui_config is None:
+                            email_args = {}
+                        else:
+                            email_args = dict(
+                                app_name=ui_config.app_name,
+                                logo_url=ui_config.logo_url,
+                                dark_logo_url=ui_config.dark_logo_url,
+                                brand_color=ui_config.brand_color,
+                            )
+                        msg = ui.render_password_reset_email(
+                            from_addr=from_addr,
+                            to_addr=data["email"],
+                            reset_url=reset_url,
+                            **email_args,
+                        )
+                        coro = smtp.send_email(
+                            self.db,
+                            msg,
+                            sender=from_addr,
+                            recipients=data["email"],
+                            test_mode=self.test_mode,
+                        )
+                        task = self.tenant.create_task(
+                            coro, interruptable=False
+                        )
+                        # Prevent timing attack
+                        await asyncio.sleep(random.random() * 0.5)
+                        # Expose e.g. configuration errors
+                        if task.done():
+                            await task
 
                         return_data = (
-                            # TODO: Remove this once email tests set up
-                            {
-                                "email_sent": data.get('email'),
-                                "reset_url": reset_url
-                            } if self.test_mode else
                             {
                                 "email_sent": data.get('email'),
                             }
@@ -376,6 +415,15 @@ class Router:
                             response.body = json.dumps(
                                 return_data
                             ).encode()
+                    except aiosmtplib.SMTPException as ex:
+                        if not debug.flags.server:
+                            logger.warning(
+                                "Failed to send emails via SMTP", exc_info=True
+                            )
+                        raise edb_errors.InternalServerError(
+                            "Failed to send the email, please try again later."
+                        ) from ex
+
                     except Exception as ex:
                         redirect_on_failure = data.get(
                             "redirect_on_failure", data.get("redirect_to")

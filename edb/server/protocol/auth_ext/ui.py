@@ -19,6 +19,8 @@
 from typing import *
 
 import html
+from email.mime import multipart
+from email.mime import text as mime_text
 
 from .util import get_config_typename
 
@@ -409,3 +411,43 @@ def _render_button(text: str):
           />
         </svg>
       </button>'''
+
+
+def render_password_reset_email(
+    *,
+    from_addr: str,
+    to_addr: str,
+    reset_url: str,
+    app_name: Optional[str] = None,
+    logo_url: Optional[str] = None,
+    dark_logo_url: Optional[str] = None,
+    brand_color: Optional[str] = None,
+) -> multipart.MIMEMultipart:
+    msg = multipart.MIMEMultipart()
+    msg["From"] = from_addr
+    msg["To"] = to_addr
+    msg["Subject"] = "Reset password"
+    alternative = multipart.MIMEMultipart('alternative')
+    plain_text_msg = mime_text.MIMEText(
+        f"""
+        {reset_url}
+        """,
+        "plain",
+        "utf-8",
+    )
+    alternative.attach(plain_text_msg)
+    html_msg = mime_text.MIMEText(
+        f"""
+<!DOCTYPE html>
+<html>
+  <body>
+    <a href="{reset_url}">Reset password</a>
+  </body>
+</html>
+        """,
+        "html",
+        "utf-8",
+    )
+    alternative.attach(html_msg)
+    msg.attach(alternative)
+    return msg
