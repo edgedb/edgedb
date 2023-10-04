@@ -29,7 +29,7 @@ import json
 from edb import errors
 
 from edb.common import ast
-from edb.common.typeutils import dedup
+from edb.common import ordered
 
 from edb.edgeql import qltypes as ft
 
@@ -273,7 +273,7 @@ def get_dml_sources(
     # TODO: Make this caching.
     visitor = CollectDMLSourceVisitor()
     visitor.visit(ir_set)
-    return dedup(visitor.dml)
+    return tuple(ordered.OrderedSet(visitor.dml))
 
 
 class ContainsDMLVisitor(ast.NodeVisitor):
