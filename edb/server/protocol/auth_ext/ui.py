@@ -172,7 +172,7 @@ def render_signup_page(
       <input type="hidden" name="redirect_to" value="{redirect_to}" />
 
       <label for="email">Email</label>
-      <input id="email" name="email" type="text" value="{email or ''}" />
+      <input id="email" name="email" type="email" value="{email or ''}" />
 
       <label for="password">Password</label>
       <input id="password" name="password" type="password" />
