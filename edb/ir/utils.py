@@ -273,6 +273,9 @@ def get_dml_sources(
     # TODO: Make this caching.
     visitor = CollectDMLSourceVisitor()
     visitor.visit(ir_set)
+    # Deduplicate, but preserve order. It shouldn't matter for
+    # *correctness* but it helps keep the nondeterminism in the output
+    # SQL down.
     return tuple(ordered.OrderedSet(visitor.dml))
 
 
