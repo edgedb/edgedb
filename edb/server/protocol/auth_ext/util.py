@@ -19,7 +19,8 @@
 
 from typing import TypeVar, Type, overload, Any
 
-from edb.server.config.ops import SettingValue
+from edb.server import config
+
 from . import errors
 
 T = TypeVar("T")
@@ -28,7 +29,7 @@ T = TypeVar("T")
 def maybe_get_config_unchecked(
     db: Any, key: str
 ) -> Any:
-    return db.server.config_lookup(key, db.db_config)
+    return config.lookup(key, db.db_config, spec=db.user_config_spec)
 
 
 @overload
@@ -94,5 +95,5 @@ def get_config_unchecked(
     return value
 
 
-def get_config_typename(config_value: SettingValue) -> str:
+def get_config_typename(config_value: config.SettingValue) -> str:
     return config_value._tspec.name  # type: ignore
