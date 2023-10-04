@@ -48,11 +48,13 @@ Object types can *extend* other object types. The extending type (AKA the
     }
 
 Both abstract and concrete object types can be extended. Whether to make a
-type abstract or concrete is a fairly simple decision: concrete types can be
-inserted on their own, while abstract types cannot. In the schema below the
-``Animal`` type is now concrete and can be inserted, which was not the case
-in the example above. The new ``CanBark`` type however is abstract and thus
-the database will not have any individual ``CanBark`` objects.
+type abstract or concrete is a fairly simple decision: if you need to be
+able to insert objects of the type, make it a concrete type. If objects of
+the type should never be inserted and it exists only to be extended, make it
+an abstract one. In the schema below the ``Animal`` type is now concrete
+and can be inserted, which was not the case in the example above. The new
+``CanBark`` type however is abstract and thus the database will not have
+any individual ``CanBark`` objects.
 
 .. code-block:: sdl
     :version-lt: 3.0
