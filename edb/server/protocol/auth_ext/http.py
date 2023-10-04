@@ -17,6 +17,7 @@
 #
 
 
+import asyncio
 import datetime
 import http
 import json
@@ -25,6 +26,7 @@ import urllib.parse
 import base64
 import hashlib
 import os
+import random
 import mimetypes
 
 from typing import *
@@ -37,6 +39,7 @@ from edb.common import debug
 from edb.common import markup
 from edb.ir import statypes
 from edb.server.config.types import CompositeConfigType
+from edb.server import tenant as edbtenant
 
 from . import oauth, local, errors, util, pkce, smtp, ui
 
@@ -45,10 +48,11 @@ logger = logging.getLogger('edb.server')
 
 
 class Router:
-    def __init__(self, *, db: Any, base_path: str, test_mode: bool):
+    def __init__(self, *, db: Any, base_path: str, tenant: edbtenant.Tenant):
         self.db = db
         self.base_path = base_path
-        self.test_mode = test_mode
+        self.tenant = tenant
+        self.test_mode = tenant.server.in_test_mode()
 
     async def handle_request(
         self, request: Any, response: Any, args: list[str]
@@ -374,13 +378,21 @@ class Router:
                             reset_url=reset_url,
                             **email_args,
                         )
-                        await smtp.send_email(
+                        coro = smtp.send_email(
                             self.db,
                             msg,
                             sender=from_addr,
                             recipients=data["email"],
                             test_mode=self.test_mode,
                         )
+                        task = self.tenant.create_task(
+                            coro, interruptable=False
+                        )
+                        # Prevent timing attack
+                        await asyncio.sleep(random.random() * 0.5)
+                        # Expose e.g. configuration errors
+                        if task.done():
+                            await task
 
                         return_data = (
                             {
