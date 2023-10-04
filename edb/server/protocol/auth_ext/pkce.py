@@ -16,11 +16,23 @@
 # limitations under the License.
 #
 
+from __future__ import annotations
+import typing
 
+import asyncio
 import json
+import logging
 import dataclasses
 
+from edb.common import taskgroup
 from edb.server.protocol import execute
+
+if typing.TYPE_CHECKING:
+    from edb.server import server as edbserver
+    from edb.server import tenant as edbtenant
+
+
+logger = logging.getLogger("edb.server")
 
 
 @dataclasses.dataclass(repr=False)
@@ -130,3 +142,42 @@ async def delete(db, id: str) -> None:
 
     result_json = json.loads(r.decode())
     assert len(result_json) == 1
+
+
+async def _gc(tenant: edbtenant.Tenant):
+    async with taskgroup.TaskGroup() as g:
+        for db in tenant.iter_dbs():
+            if "auth" in db.extensions:
+                g.create_task(
+                    execute.parse_execute_json(
+                        db,
+                        """
+                        delete ext::auth::PKCEChallenge filter
+                            (datetime_of_statement() - .created_at) >
+                            <duration>'10 minutes'
+                        """,
+                    ),
+                )
+
+
+async def gc(server: edbserver.BaseServer):
+    while True:
+        try:
+            tasks = [
+                tenant.create_task(_gc(tenant), interruptable=False)
+                for tenant in server.iter_tenants()
+                if tenant.accept_new_tasks
+            ]
+            if tasks:
+                done, _ = await asyncio.wait(tasks)
+                for task in done:
+                    ex = task.exception()
+                    if ex is not None:
+                        logger.debug(
+                            "GC of ext::auth::PKCEChallenge failed",
+                            exc_info=ex,
+                        )
+        except Exception as ex:
+            logger.debug("GC of ext::auth::PKCEChallenge failed", exc_info=ex)
+        finally:
+            await asyncio.sleep(10 * 60)
