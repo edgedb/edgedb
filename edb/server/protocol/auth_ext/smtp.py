@@ -53,40 +53,40 @@ async def send_email(
         )
 
     host = util.maybe_get_config(
-        db.db_config,  # type: ignore
+        db,
         "ext::auth::SMTPConfig::host",
     ) or "localhost"
     port = util.maybe_get_config(
-        db.db_config,  # type: ignore
+        db,
         "ext::auth::SMTPConfig::port",
         expected_type=int,
     )
     username = util.maybe_get_config(
-        db.db_config,  # type: ignore
+        db,
         "ext::auth::SMTPConfig::username",
     )
     password = util.maybe_get_config(
-        db.db_config,  # type: ignore
+        db,
         "ext::auth::SMTPConfig::password",
     )
     timeout_per_attempt = util.get_config(
-        db.db_config,  # type: ignore
+        db,
         "ext::auth::SMTPConfig::timeout_per_attempt",
         expected_type=statypes.Duration,
     )
     req_timeout = timeout_per_attempt.to_microseconds() / 1_000_000.0
     timeout_per_email = util.get_config(
-        db.db_config,  # type: ignore
+        db,
         "ext::auth::SMTPConfig::timeout_per_email",
         expected_type=statypes.Duration,
     )
     validate_certs = util.get_config(
-        db.db_config,  # type: ignore
+        db,
         "ext::auth::SMTPConfig::validate_certs",
         expected_type=bool,
     )
     security = util.get_config(
-        db.db_config,  # type: ignore
+        db,
         "ext::auth::SMTPConfig::security",
     )
     start_tls: bool | None

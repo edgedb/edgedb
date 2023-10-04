@@ -30,7 +30,6 @@ class Client:
 
     def __init__(self, db: Any, provider_id: str, base_url: str | None = None):
         self.db = db
-        self.db_config = db.db_config
 
         http_factory = lambda *args, **kwargs: http_client.HttpClient(
             *args, edgedb_test_url=base_url, **kwargs
@@ -117,7 +116,7 @@ select (insert ext::auth::Identity {
 
     def _get_provider_config(self, provider_id: str) -> tuple[str, str, str]:
         provider_client_config = util.get_config(
-            self.db_config, "ext::auth::AuthConfig::providers", frozenset
+            self.db, "ext::auth::AuthConfig::providers", frozenset
         )
         provider_name: str | None = None
         client_id: str | None = None

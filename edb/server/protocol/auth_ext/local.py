@@ -33,7 +33,6 @@ ph = argon2.PasswordHasher()
 class Client:
     def __init__(self, db: Any, provider_id: str):
         self.db = db
-        self.db_config = db.db_config
         provider_type = self._get_provider_config(provider_id)
         match provider_type:
             case "password":
@@ -65,7 +64,7 @@ class Client:
 
     def _get_provider_config(self, provider_id: str) -> str:
         provider_client_config = util.get_config(
-            self.db_config, "ext::auth::AuthConfig::providers", frozenset
+            self.db, "ext::auth::AuthConfig::providers", frozenset
         )
         provider_name: str | None = None
         for cfg in provider_client_config:

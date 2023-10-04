@@ -320,18 +320,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         CONFIGURE CURRENT DATABASE SET
         ext::auth::SMTPConfig::sender := 'noreply@example.com';
 
-        CONFIGURE CURRENT DATABASE SET
-        ext::auth::SMTPConfig::timeout_per_attempt := <duration>'1 seconds';
-
-        CONFIGURE CURRENT DATABASE SET
-        ext::auth::SMTPConfig::timeout_per_email := <duration>'1 seconds';
-
-        CONFIGURE CURRENT DATABASE SET
-        ext::auth::SMTPConfig::validate_certs := true;
-
-        CONFIGURE CURRENT DATABASE SET
-        ext::auth::SMTPConfig::security := ext::auth::SMTPSecurity.TLS;
-
         CONFIGURE CURRENT DATABASE
         INSERT ext::auth::OAuthClientConfig {{
             provider_name := "github",
