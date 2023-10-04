@@ -1042,6 +1042,20 @@ def replace_pathid_prefix(
         dir = part.rptr_dir()
         assert dir
 
+        if (
+            isinstance(ptrref, irast.TupleIndirectionPointerRef)
+            and result.target.collection == 'tuple'
+        ):
+            # For tuple indirections, we want to update the target
+            # type when we get mapped to a subtype.
+            idx = get_tuple_element_index(ptrref)
+            target = result.target
+            if target.id != target.subtypes[idx].id:
+                ptrref = ptrref.replace(
+                    out_source=target,
+                    out_target=target.subtypes[idx],
+                )
+
         if ptrref.source_ptr:
             result = result.ptr_path()
         result = result.extend(

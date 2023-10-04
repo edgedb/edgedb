@@ -970,7 +970,7 @@ def process_set_as_path_type_intersection(
         poly_rvar = relctx.range_for_typeref(
             target_typeref,
             path_id=ir_set.path_id,
-            dml_source=irutils.get_nearest_dml_stmt(ir_set),
+            dml_source=irutils.get_dml_sources(ir_set),
             lateral=True,
             ctx=ctx,
         )

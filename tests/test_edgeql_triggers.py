@@ -968,6 +968,85 @@ class TestTriggers(tb.QueryTestCase):
             [{'note': "2"}],
         )
 
+    async def test_edgeql_triggers_policies_07(self):
+        # Do some weird unioning + source rvar forcing in the trigger
+        await self.con.execute('''
+            alter type Subordinate {
+              create access policy ok allow all;
+              create access policy no deny select using (
+                any(.<subordinates[is InsertTest].l2 < 0)
+              );
+            };
+            insert Subordinate { name := "foo" };
+            insert Subordinate { name := "bar" };
+            insert InsertTest { name := "x", subordinates := Subordinate };
+
+            alter type InsertTest {
+              create trigger log after update for each do (
+                insert Note {
+                  name := "update",
+                  note := <str>count(assert_exists((select {
+                      __old__.subordinates,
+                      __new__.subordinates,
+                      InsertTest.subordinates,
+                  } filter true)).name),
+                }
+              );
+            };
+        ''')
+
+        await self.con.execute('''
+            update InsertTest set { l2 := -1 };
+        ''')
+
+        await self.assert_query_result(
+            '''
+            select Note { note }
+            ''',
+            [{'note': "4"}],
+        )
+
+    async def test_edgeql_triggers_policies_08(self):
+        # Do some weird unioning + source rvar forcing in the trigger
+        await self.con.execute('''
+            alter type Subordinate {
+              create access policy ok allow all;
+              create access policy no deny select using (
+                any(.<subordinates[is InsertTest].l2 < 0)
+              );
+              create access policy no_val deny select using (
+                .val ?= -1
+              )
+            };
+            insert Subordinate { name := "foo" };
+            insert Subordinate { name := "bar" };
+            insert InsertTest { name := "x", subordinates := Subordinate };
+
+            alter type InsertTest {
+              create trigger log after update for each do (
+                insert Note {
+                  name := "update",
+                  note := <str>count(assert_exists((select {
+                      (insert Subordinate { name := "lol", val := -1 }),
+                      __old__.subordinates,
+                      __new__.subordinates,
+                  } filter true)).name),
+                }
+              );
+            };
+        ''')
+
+        await self.con.execute('''
+            update InsertTest set { l2 := -1 };
+        ''')
+
+        await self.assert_query_result(
+            '''
+            select Note { note }
+            ''',
+            [{'note': "5"}],
+        )
+
     async def test_edgeql_triggers_chain_01(self):
         await self.con.execute('''
             alter type InsertTest {
