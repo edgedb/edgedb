@@ -92,7 +92,7 @@ class Client:
             query="""\
 with
   iss := <str>$issuer_url,
-  sub := <str>$provider_name,
+  sub := <str>$subject,
 
 select (insert ext::auth::Identity {
   issuer := iss,
@@ -102,7 +102,7 @@ select (insert ext::auth::Identity {
 )) { * };""",
             variables={
                 "issuer_url": self.provider.issuer_url,
-                "provider_name": user_info.sub,
+                "subject": user_info.sub,
             },
         )
         result_json = json.loads(r.decode())
