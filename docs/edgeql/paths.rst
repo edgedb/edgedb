@@ -258,7 +258,7 @@ Take the following schema with a ``Musician`` and an ``Instrument`` type:
 
     type Instrument {
       required description: str;
-      required owned: bool;
+      color: str;
     }
 
 First insert an ``Instrument``, a ukulele:
@@ -266,8 +266,7 @@ First insert an ``Instrument``, a ukulele:
 .. code-block:: edgeql-repl
 
     db> insert Instrument { 
-    ...   description := "Tenor Stratocaster ukulele", 
-    ...   owned := false 
+    ...   description := "Tenor Stratocaster ukulele"
     ... };
     {default::Instrument {id: 0d3b3bc8-6013-11ee-8bab-6b7c6f4da55a}}
 
@@ -282,18 +281,17 @@ from a ``uuid`` to an object type, which was added in EdgeDB 3.0!)
     ... };
     {default::Owner {id: 1a72ffc4-6013-11ee-8bab-8f1c772f9ca3}}
 
-Now that there is an owner, the ``owned`` property of the ``Instrument``
-should be set to ``true``. ``Instrument`` items can be updated by selecting
-``Musician`` objects and traversing their ``plays`` link to find them.
+If we want to update an ``Instrument`` objects via a ``Musician`` objects 
+that links to it, we could traverse the ``plays`` link to find them.
 But using a backlink is another option to do the same operation.
-The following filters by the ``id`` of an object that links to ``Instrument``
-via a link called ``plays``.
+The following update to set the color of the ukulele filters by the ``id``
+of the object that links to ``Instrument`` via a link called ``plays``.
 
 .. code-block:: edgeql-repl
     
     db> update Instrument 
     ...   filter .<plays.id = <uuid>'1a72ffc4-6013-11ee-8bab-8f1c772f9ca3'
-    ...   set { owned := true };
+    ...   set { color := "Blue" };
     {default::Instrument {id: 0d3b3bc8-6013-11ee-8bab-6b7c6f4da55a}}
 
 Link properties
