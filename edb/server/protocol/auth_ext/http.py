@@ -516,7 +516,7 @@ class Router:
                         else:
                             raise ex
 
-                case ('login',):
+                case ('ui', 'signin',):
                     ui_config = self._get_ui_config()
 
                     if ui_config is None:
@@ -556,7 +556,7 @@ class Router:
                             brand_color=ui_config.brand_color,
                         )
 
-                case ('signup',):
+                case ('ui', 'signup',):
                     ui_config = self._get_ui_config()
                     password_provider = (
                         self._get_password_provider()
@@ -592,7 +592,7 @@ class Router:
                             brand_color=ui_config.brand_color,
                         )
 
-                case ('forgot-password',):
+                case ('ui', 'forgot-password',):
                     ui_config = self._get_ui_config()
                     password_provider = (
                         self._get_password_provider()
@@ -630,7 +630,7 @@ class Router:
                             brand_color=ui_config.brand_color,
                         )
 
-                case ('reset-password',):
+                case ('ui', 'reset-password',):
                     ui_config = self._get_ui_config()
                     password_provider = (
                         self._get_password_provider()
@@ -693,7 +693,7 @@ class Router:
                             brand_color=ui_config.brand_color,
                         )
 
-                case ('_static', filename):
+                case ('ui', '_static', filename):
                     filepath = os.path.join(
                         os.path.dirname(__file__),
                         '_static', filename

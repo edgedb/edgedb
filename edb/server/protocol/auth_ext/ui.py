@@ -92,7 +92,7 @@ def render_login_page(
         brand_color=brand_color,
         cleanup_search_params=['error', 'email'],
         content=f'''
-    <form method="POST" action="authenticate" novalidate>
+    <form method="POST" action="../authenticate" novalidate>
       <h1>{f'<span>Sign in to</span> {html.escape(app_name)}'
            if app_name else '<span>Sign in</span>'}</h1>
 
@@ -118,7 +118,7 @@ def render_login_page(
       <input type="hidden" name="provider" value="{
         password_provider.provider_id}" />
       <input type="hidden" name="redirect_on_failure" value="{
-        base_path}/login" />
+        base_path}/ui/signin" />
       <input type="hidden" name="redirect_to" value="{redirect_to}" />
 
       {_render_error_message(error_message)}
@@ -166,7 +166,7 @@ def render_signup_page(
         brand_color=brand_color,
         cleanup_search_params=['error', 'email'],
         content=f'''
-    <form method="POST" action="register" novalidate>
+    <form method="POST" action="../register" novalidate>
       <h1>{f'<span>Sign up to</span> {html.escape(app_name)}'
            if app_name else '<span>Sign up</span>'}</h1>
 
@@ -174,7 +174,7 @@ def render_signup_page(
 
       <input type="hidden" name="provider" value="{provider_id}" />
       <input type="hidden" name="redirect_on_failure" value="{
-        base_path}/signup" />
+        base_path}/ui/signup" />
       <input type="hidden" name="redirect_to" value="{redirect_to}" />
 
       <label for="email">Email</label>
@@ -187,7 +187,7 @@ def render_signup_page(
 
       <div class="bottom-note">
         Already have an account?
-        <a href="login">Sign in</a>
+        <a href="signin">Sign in</a>
       </div>
     </form>'''
     )
@@ -216,11 +216,11 @@ def render_forgot_password_page(
 
         <input type="hidden" name="provider" value="{provider_id}" />
         <input type="hidden" name="redirect_on_failure" value="{
-          base_path}/forgot-password" />
+          base_path}/ui/forgot-password" />
         <input type="hidden" name="redirect_to" value="{
-          base_path}/forgot-password" />
+          base_path}/ui/forgot-password" />
         <input type="hidden" name="reset_url" value="{
-            base_path}/reset-password" />
+            base_path}/ui/reset-password" />
 
         <label for="email">Email</label>
         <input id="email" name="email" type="email" value="{email or ''}" />
@@ -234,7 +234,7 @@ def render_forgot_password_page(
         brand_color=brand_color,
         cleanup_search_params=['error', 'email', 'email_sent'],
         content=f'''
-    <form method="POST" action="send_reset_email">
+    <form method="POST" action="../send_reset_email">
       <h1>{f'<span>Reset password for</span> {html.escape(app_name)}'
            if app_name else '<span>Reset password</span>'}</h1>
 
@@ -242,7 +242,7 @@ def render_forgot_password_page(
 
       <div class="bottom-note">
         Back to
-        <a href="login">Sign In</a>
+        <a href="signin">Sign In</a>
       </div>
     </form>'''
     )
@@ -275,7 +275,7 @@ def render_reset_password_page(
         <input type="hidden" name="provider" value="{provider_id}" />
         <input type="hidden" name="reset_token" value="{reset_token}" />
         <input type="hidden" name="redirect_on_failure" value="{
-          base_path}/reset-password" />
+          base_path}/ui/reset-password" />
         <input type="hidden" name="redirect_to" value="{redirect_to}" />
 
         <label for="password">New Password</label>
@@ -290,7 +290,7 @@ def render_reset_password_page(
         brand_color=brand_color,
         cleanup_search_params=['error'],
         content=f'''
-    <form method="POST" action="reset_password">
+    <form method="POST" action="../reset_password">
       <h1>{f'<span>Reset password for</span> {html.escape(app_name)}'
            if app_name else '<span>Reset password</span>'}</h1>
 
