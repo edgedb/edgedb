@@ -1457,7 +1457,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.scheme, "https")
             self.assertEqual(url.hostname, "appleid.apple.com")
             self.assertEqual(url.path, "/auth/authorize")
-            self.assertEqual(qs.get("scope"), ["openid profile name"])
+            self.assertEqual(qs.get("scope"), ["openid email name"])
 
             state = qs.get("state")
             assert state is not None
@@ -1589,8 +1589,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             data, headers, status = self.http_con_request(
                 http_con,
-                {"state": state_token, "code": "abc123"},
+                None,
                 path="callback",
+                method="POST",
+                body=urllib.parse.urlencode(
+                    {"state": state_token, "code": "abc123"}
+                ).encode(),
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
             self.assertEqual(data, b"")
@@ -1610,13 +1615,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_token = mock_provider.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                json.loads(requests_for_token[0]["body"]),
+                urllib.parse.parse_qs(requests_for_token[0]["body"]),
                 {
-                    "grant_type": "authorization_code",
-                    "code": "abc123",
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "redirect_uri": f"{self.http_addr}/callback",
+                    "grant_type": ["authorization_code"],
+                    "code": ["abc123"],
+                    "client_id": [client_id],
+                    "client_secret": [client_secret],
+                    "redirect_uri": [f"{self.http_addr}/callback"],
                 },
             )
 
