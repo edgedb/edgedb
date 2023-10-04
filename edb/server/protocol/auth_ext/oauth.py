@@ -22,6 +22,7 @@ import json
 from typing import Any
 from edb.server.protocol import execute
 
+from . import github, google, azure, apple
 from . import errors, util, data, base, http_client
 
 
@@ -42,29 +43,21 @@ class Client:
 
         match provider_name:
             case "builtin::oauth_github":
-                from . import github
-
                 self.provider = github.GitHubProvider(
                     *self._get_provider_config(provider_name),
                     http_factory=http_factory,
                 )
             case "builtin::oauth_google":
-                from . import google
-
                 self.provider = google.GoogleProvider(
                     *self._get_provider_config(provider_name),
                     http_factory=http_factory,
                 )
             case "builtin::oauth_azure":
-                from . import azure
-
                 self.provider = azure.AzureProvider(
                     *self._get_provider_config(provider_name),
                     http_factory=http_factory,
                 )
             case "builtin::oauth_apple":
-                from . import apple
-
                 self.provider = apple.AppleProvider(
                     *self._get_provider_config(provider_name),
                     http_factory=http_factory,
