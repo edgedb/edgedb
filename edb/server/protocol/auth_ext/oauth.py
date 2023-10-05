@@ -30,10 +30,7 @@ class Client:
     provider: base.BaseProvider
 
     def __init__(
-        self,
-        db: Any,
-        provider_name: str,
-        base_url: str | None = None
+        self, db: Any, provider_name: str, base_url: str | None = None
     ):
         self.db = db
 
@@ -41,33 +38,31 @@ class Client:
             *args, edgedb_test_url=base_url, **kwargs
         )
 
+        provider_args = self._get_provider_config(provider_name)
+        provider_kwargs = {
+            "http_factory": http_factory,
+            "additional_scope": self._get_additional_scope(provider_name),
+        }
+
         match provider_name:
             case "builtin::oauth_github":
-                self.provider = github.GitHubProvider(
-                    *self._get_provider_config(provider_name),
-                    http_factory=http_factory,
-                )
+                provider_class = github.GitHubProvider  # type: ignore
             case "builtin::oauth_google":
-                self.provider = google.GoogleProvider(
-                    *self._get_provider_config(provider_name),
-                    http_factory=http_factory,
-                )
+                provider_class = google.GoogleProvider  # type: ignore
             case "builtin::oauth_azure":
-                self.provider = azure.AzureProvider(
-                    *self._get_provider_config(provider_name),
-                    http_factory=http_factory,
-                )
+                provider_class = azure.AzureProvider  # type: ignore
             case "builtin::oauth_apple":
-                self.provider = apple.AppleProvider(
-                    *self._get_provider_config(provider_name),
-                    http_factory=http_factory,
-                )
+                provider_class = apple.AppleProvider  # type: ignore
             case _:
                 raise errors.InvalidData(f"Invalid provider: {provider_name}")
 
+        self.provider = provider_class(*provider_args, **provider_kwargs)
+
     async def get_authorize_url(self, state: str, redirect_uri: str) -> str:
         return await self.provider.get_code_url(
-            state=state, redirect_uri=redirect_uri
+            state=state,
+            redirect_uri=redirect_uri,
+            additional_scope=self.provider.additional_scope or "",
         )
 
     async def handle_callback(
@@ -117,6 +112,18 @@ select (insert ext::auth::Identity {
         for cfg in provider_client_config:
             if cfg.name == provider_name:
                 return (cfg.client_id, cfg.secret)
+
+        raise errors.MissingConfiguration(
+            provider_name, "Provider is not configured"
+        )
+
+    def _get_additional_scope(self, provider_name: str) -> str:
+        provider_client_config = util.get_config(
+            self.db, "ext::auth::AuthConfig::providers", frozenset
+        )
+        for cfg in provider_client_config:
+            if cfg.name == provider_name:
+                return cfg.additional_scope
 
         raise errors.MissingConfiguration(
             provider_name, "Provider is not configured"

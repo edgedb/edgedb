@@ -35,10 +35,12 @@ class GitHubProvider(base.BaseProvider):
             self.http_factory, base_url=self.api_domain
         )
 
-    async def get_code_url(self, state: str, redirect_uri: str) -> str:
+    async def get_code_url(
+        self, state: str, redirect_uri: str, additional_scope: str
+    ) -> str:
         params = {
             "client_id": self.client_id,
-            "scope": "read:user user:email",
+            "scope": f"read:user user:email {additional_scope}",
             "state": state,
             "redirect_uri": redirect_uri,
         }
@@ -60,7 +62,7 @@ class GitHubProvider(base.BaseProvider):
                 },
                 headers={
                     "accept": "application/json",
-                }
+                },
             )
             if resp.status_code >= 400:
                 raise errors.OAuthProviderFailure(

@@ -33,11 +33,14 @@ class AppleProvider(base.OpenIDProvider):
             **kwargs,
         )
 
-    async def get_code_url(self, state: str, redirect_uri: str) -> str:
+    async def get_code_url(
+        self, state: str, redirect_uri: str, additional_scope: str
+    ) -> str:
         oidc_config = await self._get_oidc_config()
         params = {
             "client_id": self.client_id,
-            "scope": "openid email name",  # Non-standard "name" scope
+            # Non-standard "name" scope
+            "scope": f"openid email name {additional_scope}",
             "state": state,
             "redirect_uri": redirect_uri,
             "nonce": str(uuid.uuid4()),

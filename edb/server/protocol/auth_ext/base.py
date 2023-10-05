@@ -36,6 +36,7 @@ class BaseProvider:
         client_id: str,
         client_secret: str,
         *,
+        additional_scope: str | None,
         http_factory: Callable[..., http_client.HttpClient],
     ):
         self.name = name
@@ -43,8 +44,11 @@ class BaseProvider:
         self.client_id = client_id
         self.client_secret = client_secret
         self.http_factory = http_factory
+        self.additional_scope = additional_scope
 
-    async def get_code_url(self, state: str, redirect_uri: str) -> str:
+    async def get_code_url(
+        self, state: str, redirect_uri: str, additional_scope: str
+    ) -> str:
         raise NotImplementedError
 
     async def exchange_code(
@@ -78,11 +82,13 @@ class OpenIDProvider(BaseProvider):
         super().__init__(name, issuer_url, *args, **kwargs)
         self.content_type = content_type
 
-    async def get_code_url(self, state: str, redirect_uri: str) -> str:
+    async def get_code_url(
+        self, state: str, redirect_uri: str, additional_scope: str
+    ) -> str:
         oidc_config = await self._get_oidc_config()
         params = {
             "client_id": self.client_id,
-            "scope": "openid profile email",
+            "scope": f"openid profile email {additional_scope}",
             "state": state,
             "redirect_uri": redirect_uri,
             "nonce": str(uuid.uuid4()),
