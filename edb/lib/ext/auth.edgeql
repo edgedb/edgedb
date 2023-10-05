@@ -80,25 +80,18 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create link identity: ext::auth::Identity;
     };
 
-    create type ext::auth::ClientConfig extending cfg::ConfigObject {
-        create required property provider_id: std::str {
+    create abstract type ext::auth::ProviderConfig
+        extending cfg::ConfigObject {
+        create required property name: std::str {
             set readonly := true;
-            create annotation std::description :=
-                "ID of the auth provider";
             create constraint exclusive;
-        };
-
-        create required property provider_name: std::str {
-            set readonly := true;
-            create annotation std::description := "Auth provider name";
-        };
+        }
     };
 
-    create type ext::auth::OAuthClientConfig
-        extending ext::auth::ClientConfig {
-        create required property url: std::str {
-            set readonly := true;
-            create annotation std::description := "Authorization server URL";
+    create abstract type ext::auth::OAuthProviderConfig
+        extending ext::auth::ProviderConfig {
+        alter property name {
+            set protected := true;
         };
 
         create required property secret: std::str {
@@ -113,10 +106,66 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             create annotation std::description :=
                 "ID for client provided by auth provider";
         };
+
+        create required property display_name: std::str {
+            set readonly := true;
+            set protected := true;
+        };
+
+        create property additional_scope: std::str;
     };
 
-    create type ext::auth::PasswordClientConfig
-        extending ext::auth::ClientConfig;
+    create type ext::auth::AppleOAuthProvider
+        extending ext::auth::OAuthProviderConfig {
+        alter property name {
+            set default := 'builtin::oauth_apple';
+        };
+
+        alter property display_name {
+            set default := 'Apple';
+        };
+    };
+
+    create type ext::auth::AzureOAuthProvider
+        extending ext::auth::OAuthProviderConfig {
+        alter property name {
+            set default := 'builtin::oauth_azure';
+        };
+
+        alter property display_name {
+            set default := 'Azure';
+        };
+    };
+
+    create type ext::auth::GitHubOAuthProvider
+        extending ext::auth::OAuthProviderConfig {
+        alter property name {
+            set default := 'builtin::oauth_github';
+        };
+
+        alter property display_name {
+            set default := 'GitHub';
+        };
+    };
+
+    create type ext::auth::GoogleOAuthProvider
+        extending ext::auth::OAuthProviderConfig {
+        alter property name {
+            set default := 'builtin::oauth_google';
+        };
+
+        alter property display_name {
+            set default := 'Google';
+        };
+    };
+
+    create type ext::auth::EmailPasswordProviderConfig
+        extending ext::auth::ProviderConfig {
+        alter property name {
+            set default := 'builtin::local_emailpassword';
+            set protected := true;
+        };
+    };
 
     create type ext::auth::UIConfig extending cfg::ConfigObject {
         create required property redirect_to: std::str;
@@ -128,7 +177,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     };
 
     create type ext::auth::AuthConfig extending cfg::ExtensionConfig {
-        create multi link providers -> ext::auth::ClientConfig {
+        create multi link providers -> ext::auth::ProviderConfig {
             create annotation std::description :=
                 "Configuration for auth provider clients";
         };

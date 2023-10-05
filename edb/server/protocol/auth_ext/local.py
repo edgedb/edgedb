@@ -31,14 +31,15 @@ ph = argon2.PasswordHasher()
 
 
 class Client:
-    def __init__(self, db: Any, provider_id: str):
+    def __init__(self, db: Any, provider_name: str):
         self.db = db
-        provider_type = self._get_provider_config(provider_id)
-        match provider_type:
-            case "password":
-                self.provider = PasswordProvider()
+
+        match provider_name:
+            case "builtin::local_emailpassword":
+                self._get_provider_config(provider_name)
+                self.provider = EmailPasswordProvider()
             case _:
-                raise errors.InvalidData(f"Invalid provider: {provider_type}")
+                raise errors.InvalidData(f"Invalid provider: {provider_name}")
 
     async def register(self, *args, **kwargs):
         return await self.provider.register(self.db, *args, **kwargs)
@@ -62,25 +63,21 @@ class Client:
         return await self.provider.update_password(
             self.db, *args, **kwargs)
 
-    def _get_provider_config(self, provider_id: str) -> str:
+    def _get_provider_config(self, provider_name: str):
         provider_client_config = util.get_config(
             self.db, "ext::auth::AuthConfig::providers", frozenset
         )
-        provider_name: str | None = None
         for cfg in provider_client_config:
-            if cfg.provider_id == provider_id:
-                provider_name = cfg.provider_name
-        match provider_name:
-            case "password":
-                return "password"
-            case _:
-                raise errors.InvalidData(
-                    f"Invalid provider configuration: {provider_id}\n"
-                    f"providers={provider_client_config!r}"
-                )
+            if cfg.name == provider_name:
+                return cfg
+
+        raise errors.MissingConfiguration(
+            provider_name,
+            f"Provider is not configured"
+        )
 
 
-class PasswordProvider:
+class EmailPasswordProvider:
     async def register(self, db: Any, input: dict[str, Any]):
         match (input.get("email"), input.get("password")):
             case (str(e), str(p)):

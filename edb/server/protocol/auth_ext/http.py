@@ -74,17 +74,19 @@ class Router:
             match args:
                 case ("authorize",):
                     query = request.url.query.decode("ascii")
-                    provider_id = _get_search_param(query, "provider")
+                    provider_name = _get_search_param(query, "provider")
                     redirect_to = _get_search_param(query, "redirect_to")
                     challenge = _get_search_param(query, "challenge")
                     oauth_client = oauth.Client(
-                        db=self.db, provider_id=provider_id, base_url=test_url
+                        db=self.db,
+                        provider_name=provider_name,
+                        base_url=test_url
                     )
                     await pkce.create(self.db, challenge)
                     authorize_url = await oauth_client.get_authorize_url(
                         redirect_uri=self._get_callback_url(),
                         state=self._make_state_claims(
-                            provider_id, redirect_to, challenge
+                            provider_name, redirect_to, challenge
                         ),
                     )
                     response.status = http.HTTPStatus.FOUND
@@ -148,14 +150,14 @@ class Router:
 
                     try:
                         claims = self._verify_and_extract_claims(state)
-                        provider_id = claims["provider"]
+                        provider_name = claims["provider"]
                         redirect_to = claims["redirect_to"]
                         challenge = claims["challenge"]
                     except Exception:
                         raise errors.InvalidData("Invalid state token")
                     oauth_client = oauth.Client(
                         db=self.db,
-                        provider_id=provider_id,
+                        provider_name=provider_name,
                         base_url=test_url,
                     )
                     (
@@ -248,14 +250,14 @@ class Router:
                 case ("register",):
                     data = self._get_data_from_request(request)
 
-                    register_provider_id = data.get("provider")
-                    if register_provider_id is None:
+                    register_provider_name = data.get("provider")
+                    if register_provider_name is None:
                         raise errors.InvalidData(
                             'Missing "provider" in register request'
                         )
 
                     local_client = local.Client(
-                        db=self.db, provider_id=register_provider_id
+                        db=self.db, provider_name=register_provider_name
                     )
                     try:
                         identity = await local_client.register(data)
@@ -307,14 +309,14 @@ class Router:
                 case ("authenticate",):
                     data = self._get_data_from_request(request)
 
-                    authenticate_provider_id = data.get("provider")
-                    if authenticate_provider_id is None:
+                    authenticate_provider_name = data.get("provider")
+                    if authenticate_provider_name is None:
                         raise errors.InvalidData(
                             'Missing "provider" in register request'
                         )
 
                     local_client = local.Client(
-                        db=self.db, provider_id=authenticate_provider_id
+                        db=self.db, provider_name=authenticate_provider_name
                     )
                     try:
                         identity = await local_client.authenticate(data)
@@ -367,14 +369,14 @@ class Router:
                 case ('send_reset_email', ):
                     data = self._get_data_from_request(request)
 
-                    local_provider_id = data.get("provider")
-                    if local_provider_id is None:
+                    local_provider_name = data.get("provider")
+                    if local_provider_name is None:
                         raise errors.InvalidData(
                             'Missing "provider" in register request'
                         )
 
                     local_client = local.Client(
-                        db=self.db, provider_id=local_provider_id
+                        db=self.db, provider_name=local_provider_name
                     )
 
                     try:
@@ -483,14 +485,14 @@ class Router:
                 case ('reset_password', ):
                     data = self._get_data_from_request(request)
 
-                    local_provider_id = data.get("provider")
-                    if local_provider_id is None:
+                    local_provider_name = data.get("provider")
+                    if local_provider_name is None:
                         raise errors.InvalidData(
                             'Missing "provider" in register request'
                         )
 
                     local_client = local.Client(
-                        db=self.db, provider_id=local_provider_id
+                        db=self.db, provider_name=local_provider_name
                     )
 
                     try:
@@ -617,7 +619,7 @@ class Router:
                         response.content_type = b'text/html'
                         response.body = ui.render_signup_page(
                             base_path=self.base_path,
-                            provider_id=password_provider.provider_id,
+                            provider_name=password_provider.name,
                             redirect_to=ui_config.redirect_to,
                             error_message=_maybe_get_search_param(
                                 query, 'error'
@@ -653,7 +655,7 @@ class Router:
                         response.content_type = b'text/html'
                         response.body = ui.render_forgot_password_page(
                             base_path=self.base_path,
-                            provider_id=password_provider.provider_id,
+                            provider_name=password_provider.name,
                             error_message=_maybe_get_search_param(
                                 query, 'error'
                             ),
@@ -700,7 +702,7 @@ class Router:
 
                                 local_client = local.Client(
                                     db=self.db,
-                                    provider_id=password_provider.provider_id
+                                    provider_name=password_provider.name
                                 )
 
                                 is_valid = await (
@@ -717,7 +719,7 @@ class Router:
                         response.content_type = b'text/html'
                         response.body = ui.render_reset_password_page(
                             base_path=self.base_path,
-                            provider_id=password_provider.provider_id,
+                            provider_name=password_provider.name,
                             is_valid=is_valid,
                             redirect_to=ui_config.redirect_to,
                             reset_token=reset_token,
@@ -944,8 +946,7 @@ class Router:
         )
         password_providers = [
             p for p in providers
-            if (util.get_config_typename(p) ==
-                'ext::auth::PasswordClientConfig')
+            if (p.name == 'builtin::local_emailpassword')
         ]
 
         return password_providers[0] if len(password_providers) == 1 else None
