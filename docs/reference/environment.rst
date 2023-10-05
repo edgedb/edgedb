@@ -26,6 +26,20 @@ variants.
 Supported variables
 -------------------
 
+EDGEDB_DOCKER_APPLY_MIGRATIONS
+..............................
+
+The container will attempt to apply migrations in ``dbschema/migrations``
+unless this variable is set to ``never``. Default is ``always``.
+
+
+EDGEDB_DOCKER_LOG_LEVEL
+.......................
+
+Change the logging level for the docker container. Default setting is ``info``.
+Other levels are ``trace``, ``debug``, ``warning``, and ``error``.
+
+
 EDGEDB_SERVER_BOOTSTRAP_COMMAND
 ...............................
 
@@ -180,3 +194,174 @@ EDGEDB_SERVER_ADMIN_UI
 Set to ``enabled`` to enable the web-based admininstrative UI for the instance.
 
 Maps directly to the ``edgedb-server`` flag ``--admin-ui``.
+
+
+EDGEDB_SERVER_HTTP_ENDPOINT_SECURITY
+....................................
+
+Specifies the security mode of server binary endpoint. When set to ``optional``,
+non-TLS connections are allowed. The default is ``tls``.
+
+.. warning::
+
+    Disabling TLS is not recommended in production.
+
+
+EDGEDB_SERVER_TENANT_ID
+.......................
+
+Specifies the tenant ID of this server when hosting multiple EdgeDB instances
+on one Postgres cluster. Must be an alphanumeric ASCII string, maximum 10
+characters long.
+
+
+EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE
+...................................
+Deprecated in image version 2.8: use ``EDGEDB_SERVER_BOOTSTRAP_COMMAND_FILE``
+instead.
+
+Run the script when initializing the database. The script is run by the default
+user within the default database.
+
+
+EDGEDB_SERVER_BOOTSTRAP_COMMAND_FILE
+....................................
+
+Run the script when initializing the database. The script is run by the default
+user within the default database. May be used with or without
+``EDGEDB_SERVER_BOOTSTRAP_ONLY``.
+
+
+EDGEDB_SERVER_BOOTSTRAP_ONLY
+............................
+
+Bootstrap the database cluster and exit.
+
+
+EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY
+......................................
+
+Specifies the security mode of the server's binary endpoint. When set to
+``optional``, non-TLS connections are allowed. The default is ``tls``.
+
+.. warning::
+
+    Disabling TLS is not recommended in production.
+
+
+EDGEDB_SERVER_JWS_KEY_FILE
+..........................
+
+Specifies a path to a file containing a public key in PEM format used to verify
+JWT signatures. The file could also contain a private key to sign JWT for local
+testing.
+
+
+EDGEDB_SERVER_EMIT_SERVER_STATUS
+................................
+
+Instruct the server to emit changes in status to *DEST*, where *DEST* is a URI
+specifying a file (``file://<path>``), or a file descriptor
+(``fd://<fileno>``).  If the URI scheme is not specified, ``file://`` is
+assumed.
+
+
+EDGEDB_SERVER_INSTANCE_NAME
+...........................
+
+Specify the server instance name.
+
+
+EDGEDB_SERVER_LOG_LEVEL
+.......................
+
+Set the logging level. Default is ``info``. Other possible values are
+``debug``, ``warn``, ``error``, and ``silent``.
+
+
+EDGEDB_SERVER_COMPILER_POOL_MODE
+................................
+
+Choose a mode for the compiler pool to scale. ``fixed`` means the pool will not
+scale and sticks to ``EDGEDB_SERVER_COMPILER_POOL_SIZE``, while ``on_demand``
+means the pool will maintain at least 1 worker and automatically scale up (to
+``EDGEDB_SERVER_COMPILER_POOL_SIZE`` workers ) and down to the demand. Defaults
+to "fixed" in production mode and "on_demand" in development mode.
+
+
+EDGEDB_SERVER_COMPILER_POOL_SIZE
+................................
+
+When ``EDGEDB_SERVER_COMPILER_POOL_MODE`` is ``fixed``, this setting is the
+exact size of the compiler pool. When ``EDGEDB_SERVER_COMPILER_POOL_MODE`` is
+``on_demand``, this will serve as the maximum size of the compiler pool.
+
+
+EDGEDB_SERVER_EXTRA_ARGS
+........................
+
+Additional arguments to pass when starting the EdgeDB server.
+
+
+EDGEDB_SERVER_PASSWORD
+......................
+
+The password for the default superuser account will be set to this value. If
+no value is provided a password will not be set, unless set via
+``EDGEDB_SERVER_BOOTSTRAP_COMMAND``. (If a value for
+``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` is provided, this variable will be
+ignored.)
+
+The ``*_FILE`` and ``*_ENV`` variants are also supported.
+
+
+EDGEDB_SERVER_PASSWORD_HASH
+...........................
+
+A variant of ``EDGEDB_SERVER_PASSWORD``, where the specified value is a hashed
+password verifier instead of plain text.
+
+If ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` is set, this variable will be ignored.
+
+The ``*_FILE`` and ``*_ENV`` variants are also supported.
+
+
+EDGEDB_SERVER_USER
+..................
+
+If set to anything other than the default username (``edgedb``), the user will
+be created. The user defined here will be the one assigned the password set in
+``EDGEDB_SERVER_PASSWORD`` or the hash set in ``EDGEDB_SERVER_PASSWORD_HASH``.
+
+
+EDGEDB_SERVER_SKIP_MIGRATIONS
+.............................
+
+When set, skips applying migrations in ``dbschema/migrations``.
+
+
+EDGEDB_DOCKER_ABORT_CODE
+........................
+
+If the process fails, the arguments are logged to stderr and the script is
+terminated with this exit code. Defaults to ``1``.
+
+
+EDGEDB_SERVER_BINARY
+....................
+
+Sets the EdgeDB server binary to run. Defaults to ``edgedb-server``.
+
+
+EDGEDB_DOCKER_BOOTSTRAP_TIMEOUT_SEC
+...................................
+
+Sets the number of seconds to wait for instance bootstrapping to complete
+before timing out.
+
+
+EDGEDB_DOCKER_SHOW_GENERATED_CERT
+.................................
+
+Shows the generated TLS certificate in console output. Default value is
+``always``. May instead be set to ``never``.
