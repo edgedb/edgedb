@@ -503,13 +503,9 @@ class TestBackendHA(tb.TestCase):
                 backend_dsn=(
                     f"stolon+consul+http://127.0.0.1:{consul.http_port}"
                     f"/{pg1.cluster_name}"
+                    f"?pguser=suname&pgpassword=supass&pgdatabase=postgres"
                 ),
                 runstate_dir=str(pathlib.Path(consul.tmp_dir.name) / "edb"),
-                env=dict(
-                    PGUSER="suname",
-                    PGPASSWORD="supass",
-                    PGDATABASE="postgres",
-                ),
                 reset_auth=True,
                 debug=debug,
             ) as sd:

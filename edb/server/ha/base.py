@@ -22,6 +22,7 @@ from typing import *
 import urllib.parse
 
 from edb.common import asyncwatcher
+from edb.server import metrics
 
 
 class ClusterProtocol:
@@ -49,6 +50,9 @@ class HABackend(asyncwatcher.AsyncWatcher):
     @property
     def dsn(self) -> str:
         raise NotImplementedError
+
+    def incr_metrics_counter(self, event: str, value: float = 1.0) -> None:
+        metrics.ha_events_total.inc(value, self.dsn, event)
 
 
 def get_backend(parsed_dsn: urllib.parse.ParseResult) -> Optional[HABackend]:

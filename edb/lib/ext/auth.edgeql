@@ -69,6 +69,14 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property challenge: std::str {
             create constraint exclusive;
         };
+        create property auth_token: std::str {
+            create annotation std::description :=
+                "Identity provider's auth token";
+        };
+        create property refresh_token: std::str {
+            create annotation std::description :=
+                "Identity provider's refresh token";
+        };
         create link identity: ext::auth::Identity;
     };
 

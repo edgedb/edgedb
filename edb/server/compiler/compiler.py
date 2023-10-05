@@ -1977,6 +1977,88 @@ def _get_config_spec(
     return config_spec
 
 
+def _inject_config_cache_clear(sql_ast: pgast.Base) -> pgast.Base:
+    """Inject a call to clear the config cache into a config op.
+
+    The trickiness here is that we can't just do the delete in a
+    statement before the config op, since RESET config ops query the
+    views and so might populate the cache, and we can't do it in a
+    statement directly after (unless we rework the server), since then
+    the query won't return anything.
+
+    So we instead fiddle around with the query to inject a call.
+    """
+    assert isinstance(sql_ast, pgast.Query)
+    ctes = sql_ast.ctes or []
+    sql_ast.ctes = None
+
+    ctes.append(pgast.CommonTableExpr(
+        name="_conv_rel",
+        query=sql_ast,
+    ))
+    clear_qry = pgast.SelectStmt(
+        target_list=[
+            pgast.ResTarget(
+                name="_dummy",
+                val=pgast.FuncCall(
+                    name=('edgedb', '_clear_sys_config_cache'),
+                    args=[],
+                ),
+            ),
+        ],
+    )
+    ctes.append(pgast.CommonTableExpr(
+        name="_clear_cache",
+        query=clear_qry,
+        materialized=True,
+    ))
+    force_qry = pgast.UpdateStmt(
+        targets=[pgast.UpdateTarget(
+            name='flag', val=pgast.BooleanConstant(val=True)
+        )],
+        relation=pgast.RelRangeVar(relation=pgast.Relation(
+            schemaname='edgedb', name='_dml_dummy')),
+        where_clause=pgast.Expr(
+            name="=",
+            lexpr=pgast.ColumnRef(name=["id"]),
+            rexpr=pgast.SelectStmt(
+                from_clause=[pgast.RelRangeVar(relation=ctes[-1])],
+                target_list=[
+                    pgast.ResTarget(
+                        val=pgast.FuncCall(
+                            name=('count',), args=[pgast.Star()]),
+                    )
+                ],
+            ),
+        )
+    )
+
+    if (
+        not isinstance(sql_ast, pgast.DMLQuery)
+        or sql_ast.returning_list
+    ):
+        ctes.append(pgast.CommonTableExpr(
+            name="_force_clear",
+            query=force_qry,
+            materialized=True,
+        ))
+        sql_ast = pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(val=pgast.ColumnRef(
+                    name=["_conv_rel", pgast.Star()])),
+            ],
+            ctes=ctes,
+            from_clause=[
+                pgast.RelRangeVar(relation=ctes[-3]),
+            ],
+        )
+    else:
+        sql_ast = force_qry
+        force_qry.ctes = ctes
+
+    return sql_ast
+
+
 def _compile_ql_config_op(
     ctx: CompileContext, ql: qlast.ConfigOp
 ) -> dbstate.SessionStateQuery:
@@ -2027,16 +2109,26 @@ def _compile_ql_config_op(
         ir,
         backend_runtime_params=ctx.backend_runtime_params,
     )
+
+    sql_ast = sql_res.ast
+    if not ctx.bootstrap_mode and ql.scope in (
+        qltypes.ConfigScope.DATABASE,
+        qltypes.ConfigScope.SESSION,
+    ):
+        sql_ast = _inject_config_cache_clear(sql_ast)
+
     pretty = bool(
         debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_text)
     sql_text = pg_codegen.generate_source(
-        sql_res.ast,
+        sql_ast,
         pretty=pretty,
     )
     if pretty:
         debug.dump_code(sql_text, lexer='sql')
 
-    sql = (sql_text.encode(),)
+    sql: tuple[bytes, ...] = (
+        sql_text.encode(),
+    )
 
     in_type_args, in_type_data, in_type_id = describe_params(
         ctx, ir, sql_res.argmap, None

@@ -135,7 +135,9 @@ class Tenant(ha_base.ClusterProtocol):
         # Increase-only counter to reject outdated attempts to connect
         self._ha_master_serial = 0
         if backend_adaptive_ha:
-            self._backend_adaptive_ha = adaptive_ha.AdaptiveHASupport(self)
+            self._backend_adaptive_ha = adaptive_ha.AdaptiveHASupport(
+                self, self._instance_name
+            )
         else:
             self._backend_adaptive_ha = None
         self._readiness_state_file = readiness_state_file

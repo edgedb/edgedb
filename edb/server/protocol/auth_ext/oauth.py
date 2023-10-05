@@ -82,11 +82,17 @@ class Client:
 
     async def handle_callback(
         self, code: str, redirect_uri: str
-    ) -> data.Identity:
+    ) -> tuple[data.Identity, str | None, str | None]:
         response = await self.provider.exchange_code(code, redirect_uri)
         user_info = await self.provider.fetch_user_info(response)
+        auth_token = response.access_token
+        refresh_token = response.refresh_token
 
-        return await self._handle_identity(user_info)
+        return (
+            await self._handle_identity(user_info),
+            auth_token,
+            refresh_token,
+        )
 
     async def _handle_identity(self, user_info: data.UserInfo) -> data.Identity:
         """Update or create an identity"""

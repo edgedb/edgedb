@@ -1365,6 +1365,13 @@ def compile_result_clause(
                 ctx=sctx,
                 srcctx=result_expr.context,
             )
+        elif astutils.is_ql_empty_array(result_expr):
+            expr = setgen.new_array_set(
+                [],
+                stype=sctx.empty_result_type_hint,
+                ctx=sctx,
+                srcctx=result_expr.context,
+            )
         else:
             with sctx.new() as ectx:
                 if shape is not None:

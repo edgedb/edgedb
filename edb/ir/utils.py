@@ -29,6 +29,7 @@ import json
 from edb import errors
 
 from edb.common import ast
+from edb.common import ordered
 
 from edb.edgeql import qltypes as ft
 
@@ -242,41 +243,40 @@ def collapse_type_intersection(
     return source, result
 
 
-def get_nearest_dml_stmt(
-    ir_set: irast.Set
-) -> Optional[irast.MutatingLikeStmt]:
-    """For a given *ir_set* representing a Path, return the nearest path
-       step that is a DML expression.
-    """
-    cur_set: Optional[irast.Set] = ir_set
-    while cur_set is not None:
-        if isinstance(cur_set.expr, irast.MutatingLikeStmt):
-            return cur_set.expr
-        elif isinstance(cur_set.expr, irast.SelectStmt):
-            cur_set = cur_set.expr.result
-        # FIXME: This is a narrow hack around issue #3030 designed to
-        # make simple cases work. This probably covers most cases but
-        # does not cover everything in general.
-        # The critical one is assert_exists inserted by access policies.
-        elif (
-            isinstance(cur_set.expr, irast.Call)
-            and str(cur_set.expr.func_shortname) in {
-                'std::assert_exists',
-                'std::assert_single',
-                'std::assert_distinct',
-                'std::enumerate',
-                'std::min',
-                'std::max',
-                'std::DISTINCT',
-            }
+class CollectDMLSourceVisitor(ast.NodeVisitor):
+    skip_hidden = True
 
-        ):
-            cur_set = cur_set.expr.args[-1].expr
-        elif cur_set.rptr is not None:
-            cur_set = cur_set.rptr.source
-        else:
-            cur_set = None
-    return None
+    def __init__(self) -> None:
+        super().__init__()
+        self.dml: list[irast.MutatingLikeStmt] = []
+
+    def visit_MutatingLikeStmt(self, stmt: irast.MutatingLikeStmt) -> None:
+        # Only INSERTs and UPDATEs produce meaningful overlays.
+        if not isinstance(stmt, irast.DeleteStmt):
+            self.dml.append(stmt)
+
+    def visit_Set(self, node: irast.Set) -> None:
+        # Visit sub-trees
+        if node.expr:
+            self.visit(node.expr)
+        elif node.rptr:
+            self.visit(node.rptr.source)
+
+
+def get_dml_sources(
+    ir_set: irast.Set
+) -> Sequence[irast.MutatingLikeStmt]:
+    """Find the DML expressions that can contribute to the value of a set
+
+    This is used to compute which overlays to use during SQL compilation.
+    """
+    # TODO: Make this caching.
+    visitor = CollectDMLSourceVisitor()
+    visitor.visit(ir_set)
+    # Deduplicate, but preserve order. It shouldn't matter for
+    # *correctness* but it helps keep the nondeterminism in the output
+    # SQL down.
+    return tuple(ordered.OrderedSet(visitor.dml))
 
 
 class ContainsDMLVisitor(ast.NodeVisitor):

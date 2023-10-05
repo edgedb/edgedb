@@ -38,7 +38,7 @@ class CompositeTypeSpecField:
     name: str
     type: type | CompositeTypeSpec
     _: dataclasses.KW_ONLY
-    unique: bool = True
+    unique: bool = False
     default: Any = MISSING
     secret: bool = False
 
@@ -74,6 +74,15 @@ class CompositeTypeSpec:
     @property
     def __name__(self) -> str:
         return self.name
+
+    def get_field_unique_site(self, name: str) -> Optional[CompositeTypeSpec]:
+        typ: Optional[CompositeTypeSpec] = self
+        site: Optional[CompositeTypeSpec] = None
+        while typ:
+            if name in typ.fields and typ.fields[name].unique:
+                site = typ
+            typ = typ.parent
+        return site
 
 
 class CompositeType:

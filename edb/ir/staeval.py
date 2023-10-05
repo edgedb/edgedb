@@ -33,6 +33,7 @@ import immutables
 from edb import errors
 
 from edb.common import typeutils
+from edb.common import parsing
 from edb.common import uuidgen
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
@@ -151,6 +152,30 @@ def evaluate_Array(
     )
 
 
+def _process_op_result(
+    value: object,
+    typeref: irast.TypeRef,
+    schema: s_schema.Schema,
+    *,
+    srcctx: Optional[parsing.ParserContext]=None,
+) -> irast.ConstExpr:
+    qlconst: qlast.BaseConstant
+    if isinstance(value, str):
+        qlconst = qlast.StringConstant.from_python(value)
+    elif isinstance(value, bool):
+        qlconst = qlast.BooleanConstant.from_python(value)
+    else:
+        raise UnsupportedExpressionError(
+            f"unsupported result type: {type(value)}", context=srcctx
+        )
+
+    result = qlcompiler.compile_constant_tree_to_ir(
+        qlconst, styperef=typeref, schema=schema)
+
+    assert isinstance(result, irast.ConstExpr), 'expected ConstExpr'
+    return result
+
+
 op_table = {
     # Concatenation
     ('Infix', 'std::++'): lambda a, b: a + b,
@@ -158,6 +183,8 @@ op_table = {
     ('Infix', 'std::>'): lambda a, b: a > b,
     ('Infix', 'std::<='): lambda a, b: a <= b,
     ('Infix', 'std::<'): lambda a, b: a < b,
+    ('Infix', 'std::='): lambda a, b: a == b,
+    ('Infix', 'std::!='): lambda a, b: a != b,
 }
 
 
@@ -192,21 +219,38 @@ def evaluate_OperatorCall(
         args.append(arg_val)
 
     value = eval_func(*args)
-    qlconst: qlast.BaseConstant
-    if isinstance(value, str):
-        qlconst = qlast.StringConstant.from_python(value)
-    elif isinstance(value, bool):
-        qlconst = qlast.BooleanConstant.from_python(value)
-    else:
-        raise UnsupportedExpressionError(
-            f"unsupported result type: {type(value)}", context=opcall.context
-        )
+    return _process_op_result(
+        value, opcall.typeref, schema, srcctx=opcall.context)
 
-    result = qlcompiler.compile_constant_tree_to_ir(
-        qlconst, styperef=opcall.typeref, schema=schema)
 
-    assert isinstance(result, irast.ConstExpr), 'expected ConstExpr'
-    return result
+@evaluate.register(irast.SliceIndirection)
+def evaluate_SliceIndirection(
+        slice: irast.SliceIndirection,
+        schema: s_schema.Schema) -> irast.ConstExpr:
+
+    args = [slice.expr, slice.start, slice.stop]
+    vals = [
+        evaluate_to_python_val(arg, schema=schema) if arg else None
+        for arg in args
+    ]
+
+    for arg, arg_val in zip(args, vals):
+        if arg is None:
+            continue
+        if isinstance(arg_val, tuple):
+            raise UnsupportedExpressionError(
+                f'non-singleton operations are not supported',
+                context=slice.context)
+        if arg_val is None:
+            raise UnsupportedExpressionError(
+                f'empty operations are not supported',
+                context=slice.context)
+
+    base, start, stop = vals
+
+    value = base[start:stop]
+    return _process_op_result(
+        value, slice.expr.typeref, schema, srcctx=slice.context)
 
 
 def _evaluate_union(
@@ -447,7 +491,10 @@ def object_type_to_spec(
         exclusive = schema.get('std::exclusive', type=s_constr.Constraint)
         unique = (
             not ptype.is_object_type()
-            and any(c.issubclass(schema, exclusive) for c in constraints)
+            and any(
+                c.issubclass(schema, exclusive) and not c.get_delegated(schema)
+                for c in constraints
+            )
         )
         fields[str_pn] = statypes.CompositeTypeSpecField(
             name=str_pn,

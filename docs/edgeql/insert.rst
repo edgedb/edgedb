@@ -321,6 +321,84 @@ to the ``update`` statement in the ``else`` clause. This updates the
 To learn to use upserts by trying them yourself, see `our interactive upserts
 tutorial </tutorial/data-mutations/upsert>`_.
 
+.. note::
+
+    It can be useful to know the outcome of an upsert. Here's an example
+    showing how you can return that:
+
+    .. code-block:: edgeql-repl
+
+      db> with
+      ...   title := "Eternals",
+      ...   release_year := 2021
+      ... select (
+      ...   insert Movie {
+      ...     title := title,
+      ...     release_year := release_year
+      ...   }
+      ...   unless conflict on .title
+      ...   else (
+      ...     update Movie set { release_year := release_year }
+      ...   )
+      ... ) {
+      ...   is_new := (
+      ...     select not exists (
+      ...       select Movie filter .title = title
+      ...     )
+      ...   )
+      ... };
+      {default::Movie {is_new: true}}
+
+    This technique exploits the fact that a ``select`` will not return an
+    object inserted in the same query. We know that, if the record exists, we
+    updated it. If it does not, we inserted it.
+
+    By wrapping your upsert in a ``select`` and putting a shape on it that
+    queries for the object and returns whether or not it exists (as ``is_new``,
+    in this example), you can easily see whether the object was inserted or
+    updated.
+
+    If you want to also return some of the ``Movie`` object's data, drop
+    additional property names into the shape alongside ``is_new``. If you're on
+    3.0+, you can add ``Movie.*`` to the shape alongside ``is_new`` to get back
+    all of the ``Movie`` object's properties. You could even silo the data off,
+    keeping it separate from the ``is_new`` computed value like this:
+
+    .. code-block:: edgeql-repl
+
+      db> with
+      ...   title := "Eternals",
+      ...   release_year := 2021
+      ... select (
+      ...   insert Movie {
+      ...     title := title,
+      ...     release_year := release_year
+      ...   }
+      ...   unless conflict on .title
+      ...   else (
+      ...     update Movie set { release_year := release_year }
+      ...   )
+      ... ) {
+      ...   data := (select Movie {*}),
+      ...   is_new := (
+      ...     select not exists (
+      ...       select Movie filter .title = title
+      ...     )
+      ...   )
+      ... };
+      {
+        default::Movie {
+          data: {
+            default::Movie {
+              id: 6880d0ba-62ca-11ee-9608-635818746433,
+              release_year: 2021,
+              title: 'Eternals'
+            }
+          },
+          is_new: false
+        }
+      }
+
 
 Suppressing failures
 ^^^^^^^^^^^^^^^^^^^^

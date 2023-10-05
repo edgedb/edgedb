@@ -145,7 +145,7 @@ class Registry:
         desc: str,
         /,
         *,
-        labels: tuple[str],
+        labels: tuple[str, ...],
         unit: Unit | None = None,
     ) -> LabeledCounter:
         counter = LabeledCounter(self, name, desc, unit, labels=labels)
