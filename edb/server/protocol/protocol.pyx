@@ -71,6 +71,7 @@ cdef class HttpRequest:
         self.body = b''
         self.authorization = b''
         self.content_type = b''
+        self.forwarded = {}
 
 
 cdef class HttpResponse:
@@ -613,7 +614,7 @@ cdef class HttpProtocol:
                     handler = auth_ext.http.Router(
                         db=db,
                         base_path=extension_base_path,
-                        test_mode=self.server.in_test_mode(),
+                        tenant=self.tenant,
                     )
                     await handler.handle_request(request, response, args)
 

@@ -272,8 +272,7 @@ def _load_reflection_schema():
             std_schema = _load_std_schema()
             reflection = s_refl.generate_structure(std_schema)
             classlayout = reflection.class_layout
-            context = sd.CommandContext()
-            context.stdmode = True
+            context = sd.CommandContext(stdmode=True)
             reflschema = reflection.intro_schema_delta.apply(
                 std_schema, context)
 

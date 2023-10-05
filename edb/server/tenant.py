@@ -135,7 +135,9 @@ class Tenant(ha_base.ClusterProtocol):
         # Increase-only counter to reject outdated attempts to connect
         self._ha_master_serial = 0
         if backend_adaptive_ha:
-            self._backend_adaptive_ha = adaptive_ha.AdaptiveHASupport(self)
+            self._backend_adaptive_ha = adaptive_ha.AdaptiveHASupport(
+                self, self._instance_name
+            )
         else:
             self._backend_adaptive_ha = None
         self._readiness_state_file = readiness_state_file
@@ -340,7 +342,7 @@ class Tenant(ha_base.ClusterProtocol):
             global_schema_pickle=global_schema_pickle,
             sys_config=sys_config,
             default_sysconfig=default_sysconfig,
-            sys_config_spec=self._server._config_settings,  # TODO
+            sys_config_spec=self._server.config_settings,
         )
 
         await self._introspect_dbs()
@@ -930,9 +932,7 @@ class Tenant(ha_base.ClusterProtocol):
             query = self._server.get_sys_query(query_name)
             sys_config_json = await syscon.sql_fetch_val(query)
 
-        return config.from_json(
-            self._server._config_settings, sys_config_json  # TODO
-        )
+        return config.from_json(self._server.config_settings, sys_config_json)
 
     async def _reintrospect_global_schema(self) -> None:
         if not self._initing and not self._running:
@@ -973,7 +973,7 @@ class Tenant(ha_base.ClusterProtocol):
                     return auth.method
 
         default_method = self._server.get_default_auth_method(transport)
-        auth_type = self._server._config_settings.get_type_by_name(  # TODO
+        auth_type = self._server.config_settings.get_type_by_name(
             f'cfg::{default_method.value}'
         )
         return auth_type()
@@ -997,7 +997,7 @@ class Tenant(ha_base.ClusterProtocol):
         return self._dbindex.remove_view(dbview_)
 
     def schedule_reported_config_if_needed(self, setting_name: str) -> None:
-        setting = self._server._config_settings.get(setting_name)  # TODO
+        setting = self._server.config_settings.get(setting_name)
         if setting and setting.report and self._accept_new_tasks:
             self.create_task(self._load_reported_config(), interruptable=True)
 

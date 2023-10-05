@@ -16081,6 +16081,8 @@ class TestDDLNonIsolated(tb.DDLTestCase):
           };
           create type ext::varchar::ChildTest
               extending ext::varchar::ParentTest;
+          create type ext::varchar::GrandChildTest
+              extending ext::varchar::ChildTest;
         };
         ''')
         try:
@@ -16139,6 +16141,27 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         await self.con.execute('''
             create extension _conf
         ''')
+
+        # Check that the ids are stable
+        await self.assert_query_result(
+            '''
+            select schema::ObjectType {
+                id,
+                properties: { name, id } filter .name = 'value'
+            } filter .name = 'ext::_conf::Obj'
+            ''',
+            [
+                {
+                    "id": "dc7c6ed1-759f-5a70-9bc3-2252b2d3980a",
+                    "properties": [
+                        {
+                            "name": "value",
+                            "id": "0dff1c2f-f51b-59fd-bae9-9d66cb963896",
+                        },
+                    ],
+                },
+            ],
+        )
 
         Q = '''
             select cfg::%s {
@@ -16243,6 +16266,19 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 extra := 42,
             };
         ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConfigurationError, "invalid setting value"
+        ):
+            await self.con.execute('''
+                configure current database insert ext::_conf::SubObj {
+                    name := '3!',
+                    value := 'asdf_wrong',
+                    extra := 42,
+                };
+            ''')
+
+        # This is fine, constraint on value is delegated
         await self.con.execute('''
             configure current database insert ext::_conf::SecretObj {
                 name := '4',
@@ -16250,10 +16286,22 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 secret := '123456',
             };
         ''')
+
+        # But this collides
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError, "value violate"
+        ):
+            await self.con.execute('''
+                configure current database insert ext::_conf::SecretObj {
+                    name := '5',
+                    value := 'foo',
+                };
+            ''')
+
         await self.con.execute('''
             configure current database insert ext::_conf::SecretObj {
                 name := '5',
-                value := 'foo',
+                value := 'quux',
             };
         ''')
         async with self.assertRaisesRegexTx(
@@ -16300,7 +16348,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                      tname='ext::_conf::SubObj', opt_value=None),
                 dict(name='4', value='foo',
                      tname='ext::_conf::SecretObj', opt_value=None),
-                dict(name='5', value='foo',
+                dict(name='5', value='quux',
                      tname='ext::_conf::SecretObj', opt_value=None),
             ],
             obj=dict(name='single', value='val', fixed='fixed!'),
@@ -16398,6 +16446,9 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                             path="server-info",
                         )
                         data = json.loads(rdata)
+                        if 'databases' not in data:
+                            # multi-tenant instance - use the first tenant
+                            data = next(iter(data['tenants'].values()))
                         db_data = data['databases'][self.get_database_name()]
                         config = db_data['config']
                         assert (
@@ -16421,7 +16472,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                      'name': '4', 'value': 'foo',
                      'opt_value': None, 'secret': {'redacted': True}},
                     {'_tname': 'ext::_conf::SecretObj',
-                     'name': '5', 'value': 'foo',
+                     'name': '5', 'value': 'quux',
                      'opt_value': None, 'secret': None},
                 ],
             )
@@ -16458,7 +16509,7 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         CONFIGURE CURRENT DATABASE INSERT ext::_conf::SecretObj {
             name := '5',
             secret := {},  # REDACTED
-            value := 'foo',
+            value := 'quux',
         };
         CONFIGURE CURRENT DATABASE INSERT ext::_conf::SubObj {
             extra := 42,

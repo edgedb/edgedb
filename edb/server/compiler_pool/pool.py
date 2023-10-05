@@ -651,6 +651,9 @@ class AbstractPool:
         finally:
             self._release_worker(worker)
 
+    def get_debug_info(self):
+        return {}
+
 
 class BaseLocalPool(
     AbstractPool, amsg.ServerProtocol, asyncio.SubprocessProtocol
@@ -843,6 +846,12 @@ class BaseLocalPool(
         # Skip disconnected workers
         if worker.get_pid() in self._workers:
             self._workers_queue.release(worker, put_in_front=put_in_front)
+
+    def get_debug_info(self):
+        return dict(
+            worker_pids=list(self._workers.keys()),
+            template_pid=self.get_template_pid(),
+        )
 
 
 @srvargs.CompilerPoolMode.Fixed.assign_implementation
@@ -1221,6 +1230,13 @@ class RemotePool(AbstractPool):
             if not callback:
                 self._sync_lock.release()
         return preargs, callback
+
+    def get_debug_info(self):
+        return dict(
+            address="{}:{}".format(*self._pool_addr),
+            size=self._semaphore._bound_value,  # type: ignore
+            free=self._semaphore._value,  # type: ignore
+        )
 
 
 @dataclasses.dataclass

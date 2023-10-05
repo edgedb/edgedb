@@ -407,6 +407,8 @@ async def execute_system_config(
         config_ops = query_unit.config_ops
     await dbv.apply_config_ops(conn, config_ops)
 
+    await conn.sql_execute(b'delete from _config_cache')
+
     # If this is a backend configuration setting we also
     # need to make sure it has been loaded.
     if query_unit.backend_config:

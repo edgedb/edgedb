@@ -19,75 +19,69 @@
 
 import json
 
-from typing import Any
+from typing import Any, Type
 from edb.server.protocol import execute
 
+from . import github, google, azure, apple
 from . import errors, util, data, base, http_client
 
 
 class Client:
     provider: base.BaseProvider
 
-    def __init__(self, db: Any, provider_id: str, base_url: str | None = None):
+    def __init__(
+        self, db: Any, provider_name: str, base_url: str | None = None
+    ):
         self.db = db
-        self.db_config = db.db_config
 
         http_factory = lambda *args, **kwargs: http_client.HttpClient(
             *args, edgedb_test_url=base_url, **kwargs
         )
 
-        (provider_name, client_id, client_secret) = self._get_provider_config(
-            provider_id
-        )
+        provider_config = self._get_provider_config(provider_name)
+        provider_args = (provider_config.client_id, provider_config.secret)
+        provider_kwargs = {
+            "http_factory": http_factory,
+            "additional_scope": provider_config.additional_scope,
+        }
 
+        provider_class: Type[base.BaseProvider]
         match provider_name:
-            case "github":
-                from . import github
-
-                self.provider = github.GitHubProvider(
-                    client_id=client_id,
-                    client_secret=client_secret,
-                    http_factory=http_factory,
-                )
-            case "google":
-                from . import google
-
-                self.provider = google.GoogleProvider(
-                    client_id=client_id,
-                    client_secret=client_secret,
-                    http_factory=http_factory,
-                )
-            case "azure":
-                from . import azure
-
-                self.provider = azure.AzureProvider(
-                    client_id=client_id,
-                    client_secret=client_secret,
-                    http_factory=http_factory,
-                )
-            case "apple":
-                from . import apple
-
-                self.provider = apple.AppleProvider(
-                    client_id=client_id,
-                    client_secret=client_secret,
-                    http_factory=http_factory,
-                )
+            case "builtin::oauth_github":
+                provider_class = github.GitHubProvider
+            case "builtin::oauth_google":
+                provider_class = google.GoogleProvider
+            case "builtin::oauth_azure":
+                provider_class = azure.AzureProvider
+            case "builtin::oauth_apple":
+                provider_class = apple.AppleProvider
             case _:
                 raise errors.InvalidData(f"Invalid provider: {provider_name}")
 
+        self.provider = provider_class(
+            *provider_args, **provider_kwargs  # type: ignore
+        )
+
     async def get_authorize_url(self, state: str, redirect_uri: str) -> str:
         return await self.provider.get_code_url(
-            state=state, redirect_uri=redirect_uri
+            state=state,
+            redirect_uri=redirect_uri,
+            additional_scope=self.provider.additional_scope or "",
         )
 
     async def handle_callback(
         self, code: str, redirect_uri: str
-    ) -> data.Identity:
+    ) -> tuple[data.Identity, str | None, str | None]:
         response = await self.provider.exchange_code(code, redirect_uri)
         user_info = await self.provider.fetch_user_info(response)
+        auth_token = response.access_token
+        refresh_token = response.refresh_token
 
-        return await self._handle_identity(user_info)
+        return (
+            await self._handle_identity(user_info),
+            auth_token,
+            refresh_token,
+        )
 
     async def _handle_identity(self, user_info: data.UserInfo) -> data.Identity:
         """Update or create an identity"""
@@ -97,7 +91,7 @@ class Client:
             query="""\
 with
   iss := <str>$issuer_url,
-  sub := <str>$provider_id,
+  sub := <str>$subject,
 
 select (insert ext::auth::Identity {
   issuer := iss,
@@ -107,7 +101,7 @@ select (insert ext::auth::Identity {
 )) { * };""",
             variables={
                 "issuer_url": self.provider.issuer_url,
-                "provider_id": user_info.sub,
+                "subject": user_info.sub,
             },
         )
         result_json = json.loads(r.decode())
@@ -115,24 +109,16 @@ select (insert ext::auth::Identity {
 
         return data.Identity(**result_json[0])
 
-    def _get_provider_config(self, provider_id: str) -> tuple[str, str, str]:
+    def _get_provider_config(self, provider_name: str):
         provider_client_config = util.get_config(
-            self.db_config, "ext::auth::AuthConfig::providers", frozenset
+            self.db, "ext::auth::AuthConfig::providers", frozenset
         )
-        provider_name: str | None = None
-        client_id: str | None = None
-        client_secret: str | None = None
         for cfg in provider_client_config:
-            if cfg.provider_id == provider_id:
-                provider_name = cfg.provider_name
-                client_id = cfg.client_id
-                client_secret = cfg.secret
-        r = (provider_name, client_id, client_secret)
-        match r:
-            case (str(_), str(_), str(_)):
-                return r
-            case _:
-                raise errors.InvalidData(
-                    f"Invalid provider configuration: {provider_id}\n"
-                    f"providers={provider_client_config!r}"
+            if cfg.name == provider_name:
+                return data.ProviderConfig(
+                    cfg.client_id, cfg.secret, cfg.additional_scope
                 )
+
+        raise errors.MissingConfiguration(
+            provider_name, "Provider is not configured"
+        )

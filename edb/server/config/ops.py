@@ -87,6 +87,38 @@ def coerce_single_value(setting: spec.Setting, value: Any) -> Any:
             f'invalid value type for the {setting.name!r} setting')
 
 
+def _check_object_set_uniqueness(
+    setting: spec.Setting,
+    objs: Iterable[types.CompositeConfigType]
+) -> frozenset[types.CompositeConfigType]:
+    """Check the unique constraints for an object set"""
+
+    new_values = set()
+    exclusive_keys: dict[tuple[str, str], Any] = {}
+    for new_value in objs:
+        tspec = new_value._tspec
+        for name in tspec.fields:
+            if (val := getattr(new_value, name, None)) is None:
+                continue
+            if (site := tspec.get_field_unique_site(name)):
+                key = (site.name, name)
+                current = exclusive_keys.setdefault(key, set())
+                if val in current:
+                    raise errors.ConstraintViolationError(
+                        f'{setting.type.__name__}.{name} '
+                        f'violates exclusivity constraint'
+                    )
+                current.add(val)
+
+        if new_value in new_values:
+            raise errors.ConstraintViolationError(
+                f'{setting.type.__name__} has no unique values'
+            )
+        new_values.add(new_value)
+
+    return frozenset(new_values)
+
+
 def coerce_object_set(
     spec: spec.Spec, setting: spec.Setting, values: Any
 ) -> Any:
@@ -96,35 +128,13 @@ def coerce_object_set(
             f'cannot have multiple values for single setting {setting.name!r}'
         )
 
-    new_values = set()
-    for jv in values:
-        new_value = types.CompositeConfigType.from_pyvalue(
-            jv, spec=spec, tspec=setting.type,
-        )
-
-        if new_value in new_values:
-            _report_constraint_error(setting)
-        new_values.add(new_value)
-
-    return frozenset(new_values)
-
-
-def _report_constraint_error(setting: spec.Setting) -> NoReturn:
-    assert isinstance(setting.type, types.ConfigTypeSpec)
-
-    props = []
-    for f in setting.type.fields.values():
-        if f.unique:
-            props.append(f.name)
-
-    if len(props) == 1:
-        props_s = f'.{props[0]} violates'
-    else:
-        props_s = f' ({", ".join(props)}) violate'
-
-    raise errors.ConstraintViolationError(
-        f'{setting.type.__name__}{props_s} '
-        f'exclusivity constraint'
+    return _check_object_set_uniqueness(
+        setting,
+        (
+            types.CompositeConfigType.from_pyvalue(
+                jv, spec=spec, tspec=setting.type)
+            for jv in values
+        ),
     )
 
 
@@ -225,10 +235,8 @@ class Operation(NamedTuple):
             else:
                 exist_value = setting.default
 
-            if value in exist_value:
-                _report_constraint_error(setting)
-
-            new_value = exist_value | {value}
+            new_value = _check_object_set_uniqueness(
+                setting, list(exist_value) + [value])
             storage = self._set_value(storage, new_value)
 
         elif self.opcode is OpCode.CONFIG_REM:

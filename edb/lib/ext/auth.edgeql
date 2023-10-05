@@ -69,28 +69,29 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property challenge: std::str {
             create constraint exclusive;
         };
+        create property auth_token: std::str {
+            create annotation std::description :=
+                "Identity provider's auth token";
+        };
+        create property refresh_token: std::str {
+            create annotation std::description :=
+                "Identity provider's refresh token";
+        };
         create link identity: ext::auth::Identity;
     };
 
-    create type ext::auth::ClientConfig extending cfg::ConfigObject {
-        create required property provider_id: std::str {
+    create abstract type ext::auth::ProviderConfig
+        extending cfg::ConfigObject {
+        create required property name: std::str {
             set readonly := true;
-            create annotation std::description :=
-                "ID of the auth provider";
             create constraint exclusive;
-        };
-
-        create required property provider_name: std::str {
-            set readonly := true;
-            create annotation std::description := "Auth provider name";
-        };
+        }
     };
 
-    create type ext::auth::OAuthClientConfig
-        extending ext::auth::ClientConfig {
-        create required property url: std::str {
-            set readonly := true;
-            create annotation std::description := "Authorization server URL";
+    create abstract type ext::auth::OAuthProviderConfig
+        extending ext::auth::ProviderConfig {
+        alter property name {
+            set protected := true;
         };
 
         create required property secret: std::str {
@@ -105,15 +106,86 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             create annotation std::description :=
                 "ID for client provided by auth provider";
         };
+
+        create required property display_name: std::str {
+            set readonly := true;
+            set protected := true;
+        };
+
+        create property additional_scope: std::str;
     };
 
-    create type ext::auth::PasswordClientConfig
-        extending ext::auth::ClientConfig;
+    create type ext::auth::AppleOAuthProvider
+        extending ext::auth::OAuthProviderConfig {
+        alter property name {
+            set default := 'builtin::oauth_apple';
+        };
+
+        alter property display_name {
+            set default := 'Apple';
+        };
+    };
+
+    create type ext::auth::AzureOAuthProvider
+        extending ext::auth::OAuthProviderConfig {
+        alter property name {
+            set default := 'builtin::oauth_azure';
+        };
+
+        alter property display_name {
+            set default := 'Azure';
+        };
+    };
+
+    create type ext::auth::GitHubOAuthProvider
+        extending ext::auth::OAuthProviderConfig {
+        alter property name {
+            set default := 'builtin::oauth_github';
+        };
+
+        alter property display_name {
+            set default := 'GitHub';
+        };
+    };
+
+    create type ext::auth::GoogleOAuthProvider
+        extending ext::auth::OAuthProviderConfig {
+        alter property name {
+            set default := 'builtin::oauth_google';
+        };
+
+        alter property display_name {
+            set default := 'Google';
+        };
+    };
+
+    create type ext::auth::EmailPasswordProviderConfig
+        extending ext::auth::ProviderConfig {
+        alter property name {
+            set default := 'builtin::local_emailpassword';
+            set protected := true;
+        };
+    };
+
+    create type ext::auth::UIConfig extending cfg::ConfigObject {
+        create required property redirect_to: std::str;
+
+        create property app_name: std::str;
+        create property logo_url: std::str;
+        create property dark_logo_url: std::str;
+        create property brand_color: std::str;
+    };
 
     create type ext::auth::AuthConfig extending cfg::ExtensionConfig {
-        create multi link providers -> ext::auth::ClientConfig {
+        create multi link providers -> ext::auth::ProviderConfig {
             create annotation std::description :=
                 "Configuration for auth provider clients";
+        };
+
+        create link ui -> ext::auth::UIConfig {
+            create annotation std::description :=
+                "Configuration for builtin auth UI. If not set the builtin \
+                UI is disabled";
         };
 
         create property auth_signing_key -> std::str {
@@ -128,6 +200,59 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
                 "The time after which an auth token expires. A value of 0 \
                 indicates that the token should never expire.";
             set default := <std::duration>'336 hours';
+        };
+
+    };
+
+    create scalar type ext::auth::SMTPSecurity extending enum<PlainText, TLS, STARTTLS, STARTTLSOrPlainText>;
+
+    create type ext::auth::SMTPConfig extending cfg::ExtensionConfig {
+        create property sender -> std::str {
+            create annotation std::description :=
+                "\"From\" address of system emails sent for e.g. \
+                password reset, etc.";
+        };
+        create property host -> std::str {
+            create annotation std::description :=
+                "Host of SMTP server to use for sending emails. \
+                If not set, \"localhost\" will be used.";
+        };
+        create property port -> std::int32 {
+            create annotation std::description :=
+                "Port of SMTP server to use for sending emails. \
+                If not set, common defaults will be used depending on security: \
+                465 for TLS, 587 for STARTTLS, 25 otherwise.";
+        };
+        create property username -> std::str {
+            create annotation std::description :=
+                "Username to login as after connected to SMTP server.";
+        };
+        create property password -> std::str {
+            set secret := true;
+            create annotation std::description :=
+                "Password for login after connected to SMTP server.";
+        };
+        create required property security -> ext::auth::SMTPSecurity {
+            set default := ext::auth::SMTPSecurity.STARTTLSOrPlainText;
+            create annotation std::description :=
+                "Security mode of the connection to SMTP server. \
+                By default, initiate a STARTTLS upgrade if supported by the \
+                server, or fallback to PlainText.";
+        };
+        create required property validate_certs -> std::bool {
+            set default := true;
+            create annotation std::description :=
+                "Determines if SMTP server certificates are validated.";
+        };
+        create required property timeout_per_email -> std::duration {
+            set default := <std::duration>'60 seconds';
+            create annotation std::description :=
+                "Maximum time to send an email, including retry attempts.";
+        };
+        create required property timeout_per_attempt -> std::duration {
+            set default := <std::duration>'15 seconds';
+            create annotation std::description :=
+                "Maximum time for each SMTP request.";
         };
     };
 

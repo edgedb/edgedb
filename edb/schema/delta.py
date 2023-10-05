@@ -1276,6 +1276,7 @@ class CommandContext:
         self._modaliases = modaliases if modaliases is not None else {}
         self._localnames = localnames
         self.stdmode = stdmode
+        self.stable_ids = stdmode
         self.internal_schema_mode = internal_schema_mode
         self.testmode = testmode
         self.descriptive_mode = descriptive_mode
@@ -2975,7 +2976,7 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 
         props = self.get_resolved_attributes(schema, context)
         schema, self.scls = metaclass.create_in_schema(
-            schema, stdmode=context.stdmode, **props)
+            schema, stable_ids=context.stable_ids, **props)
 
         if not props.get('id'):
             # Record the generated ID.
@@ -3024,8 +3025,6 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
                 self.set_attribute_value('id', specified_id)
 
         self.set_attribute_value('builtin', context.stdmode)
-        if not self.has_attribute_value('builtin'):
-            self.set_attribute_value('builtin', context.stdmode)
         if not self.has_attribute_value('internal'):
             self.set_attribute_value('internal', context.internal_schema_mode)
         return schema
@@ -3137,7 +3136,7 @@ class CreateExternalObject(
 
         obj_id = props.get('id')
         if obj_id is None:
-            obj_id = metaclass._prepare_id(schema, context.stdmode, props)
+            obj_id = metaclass._prepare_id(schema, context.stable_ids, props)
             self.set_attribute_value('id', obj_id)
 
         self.scls = metaclass._create_from_id(obj_id)

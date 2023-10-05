@@ -1229,7 +1229,7 @@ def get_config_type_shape(
     shape = []
     seen: Set[str] = set()
 
-    stypes = [stype] + list(stype.descendants(schema))
+    stypes = [stype] + list(stype.ordered_descendants(schema))
 
     for t in stypes:
         t_name = t.get_name(schema)

@@ -467,7 +467,8 @@ class CompilerContext(compiler.CompilerContext[CompilerContextLevel]):
 
 
 RewriteKey = Tuple[uuid.UUID, bool]
-FullRewriteKey = Tuple[uuid.UUID, bool, Optional['irast.MutatingLikeStmt']]
+FullRewriteKey = Tuple[
+    uuid.UUID, bool, Optional[frozenset['irast.MutatingLikeStmt']]]
 
 
 class Environment:

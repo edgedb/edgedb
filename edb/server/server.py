@@ -337,6 +337,10 @@ class BaseServer:
     ) -> Any:
         return config.lookup(name, *configs, spec=self._config_settings)
 
+    @property
+    def config_settings(self) -> config.Spec:
+        return self._config_settings
+
     async def init(self):
         sys_config = self._get_sys_config()
         if not self._listen_hosts:
@@ -963,12 +967,11 @@ class BaseServer:
             ),
             instance_config=config.debug_serialize_config(
                 self._get_sys_config()),
-            compiler_pool=dict(
-                worker_pids=list(
-                    self._compiler_pool._workers.keys()  # type: ignore
-                ),
-                template_pid=self._compiler_pool.get_template_pid(),
-            ) if self._compiler_pool else None,
+            compiler_pool=(
+                self._compiler_pool.get_debug_info()
+                if self._compiler_pool
+                else None
+            ),
         )
 
     def get_report_config_typedesc(

@@ -34,6 +34,7 @@ from edb.ir import staeval as ireval
 from edb.ir import statypes as statypes
 from edb.ir import typeutils as irtyputils
 
+from edb.schema import constraints as s_constr
 from edb.schema import globals as s_globals
 from edb.schema import links as s_links
 from edb.schema import name as sn
@@ -49,8 +50,7 @@ from . import context
 from . import dispatch
 from . import inference
 from . import setgen
-from . import compile_ast_to_ir
-from . import options
+from . import typegen
 
 
 class SettingInfo(NamedTuple):
@@ -62,6 +62,7 @@ class SettingInfo(NamedTuple):
     backend_setting: str | None
     affects_compilation: bool
     is_system_config: bool
+    ptr: Optional[s_pointers.Pointer]
 
 
 @dispatch.compile.register
@@ -106,6 +107,10 @@ def compile_ConfigSet(
             )
         else:
             backend_expr = None
+
+    if info.ptr:
+        _enforce_pointer_constraints(
+            info.ptr, param_val, ctx=ctx, for_obj=False)
 
     config_set = irast.ConfigSet(
         name=info.param_name,
@@ -269,6 +274,14 @@ def _validate_config_object(
         if element.rptr.ptrref.shortname.name == 'id':
             continue
 
+        ptr = typegen.ptrcls_from_ptrref(
+            element.rptr.ptrref.real_material_ptr,
+            ctx=ctx,
+        )
+        if isinstance(ptr, s_pointers.Pointer):
+            _enforce_pointer_constraints(
+                ptr, element, ctx=ctx, for_obj=True)
+
         if (irtyputils.is_object(element.typeref)
                 and isinstance(element.expr, irast.InsertStmt)):
             _validate_config_object(element, scope=scope, ctx=ctx)
@@ -291,7 +304,41 @@ def _validate_global_op(
                        requires_restart=False,
                        backend_setting=None,
                        is_system_config=False,
-                       affects_compilation=False)
+                       affects_compilation=False,
+                       ptr=None)
+
+
+def _enforce_pointer_constraints(
+        ptr: s_pointers.Pointer, expr: irast.Set, *,
+        ctx: context.ContextLevel,
+        for_obj: bool) -> None:
+    constraints = ptr.get_constraints(ctx.env.schema)
+    for constraint in constraints.objects(ctx.env.schema):
+        if constraint.issubclass(
+            ctx.env.schema,
+            ctx.env.schema.get('std::exclusive', type=s_constr.Constraint),
+        ):
+            continue
+
+        with ctx.detached() as sctx:
+            sctx.partial_path_prefix = expr
+            sctx.anchors = ctx.anchors.copy()
+            sctx.anchors[qlast.Subject().name] = expr
+
+            final_expr = constraint.get_finalexpr(ctx.env.schema)
+            assert final_expr is not None and final_expr.qlast is not None
+            ir = dispatch.compile(final_expr.qlast, ctx=sctx)
+
+        result = ireval.evaluate(ir, schema=ctx.env.schema)
+        assert isinstance(result, irast.BooleanConstant)
+        if result.value != 'true':
+            if for_obj:
+                name = ptr.get_verbosename(ctx.env.schema, with_parent=True)
+            else:
+                name = repr(ptr.get_shortname(ctx.env.schema).name)
+            raise errors.ConfigurationError(
+                f'invalid setting value for {name}'
+            )
 
 
 def _validate_op(
@@ -323,6 +370,7 @@ def _validate_op(
 
     assert isinstance(cfg_host_type, s_objtypes.ObjectType)
     cfg_type = None
+    ptr = None
 
     if isinstance(expr, (qlast.ConfigSet, qlast.ConfigReset)):
         # TODO: Fix this. The problem is that it gets lost when serializing it
@@ -440,28 +488,6 @@ def _validate_op(
     else:
         affects_compilation = False
 
-    if isinstance(expr, qlast.ConfigSet):
-        constraints = ptr.get_constraints(ctx.env.schema)
-        for constraint in constraints.objects(ctx.env.schema):
-            subject = expr.expr
-            opts = options.CompilerOptions(
-                anchors={qlast.Subject().name: subject},
-                path_prefix_anchor=qlast.Subject().name,
-                apply_query_rewrites=False,
-                schema_object_context=type(constraint),
-            )
-            final_expr = constraint.get_finalexpr(ctx.env.schema)
-            assert final_expr is not None and final_expr.qlast is not None
-            ir = compile_ast_to_ir(
-                final_expr.qlast, ctx.env.schema, options=opts
-            )
-            result = ireval.evaluate(ir.expr, schema=ctx.env.schema)
-            assert isinstance(result, irast.BooleanConstant)
-            if result.value != 'true':
-                raise errors.ConfigurationError(
-                    f'invalid setting value for {name!r}'
-                )
-
     if system and expr.scope is not qltypes.ConfigScope.INSTANCE:
         raise errors.ConfigurationError(
             f'{name!r} is a system-level configuration parameter; '
@@ -474,4 +500,5 @@ def _validate_op(
                        requires_restart=requires_restart,
                        backend_setting=backend_setting,
                        is_system_config=is_system_config,
-                       affects_compilation=affects_compilation)
+                       affects_compilation=affects_compilation,
+                       ptr=ptr)
