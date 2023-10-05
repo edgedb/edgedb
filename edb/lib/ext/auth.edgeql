@@ -183,7 +183,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create property redirect_to_on_signup: std::str {
             create annotation std::description :=
                 "The url to redirect to after a new user signs up. \
-                If not set 'redirect_to' will be used instead.";
+                If not set, 'redirect_to' will be used instead.";
         };
 
         create property app_name: std::str {
