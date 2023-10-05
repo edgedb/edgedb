@@ -27,13 +27,15 @@ import http.server
 import threading
 import argon2
 import os
+import pickle
+import re
 import hashlib
 
 from typing import Any, Callable
 from jwcrypto import jwt, jwk
 
 from edb.testbase import http as tb
-
+from edb.common import assert_data_shape
 
 ph = argon2.PasswordHasher()
 
@@ -175,6 +177,10 @@ APPLE_DISCOVERY_DOCUMENT = {
         "transfer_sub",
     ],
 }
+
+
+def utcnow():
+    return datetime.datetime.now(datetime.timezone.utc)
 
 
 class MockHttpServerHandler(http.server.BaseHTTPRequestHandler):
@@ -338,6 +344,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::token_time_to_live := <duration>'24 hours';
+
+        CONFIGURE CURRENT DATABASE SET
+        ext::auth::SMTPConfig::sender := 'noreply@example.com';
 
         CONFIGURE CURRENT DATABASE
         INSERT ext::auth::OAuthClientConfig {{
@@ -593,12 +602,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         with MockAuthProvider(), self.http_con() as http_con:
             signing_key = await self.get_signing_key()
 
-            expires_at = datetime.datetime.utcnow() + datetime.timedelta(
+            expires_at = utcnow() + datetime.timedelta(
                 minutes=5
             )
             missing_provider_state_claims = {
                 "iss": self.http_addr,
-                "exp": expires_at.astimezone().timestamp(),
+                "exp": expires_at.timestamp(),
             }
             state_token = self.generate_state_value(
                 missing_provider_state_claims, signing_key
@@ -622,13 +631,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 k=base64.b64encode(("abcd" * 8).encode()).decode(), kty="oct"
             )
 
-            expires_at = datetime.datetime.utcnow() + datetime.timedelta(
+            expires_at = utcnow() + datetime.timedelta(
                 minutes=5
             )
             missing_provider_state_claims = {
                 "iss": self.http_addr,
                 "provider": provider_id,
-                "exp": expires_at.astimezone().timestamp(),
+                "exp": expires_at.timestamp(),
             }
             state_token_value = self.generate_state_value(
                 missing_provider_state_claims, signing_key
@@ -646,13 +655,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         with MockAuthProvider(), self.http_con() as http_con:
             signing_key = await self.get_signing_key()
 
-            expires_at = datetime.datetime.utcnow() + datetime.timedelta(
+            expires_at = utcnow() + datetime.timedelta(
                 minutes=5
             )
             state_claims = {
                 "iss": self.http_addr,
                 "provider": "beepboopbeep",
-                "exp": expires_at.astimezone().timestamp(),
+                "exp": expires_at.timestamp(),
             }
             state_token = self.generate_state_value(state_claims, signing_key)
 
@@ -673,7 +682,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             client_id = provider_config.client_id
             client_secret = GITHUB_SECRET
 
-            now = datetime.datetime.utcnow()
+            now = utcnow()
             token_request = (
                 "POST",
                 "https://github.com",
@@ -733,7 +742,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             state_claims = {
                 "iss": self.http_addr,
                 "provider": str(provider_id),
-                "exp": expires_at.astimezone().timestamp(),
+                "exp": expires_at.timestamp(),
                 "redirect_to": f"{self.http_addr}/some/path",
                 "challenge": challenge,
             }
@@ -790,10 +799,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(session_claims.get("iss"), str(self.http_addr))
             tomorrow = now + datetime.timedelta(hours=25)
             self.assertTrue(
-                session_claims.get("exp") > now.astimezone().timestamp()
+                session_claims.get("exp") > now.timestamp()
             )
             self.assertTrue(
-                session_claims.get("exp") < tomorrow.astimezone().timestamp()
+                session_claims.get("exp") < tomorrow.timestamp()
             )
 
             pkce_object = await self.con.query(
@@ -852,7 +861,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             provider_id = provider_config.provider_id
 
-            now = datetime.datetime.utcnow()
+            now = utcnow()
             token_request = (
                 "POST",
                 "https://github.com",
@@ -877,7 +886,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             state_claims = {
                 "iss": self.http_addr,
                 "provider": str(provider_id),
-                "exp": expires_at.astimezone().timestamp(),
+                "exp": expires_at.timestamp(),
                 "redirect_to": f"{self.http_addr}/some/path",
             }
             state_token = self.generate_state_value(state_claims, signing_key)
@@ -918,7 +927,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             provider_id = provider_config.provider_id
 
-            now = datetime.datetime.utcnow()
+            now = utcnow()
             token_request = (
                 "POST",
                 "https://github.com",
@@ -943,7 +952,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             state_claims = {
                 "iss": self.http_addr,
                 "provider": str(provider_id),
-                "exp": expires_at.astimezone().timestamp(),
+                "exp": expires_at.timestamp(),
                 "redirect_to": f"{self.http_addr}/some/path",
             }
             state_token = self.generate_state_value(state_claims, signing_key)
@@ -981,7 +990,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             client_id = provider_config.client_id
             client_secret = GOOGLE_SECRET
 
-            now = datetime.datetime.utcnow()
+            now = utcnow()
 
             discovery_request = (
                 "GET",
@@ -1069,7 +1078,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             state_claims = {
                 "iss": self.http_addr,
                 "provider": str(provider_id),
-                "exp": expires_at.astimezone().timestamp(),
+                "exp": expires_at.timestamp(),
                 "redirect_to": f"{self.http_addr}/some/path",
                 "challenge": challenge,
             }
@@ -1122,10 +1131,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(session_claims.get("iss"), str(self.http_addr))
             tomorrow = now + datetime.timedelta(hours=25)
             self.assertTrue(
-                session_claims.get("exp") > now.astimezone().timestamp()
+                session_claims.get("exp") > now.timestamp()
             )
             self.assertTrue(
-                session_claims.get("exp") < tomorrow.astimezone().timestamp()
+                session_claims.get("exp") < tomorrow.timestamp()
             )
 
     async def test_http_auth_ext_google_authorize_01(self):
@@ -1281,7 +1290,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             client_id = provider_config.client_id
             client_secret = AZURE_SECRET
 
-            now = datetime.datetime.utcnow()
+            now = utcnow()
 
             discovery_request = (
                 "GET",
@@ -1369,7 +1378,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             state_claims = {
                 "iss": self.http_addr,
                 "provider": str(provider_id),
-                "exp": expires_at.astimezone().timestamp(),
+                "exp": expires_at.timestamp(),
                 "redirect_to": f"{self.http_addr}/some/path",
                 "challenge": challenge,
             }
@@ -1493,7 +1502,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             client_id = provider_config.client_id
             client_secret = APPLE_SECRET
 
-            now = datetime.datetime.utcnow()
+            now = utcnow()
 
             discovery_request = (
                 "GET",
@@ -1581,7 +1590,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             state_claims = {
                 "iss": self.http_addr,
                 "provider": str(provider_id),
-                "exp": expires_at.astimezone().timestamp(),
+                "exp": expires_at.timestamp(),
                 "redirect_to": f"{self.http_addr}/some/path",
                 "challenge": challenge,
             }
@@ -1680,13 +1689,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             session_claims = await self.extract_session_claims(headers)
             self.assertEqual(session_claims.get("sub"), str(identity[0].id))
             self.assertEqual(session_claims.get("iss"), str(self.http_addr))
-            now = datetime.datetime.utcnow()
+            now = utcnow()
             tomorrow = now + datetime.timedelta(hours=25)
             self.assertTrue(
-                session_claims.get("exp") > now.astimezone().timestamp()
+                session_claims.get("exp") > now.timestamp()
             )
             self.assertTrue(
-                session_claims.get("exp") < tomorrow.astimezone().timestamp()
+                session_claims.get("exp") < tomorrow.timestamp()
             )
 
             password_credential = await self.con.query(
@@ -1986,17 +1995,17 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 },
             )
 
-            now = datetime.datetime.utcnow()
+            now = utcnow()
             tomorrow = now + datetime.timedelta(hours=25)
             session_claims = await self.extract_jwt_claims(auth_token)
 
             self.assertEqual(session_claims.get("sub"), str(identity[0].id))
             self.assertEqual(session_claims.get("iss"), str(self.http_addr))
             self.assertTrue(
-                session_claims.get("exp") > now.astimezone().timestamp()
+                session_claims.get("exp") > now.timestamp()
             )
             self.assertTrue(
-                session_claims.get("exp") < tomorrow.astimezone().timestamp()
+                session_claims.get("exp") < tomorrow.timestamp()
             )
 
             # Attempt to authenticate with wrong password
@@ -2244,3 +2253,408 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             self.assertEqual(status, 400)
+
+    async def test_http_auth_ext_local_password_forgot_form_01(self):
+        with self.http_con() as http_con:
+            provider_config = await self.get_password_client_config_by_provider(
+                "password"
+            )
+            provider_id = provider_config.provider_id
+
+            # Register a new user
+            form_data = {
+                "provider": provider_id,
+                "email": "test_auth_forgot@example.com",
+                "password": "test_auth_password",
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            # Send reset
+            form_data = {
+                "provider": provider_id,
+                "reset_url": "https://example.com/reset-password",
+                "email": form_data['email'],
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            body, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="send_reset_email",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 200)
+
+            identity = await self.con.query(
+                """
+                with module ext::auth
+                SELECT LocalIdentity
+                FILTER .<identity[is EmailPasswordFactor].email = <str>$email
+                """,
+                email=form_data["email"],
+            )
+            self.assertEqual(len(identity), 1)
+
+            data = json.loads(body)
+
+            assert_data_shape.assert_data_shape(data, {
+                "email_sent": "test_auth_forgot@example.com",
+            }, self.fail)
+
+            test_file = os.environ.get(
+                "EDGEDB_TEST_EMAIL_FILE", "/tmp/edb-test-email.pickle"
+            )
+            with open(test_file, "rb") as f:
+                email_args = pickle.load(f)
+            self.assertEqual(email_args["sender"], "noreply@example.com")
+            self.assertEqual(
+                email_args["recipients"], "test_auth_forgot@example.com"
+            )
+            html_msg = email_args["message"].get_payload(0).get_payload(1)
+            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            match = re.search(r'<a href=[\'"]?([^\'" >]+)', html_email)
+            self.assertIsNotNone(match)
+            reset_url = match.group(1)
+            self.assertTrue(
+                reset_url.startswith(form_data['reset_url'] + '?reset_token=')
+            )
+
+            claims = await self.extract_jwt_claims(
+                reset_url.split('=', maxsplit=1)[1]
+            )
+            self.assertEqual(claims.get("sub"), str(identity[0].id))
+            self.assertEqual(claims.get("iss"), str(self.http_addr))
+            now = utcnow()
+            tenMinutesLater = now + datetime.timedelta(minutes=10)
+            self.assertTrue(
+                claims.get("exp") > now.timestamp()
+            )
+            self.assertTrue(
+                claims.get("exp") < tenMinutesLater.timestamp()
+            )
+
+            password_credential = await self.con.query(
+                """
+                SELECT ext::auth::EmailPasswordFactor { password_hash }
+                FILTER .identity.id = <uuid>$identity
+                """,
+                identity=identity[0].id,
+            )
+            self.assertTrue(
+                base64.b64encode(hashlib.sha256(
+                    password_credential[0].password_hash.encode()
+                ).digest()).decode() == claims.get('jti')
+            )
+
+            # Send reset with redirect_to
+            _, redirect_headers, redirect_status = self.http_con_request(
+                http_con,
+                None,
+                path="send_reset_email",
+                method="POST",
+                body=urllib.parse.urlencode({
+                    **form_data,
+                    "redirect_to": "https://example.com/forgot-password"
+                }),
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(redirect_status, 302)
+            location = redirect_headers.get("location")
+            assert location is not None
+            parsed_location = urllib.parse.urlparse(location)
+            parsed_query = urllib.parse.parse_qs(parsed_location.query)
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        parsed_location.scheme,
+                        parsed_location.netloc,
+                        parsed_location.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                "https://example.com/forgot-password"
+            )
+
+            assert_data_shape.assert_data_shape(parsed_query, {
+                "email_sent": ["test_auth_forgot@example.com"],
+            }, self.fail)
+
+            # Try sending reset for non existent user
+            _, _, error_status = self.http_con_request(
+                http_con,
+                None,
+                path="send_reset_email",
+                method="POST",
+                body=urllib.parse.urlencode({
+                    **form_data,
+                    "email": "invalid@example.com",
+                }).encode(),
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(error_status, 403)
+
+            # Try sending reset for non existent user (with redirect_to)
+            _, error_headers, error_status = self.http_con_request(
+                http_con,
+                None,
+                path="send_reset_email",
+                method="POST",
+                body=urllib.parse.urlencode({
+                    **form_data,
+                    "email": "invalid@example.com",
+                    "redirect_to": "https://example.com/forgot-password"
+                }).encode(),
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(error_status, 302)
+            location = error_headers.get("location")
+            assert location is not None
+            parsed_location = urllib.parse.urlparse(location)
+            parsed_query = urllib.parse.parse_qs(parsed_location.query)
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        parsed_location.scheme,
+                        parsed_location.netloc,
+                        parsed_location.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                "https://example.com/forgot-password"
+            )
+
+            self.assertEqual(
+                parsed_query.get("error"),
+                ["Could not find an Identity matching the "
+                 "provided credentials"],
+            )
+
+            # Try sending reset for non existent user
+            # (with redirect_on_failure)
+            _, error_headers, error_status = self.http_con_request(
+                http_con,
+                None,
+                path="send_reset_email",
+                method="POST",
+                body=urllib.parse.urlencode({
+                    **form_data,
+                    "email": "invalid@example.com",
+                    "redirect_to": "https://example.com/forgot-password",
+                    "redirect_on_failure":
+                        "https://example.com/forgot-password-failed"
+                }).encode(),
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(error_status, 302)
+            location = error_headers.get("location")
+            assert location is not None
+            parsed_location = urllib.parse.urlparse(location)
+            parsed_query = urllib.parse.parse_qs(parsed_location.query)
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        parsed_location.scheme,
+                        parsed_location.netloc,
+                        parsed_location.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                "https://example.com/forgot-password-failed"
+            )
+
+            self.assertEqual(
+                parsed_query.get("error"),
+                ["Could not find an Identity matching the "
+                 "provided credentials"],
+            )
+
+    async def test_http_auth_ext_local_password_reset_form_01(self):
+        with self.http_con() as http_con:
+            provider_config = await self.get_password_client_config_by_provider(
+                "password"
+            )
+            provider_id = provider_config.provider_id
+
+            # Register a new user
+            form_data = {
+                "provider": provider_id,
+                "email": "test_auth_forgot@example.com",
+                "password": "test_auth_password",
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            # Send reset
+            form_data = {
+                "provider": provider_id,
+                "reset_url": "https://example.com/reset-password",
+                "email": form_data['email'],
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="send_reset_email",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 200)
+
+            test_file = os.environ.get(
+                "EDGEDB_TEST_EMAIL_FILE", "/tmp/edb-test-email.pickle"
+            )
+            with open(test_file, "rb") as f:
+                email_args = pickle.load(f)
+            self.assertEqual(email_args["sender"], "noreply@example.com")
+            self.assertEqual(
+                email_args["recipients"], "test_auth_forgot@example.com"
+            )
+            html_msg = email_args["message"].get_payload(0).get_payload(1)
+            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            match = re.search(r'<a href=[\'"]?([^\'" >]+)', html_email)
+            self.assertIsNotNone(match)
+            reset_url = match.group(1)
+            self.assertTrue(
+                reset_url.startswith(form_data['reset_url'] + '?reset_token=')
+            )
+
+            reset_token = reset_url.split('=', maxsplit=1)[1]
+
+            # Update password
+            auth_data = {
+                "provider": provider_id,
+                "reset_token": reset_token,
+                "password": "new password",
+            }
+            auth_data_encoded = urllib.parse.urlencode(auth_data).encode()
+
+            body, headers, status = self.http_con_request(
+                http_con,
+                None,
+                path="reset_password",
+                method="POST",
+                body=auth_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 200)
+
+            identity = await self.con.query(
+                """
+                with module ext::auth
+                SELECT LocalIdentity
+                FILTER .<identity[is EmailPasswordFactor].email
+                        = 'test_auth_forgot@example.com'
+                """
+            )
+
+            self.assertEqual(len(identity), 1)
+
+            auth_token = self.maybe_get_auth_token(headers)
+            assert auth_token is not None
+
+            self.assertEqual(
+                json.loads(body),
+                {
+                    "identity_id": str(identity[0].id),
+                    "auth_token": auth_token,
+                },
+            )
+
+            now = utcnow()
+            tomorrow = now + datetime.timedelta(hours=25)
+            session_claims = await self.extract_jwt_claims(auth_token)
+
+            self.assertEqual(session_claims.get("sub"), str(identity[0].id))
+            self.assertEqual(session_claims.get("iss"), str(self.http_addr))
+            self.assertTrue(
+                session_claims.get("exp") > now.timestamp()
+            )
+            self.assertTrue(
+                session_claims.get("exp") < tomorrow.timestamp()
+            )
+
+            # Try to re-use the reset token
+
+            _, _, error_status = self.http_con_request(
+                http_con,
+                None,
+                path="reset_password",
+                method="POST",
+                body=auth_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(error_status, 400)
+
+            # Try to re-use the reset token (with redirect_on_failure)
+
+            _, error_headers, error_status = self.http_con_request(
+                http_con,
+                None,
+                path="reset_password",
+                method="POST",
+                body=urllib.parse.urlencode({
+                    **auth_data,
+                    "redirect_to": "https://example.com/",
+                    "redirect_on_failure": "https://example.com/reset-password"
+                }).encode(),
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(error_status, 302)
+            location = error_headers.get("location")
+            assert location is not None
+            parsed_location = urllib.parse.urlparse(location)
+            parsed_query = urllib.parse.parse_qs(parsed_location.query)
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        parsed_location.scheme,
+                        parsed_location.netloc,
+                        parsed_location.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                "https://example.com/reset-password"
+            )
+
+            self.assertEqual(
+                parsed_query.get("error"),
+                ["Invalid 'reset_token'"],
+            )

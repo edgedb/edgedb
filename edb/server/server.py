@@ -337,6 +337,10 @@ class BaseServer:
     ) -> Any:
         return config.lookup(name, *configs, spec=self._config_settings)
 
+    @property
+    def config_settings(self) -> config.Spec:
+        return self._config_settings
+
     async def init(self):
         sys_config = self._get_sys_config()
         if not self._listen_hosts:
