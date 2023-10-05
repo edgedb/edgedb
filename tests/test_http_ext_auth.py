@@ -2214,7 +2214,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             # Register a new user
             form_data = {
                 "provider": provider_name,
-                "email": f"{uuid.uuid4}@example.com",
+                "email": f"{uuid.uuid4()}@example.com",
                 "password": "test_auth_password",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -2467,7 +2467,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             # Register a new user
             form_data = {
                 "provider": provider_name,
-                "email": "test_auth_forgot@example.com",
+                "email": f"{uuid.uuid4()}@example.com",
                 "password": "test_auth_password",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -2507,7 +2507,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], "noreply@example.com")
             self.assertEqual(
-                email_args["recipients"], "test_auth_forgot@example.com"
+                email_args["recipients"], form_data["email"]
             )
             html_msg = email_args["message"].get_payload(0).get_payload(1)
             html_email = html_msg.get_payload(decode=True).decode("utf-8")
@@ -2544,8 +2544,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 with module ext::auth
                 SELECT LocalIdentity
                 FILTER .<identity[is EmailPasswordFactor].email
-                        = 'test_auth_forgot@example.com'
-                """
+                        = <str>$email
+                """,
+                email=form_data["email"]
             )
 
             self.assertEqual(len(identity), 1)
