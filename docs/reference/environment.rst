@@ -336,8 +336,6 @@ Maps directly to the ``edgedb-server`` flags ``--tls-cert-file`` and
 ``--tls-key-file``.
 
 
-.. _ref_reference_docer_edgedb_server_tls_cert_mode:
-
 EDGEDB_SERVER_TLS_CERT_MODE
 ...........................
 
