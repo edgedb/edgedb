@@ -2214,7 +2214,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             # Register a new user
             form_data = {
                 "provider": provider_name,
-                "email": "test_auth_forgot@example.com",
+                "email": f"{uuid.uuid4}@example.com",
                 "password": "test_auth_password",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -2262,7 +2262,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             assert_data_shape.assert_data_shape(
                 data,
                 {
-                    "email_sent": "test_auth_forgot@example.com",
+                    "email_sent": form_data["email"],
                 },
                 self.fail,
             )
@@ -2274,7 +2274,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], "noreply@example.com")
             self.assertEqual(
-                email_args["recipients"], "test_auth_forgot@example.com"
+                email_args["recipients"], form_data["email"]
             )
             html_msg = email_args["message"].get_payload(0).get_payload(1)
             html_email = html_msg.get_payload(decode=True).decode("utf-8")
@@ -2348,7 +2348,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             assert_data_shape.assert_data_shape(
                 parsed_query,
                 {
-                    "email_sent": ["test_auth_forgot@example.com"],
+                    "email_sent": [form_data["email"]],
                 },
                 self.fail,
             )
