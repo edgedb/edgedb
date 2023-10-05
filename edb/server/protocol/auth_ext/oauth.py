@@ -38,10 +38,13 @@ class Client:
             *args, edgedb_test_url=base_url, **kwargs
         )
 
-        provider_args = self._get_provider_config(provider_name)
+        (client_id, secret, additional_scope) = self._get_provider_config(
+            provider_name
+        )
+        provider_args = (client_id, secret)
         provider_kwargs = {
             "http_factory": http_factory,
-            "additional_scope": self._get_additional_scope(provider_name),
+            "additional_scope": additional_scope,
         }
 
         match provider_name:
@@ -105,25 +108,15 @@ select (insert ext::auth::Identity {
 
         return data.Identity(**result_json[0])
 
-    def _get_provider_config(self, provider_name: str) -> tuple[str, str]:
+    def _get_provider_config(
+        self, provider_name: str
+    ) -> tuple[str, str, str | None]:
         provider_client_config = util.get_config(
             self.db, "ext::auth::AuthConfig::providers", frozenset
         )
         for cfg in provider_client_config:
             if cfg.name == provider_name:
-                return (cfg.client_id, cfg.secret)
-
-        raise errors.MissingConfiguration(
-            provider_name, "Provider is not configured"
-        )
-
-    def _get_additional_scope(self, provider_name: str) -> str:
-        provider_client_config = util.get_config(
-            self.db, "ext::auth::AuthConfig::providers", frozenset
-        )
-        for cfg in provider_client_config:
-            if cfg.name == provider_name:
-                return cfg.additional_scope
+                return (cfg.client_id, cfg.secret, cfg.additional_scope)
 
         raise errors.MissingConfiguration(
             provider_name, "Provider is not configured"
