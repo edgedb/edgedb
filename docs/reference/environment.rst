@@ -26,6 +26,13 @@ variants.
 Supported variables
 -------------------
 
+EDGEDB_DOCKER_ABORT_CODE
+........................
+
+If the process fails, the arguments are logged to stderr and the script is
+terminated with this exit code. Default is ``1``.
+
+
 EDGEDB_DOCKER_APPLY_MIGRATIONS
 ..............................
 
@@ -33,11 +40,78 @@ The container will attempt to apply migrations in ``dbschema/migrations``
 unless this variable is set to ``never``. Default is ``always``.
 
 
+EDGEDB_DOCKER_BOOTSTRAP_TIMEOUT_SEC
+...................................
+
+Sets the number of seconds to wait for instance bootstrapping to complete
+before timing out. Default is ``300``.
+
+
 EDGEDB_DOCKER_LOG_LEVEL
 .......................
 
-Change the logging level for the docker container. Default setting is ``info``.
-Other levels are ``trace``, ``debug``, ``warning``, and ``error``.
+Change the logging level for the docker container. Default is ``info``. Other
+levels are ``trace``, ``debug``, ``warning``, and ``error``.
+
+
+EDGEDB_DOCKER_SHOW_GENERATED_CERT
+.................................
+
+Shows the generated TLS certificate in console output. Default is ``always``.
+May instead be set to ``never``.
+
+
+.. _ref_reference_envvar_admin_ui:
+
+EDGEDB_SERVER_ADMIN_UI
+......................
+
+Set to ``enabled`` to enable the web-based admininstrative UI for the instance.
+
+Maps directly to the ``edgedb-server`` flag ``--admin-ui``.
+
+
+.. _ref_reference_docker_edgedb_server_backend_dsn:
+
+EDGEDB_SERVER_BACKEND_DSN
+.........................
+
+Specifies a PostgreSQL connection string in the `URI format`_.  If set, the
+PostgreSQL cluster specified by the URI is used instead of the builtin
+PostgreSQL server.  Cannot be specified at the same time with
+``EDGEDB_SERVER_DATADIR``.
+
+Maps directly to the ``edgedb-server`` flag ``--backend-dsn``. The ``*_FILE``
+and ``*_ENV`` variants are also supported.
+
+.. _URI format:
+   https://www.postgresql.org/docs/13/libpq-connect.html#id-1.7.3.8.3.6
+
+
+EDGEDB_SERVER_BINARY
+....................
+
+Sets the EdgeDB server binary to run. Default is ``edgedb-server``.
+
+
+EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY
+......................................
+
+Specifies the security mode of the server's binary endpoint. When set to
+``optional``, non-TLS connections are allowed. Default is ``tls``.
+
+.. warning::
+
+    Disabling TLS is not recommended in production.
+
+
+EDGEDB_SERVER_BIND_ADDRESS
+..........................
+
+Specifies the network interface on which EdgeDB will listen.
+
+Maps directly to the ``edgedb-server`` flag ``--bind-address``. The ``*_FILE``
+and ``*_ENV`` variants are also supported.
 
 
 EDGEDB_SERVER_BOOTSTRAP_COMMAND
@@ -65,6 +139,60 @@ Maps directly to the ``edgedb-server`` flag ``--default-auth-method``. The
 ``*_FILE`` and ``*_ENV`` variants are also supported.
 
 
+EDGEDB_SERVER_BOOTSTRAP_COMMAND_FILE
+....................................
+
+Run the script when initializing the database. The script is run by the default
+user within the default database. May be used with or without
+``EDGEDB_SERVER_BOOTSTRAP_ONLY``.
+
+
+EDGEDB_SERVER_BOOTSTRAP_ONLY
+............................
+
+When set, bootstrap the database cluster and exit. Not set by default.
+
+
+EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE
+...................................
+Deprecated in image version 2.8: use ``EDGEDB_SERVER_BOOTSTRAP_COMMAND_FILE``
+instead.
+
+Run the script when initializing the database. The script is run by the default
+user within the default database.
+
+
+EDGEDB_SERVER_COMPILER_POOL_MODE
+................................
+
+Choose a mode for the compiler pool to scale. ``fixed`` means the pool will not
+scale and sticks to ``EDGEDB_SERVER_COMPILER_POOL_SIZE``, while ``on_demand``
+means the pool will maintain at least 1 worker and automatically scale up (to
+``EDGEDB_SERVER_COMPILER_POOL_SIZE`` workers ) and down to the demand.
+
+Default is ``fixed`` in production mode and ``on_demand`` in development mode.
+
+
+EDGEDB_SERVER_COMPILER_POOL_SIZE
+................................
+
+When ``EDGEDB_SERVER_COMPILER_POOL_MODE`` is ``fixed``, this setting is the
+exact size of the compiler pool. When ``EDGEDB_SERVER_COMPILER_POOL_MODE`` is
+``on_demand``, this will serve as the maximum size of the compiler pool.
+
+
+.. _ref_reference_docer_edgedb_server_datadir:
+
+EDGEDB_SERVER_DATADIR
+.....................
+
+Specifies a path where the database files are located.  Default is
+``/var/lib/edgedb/data``.  Cannot be specified at the same time with
+``EDGEDB_SERVER_BACKEND_DSN``.
+
+Maps directly to the ``edgedb-server`` flag ``--data-dir``.
+
+
 EDGEDB_SERVER_DEFAULT_AUTH_METHOD
 .................................
 
@@ -81,174 +209,36 @@ Use at your own risk and only for development and testing.
 The ``*_FILE`` and ``*_ENV`` variants are also supported.
 
 
-EDGEDB_SERVER_TLS_CERT_MODE
-...........................
+EDGEDB_SERVER_EMIT_SERVER_STATUS
+................................
 
-Specifies what to do when the TLS certificate and key are either not specified
-or are missing.  When set to ``require_file``, the TLS certificate and key must
-be specified in the ``EDGEDB_SERVER_TLS_CERT`` and ``EDGEDB_SERVER_TLS_KEY``
-variables and both must exist.  When set to ``generate_self_signed`` a new
-self-signed certificate and private key will be generated and placed in the
-path specified by ``EDGEDB_SERVER_TLS_CERT`` and ``EDGEDB_SERVER_TLS_KEY``, if
-those are set, otherwise the generated certificate and key are stored as
-``edbtlscert.pem`` and ``edbprivkey.pem`` in ``EDGEDB_SERVER_DATADIR``, or, if
-``EDGEDB_SERVER_DATADIR`` is not set then they will be placed in
-``/etc/ssl/edgedb``.
-
-The default is ``generate_self_signed`` when
-``EDGEDB_SERVER_SECURITY=insecure_dev_mode``. Otherwise the default is
-``require_file``.
-
-Maps directly to the ``edgedb-server`` flag ``--tls-cert-mode``. The ``*_FILE``
-and ``*_ENV`` variants are also supported.
+Instruct the server to emit changes in status to *DEST*, where *DEST* is a URI
+specifying a file (``file://<path>``), or a file descriptor
+(``fd://<fileno>``).  If the URI scheme is not specified, ``file://`` is
+assumed.
 
 
-EDGEDB_SERVER_TLS_CERT_FILE/EDGEDB_SERVER_TLS_KEY_FILE
-......................................................
+EDGEDB_SERVER_EXTRA_ARGS
+........................
 
-The TLS certificate and private key files, exclusive with
-``EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed``.
-
-Maps directly to the ``edgedb-server`` flags ``--tls-cert-file`` and
-``--tls-key-file``.
-
-
-EDGEDB_SERVER_SECURITY
-......................
-
-When set to ``insecure_dev_mode``, sets ``EDGEDB_SERVER_DEFAULT_AUTH_METHOD``
-to ``Trust`` (see above), and ``EDGEDB_SERVER_TLS_CERT_MODE`` to
-``generate_self_signed`` (unless an explicit TLS certificate is specified).
-Finally, if this option is set, the server will accept plaintext HTTP
-connections.
-
-.. warning::
-
-    Disabling TLS is not recommended in production.
-
-Maps directly to the ``edgedb-server`` flag ``--security``.
-
-
-EDGEDB_SERVER_PORT
-..................
-
-Specifies the network port on which EdgeDB will listen.  The default is
-``5656``.
-
-Maps directly to the ``edgedb-server`` flag ``--port``. The ``*_FILE`` and
-``*_ENV`` variants are also supported.
-
-
-EDGEDB_SERVER_BIND_ADDRESS
-..........................
-
-Specifies the network interface on which EdgeDB will listen.
-
-Maps directly to the ``edgedb-server`` flag ``--bind-address``. The ``*_FILE``
-and ``*_ENV`` variants are also supported.
-
-
-.. _ref_reference_docer_edgedb_server_datadir:
-
-
-EDGEDB_SERVER_DATADIR
-.....................
-
-Specifies a path where the database files are located.  Defaults to
-``/var/lib/edgedb/data``.  Cannot be specified at the same time with
-``EDGEDB_SERVER_BACKEND_DSN``.
-
-Maps directly to the ``edgedb-server`` flag ``--data-dir``.
-
-
-.. _ref_reference_docker_edgedb_server_backend_dsn:
-
-
-EDGEDB_SERVER_BACKEND_DSN
-.........................
-
-Specifies a PostgreSQL connection string in the `URI format`_.  If set, the
-PostgreSQL cluster specified by the URI is used instead of the builtin
-PostgreSQL server.  Cannot be specified at the same time with
-``EDGEDB_SERVER_DATADIR``.
-
-Maps directly to the ``edgedb-server`` flag ``--backend-dsn``. The ``*_FILE``
-and ``*_ENV`` variants are also supported.
-
-.. _URI format:
-   https://www.postgresql.org/docs/13/libpq-connect.html#id-1.7.3.8.3.6
-
-
-EDGEDB_SERVER_RUNSTATE_DIR
-..........................
-
-Specifies a path where EdgeDB will place its Unix socket and other transient
-files.
-
-Maps directly to the ``edgedb-server`` flag ``--runstate-dir``.
-
-
-.. _ref_reference_envvar_admin_ui:
-
-EDGEDB_SERVER_ADMIN_UI
-......................
-
-Set to ``enabled`` to enable the web-based admininstrative UI for the instance.
-
-Maps directly to the ``edgedb-server`` flag ``--admin-ui``.
+Additional arguments to pass when starting the EdgeDB server.
 
 
 EDGEDB_SERVER_HTTP_ENDPOINT_SECURITY
 ....................................
 
 Specifies the security mode of server binary endpoint. When set to ``optional``,
-non-TLS connections are allowed. The default is ``tls``.
+non-TLS connections are allowed. Default is ``tls``.
 
 .. warning::
 
     Disabling TLS is not recommended in production.
 
 
-EDGEDB_SERVER_TENANT_ID
-.......................
+EDGEDB_SERVER_INSTANCE_NAME
+...........................
 
-Specifies the tenant ID of this server when hosting multiple EdgeDB instances
-on one Postgres cluster. Must be an alphanumeric ASCII string, maximum 10
-characters long.
-
-
-EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE
-...................................
-Deprecated in image version 2.8: use ``EDGEDB_SERVER_BOOTSTRAP_COMMAND_FILE``
-instead.
-
-Run the script when initializing the database. The script is run by the default
-user within the default database.
-
-
-EDGEDB_SERVER_BOOTSTRAP_COMMAND_FILE
-....................................
-
-Run the script when initializing the database. The script is run by the default
-user within the default database. May be used with or without
-``EDGEDB_SERVER_BOOTSTRAP_ONLY``.
-
-
-EDGEDB_SERVER_BOOTSTRAP_ONLY
-............................
-
-Bootstrap the database cluster and exit.
-
-
-EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY
-......................................
-
-Specifies the security mode of the server's binary endpoint. When set to
-``optional``, non-TLS connections are allowed. The default is ``tls``.
-
-.. warning::
-
-    Disabling TLS is not recommended in production.
+Specify the server instance name.
 
 
 EDGEDB_SERVER_JWS_KEY_FILE
@@ -259,50 +249,11 @@ JWT signatures. The file could also contain a private key to sign JWT for local
 testing.
 
 
-EDGEDB_SERVER_EMIT_SERVER_STATUS
-................................
-
-Instruct the server to emit changes in status to *DEST*, where *DEST* is a URI
-specifying a file (``file://<path>``), or a file descriptor
-(``fd://<fileno>``).  If the URI scheme is not specified, ``file://`` is
-assumed.
-
-
-EDGEDB_SERVER_INSTANCE_NAME
-...........................
-
-Specify the server instance name.
-
-
 EDGEDB_SERVER_LOG_LEVEL
 .......................
 
 Set the logging level. Default is ``info``. Other possible values are
 ``debug``, ``warn``, ``error``, and ``silent``.
-
-
-EDGEDB_SERVER_COMPILER_POOL_MODE
-................................
-
-Choose a mode for the compiler pool to scale. ``fixed`` means the pool will not
-scale and sticks to ``EDGEDB_SERVER_COMPILER_POOL_SIZE``, while ``on_demand``
-means the pool will maintain at least 1 worker and automatically scale up (to
-``EDGEDB_SERVER_COMPILER_POOL_SIZE`` workers ) and down to the demand. Defaults
-to "fixed" in production mode and "on_demand" in development mode.
-
-
-EDGEDB_SERVER_COMPILER_POOL_SIZE
-................................
-
-When ``EDGEDB_SERVER_COMPILER_POOL_MODE`` is ``fixed``, this setting is the
-exact size of the compiler pool. When ``EDGEDB_SERVER_COMPILER_POOL_MODE`` is
-``on_demand``, this will serve as the maximum size of the compiler pool.
-
-
-EDGEDB_SERVER_EXTRA_ARGS
-........................
-
-Additional arguments to pass when starting the EdgeDB server.
 
 
 EDGEDB_SERVER_PASSWORD
@@ -328,12 +279,38 @@ If ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` is set, this variable will be ignored.
 The ``*_FILE`` and ``*_ENV`` variants are also supported.
 
 
-EDGEDB_SERVER_USER
+EDGEDB_SERVER_PORT
 ..................
 
-If set to anything other than the default username (``edgedb``), the user will
-be created. The user defined here will be the one assigned the password set in
-``EDGEDB_SERVER_PASSWORD`` or the hash set in ``EDGEDB_SERVER_PASSWORD_HASH``.
+Specifies the network port on which EdgeDB will listen. Default is ``5656``.
+
+Maps directly to the ``edgedb-server`` flag ``--port``. The ``*_FILE`` and
+``*_ENV`` variants are also supported.
+
+
+EDGEDB_SERVER_RUNSTATE_DIR
+..........................
+
+Specifies a path where EdgeDB will place its Unix socket and other transient
+files.
+
+Maps directly to the ``edgedb-server`` flag ``--runstate-dir``.
+
+
+EDGEDB_SERVER_SECURITY
+......................
+
+When set to ``insecure_dev_mode``, sets ``EDGEDB_SERVER_DEFAULT_AUTH_METHOD``
+to ``Trust`` (see above), and ``EDGEDB_SERVER_TLS_CERT_MODE`` to
+``generate_self_signed`` (unless an explicit TLS certificate is specified).
+Finally, if this option is set, the server will accept plaintext HTTP
+connections.
+
+.. warning::
+
+    Disabling TLS is not recommended in production.
+
+Maps directly to the ``edgedb-server`` flag ``--security``.
 
 
 EDGEDB_SERVER_SKIP_MIGRATIONS
@@ -342,28 +319,49 @@ EDGEDB_SERVER_SKIP_MIGRATIONS
 When set, skips applying migrations in ``dbschema/migrations``.
 
 
-EDGEDB_DOCKER_ABORT_CODE
-........................
+EDGEDB_SERVER_TENANT_ID
+.......................
 
-If the process fails, the arguments are logged to stderr and the script is
-terminated with this exit code. Defaults to ``1``.
-
-
-EDGEDB_SERVER_BINARY
-....................
-
-Sets the EdgeDB server binary to run. Defaults to ``edgedb-server``.
+Specifies the tenant ID of this server when hosting multiple EdgeDB instances
+on one Postgres cluster. Must be an alphanumeric ASCII string, maximum 10
+characters long.
 
 
-EDGEDB_DOCKER_BOOTSTRAP_TIMEOUT_SEC
-...................................
+EDGEDB_SERVER_TLS_CERT_FILE/EDGEDB_SERVER_TLS_KEY_FILE
+......................................................
 
-Sets the number of seconds to wait for instance bootstrapping to complete
-before timing out.
+The TLS certificate and private key files, exclusive with
+``EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed``.
+
+Maps directly to the ``edgedb-server`` flags ``--tls-cert-file`` and
+``--tls-key-file``.
 
 
-EDGEDB_DOCKER_SHOW_GENERATED_CERT
-.................................
+EDGEDB_SERVER_TLS_CERT_MODE
+...........................
 
-Shows the generated TLS certificate in console output. Default value is
-``always``. May instead be set to ``never``.
+Specifies what to do when the TLS certificate and key are either not specified
+or are missing.  When set to ``require_file``, the TLS certificate and key must
+be specified in the ``EDGEDB_SERVER_TLS_CERT`` and ``EDGEDB_SERVER_TLS_KEY``
+variables and both must exist.  When set to ``generate_self_signed`` a new
+self-signed certificate and private key will be generated and placed in the
+path specified by ``EDGEDB_SERVER_TLS_CERT`` and ``EDGEDB_SERVER_TLS_KEY``, if
+those are set, otherwise the generated certificate and key are stored as
+``edbtlscert.pem`` and ``edbprivkey.pem`` in ``EDGEDB_SERVER_DATADIR``, or, if
+``EDGEDB_SERVER_DATADIR`` is not set then they will be placed in
+``/etc/ssl/edgedb``.
+
+Default is ``generate_self_signed`` when
+``EDGEDB_SERVER_SECURITY=insecure_dev_mode``. Otherwise, the default is
+``require_file``.
+
+Maps directly to the ``edgedb-server`` flag ``--tls-cert-mode``. The ``*_FILE``
+and ``*_ENV`` variants are also supported.
+
+
+EDGEDB_SERVER_USER
+..................
+
+If set to anything other than the default username (``edgedb``), the user will
+be created. The user defined here will be the one assigned the password set in
+``EDGEDB_SERVER_PASSWORD`` or the hash set in ``EDGEDB_SERVER_PASSWORD_HASH``.
