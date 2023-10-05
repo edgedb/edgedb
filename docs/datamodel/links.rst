@@ -356,7 +356,7 @@ into the shape itself. Assuming the same schema in the previous paragraph:
     };
 
 If properties are selected on that link, then place the clauses after
-the shape:
+the link's shape:
 
 .. code-block:: edgeql
 
