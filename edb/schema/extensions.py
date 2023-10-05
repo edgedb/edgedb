@@ -36,11 +36,9 @@ from edb.common import checked
 from . import annos as s_anno
 from . import casts as s_casts
 from . import delta as sd
-from . import modules as s_mod
 from . import name as sn
 from . import objects as so
 from . import schema as s_schema
-from . import types as s_types
 
 
 class ExtensionPackage(
@@ -441,28 +439,20 @@ class DeleteExtension(
 
     astnode = qlast.DropExtension
 
-    def apply(
+    def _delete_begin(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        with _extension_mode(context):
-            return super().apply(schema, context)
+        module = self.scls.get_package(schema).get_ext_module(schema)
+        schema = super()._delete_begin(schema, context)
 
-    def _canonicalize(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        scls: Extension,
-    ) -> List[sd.Command]:
-        commands = super()._canonicalize(schema, context, scls)
-
-        module = scls.get_package(schema).get_ext_module(schema)
-
-        if not module:
-            return commands
+        if context.canonical or not module:
+            return schema
 
         # If the extension included a module, delete everything in it.
+        from . import ddl as s_ddl
+
         module_name = sn.UnqualName(module)
 
         def _name_in_mod(name: sn.Name) -> bool:
@@ -472,51 +462,50 @@ class DeleteExtension(
             )
 
         # Clean up the casts separately for annoying reasons
-        for cast in schema.get_objects(
+        for obj in schema.get_objects(
             included_modules=(sn.UnqualName('__derived__'),),
             type=s_casts.Cast,
         ):
             if (
-                _name_in_mod(cast.get_from_type(schema).get_name(schema))
-                or _name_in_mod(cast.get_to_type(schema).get_name(schema))
+                _name_in_mod(obj.get_from_type(schema).get_name(schema))
+                or _name_in_mod(obj.get_to_type(schema).get_name(schema))
             ):
-                drop = cast.init_delta_command(
-                    schema, sd.DeleteObject
+                drop = obj.init_delta_command(
+                    schema,
+                    sd.DeleteObject,
                 )
-                commands.append(drop)
+                self.add(drop)
 
-        # Delete everything in the module
-        for obj in schema.get_objects(
-            included_modules=(module_name,),
-            type=so.Object,
-        ):
-            if (
-                isinstance(obj, so.ObjectFragment)
-                or (
-                    isinstance(obj, so.DerivableObject)
-                    and not obj.generic(schema)
-                )
-                or (
-                    isinstance(obj, s_types.Type)
-                    and obj.get_from_alias(schema)
-                )
-            ):
-                # Skip any dependent objects, only pick top level
-                # stuff, as otherwise ordering will likely choke
-                # on too-verbose of an input.  Do recursive
-                # canonicalization instead.
-                continue
+        def filt(schema: s_schema.Schema, obj: so.Object) -> bool:
+            return not _name_in_mod(obj.get_name(schema)) or obj == self.scls
 
-            # This is still kind of sketchy. _canonicalize doesn't
-            # really *fully* canonicalize things.
-            drop = obj.init_delta_command(schema, sd.DeleteObject)
-            drop.update(drop._canonicalize(schema, context, obj))
-            commands.append(drop)
+        # We handle deleting the module contents in a heavy-handed way:
+        # do a schema diff.
+        delta = s_ddl.delta_schemas(
+            schema, schema,
+            included_modules=[
+                sn.UnqualName(module),
+            ],
+            schema_b_filters=[filt],
+            include_extensions=True,
+            linearize_delta=True,
+        )
+        # The output of delta_schemas is really just intended to be
+        # dumped as an AST. So, sigh, just do that, and then read it
+        # back.
+        #
+        # This is horrific, but it does actually work and is built
+        # around codepaths that are heavily tested.
+        from . import ddl
+        for subast in ddl.ddlast_from_delta(None, schema, delta):
+            self.add(sd.compile_ddl(schema, subast, context=context))
 
-        # We add the module delete directly as add_caused, since the sorting
-        # we do doesn't work.
-        module_obj = schema.get_global(s_mod.Module, module_name)
+        return schema
 
-        self.add_caused(module_obj.init_delta_command(schema, sd.DeleteObject))
-
-        return commands
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        with _extension_mode(context):
+            return super().apply(schema, context)

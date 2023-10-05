@@ -3754,3 +3754,40 @@ class TestUpdate(tb.QueryTestCase):
                     filter (DELETE UpdateTest filter .name = 't1')
                     set { name := '!' }
             ''')
+
+    async def test_edgeql_update_union_overlay_01(self):
+        await self.assert_query_result(
+            r"""
+            WITH
+                 A := (UPDATE UpdateTest FILTER .name = 'update-test1'
+                       SET { comment := "!!!!!1!!!" }),
+                 B := (UPDATE UpdateTest FILTER .name = 'update-test2'
+                       SET { comment  := "foo" }),
+            SELECT assert_exists((SELECT {A, B} {name, comment}))
+            ORDER BY .name;
+            """,
+            [
+                {"name": "update-test1", "comment": "!!!!!1!!!"},
+                {"name": "update-test2", "comment": "foo"},
+            ]
+        )
+
+    @test.xfail("""
+        We incorrectly return 'foo' as the comment twice.
+        See #6222.
+    """)
+    async def test_edgeql_update_union_overlay_02(self):
+        await self.assert_query_result(
+            r"""
+            WITH
+                 A := (SELECT UpdateTest FILTER .name = 'update-test2'),
+                 B := (UPDATE UpdateTest FILTER .name = 'update-test2'
+                       SET { comment  := "foo" }),
+            SELECT assert_exists((SELECT {A, B} {name, comment}))
+            ORDER BY .comment;
+            """,
+            [
+                {"name": "update-test2", "comment": "foo"},
+                {"name": "update-test2", "comment": "second"},
+            ]
+        )

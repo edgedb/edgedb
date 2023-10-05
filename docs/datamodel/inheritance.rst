@@ -47,6 +47,44 @@ Object types can *extend* other object types. The extending type (AKA the
       breed: str;
     }
 
+Both abstract and concrete object types can be extended. Whether to make a
+type abstract or concrete is a fairly simple decision: if you need to be
+able to insert objects of the type, make it a concrete type. If objects of
+the type should never be inserted and it exists only to be extended, make it
+an abstract one. In the schema below the ``Animal`` type is now concrete
+and can be inserted, which was not the case in the example above. The new
+``CanBark`` type however is abstract and thus the database will not have
+any individual ``CanBark`` objects.
+
+.. code-block:: sdl
+    :version-lt: 3.0
+
+    abstract type CanBark {
+      required property bark_sound -> str;
+    }
+
+    type Animal {
+      property species -> str;
+    }
+
+    type Dog extending Animal, CanBark {
+      property breed -> str;
+    }
+
+.. code-block:: sdl
+
+    abstract type CanBark {
+      required bark_sound: str;
+    }
+
+    type Animal {
+      species: str;
+    }
+
+    type Dog extending Animal, CanBark {
+      breed: str;
+    }
+
 
 For details on querying polymorphic data, see :ref:`EdgeQL > Select >
 Polymorphic queries <ref_eql_select_polymorphic>`.

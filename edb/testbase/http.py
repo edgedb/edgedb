@@ -162,7 +162,8 @@ class GraphQLTestCase(BaseHttpExtensionTest):
     def graphql_query(self, query, *, operation_name=None,
                       use_http_post=True,
                       variables=None,
-                      globals=None):
+                      globals=None,
+                      deprecated_globals=None):
         req_data = {
             'query': query
         }
@@ -174,7 +175,13 @@ class GraphQLTestCase(BaseHttpExtensionTest):
             if variables is not None:
                 req_data['variables'] = variables
             if globals is not None:
-                req_data['globals'] = globals
+                if variables is None:
+                    req_data['variables'] = dict()
+                req_data['variables']['__globals__'] = globals
+            # Support testing the old way of sending globals.
+            if deprecated_globals is not None:
+                req_data['globals'] = deprecated_globals
+
             req = urllib.request.Request(self.http_addr, method='POST')
             req.add_header('Content-Type', 'application/json')
             response = urllib.request.urlopen(
@@ -182,10 +189,15 @@ class GraphQLTestCase(BaseHttpExtensionTest):
             )
             resp_data = json.loads(response.read())
         else:
+            if globals is not None:
+                if variables is None:
+                    variables = dict()
+                variables['__globals__'] = globals
+            # Support testing the old way of sending globals.
+            if deprecated_globals is not None:
+                req_data['globals'] = json.dumps(deprecated_globals)
             if variables is not None:
                 req_data['variables'] = json.dumps(variables)
-            if globals is not None:
-                req_data['globals'] = json.dumps(globals)
             response = urllib.request.urlopen(
                 f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}',
                 context=self.tls_context,
@@ -223,13 +235,15 @@ class GraphQLTestCase(BaseHttpExtensionTest):
                                     operation_name=None,
                                     use_http_post=True,
                                     variables=None,
-                                    globals=None):
+                                    globals=None,
+                                    deprecated_globals=None):
         res = self.graphql_query(
             query,
             operation_name=operation_name,
             use_http_post=use_http_post,
             variables=variables,
-            globals=globals)
+            globals=globals,
+            deprecated_globals=deprecated_globals)
 
         if sort is not None:
             # GQL will always have a single object returned. The data is

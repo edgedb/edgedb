@@ -71,6 +71,7 @@ cdef class HttpRequest:
         self.body = b''
         self.authorization = b''
         self.content_type = b''
+        self.forwarded = {}
 
 
 cdef class HttpResponse:

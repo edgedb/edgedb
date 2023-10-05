@@ -33,6 +33,7 @@ cdef class HttpRequest:
         public bytes host
         public bytes authorization
         public object params
+        public object forwarded
 
 
 cdef class HttpResponse:

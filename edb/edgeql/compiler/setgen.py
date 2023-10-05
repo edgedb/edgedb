@@ -230,6 +230,7 @@ def new_tuple_set(
 
 def new_array_set(
         elements: Sequence[irast.Set], *,
+        stype: Optional[s_types.Type]=None,
         ctx: context.ContextLevel,
         srcctx: Optional[parsing.ParserContext]=None) -> irast.Set:
 
@@ -237,6 +238,11 @@ def new_array_set(
     arr = irast.Array(elements=elements, typeref=dummy_typeref)
     if elements:
         stype = inference.infer_type(arr, env=ctx.env)
+    elif stype is not None and stype.is_array():
+        # When constructing an empty array, we should skip explicit cast any
+        # time that we would skip it for an empty set because we can infer it
+        # from the context.
+        pass
     else:
         anytype = s_pseudo.PseudoType.get(ctx.env.schema, 'anytype')
         ctx.env.schema, stype = s_types.Array.from_subtypes(

@@ -24,10 +24,12 @@ import base64
 import functools
 import json
 import logging
+import os
 import ssl
 import urllib.parse
 
 from edb.common import asyncwatcher
+from edb.common import token_bucket
 from edb.server import consul
 
 from . import base
@@ -59,7 +61,7 @@ class StolonBackend(base.HABackend):
     def get_master_addr(self) -> Optional[Tuple[str, int]]:
         return self._master_addr
 
-    def on_update(self, payload: bytes) -> None:
+    def _on_update(self, payload: bytes) -> None:
         try:
             data = json.loads(base64.b64decode(payload))
         except (TypeError, ValueError):
@@ -103,6 +105,7 @@ class StolonBackend(base.HABackend):
                 )
                 self._master_addr = master_addr
                 if self._failover_cb is not None:
+                    self.incr_metrics_counter("failover")
                     self._failover_cb()
 
         if self._waiter is not None:
@@ -126,6 +129,13 @@ class StolonConsulBackend(StolonBackend):
         self._port = port
         self._ssl = ssl
 
+        # This means we can request for 10 consecutive requests immediately
+        # after each response without delay, and then we're capped to 0.1
+        # request(token) per second, or 1 request per 10 seconds.
+        cap = float(os.environ.get("EDGEDB_SERVER_CONSUL_TOKEN_CAPACITY", 10))
+        rate = float(os.environ.get("EDGEDB_SERVER_CONSUL_TOKEN_RATE", 0.1))
+        self._token_bucket = token_bucket.TokenBucket(cap, rate)
+
     async def _start_watching(self) -> asyncwatcher.AsyncWatcherProtocol:
         _, pr = await asyncio.get_running_loop().create_connection(
             functools.partial(
@@ -140,13 +150,16 @@ class StolonConsulBackend(StolonBackend):
         )
         return pr  # type: ignore [return-value]
 
-    @property
+    @functools.cached_property
     def dsn(self) -> str:
         proto = "http" if self._ssl is None else "https"
         return (
             f"stolon+consul+{proto}://"
             f"{self._host}:{self._port}/{self._cluster_name}"
         )
+
+    def consume_tokens(self, tokens: int) -> float:
+        return self._token_bucket.consume(tokens)
 
 
 def get_backend(

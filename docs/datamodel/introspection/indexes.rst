@@ -38,7 +38,7 @@ Consider the following schema:
 
 .. code-block:: sdl
 
-    type Addressable {
+    abstract type Addressable {
         property address -> str;
     }
 

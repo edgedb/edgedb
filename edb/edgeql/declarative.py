@@ -205,13 +205,13 @@ class TraceContextBase:
 
 def get_verbosename_from_fqname(
     fq_name: s_name.QualName,
-    ctx: DepTraceContext,
+    ctx: DepTraceContext | LayoutTraceContext,
 ) -> str:
     traceobj = ctx.objects[fq_name]
     assert traceobj is not None
 
     name = str(fq_name)
-    clsname = traceobj.__class__.__name__.lower()
+    clsname = traceobj.get_schema_class_displayname()
     ofobj = ''
 
     if isinstance(traceobj, qltracer.Alias):
@@ -221,13 +221,15 @@ def get_verbosename_from_fqname(
     elif isinstance(traceobj, qltracer.ScalarType):
         clsname = 'scalar'
     elif isinstance(traceobj, qltracer.Function):
-        node = ctx.ddlgraph[fq_name].item
-        assert isinstance(node, qlast.FunctionCommand)
-        params = ','.join(
-            qlcodegen.generate_source(param, sdlmode=True)
-            for param in node.params
-        )
-        name = f"{str(fq_name).split('@@', 1)[0]}({params})"
+        name = str(fq_name).split('@@', 1)[0]
+        if isinstance(ctx, DepTraceContext):
+            node = ctx.ddlgraph[fq_name].item
+            assert isinstance(node, qlast.FunctionCommand)
+            params = ','.join(
+                qlcodegen.generate_source(param, sdlmode=True)
+                for param in node.params
+            )
+            name = f"{name}({params})"
     elif isinstance(traceobj, qltracer.Pointer):
         ofobj, name = str(fq_name).split('@', 1)
         ofobj = f" of object type '{ofobj}'"
@@ -248,6 +250,11 @@ def get_verbosename_from_fqname(
         if name == str(s_indexes.DEFAULT_INDEX):
             name = ''
         ofobj = f" of object type '{ofobj}'"
+    elif isinstance(traceobj, qltracer.Field):
+        clsname = 'field'
+        obj, name = fq_name.name.rsplit('@', 1)
+        ofobj = ' of ' + get_verbosename_from_fqname(
+            s_name.QualName(fq_name.module, obj), ctx)
 
     if name:
         return f"{clsname} '{name}'{ofobj}"
@@ -647,6 +654,8 @@ def _trace_item_layout(
                 qltracer.Property
                 if isinstance(decl, qlast.CreateConcreteProperty) else
                 qltracer.Link
+                if isinstance(decl, qlast.CreateConcreteProperty) else
+                qltracer.UnknownPointer
             )
             ptr = PointerType(
                 s_name.QualName('__', pn.name),
@@ -714,6 +723,22 @@ def _trace_item_layout(
                 name=f'{fq_name.name}@{idx_fq_name}',
             )
             ctx.objects[idx_name] = qltracer.ConcreteIndex(idx_name)
+
+        elif isinstance(decl, qlast.SetField):
+            field_name = s_name.QualName(
+                module=fq_name.module,
+                name=f'{fq_name.name}@{decl.name}',
+            )
+
+            # Trivial fields don't get added to the ddlgraph, which is
+            # where duplication checks are normally done, so do the
+            # check here instead.
+            if field_name in ctx.objects:
+                vn = get_verbosename_from_fqname(field_name, ctx)
+                msg = f'{vn} was already declared'
+                raise errors.InvalidDefinitionError(msg, context=decl.context)
+
+            ctx.objects[field_name] = qltracer.Field(field_name)
 
 
 RECURSION_GUARD: Set[s_name.QualName] = set()
@@ -1046,9 +1071,7 @@ def _register_item(
     if fq_name in ctx.ddlgraph:
         vn = get_verbosename_from_fqname(fq_name, ctx)
         msg = f'{vn} was already declared'
-
-        raise errors.InvalidDefinitionError(
-            msg, context=decl.context)
+        raise errors.InvalidDefinitionError(msg, context=decl.context)
 
     if deps:
         deps = set(deps)
@@ -1295,8 +1318,11 @@ def _get_pointer_deps(
     # is is important for properly doing cardinality inference
     # on expressions involving it.
     # PERF: We should avoid actually searching all the objects.
-    for propname in ctx.objects:
-        if str(propname).startswith(str(pointer) + '@'):
+    for propname, prop in ctx.objects.items():
+        if (
+            str(propname).startswith(str(pointer) + '@')
+            and not isinstance(prop, qltracer.Field)
+        ):
             result.add(propname)
 
     return result
