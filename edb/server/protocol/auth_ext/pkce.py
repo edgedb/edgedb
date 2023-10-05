@@ -145,19 +145,26 @@ async def delete(db, id: str) -> None:
 
 
 async def _gc(tenant: edbtenant.Tenant):
-    async with taskgroup.TaskGroup() as g:
-        for db in tenant.iter_dbs():
-            if "auth" in db.extensions:
-                g.create_task(
-                    execute.parse_execute_json(
-                        db,
-                        """
-                        delete ext::auth::PKCEChallenge filter
-                            (datetime_of_statement() - .created_at) >
-                            <duration>'10 minutes'
-                        """,
-                    ),
-                )
+    try:
+        async with taskgroup.TaskGroup() as g:
+            for db in tenant.iter_dbs():
+                if "auth" in db.extensions:
+                    g.create_task(
+                        execute.parse_execute_json(
+                            db,
+                            """
+                            delete ext::auth::PKCEChallenge filter
+                                (datetime_of_statement() - .created_at) >
+                                <duration>'10 minutes'
+                            """,
+                        ),
+                    )
+    except Exception as ex:
+        logger.debug(
+            "GC of ext::auth::PKCEChallenge failed (instance: %s)",
+            tenant.get_instance_name(),
+            exc_info=ex,
+        )
 
 
 async def gc(server: edbserver.BaseServer):
@@ -169,14 +176,7 @@ async def gc(server: edbserver.BaseServer):
                 if tenant.accept_new_tasks
             ]
             if tasks:
-                done, _ = await asyncio.wait(tasks)
-                for task in done:
-                    ex = task.exception()
-                    if ex is not None:
-                        logger.debug(
-                            "GC of ext::auth::PKCEChallenge failed",
-                            exc_info=ex,
-                        )
+                await asyncio.wait(tasks)
         except Exception as ex:
             logger.debug("GC of ext::auth::PKCEChallenge failed", exc_info=ex)
         finally:
