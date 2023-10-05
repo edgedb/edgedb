@@ -16142,6 +16142,27 @@ class TestDDLNonIsolated(tb.DDLTestCase):
             create extension _conf
         ''')
 
+        # Check that the ids are stable
+        await self.assert_query_result(
+            '''
+            select schema::ObjectType {
+                id,
+                properties: { name, id } filter .name = 'value'
+            } filter .name = 'ext::_conf::Obj'
+            ''',
+            [
+                {
+                    "id": "dc7c6ed1-759f-5a70-9bc3-2252b2d3980a",
+                    "properties": [
+                        {
+                            "name": "value",
+                            "id": "0dff1c2f-f51b-59fd-bae9-9d66cb963896",
+                        },
+                    ],
+                },
+            ],
+        )
+
         Q = '''
             select cfg::%s {
                 conf := assert_single(.extensions[is ext::_conf::Config] {

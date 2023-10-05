@@ -527,7 +527,7 @@ class ParameterCommand(
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,
                     schema_object_context=self.get_schema_metaclass(),
-                    apply_query_rewrites=not context.stdmode,
+                    apply_query_rewrites=not context.stable_ids,
                     track_schema_ref_exprs=track_schema_ref_exprs,
                 ),
             )
