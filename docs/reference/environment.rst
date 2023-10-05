@@ -226,8 +226,8 @@ Additional arguments to pass when starting the EdgeDB server.
 EDGEDB_SERVER_HTTP_ENDPOINT_SECURITY
 ....................................
 
-Specifies the security mode of server binary endpoint. When set to ``optional``,
-non-TLS connections are allowed. Default is ``tls``.
+Specifies the security mode of server binary endpoint. When set to
+``optional``, non-TLS connections are allowed. Default is ``tls``.
 
 .. warning::
 
