@@ -1087,7 +1087,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
     def _prepare_id(
         cls,
         schema: s_schema.Schema,
-        stdmode: bool,
+        stable_ids: bool,
         data: Dict[str, Any],
     ) -> uuid.UUID:
         name = data.get('name')
@@ -1096,7 +1096,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         try:
             return get_known_type_id(name)
         except errors.SchemaError:
-            if stdmode:
+            if stable_ids:
                 # When compiling the standard library, we generate
                 # stable ids based on the internal name and the type's
                 # name. This keeps std schemas compatible across
@@ -1115,7 +1115,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
     def create_in_schema(
         cls: Type[Object_T],
         schema: s_schema.Schema_T,
-        stdmode: bool = False,
+        stable_ids: bool = False,
         *,
         id: Optional[uuid.UUID] = None,
         **data: Any,
@@ -1135,7 +1135,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             obj_data[field.index] = value
 
         if id is None:
-            id = cls._prepare_id(schema, stdmode, data)
+            id = cls._prepare_id(schema, stable_ids, data)
         scls = cls._create_from_id(id)
         schema = schema.add(id, cls, tuple(obj_data))
 

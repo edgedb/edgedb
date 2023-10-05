@@ -5238,8 +5238,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
         if link.get_shortname(schema).name == '__type__':
             return
 
-        old_table_name = common.get_backend_name(
-            schema, link, catenate=False)
+        old_table_name = self._get_table_name(link, schema)
 
         if (
             not link.generic(orig_schema)

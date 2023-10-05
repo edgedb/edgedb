@@ -960,7 +960,7 @@ async def _make_stdlib(
     schema, _ = s_mod.Module.create_in_schema(
         schema,
         name=sn.UnqualName('__derived__'),
-        stdmode=True,
+        stable_ids=True,
     )
 
     current_block = dbops.PLTopBlock()

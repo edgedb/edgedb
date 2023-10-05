@@ -124,7 +124,7 @@ class Extension(
     def create_in_schema(
         cls: Type[Extension],
         schema: s_schema.Schema_T,
-        stdmode: bool = False,
+        stable_ids: bool = False,
         *,
         id: Optional[uuid.UUID] = None,
         **data: Any,
@@ -141,7 +141,7 @@ class Extension(
                 f'installed'
             )
 
-        return super().create_in_schema(schema, stdmode, id=id, **data)
+        return super().create_in_schema(schema, stable_ids, id=id, **data)
 
 
 class ExtensionPackageCommandContext(
@@ -304,13 +304,18 @@ class ExtensionCommand(
 
 @contextlib.contextmanager
 def _extension_mode(context: sd.CommandContext) -> Iterator[None]:
+    # TODO: We'll want to be a bit more discriminating once we support
+    # user extensions, and not set stable_ids then?
+    stable_ids = context.stable_ids
     testmode = context.testmode
     declarative = context.declarative
+    context.stable_ids = True
     context.testmode = True
     context.declarative = False
     try:
         yield
     finally:
+        context.stable_ids = stable_ids
         context.testmode = testmode
         context.declarative = declarative
 
