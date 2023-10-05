@@ -336,6 +336,7 @@ APPLE_SECRET = 'c' * 32
 
 class TestHttpExtAuth(tb.ExtAuthTestCase):
     TRANSACTION_ISOLATION = False
+    PARALLELISM_GRANULARITY = 'suite'
 
     EXTENSION_SETUP = [
         f"""
@@ -1385,7 +1386,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_config = await self.get_builtin_provider_config_by_name(
                 "oauth_apple"
             )
-            print(provider_config)
             provider_name = provider_config.name
             client_id = provider_config.client_id
             challenge = (
@@ -2273,9 +2273,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             with open(test_file, "rb") as f:
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], "noreply@example.com")
-            self.assertEqual(
-                email_args["recipients"], form_data["email"]
-            )
+            self.assertEqual(email_args["recipients"], form_data["email"])
             html_msg = email_args["message"].get_payload(0).get_payload(1)
             html_email = html_msg.get_payload(decode=True).decode("utf-8")
             match = re.search(r'<a href=[\'"]?([^\'" >]+)', html_email)
@@ -2506,9 +2504,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             with open(test_file, "rb") as f:
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], "noreply@example.com")
-            self.assertEqual(
-                email_args["recipients"], form_data["email"]
-            )
+            self.assertEqual(email_args["recipients"], form_data["email"])
             html_msg = email_args["message"].get_payload(0).get_payload(1)
             html_email = html_msg.get_payload(decode=True).decode("utf-8")
             match = re.search(r'<a href=[\'"]?([^\'" >]+)', html_email)
@@ -2546,7 +2542,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 FILTER .<identity[is EmailPasswordFactor].email
                         = <str>$email
                 """,
-                email=form_data["email"]
+                email=form_data["email"],
             )
 
             self.assertEqual(len(identity), 1)
