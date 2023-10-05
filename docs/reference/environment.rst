@@ -122,7 +122,9 @@ to ``Trust`` (see above), and ``EDGEDB_SERVER_TLS_CERT_MODE`` to
 Finally, if this option is set, the server will accept plaintext HTTP
 connections.
 
-Use at your own risk and only for development and testing.
+.. warning::
+
+    Disabling TLS is not recommended in production.
 
 Maps directly to the ``edgedb-server`` flag ``--security``.
 
