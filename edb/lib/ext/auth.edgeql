@@ -177,7 +177,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     create type ext::auth::UIConfig extending cfg::ConfigObject {
         create required property redirect_to: std::str {
             create annotation std::description :=
-                "The url to redirect to after successful signin.";
+                "The url to redirect to after successful sign in.";
         };
 
         create property redirect_to_on_signup: std::str {
