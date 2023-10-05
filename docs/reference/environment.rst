@@ -78,8 +78,7 @@ EDGEDB_SERVER_BACKEND_DSN
 
 Specifies a PostgreSQL connection string in the `URI format`_.  If set, the
 PostgreSQL cluster specified by the URI is used instead of the builtin
-PostgreSQL server.  Cannot be specified at the same time with
-``EDGEDB_SERVER_DATADIR``.
+PostgreSQL server.  Cannot be specified alongside ``EDGEDB_SERVER_DATADIR``.
 
 Maps directly to the ``edgedb-server`` flag ``--backend-dsn``. The ``*_FILE``
 and ``*_ENV`` variants are also supported.
@@ -187,7 +186,7 @@ EDGEDB_SERVER_DATADIR
 .....................
 
 Specifies a path where the database files are located.  Default is
-``/var/lib/edgedb/data``.  Cannot be specified at the same time with
+``/var/lib/edgedb/data``.  Cannot be specified alongside
 ``EDGEDB_SERVER_BACKEND_DSN``.
 
 Maps directly to the ``edgedb-server`` flag ``--data-dir``.
@@ -259,11 +258,11 @@ Set the logging level. Default is ``info``. Other possible values are
 EDGEDB_SERVER_PASSWORD
 ......................
 
-The password for the default superuser account will be set to this value. If
-no value is provided a password will not be set, unless set via
-``EDGEDB_SERVER_BOOTSTRAP_COMMAND``. (If a value for
-``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` is provided, this variable will be
-ignored.)
+The password for the default superuser account (or the user specified in
+``EDGEDB_SERVER_USER``) will be set to this value. If no value is provided, a
+password will not be set, unless set via ``EDGEDB_SERVER_BOOTSTRAP_COMMAND``.
+(If a value for ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` is provided, this variable
+will be ignored.)
 
 The ``*_FILE`` and ``*_ENV`` variants are also supported.
 
@@ -301,10 +300,9 @@ EDGEDB_SERVER_SECURITY
 ......................
 
 When set to ``insecure_dev_mode``, sets ``EDGEDB_SERVER_DEFAULT_AUTH_METHOD``
-to ``Trust`` (see above), and ``EDGEDB_SERVER_TLS_CERT_MODE`` to
-``generate_self_signed`` (unless an explicit TLS certificate is specified).
-Finally, if this option is set, the server will accept plaintext HTTP
-connections.
+to ``Trust``, and ``EDGEDB_SERVER_TLS_CERT_MODE`` to ``generate_self_signed``
+(unless an explicit TLS certificate is specified). Finally, if this option is
+set, the server will accept plaintext HTTP connections.
 
 .. warning::
 
@@ -316,7 +314,8 @@ Maps directly to the ``edgedb-server`` flag ``--security``.
 EDGEDB_SERVER_SKIP_MIGRATIONS
 .............................
 
-When set, skips applying migrations in ``dbschema/migrations``.
+When set, skips applying migrations in ``dbschema/migrations``. Not set by
+default.
 
 
 EDGEDB_SERVER_TENANT_ID
@@ -337,19 +336,24 @@ Maps directly to the ``edgedb-server`` flags ``--tls-cert-file`` and
 ``--tls-key-file``.
 
 
+.. _ref_reference_docer_edgedb_server_tls_cert_mode:
+
 EDGEDB_SERVER_TLS_CERT_MODE
 ...........................
 
 Specifies what to do when the TLS certificate and key are either not specified
-or are missing.  When set to ``require_file``, the TLS certificate and key must
-be specified in the ``EDGEDB_SERVER_TLS_CERT`` and ``EDGEDB_SERVER_TLS_KEY``
-variables and both must exist.  When set to ``generate_self_signed`` a new
-self-signed certificate and private key will be generated and placed in the
-path specified by ``EDGEDB_SERVER_TLS_CERT`` and ``EDGEDB_SERVER_TLS_KEY``, if
-those are set, otherwise the generated certificate and key are stored as
-``edbtlscert.pem`` and ``edbprivkey.pem`` in ``EDGEDB_SERVER_DATADIR``, or, if
-``EDGEDB_SERVER_DATADIR`` is not set then they will be placed in
-``/etc/ssl/edgedb``.
+or are missing.
+
+- When set to ``require_file``, the TLS certificate and key must be specified
+  in the ``EDGEDB_SERVER_TLS_CERT`` and ``EDGEDB_SERVER_TLS_KEY`` variables and
+  both must exist.
+- When set to ``generate_self_signed`` a new self-signed certificate and
+  private key will be generated and placed in the path specified by
+  ``EDGEDB_SERVER_TLS_CERT`` and ``EDGEDB_SERVER_TLS_KEY``, if those are set.
+  Otherwise, the generated certificate and key are stored as ``edbtlscert.pem``
+  and ``edbprivkey.pem`` in ``EDGEDB_SERVER_DATADIR``, or, if
+  ``EDGEDB_SERVER_DATADIR`` is not set, they will be placed in
+  ``/etc/ssl/edgedb``.
 
 Default is ``generate_self_signed`` when
 ``EDGEDB_SERVER_SECURITY=insecure_dev_mode``. Otherwise, the default is
@@ -362,6 +366,7 @@ and ``*_ENV`` variants are also supported.
 EDGEDB_SERVER_USER
 ..................
 
-If set to anything other than the default username (``edgedb``), the user will
-be created. The user defined here will be the one assigned the password set in
-``EDGEDB_SERVER_PASSWORD`` or the hash set in ``EDGEDB_SERVER_PASSWORD_HASH``.
+If set to anything other than the default username (``edgedb``), the username
+specified will be created. The user defined here will be the one assigned the
+password set in ``EDGEDB_SERVER_PASSWORD`` or the hash set in
+``EDGEDB_SERVER_PASSWORD_HASH``.
