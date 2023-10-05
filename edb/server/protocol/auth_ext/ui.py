@@ -19,6 +19,7 @@
 from typing import *
 
 import html
+import urllib
 from email.mime import multipart
 from email.mime import text as mime_text
 
@@ -40,6 +41,7 @@ def render_login_page(
     challenge: str,
     # config
     redirect_to: str,
+    redirect_to_on_signup: Optional[str] = None,
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
@@ -56,15 +58,20 @@ def render_login_page(
         if p.name.startswith('builtin::oauth_')
     ]
 
+    oauth_params = {
+        'redirect_to': redirect_to,
+        'challenge': challenge,
+    }
+
+    if redirect_to_on_signup:
+        oauth_params['redirect_to_on_signup'] = redirect_to_on_signup
+
     oauth_buttons = '\n'.join([
         f'''
-        <a href="../authorize?provider={
-            p.name
-        }&redirect_to={
-            redirect_to
-        }&challenge={
-            challenge
-        }">
+        <a href="../authorize?{urllib.parse.urlencode({
+            'provider': p.name,
+            **oauth_params
+        })}">
         {(
             '<img src="_static/icon_' + p.name[15:] + '.svg" alt="' +
             p.display_name+' Icon" />'
