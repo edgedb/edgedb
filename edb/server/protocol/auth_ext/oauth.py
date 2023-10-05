@@ -19,7 +19,7 @@
 
 import json
 
-from typing import Any
+from typing import Any, Type
 from edb.server.protocol import execute
 
 from . import github, google, azure, apple
@@ -30,10 +30,7 @@ class Client:
     provider: base.BaseProvider
 
     def __init__(
-        self,
-        db: Any,
-        provider_name: str,
-        base_url: str | None = None
+        self, db: Any, provider_name: str, base_url: str | None = None
     ):
         self.db = db
 
@@ -41,33 +38,35 @@ class Client:
             *args, edgedb_test_url=base_url, **kwargs
         )
 
+        provider_config = self._get_provider_config(provider_name)
+        provider_args = (provider_config.client_id, provider_config.secret)
+        provider_kwargs = {
+            "http_factory": http_factory,
+            "additional_scope": provider_config.additional_scope,
+        }
+
+        provider_class: Type[base.BaseProvider]
         match provider_name:
             case "builtin::oauth_github":
-                self.provider = github.GitHubProvider(
-                    *self._get_provider_config(provider_name),
-                    http_factory=http_factory,
-                )
+                provider_class = github.GitHubProvider
             case "builtin::oauth_google":
-                self.provider = google.GoogleProvider(
-                    *self._get_provider_config(provider_name),
-                    http_factory=http_factory,
-                )
+                provider_class = google.GoogleProvider
             case "builtin::oauth_azure":
-                self.provider = azure.AzureProvider(
-                    *self._get_provider_config(provider_name),
-                    http_factory=http_factory,
-                )
+                provider_class = azure.AzureProvider
             case "builtin::oauth_apple":
-                self.provider = apple.AppleProvider(
-                    *self._get_provider_config(provider_name),
-                    http_factory=http_factory,
-                )
+                provider_class = apple.AppleProvider
             case _:
                 raise errors.InvalidData(f"Invalid provider: {provider_name}")
 
+        self.provider = provider_class(
+            *provider_args, **provider_kwargs  # type: ignore
+        )
+
     async def get_authorize_url(self, state: str, redirect_uri: str) -> str:
         return await self.provider.get_code_url(
-            state=state, redirect_uri=redirect_uri
+            state=state,
+            redirect_uri=redirect_uri,
+            additional_scope=self.provider.additional_scope or "",
         )
 
     async def handle_callback(
@@ -110,13 +109,15 @@ select (insert ext::auth::Identity {
 
         return data.Identity(**result_json[0])
 
-    def _get_provider_config(self, provider_name: str) -> tuple[str, str]:
+    def _get_provider_config(self, provider_name: str):
         provider_client_config = util.get_config(
             self.db, "ext::auth::AuthConfig::providers", frozenset
         )
         for cfg in provider_client_config:
             if cfg.name == provider_name:
-                return (cfg.client_id, cfg.secret)
+                return data.ProviderConfig(
+                    cfg.client_id, cfg.secret, cfg.additional_scope
+                )
 
         raise errors.MissingConfiguration(
             provider_name, "Provider is not configured"

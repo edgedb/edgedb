@@ -336,11 +336,12 @@ APPLE_SECRET = 'c' * 32
 
 class TestHttpExtAuth(tb.ExtAuthTestCase):
     TRANSACTION_ISOLATION = False
+    PARALLELISM_GRANULARITY = 'suite'
 
     EXTENSION_SETUP = [
         f"""
         CONFIGURE CURRENT DATABASE SET
-        ext::auth::AuthConfig::auth_signing_key := <str>'{SIGNING_KEY}';
+        ext::auth::AuthConfig::auth_signing_key := '{SIGNING_KEY}';
 
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::token_time_to_live := <duration>'24 hours';
@@ -350,29 +351,29 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
         CONFIGURE CURRENT DATABASE
         INSERT ext::auth::GitHubOAuthProvider {{
-            secret := <str>'{GITHUB_SECRET}',
-            client_id := <str>'{uuid.uuid4()}'
+            secret := '{GITHUB_SECRET}',
+            client_id := '{uuid.uuid4()}',
         }};
 
         CONFIGURE CURRENT DATABASE
         INSERT ext::auth::GoogleOAuthProvider {{
-            secret := <str>'{GOOGLE_SECRET}',
-            client_id := <str>'{uuid.uuid4()}'
+            secret := '{GOOGLE_SECRET}',
+            client_id := '{uuid.uuid4()}',
         }};
 
         CONFIGURE CURRENT DATABASE
         INSERT ext::auth::AzureOAuthProvider {{
-            secret := <str>'{AZURE_SECRET}',
-            client_id := <str>'{uuid.uuid4()}'
+            secret := '{AZURE_SECRET}',
+            client_id := '{uuid.uuid4()}',
+            additional_scope := 'offline_access',
         }};
 
         CONFIGURE CURRENT DATABASE
         INSERT ext::auth::AppleOAuthProvider {{
-            secret := <str>'{APPLE_SECRET}',
-            client_id := <str>'{uuid.uuid4()}'
+            secret := '{APPLE_SECRET}',
+            client_id := '{uuid.uuid4()}',
         }};
-        """,
-        f"""
+
         CONFIGURE CURRENT DATABASE
         INSERT ext::auth::EmailPasswordProviderConfig {{}};
         """,
@@ -549,7 +550,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.scheme, "https")
             self.assertEqual(url.hostname, "github.com")
             self.assertEqual(url.path, "/login/oauth/authorize")
-            self.assertEqual(qs.get("scope"), ["read:user user:email"])
+            self.assertEqual(qs.get("scope"), ["read:user user:email "])
 
             state = qs.get("state")
             assert state is not None
@@ -577,9 +578,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         with MockAuthProvider(), self.http_con() as http_con:
             signing_key = await self.get_signing_key()
 
-            expires_at = utcnow() + datetime.timedelta(
-                minutes=5
-            )
+            expires_at = utcnow() + datetime.timedelta(minutes=5)
             missing_provider_state_claims = {
                 "iss": self.http_addr,
                 "exp": expires_at.timestamp(),
@@ -606,9 +605,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 k=base64.b64encode(("abcd" * 8).encode()).decode(), kty="oct"
             )
 
-            expires_at = utcnow() + datetime.timedelta(
-                minutes=5
-            )
+            expires_at = utcnow() + datetime.timedelta(minutes=5)
             missing_provider_state_claims = {
                 "iss": self.http_addr,
                 "provider": provider_name,
@@ -630,9 +627,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         with MockAuthProvider(), self.http_con() as http_con:
             signing_key = await self.get_signing_key()
 
-            expires_at = utcnow() + datetime.timedelta(
-                minutes=5
-            )
+            expires_at = utcnow() + datetime.timedelta(minutes=5)
             state_claims = {
                 "iss": self.http_addr,
                 "provider": "beepboopbeep",
@@ -773,12 +768,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(session_claims.get("sub"), str(identity[0].id))
             self.assertEqual(session_claims.get("iss"), str(self.http_addr))
             tomorrow = now + datetime.timedelta(hours=25)
-            self.assertTrue(
-                session_claims.get("exp") > now.timestamp()
-            )
-            self.assertTrue(
-                session_claims.get("exp") < tomorrow.timestamp()
-            )
+            self.assertTrue(session_claims.get("exp") > now.timestamp())
+            self.assertTrue(session_claims.get("exp") < tomorrow.timestamp())
 
             pkce_object = await self.con.query(
                 """
@@ -1105,12 +1096,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(session_claims.get("sub"), str(identity[0].id))
             self.assertEqual(session_claims.get("iss"), str(self.http_addr))
             tomorrow = now + datetime.timedelta(hours=25)
-            self.assertTrue(
-                session_claims.get("exp") > now.timestamp()
-            )
-            self.assertTrue(
-                session_claims.get("exp") < tomorrow.timestamp()
-            )
+            self.assertTrue(session_claims.get("exp") > now.timestamp())
+            self.assertTrue(session_claims.get("exp") < tomorrow.timestamp())
 
     async def test_http_auth_ext_google_authorize_01(self):
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
@@ -1161,7 +1148,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.scheme, "https")
             self.assertEqual(url.hostname, "accounts.google.com")
             self.assertEqual(url.path, "/o/oauth2/v2/auth")
-            self.assertEqual(qs.get("scope"), ["openid profile email"])
+            self.assertEqual(qs.get("scope"), ["openid profile email "])
 
             state = qs.get("state")
             assert state is not None
@@ -1229,7 +1216,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.scheme, "https")
             self.assertEqual(url.hostname, "login.microsoftonline.com")
             self.assertEqual(url.path, "/common/oauth2/v2.0/authorize")
-            self.assertEqual(qs.get("scope"), ["openid profile email"])
+            self.assertEqual(
+                qs.get("scope"), ["openid profile email offline_access"]
+            )
 
             state = qs.get("state")
             assert state is not None
@@ -1397,7 +1386,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_config = await self.get_builtin_provider_config_by_name(
                 "oauth_apple"
             )
-            print(provider_config)
             provider_name = provider_config.name
             client_id = provider_config.client_id
             challenge = (
@@ -1442,7 +1430,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.scheme, "https")
             self.assertEqual(url.hostname, "appleid.apple.com")
             self.assertEqual(url.path, "/auth/authorize")
-            self.assertEqual(qs.get("scope"), ["openid email name"])
+            self.assertEqual(qs.get("scope"), ["openid email name "])
 
             state = qs.get("state")
             assert state is not None
@@ -1667,12 +1655,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(session_claims.get("iss"), str(self.http_addr))
             now = utcnow()
             tomorrow = now + datetime.timedelta(hours=25)
-            self.assertTrue(
-                session_claims.get("exp") > now.timestamp()
-            )
-            self.assertTrue(
-                session_claims.get("exp") < tomorrow.timestamp()
-            )
+            self.assertTrue(session_claims.get("exp") > now.timestamp())
+            self.assertTrue(session_claims.get("exp") < tomorrow.timestamp())
 
             password_credential = await self.con.query(
                 """
@@ -1974,12 +1958,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEqual(session_claims.get("sub"), str(identity[0].id))
             self.assertEqual(session_claims.get("iss"), str(self.http_addr))
-            self.assertTrue(
-                session_claims.get("exp") > now.timestamp()
-            )
-            self.assertTrue(
-                session_claims.get("exp") < tomorrow.timestamp()
-            )
+            self.assertTrue(session_claims.get("exp") > now.timestamp())
+            self.assertTrue(session_claims.get("exp") < tomorrow.timestamp())
 
             # Attempt to authenticate with wrong password
             auth_data_wrong_password = {
@@ -2234,7 +2214,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             # Register a new user
             form_data = {
                 "provider": provider_name,
-                "email": "test_auth_forgot@example.com",
+                "email": f"{uuid.uuid4()}@example.com",
                 "password": "test_auth_password",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -2279,9 +2259,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             data = json.loads(body)
 
-            assert_data_shape.assert_data_shape(data, {
-                "email_sent": "test_auth_forgot@example.com",
-            }, self.fail)
+            assert_data_shape.assert_data_shape(
+                data,
+                {
+                    "email_sent": form_data["email"],
+                },
+                self.fail,
+            )
 
             test_file = os.environ.get(
                 "EDGEDB_TEST_EMAIL_FILE", "/tmp/edb-test-email.pickle"
@@ -2289,9 +2273,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             with open(test_file, "rb") as f:
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], "noreply@example.com")
-            self.assertEqual(
-                email_args["recipients"], "test_auth_forgot@example.com"
-            )
+            self.assertEqual(email_args["recipients"], form_data["email"])
             html_msg = email_args["message"].get_payload(0).get_payload(1)
             html_email = html_msg.get_payload(decode=True).decode("utf-8")
             match = re.search(r'<a href=[\'"]?([^\'" >]+)', html_email)
@@ -2308,12 +2290,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(claims.get("iss"), str(self.http_addr))
             now = utcnow()
             tenMinutesLater = now + datetime.timedelta(minutes=10)
-            self.assertTrue(
-                claims.get("exp") > now.timestamp()
-            )
-            self.assertTrue(
-                claims.get("exp") < tenMinutesLater.timestamp()
-            )
+            self.assertTrue(claims.get("exp") > now.timestamp())
+            self.assertTrue(claims.get("exp") < tenMinutesLater.timestamp())
 
             password_credential = await self.con.query(
                 """
@@ -2323,9 +2301,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 identity=identity[0].id,
             )
             self.assertTrue(
-                base64.b64encode(hashlib.sha256(
-                    password_credential[0].password_hash.encode()
-                ).digest()).decode() == claims.get('jti')
+                base64.b64encode(
+                    hashlib.sha256(
+                        password_credential[0].password_hash.encode()
+                    ).digest()
+                ).decode()
+                == claims.get('jti')
             )
 
             # Send reset with redirect_to
@@ -2334,10 +2315,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 None,
                 path="send_reset_email",
                 method="POST",
-                body=urllib.parse.urlencode({
-                    **form_data,
-                    "redirect_to": "https://example.com/forgot-password"
-                }),
+                body=urllib.parse.urlencode(
+                    {
+                        **form_data,
+                        "redirect_to": "https://example.com/forgot-password",
+                    }
+                ),
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
@@ -2357,12 +2340,16 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         '',
                     )
                 ),
-                "https://example.com/forgot-password"
+                "https://example.com/forgot-password",
             )
 
-            assert_data_shape.assert_data_shape(parsed_query, {
-                "email_sent": ["test_auth_forgot@example.com"],
-            }, self.fail)
+            assert_data_shape.assert_data_shape(
+                parsed_query,
+                {
+                    "email_sent": [form_data["email"]],
+                },
+                self.fail,
+            )
 
             # Try sending reset for non existent user
             _, _, error_status = self.http_con_request(
@@ -2370,10 +2357,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 None,
                 path="send_reset_email",
                 method="POST",
-                body=urllib.parse.urlencode({
-                    **form_data,
-                    "email": "invalid@example.com",
-                }).encode(),
+                body=urllib.parse.urlencode(
+                    {
+                        **form_data,
+                        "email": "invalid@example.com",
+                    }
+                ).encode(),
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
@@ -2385,11 +2374,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 None,
                 path="send_reset_email",
                 method="POST",
-                body=urllib.parse.urlencode({
-                    **form_data,
-                    "email": "invalid@example.com",
-                    "redirect_to": "https://example.com/forgot-password"
-                }).encode(),
+                body=urllib.parse.urlencode(
+                    {
+                        **form_data,
+                        "email": "invalid@example.com",
+                        "redirect_to": "https://example.com/forgot-password",
+                    }
+                ).encode(),
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
@@ -2409,13 +2400,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         '',
                     )
                 ),
-                "https://example.com/forgot-password"
+                "https://example.com/forgot-password",
             )
 
             self.assertEqual(
                 parsed_query.get("error"),
-                ["Could not find an Identity matching the "
-                 "provided credentials"],
+                [
+                    "Could not find an Identity matching the "
+                    "provided credentials"
+                ],
             )
 
             # Try sending reset for non existent user
@@ -2425,13 +2418,16 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 None,
                 path="send_reset_email",
                 method="POST",
-                body=urllib.parse.urlencode({
-                    **form_data,
-                    "email": "invalid@example.com",
-                    "redirect_to": "https://example.com/forgot-password",
-                    "redirect_on_failure":
-                        "https://example.com/forgot-password-failed"
-                }).encode(),
+                body=urllib.parse.urlencode(
+                    {
+                        **form_data,
+                        "email": "invalid@example.com",
+                        "redirect_to": "https://example.com/forgot-password",
+                        "redirect_on_failure": (
+                            "https://example.com/forgot-password-failed"
+                        ),
+                    }
+                ).encode(),
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
@@ -2451,13 +2447,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         '',
                     )
                 ),
-                "https://example.com/forgot-password-failed"
+                "https://example.com/forgot-password-failed",
             )
 
             self.assertEqual(
                 parsed_query.get("error"),
-                ["Could not find an Identity matching the "
-                 "provided credentials"],
+                [
+                    "Could not find an Identity matching the "
+                    "provided credentials"
+                ],
             )
 
     async def test_http_auth_ext_local_password_reset_form_01(self):
@@ -2467,7 +2465,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             # Register a new user
             form_data = {
                 "provider": provider_name,
-                "email": "test_auth_forgot@example.com",
+                "email": f"{uuid.uuid4()}@example.com",
                 "password": "test_auth_password",
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -2506,9 +2504,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             with open(test_file, "rb") as f:
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], "noreply@example.com")
-            self.assertEqual(
-                email_args["recipients"], "test_auth_forgot@example.com"
-            )
+            self.assertEqual(email_args["recipients"], form_data["email"])
             html_msg = email_args["message"].get_payload(0).get_payload(1)
             html_email = html_msg.get_payload(decode=True).decode("utf-8")
             match = re.search(r'<a href=[\'"]?([^\'" >]+)', html_email)
@@ -2544,8 +2540,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 with module ext::auth
                 SELECT LocalIdentity
                 FILTER .<identity[is EmailPasswordFactor].email
-                        = 'test_auth_forgot@example.com'
-                """
+                        = <str>$email
+                """,
+                email=form_data["email"],
             )
 
             self.assertEqual(len(identity), 1)
@@ -2567,12 +2564,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEqual(session_claims.get("sub"), str(identity[0].id))
             self.assertEqual(session_claims.get("iss"), str(self.http_addr))
-            self.assertTrue(
-                session_claims.get("exp") > now.timestamp()
-            )
-            self.assertTrue(
-                session_claims.get("exp") < tomorrow.timestamp()
-            )
+            self.assertTrue(session_claims.get("exp") > now.timestamp())
+            self.assertTrue(session_claims.get("exp") < tomorrow.timestamp())
 
             # Try to re-use the reset token
 
@@ -2594,11 +2587,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 None,
                 path="reset_password",
                 method="POST",
-                body=urllib.parse.urlencode({
-                    **auth_data,
-                    "redirect_to": "https://example.com/",
-                    "redirect_on_failure": "https://example.com/reset-password"
-                }).encode(),
+                body=urllib.parse.urlencode(
+                    {
+                        **auth_data,
+                        "redirect_to": "https://example.com/",
+                        "redirect_on_failure": (
+                            "https://example.com/reset-password"
+                        ),
+                    }
+                ).encode(),
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
@@ -2618,7 +2615,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         '',
                     )
                 ),
-                "https://example.com/reset-password"
+                "https://example.com/reset-password",
             )
 
             self.assertEqual(
