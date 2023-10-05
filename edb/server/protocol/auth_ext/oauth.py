@@ -19,7 +19,7 @@
 
 import json
 
-from typing import Any
+from typing import Any, Type
 from edb.server.protocol import execute
 
 from . import github, google, azure, apple
@@ -47,19 +47,22 @@ class Client:
             "additional_scope": additional_scope,
         }
 
+        provider_class: Type[base.BaseProvider]
         match provider_name:
             case "builtin::oauth_github":
-                provider_class = github.GitHubProvider  # type: ignore
+                provider_class = github.GitHubProvider
             case "builtin::oauth_google":
-                provider_class = google.GoogleProvider  # type: ignore
+                provider_class = google.GoogleProvider
             case "builtin::oauth_azure":
-                provider_class = azure.AzureProvider  # type: ignore
+                provider_class = azure.AzureProvider
             case "builtin::oauth_apple":
-                provider_class = apple.AppleProvider  # type: ignore
+                provider_class = apple.AppleProvider
             case _:
                 raise errors.InvalidData(f"Invalid provider: {provider_name}")
 
-        self.provider = provider_class(*provider_args, **provider_kwargs)
+        self.provider = provider_class(
+            *provider_args, **provider_kwargs  # type: ignore
+        )
 
     async def get_authorize_url(self, state: str, redirect_uri: str) -> str:
         return await self.provider.get_code_url(
