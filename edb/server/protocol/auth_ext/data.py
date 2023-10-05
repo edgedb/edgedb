@@ -19,7 +19,7 @@
 
 import dataclasses
 import datetime
-from typing import Optional
+from typing import Optional, NamedTuple
 
 
 @dataclasses.dataclass
@@ -134,3 +134,9 @@ class OpenIDConnectAccessTokenResponse(OAuthAccessTokenResponse):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+
+class ProviderConfig(NamedTuple):
+    client_id: str
+    secret: str
+    additional_scope: Optional[str]
