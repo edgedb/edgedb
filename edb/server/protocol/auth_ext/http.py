@@ -597,6 +597,9 @@ class Router:
                                 query, 'error'
                             ),
                             email=_maybe_get_search_param(query, 'email'),
+                            challenge=_get_search_param(
+                                query, 'challenge'
+                            ),
                             app_name=ui_config.app_name,
                             logo_url=ui_config.logo_url,
                             dark_logo_url=ui_config.dark_logo_url,

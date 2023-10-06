@@ -37,6 +37,7 @@ def render_login_page(
     providers: frozenset,
     error_message: Optional[str] = None,
     email: Optional[str] = None,
+    challenge: Optional[str] = None,
     # config
     redirect_to: str,
     app_name: Optional[str] = None,
@@ -57,7 +58,9 @@ def render_login_page(
 
     oauth_buttons = '\n'.join([
         f'''
-        <a href="authorize?provider={p.name}">
+        <a href="authorize?provider={p.name}{
+            f"&challenge={challenge}" if challenge else ""
+        }">
         {(
             '<img src="_static/icon_' + p.name[15:] + '.svg" alt="' +
             p.display_name+' Icon" />'
