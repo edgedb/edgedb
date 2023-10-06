@@ -73,14 +73,16 @@ class Router:
         try:
             match args:
                 case ("authorize",):
-                    query = request.url.query.decode("ascii")
+                    query = urllib.parse.parse_qs(
+                        request.url.query.decode("ascii")
+                    )
                     provider_name = _get_search_param(query, "provider")
                     redirect_to = _get_search_param(query, "redirect_to")
                     challenge = _get_search_param(query, "challenge")
                     oauth_client = oauth.Client(
                         db=self.db,
                         provider_name=provider_name,
-                        base_url=test_url
+                        base_url=test_url,
                     )
                     await pkce.create(self.db, challenge)
                     authorize_url = await oauth_client.get_authorize_url(
@@ -106,7 +108,9 @@ class Router:
                             form_data, "error_description"
                         )
                     elif request.url.query is not None:
-                        query = request.url.query.decode("ascii")
+                        query = urllib.parse.parse_qs(
+                            request.url.query.decode("ascii")
+                        )
                         state = _maybe_get_search_param(query, "state")
                         code = _maybe_get_search_param(query, "code")
                         error = _maybe_get_search_param(query, "error")
@@ -192,7 +196,9 @@ class Router:
                     )
 
                 case ("token",):
-                    query = request.url.query.decode("ascii")
+                    query = urllib.parse.parse_qs(
+                        request.url.query.decode("ascii")
+                    )
                     code = _get_search_param(query, "code")
                     verifier = _get_search_param(query, "verifier")
 
@@ -298,7 +304,7 @@ class Router:
                             redirect_params = urllib.parse.urlencode(
                                 {
                                     "error": str(ex),
-                                    "email": data.get('email', '')
+                                    "email": data.get('email', ''),
                                 }
                             )
                             redirect_url = (
@@ -375,7 +381,7 @@ class Router:
                         else:
                             raise ex
 
-                case ('send_reset_email', ):
+                case ('send_reset_email',):
                     data = self._get_data_from_request(request)
 
                     local_provider_name = data.get("provider")
@@ -394,16 +400,18 @@ class Router:
                                 "Missing 'reset_url' in data"
                             )
 
-                        identity, secret = (
-                            await local_client.get_identity_and_secret(data))
+                        (
+                            identity,
+                            secret,
+                        ) = await local_client.get_identity_and_secret(data)
 
                         new_reset_token = self._make_reset_token(
                             identity.id, secret
                         )
 
-                        reset_token_params = urllib.parse.urlencode({
-                            "reset_token": new_reset_token
-                        })
+                        reset_token_params = urllib.parse.urlencode(
+                            {"reset_token": new_reset_token}
+                        )
                         reset_url = f"{data['reset_url']}?{reset_token_params}"
 
                         from_addr = util.get_config(
@@ -442,11 +450,9 @@ class Router:
                         if task.done():
                             await task
 
-                        return_data = (
-                            {
-                                "email_sent": data.get('email'),
-                            }
-                        )
+                        return_data = {
+                            "email_sent": data.get('email'),
+                        }
 
                         if data.get("redirect_to") is not None:
                             response.status = http.HTTPStatus.FOUND
@@ -460,9 +466,7 @@ class Router:
                         else:
                             response.status = http.HTTPStatus.OK
                             response.content_type = b"application/json"
-                            response.body = json.dumps(
-                                return_data
-                            ).encode()
+                            response.body = json.dumps(return_data).encode()
                     except aiosmtplib.SMTPException as ex:
                         if not debug.flags.server:
                             logger.warning(
@@ -491,7 +495,7 @@ class Router:
                         else:
                             raise ex
 
-                case ('reset_password', ):
+                case ('reset_password',):
                     data = self._get_data_from_request(request)
 
                     local_provider_name = data.get("provider")
@@ -511,8 +515,8 @@ class Router:
                             )
                         reset_token = data['reset_token']
 
-                        identity_id, secret = (
-                            self._get_data_from_reset_token(reset_token)
+                        identity_id, secret = self._get_data_from_reset_token(
+                            reset_token
                         )
 
                         identity = await local_client.update_password(
@@ -564,7 +568,10 @@ class Router:
                         else:
                             raise ex
 
-                case ('ui', 'signin',):
+                case (
+                    'ui',
+                    'signin',
+                ):
                     ui_config = self._get_ui_config()
 
                     if ui_config is None:
@@ -574,18 +581,19 @@ class Router:
                         providers = util.maybe_get_config(
                             self.db,
                             "ext::auth::AuthConfig::providers",
-                            frozenset
+                            frozenset,
                         )
 
                         if providers is None or len(providers) == 0:
                             raise errors.MissingConfiguration(
                                 'ext::auth::AuthConfig::providers',
-                                'No providers are configured'
+                                'No providers are configured',
                             )
 
-                        query = (
+                        query = urllib.parse.parse_qs(
                             request.url.query.decode("ascii")
-                            if request.url.query else ''
+                            if request.url.query
+                            else ''
                         )
 
                         response.status = http.HTTPStatus.OK
@@ -604,7 +612,10 @@ class Router:
                             brand_color=ui_config.brand_color,
                         )
 
-                case ('ui', 'signup',):
+                case (
+                    'ui',
+                    'signup',
+                ):
                     ui_config = self._get_ui_config()
                     password_provider = (
                         self._get_password_provider()
@@ -616,12 +627,14 @@ class Router:
                         response.status = http.HTTPStatus.NOT_FOUND
                         response.body = (
                             b'Password provider not configured'
-                            if ui_config else b'Auth UI not enabled'
+                            if ui_config
+                            else b'Auth UI not enabled'
                         )
                     else:
-                        query = (
+                        query = urllib.parse.parse_qs(
                             request.url.query.decode("ascii")
-                            if request.url.query else ''
+                            if request.url.query
+                            else ''
                         )
 
                         response.status = http.HTTPStatus.OK
@@ -640,7 +653,10 @@ class Router:
                             brand_color=ui_config.brand_color,
                         )
 
-                case ('ui', 'forgot-password',):
+                case (
+                    'ui',
+                    'forgot-password',
+                ):
                     ui_config = self._get_ui_config()
                     password_provider = (
                         self._get_password_provider()
@@ -652,12 +668,14 @@ class Router:
                         response.status = http.HTTPStatus.NOT_FOUND
                         response.body = (
                             b'Password provider not configured'
-                            if ui_config else b'Auth UI not enabled'
+                            if ui_config
+                            else b'Auth UI not enabled'
                         )
                     else:
-                        query = (
+                        query = urllib.parse.parse_qs(
                             request.url.query.decode("ascii")
-                            if request.url.query else ''
+                            if request.url.query
+                            else ''
                         )
 
                         response.status = http.HTTPStatus.OK
@@ -678,7 +696,10 @@ class Router:
                             brand_color=ui_config.brand_color,
                         )
 
-                case ('ui', 'reset-password',):
+                case (
+                    'ui',
+                    'reset-password',
+                ):
                     ui_config = self._get_ui_config()
                     password_provider = (
                         self._get_password_provider()
@@ -690,33 +711,37 @@ class Router:
                         response.status = http.HTTPStatus.NOT_FOUND
                         response.body = (
                             b'Password provider not configured'
-                            if ui_config else b'Auth UI not enabled'
+                            if ui_config
+                            else b'Auth UI not enabled'
                         )
                     else:
-                        query = (
+                        query = urllib.parse.parse_qs(
                             request.url.query.decode("ascii")
-                            if request.url.query else ''
+                            if request.url.query
+                            else ''
                         )
 
                         reset_token = _maybe_get_search_param(
-                            query, 'reset_token')
+                            query, 'reset_token'
+                        )
 
                         if reset_token is not None:
                             try:
-                                identity_id, secret = (
-                                    self._get_data_from_reset_token(
-                                        reset_token
-                                    )
-                                )
+                                (
+                                    identity_id,
+                                    secret,
+                                ) = self._get_data_from_reset_token(reset_token)
 
                                 local_client = local.Client(
                                     db=self.db,
-                                    provider_name=password_provider.name
+                                    provider_name=password_provider.name,
                                 )
 
-                                is_valid = await (
-                                    local_client.validate_reset_secret(
-                                        identity_id, secret
+                                is_valid = (
+                                    await (
+                                        local_client.validate_reset_secret(
+                                            identity_id, secret
+                                        )
                                     )
                                 )
                             except Exception:
@@ -743,8 +768,7 @@ class Router:
 
                 case ('ui', '_static', filename):
                     filepath = os.path.join(
-                        os.path.dirname(__file__),
-                        '_static', filename
+                        os.path.dirname(__file__), '_static', filename
                     )
                     try:
                         with open(filepath, 'rb') as f:
@@ -826,9 +850,9 @@ class Router:
         self, provider: str, redirect_to: str, challenge: str
     ) -> str:
         signing_key = self._get_auth_signing_key()
-        expires_at = (
-            datetime.datetime.now(datetime.timezone.utc) +
-            datetime.timedelta(minutes=5))
+        expires_at = datetime.datetime.now(
+            datetime.timezone.utc
+        ) + datetime.timedelta(minutes=5)
 
         state_claims = {
             "iss": self.base_path,
@@ -943,19 +967,15 @@ class Router:
 
     def _get_ui_config(self):
         return util.maybe_get_config(
-            self.db, "ext::auth::AuthConfig::ui",
-            CompositeConfigType
+            self.db, "ext::auth::AuthConfig::ui", CompositeConfigType
         )
 
     def _get_password_provider(self):
         providers = util.get_config(
-            self.db,
-            "ext::auth::AuthConfig::providers",
-            frozenset
+            self.db, "ext::auth::AuthConfig::providers", frozenset
         )
         password_providers = [
-            p for p in providers
-            if (p.name == 'builtin::local_emailpassword')
+            p for p in providers if (p.name == 'builtin::local_emailpassword')
         ]
 
         return password_providers[0] if len(password_providers) == 1 else None
@@ -978,13 +998,15 @@ def _fail_with_error(
     response.status = status
 
 
-def _maybe_get_search_param(query: str, key: str) -> str | None:
-    params = urllib.parse.parse_qs(query).get(key)
+def _maybe_get_search_param(
+    query_dict: dict[str, list[str]], key: str
+) -> str | None:
+    params = query_dict.get(key)
     return params[0] if params else None
 
 
-def _get_search_param(query: str, key: str) -> str:
-    val = _maybe_get_search_param(query, key)
+def _get_search_param(query_dict: dict[str, list[str]], key: str) -> str:
+    val = _maybe_get_search_param(query_dict, key)
     if val is None:
         raise errors.InvalidData(f"Missing query parameter: {key}")
     return val
