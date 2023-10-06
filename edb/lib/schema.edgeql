@@ -432,6 +432,13 @@ ALTER TYPE std::BaseObject {
         SET protected := True;
     };
 };
+ALTER TYPE std::FreeObject {
+    # N.B: See above.
+    CREATE REQUIRED LINK __type__ -> schema::ObjectType {
+        SET readonly := True;
+        SET protected := True;
+    };
+};
 
 
 ALTER TYPE schema::ObjectType {
