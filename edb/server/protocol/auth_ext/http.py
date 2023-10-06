@@ -574,7 +574,6 @@ class Router:
                             "ext::auth::AuthConfig::providers",
                             frozenset
                         )
-
                         if providers is None or len(providers) == 0:
                             raise errors.MissingConfiguration(
                                 'ext::auth::AuthConfig::providers',
@@ -592,6 +591,10 @@ class Router:
                             cookies=request.cookies,
                             query_dict=query,
                         )
+                        if maybe_challenge is None:
+                            raise errors.InvalidData(
+                                'Missing "challenge" in register request'
+                            )
 
                         response.status = http.HTTPStatus.OK
                         response.content_type = b'text/html'
@@ -636,6 +639,10 @@ class Router:
                             cookies=request.cookies,
                             query_dict=query,
                         )
+                        if maybe_challenge is None:
+                            raise errors.InvalidData(
+                                'Missing "challenge" in register request'
+                            )
 
                         response.status = http.HTTPStatus.OK
                         response.content_type = b'text/html'
@@ -647,6 +654,7 @@ class Router:
                                 query, 'error'
                             ),
                             email=_maybe_get_search_param(query, 'email'),
+                            challenge=maybe_challenge,
                             app_name=ui_config.app_name,
                             logo_url=ui_config.logo_url,
                             dark_logo_url=ui_config.dark_logo_url,
