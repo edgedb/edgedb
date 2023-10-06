@@ -58,7 +58,7 @@ def render_login_page(
 
     oauth_buttons = '\n'.join([
         f'''
-        <a href="authorize?provider={p.name}{
+        <a href="../authorize?provider={p.name}&redirect_to={redirect_to}{
             f"&challenge={challenge}" if challenge else ""
         }">
         {(
