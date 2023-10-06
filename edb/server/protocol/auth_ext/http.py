@@ -586,7 +586,7 @@ class Router:
                             else ''
                         )
 
-                        challenge = _get_pkce_challenge(
+                        maybe_challenge = _get_pkce_challenge(
                             response=response,
                             cookies=request.cookies,
                             query_dict=query,
@@ -602,7 +602,7 @@ class Router:
                                 query, 'error'
                             ),
                             email=_maybe_get_search_param(query, 'email'),
-                            challenge=challenge,
+                            challenge=maybe_challenge,
                             app_name=ui_config.app_name,
                             logo_url=ui_config.logo_url,
                             dark_logo_url=ui_config.dark_logo_url,
@@ -630,7 +630,7 @@ class Router:
                             else ''
                         )
 
-                        challenge = _get_pkce_challenge(
+                        maybe_challenge = _get_pkce_challenge(
                             response=response,
                             cookies=request.cookies,
                             query_dict=query,
@@ -1013,6 +1013,7 @@ def _maybe_get_form_field(
     if maybe_val is None:
         return None
     return maybe_val[0]
+
 
 def _get_pkce_challenge(
     *,
