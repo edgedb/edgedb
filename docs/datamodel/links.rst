@@ -475,6 +475,129 @@ in these cases due to better ergonomics of selecting, updating, and even
 casting into :eql:type:`json` when keeping all data in the same place rather
 than spreading it across link and object properties.
 
+
+Inserting and updating link properties
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To insert a link property, add the link property to a shape on the linked
+object being added. Be sure to prepend the link property's name with ``@``.
+
+.. code-block:: edgeql
+
+  insert Person {
+    name := "Bob",
+    family_members := (
+      select detached Person {
+        @relationship := "sister"
+      }
+      filter .name = "Alice"
+    )
+  }
+
+The shape could also be included on an insert if the object being linked (the
+``Person`` named "Alice" in this example) is being inserted as part of the
+query. If the outer person ("Bob" in the example) already exists and only the
+links need to be added, this can be done in an ``update`` query.
+
+Updating a link property is similar except you can select the link instead of
+selecting from the object type since the link has already been established.
+Here, we've discovered that Alice is actually Bob's step-sister, so we want to
+change the link property on the already-established link between the two:
+
+.. code-block:: edgeql
+
+  update Person {
+    name := "Bob",
+    family_members := (
+      select .family_members {
+        @relationship := "step-sister"
+      }
+      filter .name = "Alice"
+    )
+  }
+
+.. warning::
+
+    A link property cannot be referenced in a set union *except* in the case of
+    a :ref:`for loop <ref_eql_for>`. That means this will *not* work:
+
+    .. code-block:: edgeql
+
+        # 🚫
+        insert Movie {
+          title := 'The Incredible Hulk',
+          actors := {(
+              select Person {
+                @character_name := 'The Hulk'
+              } filter .name = 'Mark Ruffalo'
+            ),
+            (
+              select Person {
+                @character_name := 'Abomination'
+              } filter .name = 'Tim Roth'
+            )}
+        };
+
+    That query will produce an error: ``QueryError: invalid reference to link
+    property in top level shape``
+
+    You can use this workaround instead:
+
+    .. code-block:: edgeql
+
+        # ✅
+        insert Movie {
+          title := 'The Incredible Hulk',
+          actors := assert_distinct((
+            with characters := {
+              ('The Hulk', 'Mark Ruffalo'),
+              ('Abomination', 'Tim Roth')
+            },
+            for character in characters union (
+              select Person {
+                @character_name := character.0
+              } filter .name = character.1
+            )
+          ))
+        };
+
+    Note that we are also required to wrap the ``actors`` query with
+    :eql:func:`assert_distinct` here to assure the compiler that the result set
+    is distinct.
+
+
+Querying link properties
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+To query a link property, add the link property's name prepended with ``@`` to
+a shape on the link.
+
+.. code-block:: edgeql-repl
+
+  edgedb> select Person {
+  .......   name,
+  .......   family_members: {
+  .......     name,
+  .......     @relationship
+  .......   }
+  ....... };
+  {
+    default::Person {name: 'Alice', family_members: {}},
+    default::Person {
+      name: 'Bob',
+      family_members: {
+        default::Person {name: 'Alice', @relationship: 'step-sister'}
+      }
+    },
+  }
+
+.. note::
+
+    In the query results above, Alice appears to have no family members even
+    though we know that, if she is Bob's step-sister, he must be her
+    step-brother. We would need to update Alice manually before this is
+    reflected in the database.
+
 .. note::
 
   For a full guide on modeling, inserting, updating, and querying link
