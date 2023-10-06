@@ -193,10 +193,9 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
                 If not set, 'redirect_to' will be used instead.";
         };
 
-        create required property oauth_flow_type: ext::auth::FlowType {
+        create required property flow_type: ext::auth::FlowType {
             create annotation std::description :=
-                "Which flow does the OAuth flow use when returning an auth \
-                token from an Identity Provider.";
+                "The flow used when requesting authentication.";
             set default := ext::auth::FlowType.PKCE;
         };
 
