@@ -179,6 +179,8 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
     };
 
+    create scalar type ext::auth::FlowType extending std::enum<PKCE, Implicit>;
+
     create type ext::auth::UIConfig extending cfg::ConfigObject {
         create required property redirect_to: std::str {
             create annotation std::description :=
@@ -189,6 +191,13 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             create annotation std::description :=
                 "The url to redirect to after a new user signs up. \
                 If not set, 'redirect_to' will be used instead.";
+        };
+
+        create required property oauth_flow_type: ext::auth::FlowType {
+            create annotation std::description :=
+                "Which flow does the OAuth flow use when returning an auth \
+                token from an Identity Provider.";
+            set default := ext::auth::FlowType.PKCE;
         };
 
         create property app_name: std::str {
@@ -239,7 +248,6 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
                 indicates that the token should never expire.";
             set default := <std::duration>'336 hours';
         };
-
     };
 
     create scalar type ext::auth::SMTPSecurity extending enum<PlainText, TLS, STARTTLS, STARTTLSOrPlainText>;
