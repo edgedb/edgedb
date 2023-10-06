@@ -255,23 +255,26 @@ class Router:
                         raise errors.InvalidData(
                             'Missing "provider" in register request'
                         )
+                    maybe_challenge = data.get("challenge")
+                    if maybe_challenge is None:
+                        raise errors.InvalidData(
+                            'Missing "challenge" in register request'
+                        )
+                    await pkce.create(self.db, maybe_challenge)
 
                     local_client = local.Client(
                         db=self.db, provider_name=register_provider_name
                     )
                     try:
                         identity = await local_client.register(data)
-                        session_token = self._make_session_token(identity.id)
-                        response.custom_headers["Set-Cookie"] = (
-                            f"edgedb-session={session_token}; "
-                            f"HttpOnly; Secure; SameSite=Strict"
+                        pkce_code = await pkce.link_identity_challenge(
+                            self.db, identity.id, maybe_challenge
                         )
                         if data.get("redirect_to") is not None:
                             response.status = http.HTTPStatus.FOUND
                             redirect_params = urllib.parse.urlencode(
                                 {
-                                    "identity_id": identity.id,
-                                    "auth_token": session_token,
+                                    "code": pkce_code,
                                 }
                             )
                             redirect_url = (
@@ -283,8 +286,7 @@ class Router:
                             response.content_type = b"application/json"
                             response.body = json.dumps(
                                 {
-                                    "identity_id": identity.id,
-                                    "auth_token": session_token,
+                                    "code": pkce_code
                                 }
                             ).encode()
                     except Exception as ex:
@@ -314,6 +316,12 @@ class Router:
                         raise errors.InvalidData(
                             'Missing "provider" in register request'
                         )
+                    maybe_challenge = data.get("challenge")
+                    if maybe_challenge is None:
+                        raise errors.InvalidData(
+                            'Missing "challenge" in register request'
+                        )
+                    await pkce.create(self.db, maybe_challenge)
 
                     local_client = local.Client(
                         db=self.db, provider_name=authenticate_provider_name
@@ -321,6 +329,9 @@ class Router:
                     try:
                         identity = await local_client.authenticate(data)
 
+                        pkce_code = await pkce.link_identity_challenge(
+                            self.db, identity.id, maybe_challenge
+                        )
                         session_token = self._make_session_token(identity.id)
                         response.custom_headers["Set-Cookie"] = (
                             f"edgedb-session={session_token}; "
@@ -330,8 +341,7 @@ class Router:
                             response.status = http.HTTPStatus.FOUND
                             redirect_params = urllib.parse.urlencode(
                                 {
-                                    "identity_id": identity.id,
-                                    "auth_token": session_token,
+                                    "code": pkce_code,
                                 }
                             )
                             redirect_url = (
@@ -343,8 +353,7 @@ class Router:
                             response.content_type = b"application/json"
                             response.body = json.dumps(
                                 {
-                                    "identity_id": identity.id,
-                                    "auth_token": session_token,
+                                    "code": pkce_code,
                                 }
                             ).encode()
                     except Exception as ex:
