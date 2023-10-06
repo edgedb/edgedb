@@ -101,8 +101,8 @@ with
     } unless conflict on ((.issuer, .subject))
       else ext::auth::Identity
   )
-select identity {
-  *,
+select {
+  identity := (select identity {*}),
   new := (identity not in ext::auth::Identity)
 };""",
             variables={
@@ -113,7 +113,10 @@ select identity {
         result_json = json.loads(r.decode())
         assert len(result_json) == 1
 
-        return (data.Identity(**result_json[0]), result_json[0]['new'])
+        return (
+            data.Identity(**result_json[0]['identity']),
+            result_json[0]['new']
+        )
 
     def _get_provider_config(self, provider_name: str):
         provider_client_config = util.get_config(
