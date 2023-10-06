@@ -519,6 +519,9 @@ already-established link between the two:
       )
     }
 
+Using ``select .family_members`` here with the shape including the link
+property allows us to modify the existing link's link property.
+
 .. warning::
 
     A link property cannot be referenced in a set union *except* in the case of
