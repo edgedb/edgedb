@@ -595,6 +595,12 @@ class Router:
                             else ''
                         )
 
+                        challenge = _get_pkce_challenge(
+                            response=response,
+                            cookies=request.cookies,
+                            query_dict=query,
+                        )
+
                         response.status = http.HTTPStatus.OK
                         response.content_type = b'text/html'
                         response.body = ui.render_login_page(
@@ -605,9 +611,7 @@ class Router:
                                 query, 'error'
                             ),
                             email=_maybe_get_search_param(query, 'email'),
-                            challenge=_get_search_param(
-                                query, 'challenge'
-                            ),
+                            challenge=challenge,
                             app_name=ui_config.app_name,
                             logo_url=ui_config.logo_url,
                             dark_logo_url=ui_config.dark_logo_url,
@@ -633,6 +637,12 @@ class Router:
                             request.url.query.decode("ascii")
                             if request.url.query
                             else ''
+                        )
+
+                        challenge = _get_pkce_challenge(
+                            response=response,
+                            cookies=request.cookies,
+                            query_dict=query,
                         )
 
                         response.status = http.HTTPStatus.OK
@@ -1012,3 +1022,21 @@ def _maybe_get_form_field(
     if maybe_val is None:
         return None
     return maybe_val[0]
+
+def _get_pkce_challenge(
+    *,
+    response,
+    cookies: dict[bytes, bytes],
+    query_dict: dict[str, list[str]]
+) -> str | None:
+    challenge: str | None = _maybe_get_search_param(query_dict, 'challenge')
+    if challenge is not None:
+        response.custom_headers["Set-Cookie"] = (
+            f"edgedb-pkce-challenge={challenge}; "
+            f"HttpOnly; Secure; SameSite=Strict"
+        )
+    else:
+        if b'edgedb-pkce-challenge' in cookies:
+            cookie_value: bytes = cookies[b'edgedb-pkce-challenge']
+            challenge = cookie_value.decode()
+    return challenge
