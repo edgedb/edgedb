@@ -3021,7 +3021,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'insert expression must be an object type reference',
+                  'INSERT only works with object types, not arbitrary '
+                  'expressions',
                   line=2, col=16)
     def test_edgeql_syntax_insert_05(self):
         """
