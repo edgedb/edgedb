@@ -34,6 +34,7 @@ cdef class HttpRequest:
         public bytes authorization
         public object params
         public object forwarded
+        public object cookies
 
 
 cdef class HttpResponse:
