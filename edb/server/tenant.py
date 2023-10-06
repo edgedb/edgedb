@@ -441,11 +441,13 @@ class Tenant(ha_base.ClusterProtocol):
             if self._server.stmt_cache_size is not None:
                 rv.set_stmt_cache_size(self._server.stmt_cache_size)
         except Exception:
-            metrics.backend_connection_establishment_errors.inc()
+            metrics.backend_connection_establishment_errors.inc(
+                1.0, self._instance_name
+            )
             raise
         finally:
             metrics.backend_connection_establishment_latency.observe(
-                time.monotonic() - started_at
+                time.monotonic() - started_at, self._instance_name
             )
         if ha_serial == self._ha_master_serial:
             rv.set_tenant(self)
@@ -453,15 +455,15 @@ class Tenant(ha_base.ClusterProtocol):
                 self._backend_adaptive_ha.on_pgcon_made(
                     dbname == defines.EDGEDB_SYSTEM_DB
                 )
-            metrics.total_backend_connections.inc()
-            metrics.current_backend_connections.inc()
+            metrics.total_backend_connections.inc(1.0, self._instance_name)
+            metrics.current_backend_connections.inc(1.0, self._instance_name)
             return rv
         else:
             rv.terminate()
             raise ConnectionError("connected to outdated Postgres master")
 
     async def _pg_disconnect(self, conn: pgcon.PGConnection) -> None:
-        metrics.current_backend_connections.dec()
+        metrics.current_backend_connections.dec(1.0, self._instance_name)
         conn.terminate()
 
     @contextlib.asynccontextmanager

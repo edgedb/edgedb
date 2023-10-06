@@ -741,6 +741,12 @@ cdef class PGConnection:
                 # serialization conflicts.
                 raise error
 
+    cdef inline str get_tenant_label(self):
+        if self.tenant is None:
+            return "system"
+        else:
+            return self.tenant.get_instance_name()
+
     cdef bint before_prepare(
         self,
         bytes stmt_name,
@@ -894,7 +900,9 @@ cdef class PGConnection:
                 while self.waiting_for_sync:
                     await self.wait_for_sync()
         finally:
-            metrics.backend_query_duration.observe(time.monotonic() - started_at)
+            metrics.backend_query_duration.observe(
+                time.monotonic() - started_at, self.get_tenant_label()
+            )
             await self.after_command()
 
     cdef send_query_unit_group(
@@ -1394,7 +1402,9 @@ cdef class PGConnection:
                 dbver,
             )
         finally:
-            metrics.backend_query_duration.observe(time.monotonic() - started_at)
+            metrics.backend_query_duration.observe(
+                time.monotonic() - started_at, self.get_tenant_label()
+            )
             await self.after_command()
 
     async def sql_fetch(
@@ -1569,7 +1579,9 @@ cdef class PGConnection:
         try:
             return await self._sql_execute(sql_string)
         finally:
-            metrics.backend_query_duration.observe(time.monotonic() - started_at)
+            metrics.backend_query_duration.observe(
+                time.monotonic() - started_at, self.get_tenant_label()
+            )
             await self.after_command()
 
     async def sql_apply_state(
@@ -2820,7 +2832,9 @@ cdef class PGConnection:
                 self.aborted_with_error = er_cls(fields=fields)
 
                 pgcode = fields['C']
-                metrics.backend_connection_aborted.inc(1.0, pgcode)
+                metrics.backend_connection_aborted.inc(
+                    1.0, self.get_tenant_label(), pgcode
+                )
 
                 if pgcode in POSTGRES_SHUTDOWN_ERR_CODES:
                     pgreason = POSTGRES_SHUTDOWN_ERR_CODES[pgcode]

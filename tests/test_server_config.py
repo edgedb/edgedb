@@ -1800,10 +1800,10 @@ class TestSeparateCluster(tb.TestCase):
             data = sd.fetch_metrics()
 
             # Postgres: ERROR_IDLE_IN_TRANSACTION_TIMEOUT=25P03
-            self.assertIn(
-                '\nedgedb_server_backend_connections_aborted_total' +
-                '{pgcode="25P03"} 1.0\n',
-                data
+            self.assertRegex(
+                data,
+                r'\nedgedb_server_backend_connections_aborted_total' +
+                r'\{.*pgcode="25P03"\} 1.0\n',
             )
 
     async def test_server_config_query_timeout(self):
