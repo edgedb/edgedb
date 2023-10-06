@@ -365,7 +365,7 @@ tutorial </tutorial/data-mutations/upsert>`_.
 
       db> with
       ...   title := "Eternals",
-      ...   release_year := 2021
+      ...   release_year := 2021,
       ...   movie := (
       ...     insert Movie {
       ...       title := title,
