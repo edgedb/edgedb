@@ -23,6 +23,7 @@ include "./consts.pxi"
 import asyncio
 import collections
 import http
+import http.cookies
 import re
 import ssl
 import urllib.parse
@@ -72,7 +73,7 @@ cdef class HttpRequest:
         self.authorization = b''
         self.content_type = b''
         self.forwarded = {}
-        self.cookies = {}
+        self.cookies = http.cookies.SimpleCookie()
 
 
 cdef class HttpResponse:
@@ -233,13 +234,7 @@ cdef class HttpProtocol:
             forwarded_key = name[len(b'x-forwarded-'):]
             self.current_request.forwarded[forwarded_key] = value
         elif name == b'cookie':
-            if self.current_request.cookies is None:
-                self.current_request.cookies = {}
-            cookies = value.split(b'; ')
-            for cookie in cookies:
-                key, value = cookie.split(b'=', 1)
-                value = value.split(b'; ', 1)[0]
-                self.current_request.cookies[key] = value
+            self.current_request.cookies.load(value.decode('ascii'))
 
     def on_body(self, body: bytes):
         self.current_request.body += body

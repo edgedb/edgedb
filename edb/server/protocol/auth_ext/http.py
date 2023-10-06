@@ -20,6 +20,7 @@
 import asyncio
 import datetime
 import http
+import http.cookies
 import json
 import logging
 import urllib.parse
@@ -190,10 +191,7 @@ class Router:
                     session_token = self._make_session_token(identity.id)
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = new_url
-                    response.custom_headers["Set-Cookie"] = (
-                        f"edgedb-session={session_token}; "
-                        f"HttpOnly; Secure; SameSite=Strict"
-                    )
+                    _set_cookie(response, "edgedb-session", session_token)
 
                 case ("token",):
                     query = urllib.parse.parse_qs(
@@ -268,10 +266,7 @@ class Router:
                     try:
                         identity = await local_client.register(data)
                         session_token = self._make_session_token(identity.id)
-                        response.custom_headers["Set-Cookie"] = (
-                            f"edgedb-session={session_token}; "
-                            f"HttpOnly; Secure; SameSite=Strict"
-                        )
+                        _set_cookie(response, "edgedb-session", session_token)
                         if data.get("redirect_to") is not None:
                             response.status = http.HTTPStatus.FOUND
                             redirect_params = urllib.parse.urlencode(
@@ -328,10 +323,7 @@ class Router:
                         identity = await local_client.authenticate(data)
 
                         session_token = self._make_session_token(identity.id)
-                        response.custom_headers["Set-Cookie"] = (
-                            f"edgedb-session={session_token}; "
-                            f"HttpOnly; Secure; SameSite=Strict"
-                        )
+                        _set_cookie(response, "edgedb-session", session_token)
                         if data.get("redirect_to") is not None:
                             response.status = http.HTTPStatus.FOUND
                             redirect_params = urllib.parse.urlencode(
@@ -517,10 +509,7 @@ class Router:
                         )
 
                         session_token = self._make_session_token(identity.id)
-                        response.custom_headers["Set-Cookie"] = (
-                            f"edgedb-session={session_token}; "
-                            f"HttpOnly; Secure; SameSite=Strict"
-                        )
+                        _set_cookie(response, "edgedb-session", session_token)
                         if data.get("redirect_to") is not None:
                             response.status = http.HTTPStatus.FOUND
                             redirect_params = urllib.parse.urlencode(
@@ -1018,17 +1007,29 @@ def _maybe_get_form_field(
 def _get_pkce_challenge(
     *,
     response,
-    cookies: dict[bytes, bytes],
+    cookies: http.cookies.SimpleCookie,
     query_dict: dict[str, list[str]]
 ) -> str | None:
+    cookie_name = 'edgedb-pkce-challenge'
     challenge: str | None = _maybe_get_search_param(query_dict, 'challenge')
     if challenge is not None:
-        response.custom_headers["Set-Cookie"] = (
-            f"edgedb-pkce-challenge={challenge}; "
-            f"HttpOnly; Secure; SameSite=Strict"
-        )
+        _set_cookie(response, cookie_name, challenge)
     else:
-        if b'edgedb-pkce-challenge' in cookies:
-            cookie_value: bytes = cookies[b'edgedb-pkce-challenge']
-            challenge = cookie_value.decode()
+        if 'edgedb-pkce-challenge' in cookies:
+            challenge = cookies['edgedb-pkce-challenge'].value
     return challenge
+
+
+def _set_cookie(
+    response: Any,
+    name: str,
+    value: str,
+    http_only: bool = True,
+    secure: bool = True,
+    same_site: str = "Strict",
+):
+    val: http.cookies.Morsel = http.cookies.SimpleCookie({name: value})[name]
+    val["httponly"] = http_only
+    val["secure"] = secure
+    val["samesite"] = same_site
+    response.custom_headers["Set-Cookie"] = val.OutputString()
