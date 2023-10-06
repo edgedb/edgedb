@@ -227,7 +227,7 @@ def fini_expression(
         return ir.expr
 
     volatility = inference.infer_volatility(ir, env=ctx.env)
-    expr_type = inference.infer_type(ir, ctx.env)
+    expr_type = setgen.get_set_type(ir, ctx=ctx)
 
     in_polymorphic_func = (
         ctx.env.options.func_params is not None and

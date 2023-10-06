@@ -90,6 +90,12 @@ def compile_cast(
     ir_set = setgen.ensure_set(ir_expr, ctx=ctx)
     orig_stype = setgen.get_set_type(ir_set, ctx=ctx)
 
+    if new_stype.is_polymorphic(ctx.env.schema):
+        raise errors.QueryError(
+            f'cannot cast into generic type '
+            f'{new_stype.get_displayname(ctx.env.schema)!r}',
+            context=srcctx)
+
     if (orig_stype == new_stype and
             cardinality_mod is not qlast.CardinalityModifier.Required):
         return ir_set

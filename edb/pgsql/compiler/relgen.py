@@ -2196,7 +2196,7 @@ def process_set_as_type_introspection(
     expr = ir_set.expr
     assert isinstance(expr, irast.TypeIntrospection)
 
-    typeref = expr.typeref
+    typeref = expr.output_typeref
     type_rvar = relctx.range_for_typeref(
         ir_set.typeref, ir_set.path_id, ctx=ctx)
     pathctx.put_rvar_path_bond(type_rvar, ir_set.path_id)
