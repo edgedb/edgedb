@@ -254,9 +254,9 @@ same "shirt owner" relationship is represented with a ``multi`` link.
 
 .. note::
 
-  Don't forget the exclusive constraint! This is required to ensure that each
-  ``Shirt`` corresponds to a single ``Person``. Without it, the relationship
-  will be many-to-many.
+    Don't forget the exclusive constraint! This is required to ensure that each
+    ``Shirt`` corresponds to a single ``Person``. Without it, the relationship
+    will be many-to-many.
 
 Under the hood, a ``multi`` link is stored in an intermediate `association
 table <https://en.wikipedia.org/wiki/Associative_entity>`_, whereas a
@@ -600,9 +600,9 @@ a shape on the link.
 
 .. note::
 
-  For a full guide on modeling, inserting, updating, and querying link
-  properties, see the :ref:`Using Link Properties <ref_guide_linkprops>`
-  guide.
+    For a full guide on modeling, inserting, updating, and querying link
+    properties, see the :ref:`Using Link Properties <ref_guide_linkprops>`
+    guide.
 
 .. _ref_datamodel_link_deletion:
 
