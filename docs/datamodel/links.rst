@@ -485,15 +485,15 @@ linked object being added. Be sure to prepend the link property's name with
 
 .. code-block:: edgeql
 
-  insert Person {
-    name := "Bob",
-    family_members := (
-      select detached Person {
-        @relationship := "sister"
-      }
-      filter .name = "Alice"
-    )
-  }
+    insert Person {
+      name := "Bob",
+      family_members := (
+        select detached Person {
+          @relationship := "sister"
+        }
+        filter .name = "Alice"
+      )
+    }
 
 The shape could alternatively be included on an insert if the object being
 linked (the ``Person`` named "Alice" in this example) is being inserted as part
@@ -509,15 +509,15 @@ already-established link between the two:
 
 .. code-block:: edgeql
 
-  update Person {
-    name := "Bob",
-    family_members := (
-      select .family_members {
-        @relationship := "step-sister"
-      }
-      filter .name = "Alice"
-    )
-  }
+    update Person {
+      name := "Bob",
+      family_members := (
+        select .family_members {
+          @relationship := "step-sister"
+        }
+        filter .name = "Alice"
+      )
+    }
 
 .. warning::
 
@@ -577,22 +577,22 @@ a shape on the link.
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Person {
-  .......   name,
-  .......   family_members: {
-  .......     name,
-  .......     @relationship
-  .......   }
-  ....... };
-  {
-    default::Person {name: 'Alice', family_members: {}},
-    default::Person {
-      name: 'Bob',
-      family_members: {
-        default::Person {name: 'Alice', @relationship: 'step-sister'}
-      }
-    },
-  }
+    edgedb> select Person {
+    .......   name,
+    .......   family_members: {
+    .......     name,
+    .......     @relationship
+    .......   }
+    ....... };
+    {
+      default::Person {name: 'Alice', family_members: {}},
+      default::Person {
+        name: 'Bob',
+        family_members: {
+          default::Person {name: 'Alice', @relationship: 'step-sister'}
+        }
+      },
+    }
 
 .. note::
 
