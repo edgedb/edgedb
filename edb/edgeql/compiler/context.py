@@ -156,9 +156,6 @@ class Environment:
     order to provide useful diagnostics for type errors.
     """
 
-    inferred_types: Dict[irast.Base, s_types.Type]
-    """A dictionary of all expressions and their inferred schema types."""
-
     inferred_volatility: Dict[
         irast.Base,
         InferredVolatility]
@@ -287,7 +284,6 @@ class Environment:
         self.query_globals = {}
         self.set_types = {}
         self.type_origins = {}
-        self.inferred_types = {}
         self.inferred_volatility = {}
         self.view_shapes = collections.defaultdict(list)
         self.view_shapes_metadata = collections.defaultdict(

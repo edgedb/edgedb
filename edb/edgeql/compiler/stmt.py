@@ -59,7 +59,6 @@ from . import clauses
 from . import context
 from . import config_desc
 from . import dispatch
-from . import inference
 from . import pathctx
 from . import policies
 from . import setgen
@@ -550,6 +549,16 @@ def compile_InsertQuery(
         ):
             stmt.write_policies[mat_stype.id] = pol_condition
 
+        # Compute the unioned output type if needed
+        if stmt.on_conflict and stmt.on_conflict.else_ir:
+            final_typ = typegen.infer_common_type(
+                [stmt.result, stmt.on_conflict.else_ir], ctx.env)
+            if final_typ is None:
+                raise errors.QueryError('could not determine INSERT type',
+                                        context=stmt.context)
+            stmt.final_typeref = typegen.type_to_typeref(final_typ, env=ctx.env)
+
+        # Wrap the statement.
         result = fini_stmt(stmt, ctx=ictx, parent_ctx=ctx)
 
         # If we have an ELSE clause, and this is a toplevel statement,
@@ -615,7 +624,7 @@ def compile_UpdateQuery(
             subject = dispatch.compile(expr.subject, ctx=ectx)
         assert isinstance(subject, irast.Set)
 
-        subj_type = inference.infer_type(subject, ictx.env)
+        subj_type = setgen.get_set_type(subject, ctx=ictx)
         if not isinstance(subj_type, s_objtypes.ObjectType):
             raise errors.QueryError(
                 f'cannot update non-ObjectType objects',
@@ -756,7 +765,7 @@ def compile_DeleteQuery(
             subject = setgen.scoped_set(
                 dispatch.compile(expr.subject, ctx=scopectx), ctx=scopectx)
 
-        subj_type = inference.infer_type(subject, ictx.env)
+        subj_type = setgen.get_set_type(subject, ctx=ictx)
         if not isinstance(subj_type, s_objtypes.ObjectType):
             raise errors.QueryError(
                 f'cannot delete non-ObjectType objects',
@@ -1204,7 +1213,7 @@ def fini_stmt(
 ) -> irast.Set:
 
     view_name = parent_ctx.toplevel_result_view_name
-    t = inference.infer_type(irstmt, ctx.env)
+    t = setgen.get_expr_type(irstmt, ctx=ctx)
 
     view: Optional[s_types.Type]
     path_id: Optional[irast.PathId]
