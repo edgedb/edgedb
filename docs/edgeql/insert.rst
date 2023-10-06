@@ -330,22 +330,19 @@ tutorial </tutorial/data-mutations/upsert>`_.
 
       db> with
       ...   title := "Eternals",
-      ...   release_year := 2021
-      ... select (
-      ...   insert Movie {
-      ...     title := title,
-      ...     release_year := release_year
-      ...   }
-      ...   unless conflict on .title
-      ...   else (
-      ...     update Movie set { release_year := release_year }
-      ...   )
-      ... ) {
-      ...   is_new := (
-      ...     select not exists (
-      ...       select Movie filter .title = title
+      ...   release_year := 2021,
+      ...   movie := (
+      ...     insert Movie {
+      ...       title := title,
+      ...       release_year := release_year
+      ...     }
+      ...     unless conflict on .title
+      ...     else (
+      ...       update Movie set { release_year := release_year }
       ...     )
       ...   )
+      ... select movie {
+      ...   is_new := (movie not in Movie)
       ... };
       {default::Movie {is_new: true}}
 
@@ -368,26 +365,23 @@ tutorial </tutorial/data-mutations/upsert>`_.
 
       db> with
       ...   title := "Eternals",
-      ...   release_year := 2021
-      ... select (
-      ...   insert Movie {
-      ...     title := title,
-      ...     release_year := release_year
-      ...   }
-      ...   unless conflict on .title
-      ...   else (
-      ...     update Movie set { release_year := release_year }
-      ...   )
-      ... ) {
-      ...   data := (select Movie {*}),
-      ...   is_new := (
-      ...     select not exists (
-      ...       select Movie filter .title = title
+      ...   release_year := 2021,
+      ...   movie := (
+      ...     insert Movie {
+      ...       title := title,
+      ...       release_year := release_year
+      ...     }
+      ...     unless conflict on .title
+      ...     else (
+      ...       update Movie set { release_year := release_year }
       ...     )
       ...   )
+      ... select {
+      ...   data := (select movie {*}),
+      ...   is_new := (movie not in Movie)
       ... };
       {
-        default::Movie {
+        {
           data: {
             default::Movie {
               id: 6880d0ba-62ca-11ee-9608-635818746433,
