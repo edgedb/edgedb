@@ -42,6 +42,7 @@ from edb import buildmeta
 from edb import errors
 
 from edb.common import devmode
+from edb.common import lru
 from edb.common import secretkey
 from edb.common import taskgroup
 from edb.common import windowedsum
@@ -168,6 +169,9 @@ class BaseServer:
         self._compiler_pool_size = compiler_pool_size
         self._compiler_pool_mode = compiler_pool_mode
         self._compiler_pool_addr = compiler_pool_addr
+        self._system_compile_cache = lru.LRUMapping(
+            maxsize=defines._MAX_QUERIES_CACHE
+        )
 
         self._listen_sockets = listen_sockets
         if listen_sockets:
@@ -387,6 +391,10 @@ class BaseServer:
     @property
     def stmt_cache_size(self) -> int | None:
         return self._stmt_cache_size
+
+    @property
+    def system_compile_cache(self):
+        return self._system_compile_cache
 
     def _idle_gc_collector(self):
         try:

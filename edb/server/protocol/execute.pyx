@@ -477,6 +477,7 @@ async def parse_execute_json(
     globals_: Optional[Mapping[str, Any]] = None,
     output_format: compiler.OutputFormat = compiler.OutputFormat.JSON,
     query_cache_enabled: Optional[bool] = None,
+    is_system_query: bool = False,
 ) -> bytes:
     if query_cache_enabled is None:
         query_cache_enabled = not (
@@ -496,8 +497,10 @@ async def parse_execute_json(
         output_format=output_format,
         allow_capabilities=compiler.Capability.MODIFICATIONS,
     )
-
-    compiled = await dbv.parse(query_req)
+    if is_system_query:
+        compiled = await dbv.compile_system(query_req)
+    else:
+        compiled = await dbv.parse(query_req)
 
     pgcon = await tenant.acquire_pgcon(db.name)
     try:

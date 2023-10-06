@@ -539,6 +539,22 @@ class AbstractPool:
         finally:
             self._release_worker(worker)
 
+    async def compile_system(
+        self,
+        *args,
+        **kwargs,
+    ):
+        worker = await self._acquire_worker()
+        try:
+            return await worker.call(
+                'compile_system',
+                *args,
+                **kwargs
+            )
+
+        finally:
+            self._release_worker(worker)
+
     async def interpret_backend_error(
         self,
         *args,

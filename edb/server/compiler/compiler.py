@@ -921,6 +921,45 @@ class Compiler:
 
         return compile(ctx=ctx, source=source), ctx.state
 
+    def compile_system(
+        self,
+        source: edgeql.Source,
+        output_format: enums.OutputFormat,
+        expect_one: bool,
+        implicit_limit: int,
+        inline_typeids: bool,
+        inline_typenames: bool,
+        protocol_version: defines.ProtocolVersion,
+        inline_objectids: bool = True,
+        json_parameters: bool = False,
+    ):
+        state = dbstate.CompilerConnectionState(
+            user_schema=s_schema.EMPTY_SCHEMA,
+            global_schema=s_schema.EMPTY_SCHEMA,
+            modaliases=EMPTY_MAP,
+            session_config=EMPTY_MAP,
+            database_config=EMPTY_MAP,
+            system_config=EMPTY_MAP,
+            cached_reflection=EMPTY_MAP,
+        )
+
+        ctx = CompileContext(
+            compiler_state=self.state,
+            state=state,
+            output_format=output_format,
+            expected_cardinality_one=expect_one,
+            implicit_limit=implicit_limit,
+            inline_typeids=inline_typeids,
+            inline_typenames=inline_typenames,
+            inline_objectids=inline_objectids,
+            json_parameters=json_parameters,
+            source=source,
+            protocol_version=protocol_version,
+        )
+
+        unit_group = compile(ctx=ctx, source=source)
+        return unit_group
+
     def interpret_backend_error(
         self,
         user_schema: bytes,
