@@ -479,8 +479,9 @@ than spreading it across link and object properties.
 Inserting and updating link properties
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-To insert a link property, add the link property to a shape on the linked
-object being added. Be sure to prepend the link property's name with ``@``.
+To add a link with a link property, add the link property to a shape on the
+linked object being added. Be sure to prepend the link property's name with
+``@``.
 
 .. code-block:: edgeql
 
@@ -494,15 +495,17 @@ object being added. Be sure to prepend the link property's name with ``@``.
     )
   }
 
-The shape could also be included on an insert if the object being linked (the
-``Person`` named "Alice" in this example) is being inserted as part of the
-query. If the outer person ("Bob" in the example) already exists and only the
-links need to be added, this can be done in an ``update`` query.
+The shape could alternatively be included on an insert if the object being
+linked (the ``Person`` named "Alice" in this example) is being inserted as part
+of the query. If the outer person ("Bob" in the example) already exists and
+only the links need to be added, this can be done in an ``update`` query
+instead of an ``insert`` as shown in the example above.
 
-Updating a link property is similar except you can select the link instead of
-selecting from the object type since the link has already been established.
-Here, we've discovered that Alice is actually Bob's step-sister, so we want to
-change the link property on the already-established link between the two:
+Updating a link's link property is similar to adding a new one except you can
+select the link on the object instead of selecting from the object type since
+the link has already been established. Here, we've discovered that Alice is
+actually Bob's *step*-sister, so we want to change the link property on the
+already-established link between the two:
 
 .. code-block:: edgeql
 
