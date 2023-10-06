@@ -34,7 +34,7 @@ async def parse_execute_json(
     globals_: Optional[Mapping[str, Any]] = None,
     output_format: compiler.OutputFormat = compiler.OutputFormat.JSON,
     query_cache_enabled: Optional[bool] = None,
-    is_system_query: bool = False,
+    cached_globally: bool = False,
 ) -> bytes:
     ...
 

@@ -110,7 +110,7 @@ class EmailPasswordProvider:
                     "email": email,
                     "password_hash": ph.hash(password),
                 },
-                is_system_query=True,
+                cached_globally=True,
             )
         except Exception as e:
             exc = await execute.interpret_error(e, db)
@@ -140,7 +140,7 @@ filter .email = email;""",
             variables={
                 "email": email,
             },
-            is_system_query=True,
+            cached_globally=True,
         )
 
         password_credential_dicts = json.loads(r.decode())
@@ -174,7 +174,7 @@ set { password_hash := new_hash };""",
                     "email": email,
                     "new_hash": new_hash,
                 },
-                is_system_query=True,
+                cached_globally=True,
             )
 
         return local_identity
@@ -196,7 +196,7 @@ select ext::auth::EmailPasswordFactor {
             variables={
                 "email": email,
             },
-            is_system_query=True,
+            cached_globally=True,
         )
 
         result_json = json.loads(r.decode())
@@ -227,7 +227,7 @@ filter .identity.id = identity_id;""",
             variables={
                 "identity_id": identity_id,
             },
-            is_system_query=True,
+            cached_globally=True,
         )
 
         result_json = json.loads(r.decode())
@@ -274,7 +274,7 @@ set { password_hash := new_hash };""",
                 'identity_id': identity_id,
                 'new_hash': ph.hash(password)
             },
-            is_system_query=True,
+            cached_globally=True,
         )
 
         return local_identity

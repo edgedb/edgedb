@@ -103,7 +103,7 @@ select (insert ext::auth::Identity {
                 "issuer_url": self.provider.issuer_url,
                 "subject": user_info.sub,
             },
-            is_system_query=True,
+            cached_globally=True,
         )
         result_json = json.loads(r.decode())
         assert len(result_json) == 1

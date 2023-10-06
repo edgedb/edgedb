@@ -975,9 +975,18 @@ cdef class DatabaseConnectionView:
     async def parse(
         self,
         query_req: QueryRequestInfo,
+        cached_globally=False,
     ) -> CompiledQuery:
         source = query_req.source
-        query_unit_group = self.lookup_compiled_query(query_req)
+        if cached_globally:
+            # WARNING: only set cached_globally to True when the query is
+            # strictly referring to only shared stable objects in user schema
+            # or anything from std schema, for example:
+            #     YES:  select ext::auth::UIConfig { ... }
+            #     NO:   select default::User { ... }
+            query_unit_group = self.server.system_compile_cache.get(query_req)
+        else:
+            query_unit_group = self.lookup_compiled_query(query_req)
         cached = True
         if query_unit_group is None:
             # Cache miss; need to compile this query.
@@ -1020,7 +1029,10 @@ cdef class DatabaseConnectionView:
                 self.raise_in_tx_error()
 
         if not cached and query_unit_group.cacheable:
-            self.cache_compiled_query(query_req, query_unit_group)
+            if cached_globally:
+                self.server.system_compile_cache[query_req] = query_unit_group
+            else:
+                self.cache_compiled_query(query_req, query_unit_group)
 
         metrics.edgeql_query_compilations.inc(
             1.0,
@@ -1086,49 +1098,6 @@ cdef class DatabaseConnectionView:
         unit_group, self._last_comp_state, self._last_comp_state_id = result
 
         return unit_group
-
-    async def compile_system(
-        self, query_req: QueryRequestInfo
-    ) -> CompiledQuery:
-        query_unit_group = self.server.system_compile_cache.get(query_req)
-        cached = True
-        if query_unit_group is None:
-            # Cache miss; need to compile this query.
-            cached = False
-            compiler_pool = self.server.get_compiler_pool()
-
-            started_at = time.monotonic()
-            try:
-                query_unit_group = await compiler_pool.compile_system(
-                    query_req.source,
-                    query_req.output_format,
-                    query_req.expect_one,
-                    query_req.implicit_limit,
-                    query_req.inline_typeids,
-                    query_req.inline_typenames,
-                    self._protocol_version,
-                    query_req.inline_objectids,
-                    query_req.input_format is compiler.InputFormat.JSON,
-                )
-            finally:
-                metrics.edgeql_query_compilation_duration.observe(
-                    time.monotonic() - started_at)
-
-            if query_unit_group.cacheable:
-                self.server.system_compile_cache[query_req] = query_unit_group
-
-        metrics.edgeql_query_compilations.inc(
-            1.0,
-            'cache' if cached else 'compiler',
-        )
-
-        source = query_req.source
-        return CompiledQuery(
-            query_unit_group=query_unit_group,
-            first_extra=source.first_extra(),
-            extra_counts=source.extra_counts(),
-            extra_blobs=source.extra_blobs(),
-        )
 
     cdef check_capabilities(
         self,
