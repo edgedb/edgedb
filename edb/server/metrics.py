@@ -70,19 +70,22 @@ backend_query_duration = registry.new_labeled_histogram(
     labels=('tenant',),
 )
 
-total_client_connections = registry.new_counter(
+total_client_connections = registry.new_labeled_counter(
     'client_connections_total',
-    'Total number of clients.'
+    'Total number of clients.',
+    labels=('tenant',),
 )
 
-current_client_connections = registry.new_gauge(
+current_client_connections = registry.new_labeled_gauge(
     'client_connections_current',
-    'Current number of active clients.'
+    'Current number of active clients.',
+    labels=('tenant',),
 )
 
-idle_client_connections = registry.new_counter(
+idle_client_connections = registry.new_labeled_counter(
     'client_connections_idle_total',
-    'Total number of forcefully closed idle client connections.'
+    'Total number of forcefully closed idle client connections.',
+    labels=('tenant',),
 )
 
 edgeql_query_compilations = registry.new_labeled_counter(

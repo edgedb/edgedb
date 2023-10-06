@@ -1469,10 +1469,10 @@ class TestSeparateCluster(tb.TestCase):
                 *(con.aclose() for con in active_cons)
             )
 
-        self.assertIn(
-            f'\nedgedb_server_client_connections_idle_total ' +
-            f'{float(len(idle_cons))}\n',
-            metrics
+        self.assertRegex(
+            metrics,
+            r'\nedgedb_server_client_connections_idle_total\{.*\} ' +
+            f'{float(len(idle_cons))}\\n',
         )
 
     @unittest.skipIf(

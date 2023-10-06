@@ -272,11 +272,15 @@ class BaseServer:
 
     def on_binary_client_connected(self, conn):
         self._binary_conns[conn] = True
-        metrics.current_client_connections.inc()
+        metrics.current_client_connections.inc(
+            1.0, conn.get_tenant_label()
+        )
 
     def on_binary_client_authed(self, conn):
         self._report_connections(event='opened')
-        metrics.total_client_connections.inc()
+        metrics.total_client_connections.inc(
+            1.0, conn.get_tenant_label()
+        )
 
     def on_binary_client_after_idling(self, conn):
         try:
@@ -290,7 +294,9 @@ class BaseServer:
     def on_binary_client_disconnected(self, conn):
         self._binary_conns.pop(conn, None)
         self._report_connections(event="closed")
-        metrics.current_client_connections.dec()
+        metrics.current_client_connections.dec(
+            1.0, conn.get_tenant_label()
+        )
         self.maybe_auto_shutdown()
 
     def maybe_auto_shutdown(self):
@@ -401,7 +407,9 @@ class BaseServer:
             for conn in self._binary_conns:
                 try:
                     if conn.is_idle(expiry_time):
-                        metrics.idle_client_connections.inc()
+                        metrics.idle_client_connections.inc(
+                            1.0, conn.get_tenant_label()
+                        )
                         conn.close_for_idling()
                     elif conn.is_alive():
                         # We are sorting connections in
