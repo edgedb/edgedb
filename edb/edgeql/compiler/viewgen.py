@@ -1337,6 +1337,8 @@ def _normalize_view_ptr_expr(
     is_polymorphic = shape_el_desc.is_polymorphic
     target_typexpr = shape_el_desc.target_typexpr
 
+    is_independent_polymorphic = False
+
     compexpr: Optional[qlast.Expr] = shape_el.compexpr
     if compexpr is None and is_mutation:
         raise errors.QueryError(
@@ -1354,10 +1356,29 @@ def _normalize_view_ptr_expr(
             ctx=ctx,
             source_context=shape_el.context,
         )
+        real_ptrcls = None
         if is_polymorphic:
+            # For polymorphic pointers, we need to see if the *real*
+            # base class has the pointer, because if so we need to use
+            # that when doing cardinality inference (since it may need
+            # to raise an error, if it is required). If it isn't
+            # present on the real type, take note of that so that we
+            # suppress the inherited cardinality.
+            try:
+                real_ptrcls = setgen.resolve_ptr(
+                    view_scls,
+                    ptrname,
+                    track_ref=shape_el_desc.ptr_ql,
+                    ctx=ctx,
+                    source_context=shape_el.context,
+                )
+            except errors.InvalidReferenceError:
+                is_independent_polymorphic = True
             ptrcls = schemactx.derive_ptr(ptrcls, view_scls, ctx=ctx)
+        real_ptrcls = real_ptrcls or ptrcls
 
-        base_ptrcls = ptrcls.get_bases(ctx.env.schema).first(ctx.env.schema)
+        base_ptrcls = real_ptrcls.get_bases(
+            ctx.env.schema).first(ctx.env.schema)
         base_ptr_is_computable = base_ptrcls in ctx.env.source_map
         ptr_name = sn.QualName(
             module='__',
@@ -1439,7 +1460,7 @@ def _normalize_view_ptr_expr(
 
         ptr_required = base_required
         ptr_cardinality = base_cardinality
-        if shape_el.where:
+        if shape_el.where or is_polymorphic:
             # If the shape has a filter on it, we need to force a reinference
             # of the cardinality, to produce an error if needed.
             ptr_cardinality = None
@@ -1883,7 +1904,11 @@ def _normalize_view_ptr_expr(
 
         base_cardinality = None
         base_required = None
-        if base_ptrcls is not None and not base_ptrcls_is_alias:
+        if (
+            base_ptrcls is not None
+            and not base_ptrcls_is_alias
+            and not is_independent_polymorphic
+        ):
             base_cardinality = _get_base_ptr_cardinality(base_ptrcls, ctx=ctx)
             base_required = base_ptrcls.get_required(ctx.env.schema)
 
