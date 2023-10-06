@@ -440,9 +440,14 @@ def new_free_object_rvar(
 ) -> pgast.PathRangeVar:
     """Create a fake source rel for a free object
 
-    We generate fake IDs for free objects. The only thing other than ids
-    that need to come from a free object is __type__, which we inject
-    in a special case way in pathctx.get_path_var.
+    Free objects don't *really* have ids, but the compiler needs all
+    objects to have ids, so we just inject the type id as if it was an
+    id. It shouldn't get used for anything but NULL testing, so no
+    problem.
+
+    The only thing other than ids that need to come from a free object
+    is __type__, which we inject in a special case way in
+    pathctx.get_path_var.
 
     We also have a special case in relgen.ensure_source_rvar to reuse an
     existing value rvar instead of creating a new root rvar.
@@ -455,14 +460,9 @@ def new_free_object_rvar(
     with ctx.subrel() as subctx:
         qry = subctx.rel
 
-        id_expr = pgast.FuncCall(
-            name=('edgedb', 'uuid_generate_v4'),
-            args=[],
-        )
-
+        id_expr = astutils.compile_typeref(typeref.real_material_type)
         pathctx.put_path_identity_var(qry, path_id, id_expr)
         pathctx.put_path_value_var(qry, path_id, id_expr)
-        apply_volatility_ref(qry, ctx=subctx)
 
     return rvar_for_rel(qry, typeref=typeref, lateral=lateral, ctx=ctx)
 
@@ -1127,6 +1127,18 @@ def unpack_var(
                 els.append(UnpackElement(
                     path_id, els[id_idx].colname,
                     multi=False, packed=False, ref=None,
+                ))
+            else:
+                colname = f'_t{ctr}'
+                ctr += 1
+                coldeflist.append(
+                    pgast.ColumnDef(
+                        name=colname,
+                        typename=pgast.TypeName(name=('uuid',)),
+                    )
+                )
+                els.append(UnpackElement(
+                    path_id, colname, packed=False, multi=False, ref=None
                 ))
 
             view_tvars.append((path_id, pgast.TupleVarBase(

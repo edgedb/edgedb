@@ -664,7 +664,8 @@ def compile_operator(
 # so we ban them
 INVALID_FREE_SHAPE_OPS: Final = {
     sn.QualName('std', x) for x in [
-        'DISTINCT', '=', '!=', '?=', '?!=', 'IN', 'NOT IN'
+        'DISTINCT', '=', '!=', '?=', '?!=', 'IN', 'NOT IN',
+        'assert_distinct',
     ]
 }
 
