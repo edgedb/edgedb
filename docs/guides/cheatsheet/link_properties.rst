@@ -187,6 +187,7 @@ Querying
 .. code-block:: edgeql-repl
 
   edgedb> select Person {
+  .......   name,
   .......   friends: {
   .......     name,
   .......     @strength
