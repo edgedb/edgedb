@@ -16,11 +16,25 @@
 # limitations under the License.
 #
 
+from __future__ import annotations
+import typing
 
+import asyncio
 import json
+import logging
 import dataclasses
 
+from edb.common import taskgroup
+from edb.ir import statypes
 from edb.server.protocol import execute
+
+if typing.TYPE_CHECKING:
+    from edb.server import server as edbserver
+    from edb.server import tenant as edbtenant
+
+
+logger = logging.getLogger("edb.server")
+VALIDITY = statypes.Duration.from_microseconds(10 * 60_000_000)  # 10 minutes
 
 
 @dataclasses.dataclass(repr=False)
@@ -108,9 +122,9 @@ async def get_by_id(db, id: str) -> PKCEChallenge:
             identity_id := .identity.id
         }
         filter .id = <uuid>$id
-        and (datetime_current() - .created_at) < <duration>'10 minutes';
+        and (datetime_current() - .created_at) < <duration>$validity;
         """,
-        variables={"id": id},
+        variables={"id": id, "validity": VALIDITY.to_backend_str()},
     )
 
     result_json = json.loads(r.decode())
@@ -130,3 +144,43 @@ async def delete(db, id: str) -> None:
 
     result_json = json.loads(r.decode())
     assert len(result_json) == 1
+
+
+async def _gc(tenant: edbtenant.Tenant):
+    try:
+        async with taskgroup.TaskGroup() as g:
+            for db in tenant.iter_dbs():
+                if "auth" in db.extensions:
+                    g.create_task(
+                        execute.parse_execute_json(
+                            db,
+                            """
+                            delete ext::auth::PKCEChallenge filter
+                                (datetime_of_statement() - .created_at) >
+                                <duration>$validity
+                            """,
+                            variables={"validity": VALIDITY.to_backend_str()},
+                        ),
+                    )
+    except Exception as ex:
+        logger.debug(
+            "GC of ext::auth::PKCEChallenge failed (instance: %s)",
+            tenant.get_instance_name(),
+            exc_info=ex,
+        )
+
+
+async def gc(server: edbserver.BaseServer):
+    while True:
+        try:
+            tasks = [
+                tenant.create_task(_gc(tenant), interruptable=False)
+                for tenant in server.iter_tenants()
+                if tenant.accept_new_tasks
+            ]
+            if tasks:
+                await asyncio.wait(tasks)
+        except Exception as ex:
+            logger.debug("GC of ext::auth::PKCEChallenge failed", exc_info=ex)
+        finally:
+            await asyncio.sleep(VALIDITY.to_microseconds() / 1_000_000.0)

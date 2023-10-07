@@ -1610,6 +1610,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "email": "test@example.com",
                 "password": "test_password",
                 "redirect_to": "http://example.com/some/path",
+                "challenge": str(uuid.uuid4()),
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
@@ -1632,11 +1633,19 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEqual(len(identity), 1)
 
+            pkce_challenge = await self.con.query_single(
+                """
+                SELECT ext::auth::PKCEChallenge { * }
+                FILTER .challenge = <str>$challenge
+                AND .identity.id = <uuid>$identity_id;
+                """,
+                challenge=form_data["challenge"],
+                identity_id=identity[0].id
+            )
+
             self.assertEqual(status, 302)
             location = headers.get("location")
             assert location is not None
-            auth_token = self.maybe_get_auth_token(headers)
-            assert auth_token is not None
             parsed_location = urllib.parse.urlparse(location)
             parsed_query = urllib.parse.parse_qs(parsed_location.query)
             self.assertEqual(parsed_location.scheme, "http")
@@ -1644,19 +1653,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(parsed_location.path, "/some/path")
             self.assertEqual(
                 parsed_query,
-                {
-                    "identity_id": [str(identity[0].id)],
-                    "auth_token": [auth_token],
-                },
+                {"code": [str(pkce_challenge.id)]},
             )
-
-            session_claims = await self.extract_session_claims(headers)
-            self.assertEqual(session_claims.get("sub"), str(identity[0].id))
-            self.assertEqual(session_claims.get("iss"), str(self.http_addr))
-            now = utcnow()
-            tomorrow = now + datetime.timedelta(hours=25)
-            self.assertTrue(session_claims.get("exp") > now.timestamp())
-            self.assertTrue(session_claims.get("exp") < tomorrow.timestamp())
 
             password_credential = await self.con.query(
                 """
@@ -1676,7 +1674,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 path="register",
                 method="POST",
                 body=urllib.parse.urlencode(
-                    {k: v for k, v in form_data.items() if k != 'redirect_to'}
+                    {
+                        **{
+                            k: v for k, v
+                            in form_data.items()
+                            if k != 'redirect_to'
+                        },
+                        "challenge": str(uuid.uuid4()),
+                    }
                 ).encode(),
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
@@ -1689,7 +1694,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 None,
                 path="register",
                 method="POST",
-                body=form_data_encoded,
+                body=urllib.parse.urlencode(
+                    {
+                        **form_data,
+                        "challenge": str(uuid.uuid4()),
+                    }
+                ).encode(),
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
@@ -1732,6 +1742,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     {
                         **form_data,
                         "redirect_on_failure": redirect_on_failure_url,
+                        "challenge": str(uuid.uuid4()),
                     }
                 ).encode(),
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -1768,6 +1779,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": provider_name,
                 "email": "test2@example.com",
                 "password": "test_password2",
+                "challenge": str(uuid.uuid4()),
             }
             json_data_encoded = json.dumps(json_data).encode()
 
@@ -1792,14 +1804,20 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEqual(len(identity), 1)
 
-            auth_token = self.maybe_get_auth_token(headers)
-            assert auth_token is not None
+            pkce_challenge = await self.con.query_single(
+                """
+                SELECT ext::auth::PKCEChallenge { * }
+                FILTER .challenge = <str>$challenge
+                AND .identity.id = <uuid>$identity_id
+                """,
+                challenge=json_data["challenge"],
+                identity_id=identity[0].id,
+            )
 
             self.assertEqual(
                 json.loads(body),
                 {
-                    "identity_id": str(identity[0].id),
-                    "auth_token": auth_token,
+                    "code": str(pkce_challenge.id)
                 },
             )
 
@@ -1823,6 +1841,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             form_data = {
                 "email": "test@example.com",
                 "password": "test_password",
+                "challenge": str(uuid.uuid4()),
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
@@ -1849,6 +1868,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             form_data = {
                 "provider": provider_name,
                 "email": "test@example.com",
+                "challenge": str(uuid.uuid4()),
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
@@ -1875,6 +1895,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             form_data = {
                 "provider": provider_name,
                 "password": "test_password",
+                "challenge": str(uuid.uuid4()),
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
@@ -1901,6 +1922,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": provider_name,
                 "email": "test_auth@example.com",
                 "password": "test_auth_password",
+                "challenge": str(uuid.uuid4()),
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
@@ -1917,6 +1939,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": form_data["provider"],
                 "email": form_data["email"],
                 "password": form_data["password"],
+                "challenge": str(uuid.uuid4()),
             }
             auth_data_encoded = urllib.parse.urlencode(auth_data).encode()
 
@@ -1941,31 +1964,29 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEqual(len(identity), 1)
 
-            auth_token = self.maybe_get_auth_token(headers)
-            assert auth_token is not None
+            pkce_challenge = await self.con.query_single(
+                """
+                SELECT ext::auth::PKCEChallenge { * }
+                FILTER .challenge = <str>$challenge
+                AND .identity.id = <uuid>$identity_id
+                """,
+                challenge=auth_data["challenge"],
+                identity_id=identity[0].id,
+            )
 
             self.assertEqual(
                 json.loads(body),
                 {
-                    "identity_id": str(identity[0].id),
-                    "auth_token": auth_token,
+                    "code": str(pkce_challenge.id),
                 },
             )
-
-            now = utcnow()
-            tomorrow = now + datetime.timedelta(hours=25)
-            session_claims = await self.extract_jwt_claims(auth_token)
-
-            self.assertEqual(session_claims.get("sub"), str(identity[0].id))
-            self.assertEqual(session_claims.get("iss"), str(self.http_addr))
-            self.assertTrue(session_claims.get("exp") > now.timestamp())
-            self.assertTrue(session_claims.get("exp") < tomorrow.timestamp())
 
             # Attempt to authenticate with wrong password
             auth_data_wrong_password = {
                 "provider": form_data["provider"],
                 "email": form_data["email"],
                 "password": "wrong_password",
+                "challenge": str(uuid.uuid4()),
             }
             auth_data_encoded_wrong_password = urllib.parse.urlencode(
                 auth_data_wrong_password
@@ -1988,6 +2009,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": form_data["provider"],
                 "email": random_email,
                 "password": form_data["password"],
+                "challenge": str(uuid.uuid4()),
             }
             auth_data_encoded_random_handle = urllib.parse.urlencode(
                 auth_data_random_handle
@@ -2010,6 +2032,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "email": random_email,
                 "password": form_data["password"],
                 "redirect_to": "http://example.com/some/path",
+                "challenge": str(uuid.uuid4()),
             }
             auth_data_encoded_redirect_to = urllib.parse.urlencode(
                 auth_data_redirect_to
@@ -2061,6 +2084,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "password": form_data["password"],
                 "redirect_to": "http://example.com/some/path",
                 "redirect_on_failure": "http://example.com/failure/path",
+                "challenge": str(uuid.uuid4()),
             }
             auth_data_encoded_redirect_on_failure = urllib.parse.urlencode(
                 auth_data_redirect_on_failure
@@ -2216,6 +2240,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": provider_name,
                 "email": f"{uuid.uuid4()}@example.com",
                 "password": "test_auth_password",
+                "challenge": uuid.uuid4(),
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
@@ -2233,6 +2258,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": provider_name,
                 "reset_url": "https://example.com/reset-password",
                 "email": form_data['email'],
+                "challenge": uuid.uuid4(),
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
@@ -2467,6 +2493,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": provider_name,
                 "email": f"{uuid.uuid4()}@example.com",
                 "password": "test_auth_password",
+                "challenge": uuid.uuid4(),
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
