@@ -831,7 +831,7 @@ class Router:
                 response=response,
                 status=http.HTTPStatus.INTERNAL_SERVER_ERROR,
                 message=str(ex),
-                ex_type=type(ex),
+                ex_type=edb_errors.InternalServerError,
             )
 
     def _get_callback_url(self) -> str:
