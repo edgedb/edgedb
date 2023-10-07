@@ -59,6 +59,7 @@ from edb.server import protocol
 from edb.server import tenant as edbtenant
 from edb.server.protocol import binary  # type: ignore
 from edb.server.protocol import pg_ext  # type: ignore
+from edb.server.protocol.auth_ext import pkce
 from edb.server import metrics
 from edb.server import pgcon
 
@@ -114,6 +115,7 @@ class BaseServer:
 
     _compiler_pool: compiler_pool.AbstractPool | None
     _http_request_logger: asyncio.Task | None
+    _auth_gc: asyncio.Task | None
 
     def __init__(
         self,
@@ -200,6 +202,7 @@ class BaseServer:
 
         self._http_last_minute_requests = windowedsum.WindowedSum()
         self._http_request_logger = None
+        self._auth_gc = None
 
         self._stop_evt = asyncio.Event()
         self._tls_cert_file: str | Any = None
@@ -880,6 +883,7 @@ class BaseServer:
             pidfile.acquire()
 
         await self._after_start_servers()
+        self._auth_gc = self.__loop.create_task(pkce.gc(self))
 
         if self._echo_runtime_info:
             ri = {
@@ -929,6 +933,8 @@ class BaseServer:
 
         if self._http_request_logger is not None:
             self._http_request_logger.cancel()
+        if self._auth_gc is not None:
+            self._auth_gc.cancel()
 
         for handle in self._file_watch_handles:
             handle.cancel()
@@ -1005,6 +1011,9 @@ class BaseServer:
         # provide a decent error.
         raise NotImplementedError
 
+    def iter_tenants(self) -> Iterator[edbtenant.Tenant]:
+        raise NotImplementedError
+
     async def maybe_generate_pki(
         self, args: srvargs.ServerConfig, ss: BaseServer
     ) -> tuple[bool, bool]:
@@ -1068,6 +1077,9 @@ class Server(BaseServer):
 
     def get_default_tenant(self) -> edbtenant.Tenant:
         return self._tenant
+
+    def iter_tenants(self) -> Iterator[edbtenant.Tenant]:
+        yield self._tenant
 
     async def _get_patch_log(
         self, conn: pgcon.PGConnection, idx: int

@@ -37,6 +37,7 @@ def render_login_page(
     providers: frozenset,
     error_message: Optional[str] = None,
     email: Optional[str] = None,
+    challenge: str,
     # config
     redirect_to: str,
     app_name: Optional[str] = None,
@@ -57,7 +58,13 @@ def render_login_page(
 
     oauth_buttons = '\n'.join([
         f'''
-        <a href="authorize?provider={p.name}">
+        <a href="../authorize?provider={
+            p.name
+        }&redirect_to={
+            redirect_to
+        }&challenge={
+            challenge
+        }">
         {(
             '<img src="_static/icon_' + p.name[15:] + '.svg" alt="' +
             p.display_name+' Icon" />'
@@ -114,6 +121,7 @@ def render_login_page(
       <input type="hidden" name="redirect_on_failure" value="{
         base_path}/ui/signin" />
       <input type="hidden" name="redirect_to" value="{redirect_to}" />
+      <input type="hidden" name="challenge" value="{challenge}" />
 
       {_render_error_message(error_message)}
 
@@ -146,6 +154,7 @@ def render_signup_page(
     provider_name: str,
     error_message: Optional[str] = None,
     email: Optional[str] = None,
+    challenge: str,
     # config
     redirect_to: str,
     app_name: Optional[str] = None,
@@ -170,6 +179,7 @@ def render_signup_page(
       <input type="hidden" name="redirect_on_failure" value="{
         base_path}/ui/signup" />
       <input type="hidden" name="redirect_to" value="{redirect_to}" />
+      <input type="hidden" name="challenge" value="{challenge}" />
 
       <label for="email">Email</label>
       <input id="email" name="email" type="email" value="{email or ''}" />

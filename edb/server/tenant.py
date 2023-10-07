@@ -1356,3 +1356,7 @@ class Tenant(ha_base.ClusterProtocol):
     def get_compiler_args(self) -> dict[str, Any]:
         assert self._dbindex is not None
         return {"dbindex": self._dbindex}
+
+    def iter_dbs(self) -> Iterator[dbview.Database]:
+        if self._dbindex is not None:
+            yield from self._dbindex.iter_dbs()
