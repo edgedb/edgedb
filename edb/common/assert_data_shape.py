@@ -33,7 +33,8 @@ import edgedb
 
 class bag(list):
     """Wrapper for list that tells assert_query_result to ignore order"""
-    pass
+    def __repr__(self):
+        return f'bag({list.__repr__(self)})'
 
 
 def sort_results(results, sort):
@@ -68,6 +69,11 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
         if from_sql:
             raise unittest.SkipTest(
                 'SQL tests skipped: asyncpg not installed')
+
+    base_fail = fail
+
+    def fail(msg):
+        base_fail(f'{msg}\nshape: {shape!r}\ndata: {data!r}')
 
     _void = object()
 
