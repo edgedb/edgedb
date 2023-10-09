@@ -166,6 +166,10 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             set default := 'builtin::local_emailpassword';
             set protected := true;
         };
+
+        create required property require_verification: std::bool {
+            set default := true;
+        };
     };
 
     create type ext::auth::UIConfig extending cfg::ConfigObject {
