@@ -58,6 +58,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property email: str {
             create delegated constraint exclusive;
         };
+        create property verified_at: std::datetime;
     };
 
     create type ext::auth::EmailPasswordFactor
