@@ -134,11 +134,13 @@ def render_login_page(
       {_render_error_message(error_message)}
 
       <label for="email">Email</label>
-      <input id="email" name="email" type="email" value="{email or ''}" />
+      <input id="email" name="email" type="email" value="{email or ''}"
+        autofocus />
 
       <div class="field-header">
         <label for="password">Password</label>
-        <a id="forgot-password-link" class="field-note" href="forgot-password">
+        <a id="forgot-password-link" class="field-note" href="forgot-password"
+          tabindex="2">
           Forgot password?
         </a>
       </div>
@@ -148,7 +150,7 @@ def render_login_page(
 
       <div class="bottom-note">
         Don't have an account?
-        <a href="signup">Sign up</a>
+        <a href="signup" tabindex="3">Sign up</a>
       </div>""" if password_provider is not None else ''
     }
     </form>
@@ -479,6 +481,11 @@ def get_colour_vars(bg_hex: str):
     luma = rgb_to_luma(*bg_rgb)
     luma_dark = luma < 0.6
 
+    text_color = hsl_to_rgb(
+        bg_hsl[0], bg_hsl[1], min(90 if luma_dark else 35, bg_hsl[2])
+    )
+    dark_text_color = hsl_to_rgb(bg_hsl[0], bg_hsl[1], max(60, bg_hsl[2]))
+
     return f'''--accent-bg-color: #{bg_hex};
         --accent-bg-text-color: #{rgb_to_hex(
             *hsl_to_rgb(
@@ -492,14 +499,12 @@ def get_colour_vars(bg_hex: str):
                 bg_hsl[0], bg_hsl[1], bg_hsl[2] + (5 if luma_dark else -5)
             )
         )};
-        --accent-text-color: #{rgb_to_hex(
-            *hsl_to_rgb(
-                bg_hsl[0], bg_hsl[1], min(90 if luma_dark else 35, bg_hsl[2])
-            )
-        )};
-        --accent-text-dark-color: #{rgb_to_hex(
-            *hsl_to_rgb(bg_hsl[0], bg_hsl[1], max(60, bg_hsl[2]))
-        )}'''
+        --accent-text-color: #{rgb_to_hex(*text_color)};
+        --accent-text-dark-color: #{rgb_to_hex(*dark_text_color)};
+        --accent-focus-color: rgba({','.join(
+            str(c) for c in text_color)},0.6);
+        --accent-focus-dark-color: rgba({','.join(
+            str(c) for c in dark_text_color)},0.6);'''
 
 
 def hex_to_rgb(hex: str) -> tuple[float, float, float]:
