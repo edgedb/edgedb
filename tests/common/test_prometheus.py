@@ -358,3 +358,59 @@ class TestPrometheusClient(unittest.TestCase):
         pmc_r = run_pmc()
         emc_r = run_emc()
         self.assertEqual(pmc_r, emc_r)
+
+    def test_prometheus_08(self):
+
+        def run_pmc():
+            registry = PMC.Registry()
+
+            test_hist = PMC.Histogram(
+                'test_hist', 'A  test info',
+                labelnames=['tenant'], registry=registry)
+
+            r0 = PMC.generate(registry)
+
+            test_hist.labels('1').observe(0.22)
+            test_hist.labels('2').observe(0.44)
+            test_hist.labels('1').observe(0.66)
+            test_hist.labels('2').observe(0.43)
+            test_hist.labels('1').observe(2.0)
+
+            r1 = PMC.generate(registry)
+
+            test_hist.labels('2').observe(-1)
+            test_hist.labels('1').observe(0.0001)
+            test_hist.labels('2').observe(0.43)
+
+            r2 = PMC.generate(registry)
+
+            return [r0, r1, r2]
+
+        def run_emc():
+            r = EP.Registry()
+
+            test_hist = r.new_labeled_histogram(
+                'test_hist', 'A  test info', labels=('tenant',)
+            )
+
+            r0 = r.generate()
+
+            test_hist.observe(0.22, '1')
+            test_hist.observe(0.44, '2')
+            test_hist.observe(0.66, '1')
+            test_hist.observe(0.43, '2')
+            test_hist.observe(2.0, '1')
+
+            r1 = r.generate()
+
+            test_hist.observe(-1, '2')
+            test_hist.observe(0.0001, '1')
+            test_hist.observe(0.43, '2')
+
+            r2 = r.generate()
+
+            return [r0, r1, r2]
+
+        pmc_r = run_pmc()
+        emc_r = run_emc()
+        self.assertEqual(pmc_r, emc_r)

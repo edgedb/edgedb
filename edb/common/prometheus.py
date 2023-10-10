@@ -190,6 +190,22 @@ class Registry:
         self._add_metric(hist)
         return hist
 
+    def new_labeled_histogram(
+        self,
+        name: str,
+        desc: str,
+        /,
+        *,
+        unit: Unit | None = None,
+        buckets: list[float] | None = None,
+        labels: tuple[str],
+    ) -> LabeledHistogram:
+        hist = LabeledHistogram(
+            self, name, desc, unit, buckets=buckets, labels=labels
+        )
+        self._add_metric(hist)
+        return hist
+
     def generate(self) -> str:
         buffer: list[str] = []
         for metric in self._metrics:
@@ -457,13 +473,11 @@ class LabeledGauge(BaseLabeledCounter):
             self._metric_created[labels] = self._registry.now()
 
 
-class Histogram(BaseMetric):
+class BaseHistogram(BaseMetric):
 
     _type = 'histogram'
 
     _buckets: list[float]
-    _values: list[float]
-    _sum: float
 
     # Default buckets that many standard prometheus client libraries use.
     DEFAULT_BUCKETS = [
@@ -490,8 +504,21 @@ class Histogram(BaseMetric):
 
         super().__init__(*args)
 
-        self._sum = 0.0
         self._buckets = buckets
+
+
+class Histogram(BaseHistogram):
+
+    _values: list[float]
+    _sum: float
+
+    def __init__(
+        self,
+        *args: typing.Any,
+        buckets: list[float] | None = None
+    ) -> None:
+        super().__init__(*args, buckets=buckets)
+        self._sum = 0.0
         self._values = [0.0] * len(self._buckets)
 
     def observe(self, value: float) -> None:
@@ -525,6 +552,80 @@ class Histogram(BaseMetric):
         buffer.append(f'# HELP {self._name}_created {desc}')
         buffer.append(f'# TYPE {self._name}_created gauge')
         buffer.append(f'{self._name}_created {float(self._created)}')
+
+
+class LabeledHistogram(BaseHistogram):
+
+    _labels: tuple[str, ...]
+    _metric_values: dict[tuple[str, ...], list[float | list[float]]]
+    _metric_created: dict[tuple[str, ...], float]
+
+    def __init__(
+        self,
+        *args: typing.Any,
+        buckets: list[float] | None = None,
+        labels: tuple[str, ...],
+    ) -> None:
+        super().__init__(*args, buckets=buckets)
+        self._labels = labels
+        self._metric_values = {}
+        self._metric_created = {}
+
+    def observe(self, value: float, *labels: str) -> None:
+        self._validate_label_values(self._labels, labels)
+
+        try:
+            metric = self._metric_values[labels]
+        except KeyError:
+            metric = [0.0, [0.0] * len(self._buckets)]
+            self._metric_values[labels] = metric
+            self._metric_created[labels] = self._registry.now()
+
+        idx = bisect.bisect_left(self._buckets, value)
+        metric[1][idx] += 1.0  # type: ignore
+        metric[0] += value  # type: ignore
+
+    def _generate(self, buffer: list[str]) -> None:
+        desc = _format_desc(self._desc)
+
+        buffer.append(f'# HELP {self._name} {desc}')
+        buffer.append(f'# TYPE {self._name} histogram')
+
+        for labels, values in self._metric_values.items():
+            fmt_label = ','.join(
+                f'{label}="{_format_label_val(label_val)}"'
+                for label, label_val in zip(self._labels, labels)
+            )
+            accum = 0.0
+            for buck, val in zip(self._buckets, values[1]):  # type: ignore
+                accum += val
+
+                if math.isinf(buck):
+                    if buck > 0:
+                        buckf = '+Inf'
+                    else:
+                        buckf = '-Inf'
+                else:
+                    buckf = str(buck)
+
+                buffer.append(
+                    f'{self._name}_bucket{{le="{buckf}",{fmt_label}}} {accum}'
+                )
+
+            buffer.append(f'{self._name}_count{{{fmt_label}}} {accum}')
+            buffer.append(f'{self._name}_sum{{{fmt_label}}} {values[0]}')
+
+        if self._metric_values:
+            buffer.append(f'# HELP {self._name}_created {desc}')
+            buffer.append(f'# TYPE {self._name}_created gauge')
+            for labels, value in self._metric_created.items():
+                fmt_label = ','.join(
+                    f'{label}="{_format_label_val(label_val)}"'
+                    for label, label_val in zip(self._labels, labels)
+                )
+                buffer.append(
+                    f'{self._name}_created{{{fmt_label}}} {float(value)}'
+                )
 
 
 @functools.lru_cache(maxsize=1024)
