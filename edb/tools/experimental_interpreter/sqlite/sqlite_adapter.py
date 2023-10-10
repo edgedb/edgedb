@@ -240,13 +240,13 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
                         result_tp =  "INT"
                     case VarTp(_):
                         result_tp =  "LINK"
-                    case LinkPropTp(_):
+                    case NamedNominalLinkTp(_):
                         result_tp =  "LINK"
                     case _:
                         raise ValueError(f"Unknown type {base_tp}")
             else:
                 match base_tp:
-                    case LinkPropTp(subject, link_props):
+                    case NamedNominalLinkTp(name=name, linkprop=link_props):
                         match link_props.val[lp_prop].tp:
                             case StrTp():
                                 result_tp =  "STRING"

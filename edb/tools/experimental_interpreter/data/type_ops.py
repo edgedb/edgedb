@@ -132,23 +132,32 @@ def assert_real_subtype(
                                           if tp2_key not in tp1_val.keys()])
                     else:
                         pass
-            case (e.LinkPropTp(subject=s_1, linkprop=lp_1),
-                    e.LinkPropTp(subject=s_2, linkprop=lp_2)):
-                assert_real_subtype(ctx, s_1, s_2, subtyping_mode)
-                assert_real_subtype(ctx, lp_1, lp_2, subtyping_mode)
-            case (e.LinkPropTp(subject=s_1, linkprop=e.ObjectTp({})), _):
-                assert_real_subtype(ctx, s_1, tp2, subtyping_mode)
-            case (e.ObjectTp(_), e.LinkPropTp(subject=s_2, linkprop=lp_2)):
-                # The semantics here is a pending discussion
-                # (see item 3 of the google doc)
-                # Ideally, I advocate for approach (B), this is not allowed
-                # Temporarily approach (A) is implemented, which
-                # will incur a runtime ISE if linkprop is projected
-                if object_tp_is_essentially_optional(lp_2):
-                    assert_real_subtype(ctx, tp1, s_2, subtyping_mode)
+            case (e.NominalLinkTp(name=n_1, subject=s_1, linkprop=lp_1),
+                    e.NominalLinkTp(name=n_2, subject=s_2, linkprop=lp_2)):
+                if n_1 == n_2:
+                    raise ValueError("not subtype, expecting same name", n_1, n_2)
                 else:
-                    raise ValueError("not subtype, non optional linkprop",
-                                     tp1, tp2)
+                    assert_real_subtype(ctx, s_1, s_2, subtyping_mode)
+                    assert_real_subtype(ctx, lp_1, lp_2, subtyping_mode)
+            case (e.NamedNominalLinkTp(name=n_1, linkprop=lp_1),
+                    e.NamedNominalLinkTp(name=n_2, linkprop=lp_2)):
+                if n_1 == n_2:
+                    raise ValueError("not subtype, expecting same name", n_1, n_2)
+                else:
+                    assert_real_subtype(ctx, lp_1, lp_2, subtyping_mode)
+            # case (e.LinkPropTp(subject=s_1, linkprop=e.ObjectTp({})), _):
+            #     assert_real_subtype(ctx, s_1, tp2, subtyping_mode)
+            # case (e.ObjectTp(_), e.LinkPropTp(subject=s_2, linkprop=lp_2)):
+            #     # The semantics here is a pending discussion
+            #     # (see item 3 of the google doc)
+            #     # Ideally, I advocate for approach (B), this is not allowed
+            #     # Temporarily approach (A) is implemented, which
+            #     # will incur a runtime ISE if linkprop is projected
+            #     if object_tp_is_essentially_optional(lp_2):
+            #         assert_real_subtype(ctx, tp1, s_2, subtyping_mode)
+            #     else:
+            #         raise ValueError("not subtype, non optional linkprop",
+            #                          tp1, tp2)
 
             # Union and intersections
             case (e.UnionTp(left=tp1_left, right=tp1_right), _):
@@ -205,7 +214,8 @@ def tp_is_primitive(tp: e.Tp) -> bool:
         case (e.ObjectTp(_)
               | e.SomeTp(_)
               | e.UnifiableTp(_)
-              | e.LinkPropTp(_)
+              | e.NamedNominalLinkTp(_)
+              | e.NominalLinkTp(_)
               | e.VarTp(_)
               | e.UnnamedTupleTp(_)
               | e.ArrTp(_)
@@ -265,7 +275,10 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
     match label:
         case e.LinkPropLabel(label=lbl):
             match tp.tp:
-                case e.LinkPropTp(subject=_, linkprop=tp_linkprop):
+                case e.NominalLinkTp(name=_, subject=_, linkprop=tp_linkprop):
+                    return tp_project(ctx, e.ResultTp(tp_linkprop, tp.mode),
+                                      e.StrLabel(lbl))
+                case e.NamedNominalLinkTp(name=_, linkprop=tp_linkprop):
                     return tp_project(ctx, e.ResultTp(tp_linkprop, tp.mode),
                                       e.StrLabel(lbl))
                 case _:
@@ -273,8 +286,11 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
                                      "from a non linkprop type")
         case e.StrLabel(label=lbl):
             match tp.tp:
-                case e.LinkPropTp(subject=tp_subject, linkprop=_):
+                case e.NominalLinkTp(name=_, subject=tp_subject, linkprop=_):
                     return tp_project(ctx, e.ResultTp(tp_subject, tp.mode),
+                                      e.StrLabel(lbl))
+                case e.NamedNominalLinkTp(name=name, linkprop=_):
+                    return tp_project(ctx, e.ResultTp(e.VarTp(name), tp.mode),
                                       e.StrLabel(lbl))
                 case e.ObjectTp(val=tp_obj):
                     if lbl in tp_obj.keys():

@@ -56,7 +56,7 @@ def multi_set_val_to_json_like(m: MultiSetVal) -> json_like:
 
 
 def typed_objectval_to_json_like(objv: ObjectVal,
-                                 obj_tp: e.ObjectTp | e.LinkPropTp,
+                                 obj_tp: e.ObjectTp | e.NominalLinkTp | e.NamedNominalLinkTp,
                                  dbschema: e.DBSchema) -> json_like:
     result: Dict[str, json_like] = {}
     for (k, v) in objv.val.items():
@@ -70,10 +70,13 @@ def typed_objectval_to_json_like(objv: ObjectVal,
                             result[label_to_str(k)] = \
                                 typed_multi_set_val_to_json_like(
                                     tp_vals[s], v[1], dbschema)
-                        case e.LinkPropTp(subject=subject, linkprop=_):
-                            if isinstance(subject, e.VarTp):
-                                subject = tops.dereference_var_tp(
-                                    dbschema, subject)
+                        case e.NamedNominalLinkTp(name=name, linkprop=_):
+                            subject = tops.dereference_var_tp(
+                                dbschema, e.VarTp(name))
+                            result[label_to_str(k)] = \
+                                typed_multi_set_val_to_json_like(
+                                    subject.val[s], v[1], dbschema)
+                        case e.NominalLinkTp(name=_, subject=subject, linkprop=_):
                             if not isinstance(subject, e.ObjectTp):
                                 raise ValueError("Expecting objecttp", subject)
                             if s not in subject.val.keys():
@@ -84,7 +87,9 @@ def typed_objectval_to_json_like(objv: ObjectVal,
                         case _:
                             raise ValueError("Expecting objecttp", obj_tp)
                 case LinkPropLabel(s):
-                    if not isinstance(obj_tp, e.LinkPropTp):
+                    if not isinstance(obj_tp, e.NominalLinkTp):
+                        raise ValueError("Expecting linkproptp", obj_tp)
+                    if not isinstance(obj_tp, e.NamedNominalLinkTp):
                         raise ValueError("Expecting linkproptp", obj_tp)
                     if s not in obj_tp.linkprop.val.keys():
                         raise ValueError("label not found", s)
@@ -107,11 +112,11 @@ def typed_val_to_json_like(v: Val, tp: e.Tp,
         case BoolVal(b):
             return b
         case RefVal(_, object):
-            if (isinstance(tp, e.LinkPropTp)
-                    and tp.linkprop == e.ObjectTp({})):
-                tp = tp.subject
-            if not isinstance(tp, e.ObjectTp | e.LinkPropTp):
-                raise ValueError("Expecing objecttp")
+            # if (isinstance(tp, e.NominalLinkTp)
+            #         and tp.linkprop == e.ObjectTp({})):
+            #     tp = tp.subject
+            if not isinstance(tp, e.ObjectTp | e.NominalLinkTp | e.NamedNominalLinkTp):
+                raise ValueError("Expecing objecttp", tp)
             return typed_objectval_to_json_like(object, tp, dbschema)
         # case FreeVal(object):
         #     assert isinstance(tp, e.ObjectTp)

@@ -114,11 +114,12 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
                           ) -> Tuple[e.Tp, e.ShapeExpr]:
     s_tp: e.ObjectTp
     l_tp: e.ObjectTp
-
+    s_name: str
     # populate result skeleton
     match tp:
-        case e.LinkPropTp(subject=subject_tp, linkprop=linkprop_tp):
+        case e.NominalLinkTp(name=name, subject=subject_tp, linkprop=linkprop_tp):
             l_tp = linkprop_tp
+            s_name = name
             if isinstance(subject_tp, e.ObjectTp):
                 s_tp = subject_tp
             elif isinstance(subject_tp, e.VarTp):
@@ -128,6 +129,7 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
         case e.ObjectTp(_):
             s_tp = tp
             l_tp = e.ObjectTp({})
+            raise ValueError("Cannot get s_name")
         case _:
             raise ValueError("NI")
 
@@ -206,7 +208,7 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
             result_l_tp = e.ObjectTp({**result_l_tp.val,
                                       t_lbl: l_comp_tp})
 
-    return e.LinkPropTp(result_s_tp, result_l_tp), result_expr
+    return e.NominalLinkTp(subject=result_s_tp, name=s_name, linkprop=result_l_tp), result_expr
 
 
 def type_cast_tp(from_tp: e.ResultTp, to_tp: e.Tp) -> e.ResultTp:
@@ -395,7 +397,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 ctx, subject_tp, e.LinkPropLabel(lp))
         case e.BackLinkExpr(subject=subject, label=label):
             (_, subject_ck) = synthesize_type(ctx, subject)
-            candidates: List[e.LinkPropTp] = []
+            candidates: List[e.NamedNominalLinkTp] = []
             for (name, name_def) in ctx.schema.val.items():
                 for (name_label, comp_tp) in name_def.val.items():
                     if name_label == label:
@@ -403,13 +405,13 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                             case e.LinkPropTp(_):
                                 candidates = [
                                     *candidates,
-                                    e.LinkPropTp(e.VarTp(name),
+                                    e.NamedNominalLinkTp(name,
                                                  comp_tp.tp.linkprop)
                                 ] 
                             case _:
                                 candidates = [
                                     *candidates,
-                                    e.LinkPropTp(e.VarTp(name),
+                                    e.NamedNominalLinkTp(name,
                                                  e.ObjectTp({}))
                                 ]
             result_expr = e.BackLinkExpr(subject_ck, label)
@@ -423,14 +425,14 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.TpIntersectExpr(subject=subject, tp=intersect_tp):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_expr = e.TpIntersectExpr(subject_ck, intersect_tp)
-            if all(isinstance(t, e.LinkPropTp)
+            if all(isinstance(t, e.NamedNominalLinkTp)
                    for t in tops.collect_tp_union(subject_tp.tp)):
                 candidates = []
                 for t in tops.collect_tp_union(subject_tp.tp):
-                    assert isinstance(t, e.LinkPropTp)
+                    assert isinstance(t, e.NamedNominalLinkTp)
                     # TODO: use real subtp
-                    if t.subject == e.VarTp(intersect_tp):
-                        candidates = [*candidates, t]
+                    # if t.subject == e.VarTp(intersect_tp):
+                    candidates = [*candidates, t]
                 if len(candidates) == 0:
                     result_tp = tops.construct_tp_intersection(
                         subject_tp.tp, e.VarTp(intersect_tp))
@@ -678,9 +680,17 @@ def check_object_tp_comp_validity(
         tp_comp: e.Tp,
         tp_comp_card: e.CMMode) -> e.Tp:
     match tp_comp:
-        case e.LinkPropTp(subject=l_sub, linkprop=l_prop):
-            return e.LinkPropTp(
+        case e.NamedNominalLinkTp(name=name, linkprop=l_prop):
+            return e.NamedNominalLinkTp(
+                    name=name,
+                    linkprop=check_object_tp_validity(
+                        dbschema=dbschema,
+                        subject_tp=tops.get_runtime_tp(tp_comp),
+                        obj_tp=l_prop))
+        case e.NominalLinkTp(subject=l_sub, name=name, linkprop=l_prop):
+            return e.NominalLinkTp(
                     subject=l_sub,
+                    name=name,
                     linkprop=check_object_tp_validity(
                         dbschema=dbschema,
                         subject_tp=tops.get_runtime_tp(tp_comp),
@@ -730,12 +740,12 @@ def check_object_tp_comp_validity(
             c_body = path_factor.select_hoist(c_body, dbschema)
             synth_tp, c_body_ck = synthesize_type(new_ctx, c_body)
             tops.assert_cardinal_subtype(synth_tp.mode, tp_comp_card)
-            match c_tp:
-                case e.LinkPropTp(subject=c_tp_subject, linkprop=_):
-                    tops.assert_real_subtype(new_ctx, synth_tp.tp,
-                                             c_tp_subject)
-                case _:
-                    tops.assert_real_subtype(new_ctx, synth_tp.tp, c_tp)
+            # match c_tp:
+                # case e.LinkPropTp(subject=c_tp_subject, linkprop=_):
+                #     tops.assert_real_subtype(new_ctx, synth_tp.tp,
+                #                              c_tp_subject)
+                # case _:
+            tops.assert_real_subtype(new_ctx, synth_tp.tp, c_tp)
             return e.DefaultTp(
                 expr=eops.abstract_over_expr(c_body_ck, bnd_var),
                 tp=c_tp)

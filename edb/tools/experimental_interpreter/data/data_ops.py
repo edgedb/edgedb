@@ -104,10 +104,15 @@ class IntersectTp:
     left: Tp
     right: Tp
 
+@dataclass(frozen=True)
+class NamedNominalLinkTp:
+    name: str
+    linkprop: ObjectTp
 
 @dataclass(frozen=True)
-class LinkPropTp:
-    subject: Tp
+class NominalLinkTp:
+    subject: ObjectTp
+    name : str
     linkprop: ObjectTp
 
 
@@ -146,7 +151,8 @@ class UnifiableTp:
     resolution: Optional[Tp] = None
 
 
-Tp = (ObjectTp | PrimTp | VarTp | LinkPropTp | NamedTupleTp | UnnamedTupleTp
+Tp = (ObjectTp | PrimTp | VarTp | NamedNominalLinkTp  | NominalLinkTp
+      | NamedTupleTp | UnnamedTupleTp
       | ArrTp | AnyTp | SomeTp | UnionTp | IntersectTp | UnifiableTp
       | ComputableTp | DefaultTp | UncheckedComputableTp)
 

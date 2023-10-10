@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple, Union, cast
 from edb.edgeql import ast as qlast
 
 from .basis.built_ins import all_builtin_funcs
-from .data.data_ops import (CMMode, DBSchema, LinkPropTp, ObjectTp,
+from .data.data_ops import (CMMode, DBSchema,  ObjectTp,
                             ResultTp, Tp)
 from .elaboration import elab_single_type_expr, elab_expr_with_default_head
 from .helper_funcs import parse_sdl
@@ -30,6 +30,18 @@ def elab_schema_target_tp(
             if isinstance(target, qlast.TypeExpr)
             else elab_schema_error(target))
 
+def construct_final_schema_target_tp(base : Tp, linkprops: Dict[str, ResultTp]) -> Tp:
+    match base:
+        case e.UnionTp(tp1, tp2):
+            return e.UnionTp(construct_final_schema_target_tp(tp1, linkprops), 
+                             construct_final_schema_target_tp(tp2, linkprops))
+        case e.VarTp(name):
+            return e.NamedNominalLinkTp(name=name, linkprop=ObjectTp(linkprops))
+        case _:
+            if linkprops:
+                raise ValueError("cannot construct schema target type", base, linkprops)
+            else:
+                return base
 
 def elab_schema(sdef: qlast.Schema) -> DBSchema:
     if (len(sdef.declarations) != 1
@@ -162,11 +174,12 @@ def elab_schema(sdef: qlast.Schema) -> DBSchema:
                                             "WARNING: not "
                                             "implemented pcmd",
                                             pcmd)
-                            final_target_type = (
-                                LinkPropTp(base_target_type,
-                                           ObjectTp(link_property_tps))
-                                if link_property_tps
-                                else base_target_type)
+                            final_target_type = construct_final_schema_target_tp(base_target_type, link_property_tps)
+                            # (
+                            #     LinkPropTp(base_target_type,
+                            #                ObjectTp(link_property_tps))
+                            #     if link_property_tps
+                            #     else base_target_type)
                             if p_has_set_default is not None:
                                 assert not isinstance(final_target_type,
                                                       e.UncheckedComputableTp)

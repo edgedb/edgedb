@@ -5,7 +5,7 @@ from typing import Callable, Dict, Optional, Sequence, Tuple, cast
 from .data_ops import (ArrExpr, ArrVal, BackLinkExpr, BindingExpr, BoolVal,
                        BoundVarExpr, DetachedExpr, Expr, FilterOrderExpr,
                        ForExpr, FreeVarExpr, FunAppExpr, InsertExpr,
-                       IntVal, LinkPropLabel, LinkPropProjExpr, LinkPropTp,
+                       IntVal, LinkPropLabel, LinkPropProjExpr,
                        MultiSetExpr, MultiSetVal, NamedTupleExpr,
                        ObjectProjExpr, ObjectTp, ObjectVal,
                        OffsetLimitExpr, OptionalForExpr, RefVal,
@@ -52,8 +52,12 @@ def map_tp(
                 return e.UnnamedTupleTp(val=[recur(v) for v in val])
             case e.ArrTp(tp=arr_tp):
                 return e.ArrTp(tp=recur(arr_tp))
-            case e.LinkPropTp(subject=subject, linkprop=linkprop):
-                return e.LinkPropTp(subject=recur(subject),
+            case e.NamedNominalLinkTp(name=name, linkprop=linkprop):
+                return e.NamedNominalLinkTp(name=name, 
+                                    linkprop=recur(linkprop))
+            case e.NominalLinkTp(name=name, subject=subject, linkprop=linkprop):
+                return e.NominalLinkTp(name=name, 
+                                    subject=recur(subject),
                                     linkprop=recur(linkprop))
             case e.UncheckedComputableTp(_):
                 return tp
@@ -458,7 +462,9 @@ def make_storage_atomic(val: Val, tp: Tp) -> Val:
             case _:
                 raise ValueError("Cannot Coerce to LinkPropType", val)
     match tp:
-        case LinkPropTp(subject=_, linkprop=tp_linkprop):
+        case e.NamedNominalLinkTp(name=_, linkprop=tp_linkprop):
+            return do_coerce_value_to_linkprop_tp(tp_linkprop=tp_linkprop)
+        case e.NominalLinkTp(name=_, subject=_, linkprop=tp_linkprop):
             return do_coerce_value_to_linkprop_tp(tp_linkprop=tp_linkprop)
         case e.VarTp():
             return do_coerce_value_to_linkprop_tp(tp_linkprop=ObjectTp({}))
