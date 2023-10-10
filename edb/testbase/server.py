@@ -103,7 +103,26 @@ generate_jwk = secretkey.generate_jwk
 generate_tls_cert = secretkey.generate_tls_cert
 
 
-class StubbornHttpConnection(http.client.HTTPSConnection):
+class CustomSNI_HTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, *args, server_hostname=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.server_hostname = server_hostname
+
+    def connect(self):
+        super(http.client.HTTPSConnection, self).connect()
+
+        if self._tunnel_host:
+            server_hostname = self._tunnel_host
+        elif self.server_hostname is not None:
+            server_hostname = self.server_hostname
+        else:
+            server_hostname = self.host
+
+        self.sock = self._context.wrap_socket(self.sock,
+                                              server_hostname=server_hostname)
+
+
+class StubbornHttpConnection(CustomSNI_HTTPSConnection):
 
     def close(self):
         # Don't actually close the connection.  This allows us to
@@ -344,7 +363,7 @@ class BaseHTTPTestCase(TestCase):
 
     @classmethod
     @contextlib.contextmanager
-    def http_con(cls, server, keep_alive=True):
+    def http_con(cls, server, keep_alive=True, server_hostname=None):
         conn_args = server.get_connect_args()
         tls_context = ssl.create_default_context(
             ssl.Purpose.SERVER_AUTH,
@@ -354,11 +373,12 @@ class BaseHTTPTestCase(TestCase):
         if keep_alive:
             ConCls = StubbornHttpConnection
         else:
-            ConCls = http.client.HTTPSConnection
+            ConCls = CustomSNI_HTTPSConnection
 
         con = ConCls(
             conn_args["host"],
             conn_args["port"],
+            server_hostname=server_hostname,
             context=tls_context,
         )
         con.connect()

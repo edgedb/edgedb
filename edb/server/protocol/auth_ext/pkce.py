@@ -61,6 +61,7 @@ async def create(db, challenge: str):
         variables={
             "challenge": challenge,
         },
+        cached_globally=True,
     )
 
 
@@ -76,6 +77,7 @@ async def link_identity_challenge(db, identity_id: str, challenge: str) -> str:
             "challenge": challenge,
             "identity_id": identity_id,
         },
+        cached_globally=True,
     )
 
     result_json = json.loads(r.decode())
@@ -102,6 +104,7 @@ async def add_provider_tokens(
             "auth_token": auth_token,
             "refresh_token": refresh_token,
         },
+        cached_globally=True,
     )
 
     result_json = json.loads(r.decode())
@@ -125,6 +128,7 @@ async def get_by_id(db, id: str) -> PKCEChallenge:
         and (datetime_current() - .created_at) < <duration>$validity;
         """,
         variables={"id": id, "validity": VALIDITY.to_backend_str()},
+        cached_globally=True,
     )
 
     result_json = json.loads(r.decode())
@@ -140,6 +144,7 @@ async def delete(db, id: str) -> None:
         delete ext::auth::PKCEChallenge filter .id = <uuid>$id
         """,
         variables={"id": id},
+        cached_globally=True,
     )
 
     result_json = json.loads(r.decode())
@@ -160,6 +165,7 @@ async def _gc(tenant: edbtenant.Tenant):
                                 <duration>$validity
                             """,
                             variables={"validity": VALIDITY.to_backend_str()},
+                            cached_globally=True,
                         ),
                     )
     except Exception as ex:

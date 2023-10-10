@@ -477,7 +477,14 @@ async def parse_execute_json(
     globals_: Optional[Mapping[str, Any]] = None,
     output_format: compiler.OutputFormat = compiler.OutputFormat.JSON,
     query_cache_enabled: Optional[bool] = None,
+    cached_globally: bool = False,
 ) -> bytes:
+    # WARNING: only set cached_globally to True when the query is
+    # strictly referring to only shared stable objects in user schema
+    # or anything from std schema, for example:
+    #     YES:  select ext::auth::UIConfig { ... }
+    #     NO:   select default::User { ... }
+
     if query_cache_enabled is None:
         query_cache_enabled = not (
             debug.flags.disable_qcache or debug.flags.edgeql_compile)
@@ -497,7 +504,7 @@ async def parse_execute_json(
         allow_capabilities=compiler.Capability.MODIFICATIONS,
     )
 
-    compiled = await dbv.parse(query_req)
+    compiled = await dbv.parse(query_req, cached_globally=cached_globally)
 
     pgcon = await tenant.acquire_pgcon(db.name)
     try:
