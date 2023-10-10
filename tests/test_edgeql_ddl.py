@@ -3262,6 +3262,23 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ],
             )
 
+        # Something simple but forcing it to use assert_exists
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                ALTER TYPE Foo ALTER PROPERTY p {
+                    SET REQUIRED USING (
+                        assert_exists((select '3' filter true)))
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { p } ORDER BY .p',
+                [
+                    {'p': '1'},
+                    {'p': '3'},
+                ],
+            )
+
         # A reference to another property of the same host type.
         async with self._run_and_rollback():
             await self.con.execute("""

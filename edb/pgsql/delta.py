@@ -4645,7 +4645,7 @@ class PointerMetaCommand(
         root_uid = -1
         iter_uid = -2
         body_uid = -3
-        # scope tree wrapping is roughy equivalent to:
+        # scope tree wrapping is roughly equivalent to:
         # "(std::obj) uid:-1": {
         #   "BRANCH uid:-2",
         #   "FENCE uid:-3": { ... compiled scope children ... }
@@ -4657,7 +4657,9 @@ class PointerMetaCommand(
             unique_id=body_uid,
             fenced=True
         )
-        for child in ir.scope_tree.children:
+        # Need to make a copy of the children list because
+        # attach_child removes the node from the parent list.
+        for child in list(ir.scope_tree.children):
             scope_body.attach_child(child)
 
         scope_root = irast.ScopeTreeNode(
