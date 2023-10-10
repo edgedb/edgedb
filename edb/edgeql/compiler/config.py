@@ -48,7 +48,6 @@ from edb.edgeql import ast as qlast
 from . import casts
 from . import context
 from . import dispatch
-from . import inference
 from . import setgen
 from . import typegen
 
@@ -74,7 +73,7 @@ def compile_ConfigSet(
     info = _validate_op(expr, ctx=ctx)
     param_val = dispatch.compile(expr.expr, ctx=ctx)
     param_type = info.param_type
-    val_type = inference.infer_type(param_val, ctx.env)
+    val_type = setgen.get_set_type(param_val, ctx=ctx)
     compatible = s_types.is_type_compatible(
         val_type, param_type, schema=ctx.env.schema)
     if not compatible:

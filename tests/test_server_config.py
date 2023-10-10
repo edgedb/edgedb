@@ -880,6 +880,7 @@ class TestServerConfig(tb.QueryTestCase):
         )
 
     async def test_server_proto_configure_06(self):
+        con2 = None
         try:
             await self.con.execute('''
                 CONFIGURE SESSION SET singleprop := '42';
@@ -897,6 +898,11 @@ class TestServerConfig(tb.QueryTestCase):
                     '1', '2', '3'
                 ],
             )
+
+            con2 = await self.connect(database=self.con.dbname)
+            await con2.execute('''
+                start transaction
+            ''')
 
             await self.con.execute('''
                 CONFIGURE INSTANCE SET multiprop := {'4', '5'};
@@ -931,6 +937,8 @@ class TestServerConfig(tb.QueryTestCase):
             await self.con.execute('''
                 CONFIGURE INSTANCE RESET multiprop;
             ''')
+            if con2:
+                await con2.aclose()
 
     async def test_server_proto_configure_07(self):
         try:

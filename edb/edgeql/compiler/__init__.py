@@ -136,8 +136,6 @@ from typing import overload
 
 import functools
 
-from edb import errors
-
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import qltypes
@@ -149,7 +147,6 @@ from .options import CompilerOptions as CompilerOptions  # "as" for reexport
 
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
-    from edb.schema import types as s_types
 
     from edb.ir import ast as irast
     from edb.ir import staeval as ireval
@@ -331,14 +328,7 @@ def compile_ast_fragment_to_ir(
     ctx = stmtctx_mod.init_context(schema=schema, options=options)
     ir_set = dispatch_mod.compile(tree, ctx=ctx)
 
-    result_type: s_types.Type
-    try:
-        result_type = inference_mod.infer_type(ir_set, ctx.env)
-    except errors.QueryError:
-        # Not all fragments can be resolved into a concrete type,
-        # that's OK.
-        # XXX: Is it really? This doesn't come up in the tests at all.
-        result_type = cast(s_types.Type, None)
+    result_type = ctx.env.set_types[ir_set]
 
     return irast.Statement(
         expr=ir_set,

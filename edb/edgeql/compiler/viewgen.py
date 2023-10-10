@@ -1471,7 +1471,7 @@ def _normalize_view_ptr_expr(
                 irexpr, ptrcls=ptrcls,
                 materialize_visible=True, skipped_bindings={path_id},
                 ctx=ctx)
-            ptr_target = inference.infer_type(irexpr, ctx.env)
+            ptr_target = setgen.get_set_type(irexpr, ctx=ctx)
 
     # compexpr is not None
     else:
@@ -1563,7 +1563,7 @@ def _normalize_view_ptr_expr(
             irexpr, ptrcls=ptrcls,
             materialize_visible=True, skipped_bindings={path_id},
             ctx=ctx)
-        ptr_target = inference.infer_type(irexpr, ctx.env)
+        ptr_target = setgen.get_set_type(irexpr, ctx=ctx)
 
         if (
             shape_el.operation.op is qlast.ShapeOp.APPEND
