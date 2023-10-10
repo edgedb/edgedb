@@ -58,6 +58,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property email: str {
             create delegated constraint exclusive;
         };
+        create property verified_at: std::datetime;
     };
 
     create type ext::auth::EmailPasswordFactor
@@ -164,6 +165,10 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         alter property name {
             set default := 'builtin::local_emailpassword';
             set protected := true;
+        };
+
+        create required property require_verification: std::bool {
+            set default := true;
         };
     };
 
