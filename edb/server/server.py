@@ -289,7 +289,9 @@ class BaseServer:
             # Shouldn't happen, but just in case some weird async twist
             # gets us here we don't want to crash the connection with
             # this error.
-            metrics.background_errors.inc(1.0, 'client_after_idling')
+            metrics.background_errors.inc(
+                1.0, conn.get_tenant_label(), 'client_after_idling'
+            )
 
     def on_binary_client_disconnected(self, conn):
         self._binary_conns.pop(conn, None)
@@ -420,10 +422,14 @@ class BaseServer:
                         # connections.
                         break
                 except Exception:
-                    metrics.background_errors.inc(1.0, 'close_for_idling')
+                    metrics.background_errors.inc(
+                        1.0, conn.get_tenant_label(), 'close_for_idling'
+                    )
                     conn.abort()
         except Exception:
-            metrics.background_errors.inc(1.0, 'idle_clients_collector')
+            metrics.background_errors.inc(
+                1.0, 'system', 'idle_clients_collector'
+            )
             raise
 
     def _get_backend_runtime_params(self) -> pgparams.BackendRuntimeParams:
@@ -1432,7 +1438,9 @@ class Server(BaseServer):
 
             self._tenant.schedule_reported_config_if_needed(setting_name)
         except Exception:
-            metrics.background_errors.inc(1.0, 'on_system_config_set')
+            metrics.background_errors.inc(
+                1.0, self._tenant.get_instance_name(), 'on_system_config_set'
+            )
             raise
 
     async def _on_system_config_reset(self, setting_name):
@@ -1461,7 +1469,9 @@ class Server(BaseServer):
 
             self._tenant.schedule_reported_config_if_needed(setting_name)
         except Exception:
-            metrics.background_errors.inc(1.0, 'on_system_config_reset')
+            metrics.background_errors.inc(
+                1.0, self._tenant.get_instance_name(), 'on_system_config_reset'
+            )
             raise
 
     async def _after_system_config_add(self, setting_name, value):
@@ -1469,7 +1479,11 @@ class Server(BaseServer):
             if setting_name == 'auth':
                 self._tenant.populate_sys_auth()
         except Exception:
-            metrics.background_errors.inc(1.0, 'after_system_config_add')
+            metrics.background_errors.inc(
+                1.0,
+                self._tenant.get_instance_name(),
+                'after_system_config_add',
+            )
             raise
 
     async def _after_system_config_rem(self, setting_name, value):
@@ -1477,7 +1491,11 @@ class Server(BaseServer):
             if setting_name == 'auth':
                 self._tenant.populate_sys_auth()
         except Exception:
-            metrics.background_errors.inc(1.0, 'after_system_config_rem')
+            metrics.background_errors.inc(
+                1.0,
+                self._tenant.get_instance_name(),
+                'after_system_config_rem',
+            )
             raise
 
     async def run_startup_script_and_exit(self):

@@ -103,7 +103,7 @@ edgeql_query_compilation_duration = registry.new_histogram(
 background_errors = registry.new_labeled_counter(
     'background_errors_total',
     'Number of unhandled errors in background server routines.',
-    labels=('source',)
+    labels=('tenant', 'source')
 )
 
 ha_events_total = registry.new_labeled_counter(
