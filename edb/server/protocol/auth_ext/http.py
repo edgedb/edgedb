@@ -162,7 +162,7 @@ class Router:
                         provider_name = claims["provider"]
                         redirect_to = claims["redirect_to"]
                         redirect_to_on_signup = claims.get(
-                            "redirect_to_on_signup", None
+                            "redirect_to_on_signup"
                         )
                         challenge = claims["challenge"]
                     except Exception:
