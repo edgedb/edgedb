@@ -20,6 +20,7 @@ from typing import *
 
 import html
 import urllib
+import re
 from email.mime import multipart
 from email.mime import text as mime_text
 
@@ -310,6 +311,9 @@ def render_reset_password_page(
     )
 
 
+hex_color_regexp = re.compile(r'[0-9a-fA-F]{6}')
+
+
 def _render_base_page(
     *,
     content: str,
@@ -338,6 +342,9 @@ def _render_base_page(
       }}
     </script>''' if len(cleanup_search_params) > 0 else ''
 
+    if brand_color is None or hex_color_regexp.fullmatch(brand_color) is None:
+        brand_color = '1f8aed'
+
     return f'''
 <!DOCTYPE html>
 <html>
@@ -348,7 +355,7 @@ def _render_base_page(
     <title>{html.escape(title)}</title>
     {cleanup_script}
   </head>
-  <body {'style="'+get_colour_vars(brand_color or '1f8aed')+'"'}>
+  <body {'style="'+get_colour_vars(brand_color)+'"'}>
     {logo}
     {content}
   </body>
