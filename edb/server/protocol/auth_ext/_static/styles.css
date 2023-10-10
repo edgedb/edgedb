@@ -74,6 +74,10 @@ form input {
   margin-bottom: 16px;
 }
 
+form input:focus-visible {
+  outline: 3px solid var(--accent-focus-color);
+}
+
 form label {
   color: #495057;
   font-size: 16px;
@@ -108,6 +112,19 @@ form button svg {
 form button:hover {
   background: var(--accent-bg-hover-color);
 }
+form button:focus-visible {
+  outline: 3px solid var(--accent-focus-color);
+  outline-offset: 2px;
+}
+
+a {
+  outline: 0;
+  text-decoration: none;
+}
+a:focus-visible {
+  text-decoration: underline solid 2px var(--accent-focus-color);
+  text-underline-offset: 4px;
+}
 
 .field-header {
   display: flex;
@@ -117,7 +134,6 @@ form button:hover {
   color: #97A1AB;
   font-size: 14px;
   font-weight: 400;
-  text-decoration: none;
 }
 a.field-note:hover {
   color: var(--accent-text-color);
@@ -144,6 +160,9 @@ a.field-note:hover {
 }
 .oauth-buttons a:hover {
   background: #f5f6f8;
+}
+.oauth-buttons a:focus-visible {
+  outline: 3px solid var(--accent-focus-color);
 }
 .oauth-buttons a span {
   margin-left: 12px;
@@ -178,7 +197,6 @@ a.field-note:hover {
 }
 .bottom-note a {
   color: var(--accent-text-color);
-  text-decoration: none;
 }
 
 .error-message, .success-message {
@@ -200,7 +218,6 @@ a.field-note:hover {
 }
 .error-message a, .success-message a {
   color: var(--accent-text-color);
-  text-decoration: none;
 }
 .error-message b, .success-message b {
   font-weight: 600;
@@ -229,9 +246,16 @@ a.field-note:hover {
     background: #31373D;
     color: #DEE2E6;
   }
+  form input:focus-visible {
+    outline-color: var(--accent-focus-dark-color);
+  }
 
   form label {
     color: #dee2e6;
+  }
+
+  a:focus-visible {
+    text-decoration-color: var(--accent-focus-dark-color);
   }
 
   .field-note {
@@ -247,6 +271,9 @@ a.field-note:hover {
   }
   .oauth-buttons a:hover {
     background: #363c42;
+  }
+  .oauth-buttons a:focus-visible {
+    outline-color: var(--accent-focus-dark-color);
   }
 
   .divider {

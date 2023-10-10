@@ -79,6 +79,9 @@ class Router:
                     )
                     provider_name = _get_search_param(query, "provider")
                     redirect_to = _get_search_param(query, "redirect_to")
+                    redirect_to_on_signup = _maybe_get_search_param(
+                        query, "redirect_to_on_signup"
+                    )
                     challenge = _get_search_param(query, "challenge")
                     oauth_client = oauth.Client(
                         db=self.db,
@@ -89,7 +92,8 @@ class Router:
                     authorize_url = await oauth_client.get_authorize_url(
                         redirect_uri=self._get_callback_url(),
                         state=self._make_state_claims(
-                            provider_name, redirect_to, challenge
+                            provider_name, redirect_to,
+                            redirect_to_on_signup, challenge
                         ),
                     )
                     response.status = http.HTTPStatus.FOUND
@@ -157,6 +161,9 @@ class Router:
                         claims = self._verify_and_extract_claims(state)
                         provider_name = claims["provider"]
                         redirect_to = claims["redirect_to"]
+                        redirect_to_on_signup = claims.get(
+                            "redirect_to_on_signup"
+                        )
                         challenge = claims["challenge"]
                     except Exception:
                         raise errors.InvalidData("Invalid state token")
@@ -167,6 +174,7 @@ class Router:
                     )
                     (
                         identity,
+                        new_identity,
                         auth_token,
                         refresh_token,
                     ) = await oauth_client.handle_callback(
@@ -182,7 +190,10 @@ class Router:
                             auth_token=auth_token,
                             refresh_token=refresh_token,
                         )
-                    parsed_url = urllib.parse.urlparse(redirect_to)
+                    parsed_url = urllib.parse.urlparse(
+                        (redirect_to_on_signup or redirect_to)
+                        if new_identity else redirect_to
+                    )
                     query_params = urllib.parse.parse_qs(parsed_url.query)
                     query_params["code"] = [pkce_code]
                     new_query = urllib.parse.urlencode(query_params, doseq=True)
@@ -649,7 +660,10 @@ class Router:
                         response.body = ui.render_signup_page(
                             base_path=self.base_path,
                             provider_name=password_provider.name,
-                            redirect_to=ui_config.redirect_to,
+                            redirect_to=(
+                                ui_config.redirect_to_on_signup
+                                or ui_config.redirect_to
+                            ),
                             error_message=_maybe_get_search_param(
                                 query, 'error'
                             ),
@@ -846,7 +860,11 @@ class Router:
         return jwk.JWK(kty="oct", k=key_bytes.decode())
 
     def _make_state_claims(
-        self, provider: str, redirect_to: str, challenge: str
+        self,
+        provider: str,
+        redirect_to: str,
+        redirect_to_on_signup: Optional[str],
+        challenge: str
     ) -> str:
         signing_key = self._get_auth_signing_key()
         expires_at = (
@@ -860,6 +878,8 @@ class Router:
             "redirect_to": redirect_to,
             "challenge": challenge,
         }
+        if redirect_to_on_signup:
+            state_claims['redirect_to_on_signup'] = redirect_to_on_signup
         state_token = jwt.JWT(
             header={"alg": "HS256"},
             claims=state_claims,
