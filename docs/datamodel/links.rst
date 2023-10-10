@@ -509,8 +509,9 @@ already-established link between the two:
 
 .. code-block:: edgeql
 
-    update Person set {
-      name := "Bob",
+    update Person
+    filter .name = "Bob"
+    set {
       family_members := (
         select .family_members {
           @relationship := "step-sister"
