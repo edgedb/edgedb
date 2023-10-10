@@ -5911,7 +5911,10 @@ class AlterProperty(PropertyMetaCommand, adapts=s_props.AlterProperty):
         if self.metadata_only:
             return schema
 
-        if not is_comp:
+        if (
+            not is_comp
+            and (src and has_table(src.scls, schema))
+        ):
             orig_def_val = self.get_pointer_default(prop, orig_schema, context)
             def_val = self.get_pointer_default(prop, schema, context)
 
