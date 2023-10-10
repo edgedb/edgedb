@@ -134,17 +134,28 @@ def assert_real_subtype(
                         pass
             case (e.NominalLinkTp(name=n_1, subject=s_1, linkprop=lp_1),
                     e.NominalLinkTp(name=n_2, subject=s_2, linkprop=lp_2)):
-                if n_1 == n_2:
+                if n_1 != n_2:
                     raise ValueError("not subtype, expecting same name", n_1, n_2)
                 else:
                     assert_real_subtype(ctx, s_1, s_2, subtyping_mode)
                     assert_real_subtype(ctx, lp_1, lp_2, subtyping_mode)
             case (e.NamedNominalLinkTp(name=n_1, linkprop=lp_1),
                     e.NamedNominalLinkTp(name=n_2, linkprop=lp_2)):
-                if n_1 == n_2:
+                if n_1 != n_2:
                     raise ValueError("not subtype, expecting same name", n_1, n_2)
                 else:
                     assert_real_subtype(ctx, lp_1, lp_2, subtyping_mode)
+            # expanding names
+            case (_, e.NamedNominalLinkTp(name=n_2, linkprop=lp_2)):
+                assert_real_subtype(ctx, tp1, 
+                    e.NominalLinkTp(subject=ctx.schema.val[n_2],
+                                    name=n_2,
+                                    linkprop=lp_2), subtyping_mode)
+            case (e.NamedNominalLinkTp(name=n_1, linkprop=lp_1), _):
+                assert_real_subtype(ctx, 
+                    e.NominalLinkTp(subject=ctx.schema.val[n_1],
+                                    name=n_1,
+                                    linkprop=lp_1), tp2, subtyping_mode)
             # case (e.LinkPropTp(subject=s_1, linkprop=e.ObjectTp({})), _):
             #     assert_real_subtype(ctx, s_1, tp2, subtyping_mode)
             # case (e.ObjectTp(_), e.LinkPropTp(subject=s_2, linkprop=lp_2)):

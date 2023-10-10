@@ -87,9 +87,8 @@ def typed_objectval_to_json_like(objv: ObjectVal,
                         case _:
                             raise ValueError("Expecting objecttp", obj_tp)
                 case LinkPropLabel(s):
-                    if not isinstance(obj_tp, e.NominalLinkTp):
-                        raise ValueError("Expecting linkproptp", obj_tp)
-                    if not isinstance(obj_tp, e.NamedNominalLinkTp):
+                    if (not isinstance(obj_tp, e.NominalLinkTp)
+                        and not isinstance(obj_tp, e.NamedNominalLinkTp)):
                         raise ValueError("Expecting linkproptp", obj_tp)
                     if s not in obj_tp.linkprop.val.keys():
                         raise ValueError("label not found", s)

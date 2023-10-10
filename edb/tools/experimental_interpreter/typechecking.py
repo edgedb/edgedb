@@ -126,6 +126,10 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
                 s_tp = tops.dereference_var_tp(ctx.schema, subject_tp)
             else:
                 raise ValueError("NI", subject_tp)
+        case e.NamedNominalLinkTp(name=name, linkprop=linkprop_tp):
+            l_tp = linkprop_tp
+            s_name = name
+            s_tp = tops.dereference_var_tp(ctx.schema, e.VarTp(name))
         case e.ObjectTp(_):
             s_tp = tp
             l_tp = e.ObjectTp({})
@@ -244,7 +248,9 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             if var in ctx.varctx.keys():
                 result_tp, result_card = ctx.varctx[var]
             elif var in ctx.schema.val.keys():
-                result_tp = ctx.schema.val[var]
+                result_tp = e.NominalLinkTp(subject=ctx.schema.val[var], 
+                                            name=var, 
+                                            linkprop=e.ObjectTp({}))
                 result_card = e.CardAny
             else:
                 raise ValueError("Unknown variable", var,
@@ -357,7 +363,9 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                         else:
                             continue
         case e.FreeObjectExpr():
-            result_tp = e.ObjectTp({})
+            result_tp = e.NominalLinkTp(subject=e.ObjectTp({}),
+                                        name="std::FreeObject",
+                                        linkprop=e.ObjectTp({}))
             result_card = e.CardAtMostOne
             result_expr = expr
         case e.ConditionalDedupExpr(expr=inner):
@@ -402,7 +410,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 for (name_label, comp_tp) in name_def.val.items():
                     if name_label == label:
                         match comp_tp.tp:
-                            case e.LinkPropTp(_):
+                            case e.NamedNominalLinkTp(_):
                                 candidates = [
                                     *candidates,
                                     e.NamedNominalLinkTp(name,
@@ -519,7 +527,11 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     # e.min_cardinal(result_card.multiplicity, e.Fin(lim_num))
                     )
         case e.InsertExpr(name=tname, new=arg):
-            tname_tp = tops.get_runtime_tp(ctx.schema.val[tname])
+            tname_tp = tops.get_runtime_tp(
+                e.NominalLinkTp(subject=ctx.schema.val[tname],
+                                name=tname,
+                                linkprop=e.ObjectTp({}))
+            )
             arg_shape_tp, arg_ck = check_shape_transform(
                 ctx, arg, tname_tp, is_insert_shape=True)
             # assert arg_tp.mode == e.CardOne, (
@@ -542,7 +554,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             assert eops.is_effect_free(subject), (
                 "Expecting subject expr to be effect-free")
             (after_tp, shape_ck) = check_shape_transform(
-                ctx, shape_expr, subject_tp.tp)
+                ctx, shape_expr, subject_tp.tp, is_insert_shape=True)
             tops.assert_insert_subtype(ctx, after_tp, subject_tp.tp)
             result_expr = e.UpdateExpr(subject_ck, shape_ck)
             result_tp, result_card = subject_tp
@@ -649,6 +661,9 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
 
     # enforce singular
     # result_expr = enforce_singular(result_expr)
+    # check integrity
+    if isinstance(result_tp, e.ObjectTp):
+        raise ValueError("Must return NominalLinkTp instead of object tp", expr, result_tp)
 
     return (e.ResultTp(result_tp, result_card), result_expr)
 
