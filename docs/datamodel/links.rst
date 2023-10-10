@@ -509,7 +509,7 @@ already-established link between the two:
 
 .. code-block:: edgeql
 
-    update Person {
+    update Person set {
       name := "Bob",
       family_members := (
         select .family_members {
