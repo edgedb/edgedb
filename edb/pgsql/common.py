@@ -165,7 +165,7 @@ def _edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
     # md5 (and it doesn't matter which function is better cryptographically
     # in this case.)
     hashed = base64.b64encode(
-        hashlib.md5(name.encode()).digest()
+        hashlib.md5(name.encode(), usedforsecurity=False).digest()
     ).decode().rstrip('=')
 
     return (
