@@ -67,6 +67,7 @@ def render_login_page(
     if redirect_to_on_signup:
         oauth_params['redirect_to_on_signup'] = redirect_to_on_signup
 
+    oauth_label = "Sign in with" if password_provider else "Continue with"
     oauth_buttons = '\n'.join([
         f'''
         <a href="../authorize?{urllib.parse.urlencode({
@@ -77,7 +78,7 @@ def render_login_page(
             '<img src="_static/icon_' + p.name[15:] + '.svg" alt="' +
             p.display_name+' Icon" />'
         ) if p.name in known_oauth_provider_names else ''}
-        <span>Sign in with {p.display_name}</span>
+        <span>{oauth_label} {p.display_name}</span>
         </a>'''
         for p in oauth_providers
     ])
@@ -189,6 +190,7 @@ def render_signup_page(
         'redirect_to_on_signup': redirect_to,
     }
 
+    oauth_label = "Sign up with" if password_provider else "Continue with"
     oauth_buttons = '\n'.join([
         f'''
         <a href="../authorize?{urllib.parse.urlencode({
@@ -199,7 +201,7 @@ def render_signup_page(
             '<img src="_static/icon_' + p.name[15:] + '.svg" alt="' +
             p.display_name+' Icon" />'
         ) if p.name in known_oauth_provider_names else ''}
-        <span>Sign up with {p.display_name}</span>
+        <span>{oauth_label} {p.display_name}</span>
         </a>'''
         for p in oauth_providers
     ])
