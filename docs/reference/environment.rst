@@ -26,6 +26,13 @@ variants.
 Supported variables
 -------------------
 
+Docker image variables
+^^^^^^^^^^^^^^^^^^^^^^
+
+These variables are only used by the Docker image. Setting these variables
+outside that context will have no effect.
+
+
 EDGEDB_DOCKER_ABORT_CODE
 ........................
 
@@ -61,6 +68,146 @@ Shows the generated TLS certificate in console output. Default is ``always``.
 May instead be set to ``never``.
 
 
+EDGEDB_DOCKER_SKIP_MIGRATIONS
+.............................
+
+.. warning:: Deprecated
+
+    Use ``EDGEDB_DOCKER_APPLY_MIGRATIONS`` instead.
+
+The container will skip applying migrations in ``dbschema/migrations``
+if this is set.
+
+
+EDGEDB_SERVER_BINARY
+....................
+
+Sets the EdgeDB server binary to run. Default is ``edgedb-server``.
+
+
+EDGEDB_SERVER_BOOTSTRAP_COMMAND_FILE
+....................................
+
+Run the script when initializing the database. The script is run by the default
+user within the default database. May be used with or without
+``EDGEDB_SERVER_BOOTSTRAP_ONLY``.
+
+
+EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE
+...................................
+
+.. warning:: Deprecated in image version 2.8
+
+    Use ``EDGEDB_SERVER_BOOTSTRAP_COMMAND_FILE`` instead.
+
+Run the script when initializing the database. The script is run by the default
+user within the default database.
+
+
+EDGEDB_SERVER_COMPILER_POOL_MODE
+................................
+
+Choose a mode for the compiler pool to scale. ``fixed`` means the pool will not
+scale and sticks to ``EDGEDB_SERVER_COMPILER_POOL_SIZE``, while ``on_demand``
+means the pool will maintain at least 1 worker and automatically scale up (to
+``EDGEDB_SERVER_COMPILER_POOL_SIZE`` workers ) and down to the demand.
+
+Default is ``fixed`` in production mode and ``on_demand`` in development mode.
+
+
+EDGEDB_SERVER_COMPILER_POOL_SIZE
+................................
+
+When ``EDGEDB_SERVER_COMPILER_POOL_MODE`` is ``fixed``, this setting is the
+exact size of the compiler pool. When ``EDGEDB_SERVER_COMPILER_POOL_MODE`` is
+``on_demand``, this will serve as the maximum size of the compiler pool.
+
+
+EDGEDB_SERVER_EMIT_SERVER_STATUS
+................................
+
+Instruct the server to emit changes in status to *DEST*, where *DEST* is a URI
+specifying a file (``file://<path>``), or a file descriptor
+(``fd://<fileno>``).  If the URI scheme is not specified, ``file://`` is
+assumed.
+
+
+EDGEDB_SERVER_EXTRA_ARGS
+........................
+
+Additional arguments to pass when starting the EdgeDB server.
+
+
+EDGEDB_SERVER_GENERATE_SELF_SIGNED_CERT
+.......................................
+
+.. warning:: Deprecated
+
+    Use ``EDGEDB_SERVER_TLS_CERT_MODE`` instead.
+
+Instructs the server to generate a self-signed certificate when set.
+
+
+EDGEDB_SERVER_PASSWORD
+......................
+
+The password for the default superuser account (or the user specified in
+``EDGEDB_SERVER_USER``) will be set to this value. If no value is provided, a
+password will not be set, unless set via ``EDGEDB_SERVER_BOOTSTRAP_COMMAND``.
+(If a value for ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` is provided, this variable
+will be ignored.)
+
+The ``*_FILE`` and ``*_ENV`` variants are also supported.
+
+
+EDGEDB_SERVER_PASSWORD_HASH
+...........................
+
+A variant of ``EDGEDB_SERVER_PASSWORD``, where the specified value is a hashed
+password verifier instead of plain text.
+
+If ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` is set, this variable will be ignored.
+
+The ``*_FILE`` and ``*_ENV`` variants are also supported.
+
+
+EDGEDB_SERVER_SKIP_MIGRATIONS
+.............................
+
+When set, skips applying migrations in ``dbschema/migrations``. Not set by
+default.
+
+
+EDGEDB_SERVER_TENANT_ID
+.......................
+
+Specifies the tenant ID of this server when hosting multiple EdgeDB instances
+on one Postgres cluster. Must be an alphanumeric ASCII string, maximum 10
+characters long.
+
+
+EDGEDB_SERVER_UID
+.................
+
+Specifies the ID of the user which should run the server binary. Default is
+``1``.
+
+
+EDGEDB_SERVER_USER
+..................
+
+If set to anything other than the default username (``edgedb``), the username
+specified will be created. The user defined here will be the one assigned the
+password set in ``EDGEDB_SERVER_PASSWORD`` or the hash set in
+``EDGEDB_SERVER_PASSWORD_HASH``.
+
+
+Server variables
+^^^^^^^^^^^^^^^^
+
+These variables will work whether you are running EdgeDB inside Docker or not.
+
+
 .. _ref_reference_envvar_admin_ui:
 
 EDGEDB_SERVER_ADMIN_UI
@@ -85,12 +232,6 @@ and ``*_ENV`` variants are also supported.
 
 .. _URI format:
    https://www.postgresql.org/docs/13/libpq-connect.html#id-1.7.3.8.3.6
-
-
-EDGEDB_SERVER_BINARY
-....................
-
-Sets the EdgeDB server binary to run. Default is ``edgedb-server``.
 
 
 EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY
@@ -138,46 +279,10 @@ Maps directly to the ``edgedb-server`` flag ``--default-auth-method``. The
 ``*_FILE`` and ``*_ENV`` variants are also supported.
 
 
-EDGEDB_SERVER_BOOTSTRAP_COMMAND_FILE
-....................................
-
-Run the script when initializing the database. The script is run by the default
-user within the default database. May be used with or without
-``EDGEDB_SERVER_BOOTSTRAP_ONLY``.
-
-
 EDGEDB_SERVER_BOOTSTRAP_ONLY
 ............................
 
 When set, bootstrap the database cluster and exit. Not set by default.
-
-
-EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE
-...................................
-Deprecated in image version 2.8: use ``EDGEDB_SERVER_BOOTSTRAP_COMMAND_FILE``
-instead.
-
-Run the script when initializing the database. The script is run by the default
-user within the default database.
-
-
-EDGEDB_SERVER_COMPILER_POOL_MODE
-................................
-
-Choose a mode for the compiler pool to scale. ``fixed`` means the pool will not
-scale and sticks to ``EDGEDB_SERVER_COMPILER_POOL_SIZE``, while ``on_demand``
-means the pool will maintain at least 1 worker and automatically scale up (to
-``EDGEDB_SERVER_COMPILER_POOL_SIZE`` workers ) and down to the demand.
-
-Default is ``fixed`` in production mode and ``on_demand`` in development mode.
-
-
-EDGEDB_SERVER_COMPILER_POOL_SIZE
-................................
-
-When ``EDGEDB_SERVER_COMPILER_POOL_MODE`` is ``fixed``, this setting is the
-exact size of the compiler pool. When ``EDGEDB_SERVER_COMPILER_POOL_MODE`` is
-``on_demand``, this will serve as the maximum size of the compiler pool.
 
 
 .. _ref_reference_docer_edgedb_server_datadir:
@@ -206,21 +311,6 @@ one.
 Use at your own risk and only for development and testing.
 
 The ``*_FILE`` and ``*_ENV`` variants are also supported.
-
-
-EDGEDB_SERVER_EMIT_SERVER_STATUS
-................................
-
-Instruct the server to emit changes in status to *DEST*, where *DEST* is a URI
-specifying a file (``file://<path>``), or a file descriptor
-(``fd://<fileno>``).  If the URI scheme is not specified, ``file://`` is
-assumed.
-
-
-EDGEDB_SERVER_EXTRA_ARGS
-........................
-
-Additional arguments to pass when starting the EdgeDB server.
 
 
 EDGEDB_SERVER_HTTP_ENDPOINT_SECURITY
@@ -253,29 +343,6 @@ EDGEDB_SERVER_LOG_LEVEL
 
 Set the logging level. Default is ``info``. Other possible values are
 ``debug``, ``warn``, ``error``, and ``silent``.
-
-
-EDGEDB_SERVER_PASSWORD
-......................
-
-The password for the default superuser account (or the user specified in
-``EDGEDB_SERVER_USER``) will be set to this value. If no value is provided, a
-password will not be set, unless set via ``EDGEDB_SERVER_BOOTSTRAP_COMMAND``.
-(If a value for ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` is provided, this variable
-will be ignored.)
-
-The ``*_FILE`` and ``*_ENV`` variants are also supported.
-
-
-EDGEDB_SERVER_PASSWORD_HASH
-...........................
-
-A variant of ``EDGEDB_SERVER_PASSWORD``, where the specified value is a hashed
-password verifier instead of plain text.
-
-If ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` is set, this variable will be ignored.
-
-The ``*_FILE`` and ``*_ENV`` variants are also supported.
 
 
 EDGEDB_SERVER_PORT
@@ -311,21 +378,6 @@ set, the server will accept plaintext HTTP connections.
 Maps directly to the ``edgedb-server`` flag ``--security``.
 
 
-EDGEDB_SERVER_SKIP_MIGRATIONS
-.............................
-
-When set, skips applying migrations in ``dbschema/migrations``. Not set by
-default.
-
-
-EDGEDB_SERVER_TENANT_ID
-.......................
-
-Specifies the tenant ID of this server when hosting multiple EdgeDB instances
-on one Postgres cluster. Must be an alphanumeric ASCII string, maximum 10
-characters long.
-
-
 EDGEDB_SERVER_TLS_CERT_FILE/EDGEDB_SERVER_TLS_KEY_FILE
 ......................................................
 
@@ -359,12 +411,3 @@ Default is ``generate_self_signed`` when
 
 Maps directly to the ``edgedb-server`` flag ``--tls-cert-mode``. The ``*_FILE``
 and ``*_ENV`` variants are also supported.
-
-
-EDGEDB_SERVER_USER
-..................
-
-If set to anything other than the default username (``edgedb``), the username
-specified will be created. The user defined here will be the one assigned the
-password set in ``EDGEDB_SERVER_PASSWORD`` or the hash set in
-``EDGEDB_SERVER_PASSWORD_HASH``.
