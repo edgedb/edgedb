@@ -56,7 +56,8 @@ async def create(db, challenge: str):
         """
         insert ext::auth::PKCEChallenge {
             challenge := <str>$challenge,
-        }
+        } unless conflict on .challenge
+        else (select ext::auth::PKCEChallenge)
         """,
         variables={
             "challenge": challenge,

@@ -530,14 +530,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 .rstrip(b'=')
                 .decode()
             )
+            query = {
+                "provider": provider_name,
+                "redirect_to": redirect_to,
+                "challenge": challenge,
+            }
 
             _, headers, status = self.http_con_request(
                 http_con,
-                {
-                    "provider": provider_name,
-                    "redirect_to": redirect_to,
-                    "challenge": challenge,
-                },
+                query,
                 path="authorize",
             )
 
@@ -573,6 +574,22 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 challenge=challenge,
             )
             self.assertEqual(len(pkce), 1)
+
+            _, _, repeat_status = self.http_con_request(
+                http_con,
+                query,
+                path="authorize",
+            )
+            self.assertEqual(repeat_status, 302)
+
+            repeat_pkce = await self.con.query_single(
+                """
+                select ext::auth::PKCEChallenge
+                filter .challenge = <str>$challenge
+                """,
+                challenge=challenge,
+            )
+            self.assertEqual(pkce[0].id, repeat_pkce.id)
 
     async def test_http_auth_ext_github_callback_missing_provider_01(self):
         with MockAuthProvider(), self.http_con() as http_con:
