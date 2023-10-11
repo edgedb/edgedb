@@ -140,7 +140,7 @@ EDGEDB_SERVER_GENERATE_SELF_SIGNED_CERT
 
 .. warning:: Deprecated
 
-    Use ``EDGEDB_SERVER_TLS_CERT_MODE`` instead.
+    Use ``EDGEDB_SERVER_TLS_CERT_MODE="generate_self_signed"`` instead.
 
 Instructs the server to generate a self-signed certificate when set.
 
@@ -170,6 +170,10 @@ The ``*_FILE`` and ``*_ENV`` variants are also supported.
 
 EDGEDB_SERVER_SKIP_MIGRATIONS
 .............................
+
+.. warning:: Deprecated
+
+    Use ``EDGEDB_DOCKER_APPLY_MIGRATIONS="never"`` instead.
 
 When set, skips applying migrations in ``dbschema/migrations``. Not set by
 default.
@@ -213,6 +217,26 @@ EDGEDB_SERVER_ADMIN_UI
 Set to ``enabled`` to enable the web-based admininstrative UI for the instance.
 
 Maps directly to the ``edgedb-server`` flag ``--admin-ui``.
+
+
+EDGEDB_SERVER_DEFAULT_AUTH_METHOD
+.................................
+
+.. warning:: Deprecated
+
+    Use ``EDGEDB_SERVER_DEFAULT_AUTH_METHOD`` instead.
+
+Optionally specifies the authentication method used by the server instance.
+Supported values are ``SCRAM`` (the default) and ``Trust``. When set to
+``Trust``, the database will allow complete unauthenticated access
+for all who have access to the database port.
+
+This is often useful when setting an admin password on an instance that lacks
+one.
+
+Use at your own risk and only for development and testing.
+
+The ``*_FILE`` and ``*_ENV`` variants are also supported.
 
 
 .. _ref_reference_docker_edgedb_server_backend_dsn:
@@ -349,6 +373,24 @@ Specifies the network port on which EdgeDB will listen. Default is ``5656``.
 
 Maps directly to the ``edgedb-server`` flag ``--port``. The ``*_FILE`` and
 ``*_ENV`` variants are also supported.
+
+
+EDGEDB_SERVER_POSTGRES_DSN
+..........................
+
+.. warning:: Deprecated
+
+    Use ``EDGEDB_SERVER_BACKEND_DSN`` instead.
+
+Specifies a PostgreSQL connection string in the `URI format`_.  If set, the
+PostgreSQL cluster specified by the URI is used instead of the builtin
+PostgreSQL server.  Cannot be specified alongside ``EDGEDB_SERVER_DATADIR``.
+
+Maps directly to the ``edgedb-server`` flag ``--backend-dsn``. The ``*_FILE``
+and ``*_ENV`` variants are also supported.
+
+.. _URI format:
+   https://www.postgresql.org/docs/13/libpq-connect.html#id-1.7.3.8.3.6
 
 
 EDGEDB_SERVER_RUNSTATE_DIR
