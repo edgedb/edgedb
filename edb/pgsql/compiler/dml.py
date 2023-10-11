@@ -589,6 +589,8 @@ def _mk_dynamic_get_path(
         # This is used in rewrites to go back to the original
         if fallback_rvar:
             return fallback_rvar
+        if not rptr:
+            raise LookupError('only pointers appear in insert fallback')
         # Properties that aren't specified are {}
         return pgast.NullConstant()
     return dynamic_get_path
