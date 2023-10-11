@@ -5553,7 +5553,7 @@ class TestInsert(tb.QueryTestCase):
 
         await self.con.execute('''
             INSERT Person {
-                id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff',
+                id := <uuid>to_json('"ffffffff-ffff-ffff-ffff-ffffffffffff"'),
                 name := "test",
              }
         ''')
