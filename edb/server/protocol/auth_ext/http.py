@@ -626,19 +626,21 @@ class Router:
 
                 case ('ui', 'signup'):
                     ui_config = self._get_ui_config()
-                    password_provider = (
-                        self._get_password_provider()
-                        if ui_config is not None
-                        else None
-                    )
-
-                    if ui_config is None or password_provider is None:
+                    if ui_config is None:
                         response.status = http.HTTPStatus.NOT_FOUND
-                        response.body = (
-                            b'Password provider not configured'
-                            if ui_config else b'Auth UI not enabled'
-                        )
+                        response.body = b'Auth UI not enabled'
                     else:
+                        providers = util.maybe_get_config(
+                            self.db,
+                            "ext::auth::AuthConfig::providers",
+                            frozenset
+                        )
+                        if providers is None or len(providers) == 0:
+                            raise errors.MissingConfiguration(
+                                'ext::auth::AuthConfig::providers',
+                                'No providers are configured'
+                            )
+
                         query = urllib.parse.parse_qs(
                             request.url.query.decode("ascii")
                             if request.url.query
@@ -659,7 +661,7 @@ class Router:
                         response.content_type = b'text/html'
                         response.body = ui.render_signup_page(
                             base_path=self.base_path,
-                            provider_name=password_provider.name,
+                            providers=providers,
                             redirect_to=(
                                 ui_config.redirect_to_on_signup
                                 or ui_config.redirect_to
