@@ -273,6 +273,7 @@ def _process_view(
     }
 
     # Now look for any splats and expand them.
+    splat_descs: dict[str, ShapeElementDesc] = {}
     for shape_el in elements:
         if not isinstance(shape_el.expr.steps[0], qlast.Splat):
             continue
@@ -349,14 +350,44 @@ def _process_view(
         )
 
         for splat_el in expanded_splat:
-            shape_desc.append(
-                _shape_el_ql_to_shape_el_desc(
-                    splat_el,
-                    source=view_scls,
-                    s_ctx=s_ctx,
-                    ctx=ctx
-                )
+            desc = _shape_el_ql_to_shape_el_desc(
+                splat_el, source=view_scls, s_ctx=s_ctx, ctx=ctx
             )
+            if old_desc := splat_descs.get(desc.ptr_name):
+                # If pointers appear in multiple splats, we take the
+                # one from the ancestor class. If neither class is an
+                # ancestor, we reject it.
+                # TODO: Accept it instead, if the types are the same.
+                new_source: object = desc.source
+                old_source: object = old_desc.source
+                if isinstance(new_source, s_links.Link):
+                    new_source = new_source.get_source(ctx.env.schema)
+                assert isinstance(new_source, s_objtypes.ObjectType)
+                if isinstance(old_source, s_links.Link):
+                    old_source = old_source.get_source(ctx.env.schema)
+                assert isinstance(old_source, s_objtypes.ObjectType)
+                new_source = schemactx.concretify(new_source, ctx=ctx)
+                old_source = schemactx.concretify(old_source, ctx=ctx)
+
+                if new_source.issubclass(ctx.env.schema, old_source):
+                    # Do nothing.
+                    pass
+                elif old_source.issubclass(ctx.env.schema, new_source):
+                    # Take the new one
+                    splat_descs[desc.ptr_name] = desc
+                else:
+                    vn1 = old_source.get_verbosename(schema=ctx.env.schema)
+                    vn2 = new_source.get_verbosename(schema=ctx.env.schema)
+                    raise errors.QueryError(
+                        f"link or property '{desc.ptr_name}' appears in splats "
+                        f"for unrelated types: {vn1} and {vn2}",
+                        context=splat.context,
+                    )
+
+            else:
+                splat_descs[desc.ptr_name] = desc
+
+    shape_desc.extend(splat_descs.values())
 
     for shape_el_desc in shape_desc:
         with ctx.new() as scopectx:
