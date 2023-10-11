@@ -82,9 +82,9 @@ STD_SOURCES = (
     sn.UnqualName('ext'),
     sn.UnqualName('enc'),
     sn.UnqualName('pg'),
+    sn.UnqualName('fts'),
 )
 TESTMODE_SOURCES = (
-    sn.UnqualName('fts'),
     sn.UnqualName('_testmode'),
 )
 
