@@ -386,12 +386,12 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
     ) -> Tuple[dbops.Trigger, ...]:
         cname = constraint.raw_constraint_name()
 
-        ins_trigger_name = common.edgedb_name_to_pg_name(cname + '_instrigger')
+        ins_trigger_name = cname + '_instrigger'
         ins_trigger = dbops.Trigger(
             name=ins_trigger_name, table_name=table_name, events=('insert', ),
             procedure=proc_name, is_constraint=True, inherit=True)
 
-        upd_trigger_name = common.edgedb_name_to_pg_name(cname + '_updtrigger')
+        upd_trigger_name = cname + '_updtrigger'
         condition = constraint.get_trigger_condition()
 
         upd_trigger = dbops.Trigger(

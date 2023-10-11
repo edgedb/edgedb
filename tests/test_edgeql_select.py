@@ -1831,6 +1831,96 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]),
         )
 
+    async def test_edgeql_select_splat_05(self):
+        # Polymorphic splat conflicts
+        res = [
+            {
+                "id": str,
+                "name": "Elvis",
+                "body": None,
+                "due_date": None,
+                "number": None,
+                "start_date": None,
+                "tags": None,
+                "time_estimate": None,
+            },
+            {
+                "id": str,
+                "name": "Release EdgeDB",
+                "body": "Initial public release of EdgeDB.",
+                "due_date": None,
+                "number": "1",
+                "start_date": str,
+                "tags": None,
+                "time_estimate": 3000,
+            },
+        ]
+
+        await self.assert_query_result(
+            r'''
+            select Named { *, [is Issue].* }
+            filter .name in {'Elvis', 'Release EdgeDB'}
+            order by .name;
+            ''',
+            res,
+        )
+
+        await self.assert_query_result(
+            r'''
+            select Named { [is Issue].*, * }
+            filter .name in {'Elvis', 'Release EdgeDB'}
+            order by .name;
+            ''',
+            res,
+        )
+
+        await self.assert_query_result(
+            r'''
+            select {Issue, User} { [is Issue].*, * }
+            filter .name in {'Elvis', 'Release EdgeDB'}
+            order by .name;
+            ''',
+            res,
+        )
+
+        await self.assert_query_result(
+            r'''
+            select {Issue, User} { *, [is Issue].* }
+            filter .name in {'Elvis', 'Release EdgeDB'}
+            order by .name;
+            ''',
+            res,
+        )
+
+        await self.assert_query_result(
+            r'''
+            select Object { [is Named].*, [is Issue].* }
+            filter .name in {'Elvis', 'Release EdgeDB'}
+            order by .name;
+            ''',
+            res
+        )
+
+        await self.assert_query_result(
+            r'''
+            select Object { [is Issue].*, [is Named].* }
+            filter .name in {'Elvis', 'Release EdgeDB'}
+            order by .name;
+            ''',
+            res
+        )
+
+        # TODO: Ideally this would work
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "appears in splats for unrelated types",
+        ):
+            await self.con.execute('''
+                select Object { [is User].*, [is Issue].* }
+                filter .name in {'Elvis', 'Release EdgeDB'}
+                order by .name;
+            ''')
+
     async def test_edgeql_select_id_01(self):
         # allow assigning id to a computed (#4781)
         await self.con.query('SELECT schema::Type { XYZ := .id};')
