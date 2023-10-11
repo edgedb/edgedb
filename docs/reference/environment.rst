@@ -23,11 +23,8 @@ variants.
   used as the final value. This is convenient in deployment scenarios where
   relevant values are auto populated into fixed environment variables.
 
-Supported variables
--------------------
-
 Docker image variables
-^^^^^^^^^^^^^^^^^^^^^^
+----------------------
 
 These variables are only used by the Docker image. Setting these variables
 outside that context will have no effect.
@@ -203,7 +200,7 @@ password set in ``EDGEDB_SERVER_PASSWORD`` or the hash set in
 
 
 Server variables
-^^^^^^^^^^^^^^^^
+----------------
 
 These variables will work whether you are running EdgeDB inside Docker or not.
 
