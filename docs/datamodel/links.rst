@@ -453,6 +453,10 @@ the *nature/strength* of the relationship.
           }
         }
 
+.. note::
+
+    Link properties cannot be made required. They are always optional.
+
 Above, we model a family tree with a single ``Person`` type. The ``Person.
 family_members`` link is a many-to-many relation; each ``family_members`` link
 can contain a string ``relationship`` describing the relationship of the two
@@ -603,7 +607,9 @@ a shape on the link.
     In the query results above, Alice appears to have no family members even
     though we know that, if she is Bob's step-sister, he must be her
     step-brother. We would need to update Alice manually before this is
-    reflected in the database.
+    reflected in the database. Since link properties cannot be required, not
+    setting one is always allowed and results in the value being the empty set
+    (``{}``).
 
 .. note::
 
