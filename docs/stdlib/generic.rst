@@ -70,6 +70,19 @@ Generic
         db> select 'hello' = 'world';
         {false}
 
+    .. warning::
+
+        When either operand in an equality comparison is an empty set, the
+        result will not be a ``bool`` but instead an empty set.
+
+        .. code-block:: edgeql-repl
+
+            db> select true = <bool>{};
+            {}
+
+        If one of the operands in an equality comparison could be an empty set,
+        you may want to use the :eql:op:`coalescing equality <coaleq>` operator
+        (``?=``) instead.
 
 ----------
 
@@ -93,6 +106,20 @@ Generic
         {false}
         db> select 'hello' != 'world';
         {true}
+
+    .. warning::
+
+        When either operand in an inequality comparison is an empty set, the
+        result will not be a ``bool`` but instead an empty set.
+
+        .. code-block:: edgeql-repl
+
+            db> select true != <bool>{};
+            {}
+
+        If one of the operands in an inequality comparison could be an empty
+        set, you may want to use the :eql:op:`coalescing inequality <coaleq>`
+        operator (``?!=``) instead.
 
 
 ----------

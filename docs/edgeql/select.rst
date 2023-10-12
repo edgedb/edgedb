@@ -539,6 +539,14 @@ of the ``Villain`` type. In other words, we are in the **scope** of the
   ... filter .name = "Doc Ock";
   {default::Villain {name: 'Doc Ock'}}
 
+.. warning::
+
+    When using comparison operators like ``=`` or ``!=``, or boolean operators
+    ``and``, ``or``, and ``not``, keep in mind that these operators will
+    produce an empty set if an operand is an empty set. Check out :ref:`our
+    boolean cheatsheet <ref_cheatsheet_boolean>` for more info and help on how
+    to mitigate this if you know your operands may be an empty set.
+
 Learn to filter your queries by trying it in `our interactive filters
 tutorial </tutorial/basic-queries/config>`_.
 
