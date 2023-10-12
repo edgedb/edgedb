@@ -586,13 +586,13 @@ a shape on the link.
 
 .. code-block:: edgeql-repl
 
-    edgedb> select Person {
-    .......   name,
-    .......   family_members: {
-    .......     name,
-    .......     @relationship
-    .......   }
-    ....... };
+    db> select Person {
+    ...   name,
+    ...   family_members: {
+    ...     name,
+    ...     @relationship
+    ...   }
+    ... };
     {
       default::Person {name: 'Alice', family_members: {}},
       default::Person {
