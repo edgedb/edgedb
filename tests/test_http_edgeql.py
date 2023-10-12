@@ -387,7 +387,7 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
         )
         resp_data = json.loads(response.read(), parse_float=decimal.Decimal)
 
-        self.assert_data_shape(resp_data, {
+        self.assertEqual(resp_data, {
             'data': [
                 [decimal.Decimal('1234567890123456789.01234567890123456789')]
             ]
