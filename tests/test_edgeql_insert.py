@@ -249,6 +249,35 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
+        await self.con.execute(r"""
+            with _ := (
+                INSERT InsertTest {
+                    name := 'insert simple 01',
+                    l2 := (select 1 filter true),
+                }
+            ),
+            INSERT InsertTest {
+                name := 'insert simple 01',
+                l2 := 2,
+            }
+        """)
+        await self.assert_query_result(
+            r"""
+                SELECT
+                    InsertTest {
+                        l2
+                    }
+                FILTER
+                    InsertTest.name = 'insert simple 01'
+                ORDER BY .l2
+            """,
+            [
+                {'l2': 0},
+                {'l2': 1},
+                {'l2': 2},
+            ]
+        )
+
     async def test_edgeql_insert_nested_01(self):
         await self.con.execute('''
             INSERT Subordinate {
