@@ -254,9 +254,9 @@ same "shirt owner" relationship is represented with a ``multi`` link.
 
 .. note::
 
-  Don't forget the exclusive constraint! This is required to ensure that each
-  ``Shirt`` corresponds to a single ``Person``. Without it, the relationship
-  will be many-to-many.
+    Don't forget the exclusive constraint! This is required to ensure that each
+    ``Shirt`` corresponds to a single ``Person``. Without it, the relationship
+    will be many-to-many.
 
 Under the hood, a ``multi`` link is stored in an intermediate `association
 table <https://en.wikipedia.org/wiki/Associative_entity>`_, whereas a
@@ -453,6 +453,10 @@ the *nature/strength* of the relationship.
           }
         }
 
+.. note::
+
+    Link properties cannot be made required. They are always optional.
+
 Above, we model a family tree with a single ``Person`` type. The ``Person.
 family_members`` link is a many-to-many relation; each ``family_members`` link
 can contain a string ``relationship`` describing the relationship of the two
@@ -475,11 +479,144 @@ in these cases due to better ergonomics of selecting, updating, and even
 casting into :eql:type:`json` when keeping all data in the same place rather
 than spreading it across link and object properties.
 
+
+Inserting and updating link properties
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To add a link with a link property, add the link property to a shape on the
+linked object being added. Be sure to prepend the link property's name with
+``@``.
+
+.. code-block:: edgeql
+
+    insert Person {
+      name := "Bob",
+      family_members := (
+        select detached Person {
+          @relationship := "sister"
+        }
+        filter .name = "Alice"
+      )
+    };
+
+The shape could alternatively be included on an insert if the object being
+linked (the ``Person`` named "Alice" in this example) is being inserted as part
+of the query. If the outer person ("Bob" in the example) already exists and
+only the links need to be added, this can be done in an ``update`` query
+instead of an ``insert`` as shown in the example above.
+
+Updating a link's property is similar to adding a new one except that you no
+longer need to select from the object type being linked: you can instead select
+the existing link on the object being updated because the link has already been
+established. Here, we've discovered that Alice is actually Bob's *step*-sister,
+so we want to change the link property on the already-established link between
+the two:
+
+.. code-block:: edgeql
+
+    update Person
+    filter .name = "Bob"
+    set {
+      family_members := (
+        select .family_members {
+          @relationship := "step-sister"
+        }
+        filter .name = "Alice"
+      )
+    };
+
+Using ``select .family_members`` here with the shape including the link
+property allows us to modify the link property of the existing link.
+
+.. warning::
+
+    A link property cannot be referenced in a set union *except* in the case of
+    a :ref:`for loop <ref_eql_for>`. That means this will *not* work:
+
+    .. code-block:: edgeql
+
+        # 🚫
+        insert Movie {
+          title := 'The Incredible Hulk',
+          characters := {(
+              select Person {
+                @character_name := 'The Hulk'
+              } filter .name = 'Mark Ruffalo'
+            ),
+            (
+              select Person {
+                @character_name := 'Abomination'
+              } filter .name = 'Tim Roth'
+            )}
+        };
+
+    That query will produce an error: ``QueryError: invalid reference to link
+    property in top level shape``
+
+    You can use this workaround instead:
+
+    .. code-block:: edgeql
+
+        # ✅
+        insert Movie {
+          title := 'The Incredible Hulk',
+          characters := assert_distinct((
+            with actors := {
+              ('The Hulk', 'Mark Ruffalo'),
+              ('Abomination', 'Tim Roth')
+            },
+            for actor in actors union (
+              select Person {
+                @character_name := character.0
+              } filter .name = character.1
+            )
+          ))
+        };
+
+    Note that we are also required to wrap the ``actors`` query with
+    :eql:func:`assert_distinct` here to assure the compiler that the result set
+    is distinct.
+
+
+Querying link properties
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+To query a link property, add the link property's name prepended with ``@`` to
+a shape on the link.
+
+.. code-block:: edgeql-repl
+
+    db> select Person {
+    ...   name,
+    ...   family_members: {
+    ...     name,
+    ...     @relationship
+    ...   }
+    ... };
+    {
+      default::Person {name: 'Alice', family_members: {}},
+      default::Person {
+        name: 'Bob',
+        family_members: {
+          default::Person {name: 'Alice', @relationship: 'step-sister'}
+        }
+      },
+    }
+
 .. note::
 
-  For a full guide on modeling, inserting, updating, and querying link
-  properties, see the :ref:`Using Link Properties <ref_guide_linkprops>`
-  guide.
+    In the query results above, Alice appears to have no family members even
+    though we know that, if she is Bob's step-sister, he must be her
+    step-brother. We would need to update Alice manually before this is
+    reflected in the database. Since link properties cannot be required, not
+    setting one is always allowed and results in the value being the empty set
+    (``{}``).
+
+.. note::
+
+    For a full guide on modeling, inserting, updating, and querying link
+    properties, see the :ref:`Using Link Properties <ref_guide_linkprops>`
+    guide.
 
 .. _ref_datamodel_link_deletion:
 
