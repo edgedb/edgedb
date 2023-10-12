@@ -1493,10 +1493,15 @@ class TestSeparateCluster(tb.TestCase):
 
             await asyncio.sleep(1)
 
-            await conn.recv_match(
+            msg = await conn.recv_match(
                 protocol.ErrorResponse,
                 message='closing the connection due to idling'
             )
+
+            # Resolve error code before comparing for better error messages
+            errcls = errors.EdgeDBError.get_error_class_from_code(
+                msg.error_code)
+            self.assertEqual(errcls, errors.IdleSessionTimeoutError)
 
     async def test_server_config_db_config(self):
         async with tb.start_edgedb_server(
@@ -1791,11 +1796,16 @@ class TestSeparateCluster(tb.TestCase):
                 state=state_msg.state_data,
             )
 
-            await asyncio.wait_for(conn.recv_match(
+            msg = await asyncio.wait_for(conn.recv_match(
                 protocol.ErrorResponse,
                 message='terminating connection due to '
                         'idle-in-transaction timeout'
             ), 8)
+
+            # Resolve error code before comparing for better error messages
+            errcls = errors.EdgeDBError.get_error_class_from_code(
+                msg.error_code)
+            self.assertEqual(errcls, errors.IdleTransactionTimeoutError)
 
             with self.assertRaises((
                 edgedb.ClientConnectionFailedTemporarilyError,
