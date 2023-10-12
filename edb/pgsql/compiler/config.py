@@ -625,11 +625,7 @@ def _compile_config_value(
 ) -> pgast.BaseExpr:
     val: pgast.BaseExpr
 
-    if op.backend_setting:
-        assert op.backend_expr is not None
-        expr = op.backend_expr
-    else:
-        expr = op.expr
+    expr = op.backend_expr or op.expr
 
     with ctx.new() as subctx:
         if op.backend_setting or op.scope == qltypes.ConfigScope.GLOBAL:
