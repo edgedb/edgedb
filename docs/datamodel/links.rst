@@ -505,11 +505,12 @@ of the query. If the outer person ("Bob" in the example) already exists and
 only the links need to be added, this can be done in an ``update`` query
 instead of an ``insert`` as shown in the example above.
 
-Updating a link's link property is similar to adding a new one except you can
-select the link on the object instead of selecting from the object type since
-the link has already been established. Here, we've discovered that Alice is
-actually Bob's *step*-sister, so we want to change the link property on the
-already-established link between the two:
+Updating a link's property is similar to adding a new one except that you no
+longer need to select from the object type being linked: you can instead select
+the existing link on the object being updated because the link has already been
+established. Here, we've discovered that Alice is actually Bob's *step*-sister,
+so we want to change the link property on the already-established link between
+the two:
 
 .. code-block:: edgeql
 
@@ -525,7 +526,7 @@ already-established link between the two:
     };
 
 Using ``select .family_members`` here with the shape including the link
-property allows us to modify the existing link's link property.
+property allows us to modify the link property of the existing link.
 
 .. warning::
 
