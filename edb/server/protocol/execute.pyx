@@ -614,6 +614,25 @@ cdef bytes _encode_args(list args):
     return bytes(out_buf)
 
 
+cdef _check_for_ise(exc):
+    if not isinstance(exc, errors.EdgeDBError):
+        nexc = errors.InternalServerError(
+            f'{type(exc).__name__}: {exc}',
+            hint=(
+                f'This is most likely a bug in EdgeDB. '
+                f'Please consider opening an issue ticket '
+                f'at https://github.com/edgedb/edgedb/issues/new'
+                f'?template=bug_report.md'
+            ),
+        ).with_traceback(exc.__traceback__)
+        formatted = getattr(exc, '__formatted_error__', None)
+        if formatted:
+            nexc.__formatted_error__ = formatted
+        exc = nexc
+
+    return exc
+
+
 async def interpret_error(
     exc: Exception,
     db: dbview.Database,
@@ -672,12 +691,17 @@ async def interpret_error(
                 'unhandled error while calling interpret_backend_error(); '
                 'run with EDGEDB_DEBUG_SERVER to debug.')
 
-    if not isinstance(exc, errors.EdgeDBError):
-        nexc = errors.InternalServerError(
-            f'{type(exc).__name__}: {exc}').with_traceback(exc.__traceback__)
-        formatted = getattr(exc, '__formatted_error__', None)
-        if formatted:
-            nexc.__formatted_error__ = formatted
-        exc = nexc
+    return _check_for_ise(exc)
 
-    return exc
+
+def interpret_simple_error(
+    exc: Exception,
+) -> Exception:
+    """Intepret a protocol error not associated with a query or schema"""
+
+    if isinstance(exc, pgerror.BackendError):
+        static_exc = errormech.static_interpret_backend_error(exc.fields)
+        if static_exc is not errormech.SchemaRequired:
+            exc = static_exc
+
+    return _check_for_ise(exc)
