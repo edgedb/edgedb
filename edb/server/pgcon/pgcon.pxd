@@ -185,4 +185,5 @@ cdef class PGConnection:
 
     cdef _rewrite_sql_error_response(self, PGMessage action, WriteBuffer buf)
 
+    cdef inline str get_tenant_label(self)
     cpdef set_stmt_cache_size(self, int maxsize)

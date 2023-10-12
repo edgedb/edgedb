@@ -35,9 +35,6 @@ jobs:
          - 'CREATEDB NOCREATEROLE'
         multi-tenant-mode: [ '' ]
         include:
-          - postgres-version: 13
-            single-mode: ''
-            multi-tenant-mode: ''
           - postgres-version: 14
             single-mode: ''
             multi-tenant-mode: 'remote-compiler'

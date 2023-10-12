@@ -31,6 +31,8 @@ import dataclasses
 import functools
 import itertools
 
+from edb.common.typeutils import downcast
+
 from edb import errors
 
 from edb.edgeql import ast as qlast
@@ -45,7 +47,6 @@ from edb.ir import utils as irutils
 
 from . import cardinality
 from . import context as inf_ctx
-from . import types as inf_types
 from . import utils as inf_utils
 
 
@@ -387,10 +388,10 @@ def __infer_oper_call(
         # proven to be disjoint (e.g. a UNION of INSERTs).
         result = EMPTY
 
-        arg_type = inf_types.infer_type(ir.args[0].expr, env=ctx.env)
+        arg_type = ctx.env.set_types[ir.args[0].expr]
         if isinstance(arg_type, s_objtypes.ObjectType):
             types: List[s_objtypes.ObjectType] = [
-                inf_types.infer_type(arg.expr, env=ctx.env)  # type: ignore
+                downcast(s_objtypes.ObjectType, ctx.env.set_types[arg.expr])
                 for arg in ir.args
             ]
 

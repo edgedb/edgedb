@@ -273,6 +273,7 @@ def _process_view(
     }
 
     # Now look for any splats and expand them.
+    splat_descs: dict[str, ShapeElementDesc] = {}
     for shape_el in elements:
         if not isinstance(shape_el.expr.steps[0], qlast.Splat):
             continue
@@ -349,14 +350,44 @@ def _process_view(
         )
 
         for splat_el in expanded_splat:
-            shape_desc.append(
-                _shape_el_ql_to_shape_el_desc(
-                    splat_el,
-                    source=view_scls,
-                    s_ctx=s_ctx,
-                    ctx=ctx
-                )
+            desc = _shape_el_ql_to_shape_el_desc(
+                splat_el, source=view_scls, s_ctx=s_ctx, ctx=ctx
             )
+            if old_desc := splat_descs.get(desc.ptr_name):
+                # If pointers appear in multiple splats, we take the
+                # one from the ancestor class. If neither class is an
+                # ancestor, we reject it.
+                # TODO: Accept it instead, if the types are the same.
+                new_source: object = desc.source
+                old_source: object = old_desc.source
+                if isinstance(new_source, s_links.Link):
+                    new_source = new_source.get_source(ctx.env.schema)
+                assert isinstance(new_source, s_objtypes.ObjectType)
+                if isinstance(old_source, s_links.Link):
+                    old_source = old_source.get_source(ctx.env.schema)
+                assert isinstance(old_source, s_objtypes.ObjectType)
+                new_source = schemactx.concretify(new_source, ctx=ctx)
+                old_source = schemactx.concretify(old_source, ctx=ctx)
+
+                if new_source.issubclass(ctx.env.schema, old_source):
+                    # Do nothing.
+                    pass
+                elif old_source.issubclass(ctx.env.schema, new_source):
+                    # Take the new one
+                    splat_descs[desc.ptr_name] = desc
+                else:
+                    vn1 = old_source.get_verbosename(schema=ctx.env.schema)
+                    vn2 = new_source.get_verbosename(schema=ctx.env.schema)
+                    raise errors.QueryError(
+                        f"link or property '{desc.ptr_name}' appears in splats "
+                        f"for unrelated types: {vn1} and {vn2}",
+                        context=splat.context,
+                    )
+
+            else:
+                splat_descs[desc.ptr_name] = desc
+
+    shape_desc.extend(splat_descs.values())
 
     for shape_el_desc in shape_desc:
         with ctx.new() as scopectx:
@@ -1337,6 +1368,8 @@ def _normalize_view_ptr_expr(
     is_polymorphic = shape_el_desc.is_polymorphic
     target_typexpr = shape_el_desc.target_typexpr
 
+    is_independent_polymorphic = False
+
     compexpr: Optional[qlast.Expr] = shape_el.compexpr
     if compexpr is None and is_mutation:
         raise errors.QueryError(
@@ -1354,10 +1387,29 @@ def _normalize_view_ptr_expr(
             ctx=ctx,
             source_context=shape_el.context,
         )
+        real_ptrcls = None
         if is_polymorphic:
+            # For polymorphic pointers, we need to see if the *real*
+            # base class has the pointer, because if so we need to use
+            # that when doing cardinality inference (since it may need
+            # to raise an error, if it is required). If it isn't
+            # present on the real type, take note of that so that we
+            # suppress the inherited cardinality.
+            try:
+                real_ptrcls = setgen.resolve_ptr(
+                    view_scls,
+                    ptrname,
+                    track_ref=shape_el_desc.ptr_ql,
+                    ctx=ctx,
+                    source_context=shape_el.context,
+                )
+            except errors.InvalidReferenceError:
+                is_independent_polymorphic = True
             ptrcls = schemactx.derive_ptr(ptrcls, view_scls, ctx=ctx)
+        real_ptrcls = real_ptrcls or ptrcls
 
-        base_ptrcls = ptrcls.get_bases(ctx.env.schema).first(ctx.env.schema)
+        base_ptrcls = real_ptrcls.get_bases(
+            ctx.env.schema).first(ctx.env.schema)
         base_ptr_is_computable = base_ptrcls in ctx.env.source_map
         ptr_name = sn.QualName(
             module='__',
@@ -1439,7 +1491,7 @@ def _normalize_view_ptr_expr(
 
         ptr_required = base_required
         ptr_cardinality = base_cardinality
-        if shape_el.where:
+        if shape_el.where or is_polymorphic:
             # If the shape has a filter on it, we need to force a reinference
             # of the cardinality, to produce an error if needed.
             ptr_cardinality = None
@@ -1471,7 +1523,7 @@ def _normalize_view_ptr_expr(
                 irexpr, ptrcls=ptrcls,
                 materialize_visible=True, skipped_bindings={path_id},
                 ctx=ctx)
-            ptr_target = inference.infer_type(irexpr, ctx.env)
+            ptr_target = setgen.get_set_type(irexpr, ctx=ctx)
 
     # compexpr is not None
     else:
@@ -1563,7 +1615,7 @@ def _normalize_view_ptr_expr(
             irexpr, ptrcls=ptrcls,
             materialize_visible=True, skipped_bindings={path_id},
             ctx=ctx)
-        ptr_target = inference.infer_type(irexpr, ctx.env)
+        ptr_target = setgen.get_set_type(irexpr, ctx=ctx)
 
         if (
             shape_el.operation.op is qlast.ShapeOp.APPEND
@@ -1883,7 +1935,11 @@ def _normalize_view_ptr_expr(
 
         base_cardinality = None
         base_required = None
-        if base_ptrcls is not None and not base_ptrcls_is_alias:
+        if (
+            base_ptrcls is not None
+            and not base_ptrcls_is_alias
+            and not is_independent_polymorphic
+        ):
             base_cardinality = _get_base_ptr_cardinality(base_ptrcls, ctx=ctx)
             base_required = base_ptrcls.get_required(ctx.env.schema)
 

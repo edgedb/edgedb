@@ -1026,6 +1026,89 @@ exclusively fetch the ``Movie.characters`` of type ``Hero``.
     ...
   }
 
+Accessing types in polymorphic queries
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+While the type of an object is displayed alongside the results of polymorphic
+queries run in the REPL, this is simply a convenience of the REPL and not a
+property that can be accessed. This is particularly noticeable if you cast an
+object to ``json``, making it impossible to determine the type if the query is
+polymorphic. First, the result of a query as the REPL presents it with type
+annotations displayed:
+
+.. code-block:: edgeql-repl
+
+    db> select Person limit 1;
+    {default::Villain {id: 6c22bdf0-5c03-11ee-99ff-dfaea4d947ce}}
+
+Note the type ``default::Villain``, which is displayed for the user's
+convenience but is not actually part of the data returned. This is the same
+query with the result cast as ``json`` to show only the data returned:
+
+.. code-block:: edgeql-repl
+
+    db> select <json>Person limit 1;
+    {Json("{\"id\": \"6c22bdf0-5c03-11ee-99ff-dfaea4d947ce\"}")}
+
+.. note::
+
+    We will continue to cast subesequent examples in this section to ``json``,
+    not because this is required for any of the functionality being
+    demonstrated, but to remove the convenience type annotations provided by
+    the REPL and make it easier to see what data is actually being returned by
+    the query.
+
+The type of an object is found inside ``__type__`` which is a link that
+carries various information about the object's type, including its ``name``.
+
+.. code-block:: edgeql-repl
+
+    db> select <json>Person { 
+    ...  __type__: {
+    ...    name 
+    ...    } 
+    ...  } limit 1;
+    {Json("{\"__type__\": {\"name\": \"default::Villain\"}}")}
+
+This information can be pulled into the top level by assigning a name to
+the ``name`` property inside ``__type__``:
+
+.. code-block:: edgeql-repl
+
+    db> select <json>Person { type := .__type__.name } limit 1;
+    {Json("{\"type\": \"default::Villain\"}")}
+
+There is nothing magical about ``__type__``; it is a simple link to an object
+of the type ``ObjectType`` which contains all of the possible information to
+know about the type of the current object. The splat operator can be used to
+see this object's makeup, while the double splat operator produces too much
+output to show on this page. Playing around with the splat and double splat
+operator inside ``__type__`` is a quick way to get some insight into the
+internals of EdgeDB.
+
+.. code-block:: edgeql-repl
+
+    db> select Person.__type__ {*} limit 1;
+    {
+      schema::ObjectType {
+        id: 48be3a94-5bf3-11ee-bd60-0b44b607e31d,
+        name: 'default::Hero',
+        internal: false,
+        builtin: false,
+        computed_fields: [],
+        final: false,
+        is_final: false,
+        abstract: false,
+        is_abstract: false,
+        inherited_fields: [],
+        from_alias: false,
+        is_from_alias: false,
+        expr: {},
+        compound_type: false,
+        is_compound_type: false,
+      },
+    }
+
 .. _ref_eql_select_free_objects:
 
 Free objects

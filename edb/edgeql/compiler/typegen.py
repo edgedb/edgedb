@@ -32,8 +32,10 @@ from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
 
 from edb.schema import abc as s_abc
-from edb.schema import pointers as s_pointers
+from edb.schema import name as s_name
 from edb.schema import objtypes as s_objtypes
+from edb.schema import pointers as s_pointers
+from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
@@ -43,6 +45,94 @@ from . import context
 from . import dispatch
 from . import schemactx
 from . import setgen
+
+
+def amend_empty_set_type(
+    es: irast.EmptySet,
+    t: s_types.Type,
+    env: context.Environment
+) -> None:
+    env.set_types[es] = t
+    alias = es.path_id.target_name_hint.name
+    typename = s_name.QualName(module='__derived__', name=alias)
+    es.path_id = irast.PathId.from_type(
+        env.schema, t, env=env, typename=typename,
+        namespace=es.path_id.namespace,
+    )
+
+
+def infer_common_type(
+    irs: Sequence[irast.Set],
+    env: context.Environment
+) -> Optional[s_types.Type]:
+    if not irs:
+        raise errors.QueryError(
+            'cannot determine common type of an empty set',
+            context=irs[0].context)
+
+    types = []
+    empties = []
+
+    seen_object = False
+    seen_scalar = False
+    seen_coll = False
+
+    for i, arg in enumerate(irs):
+        if isinstance(arg, irast.EmptySet) and env.set_types[arg] is None:
+            empties.append(i)
+            continue
+
+        t = env.set_types[arg]
+        if isinstance(t, s_abc.Collection):
+            seen_coll = True
+        elif isinstance(t, s_scalars.ScalarType):
+            seen_scalar = True
+        else:
+            seen_object = True
+        types.append(t)
+
+    if seen_coll + seen_scalar + seen_object > 1:
+        raise errors.QueryError(
+            'cannot determine common type',
+            context=irs[0].context)
+
+    if not types:
+        raise errors.QueryError(
+            'cannot determine common type of an empty set',
+            context=irs[0].context)
+
+    common_type = None
+    if seen_scalar or seen_coll:
+        it = iter(types)
+        common_type = next(it)
+        while True:
+            next_type = next(it, None)
+            if next_type is None:
+                break
+            env.schema, common_type = (
+                common_type.find_common_implicitly_castable_type(
+                    next_type,
+                    env.schema,
+                )
+            )
+            if common_type is None:
+                break
+    else:
+        common_types = s_utils.get_class_nearest_common_ancestors(
+            env.schema,
+            cast(Sequence[s_types.InheritingType], types),
+        )
+        # We arbitrarily select the first nearest common ancestor
+        common_type = common_types[0] if common_types else None
+
+    if common_type is None:
+        return None
+
+    for i in empties:
+        amend_empty_set_type(
+            cast(irast.EmptySet, irs[i]), common_type, env)
+
+    return common_type
 
 
 def type_to_ql_typeref(

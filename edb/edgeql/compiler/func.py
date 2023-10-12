@@ -48,7 +48,6 @@ from edb.edgeql import parser as qlparser
 from . import casts
 from . import context
 from . import dispatch
-from . import inference
 from . import pathctx
 from . import polyres
 from . import schemactx
@@ -368,7 +367,7 @@ def compile_operator(
             ctx=ctx,
         )
 
-        arg_type = inference.infer_type(arg_ir, ctx.env)
+        arg_type = setgen.get_set_type(arg_ir, ctx=ctx)
         if arg_type is None:
             raise errors.QueryError(
                 f'could not resolve the type of operand '
@@ -660,7 +659,7 @@ def _check_free_shape_op(
     virt_obj = ctx.env.schema.get(
         'std::FreeObject', type=s_objtypes.ObjectType)
     for arg in ir.args:
-        typ = inference.infer_type(arg.expr, ctx.env)
+        typ = setgen.get_set_type(arg.expr, ctx=ctx)
         if typ.issubclass(ctx.env.schema, virt_obj):
             raise errors.QueryError(
                 f'cannot use {ir.func_shortname.name} on free shape',
@@ -721,7 +720,7 @@ def compile_func_call_args(
         arg_ir = polyres.compile_arg(
             arg, typemods[ai], prefer_subquery_args=prefer_subquery_args,
             ctx=ctx)
-        arg_type = inference.infer_type(arg_ir, ctx.env)
+        arg_type = setgen.get_set_type(arg_ir, ctx=ctx)
         if arg_type is None:
             raise errors.QueryError(
                 f'could not resolve the type of positional argument '
@@ -735,7 +734,7 @@ def compile_func_call_args(
             arg, typemods[aname], prefer_subquery_args=prefer_subquery_args,
             ctx=ctx)
 
-        arg_type = inference.infer_type(arg_ir, ctx.env)
+        arg_type = setgen.get_set_type(arg_ir, ctx=ctx)
         if arg_type is None:
             raise errors.QueryError(
                 f'could not resolve the type of named argument '
@@ -1006,4 +1005,8 @@ def compile_fts_with_options(
         language=lang,
         language_domain=lang_domain,
         weight=weight,
+        typeref=typegen.type_to_typeref(
+            ctx.env.schema.get('fts::document', type=s_scalars.ScalarType),
+            env=ctx.env,
+        )
     )

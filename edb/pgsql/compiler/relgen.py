@@ -585,10 +585,6 @@ def can_omit_optional_wrapper(
     # cases. This is mainly an optimization for passing globals to
     # functions, where we need to convert a bunch of optional params
     # to json, and for casting out of json there and in schema updates.
-    #
-    # (FIXME: This also works around an obscure INSERT bug in which
-    # inserting values into `id` that need optional wrappers break.
-    # Since user code can't specify `id` at all, this is low prio.)
     if (
         isinstance(ir_set.expr, irast.TypeCast)
         and ((
@@ -970,7 +966,7 @@ def process_set_as_path_type_intersection(
         poly_rvar = relctx.range_for_typeref(
             target_typeref,
             path_id=ir_set.path_id,
-            dml_source=irutils.get_nearest_dml_stmt(ir_set),
+            dml_source=irutils.get_dml_sources(ir_set),
             lateral=True,
             ctx=ctx,
         )
@@ -2196,7 +2192,7 @@ def process_set_as_type_introspection(
     expr = ir_set.expr
     assert isinstance(expr, irast.TypeIntrospection)
 
-    typeref = expr.typeref
+    typeref = expr.output_typeref
     type_rvar = relctx.range_for_typeref(
         ir_set.typeref, ir_set.path_id, ctx=ctx)
     pathctx.put_rvar_path_bond(type_rvar, ir_set.path_id)

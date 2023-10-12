@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from typing import *
 
+from edb import errors
+
 from edb.ir import ast as irast
 from edb.ir import utils as irutils
 
@@ -41,6 +43,10 @@ def compile_SelectStmt(
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     if ctx.singleton_mode:
+        if not irutils.is_trivial_select(stmt):
+            raise errors.UnsupportedFeatureError(
+                'Clause on SELECT statement in simple expression')
+
         return dispatch.compile(stmt.result, ctx=ctx)
 
     parent_ctx = ctx

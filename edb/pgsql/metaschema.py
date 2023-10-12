@@ -55,6 +55,7 @@ from edb.schema import utils as s_utils
 from edb.server import defines
 from edb.server import compiler as edbcompiler
 from edb.server import config as edbconfig
+from edb.server import pgcon  # HM.
 
 from .resolver import sql_introspection
 
@@ -2808,6 +2809,17 @@ class SysConfigValueType(dbops.CompositeType):
         ])
 
 
+class SysConfigEntryType(dbops.CompositeType):
+    """Type of values returned by _read_sys_config_full."""
+    def __init__(self) -> None:
+        super().__init__(name=('edgedb', '_sys_config_entry_t'))
+
+        self.add_columns([
+            dbops.Column(name='max_source', type='edgedb._sys_config_source_t'),
+            dbops.Column(name='value', type='edgedb._sys_config_val_t'),
+        ])
+
+
 class IntervalToMillisecondsFunction(dbops.Function):
     """Cast an interval into milliseconds."""
 
@@ -3340,7 +3352,7 @@ class SysConfigFullFunction(dbops.Function):
                 ) AS spec
             ),
 
-        edge_all_settings AS (
+        edge_all_settings AS MATERIALIZED (
             SELECT
                 q.*
             FROM
@@ -3358,7 +3370,7 @@ class SysConfigFullFunction(dbops.Function):
 
     IF fs_access THEN
         query := query || $$
-            pg_all_settings AS (
+            pg_all_settings AS MATERIALIZED (
                 SELECT
                     q.*
                 FROM
@@ -3374,7 +3386,7 @@ class SysConfigFullFunction(dbops.Function):
         $$;
     ELSE
         query := query || $$
-            pg_all_settings AS (
+            pg_all_settings AS MATERIALIZED (
                 SELECT
                     q.*
                 FROM
@@ -3394,7 +3406,8 @@ class SysConfigFullFunction(dbops.Function):
 
     query := query || $$
         SELECT
-            q.name,
+            max_source AS max_source,
+            (q.name,
             q.value,
             q.source,
             (CASE
@@ -3404,9 +3417,11 @@ class SysConfigFullFunction(dbops.Function):
                     'DATABASE'
                 ELSE
                     'SESSION'
-            END)::edgedb._sys_config_scope_t AS scope
+            END)::edgedb._sys_config_scope_t
+            )::edgedb._sys_config_val_t as value
         FROM
-            (SELECT
+            unnest($2) as max_source,
+            LATERAL (SELECT
                 u.name,
                 u.value,
                 u.source::edgedb._sys_config_source_t,
@@ -3427,8 +3442,8 @@ class SysConfigFullFunction(dbops.Function):
                     AND ($1 IS NULL OR
                         q.source::edgedb._sys_config_source_t = any($1)
                     )
-                    AND ($2 IS NULL OR
-                        q.source::edgedb._sys_config_source_t <= $2
+                    AND (max_source IS NULL OR
+                        q.source::edgedb._sys_config_source_t <= max_source
                     )
                 ) AS u
             ) AS q
@@ -3436,7 +3451,7 @@ class SysConfigFullFunction(dbops.Function):
             q.n = 1;
     $$;
 
-    RETURN QUERY EXECUTE query USING source_filter, max_source;
+    RETURN QUERY EXECUTE query USING source_filter, max_sources;
     END;
     '''
 
@@ -3450,8 +3465,8 @@ class SysConfigFullFunction(dbops.Function):
                     'NULL',
                 ),
                 (
-                    'max_source',
-                    ('edgedb', '_sys_config_source_t'),
+                    'max_sources',
+                    ('edgedb', '_sys_config_source_t[]'),
                     'NULL',
                 ),
                 (
@@ -3460,7 +3475,7 @@ class SysConfigFullFunction(dbops.Function):
                     'TRUE',
                 )
             ],
-            returns=('edgedb', '_sys_config_val_t'),
+            returns=('edgedb', '_sys_config_entry_t'),
             set_returning=True,
             language='plpgsql',
             volatility='volatile',
@@ -3468,10 +3483,7 @@ class SysConfigFullFunction(dbops.Function):
         )
 
 
-# TODO: Calling this function repeatedly in config introspection
-# queries can lead to performance problems. Could we cache the results
-# in _edgecon_state or something?
-class SysConfigFunction(dbops.Function):
+class SysConfigUncachedFunction(dbops.Function):
 
     text = f'''
     DECLARE
@@ -3484,12 +3496,74 @@ class SysConfigFunction(dbops.Function):
     THEN
         RETURN QUERY
         SELECT *
-        FROM edgedb._read_sys_config_full(source_filter, max_source, TRUE);
+        FROM edgedb._read_sys_config_full(source_filter, max_sources, TRUE);
     ELSE
         RETURN QUERY
         SELECT *
-        FROM edgedb._read_sys_config_full(source_filter, max_source, FALSE);
+        FROM edgedb._read_sys_config_full(source_filter, max_sources, FALSE);
     END IF;
+
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_read_sys_config_uncached'),
+            args=[
+                (
+                    'source_filter',
+                    ('edgedb', '_sys_config_source_t[]',),
+                    'NULL',
+                ),
+                (
+                    'max_sources',
+                    ('edgedb', '_sys_config_source_t[]'),
+                    'NULL',
+                ),
+            ],
+            returns=('edgedb', '_sys_config_entry_t'),
+            set_returning=True,
+            language='plpgsql',
+            volatility='volatile',
+            text=self.text,
+        )
+
+
+class SysConfigFunction(dbops.Function):
+
+    text = f'''
+    DECLARE
+    BEGIN
+
+    -- Only bother caching the source_filter IS NULL case, since that
+    -- is what drives the config views. source_filter is used in
+    -- DESCRIBE CONFIG
+    IF source_filter IS NOT NULL OR array_position(
+     ARRAY[NULL, 'database', 'system override']::edgedb._sys_config_source_t[],
+      max_source) IS NULL
+     THEN
+        RETURN QUERY
+        SELECT
+          (c.value).name, (c.value).value, (c.value).source, (c.value).scope
+        FROM edgedb._read_sys_config_uncached(
+          source_filter, ARRAY[max_source]) AS c;
+        RETURN;
+    END IF;
+
+    IF count(*) = 0 FROM "_config_cache" c
+       WHERE source IS NOT DISTINCT FROM max_source
+    THEN
+        INSERT INTO "_config_cache"
+        SELECT (s.max_source), (s.value)
+        FROM edgedb._read_sys_config_uncached(
+          source_filter, ARRAY[
+            NULL, 'database', 'system override']::edgedb._sys_config_source_t[])
+             AS s;
+    END IF;
+
+    RETURN QUERY
+    SELECT (c.value).name, (c.value).value, (c.value).source, (c.value).scope
+    FROM "_config_cache" c WHERE source IS NOT DISTINCT FROM max_source;
 
     END;
     '''
@@ -3511,6 +3585,30 @@ class SysConfigFunction(dbops.Function):
             ],
             returns=('edgedb', '_sys_config_val_t'),
             set_returning=True,
+            language='plpgsql',
+            volatility='volatile',
+            text=self.text,
+        )
+
+
+class SysClearConfigCacheFunction(dbops.Function):
+
+    text = f'''
+    DECLARE
+    BEGIN
+
+    DELETE FROM "_config_cache" c;
+    RETURN true;
+
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_clear_sys_config_cache'),
+            args=[],
+            returns=("boolean"),
+            set_returning=False,
             language='plpgsql',
             volatility='volatile',
             text=self.text,
@@ -4368,11 +4466,15 @@ async def bootstrap(
         dbops.CreateEnum(SysConfigSourceType()),
         dbops.CreateEnum(SysConfigScopeType()),
         dbops.CreateCompositeType(SysConfigValueType()),
+        dbops.CreateCompositeType(SysConfigEntryType()),
         dbops.CreateFunction(ConvertPostgresConfigUnitsFunction()),
         dbops.CreateFunction(InterpretConfigValueToJsonFunction()),
         dbops.CreateFunction(PostgresConfigValueToJsonFunction()),
         dbops.CreateFunction(SysConfigFullFunction()),
+        dbops.CreateFunction(SysConfigUncachedFunction()),
+        dbops.Query(pgcon.SETUP_CONFIG_CACHE_SCRIPT),
         dbops.CreateFunction(SysConfigFunction()),
+        dbops.CreateFunction(SysClearConfigCacheFunction()),
         dbops.CreateFunction(ResetSessionConfigFunction()),
         dbops.CreateFunction(ApplySessionConfigFunction(config_spec)),
         dbops.CreateFunction(SysGetTransactionIsolation()),

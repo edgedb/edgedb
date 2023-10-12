@@ -714,7 +714,7 @@ query:
         delete User filter .name = <str>$name
     ) {name, created_at};
 
-Generate the new function by again running ``edgeql-py``. Then re-open
+Generate the new function by again running ``edgedb-py``. Then re-open
 ``app/users.py``. This endpoint's code will look similar to the endpoints
 we've already written:
 

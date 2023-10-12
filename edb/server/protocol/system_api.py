@@ -123,6 +123,7 @@ async def _ping(tenant):
         # Disable query cache because we need to ensure that the compiled
         # pool is healthy.
         query_cache_enabled=False,
+        cached_globally=True,
     )
 
 

@@ -900,6 +900,49 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(
+        errors.InvalidDefinitionError,
+        "field 'default' .*was already declared"
+    )
+    def test_schema_field_dupe_01(self):
+        """
+        type SimpleNumbers {
+            property bar: str;
+            property foo: str {
+                default := '';
+                default := '';
+            }
+        }
+        """
+
+    @tb.must_fail(
+        errors.InvalidDefinitionError,
+        "field 'default' .*was already declared"
+    )
+    def test_schema_field_dupe_02(self):
+        """
+        type SimpleNumbers {
+            property bar: str;
+            property foo: str {
+                default := .bar;
+                default := .bar;
+            }
+        }
+        """
+
+    @tb.must_fail(
+        errors.InvalidDefinitionError,
+        "link or property 'foo' .*was already declared"
+    )
+    def test_schema_field_dupe_03(self):
+        """
+        type SimpleNumbers {
+            bar: str;
+            foo := .bar ++ "!";
+            foo := .bar ++ "!";
+        }
+        """
+
+    @tb.must_fail(
         errors.InvalidFunctionDefinitionError,
         r"cannot create the `test::foo\(VARIADIC bar: "
         r"OPTIONAL array<std::int64>\)` function: "

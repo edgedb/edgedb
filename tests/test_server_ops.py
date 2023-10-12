@@ -34,6 +34,7 @@ import sys
 import tempfile
 import time
 import unittest
+import uuid
 
 import edgedb
 from edgedb import errors
@@ -1185,7 +1186,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     mtargs = MultiTenantArgs(
                         srv, sd, conf_file, conf, args1, args2, rd1, rd2
                     )
-                    for i in range(1, 6):
+                    for i in range(1, 7):
                         name = f"_test_server_ops_multi_tenant_{i}"
                         with self.subTest(name):
                             await getattr(self, name)(mtargs)
@@ -1287,6 +1288,52 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
         await self._test_server_ops_multi_tenant_1(mtargs)
         await self._test_server_ops_multi_tenant_2(mtargs)
+
+    async def _test_server_ops_global_compile_cache(
+        self, mtargs: MultiTenantArgs, ddl, **kwargs
+    ):
+        conn = await mtargs.sd.connect(**kwargs)
+        try:
+            await conn.execute(ddl)
+            await conn.execute('create extension pgcrypto')
+            await conn.execute('create extension auth')
+            await conn.execute('''
+                configure current database
+                insert ext::auth::EmailPasswordProviderConfig {};
+            ''')
+        finally:
+            await conn.aclose()
+
+        with self.http_con(
+            mtargs.sd, server_hostname=kwargs['server_hostname']
+        ) as http_con:
+            async for tr in self.try_until_succeeds(ignore=AssertionError):
+                async with tr:
+                    response, _, status = self.http_con_json_request(
+                        http_con,
+                        path=f"/db/{conn.dbname}/ext/auth/register",
+                        body={
+                            "provider": "builtin::local_emailpassword",
+                            "challenge": str(uuid.uuid4()),
+                            "email": "cache@example.com",
+                            "password": "secret",
+                        },
+                    )
+                    self.assertEqual(status, 201)
+
+    async def _test_server_ops_multi_tenant_6(self, mtargs: MultiTenantArgs):
+        # The 2 tenants has different user schema, make sure the auth queries
+        # work fine: the first run caches the queries and the second uses them
+        await self._test_server_ops_global_compile_cache(
+            mtargs,
+            "create type GlobalCache1 { create property name: str }",
+            **mtargs.args1,
+        )
+        await self._test_server_ops_global_compile_cache(
+            mtargs,
+            "create type GlobalCache2 { create property active: bool }",
+            **mtargs.args2,
+        )
 
 
 class MultiTenantArgs(NamedTuple):

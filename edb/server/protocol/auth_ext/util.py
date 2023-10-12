@@ -17,38 +17,37 @@
 #
 
 
-from typing import TypeVar, Type, Mapping, overload, Any
+from typing import TypeVar, Type, overload, Any
 
-from edb.server.config.ops import SettingValue
+from edb.server import config
+
 from . import errors
 
 T = TypeVar("T")
 
-SettingsMap = Mapping[str, SettingValue]
-
 
 def maybe_get_config_unchecked(
-    db_config: SettingsMap, key: str
+    db: Any, key: str
 ) -> Any:
-    return db_config.get(key, (None, None, None, None))[1]
+    return config.lookup(key, db.db_config, spec=db.user_config_spec)
 
 
 @overload
 def maybe_get_config(
-    db_config: SettingsMap, key: str, expected_type: Type[T]
+    db: Any, key: str, expected_type: Type[T]
 ) -> T | None:
     ...
 
 
 @overload
-def maybe_get_config(db_config: SettingsMap, key: str) -> str | None:
+def maybe_get_config(db: Any, key: str) -> str | None:
     ...
 
 
 def maybe_get_config(
-    db_config: SettingsMap, key: str, expected_type: Type[object] = str
+    db: Any, key: str, expected_type: Type[object] = str
 ) -> object:
-    value = maybe_get_config_unchecked(db_config, key)
+    value = maybe_get_config_unchecked(db, key)
 
     if value is None:
         return None
@@ -63,19 +62,19 @@ def maybe_get_config(
 
 
 @overload
-def get_config(db_config: SettingsMap, key: str, expected_type: Type[T]) -> T:
+def get_config(db: Any, key: str, expected_type: Type[T]) -> T:
     ...
 
 
 @overload
-def get_config(db_config: SettingsMap, key: str) -> str:
+def get_config(db: Any, key: str) -> str:
     ...
 
 
 def get_config(
-    db_config: SettingsMap, key: str, expected_type: Type[object] = str
+    db: Any, key: str, expected_type: Type[object] = str
 ) -> object:
-    value = maybe_get_config(db_config, key, expected_type)
+    value = maybe_get_config(db, key, expected_type)
     if value is None:
         raise errors.MissingConfiguration(
             key=key,
@@ -85,12 +84,16 @@ def get_config(
 
 
 def get_config_unchecked(
-    db_config: SettingsMap, key: str
+    db: Any, key: str
 ) -> Any:
-    value = maybe_get_config_unchecked(db_config, key)
+    value = maybe_get_config_unchecked(db, key)
     if value is None:
         raise errors.MissingConfiguration(
             key=key,
             description="Missing configuration value",
         )
     return value
+
+
+def get_config_typename(config_value: config.SettingValue) -> str:
+    return config_value._tspec.name  # type: ignore

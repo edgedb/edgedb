@@ -20,8 +20,12 @@ from __future__ import annotations
 from typing import *
 
 import asyncio
+import logging
 
 from . import retryloop
+
+
+logger = logging.getLogger("edb.server.asyncwatcher")
 
 
 class AsyncWatcherProtocol(asyncio.Protocol):
@@ -37,6 +41,7 @@ class AsyncWatcherProtocol(asyncio.Protocol):
         self.request()
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
+        self._watcher.incr_metrics_counter("watch-disconnect")
         self._watcher.on_connection_lost()
 
     def request(self) -> None:
@@ -62,6 +67,7 @@ class AsyncWatcher:
                 self._protocol = await self._start_watching()
                 return True
             except BaseException:
+                self.incr_metrics_counter("watch-start-err")
                 self._watching = False
                 raise
         return False
@@ -70,7 +76,15 @@ class AsyncWatcher:
         self._retry_attempt += 1
         delay = self._backoff(self._retry_attempt)
         await asyncio.sleep(delay)
-        await self.start_watching()
+        try:
+            await self.start_watching()
+        except Exception:
+            logger.warning(
+                "%s failed to start watching, will retry.",
+                type(self).__name__,
+                exc_info=True,
+            )
+            asyncio.create_task(self.retry_watching())
 
     def stop_watching(self) -> None:
         self._watching = False
@@ -94,7 +108,19 @@ class AsyncWatcher:
                 waiter.set_result(None)
 
     def on_update(self, data: bytes) -> None:
+        self._retry_attempt = 0
+        self._on_update(data)
+
+    def _on_update(self, data: bytes) -> None:
         raise NotImplementedError
 
     async def _start_watching(self) -> AsyncWatcherProtocol:
         raise NotImplementedError
+
+    def consume_tokens(self, tokens: int) -> float:
+        # For rate limit - tries to consume the given number of tokens, returns
+        # non-zero values as seconds to wait if unsuccessful
+        return 0
+
+    def incr_metrics_counter(self, event: str, value: float = 1.0) -> None:
+        pass

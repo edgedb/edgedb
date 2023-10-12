@@ -3839,7 +3839,7 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand,
         for sub in self.get_subcommands(type=s_pointers.DeletePointer):
             if has_table(sub.scls, orig_schema):
                 self.pgops.add(dbops.DropView(common.get_backend_name(
-                    eff_schema, sub.scls, catenate=False)))
+                    orig_schema, sub.scls, catenate=False)))
 
         if isinstance(self, sd.DeleteObject):
             self.pgops.add(dbops.DropView(common.get_backend_name(
@@ -4864,7 +4864,7 @@ class PointerMetaCommand(
         root_uid = -1
         iter_uid = -2
         body_uid = -3
-        # scope tree wrapping is roughy equivalent to:
+        # scope tree wrapping is roughly equivalent to:
         # "(std::obj) uid:-1": {
         #   "BRANCH uid:-2",
         #   "FENCE uid:-3": { ... compiled scope children ... }
@@ -4876,7 +4876,9 @@ class PointerMetaCommand(
             unique_id=body_uid,
             fenced=True
         )
-        for child in ir.scope_tree.children:
+        # Need to make a copy of the children list because
+        # attach_child removes the node from the parent list.
+        for child in list(ir.scope_tree.children):
             scope_body.attach_child(child)
 
         scope_root = irast.ScopeTreeNode(
@@ -5238,8 +5240,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
         if link.get_shortname(schema).name == '__type__':
             return
 
-        old_table_name = common.get_backend_name(
-            schema, link, catenate=False)
+        old_table_name = self._get_table_name(link, schema)
 
         if (
             not link.generic(orig_schema)
@@ -5912,7 +5913,10 @@ class AlterProperty(PropertyMetaCommand, adapts=s_props.AlterProperty):
         if self.metadata_only:
             return schema
 
-        if not is_comp:
+        if (
+            not is_comp
+            and (src and has_table(src.scls, schema))
+        ):
             orig_def_val = self.get_pointer_default(prop, orig_schema, context)
             def_val = self.get_pointer_default(prop, schema, context)
 

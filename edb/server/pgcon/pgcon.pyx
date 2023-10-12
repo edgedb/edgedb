@@ -122,13 +122,19 @@ cdef object logger = logging.getLogger('edb.server')
 # * 'A': an instance-level config setting from command-line arguments
 # * 'E': an instance-level config setting from environment variable
 SETUP_TEMP_TABLE_SCRIPT = '''
-        CREATE TEMPORARY TABLE _edgecon_state (
-            name text NOT NULL,
-            value jsonb NOT NULL,
-            type text NOT NULL CHECK(
-                type = 'C' OR type = 'B' OR type = 'A' OR type = 'E'),
-            UNIQUE(name, type)
-        );
+    CREATE TEMPORARY TABLE _edgecon_state (
+        name text NOT NULL,
+        value jsonb NOT NULL,
+        type text NOT NULL CHECK(
+            type = 'C' OR type = 'B' OR type = 'A' OR type = 'E'),
+        UNIQUE(name, type)
+    );
+'''
+SETUP_CONFIG_CACHE_SCRIPT = '''
+    CREATE TEMPORARY TABLE _config_cache (
+        source edgedb._sys_config_source_t,
+        value edgedb._sys_config_val_t NOT NULL
+    );
 '''
 
 def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
@@ -149,10 +155,14 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
         {pg_is_in_recovery}
 
         {SETUP_TEMP_TABLE_SCRIPT}
+        {SETUP_CONFIG_CACHE_SCRIPT}
 
         {INIT_CON_SCRIPT_DATA}
 
         PREPARE _clear_state AS
+            WITH x1 AS (
+                DELETE FROM _config_cache
+            )
             DELETE FROM _edgecon_state WHERE type = 'C' OR type = 'B';
 
         PREPARE _apply_state(jsonb) AS
@@ -731,6 +741,12 @@ cdef class PGConnection:
                 # serialization conflicts.
                 raise error
 
+    cdef inline str get_tenant_label(self):
+        if self.tenant is None:
+            return "system"
+        else:
+            return self.tenant.get_instance_name()
+
     cdef bint before_prepare(
         self,
         bytes stmt_name,
@@ -765,6 +781,9 @@ cdef class PGConnection:
     def _build_apply_state_req(self, bytes serstate, WriteBuffer out):
         cdef:
             WriteBuffer buf
+
+        if self.debug:
+            self.debug_print("Syncing state: ", serstate)
 
         buf = WriteBuffer.new_message(b'B')
         buf.write_bytestring(b'')  # portal name
@@ -881,7 +900,9 @@ cdef class PGConnection:
                 while self.waiting_for_sync:
                     await self.wait_for_sync()
         finally:
-            metrics.backend_query_duration.observe(time.monotonic() - started_at)
+            metrics.backend_query_duration.observe(
+                time.monotonic() - started_at, self.get_tenant_label()
+            )
             await self.after_command()
 
     cdef send_query_unit_group(
@@ -1381,7 +1402,9 @@ cdef class PGConnection:
                 dbver,
             )
         finally:
-            metrics.backend_query_duration.observe(time.monotonic() - started_at)
+            metrics.backend_query_duration.observe(
+                time.monotonic() - started_at, self.get_tenant_label()
+            )
             await self.after_command()
 
     async def sql_fetch(
@@ -1556,7 +1579,9 @@ cdef class PGConnection:
         try:
             return await self._sql_execute(sql_string)
         finally:
-            metrics.backend_query_duration.observe(time.monotonic() - started_at)
+            metrics.backend_query_duration.observe(
+                time.monotonic() - started_at, self.get_tenant_label()
+            )
             await self.after_command()
 
     async def sql_apply_state(
@@ -2807,7 +2832,9 @@ cdef class PGConnection:
                 self.aborted_with_error = er_cls(fields=fields)
 
                 pgcode = fields['C']
-                metrics.backend_connection_aborted.inc(1.0, pgcode)
+                metrics.backend_connection_aborted.inc(
+                    1.0, self.get_tenant_label(), pgcode
+                )
 
                 if pgcode in POSTGRES_SHUTDOWN_ERR_CODES:
                     pgreason = POSTGRES_SHUTDOWN_ERR_CODES[pgcode]

@@ -302,9 +302,29 @@ class SimpleInsert(Nonterm):
                 len(subj_path.steps) == 1 and  \
                 isinstance(subj_path.steps[0], qlast.ObjectRef):
             objtype = subj_path.steps[0]
+        elif isinstance(subj_path, qlast.IfElse):
+            # Insert attempted on something that looks like a conditional
+            # expression. Aside from it being an error, it also seems that
+            # the intent was to insert something conditionally.
+            raise errors.EdgeQLSyntaxError(
+                f"INSERT only works with object types, not conditional "
+                f"expressions",
+                hint=(
+                    f"To resolve this try surrounding the INSERT branch of "
+                    f"the conditional expression with parentheses. This way "
+                    f"the INSERT will be triggered conditionally in one of "
+                    f"the branches."
+                ),
+                context=subj_path.context)
         else:
             raise errors.EdgeQLSyntaxError(
-                "insert expression must be an object type reference",
+                f"INSERT only works with object types, not arbitrary "
+                f"expressions",
+                hint=(
+                    f"To resolve this try to surround the entire INSERT "
+                    f"statement with parentheses in order to separate it "
+                    f"from the rest of the expression."
+                ),
                 context=subj_path.context)
 
         self.val = qlast.InsertQuery(

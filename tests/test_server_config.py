@@ -57,10 +57,13 @@ def make_port_value(*, protocol='graphql+http',
                     user='test',
                     concurrency=4,
                     port=1000,
+                    address=None,
                     **kwargs):
+    if address is None:
+        address = frozenset([f'localhost/{database}'])
     return dict(
         protocol=protocol, user=user, database=database,
-        concurrency=concurrency, port=port, **kwargs)
+        concurrency=concurrency, port=port, address=address, **kwargs)
 
 
 Field = statypes.CompositeTypeSpecField
@@ -74,11 +77,12 @@ Port = types.ConfigTypeSpec(
     name='Port',
     fields=_mk_fields(
         Field('protocol', str),
-        Field('database', str),
+        Field('database', str, unique=True),
         Field('port', int),
         Field('concurrency', int),
         Field('user', str),
-        Field('address', frozenset[str], default=frozenset({'localhost'})),
+        Field('address',
+              frozenset[str], default=frozenset({'localhost'}), unique=True),
     ),
 )
 
@@ -235,7 +239,8 @@ class TestServerConfigUtils(unittest.TestCase):
             config.lookup('ports', storage3, spec=testspec1),
             {
                 Port.from_pyvalue(
-                    make_port_value(database='f2'), spec=testspec1),
+                    make_port_value(database='f2'),
+                    spec=testspec1),
             })
 
         op = ops.Operation(
@@ -875,6 +880,7 @@ class TestServerConfig(tb.QueryTestCase):
         )
 
     async def test_server_proto_configure_06(self):
+        con2 = None
         try:
             await self.con.execute('''
                 CONFIGURE SESSION SET singleprop := '42';
@@ -892,6 +898,11 @@ class TestServerConfig(tb.QueryTestCase):
                     '1', '2', '3'
                 ],
             )
+
+            con2 = await self.connect(database=self.con.dbname)
+            await con2.execute('''
+                start transaction
+            ''')
 
             await self.con.execute('''
                 CONFIGURE INSTANCE SET multiprop := {'4', '5'};
@@ -926,6 +937,8 @@ class TestServerConfig(tb.QueryTestCase):
             await self.con.execute('''
                 CONFIGURE INSTANCE RESET multiprop;
             ''')
+            if con2:
+                await con2.aclose()
 
     async def test_server_proto_configure_07(self):
         try:
@@ -1456,10 +1469,10 @@ class TestSeparateCluster(tb.TestCase):
                 *(con.aclose() for con in active_cons)
             )
 
-        self.assertIn(
-            f'\nedgedb_server_client_connections_idle_total ' +
-            f'{float(len(idle_cons))}\n',
-            metrics
+        self.assertRegex(
+            metrics,
+            r'\nedgedb_server_client_connections_idle_total\{.*\} ' +
+            f'{float(len(idle_cons))}\\n',
         )
 
     @unittest.skipIf(
@@ -1795,10 +1808,10 @@ class TestSeparateCluster(tb.TestCase):
             data = sd.fetch_metrics()
 
             # Postgres: ERROR_IDLE_IN_TRANSACTION_TIMEOUT=25P03
-            self.assertIn(
-                '\nedgedb_server_backend_connections_aborted_total' +
-                '{pgcode="25P03"} 1.0\n',
-                data
+            self.assertRegex(
+                data,
+                r'\nedgedb_server_backend_connections_aborted_total' +
+                r'\{.*pgcode="25P03"\} 1.0\n',
             )
 
     async def test_server_config_query_timeout(self):

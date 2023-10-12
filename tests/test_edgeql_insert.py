@@ -32,7 +32,7 @@ class TestInsert(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'insert.esdl')
 
-    async def test_edgeql_insert_fail_1(self):
+    async def test_edgeql_insert_fail_01(self):
         with self.assertRaisesRegex(
             edgedb.MissingRequiredError,
             r"missing value for required property"
@@ -42,7 +42,7 @@ class TestInsert(tb.QueryTestCase):
                 INSERT InsertTest;
             ''')
 
-    async def test_edgeql_insert_fail_2(self):
+    async def test_edgeql_insert_fail_02(self):
         with self.assertRaisesRegex(
             edgedb.MissingRequiredError,
             r"missing value for required property"
@@ -54,7 +54,7 @@ class TestInsert(tb.QueryTestCase):
                 };
             ''')
 
-    async def test_edgeql_insert_fail_3(self):
+    async def test_edgeql_insert_fail_03(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             r"modification of computed property"
@@ -68,7 +68,7 @@ class TestInsert(tb.QueryTestCase):
                 };
             ''')
 
-    async def test_edgeql_insert_fail_4(self):
+    async def test_edgeql_insert_fail_04(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             r"mutation queries must specify values with ':='",
@@ -77,16 +77,17 @@ class TestInsert(tb.QueryTestCase):
                 INSERT Person { name };
             ''')
 
-    async def test_edgeql_insert_fail_5(self):
+    async def test_edgeql_insert_fail_05(self):
         with self.assertRaisesRegex(
-            edgedb.EdgeQLSyntaxError,
-            r"insert expression must be an object type reference",
+            edgedb.QueryError,
+            "INSERT only works with object types, not arbitrary "
+            "expressions"
         ):
             await self.con.execute('''
                 INSERT Person.notes { name := "note1" };
             ''')
 
-    async def test_edgeql_insert_fail_6(self):
+    async def test_edgeql_insert_fail_06(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             r"could not resolve partial path",
@@ -95,7 +96,7 @@ class TestInsert(tb.QueryTestCase):
                 INSERT Person { name := .name };
             ''')
 
-    async def test_edgeql_insert_fail_7(self):
+    async def test_edgeql_insert_fail_07(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             r"insert standard library type",
@@ -103,6 +104,28 @@ class TestInsert(tb.QueryTestCase):
             await self.con.execute('''
                 INSERT schema::Migration { script := 'foo' };
             ''')
+
+    async def test_edgeql_insert_fail_08(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "INSERT only works with object types, not arbitrary "
+            "expressions"
+        ):
+            await self.con.execute("""
+                insert Note {name := 'bad note'} union DerivedNote;
+            """)
+
+    async def test_edgeql_insert_fail_09(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "INSERT only works with object types, not conditional "
+            "expressions"
+        ):
+            await self.con.execute("""
+                insert Note {
+                    name := 'bad note'
+                } if not exists DerivedNote else DerivedNote;
+            """)
 
     async def test_edgeql_insert_simple_01(self):
         await self.con.execute(r"""
@@ -2410,6 +2433,127 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_insert_tuples_01(self):
+        await self.assert_query_result(
+            r"""
+                with noobs := {
+                  ((insert InsertTest { l2 := 1 }), "bar"),
+                  ((insert InsertTest { l2 := 2 }), "eggs"),
+                },
+                select noobs;
+            """,
+            [
+                ({}, "bar"),
+                ({}, "eggs"),
+            ]
+        )
+
+        await self.assert_query_result(
+            r"""
+                select {
+                  ((insert InsertTest { l2 := 1 }), "bar"),
+                  ((insert InsertTest { l2 := 2 }), "eggs"),
+                }
+            """,
+            [
+                ({}, "bar"),
+                ({}, "eggs"),
+            ]
+        )
+
+    async def test_edgeql_insert_tuples_02(self):
+        await self.assert_query_result(
+            r"""
+                with noobs := {
+                  ((insert InsertTest { l2 := 1 }), "bar"),
+                  ((insert DerivedTest { l2 := 2 }), "eggs"),
+                },
+                select noobs;
+            """,
+            [
+                ({}, "bar"),
+                ({}, "eggs"),
+            ]
+        )
+
+        await self.assert_query_result(
+            r"""
+                select {
+                  ((insert InsertTest { l2 := 1 }), "bar"),
+                  ((insert DerivedTest { l2 := 2 }), "eggs"),
+                }
+            """,
+            [
+                ({}, "bar"),
+                ({}, "eggs"),
+            ]
+        )
+
+    async def test_edgeql_insert_tuples_03(self):
+        await self.assert_query_result(
+            r"""
+                with noobs := {
+                  ((insert InsertTest { l2 := 1 }), "bar"),
+                  ((insert Person { name := "x" }), "eggs"),
+                },
+                select noobs;
+            """,
+            [
+                ({}, "bar"),
+                ({}, "eggs"),
+            ]
+        )
+
+        await self.assert_query_result(
+            r"""
+                select {
+                  ((insert InsertTest { l2 := 1 }), "bar"),
+                  ((insert Person { name := "y" }), "eggs"),
+                }
+            """,
+            [
+                ({}, "bar"),
+                ({}, "eggs"),
+            ]
+        )
+
+    async def test_edgeql_insert_tuples_04(self):
+        await self.assert_query_result(
+            r"""
+            with noobs := {
+              ((insert Subordinate { name := "foo" }), "bar"),
+              ((insert Subordinate { name := "spam" }), "eggs"),
+            },
+            select (insert InsertTest {
+                l2 := 1,
+                subordinates := assert_distinct(
+                    noobs.0 { @comment := noobs.1 }),
+            }) { subordinates: {name, @comment} order by .name };
+            """,
+            [
+                {
+                    "subordinates": [
+                        {"name": "foo", "@comment": "bar"},
+                        {"name": "spam", "@comment": "eggs"}
+                    ]
+                }
+            ],
+        )
+
+        await self.assert_query_result(
+            r"""
+            select InsertTest { subordinates: {name, @comment} };
+            """,
+            [
+                {
+                    "subordinates": [
+                        {"name": "foo", "@comment": "bar"},
+                        {"name": "spam", "@comment": "eggs"}
+                    ]
+                }
+            ],
+        )
+
     async def test_edgeql_insert_collection_01(self):
         await self.con.execute(r"""
             INSERT CollectionTest {
@@ -2518,6 +2662,34 @@ class TestInsert(tb.QueryTestCase):
                 );
             """,
             [2],
+        )
+
+    async def test_edgeql_insert_collection_05(self):
+        # Make sure that empty arrays are accepted for inserts even when types
+        # are not explicitly specified.
+        await self.con.execute(r"""
+            INSERT CollectionTest {
+                str_array := [],
+                float_array := [],
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT
+                    CollectionTest {
+                        str_array,
+                        float_array
+                    }
+                FILTER
+                    len(.float_array) = 0;
+            """,
+            [
+                {
+                    'str_array': [],
+                    'float_array': [],
+                },
+            ]
         )
 
     async def test_edgeql_insert_correlated_bad_01(self):
@@ -5536,7 +5708,7 @@ class TestInsert(tb.QueryTestCase):
 
         await self.con.execute('''
             INSERT Person {
-                id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff',
+                id := <uuid>to_json('"ffffffff-ffff-ffff-ffff-ffffffffffff"'),
                 name := "test",
              }
         ''')
@@ -6130,9 +6302,6 @@ class TestInsert(tb.QueryTestCase):
             [1],
         )
 
-    @test.xfail('''
-        This is broken because of #6057
-    ''')
     async def test_edgeql_insert_coalesce_02(self):
         await self.assert_query_result(
             '''

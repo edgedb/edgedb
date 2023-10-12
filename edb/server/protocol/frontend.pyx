@@ -266,6 +266,12 @@ cdef class FrontendConnection(AbstractFrontendConnection):
     cdef _main_task_stopped_normally(self):
         pass
 
+    def get_tenant_label(self):
+        if self.tenant is None:
+            return "unknown"
+        else:
+            return self.tenant.get_instance_name()
+
     def connection_made(self, transport):
         if self.tenant is None:
             self._transport = transport

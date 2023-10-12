@@ -92,7 +92,7 @@ async def execute(
         if query_unit.drop_db:
             await tenant.on_before_drop_db(query_unit.drop_db, dbv.dbname)
         if query_unit.system_config:
-            await execute_system_config(be_conn, dbv, query_unit)
+            await execute_system_config(be_conn, dbv, query_unit, state)
         else:
             config_ops = query_unit.config_ops
 
@@ -176,15 +176,16 @@ async def execute(
             dbv.set_state_serializer(state_serializer)
         if side_effects:
             signal_side_effects(dbv, side_effects)
-        if not dbv.in_tx() and not query_unit.tx_rollback:
+        if not dbv.in_tx() and not query_unit.tx_rollback and query_unit.sql:
             state = dbv.serialize_state()
             if state is not orig_state:
                 # In 3 cases the state is changed:
                 #   1. The non-tx query changed the state
                 #   2. The state is synced with dbview (orig_state is None)
                 #   3. We came out from a transaction (orig_state is None)
-                # Excluding one special case when the state is NOT changed:
+                # Excluding two special case when the state is NOT changed:
                 #   1. An orphan ROLLBACK command without a paring start tx
+                #   2. There was no SQL, so the state can't have been synced.
                 be_conn.last_state = state
     finally:
         if query_unit.drop_db:
@@ -381,9 +382,14 @@ async def execute_system_config(
     conn: pgcon.PGConnection,
     dbv: dbview.DatabaseConnectionView,
     query_unit: compiler.QueryUnit,
+    state: bytes,
 ):
     if query_unit.is_system_config:
         dbv.server.before_alter_system_config()
+
+    # Sync state
+    await conn.sql_fetch(b'select 1', state=state)
+
     if query_unit.sql:
         if len(query_unit.sql) > 1:
             raise errors.InternalServerError(
@@ -406,6 +412,8 @@ async def execute_system_config(
         # Otherwise, fall back to staticly evaluated op.
         config_ops = query_unit.config_ops
     await dbv.apply_config_ops(conn, config_ops)
+
+    await conn.sql_execute(b'delete from _config_cache')
 
     # If this is a backend configuration setting we also
     # need to make sure it has been loaded.
@@ -469,7 +477,14 @@ async def parse_execute_json(
     globals_: Optional[Mapping[str, Any]] = None,
     output_format: compiler.OutputFormat = compiler.OutputFormat.JSON,
     query_cache_enabled: Optional[bool] = None,
+    cached_globally: bool = False,
 ) -> bytes:
+    # WARNING: only set cached_globally to True when the query is
+    # strictly referring to only shared stable objects in user schema
+    # or anything from std schema, for example:
+    #     YES:  select ext::auth::UIConfig { ... }
+    #     NO:   select default::User { ... }
+
     if query_cache_enabled is None:
         query_cache_enabled = not (
             debug.flags.disable_qcache or debug.flags.edgeql_compile)
@@ -489,7 +504,7 @@ async def parse_execute_json(
         allow_capabilities=compiler.Capability.MODIFICATIONS,
     )
 
-    compiled = await dbv.parse(query_req)
+    compiled = await dbv.parse(query_req, cached_globally=cached_globally)
 
     pgcon = await tenant.acquire_pgcon(db.name)
     try:
@@ -561,11 +576,22 @@ async def execute_json(
         return None
 
 
+class DecimalEncoder(json.JSONEncoder):
+    def encode(self, obj):
+        if isinstance(obj, dict):
+            return '{' + ', '.join(
+                    f'{self.encode(k)}: {self.encode(v)}'
+                    for (k, v) in obj.items()
+                ) + '}'
+        if isinstance(obj, list):
+            return '[' + ', '.join(map(self.encode, obj)) + ']'
+        if isinstance(obj, decimal.Decimal):
+            return f'{obj:f}'
+        return super().encode(obj)
+
+
 cdef bytes _encode_json_value(object val):
-    if isinstance(val, decimal.Decimal):
-        jarg = str(val)
-    else:
-        jarg = json.dumps(val)
+    jarg = json.dumps(val, cls=DecimalEncoder)
 
     return b'\x01' + jarg.encode('utf-8')
 

@@ -51,6 +51,10 @@ class NamedObject:
     def get_name(self, schema: s_schema.Schema) -> sn.QualName:
         return self.name
 
+    @classmethod
+    def get_schema_class_displayname(cls) -> str:
+        return cls.__name__.lower()
+
 
 SentinelObject = NamedObject(
     name=sn.QualName(module='__unknown__', name='__unknown__'),
@@ -85,6 +89,10 @@ class Index(NamedObject):
 
 
 class ConcreteIndex(NamedObject):
+    pass
+
+
+class Field(NamedObject):
     pass
 
 
@@ -251,6 +259,18 @@ class Link(Pointer):
         schema: s_schema.Schema,
     ) -> bool:
         return False
+
+
+class UnknownPointer(Pointer):
+    def is_property(
+        self,
+        schema: s_schema.Schema,
+    ) -> bool:
+        return False
+
+    @classmethod
+    def get_schema_class_displayname(cls) -> str:
+        return 'link or property'
 
 
 class AccessPolicy(NamedObject):
