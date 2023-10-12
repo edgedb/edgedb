@@ -226,7 +226,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
     def close_for_idling(self):
         try:
-            self.write_error(
+            self.write_edgedb_error(
                 errors.IdleSessionTimeoutError(
                     'closing the connection due to idling')
             )
@@ -1127,7 +1127,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
             ex = await self.interpret_error(ex)
 
-            self.write_error(ex)
+            self.write_edgedb_error(ex)
 
             if isinstance(
                 ex,
@@ -1174,15 +1174,12 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 self.buffer.discard_message()
 
     cdef write_error(self, exc):
+        self.write_edgedb_error(execute.interpret_simple_error(exc))
+
+    cdef write_edgedb_error(self, exc):
         cdef:
             WriteBuffer buf
             int16_t fields_len
-
-        exc_type = type(exc)
-        # Not all calls to write_error went through interpret_error, so we
-        # do this check here also.
-        if not issubclass(exc_type, errors.EdgeDBError):
-            exc_type = errors.InternalServerError
 
         if self.debug and not isinstance(exc, errors.BackendUnavailableError):
             self.debug_print('EXCEPTION', type(exc).__name__, exc)
@@ -1201,21 +1198,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 'transport': self._transport,
         })
 
-        exc_code = None
-
         fields = {}
         if isinstance(exc, errors.EdgeDBError):
             fields.update(exc._attrs)
-
-        exc_code = exc_type.get_code()
-        if (exc_type is errors.InternalServerError
-                and not fields.get(base_errors.FIELD_HINT)):
-            fields[base_errors.FIELD_HINT] = (
-                f'This is most likely a bug in EdgeDB. '
-                f'Please consider opening an issue ticket '
-                f'at https://github.com/edgedb/edgedb/issues/new'
-                f'?template=bug_report.md'
-            )
 
         try:
             formatted_error = exc.__formatted_error__
@@ -1232,7 +1217,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         buf = WriteBuffer.new_message(b'E')
         buf.write_byte(<char><uint8_t>EdgeSeverity.EDGE_SEVERITY_ERROR)
-        buf.write_int32(<int32_t><uint32_t>exc_code)
+        buf.write_int32(<int32_t><uint32_t>exc.get_code())
         buf.write_len_prefixed_utf8(str(exc))
         buf.write_int16(len(fields))
         for k, v in fields.items():
