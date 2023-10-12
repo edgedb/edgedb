@@ -538,7 +538,7 @@ property allows us to modify the link property of the existing link.
         # 🚫
         insert Movie {
           title := 'The Incredible Hulk',
-          actors := {(
+          characters := {(
               select Person {
                 @character_name := 'The Hulk'
               } filter .name = 'Mark Ruffalo'
@@ -560,12 +560,12 @@ property allows us to modify the link property of the existing link.
         # ✅
         insert Movie {
           title := 'The Incredible Hulk',
-          actors := assert_distinct((
-            with characters := {
+          characters := assert_distinct((
+            with actors := {
               ('The Hulk', 'Mark Ruffalo'),
               ('Abomination', 'Tim Roth')
             },
-            for character in characters union (
+            for actor in actors union (
               select Person {
                 @character_name := character.0
               } filter .name = character.1
