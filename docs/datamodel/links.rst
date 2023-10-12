@@ -497,7 +497,7 @@ linked object being added. Be sure to prepend the link property's name with
         }
         filter .name = "Alice"
       )
-    }
+    };
 
 The shape could alternatively be included on an insert if the object being
 linked (the ``Person`` named "Alice" in this example) is being inserted as part
@@ -522,7 +522,7 @@ already-established link between the two:
         }
         filter .name = "Alice"
       )
-    }
+    };
 
 Using ``select .family_members`` here with the shape including the link
 property allows us to modify the existing link's link property.
