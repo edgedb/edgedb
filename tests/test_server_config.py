@@ -1651,6 +1651,14 @@ class TestSeparateCluster(tb.TestCase):
                     cur_shared[0]
                 )
 
+                cur_eff = await c1.query_single('''
+                    select assert_single(cfg::Config.effective_io_concurrency)
+                ''')
+                await c1.query(f'''
+                    configure instance set
+                        effective_io_concurrency := {cur_eff}
+                ''')
+
                 await c1.aclose()
                 await c2.aclose()
                 await t1.aclose()
