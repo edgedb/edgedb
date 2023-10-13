@@ -390,7 +390,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             else:
                 direction = s_pointers.PointerDirection.Outbound
 
-            ptr_name = ptr_expr.ptr.name
+            ptr_name = ptr_expr.name
 
             source: s_obj.Object
             ptr: s_pointers.PointerLike
@@ -402,7 +402,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     raise errors.EdgeQLSyntaxError(
                         f"unexpected reference to link property {ptr_name!r} "
                         "outside of a path expression",
-                        context=ptr_expr.ptr.context,
+                        context=ptr_expr.context,
                     )
 
                 if isinstance(path_tip.rptr.ptrref,
@@ -427,7 +427,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                             f"property '{ptr_name}' does not exist because"
                             f" there are no '{pn}' links between"
                             f" {s_vn} and {t_vn}",
-                            context=ptr_expr.ptr.context,
+                            context=ptr_expr.context,
                         )
 
                     prefix_ptr_name = (
@@ -1065,7 +1065,7 @@ def compile_enum_path(
             context=step2.context,
         )
 
-    ptr_name = step2.ptr.name
+    ptr_name = step2.name
 
     step2_direction = s_pointers.PointerDirection.Outbound
     if step2.direction is not None:
@@ -1102,7 +1102,7 @@ def compile_enum_path(
 
     return enum_indirection_set(
         source=source,
-        ptr_name=step2.ptr.name,
+        ptr_name=step2.name,
         source_context=expr.context,
         ctx=ctx,
     )
@@ -1445,7 +1445,7 @@ def computable_ptr_set(
                 steps=[
                     qlast.Source(),
                     qlast.Ptr(
-                        ptr=qlast.ObjectRef(name=ptrcls_n),
+                        name=ptrcls_n,
                         direction=s_pointers.PointerDirection.Outbound,
                         type=(
                             'property'
@@ -2049,7 +2049,7 @@ def get_globals_as_json(
 
             main_param = subctx.create_anchor(param, 'a')
             tuple_el = qlast.TupleElement(
-                name=qlast.Ptr(ptr=qlast.ObjectRef(name=name)),
+                name=qlast.Ptr(name=name),
                 val=qlast.BinOp(
                     op='??',
                     left=qlast.TypeCast(expr=main_param, type=json_type),

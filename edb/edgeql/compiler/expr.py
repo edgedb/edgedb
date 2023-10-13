@@ -382,9 +382,7 @@ def _compile_dml_coalesce(
             iterator_alias=alias,
             iterator=qlast.Tuple(elements=[subctx.create_anchor(lhs_ir, 'b')]),
             result=qlast.Set(elements=[
-                qlast.Path(steps=[
-                    cond_path, qlast.Ptr(ptr=qlast.ObjectRef(name='0'))
-                ]),
+                qlast.Path(steps=[cond_path, qlast.Ptr(name='0')]),
                 rhs_b
             ]),
             optional=True,

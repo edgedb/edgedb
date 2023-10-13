@@ -45,7 +45,6 @@ from edb.schema import objects as s_objects
 from edb.schema import pointers as s_pointers
 from edb.schema import properties as s_props
 from edb.schema import types as s_types
-from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -423,7 +422,7 @@ def _process_view(
         # Make up a dummy shape element
         name = ptrcls.get_shortname(schema).name
         dummy_el = qlast.ShapeElement(expr=qlast.Path(
-            steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=name))]))
+            steps=[qlast.Ptr(name=name)]))
         dummy_el_desc = _shape_el_ql_to_shape_el_desc(
             dummy_el, source=view_scls, s_ctx=s_ctx, ctx=ctx
         )
@@ -618,7 +617,7 @@ def _shape_el_ql_to_shape_el_desc(
             f'unexpected path length in view shape: {len(steps)}')
 
     assert isinstance(lexpr, qlast.Ptr)
-    ptrname = lexpr.ptr.name
+    ptrname = lexpr.name
 
     if target_typexpr is None:
         path_ql = qlast.Path(
@@ -674,7 +673,7 @@ def _expand_splat(
         sname = ptr.get_shortname(ctx.env.schema)
         if sname.name in skip_ptrs:
             continue
-        step = qlast.Ptr(ptr=s_utils.name_to_ast_ref(sname))
+        step = qlast.Ptr(name=sname.name)
         # Make sure not to overwrite the id property.
         if not ptr.is_id_pointer(ctx.env.schema):
             steps = path + [step]
@@ -698,7 +697,7 @@ def _expand_splat(
                 qlast.ShapeElement(
                     expr=qlast.Path(
                         steps=[qlast.Ptr(
-                            ptr=s_utils.name_to_ast_ref(sname),
+                            name=sname.name,
                             type='property',
                         )]
                     ),
@@ -715,11 +714,7 @@ def _expand_splat(
                 continue
             elements.append(
                 qlast.ShapeElement(
-                    expr=qlast.Path(
-                        steps=path + [qlast.Ptr(
-                            ptr=s_utils.name_to_ast_ref(pn),
-                        )]
-                    ),
+                    expr=qlast.Path(steps=path + [qlast.Ptr(name=pn.name)]),
                     elements=_expand_splat(
                         ptr.get_target(ctx.env.schema),
                         rlink=ptr,
@@ -762,14 +757,7 @@ def _gen_pointers_from_defaults(
         ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
         default_ql = qlast.ShapeElement(
             expr=qlast.Path(
-                steps=[
-                    qlast.Ptr(
-                        ptr=qlast.ObjectRef(
-                            name=ptrcls_sn.name,
-                            module=ptrcls_sn.module,
-                        ),
-                    ),
-                ],
+                steps=[qlast.Ptr(name=ptrcls_sn.name)],
             ),
             compexpr=qlast.DetachedExpr(
                 expr=default_expr.qlast,
@@ -1133,9 +1121,7 @@ def _compile_rewrites_for_stype(
             ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
             shape_ql = qlast.ShapeElement(
                 expr=qlast.Path(
-                    steps=[
-                        qlast.Ptr(ptr=s_utils.name_to_ast_ref(ptrcls_sn)),
-                    ],
+                    steps=[qlast.Ptr(name=ptrcls_sn.name)],
                 ),
                 compexpr=qlast.DetachedExpr(
                     expr=rewrite_expr.qlast,
@@ -2148,7 +2134,7 @@ def _inline_type_computable(
             required=True,
             expr=qlast.Path(
                 steps=[qlast.Ptr(
-                    ptr=qlast.ObjectRef(name=compname),
+                    name=compname,
                     direction=s_pointers.PointerDirection.Outbound,
                 )],
             ),
@@ -2156,11 +2142,11 @@ def _inline_type_computable(
                 steps=[
                     qlast.Source(),
                     qlast.Ptr(
-                        ptr=qlast.ObjectRef(name='__type__'),
+                        name='__type__',
                         direction=s_pointers.PointerDirection.Outbound,
                     ),
                     qlast.Ptr(
-                        ptr=qlast.ObjectRef(name=propname),
+                        name=propname,
                         direction=s_pointers.PointerDirection.Outbound,
                     )
                 ]

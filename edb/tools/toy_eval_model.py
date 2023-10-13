@@ -473,7 +473,7 @@ def update_path(
 
 
 def ptr_name(ptr: qlast.Ptr) -> str:
-    name = ptr.ptr.name
+    name = ptr.name
     if ptr.type == 'property':
         name = '@' + name
     return name
@@ -652,7 +652,7 @@ def get_by_element(atom: Union[qlast.ObjectRef, qlast.Path]) -> ByElement:
         return IORef(atom.name)
     else:
         assert isinstance(atom.steps[0], qlast.Ptr)
-        return IPtr(atom.steps[0].ptr.name)
+        return IPtr(atom.steps[0].name)
 
 
 def flatten_grouping_atom(atom: qlast.GroupingAtom) -> Tuple[ByElement, ...]:
@@ -1093,7 +1093,7 @@ def eval_computed(
         # For linkprops, we want both the source and the target in the
         # query input.
         paths.append(qlast.Path(
-            steps=paths[0].steps + [qlast.Ptr(ptr=qlast.ObjectRef(name=name))]
+            steps=paths[0].steps + [qlast.Ptr(name=name)]
         ))
         input_tuple = (src, obj)
 
@@ -1432,7 +1432,7 @@ def simplify_path(path: qlast.Path) -> IPath:
             spath.append(IORef(step.name))
         elif isinstance(step, qlast.Ptr):
             is_property = step.type == 'property'
-            spath.append(IPtr(step.ptr.name, step.direction, is_property))
+            spath.append(IPtr(step.name, step.direction, is_property))
         elif isinstance(step, qlast.TypeIntersection):
             spath.append(ITypeIntersection(
                 step.type.maintype.name))  # type: ignore

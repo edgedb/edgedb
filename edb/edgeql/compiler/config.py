@@ -247,7 +247,7 @@ def _inject_tname(
     insert_stmt.shape.append(
         qlast.ShapeElement(
             expr=qlast.Path(
-                steps=[qlast.Ptr(ptr=qlast.ObjectRef(name='_tname'))],
+                steps=[qlast.Ptr(name='_tname')],
             ),
             compexpr=qlast.Path(
                 steps=[
@@ -256,7 +256,7 @@ def _inject_tname(
                             maintype=insert_stmt.subject,
                         ),
                     ),
-                    qlast.Ptr(ptr=qlast.ObjectRef(name='name')),
+                    qlast.Ptr(name='name'),
                 ],
             ),
         ),

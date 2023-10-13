@@ -4519,7 +4519,7 @@ class PointerMetaCommand(
                         partial=True,
                         steps=[
                             ql_ast.Ptr(
-                                ptr=ql_ast.ObjectRef(name=pname),
+                                name=pname,
                                 type='property' if is_lprop else None,
                             ),
                         ],

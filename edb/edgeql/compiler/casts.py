@@ -1252,11 +1252,7 @@ def _find_object_by_id(
             result=qlast.DetachedExpr(expr=qlast.Path(steps=[object_name])),
             where=qlast.BinOp(
                 left=qlast.Path(
-                    steps=[
-                        qlast.Ptr(
-                            ptr=qlast.ObjectRef(name='id'), direction='>'
-                        )
-                    ],
+                    steps=[qlast.Ptr(name='id', direction='>')],
                     partial=True,
                 ),
                 op='=',

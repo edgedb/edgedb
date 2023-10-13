@@ -350,13 +350,9 @@ class TypeIntersection(Base):
 
 
 class Ptr(Base):
-    ptr: ObjectRef
+    name: str
     direction: typing.Optional[str] = None
     type: typing.Optional[str] = None
-
-    @property
-    def name(self) -> str:
-        return self.ptr.name
 
 
 class Splat(Base):

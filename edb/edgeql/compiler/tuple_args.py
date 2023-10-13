@@ -230,8 +230,7 @@ def _make_tuple(
     is_named = fields and fields[0][0]
     if is_named:
         return qlast.NamedTuple(elements=[
-            qlast.TupleElement(name=qlast.Ptr(
-                ptr=qlast.ObjectRef(name=not_none(f))), val=e)
+            qlast.TupleElement(name=qlast.Ptr(name=not_none(f)), val=e)
             for f, e in fields
         ])
     else:

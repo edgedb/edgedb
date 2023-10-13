@@ -117,7 +117,7 @@ class GroupingIdent(Nonterm):
     def reduce_DOT_Identifier(self, *kids):
         self.val = qlast.Path(
             partial=True,
-            steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=kids[1].val))],
+            steps=[qlast.Ptr(name=kids[1].val)],
         )
 
 
@@ -483,8 +483,9 @@ class SimpleShapePath(Nonterm):
 
         steps = [
             qlast.Ptr(
-                ptr=kids[0].val,
-                direction=s_pointers.PointerDirection.Outbound
+                name=kids[0].val.name,
+                direction=s_pointers.PointerDirection.Outbound,
+                context=kids[0].val.context,
             ),
         ]
 
@@ -494,8 +495,9 @@ class SimpleShapePath(Nonterm):
         self.val = qlast.Path(
             steps=[
                 qlast.Ptr(
-                    ptr=kids[1].val,
-                    type='property'
+                    name=kids[1].val.name,
+                    type='property',
+                    context=kids[1].val.context,
                 )
             ]
         )
@@ -521,8 +523,9 @@ class FreeSimpleShapePointer(Nonterm):
 
         steps = [
             qlast.Ptr(
-                ptr=kids[0].val,
-                direction=s_pointers.PointerDirection.Outbound
+                name=kids[0].val.name,
+                direction=s_pointers.PointerDirection.Outbound,
+                context=kids[0].val.context,
             ),
         ]
 
@@ -547,8 +550,9 @@ class ShapePath(Nonterm):
 
         steps = [
             qlast.Ptr(
-                ptr=kids[0].val,
-                direction=s_pointers.PointerDirection.Outbound
+                name=kids[0].val.name,
+                direction=s_pointers.PointerDirection.Outbound,
+                context=kids[0].val.context,
             ),
         ]
 
@@ -565,8 +569,9 @@ class ShapePath(Nonterm):
         self.val = qlast.Path(
             steps=[
                 qlast.Ptr(
-                    ptr=kids[1].val,
-                    type='property'
+                    name=kids[1].val.name,
+                    type='property',
+                    context=kids[1].val.context,
                 )
             ]
         )
@@ -578,8 +583,9 @@ class ShapePath(Nonterm):
         steps = [
             kids[0].val,
             qlast.Ptr(
-                ptr=kids[2].val,
-                direction=s_pointers.PointerDirection.Outbound
+                name=kids[2].val.name,
+                direction=s_pointers.PointerDirection.Outbound,
+                context=kids[2].val.context,
             ),
         ]
 
@@ -1490,7 +1496,7 @@ class NamedTuple(Nonterm):
 class NamedTupleElement(Nonterm):
     def reduce_ShortNodeName_ASSIGN_Expr(self, *kids):
         self.val = qlast.TupleElement(
-            name=qlast.Ptr(ptr=kids[0].val, context=kids[0].val.context),
+            name=qlast.Ptr(name=kids[0].val.name, context=kids[0].val.context),
             val=kids[2].val
         )
 
@@ -1608,18 +1614,12 @@ def _float_to_path(self, token, context):
     # context for the AST is established manually here
     return [
         qlast.Ptr(
-            ptr=qlast.ObjectRef(
-                name=parts[0],
-                context=token.context,
-            ),
+            name=parts[0],
             direction=s_pointers.PointerDirection.Outbound,
             context=context,
         ),
         qlast.Ptr(
-            ptr=qlast.ObjectRef(
-                name=parts[1],
-                context=token.context,
-            ),
+            name=parts[1],
             direction=s_pointers.PointerDirection.Outbound,
             context=token.context,
         )
@@ -1683,7 +1683,7 @@ class PathStep(Nonterm):
         from edb.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
-            ptr=kids[1].val,
+            name=kids[1].val.name,
             direction=s_pointers.PointerDirection.Outbound
         )
 
@@ -1692,7 +1692,7 @@ class PathStep(Nonterm):
         from edb.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
-            ptr=qlast.ObjectRef(name=kids[1].val),
+            name=kids[1].val,
             direction=s_pointers.PointerDirection.Outbound
         )
 
@@ -1700,7 +1700,7 @@ class PathStep(Nonterm):
         from edb.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
-            ptr=kids[1].val,
+            name=kids[1].val.name,
             direction=s_pointers.PointerDirection.Inbound
         )
 
@@ -1708,7 +1708,7 @@ class PathStep(Nonterm):
         from edb.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
-            ptr=kids[1].val,
+            name=kids[1].val.name,
             direction=s_pointers.PointerDirection.Outbound,
             type='property'
         )
