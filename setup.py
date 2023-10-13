@@ -1104,5 +1104,10 @@ setuptools.setup(
             path="edb/graphql-rewrite/Cargo.toml",
             binding=setuptools_rust.Binding.RustCPython,
         ),
+        setuptools_rust.RustExtension(
+            "edb._prql",
+            path="edb/prql/Cargo.toml",
+            binding=setuptools_rust.Binding.RustCPython,
+        ),
     ],
 )

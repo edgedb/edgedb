@@ -486,6 +486,7 @@ DEFAULT_SQL_FE_SETTINGS: SQLSettings = immutables.Map({
     "search_path": "public",
     "server_version": defines.PGEXT_POSTGRES_VERSION,
     "server_version_num": str(defines.PGEXT_POSTGRES_VERSION_NUM),
+    "query_language": "SQL",
 })
 
 

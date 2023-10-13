@@ -536,6 +536,7 @@ class Compiler:
         from edb.pgsql import parser as pg_parser
         from edb.pgsql import resolver as pg_resolver
         from edb.pgsql import codegen as pg_codegen
+        import edb._prql as prql
 
         @functools.cache
         def parse_search_path(search_path_str: str) -> list[str]:
@@ -587,8 +588,17 @@ class Compiler:
             'search_path': True,
             'server_version': False,
             'server_version_num': False,
+            'query_language': True,
         }
-        stmts = pg_parser.parse(query_str)
+
+        # compile the query to SQL
+        if tx_state.get("query_language") == "'PRQL'":
+            query_str_sql = prql.compile(query_str)
+        else:
+            query_str_sql = query_str
+
+        # parse SQL
+        stmts = pg_parser.parse(query_str_sql)
         sql_units = []
         for stmt in stmts:
             orig_text = pg_gen_source(stmt)
