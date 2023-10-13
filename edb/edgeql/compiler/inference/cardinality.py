@@ -1172,6 +1172,9 @@ def _infer_stmt_cardinality(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
+    for part in (ir.bindings or []):
+        infer_cardinality(part, scope_tree=scope_tree, ctx=ctx)
+
     result = ir.subject if isinstance(ir, irast.MutatingStmt) else ir.result
     result_card = infer_cardinality(
         result,
@@ -1298,6 +1301,8 @@ def __infer_insert_stmt(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
+    for part in (ir.bindings or []):
+        infer_cardinality(part, scope_tree=scope_tree, ctx=ctx)
 
     infer_cardinality(
         ir.subject, is_mutation=True, scope_tree=scope_tree, ctx=ctx
