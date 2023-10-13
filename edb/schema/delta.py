@@ -2061,7 +2061,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 # then reset the body to original expression.
                 delta_drop, cmd_drop, _ = ref.init_delta_branch(
                     schema, context, cmdtype=AlterObject)
-                delta_create, cmd_create, _ = ref.init_delta_branch(
+                delta_create, cmd_create, ctx_stack = ref.init_delta_branch(
                     schema, context, cmdtype=AlterObject)
 
                 # Mark it metadata_only so that if it actually gets
@@ -2088,15 +2088,6 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 except NotImplementedError:
                     ref_desc.extend(this_ref_desc)
                 else:
-                    # We need to extract the command on whatever the
-                    # enclosing object of our referrer is, since we
-                    # need to put that in the context so that
-                    # compile_expr_field calls in the fixer can find
-                    # the subject.
-                    obj_cmd = next(iter(delta_create.ops))
-                    assert isinstance(obj_cmd, ObjectCommand)
-                    obj = obj_cmd.get_object(schema, context)
-
                     for fn in fns:
                         # Do the switcheroos
                         value = ref.get_explicit_field_value(schema, fn, None)
@@ -2110,7 +2101,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                         # on inherited constraint finalexprs breaks
                         # the extra parens in it...)
                         if fixer and not ref.field_is_inherited(schema, fn):
-                            with obj_cmd.new_context(schema, context, obj):
+                            with ctx_stack():
                                 value = fixer(
                                     schema, cmd_create, fn, context, value)
 
