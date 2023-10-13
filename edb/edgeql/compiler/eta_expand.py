@@ -323,7 +323,7 @@ def eta_expand_tuple(
 
     els = [
         qlast.TupleElement(
-            name=qlast.ObjectRef(name=name),
+            name=qlast.Ptr(ptr=qlast.ObjectRef(name=name)),
             val=eta_expand(astutils.extend_path(path, name), subtype, ctx=ctx),
         )
         for name, subtype in stype.iter_subtypes(ctx.env.schema)

@@ -354,6 +354,10 @@ class Ptr(Base):
     direction: typing.Optional[str] = None
     type: typing.Optional[str] = None
 
+    @property
+    def name(self) -> str:
+        return self.ptr.name
+
 
 class Splat(Base):
     """Represents a splat operation (expansion to all props/links) in shapes"""
@@ -394,7 +398,9 @@ class IfElse(Expr):
 
 
 class TupleElement(Base):
-    name: ObjectRef
+    # This stores the name in another node instead of as a str just so
+    # that the name can have a separate source context.
+    name: Ptr
     val: Expr
 
 
