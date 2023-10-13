@@ -13478,6 +13478,19 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             type_refs=0,
         )
 
+    async def test_edgeql_ddl_rename_ref_prop_alias_01(self):
+        await self._simple_rename_ref_tests(
+            """
+                alter type Note {
+                    create property lol := (.note);
+                };
+            """,
+            """
+                alter type default::Note drop property lol;
+            """,
+            type_refs=0,
+        )
+
     async def test_edgeql_ddl_describe_nested_module_01(self):
         await self.con.execute(r"""
             create module foo;
