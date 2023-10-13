@@ -217,18 +217,74 @@ expressions.
 Extensions
 ==========
 
-Auth
+auth
 ----
 
-We're introducing an ``auth`` extension with support for the following OAuth
-providers:
+The new ``auth`` extension adds a full authentication service that runs
+alongside your database instance saving you the hassle of having to learn and
+implement the intricacies of OAuth or secure password storage.
 
-* Apple
-* Azure
-* Github
-* Google
+- OAuth Integration: Seamlessly authenticate with GitHub, Google, Apple, and
+  Azure/Microsoft.
+- Email & Password Support: Includes robust email+password authentication with
+  reset password functionality.
+- Easy Configuration: Set up via our configuration system.
+- Hosted UI: Use our hosted authentication UI to quickly add authentication to
+  your app.
 
-...
+When a user signs up, we create a new object of type ``ext::auth::Identity``,
+which you can link to in your own schema. We then provide you with a token that
+can be added as a global to your queries and used to authenticate queries with
+access policies.
+
+.. code-block:: sdl
+
+    using extension auth;
+
+    module default {
+        global current_customer := (
+            assert_single((
+                select Customer { * }
+                filter global ext::auth::ClientTokenIdentity = .identity
+            ))
+        );
+
+        type Customer {
+            required text: str;
+            required identity: ext::auth::Identity;
+        }
+
+        type Item {
+            required sku: str;
+            required description: str;
+        }
+
+        type Cart {
+            required customer: Customer;
+            multi items: Item {
+                quantity: int32;
+            };
+
+            access policy customer_has_full_access
+                allow all
+                using (global current_customer.id ?= .customer.id);
+        }
+    }
+
+
+Here's an example query using the TypeScript client:
+
+.. code-block:: typescript
+    import { createClient } from "edgedb";
+
+    declare const tokenFromAuthServer: string;
+    const client = createClient()
+      .withGlobals({
+        "ext::auth::client_token": tokenFromAuthServer
+      });
+
+    const carts = await client.query(`select Cart { * };`);
+
 
 
 pgcrypto
