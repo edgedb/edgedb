@@ -234,8 +234,9 @@ implement the intricacies of OAuth or secure password storage.
 
 When a user signs up, we create a new object of type ``ext::auth::Identity``,
 which you can link to in your own schema. We then provide you with a token that
-can be added as a global to your queries and used to authenticate queries with
-access policies.
+can be set as the global ``ext::auth::client_token`` which will automatically
+populate another computed global called ``ext::auth::ClientTokenIdentity``
+which you can use directly in your access policies, or in your own globals.
 
 .. code-block:: sdl
 
