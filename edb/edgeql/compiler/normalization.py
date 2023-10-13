@@ -278,7 +278,7 @@ def normalize_InsertQuery(
         localnames=localnames,
     )
 
-    for field in ('shape',):
+    for field in ('shape', 'unless_conflict',):
         value = getattr(node, field, None)
         _normalize_recursively(
             node,
