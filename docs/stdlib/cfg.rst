@@ -129,7 +129,7 @@ Client connections
          application might not expect.
 
       Additionally, enabling can have serious performance implications as, on
-      an ``insert``, every object will have to be scanned.
+      an ``insert``, every object type must be checked for collisions.
 
       As a result, we don't recommend enabling this. If you need to preserve
       UUIDs from an external source on your objects, it's best to create a new
