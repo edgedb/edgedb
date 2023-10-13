@@ -13451,6 +13451,33 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             """DROP ALIAS Alias;""",
         )
 
+    async def test_edgeql_ddl_rename_ref_rewrites_01(self):
+        await self._simple_rename_ref_tests(
+            """
+                alter type Note create property rtest -> str {
+                    create rewrite update using (.note);
+                };
+            """,
+            """
+                alter type default::Note drop property rtest;
+            """,
+            type_refs=0,
+        )
+
+    async def test_edgeql_ddl_rename_ref_triggers_01(self):
+        await self._simple_rename_ref_tests(
+            """
+                alter type Note {
+                    create trigger log_new after insert, update for each
+                    do (__new__.note);
+                };
+            """,
+            """
+                alter type default::Note drop trigger log_new;
+            """,
+            type_refs=0,
+        )
+
     async def test_edgeql_ddl_describe_nested_module_01(self):
         await self.con.execute(r"""
             create module foo;
