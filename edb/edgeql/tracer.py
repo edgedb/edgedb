@@ -1142,6 +1142,10 @@ def trace_SortExpr(node: qlast.SortExpr, *, ctx: TracerContext) -> None:
 @trace.register
 def trace_InsertQuery(node: qlast.InsertQuery, *, ctx: TracerContext) -> None:
     with alias_context(ctx, node.aliases) as ctx:
+        if node.unless_conflict:
+            trace(node.unless_conflict[0], ctx=ctx)
+            trace(node.unless_conflict[1], ctx=ctx)
+
         tip = trace(qlast.Path(steps=[node.subject]), ctx=ctx)
         _update_path_prefix(tip, ctx=ctx)
 

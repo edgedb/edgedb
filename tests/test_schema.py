@@ -3891,6 +3891,52 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_trigger_03(self):
+        schema = '''
+            type User {
+              trigger logInsert after insert for each do (
+                insert Log {
+                  user := __new__,
+                  action := 'Insert',
+                } unless conflict on .action else (
+                  update Log set { user := __new__ }
+                )
+              );
+            }
+
+            type Log {
+              required link user -> User;
+              required property action -> str { constraint exclusive; }
+            }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_trigger_04(self):
+        schema = '''
+            type User {
+              trigger logInsert after insert for each do (
+                insert Log {
+                  user := __new__,
+                  action := 'Insert',
+                } unless conflict on .action else (
+                  insert BackupLog { user := __new__, action := '???' }
+                )
+              );
+            }
+
+            type Log {
+              required link user -> User;
+              required property action -> str { constraint exclusive; }
+            }
+            type BackupLog {
+              required link user -> User;
+              required property action -> str;
+            }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_globals_funcs_01(self):
         schema = '''
             required global x1 -> int64 { default := 0 };
