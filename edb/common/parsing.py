@@ -20,7 +20,6 @@
 from __future__ import annotations
 from typing import *  # NoQA
 
-import functools
 import json
 import logging
 import os
@@ -284,34 +283,14 @@ class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
 
 
 def load_parser_spec(
-    mod: types.ModuleType,
-    allow_rebuild: bool = False,
+    mod: types.ModuleType
 ) -> parsing.Spec:
     return parsing.Spec(
         mod,
-        pickleFile=_localpath(mod, "pickle"),
         skinny=not debug.flags.edgeql_parser,
         logFile=_localpath(mod, "log"),
         verbose=bool(debug.flags.edgeql_parser),
-        unpickleHook=functools.partial(
-            _on_spec_unpickle, mod, allow_rebuild)
     )
-
-
-def _on_spec_unpickle(
-    mod: types.ModuleType,
-    allow_rebuild: bool,
-    spec: parsing.Spec,
-    compatibility: str,
-) -> None:
-    if compatibility != "compatible":
-        if allow_rebuild:
-            logger.info(f'rebuilding grammar for {mod.__name__}...')
-        else:
-            raise ParserSpecIncompatibleError(
-                f'parser tables for {mod.__name__} are missing or '
-                f'incompatible with parser source'
-            )
 
 
 def _localpath(mod, type):

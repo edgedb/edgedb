@@ -928,7 +928,7 @@ class build_rust(setuptools_rust.build.build_rust):
         from edb.common import parsing
         from edb.edgeql.parser import grammar as qlgrammar
         import edb._edgeql_parser as rust_parser
-        spec = parsing.load_parser_spec(qlgrammar.start, allow_rebuild=False)
+        spec = parsing.load_parser_spec(qlgrammar.start)
         rust_parser.save_spec(spec)
 
 
