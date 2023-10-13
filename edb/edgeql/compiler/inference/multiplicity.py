@@ -553,7 +553,7 @@ def _infer_stmt_multiplicity(
     scope_tree: irast.ScopeTreeNode,
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
-    # WITH block bindings need to be validated, they don't have to
+    # WITH block bindings need to be validated; they don't have to
     # have multiplicity UNIQUE, but their sub-expressions must be valid.
     for part in (ir.bindings or []):
         infer_multiplicity(part, scope_tree=scope_tree, ctx=ctx)
@@ -649,6 +649,11 @@ def __infer_insert_stmt(
     scope_tree: irast.ScopeTreeNode,
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
+    # WITH block bindings need to be validated, they don't have to
+    # have multiplicity UNIQUE, but their sub-expressions must be valid.
+    for part in (ir.bindings or []):
+        infer_multiplicity(part, scope_tree=scope_tree, ctx=ctx)
+
     # INSERT will always return a proper set, but we still want to
     # process the sub-expressions.
     infer_multiplicity(
