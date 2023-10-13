@@ -8223,3 +8223,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''',
             __typenames__=True
         )
+
+    async def test_edgeql_type_pointer_backlink_01(self):
+        # Type injection on bare backlinks was broken in 3.x (#5930)
+        await self.con._fetchall(
+            r'''
+            select schema::Type {name, refs := .<target[is schema::Pointer]};
+            ''',
+            __typenames__=True
+        )
