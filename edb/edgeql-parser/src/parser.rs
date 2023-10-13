@@ -222,7 +222,6 @@ pub struct Spec {
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(untagged))]
 pub enum Action {
     Shift(usize),
     Reduce(Reduce),
@@ -595,22 +594,18 @@ impl Terminal {
 }
 
 #[cfg(feature = "serde")]
-impl Spec {
-    pub fn from_json(j_spec: &str) -> Result<Spec, String> {
-        #[derive(Debug, serde::Serialize, serde::Deserialize)]
-        struct SpecJson {
-            pub actions: Vec<Vec<(String, Action)>>,
-            pub goto: Vec<Vec<(String, usize)>>,
-            pub start: String,
-            pub inlines: Vec<(usize, u8)>,
-            pub production_names: Vec<(String, String)>,
-        }
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct SpecSerializable {
+    pub actions: Vec<Vec<(String, Action)>>,
+    pub goto: Vec<Vec<(String, usize)>>,
+    pub start: String,
+    pub inlines: Vec<(usize, u8)>,
+    pub production_names: Vec<(String, String)>,
+}
 
-        let v = serde_json::from_str::<SpecJson>(j_spec).map_err(|e| e.to_string())?;
-
-        let spec_pack = rmp_serde::to_vec(&v).unwrap();
-        std::fs::write("./spec.mp", spec_pack).unwrap();
-
+#[cfg(feature = "serde")]
+impl From<SpecSerializable> for Spec {
+    fn from(v: SpecSerializable) -> Spec {
         let actions = v
             .actions
             .into_iter()
@@ -619,13 +614,14 @@ impl Spec {
             .collect();
         let goto = v.goto.into_iter().map(IndexMap::from_iter).collect();
         let inlines = IndexMap::from_iter(v.inlines);
-        Ok(Spec {
+
+        Spec {
             actions,
             goto,
             start: v.start,
             inlines,
             production_names: v.production_names,
-        })
+        }
     }
 }
 

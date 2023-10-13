@@ -924,6 +924,13 @@ class build_rust(setuptools_rust.build.build_rust):
         for src, dst in copy_list:
             shutil.copyfile(src, dst)
 
+        # invoke edgeql-parser to generate the parser spec
+        from edb.common import parsing
+        from edb.edgeql.parser import grammar as qlgrammar
+        import edb._edgeql_parser as rust_parser
+        spec = parsing.load_parser_spec(qlgrammar.start, allow_rebuild=False)
+        rust_parser.save_spec(spec)
+
 
 def _version():
     from edb import buildmeta

@@ -244,7 +244,6 @@ dependencies = [
  "append-only-vec",
  "base32",
  "bigdecimal",
- "bitcode",
  "bumpalo",
  "cpython",
  "edgeql-parser-derive",

@@ -189,7 +189,7 @@ def should_preload_parser(
 
 
 def preload_parser() -> None:
-    qlparser.preload(allow_rebuild=True)
+    qlparser.preload()
 
 
 class BaseSyntaxTest(BaseDocTest, PreloadParserGrammarMixin):
