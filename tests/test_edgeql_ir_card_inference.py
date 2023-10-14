@@ -1269,3 +1269,42 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         """
         select User { [is schema::Object].name }
         """
+
+    def test_edgeql_ir_card_inference_151(self):
+        # lnk has a *delegated* constraint
+        """
+        select Tgt { back := .<lnk[is Src] }
+% OK %
+        back: MANY
+        """
+
+    def test_edgeql_ir_card_inference_152(self):
+        """
+        select Tgt { back := .<lnk[is SrcSub1] }
+% OK %
+        back: AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_153(self):
+        # Constraint is delegated, shouldn't apply here
+        """
+        select Named filter .name = ''
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_154(self):
+        # Constraint is delegated, shouldn't apply here
+        """
+        select Named2 filter .name = ''
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_155(self):
+        # But should apply to this subtype
+        """
+        select Named2Sub filter .name = ''
+% OK %
+        AT_MOST_ONE
+        """
