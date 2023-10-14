@@ -1055,6 +1055,8 @@ def get_object_exclusive_constraints(
             # We ignore constraints with except expressions, because
             # they can't actually ensure cardinality
             and not constr.get_except_expr(schema)
+            # And delegated constraints can't either
+            and not constr.get_delegated(schema)
         ):
             if subjectexpr.refs is None:
                 continue

@@ -786,6 +786,7 @@ class Pointer(referencing.NamedReferencedInheritingObject,
             if (
                 constr.issubclass(schema, exclusive)
                 and not constr.get_subjectexpr(schema)
+                and not constr.get_delegated(schema)
             ):
                 assert not constr.get_except_expr(schema)
                 constrs.append(constr)
