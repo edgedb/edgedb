@@ -35,7 +35,6 @@ from setuptools.command import build_ext as setuptools_build_ext
 import distutils
 
 import Cython.Build
-import parsing
 import setuptools_rust
 
 
@@ -828,7 +827,7 @@ class build_ui(setuptools.Command):
 
 class build_parsers(setuptools.Command):
 
-    description = "build the parsers"
+    description = "build and serialize the parser grammar spec"
 
     build_lib: str
     target_root: pathlib.Path
@@ -839,10 +838,6 @@ class build_parsers(setuptools.Command):
         ('inplace', None,
          'ignore build-lib and put compiled parsers into the source directory '
          'alongside your pure Python modules')]
-
-    sources = [
-        "edb.edgeql.parser.grammar.start",
-    ]
 
     def initialize_options(self):
         self.editable_mode = False
@@ -859,29 +854,19 @@ class build_parsers(setuptools.Command):
         else:
             self.target_root = pathlib.Path(self.build_lib)
 
-    def get_output_mapping(self) -> dict[str, str]:
-        return {
-            str(self.target_root / src.parent / f"{src.stem}.pickle"): str(src)
-            for src in self._get_source_files()
-        }
-
-    def get_outputs(self) -> list[str]:
-        return list(self.get_output_mapping())
-
-    def get_source_files(self) -> list[str]:
-        return [str(src) for src in self._get_source_files()]
-
     def run(self, *args, **kwargs):
-        for src, dst in zip(self.sources, self.get_outputs()):
-            os.makedirs(os.path.dirname(dst), exist_ok=True)
-            spec_mod = importlib.import_module(src)
-            parsing.Spec(spec_mod, pickleFile=dst, verbose=True)
+        # load grammar definitions and build the parser
+        from edb.common import parsing
+        from edb.edgeql.parser import grammar as qlgrammar       
+        spec = parsing.load_parser_spec(qlgrammar.start)
 
-    def _get_source_files(self) -> list[pathlib.Path]:
-        return [
-            pathlib.Path(src.replace(".", "/") + ".py")
-            for src in self.sources
-        ]
+        # prepare destination
+        dst = str(self.target_root / 'edb' / 'grammar.bc')
+        os.makedirs(os.path.dirname(dst), exist_ok=True)        
+
+        # serialize
+        import edb._edgeql_parser as rust_parser
+        rust_parser.save_spec(spec, str(dst))
 
 
 class build_rust(setuptools_rust.build.build_rust):
@@ -923,13 +908,6 @@ class build_rust(setuptools_rust.build.build_rust):
 
         for src, dst in copy_list:
             shutil.copyfile(src, dst)
-
-        # invoke edgeql-parser to generate the parser spec
-        from edb.common import parsing
-        from edb.edgeql.parser import grammar as qlgrammar
-        import edb._edgeql_parser as rust_parser
-        spec = parsing.load_parser_spec(qlgrammar.start)
-        rust_parser.save_spec(spec)
 
 
 def _version():

@@ -24,7 +24,6 @@ from edb.common import parsing
 
 import edb._edgeql_parser as rust_parser
 
-from . import grammar as qlgrammar
 from .grammar import tokens
 
 from .. import ast as qlast

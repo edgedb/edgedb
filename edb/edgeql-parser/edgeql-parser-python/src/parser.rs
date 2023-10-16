@@ -125,20 +125,20 @@ pub fn preload_spec(py: Python) -> PyResult<PyNone> {
 }
 
 /// Serialize the grammar specification and write it to a file.
-/// 
+///
 /// Called from setup.py.
-pub fn save_spec(py: Python, py_spec: &PyObject) -> PyResult<PyNone> {
+pub fn save_spec(py: Python, py_spec: &PyObject, dst: &PyString) -> PyResult<PyNone> {
     let spec = spec_from_python(py, py_spec)?;
     let spec_serialized = bitcode::serialize(&spec).unwrap();
 
-    std::fs::write("./grammar.bc", spec_serialized)
-        .ok()
-        .unwrap();
+    let dst = dst.to_string(py)?.to_string();
+
+    std::fs::write(dst, spec_serialized).ok().unwrap();
     Ok(PyNone)
 }
 
 fn load_spec() -> parser::Spec {
-    let bytes = std::fs::read("./grammar.bc").ok().unwrap();
+    let bytes = std::fs::read("./edb/grammar.bc").ok().unwrap();
 
     bitcode::deserialize::<parser::SpecSerializable>(&bytes)
         .unwrap()
