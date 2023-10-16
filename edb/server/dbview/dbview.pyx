@@ -976,6 +976,7 @@ cdef class DatabaseConnectionView:
         self,
         query_req: QueryRequestInfo,
         cached_globally=False,
+        use_metrics=True,
     ) -> CompiledQuery:
         source = query_req.source
         if cached_globally:
@@ -1038,11 +1039,12 @@ cdef class DatabaseConnectionView:
             else:
                 self.cache_compiled_query(query_req, query_unit_group)
 
-        metrics.edgeql_query_compilations.inc(
-            1.0,
-            self.tenant.get_instance_name(),
-            'cache' if cached else 'compiler',
-        )
+        if use_metrics:
+            metrics.edgeql_query_compilations.inc(
+                1.0,
+                self.tenant.get_instance_name(),
+                'cache' if cached else 'compiler',
+            )
 
         return CompiledQuery(
             query_unit_group=query_unit_group,
