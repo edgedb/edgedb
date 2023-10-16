@@ -1490,7 +1490,7 @@ class NamedTuple(Nonterm):
 class NamedTupleElement(Nonterm):
     def reduce_ShortNodeName_ASSIGN_Expr(self, *kids):
         self.val = qlast.TupleElement(
-            name=kids[0].val,
+            name=qlast.Ptr(ptr=kids[0].val, context=kids[0].val.context),
             val=kids[2].val
         )
 

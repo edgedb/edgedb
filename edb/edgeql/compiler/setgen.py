@@ -2049,7 +2049,7 @@ def get_globals_as_json(
 
             main_param = subctx.create_anchor(param, 'a')
             tuple_el = qlast.TupleElement(
-                name=qlast.ObjectRef(name=name),
+                name=qlast.Ptr(ptr=qlast.ObjectRef(name=name)),
                 val=qlast.BinOp(
                     op='??',
                     left=qlast.TypeCast(expr=main_param, type=json_type),
