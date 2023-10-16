@@ -528,7 +528,10 @@ class ci_helper(setuptools.Command):
         if self.type == 'parsers':
             parser_hash = hash_dirs(
                 [(pkg_dir / 'edgeql/parser/grammar', '.py')],
-                extra_files=[pkg_dir / 'edgeql-parser/src/keywords.rs'],
+                extra_files=[
+                    pkg_dir / 'edgeql-parser/src/keywords.rs',
+                    pkg_dir / 'edgeql-parser/edgeql-parser-python/src/parser.rs'
+                ],
             )
             print(binascii.hexlify(parser_hash).decode())
 
