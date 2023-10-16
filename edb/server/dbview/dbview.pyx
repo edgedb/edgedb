@@ -984,7 +984,11 @@ cdef class DatabaseConnectionView:
             # or anything from std schema, for example:
             #     YES:  select ext::auth::UIConfig { ... }
             #     NO:   select default::User { ... }
-            query_unit_group = self.server.system_compile_cache.get(query_req)
+            query_unit_group = (
+                self.server.system_compile_cache.get(query_req)
+                if self._query_cache_enabled
+                else None
+            )
         else:
             query_unit_group = self.lookup_compiled_query(query_req)
         cached = True
