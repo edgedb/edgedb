@@ -91,7 +91,7 @@ idle_client_connections = registry.new_labeled_counter(
 edgeql_query_compilations = registry.new_labeled_counter(
     'edgeql_query_compilations_total',
     'Number of compiled/cached queries or scripts.',
-    labels=('path',)
+    labels=('tenant', 'path')
 )
 
 edgeql_query_compilation_duration = registry.new_histogram(

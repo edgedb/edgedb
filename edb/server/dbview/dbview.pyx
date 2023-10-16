@@ -1036,7 +1036,8 @@ cdef class DatabaseConnectionView:
 
         metrics.edgeql_query_compilations.inc(
             1.0,
-            'cache' if cached else 'compiler'
+            self.tenant.get_instance_name(),
+            'cache' if cached else 'compiler',
         )
 
         return CompiledQuery(
