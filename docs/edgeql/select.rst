@@ -843,8 +843,8 @@ shapes just like a non-computed link.
   } filter .name = "Iron Man";
 
 
-Using backlinks to find items
------------------------------
+Filtering on a known backlink
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Another handy use for backlinks is using them to filter and find items
 when doing a ```select`` (or an ``update`` or other operation, of course).
@@ -875,6 +875,8 @@ of this id links to via a link called ``characters``".
 
 A backlink is naturally not required, however. The same operation without
 traversing a backlink would look like this:
+
+.. code-block:: edgeql-repl
 
     db> with movie := 
     ...   <Movie><uuid>'6c60c28a-5c03-11ee-99ff-dfa425012a05',
