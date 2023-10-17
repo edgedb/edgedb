@@ -30,6 +30,7 @@ Standard Library
     objects
     abstract
     constraints
+    fts
     sys
     cfg
     pgvector
@@ -97,6 +98,7 @@ Utilities
 - :ref:`Math <ref_std_math>`
 - :ref:`Comparison <ref_std_generic>`
 - :ref:`Constraints <ref_std_constraints>`
+- :ref:`Full-text Search <ref_std_fts>`
 - :ref:`System <ref_std_sys>`
 
 Extensions
