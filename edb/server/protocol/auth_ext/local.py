@@ -20,6 +20,7 @@ import argon2
 import json
 import hashlib
 import base64
+import dataclasses
 
 from typing import Any
 from edb.errors import ConstraintViolationError
@@ -30,14 +31,20 @@ from . import errors, util, data
 ph = argon2.PasswordHasher()
 
 
+@dataclasses.dataclass
+class EmailPasswordProviderConfig:
+    name: str
+    require_verification: bool
+
+
 class Client:
     def __init__(self, db: Any, provider_name: str):
         self.db = db
 
         match provider_name:
             case "builtin::local_emailpassword":
-                self._get_provider_config(provider_name)
-                self.provider = EmailPasswordProvider()
+                provider_config = self._get_provider_config(provider_name)
+                self.provider = EmailPasswordProvider(provider_config)
             case _:
                 raise errors.InvalidData(f"Invalid provider: {provider_name}")
 
@@ -63,21 +70,30 @@ class Client:
         return await self.provider.update_password(
             self.db, *args, **kwargs)
 
-    def _get_provider_config(self, provider_name: str):
+    def _get_provider_config(
+        self, provider_name: str
+    ) -> EmailPasswordProviderConfig:
         provider_client_config = util.get_config(
             self.db, "ext::auth::AuthConfig::providers", frozenset
         )
         for cfg in provider_client_config:
             if cfg.name == provider_name:
-                return cfg
+                return EmailPasswordProviderConfig(
+                    name=cfg.name,
+                    require_verification=cfg.require_verification,
+                )
 
         raise errors.MissingConfiguration(
-            provider_name,
-            f"Provider is not configured"
+            provider_name, f"Provider is not configured"
         )
 
 
 class EmailPasswordProvider:
+    config: EmailPasswordProviderConfig
+
+    def __init__(self, config: EmailPasswordProviderConfig):
+        self.config = config
+
     async def register(self, db: Any, input: dict[str, Any]):
         match (input.get("email"), input.get("password")):
             case (str(e), str(p)):
@@ -216,7 +232,6 @@ select ext::auth::EmailPasswordFactor {
     async def validate_reset_secret(
         self, db: Any, identity_id: str, secret: str
     ):
-
         r = await execute.parse_execute_json(
             db=db,
             query="""\
@@ -272,7 +287,7 @@ filter .identity.id = identity_id
 set { password_hash := new_hash };""",
             variables={
                 'identity_id': identity_id,
-                'new_hash': ph.hash(password)
+                'new_hash': ph.hash(password),
             },
             cached_globally=True,
         )

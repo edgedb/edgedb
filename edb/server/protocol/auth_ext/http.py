@@ -29,6 +29,7 @@ import hashlib
 import os
 import random
 import mimetypes
+import uuid
 
 from typing import *
 
@@ -265,48 +266,101 @@ class Router:
                 case ("register",):
                     data = self._get_data_from_request(request)
 
+                    maybe_redirect_to = data.get("redirect_to")
+                    maybe_challenge = data.get("challenge")
                     register_provider_name = data.get("provider")
                     if register_provider_name is None:
                         raise errors.InvalidData(
                             'Missing "provider" in register request'
                         )
-                    maybe_challenge = data.get("challenge")
-                    if maybe_challenge is None:
-                        raise errors.InvalidData(
-                            'Missing "challenge" in register request'
-                        )
-                    await pkce.create(self.db, maybe_challenge)
 
                     local_client = local.Client(
                         db=self.db, provider_name=register_provider_name
                     )
+                    require_verification = (
+                        local_client.provider.config.require_verification
+                    )
+
+                    if not require_verification:
+                        if maybe_challenge is None:
+                                raise errors.InvalidData(
+                                    'Missing "challenge" in register request'
+                                )
+                        await pkce.create(self.db, maybe_challenge)
+
                     try:
                         identity = await local_client.register(data)
-                        pkce_code = await pkce.link_identity_challenge(
-                            self.db, identity.id, maybe_challenge
+                        if not require_verification:
+                            pkce_code = await pkce.link_identity_challenge(
+                                self.db, identity.id, maybe_challenge
+                            )
+
+                        # Generate verification token
+                        verification_token = self._make_secret_token(
+                            identity_id=identity.id,
+                            secret=uuid.uuid4(),
+                            additional_claims={
+                                "challenge": maybe_challenge,
+                                "redirect_to": maybe_redirect_to,
+                            },
+                            expires_in=datetime.timedelta(hours=24),
                         )
-                        if data.get("redirect_to") is not None:
+                        from_addr = util.get_config(
+                            self.db, "ext::auth::SMTPConfig::sender"
+                        )
+                        msg = ui.render_verification_email(
+                            from_addr=from_addr,
+                            to_addr=data["email"],
+                            secret_token=secret_token,
+                        )
+                        coro = smtp.send_email(
+                            self.db,
+                            msg,
+                            sender=from_addr,
+                            recipients=data["email"],
+                            test_mode=self.test_mode,
+                        )
+                        task = self.tenant.create_task(
+                            coro, interruptable=False
+                        )
+                        await asyncio.sleep(random.random() * 0.5)
+                        if task.done():
+                            await task
+
+                        now_iso8601 = datetime.datetime.now(
+                            datetime.timezone.utc
+                        ).isoformat()
+                        if maybe_redirect_to is not None:
                             response.status = http.HTTPStatus.FOUND
                             redirect_params = urllib.parse.urlencode(
-                                {
-                                    "code": pkce_code,
-                                }
+                                {"verification_email_sent_at": now_iso8601}
+                                if require_verification
+                                else {"code": pkce_code}
                             )
                             redirect_url = (
-                                f"{data['redirect_to']}?{redirect_params}"
+                                f"{maybe_redirect_to}?{redirect_params}"
                             )
                             response.custom_headers["Location"] = redirect_url
                         else:
                             response.status = http.HTTPStatus.CREATED
                             response.content_type = b"application/json"
-                            response.body = json.dumps(
-                                {
-                                    "code": pkce_code
-                                }
-                            ).encode()
+                            if require_verification:
+                                response.body = json.dumps(
+                                    {
+                                        "verification_email_sent_at": (
+                                            now_iso8601
+                                        )
+                                    }
+                                ).encode()
+                            else:
+                                response.body = json.dumps(
+                                    {
+                                        "code": pkce_code
+                                    }
+                                ).encode()
                     except Exception as ex:
                         redirect_on_failure = data.get(
-                            "redirect_on_failure", data.get("redirect_to")
+                            "redirect_on_failure", maybe_redirect_to
                         )
                         if redirect_on_failure is not None:
                             response.status = http.HTTPStatus.FOUND
@@ -409,7 +463,7 @@ class Router:
                         identity, secret = (
                             await local_client.get_identity_and_secret(data))
 
-                        new_reset_token = self._make_reset_token(
+                        new_reset_token = self._make_secret_token(
                             identity.id, secret
                         )
 
@@ -924,15 +978,21 @@ class Router:
             raise errors.InvalidData("Invalid state token")
         return value
 
-    def _make_reset_token(self, identity_id: str, secret: str) -> str:
+    def _make_secret_token(
+        self,
+        identity_id: str,
+        secret: str,
+        additional_claims: dict[str, str | int | float | bool | None] = {},
+        expires_in: datetime.timedelta = datetime.timedelta(minutes=10)
+    ) -> str:
         signing_key = self._get_auth_signing_key()
-        expires_in = datetime.timedelta(minutes=10)
         expires_at = datetime.datetime.now(datetime.timezone.utc) + expires_in
 
         claims: dict[str, Any] = {
             "iss": self.base_path,
             "sub": identity_id,
             "jti": secret,
+            **additional_claims,
         }
         if expires_in.total_seconds() != 0:
             claims["exp"] = expires_at.timestamp()
