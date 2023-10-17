@@ -960,6 +960,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 if self._cancelled:
                     raise ConnectionAbortedError
             else:
+                metrics.edgeql_query_compilations.inc(
+                    1.0, self.get_tenant_label(), 'cache'
+                )
                 compiled = dbview.CompiledQuery(
                     query_unit_group=query_unit_group,
                     first_extra=query_req.source.first_extra(),
@@ -994,7 +997,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if self.debug:
             self.debug_print('EXECUTE', query_req.source.text())
 
-        metrics.edgeql_query_compilations.inc(1.0, 'cache')
         force_script = any(x.needs_readback for x in query_unit_group)
         if (
             _dbview.in_tx_error()
