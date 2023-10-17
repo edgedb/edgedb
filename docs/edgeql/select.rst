@@ -847,43 +847,39 @@ Using backlinks to find items
 -----------------------------
 
 Another handy use for backlinks is using them to filter and find items
-such as during an update. This can work as a nice shortcut when you have
-the id of one object that links to a second object without a link back
-to the first.
+when doing a ```select`` (or an ``update`` or other operation, of course).
+This can work as a nice shortcut when you have the id of one object that
+links to a second object without a link back to the first.
 
 Spider-Man's villains always have a grudging respect for him, and their names
-can be changed to reflect that if we know the id of a movie that they starred
-in. (Note the ability to :ref:`cast <ref_eql_casts>` from a ``uuid`` to an
-object type, which was added in EdgeDB 3.0!)
+can be displayed to reflect that if we know the id of a movie that they
+starred in. (Note the ability to :ref:`cast <ref_eql_casts>` from a ``uuid``
+to an object type, which was added in EdgeDB 3.0!)
 
 .. code-block:: edgeql-repl
     
-    db> update Villain filter .<characters = 
-    ...   <Movie><uuid>'6c60c28a-5c03-11ee-99ff-dfa425012a05'
-    ...   set { 
+    db> select Villain filter .<characters = 
+    ...   <Movie><uuid>'6c60c28a-5c03-11ee-99ff-dfa425012a05' { 
     ...     name := .name ++ ', who got to see Spider-Man!' 
     ...   };
+    {
+      'Obadiah Stane',
+      'Sandman, who got to see Spider-Man!',
+      'Electro, who got to see Spider-Man!',
+      'Green Goblin, who got to see Spider-Man!',
+      'Doc Ock, who got to see Spider-Man!',
+    }
 
-    db> select Villain.name;
-      {
-        'Obadiah Stane',
-        'Sandman, who got to see Spider-Man!',
-        'Electro, who got to see Spider-Man!',
-        'Green Goblin, who got to see Spider-Man!',
-        'Doc Ock, who got to see Spider-Man!',
-      }
-
-In other words, "update every ``Villain`` object that the ``Movie`` object
+In other words, "select every ``Villain`` object that the ``Movie`` object
 of this id links to via a link called ``characters``".
 
-A backlink is naturally not required, however. The same update without
+A backlink is naturally not required, however. The same operation without
 traversing a backlink would look like this:
 
     db> with movie := 
     ...   <Movie><uuid>'6c60c28a-5c03-11ee-99ff-dfa425012a05',
-    ...     update movie.characters[is Villain] 
-    ...        set {
-    ...     name := .name ++ ', who got to see Spider-Man!'
+    ...     select movie.characters[is Villain] {
+    ...       name := .name ++ ', who got to see Spider-Man!'
     ...   };
 
 .. _ref_eql_select_subqueries:
