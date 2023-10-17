@@ -34,7 +34,6 @@ from edb.schema import pointers as s_pointers
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
-from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 
@@ -743,7 +742,7 @@ def trace_Path(
                     tip = ctx.schema.get(refname, sourcectx=step.context)
 
         elif isinstance(step, qlast.Ptr):
-            pname = s_utils.ast_ref_to_unqualname(step.ptr)
+            pname = sn.UnqualName(step.name)
 
             if i == 0:
                 # Abbreviated path.
@@ -783,7 +782,7 @@ def trace_Path(
                                 src_src_name, src_name.name)
                         else:
                             source_name = src_name
-                        ctx.refs.add(qualify_name(source_name, step.ptr.name))
+                        ctx.refs.add(qualify_name(source_name, step.name))
             else:
                 if step.direction == '<':
                     if plen > i + 1 and isinstance(node.steps[i + 1],
@@ -804,7 +803,7 @@ def trace_Path(
                             if (isinstance(obj, (s_pointers.Pointer,
                                                  Pointer)) and
                                 fqname.name.split('@', 1)[1] ==
-                                    step.ptr.name):
+                                    step.name):
 
                                 target = obj.get_target(ctx.schema)
                                 # Ignore scalars, but include other
@@ -820,8 +819,7 @@ def trace_Path(
                 else:
                     if isinstance(tip, (Source, s_sources.Source)):
                         ptr = tip.maybe_get_ptr(
-                            ctx.schema,
-                            s_utils.ast_ref_to_unqualname(step.ptr),
+                            ctx.schema, sn.UnqualName(step.name)
                         )
                         if ptr is None:
                             # Invalid pointer reference, bail.
@@ -832,7 +830,7 @@ def trace_Path(
                         if ptr_source is not None:
                             sname = ptr_source.get_name(ctx.schema)
                             assert isinstance(sname, sn.QualName)
-                            ctx.refs.add(qualify_name(sname, step.ptr.name))
+                            ctx.refs.add(qualify_name(sname, step.name))
                             tip = ptr.get_target(ctx.schema)
 
                             if tip is None:
@@ -872,8 +870,7 @@ def trace_Path(
                 if prev_step.direction == '<':
                     if isinstance(tip, (s_sources.Source, ObjectType)):
                         ptr = tip.maybe_get_ptr(
-                            ctx.schema,
-                            s_utils.ast_ref_to_unqualname(prev_step.ptr),
+                            ctx.schema, sn.UnqualName(prev_step.name)
                         )
                         if ptr is None:
                             # Invalid pointer reference, bail.
@@ -881,8 +878,7 @@ def trace_Path(
 
                         if isinstance(tip, Type):
                             tip_name = tip.get_name(ctx.schema)
-                            ctx.refs.add(qualify_name(
-                                tip_name, prev_step.ptr.name))
+                            ctx.refs.add(qualify_name(tip_name, prev_step.name))
 
         elif isinstance(step, qlast.Splat):
             if step.type is not None:

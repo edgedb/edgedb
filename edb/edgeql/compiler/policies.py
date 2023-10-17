@@ -227,8 +227,7 @@ def get_rewrite_filter(
     if mode == qltypes.AccessKind.Select:
         bogus_check = qlast.BinOp(
             op='?=',
-            left=qlast.Path(partial=True, steps=[qlast.Ptr(
-                ptr=qlast.ObjectRef(name='id'))]),
+            left=qlast.Path(partial=True, steps=[qlast.Ptr(name='id')]),
             right=qlast.TypeCast(
                 type=qlast.TypeName(maintype=qlast.ObjectRef(
                     module='__std__', name='uuid')),

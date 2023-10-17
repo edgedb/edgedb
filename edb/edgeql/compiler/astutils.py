@@ -110,7 +110,7 @@ def is_nontrivial_shape_element(shape_el: qlast.ShapeElement) -> bool:
 
 
 def extend_path(expr: qlast.Expr, field: str) -> qlast.Path:
-    step = qlast.Ptr(ptr=qlast.ObjectRef(name=field))
+    step = qlast.Ptr(name=field)
 
     if isinstance(expr, qlast.Path):
         return qlast.Path(

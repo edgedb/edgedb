@@ -173,19 +173,6 @@ def normalize_ObjectRef(
 
 
 @normalize.register
-def normalize_Ptr(
-    ref: qlast.Ptr,
-    *,
-    schema: s_schema.Schema,
-    modaliases: Mapping[Optional[str], str],
-    localnames: AbstractSet[str] = frozenset(),
-) -> None:
-    # Make sure we don't normalize the ptr ObjectRef.
-    # (Why is it even an ObjectRef?)
-    pass
-
-
-@normalize.register
 def normalize_DDL(
     node: qlast.DDL,
     *,

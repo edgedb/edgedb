@@ -3300,22 +3300,22 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         new_shortname = sn.shortname_from_fullname(self.new_name)
         old_shortname = sn.shortname_from_fullname(self.classname).name
         for ref in compiled.irast.schema_ref_exprs.get(self.scls, []):
-            if isinstance(ref, qlast.Ptr):
-                ref = ref.ptr
-
-            assert isinstance(ref, (qlast.ObjectRef, qlast.FunctionCall)), (
-                f"only support object refs and func calls but got {ref}")
+            assert isinstance(
+                ref,
+                (qlast.ObjectRef, qlast.FunctionCall, qlast.Ptr)
+            ), f"only support object refs and func calls but got {ref}"
             if isinstance(ref, qlast.FunctionCall):
                 ref.func = ((new_shortname.module, new_shortname.name)
                             if isinstance(new_shortname, sn.QualName)
                             else new_shortname.name)
             elif (
-                isinstance(ref, qlast.ObjectRef)
+                isinstance(ref, (qlast.Ptr, qlast.ObjectRef))
                 and ref.name == old_shortname
             ):
                 ref.name = new_shortname.name
                 if (
                     isinstance(new_shortname, sn.QualName)
+                    and isinstance(ref, qlast.ObjectRef)
                     and new_shortname.module != "__"
                 ):
                     ref.module = new_shortname.module

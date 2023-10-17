@@ -104,9 +104,7 @@ def compile_and_apply_ddl_stmt(
                             qlast.ObjectRef(
                                 name='MigrationGeneratedBy', module='schema'
                             ),
-                            qlast.Ptr(
-                                ptr=qlast.ObjectRef(name='DDLStatement')
-                            ),
+                            qlast.Ptr(name='DDLStatement'),
                         ]
                     ),
                 )

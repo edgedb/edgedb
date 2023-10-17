@@ -287,7 +287,7 @@ class GraphQLTranslator:
                     else:
                         raise err
 
-                name = el.expr.steps[0].ptr.name
+                name = el.expr.steps[0].name
                 el.compexpr.args[0] = qlast.StringConstant.from_python(
                     json.dumps(result.data[name]))
                 for var in vars.touched:
@@ -514,11 +514,7 @@ class GraphQLTranslator:
                     maintype=base.edb_base_name_ast
                 )
             ))
-        steps.append(qlast.Ptr(
-            ptr=qlast.ObjectRef(
-                name=node.name.value
-            )
-        ))
+        steps.append(qlast.Ptr(name=node.name.value))
 
         return is_top, path, prevt, target, steps
 
@@ -542,9 +538,7 @@ class GraphQLTranslator:
             spec = qlast.ShapeElement(
                 expr=qlast.Path(
                     steps=[qlast.Ptr(
-                        ptr=qlast.ObjectRef(
-                            name=(node.alias or node.name).value
-                        )
+                        name=(node.alias or node.name).value,
                     )]
                 ),
                 compexpr=eql,
@@ -568,10 +562,8 @@ class GraphQLTranslator:
             spec = qlast.ShapeElement(
                 expr=qlast.Path(
                     steps=[qlast.Ptr(
-                        ptr=qlast.ObjectRef(
-                            # this is already a sub-query
-                            name=(node.alias or node.name).value
-                        )
+                        # this is already a sub-query
+                        name=(node.alias or node.name).value
                     )]
                 ),
                 compexpr=eql,
@@ -586,10 +578,8 @@ class GraphQLTranslator:
             spec = qlast.ShapeElement(
                 expr=qlast.Path(
                     steps=[qlast.Ptr(
-                        ptr=qlast.ObjectRef(
-                            # this is already a sub-query
-                            name=(node.alias or node.name).value
-                        )
+                        # this is already a sub-query
+                        name=(node.alias or node.name).value
                     )]
                 ),
                 compexpr=eql,
@@ -989,8 +979,7 @@ class GraphQLTranslator:
                     fname = field.name.value
                     # capture the full path to the field being updated
                     eqlpath = self.get_path_prefix()
-                    eqlpath.append(
-                        qlast.Ptr(ptr=qlast.ObjectRef(name=fname)))
+                    eqlpath.append(qlast.Ptr(name=fname))
                     eqlpath = qlast.Path(steps=eqlpath)
 
                     # set-up the current path to point to the thing
@@ -1003,13 +992,7 @@ class GraphQLTranslator:
                         result.append(
                             qlast.ShapeElement(
                                 expr=qlast.Path(
-                                    steps=[
-                                        qlast.Ptr(
-                                            ptr=qlast.ObjectRef(
-                                                name=field.name.value
-                                            )
-                                        )
-                                    ]
+                                    steps=[qlast.Ptr(name=field.name.value)]
                                 ),
                                 operation=qlast.ShapeOperation(op=shapeop),
                                 compexpr=value,
@@ -1037,7 +1020,7 @@ class GraphQLTranslator:
         fname = field.name.value
         # by default we expect an assign
         shapeop = qlast.ShapeOp.ASSIGN
-        ptrname = eqlpath.steps[-1].ptr.name
+        ptrname = eqlpath.steps[-1].name
 
         # NOTE: there will be more operations in the future
         if fname == 'set':
@@ -1157,11 +1140,7 @@ class GraphQLTranslator:
                 result.append(
                     qlast.ShapeElement(
                         expr=qlast.Path(
-                            steps=[
-                                qlast.Ptr(
-                                    ptr=qlast.ObjectRef(name=field.name.value)
-                                )
-                            ]
+                            steps=[qlast.Ptr(name=field.name.value)]
                         ),
                         compexpr=compexpr,
                     )
@@ -1459,9 +1438,7 @@ class GraphQLTranslator:
                     )
                 )
             else:
-                prefix.append(
-                    qlast.Ptr(ptr=qlast.ObjectRef(name=step.name))
-                )
+                prefix.append(qlast.Ptr(name=step.name))
 
         return prefix
 
@@ -1531,7 +1508,7 @@ class GraphQLTranslator:
         _, target = self._get_parent_and_current_type()
 
         name = self.get_path_prefix()
-        name.append(qlast.Ptr(ptr=qlast.ObjectRef(name=fname)))
+        name.append(qlast.Ptr(name=fname))
         name = qlast.Path(
             steps=name,
             # paths that start with a Ptr are partial
@@ -1599,7 +1576,7 @@ class GraphQLTranslator:
         if not node.fields:
             return [qlast.SortExpr(
                 path=qlast.Path(
-                    steps=[qlast.Ptr(ptr=qlast.ObjectRef(name='id'))],
+                    steps=[qlast.Ptr(name='id')],
                     partial=True,
                 ),
                 direction=qlast.SortAsc,
@@ -1612,8 +1589,7 @@ class GraphQLTranslator:
             orderby.append(qlast.SortExpr(
                 path=qlast.Path(
                     steps=[
-                        qlast.Ptr(ptr=qlast.ObjectRef(name=name))
-                        for name in ordering.names
+                        qlast.Ptr(name=name) for name in ordering.names
                     ],
                     partial=True,
                 ),
