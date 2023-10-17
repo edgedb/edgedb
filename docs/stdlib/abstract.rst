@@ -25,6 +25,18 @@ Abstract types are used to describe polymorphic functions, otherwise known as
 ----------
 
 
+.. eql:type:: std::anyobject
+
+    :index: any anytype object
+
+    An abstract base object type.
+
+    All object types are derived from this type.
+
+
+----------
+
+
 .. eql:type:: std::anyscalar
 
     :index: any anytype scalar
