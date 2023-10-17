@@ -478,6 +478,7 @@ async def parse_execute_json(
     output_format: compiler.OutputFormat = compiler.OutputFormat.JSON,
     query_cache_enabled: Optional[bool] = None,
     cached_globally: bool = False,
+    use_metrics: bool = True,
 ) -> bytes:
     # WARNING: only set cached_globally to True when the query is
     # strictly referring to only shared stable objects in user schema
@@ -504,7 +505,11 @@ async def parse_execute_json(
         allow_capabilities=compiler.Capability.MODIFICATIONS,
     )
 
-    compiled = await dbv.parse(query_req, cached_globally=cached_globally)
+    compiled = await dbv.parse(
+        query_req,
+        cached_globally=cached_globally,
+        use_metrics=use_metrics,
+    )
 
     pgcon = await tenant.acquire_pgcon(db.name)
     try:

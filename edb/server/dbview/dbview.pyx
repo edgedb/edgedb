@@ -976,6 +976,7 @@ cdef class DatabaseConnectionView:
         self,
         query_req: QueryRequestInfo,
         cached_globally=False,
+        use_metrics=True,
     ) -> CompiledQuery:
         source = query_req.source
         if cached_globally:
@@ -984,7 +985,11 @@ cdef class DatabaseConnectionView:
             # or anything from std schema, for example:
             #     YES:  select ext::auth::UIConfig { ... }
             #     NO:   select default::User { ... }
-            query_unit_group = self.server.system_compile_cache.get(query_req)
+            query_unit_group = (
+                self.server.system_compile_cache.get(query_req)
+                if self._query_cache_enabled
+                else None
+            )
         else:
             query_unit_group = self.lookup_compiled_query(query_req)
         cached = True
@@ -1034,10 +1039,12 @@ cdef class DatabaseConnectionView:
             else:
                 self.cache_compiled_query(query_req, query_unit_group)
 
-        metrics.edgeql_query_compilations.inc(
-            1.0,
-            'cache' if cached else 'compiler'
-        )
+        if use_metrics:
+            metrics.edgeql_query_compilations.inc(
+                1.0,
+                self.tenant.get_instance_name(),
+                'cache' if cached else 'compiler',
+            )
 
         return CompiledQuery(
             query_unit_group=query_unit_group,
@@ -1093,7 +1100,9 @@ cdef class DatabaseConnectionView:
                 )
         finally:
             metrics.edgeql_query_compilation_duration.observe(
-                time.monotonic() - started_at)
+                time.monotonic() - started_at,
+                self.tenant.get_instance_name(),
+            )
 
         unit_group, self._last_comp_state, self._last_comp_state_id = result
 
