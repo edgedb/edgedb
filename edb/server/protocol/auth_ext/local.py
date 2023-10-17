@@ -21,6 +21,7 @@ import json
 import hashlib
 import base64
 import dataclasses
+import datetime
 
 from typing import Any
 from edb.errors import ConstraintViolationError
@@ -54,9 +55,6 @@ class Client:
     async def authenticate(self, *args, **kwargs):
         return await self.provider.authenticate(self.db, *args, **kwargs)
 
-    async def logout(self, *args, **kwargs):
-        return await self.provider.logout(*args, **kwargs)
-
     async def get_identity_and_secret(self, *args, **kwargs):
         return await self.provider.get_identity_and_secret(
             self.db, *args, **kwargs)
@@ -69,6 +67,16 @@ class Client:
     async def update_password(self, *args, **kwargs):
         return await self.provider.update_password(
             self.db, *args, **kwargs)
+
+    async def get_email_by_identity_id(self, *args, **kwargs):
+        return await self.provider.get_email_by_identity_id(
+            self.db, *args, **kwargs
+        )
+
+    async def verify_email(self, *args, **kwargs):
+        return await self.provider.verify_email(
+            self.db, *args, **kwargs
+        )
 
     def _get_provider_config(
         self, provider_name: str
@@ -293,3 +301,47 @@ set { password_hash := new_hash };""",
         )
 
         return local_identity
+
+    async def verify_email(
+        self, db: Any, identity_id: str, verified_at: datetime.datetime
+    ):
+        r = await execute.parse_execute_json(
+            db=db,
+            query="""\
+with
+  identity_id := <uuid><str>$identity_id,
+  verified_at := <datetime>$verified_at,
+update ext::auth::EmailPasswordFactor
+filter .identity.id = identity_id
+  and not exists .verified_at ?? false
+set { verified_at := verified_at };""",
+            variables={
+                "identity_id": identity_id,
+                "verified_at": verified_at,
+            },
+            cached_globally=True,
+        )
+
+        return r
+
+    async def get_email_by_identity_id(
+        self, db: Any, identity_id: str
+    ) -> str | None:
+        r = await execute.parse_execute_json(
+            db,
+            """
+            select ext::auth::EmailFactor {
+              email,
+            } filter .identity.id = <uuid>$identity_id;
+            """,
+            variables={"identity_id": identity_id},
+            cached_globally=True,
+        )
+
+        result_json = json.loads(r.decode())
+        if len(result_json == 0):
+            return None
+
+        assert len(result_json) == 1
+
+        return result_json[0]["email"]

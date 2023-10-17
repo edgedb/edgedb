@@ -56,6 +56,7 @@ async def send_verification_email(
     to_addr: str,
     verify_url: str,
     verification_token: str,
+    provider: str,
     test_mode: bool,
 ):
     from_addr = util.get_config(db, "ext::auth::SMTPConfig::sender")
@@ -63,7 +64,10 @@ async def send_verification_email(
         db, "ext::auth::AuthConfig::ui", CompositeConfigType
     )
     verification_token_params = urllib.parse.urlencode(
-        {"verification_token": verification_token}
+        {
+            "verification_token": verification_token,
+            "provider": provider,
+        }
     )
     verify_url = f"{verify_url}?{verification_token_params}"
     email_args: dict[str, str]

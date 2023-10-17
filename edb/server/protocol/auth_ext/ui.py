@@ -364,6 +364,74 @@ def render_reset_password_page(
     )
 
 
+def render_email_verification_page(
+    *,
+    base_path: str,
+    provider_name: str,
+    is_valid: bool,
+    email: str,
+    error_message: Optional[str] = None,
+    # config
+    app_name: Optional[str] = None,
+    logo_url: Optional[str] = None,
+    dark_logo_url: Optional[str] = None,
+    brand_color: Optional[str] = None
+):
+    if not is_valid:
+        content = _render_error_message(
+            f'''Verification token is invalid, it may have expired.
+            <a href="resend-verification">Try sending another reset email</a>
+            ''',
+            False
+        )
+    else:
+        content = f'''
+        {_render_error_message(error_message)}
+
+        <input type="hidden" name="provider" value="{provider_name}" />
+        <input type="hidden" name="reset_token" value="{reset_token}" />
+        <input type="hidden" name="redirect_on_failure" value="{
+          base_path}/ui/reset-password" />
+        <input type="hidden" name="redirect_to" value="{redirect_to}" />
+
+        <label for="password">New Password</label>
+        <input id="password" name="password" type="password" />
+
+        {_render_button('Sign In')}'''
+
+    return _render_base_page(
+        title=f'Reset password{f" for {app_name}" if app_name else ""}',
+        logo_url=logo_url,
+        dark_logo_url=dark_logo_url,
+        brand_color=brand_color,
+        cleanup_search_params=['error'],
+        content=f'''
+    <form method="POST" action="../reset_password">
+      <h1>{f'<span>Reset password for</span> {html.escape(app_name)}'
+           if app_name else '<span>Reset password</span>'}</h1>
+
+      {content}
+    </form>'''
+    )
+
+
+def render_resend_email_verification_page(
+    *,
+    base_path: str,
+    provider_name: str,
+    is_valid: bool,
+    email: str,
+    error_message: Optional[str] = None,
+    # config
+    app_name: Optional[str] = None,
+    logo_url: Optional[str] = None,
+    dark_logo_url: Optional[str] = None,
+    brand_color: Optional[str] = None
+):
+    # TODO: make a page that says something like "Haven't gotten the email? Click here to resend, or perhaps the email address was wrong?" and show the email address that we're attempting to send to
+    pass
+
+
 hex_color_regexp = re.compile(r'[0-9a-fA-F]{6}')
 
 
@@ -512,6 +580,46 @@ def render_password_reset_email(
 <html>
   <body>
     <a href="{reset_url}">Reset password</a>
+  </body>
+</html>
+        """,
+        "html",
+        "utf-8",
+    )
+    alternative.attach(html_msg)
+    msg.attach(alternative)
+    return msg
+
+
+def render_verification_email(
+    *,
+    from_addr: str,
+    to_addr: str,
+    verify_url: str,
+    app_name: Optional[str] = None,
+    logo_url: Optional[str] = None,
+    dark_logo_url: Optional[str] = None,
+    brand_color: Optional[str] = None,
+) -> multipart.MIMEMultipart:
+    msg = multipart.MIMEMultipart()
+    msg["From"] = from_addr
+    msg["To"] = to_addr
+    msg["Subject"] = "Verify your email"
+    alternative = multipart.MIMEMultipart('alternative')
+    plain_text_msg = mime_text.MIMEText(
+        f"""
+        {verify_url}
+        """,
+        "plain",
+        "utf-8",
+    )
+    alternative.attach(plain_text_msg)
+    html_msg = mime_text.MIMEText(
+        f"""
+<!DOCTYPE html>
+<html>
+  <body>
+    <a href="{verify_url}">Verify your email</a>
   </body>
 </html>
         """,

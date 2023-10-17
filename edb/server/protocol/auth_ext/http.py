@@ -135,7 +135,7 @@ class Router:
                     if error is not None:
                         try:
                             claims = self._verify_and_extract_claims(state)
-                            redirect_to = claims["redirect_to"]
+                            redirect_to = cast(str, claims["redirect_to"])
                         except Exception:
                             raise errors.InvalidData("Invalid state token")
 
@@ -158,12 +158,12 @@ class Router:
 
                     try:
                         claims = self._verify_and_extract_claims(state)
-                        provider_name = claims["provider"]
-                        redirect_to = claims["redirect_to"]
-                        redirect_to_on_signup = claims.get(
-                            "redirect_to_on_signup"
+                        provider_name = cast(str, claims["provider"])
+                        redirect_to = cast(str, claims["redirect_to"])
+                        redirect_to_on_signup = cast(
+                            Optional[str], claims.get("redirect_to_on_signup")
                         )
-                        challenge = claims["challenge"]
+                        challenge = cast(str, claims["challenge"])
                     except Exception:
                         raise errors.InvalidData("Invalid state token")
                     oauth_client = oauth.Client(
@@ -279,13 +279,6 @@ class Router:
                         local_client.provider.config.require_verification
                     )
 
-                    if not require_verification:
-                        if maybe_challenge is None:
-                            raise errors.InvalidData(
-                                'Missing "challenge" in register request'
-                            )
-                        await pkce.create(self.db, maybe_challenge)
-
                     try:
                         identity = await local_client.register(data)
                         if not require_verification:
@@ -293,27 +286,17 @@ class Router:
                                 raise errors.InvalidData(
                                     'Missing "challenge" in register request'
                                 )
+                            await pkce.create(self.db, maybe_challenge)
                             pkce_code = await pkce.link_identity_challenge(
                                 self.db, identity.id, maybe_challenge
                             )
 
-                        # Generate verification token
-                        verification_token = self._make_secret_token(
+                        await self._send_verification_email(
+                            provider_name=register_provider_name,
                             identity_id=identity.id,
-                            secret=str(uuid.uuid4()),
-                            additional_claims={
-                                "challenge": maybe_challenge,
-                                "redirect_to": maybe_redirect_to,
-                            },
-                            expires_in=datetime.timedelta(hours=24),
-                        )
-                        await email.send_verification_email(
-                            db=self.db,
-                            tenant=self.tenant,
                             to_addr=data["email"],
-                            verification_token=verification_token,
-                            verify_url=f"{self.base_path}/verify",
-                            test_mode=self.test_mode,
+                            maybe_challenge=maybe_challenge,
+                            maybe_redirect_to=maybe_redirect_to,
                         )
 
                         now_iso8601 = datetime.datetime.now(
@@ -386,6 +369,9 @@ class Router:
                     )
                     try:
                         identity = await local_client.authenticate(data)
+                        # TODO: check if the user is verified or not. If
+                        # `require_verification`, we should return a 40X to
+                        # indicate that the user still needs to register
 
                         pkce_code = await pkce.link_identity_challenge(
                             self.db, identity.id, maybe_challenge
@@ -430,25 +416,133 @@ class Router:
                         else:
                             raise ex
 
+                case ("verify",):
+                    data = self._get_data_from_request(request)
+
+                    _check_keyset(data, {"verification_token", "provider"})
+
+                    try:
+                        claims = self._verify_and_extract_claims(
+                            data["verification_token"]
+                        )
+                    except Exception:
+                        raise errors.InvalidData(
+                            "Could not get claims from verification token"
+                        )
+
+                    maybe_issued_at = claims.get("iat")
+                    if not isinstance(maybe_issued_at, float):
+                        raise errors.InvalidData(
+                            "Expected 'iat' claim to be a float"
+                        )
+                    issued_at = cast(float, maybe_issued_at)
+
+                    current_time = datetime.datetime.now(datetime.timezone.utc)
+                    issued_at_datetime = datetime.datetime.fromtimestamp(
+                        issued_at, datetime.timezone.utc
+                    )
+                    token_age = current_time - issued_at_datetime
+                    if token_age > datetime.timedelta(hours=24):
+                        response.status = http.HTTPStatus.FORBIDDEN
+                        response.content_type = b"application/json"
+                        response.body = json.dumps({
+                            "message": (
+                                "The 'iat' claim in verification token is older"
+                                " than 24 hours"
+                            )
+                        }).encode()
+                        return
+
+                    identity_id = claims["sub"]
+                    local_client = local.Client(
+                        db=self.db, provider_name=data["provider"]
+                    )
+                    updated = await local_client.verify_email(
+                        identity_id, current_time
+                    )
+                    if updated is None:
+                        raise errors.NoIdentityFound(
+                            "Could not verify email for identity"
+                            f" {identity_id}. This email address may not exist"
+                            " in our system, or it might already be verified."
+                        )
+
+                    maybe_challenge = claims.get("challenge")
+                    maybe_redirect_to = claims.get("redirect_to")
+
+                    match (maybe_challenge, maybe_redirect_to):
+                        case (str(challenge), str(redirect_to)):
+                            await pkce.create(self.db, challenge)
+                            code = await pkce.link_identity_challenge(
+                                self.db, cast(str, identity_id), challenge
+                            )
+                            response.status = http.HTTPStatus.FOUND
+                            response.custom_headers["Location"] = (
+                               _with_appended_qs(redirect_to, {"code": [code]})
+                            )
+                        case (str(challenge), _):
+                            await pkce.create(self.db, challenge)
+                            code = await pkce.link_identity_challenge(
+                                self.db, cast(str, identity_id), challenge
+                            )
+                            response.status = http.HTTPStatus.OK
+                            response.content_type = b"application/json"
+                            response.body = json.dumps({"code": code}).encode()
+                        case (_, str(redirect_to)):
+                            response.status = http.HTTPStatus.FOUND
+                            response.custom_headers["Location"] = redirect_to
+                        case (_, _):
+                            response.status = http.HTTPStatus.NO_CONTENT
+
+                case ("resend-verification-email",):
+                    data = self._get_data_from_request(request)
+
+                    _check_keyset(data, {"verification_token", "provider"})
+
+                    try:
+                        claims = self._verify_and_extract_claims(
+                            data["verification_token"]
+                        )
+                    except Exception:
+                        raise errors.InvalidData(
+                            "Could not get claims from verification token"
+                        )
+
+                    identity_id = cast(str, claims["sub"])
+                    local_client = local.Client(
+                        db=self.db, provider_name=data["provider"]
+                    )
+                    email = await local_client.get_email_by_identity_id(
+                        identity_id
+                    )
+                    if email is None:
+                        raise errors.NoIdentityFound(
+                            f"Could not find email for identity {identity_id}"
+                        )
+
+                    await self._send_verification_email(
+                        provider=data["provider"],
+                        identity_id=identity_id,
+                        to_addr=email,
+                        maybe_challenge=cast(
+                            Optional[str], claims.get("challenge")
+                        ),
+                        maybe_redirect_to=cast(
+                            Optional[str], claims.get("redirect_to")
+                        ),
+                    )
+
+                    response.status = http.HTTPStatus.OK
+
                 case ('send_reset_email', ):
                     data = self._get_data_from_request(request)
 
-                    local_provider_name = data.get("provider")
-                    if local_provider_name is None:
-                        raise errors.InvalidData(
-                            'Missing "provider" in register request'
-                        )
-
+                    _check_keyset(data, {"provider", "reset_url"})
                     local_client = local.Client(
-                        db=self.db, provider_name=local_provider_name
+                        db=self.db, provider_name=data["provider"]
                     )
 
                     try:
-                        if 'reset_url' not in data:
-                            raise errors.InvalidData(
-                                "Missing 'reset_url' in data"
-                            )
-
                         identity, secret = (
                             await local_client.get_identity_and_secret(data))
 
@@ -522,21 +616,12 @@ class Router:
                 case ('reset_password',):
                     data = self._get_data_from_request(request)
 
-                    local_provider_name = data.get("provider")
-                    if local_provider_name is None:
-                        raise errors.InvalidData(
-                            'Missing "provider" in register request'
-                        )
-
+                    _check_keyset(data, {"provider", "reset_token"})
                     local_client = local.Client(
-                        db=self.db, provider_name=local_provider_name
+                        db=self.db, provider_name=data["provider"]
                     )
 
                     try:
-                        if 'reset_token' not in data:
-                            raise errors.InvalidData(
-                                "Missing 'reset_token' in data"
-                            )
                         reset_token = data['reset_token']
 
                         identity_id, secret = (
@@ -796,6 +881,92 @@ class Router:
                             brand_color=ui_config.brand_color,
                         )
 
+                case ("ui", "verify"):
+                    ui_config = self._get_ui_config()
+                    password_provider = (
+                        self._get_password_provider()
+                        if ui_config is not None
+                        else None
+                    )
+
+                    if password_provider is None:
+                        response.status = http.HTTPStatus.NOT_FOUND
+                        response.body = (
+                            b'Password provider not configured'
+                        )
+                    else:
+                        query = urllib.parse.parse_qs(
+                            request.url.query.decode("ascii")
+                            if request.url.query
+                            else ''
+                        )
+                        maybe_verification_token = _maybe_get_search_param(
+                            query, "verification_token"
+                        )
+                        if maybe_verification_token is not None:
+                            try:
+                                claims = self._verify_and_extract_claims(
+                                    maybe_verification_token
+                                )
+                                maybe_identity_id = claims.get("sub")
+                                if maybe_identity_id is None:
+                                    raise errors.InvalidData(
+                                        "Subject not present in verification"
+                                        "token"
+                                    )
+                                identity_id = cast(str, maybe_identity_id)
+                                maybe_challenge = claims.get("challenge")
+                                maybe_redirect_to = cast(
+                                    Optional[str], claims.get("redirect_to")
+                                )
+                                if maybe_challenge is not None:
+                                    challenge = cast(str, maybe_challenge)
+                                    await pkce.create(self.db, challenge)
+                                    pkce_code = (
+                                        await pkce.link_identity_challenge(
+                                            self.db,
+                                            identity_id,
+                                            challenge,
+                                        )
+                                    )
+                                if maybe_redirect_to is not None:
+                                    if pkce_code is not None:
+                                        redirect_to = _with_appended_qs(
+                                            maybe_redirect_to,
+                                            {
+                                                "code": [pkce_code],
+                                            }
+                                        )
+                                else:
+                                    redirect_to = maybe_redirect_to or (
+                                        ui_config.redirect_to if ui_config
+                                        else None
+                                    )
+
+                            except Exception:
+                                is_valid = False
+                        else:
+                            is_valid = False
+
+                        if redirect_to is not None:
+                            response.status = http.HTTPStatus.FOUND
+                            response.custom_headers["Location"] = redirect_to
+                        else:
+                            response.status = http.HTTPStatus.OK
+                            response.content_type = b'text/html'
+                            response.body = ui.render_email_verification_page(
+                                base_path=self.base_path,
+                                provider_name=password_provider.name,
+                                is_valid=is_valid,
+                                error_message=_maybe_get_search_param(
+                                    query, 'error'
+                                ),
+                                app_name=ui_config.app_name,
+                                logo_url=ui_config.logo_url,
+                                dark_logo_url=ui_config.dark_logo_url,
+                                brand_color=ui_config.brand_color,
+                            )
+
                 case ('ui', '_static', filename):
                     filepath = os.path.join(
                         os.path.dirname(__file__),
@@ -970,21 +1141,21 @@ class Router:
         session_token.make_signed_token(signing_key)
         return session_token.serialize()
 
-    def _verify_and_extract_claims(self, jwtStr: str) -> dict[str, str]:
+    def _verify_and_extract_claims(
+        self, jwtStr: str
+    ) -> dict[str, str | int | float | bool]:
         signing_key = self._get_auth_signing_key()
         verified = jwt.JWT(key=signing_key, jwt=jwtStr)
         return json.loads(verified.claims)
 
     def _get_data_from_reset_token(self, token: str) -> Tuple[str, str]:
-        signing_key = self._get_auth_signing_key()
         try:
-            decoded_token = jwt.JWT(key=signing_key, jwt=token)
+            claims = self._verify_and_extract_claims(token)
         except Exception:
             raise errors.InvalidData("Invalid 'reset_token'")
 
-        claims: dict[str, str] = json.loads(decoded_token.claims)
-        identity_id = claims.get('sub')
-        secret = claims.get('jti')
+        identity_id = cast(Optional[str], claims.get('sub'))
+        secret = cast(Optional[str], claims.get('jti'))
 
         if identity_id is None or secret is None:
             raise errors.InvalidData("Invalid 'reset_token'")
@@ -1031,6 +1202,37 @@ class Router:
         ]
 
         return password_providers[0] if len(password_providers) == 1 else None
+
+    async def _send_verification_email(
+        self,
+        *,
+        provider: str,
+        identity_id: str,
+        to_addr: str,
+        maybe_challenge: str | None,
+        maybe_redirect_to: str | None,
+    ):
+        # Generate verification token
+        issued_at = datetime.datetime.now(datetime.timezone.utc).timestamp()
+        verification_token = self._make_secret_token(
+            identity_id=identity_id,
+            secret=str(uuid.uuid4()),
+            additional_claims={
+                "iat": issued_at,
+                "challenge": maybe_challenge,
+                "redirect_to": maybe_redirect_to,
+            },
+            expires_in=datetime.timedelta(seconds=0),
+        )
+        await email.send_verification_email(
+            db=self.db,
+            tenant=self.tenant,
+            to_addr=to_addr,
+            verification_token=verification_token,
+            provider=provider,
+            verify_url=f"{self.base_path}/verify",
+            test_mode=self.test_mode,
+        )
 
 
 def _fail_with_error(
@@ -1102,3 +1304,23 @@ def _set_cookie(
     val["secure"] = secure
     val["samesite"] = same_site
     response.custom_headers["Set-Cookie"] = val.OutputString()
+
+
+def _with_appended_qs(url: str, query: dict[str, list[str]]) -> str:
+    url_parts = list(urllib.parse.urlparse(url))
+    existing_query = urllib.parse.parse_qs(url_parts[4])
+    existing_query.update(query)
+
+    url_parts[4] = urllib.parse.urlencode(existing_query, doseq=True)
+    return urllib.parse.urlunparse(url_parts)
+
+def _check_keyset(candidate: dict[str, Any], keyset: set[str]):
+    missing_fields = [
+        field for field in keyset
+        if field not in candidate
+    ]
+    if missing_fields:
+        raise errors.InvalidData(
+            "Missing required fields: "
+            ", ".join(missing_fields)
+        )
