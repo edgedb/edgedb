@@ -17,7 +17,6 @@
 #
 
 
-import asyncio
 import datetime
 import http
 import http.cookies
@@ -27,7 +26,6 @@ import urllib.parse
 import base64
 import hashlib
 import os
-import random
 import mimetypes
 import uuid
 
@@ -43,7 +41,7 @@ from edb.ir import statypes
 from edb.server.config.types import CompositeConfigType
 from edb.server import tenant as edbtenant
 
-from . import oauth, local, errors, util, pkce, smtp, ui
+from . import oauth, local, errors, util, pkce, ui, email
 
 
 logger = logging.getLogger('edb.server')
@@ -283,14 +281,18 @@ class Router:
 
                     if not require_verification:
                         if maybe_challenge is None:
-                                raise errors.InvalidData(
-                                    'Missing "challenge" in register request'
-                                )
+                            raise errors.InvalidData(
+                                'Missing "challenge" in register request'
+                            )
                         await pkce.create(self.db, maybe_challenge)
 
                     try:
                         identity = await local_client.register(data)
                         if not require_verification:
+                            if maybe_challenge is None:
+                                raise errors.InvalidData(
+                                    'Missing "challenge" in register request'
+                                )
                             pkce_code = await pkce.link_identity_challenge(
                                 self.db, identity.id, maybe_challenge
                             )
@@ -298,34 +300,21 @@ class Router:
                         # Generate verification token
                         verification_token = self._make_secret_token(
                             identity_id=identity.id,
-                            secret=uuid.uuid4(),
+                            secret=str(uuid.uuid4()),
                             additional_claims={
                                 "challenge": maybe_challenge,
                                 "redirect_to": maybe_redirect_to,
                             },
                             expires_in=datetime.timedelta(hours=24),
                         )
-                        from_addr = util.get_config(
-                            self.db, "ext::auth::SMTPConfig::sender"
-                        )
-                        msg = ui.render_verification_email(
-                            from_addr=from_addr,
+                        await email.send_verification_email(
+                            db=self.db,
+                            tenant=self.tenant,
                             to_addr=data["email"],
-                            secret_token=secret_token,
-                        )
-                        coro = smtp.send_email(
-                            self.db,
-                            msg,
-                            sender=from_addr,
-                            recipients=data["email"],
+                            verification_token=verification_token,
+                            verify_url=f"{self.base_path}/verify",
                             test_mode=self.test_mode,
                         )
-                        task = self.tenant.create_task(
-                            coro, interruptable=False
-                        )
-                        await asyncio.sleep(random.random() * 0.5)
-                        if task.done():
-                            await task
 
                         now_iso8601 = datetime.datetime.now(
                             datetime.timezone.utc
@@ -472,41 +461,14 @@ class Router:
                         })
                         reset_url = f"{data['reset_url']}?{reset_token_params}"
 
-                        from_addr = util.get_config(
-                            self.db,
-                            "ext::auth::SMTPConfig::sender",
-                        )
-                        ui_config = self._get_ui_config()
-                        if ui_config is None:
-                            email_args = {}
-                        else:
-                            email_args = dict(
-                                app_name=ui_config.app_name,
-                                logo_url=ui_config.logo_url,
-                                dark_logo_url=ui_config.dark_logo_url,
-                                brand_color=ui_config.brand_color,
-                            )
-                        msg = ui.render_password_reset_email(
-                            from_addr=from_addr,
+                        await email.send_password_reset_email(
+                            db=self.db,
+                            tenant=self.tenant,
                             to_addr=data["email"],
                             reset_url=reset_url,
-                            **email_args,
-                        )
-                        coro = smtp.send_email(
-                            self.db,
-                            msg,
-                            sender=from_addr,
-                            recipients=data["email"],
+                            secret_token=new_reset_token,
                             test_mode=self.test_mode,
                         )
-                        task = self.tenant.create_task(
-                            coro, interruptable=False
-                        )
-                        # Prevent timing attack
-                        await asyncio.sleep(random.random() * 0.5)
-                        # Expose e.g. configuration errors
-                        if task.done():
-                            await task
 
                         return_data = (
                             {
@@ -982,17 +944,22 @@ class Router:
         self,
         identity_id: str,
         secret: str,
-        additional_claims: dict[str, str | int | float | bool | None] = {},
-        expires_in: datetime.timedelta = datetime.timedelta(minutes=10)
+        additional_claims: dict[str, str | int | float | bool | None]
+        | None = None,
+        expires_in: datetime.timedelta | None = None
     ) -> str:
         signing_key = self._get_auth_signing_key()
+        expires_in = (
+            datetime.timedelta(minutes=10) if expires_in is None
+            else expires_in
+        )
         expires_at = datetime.datetime.now(datetime.timezone.utc) + expires_in
 
         claims: dict[str, Any] = {
             "iss": self.base_path,
             "sub": identity_id,
             "jti": secret,
-            **additional_claims,
+            **(additional_claims or {}),
         }
         if expires_in.total_seconds() != 0:
             claims["exp"] = expires_at.timestamp()
