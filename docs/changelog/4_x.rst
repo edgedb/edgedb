@@ -105,9 +105,9 @@ New features
 Full-text Search
 ----------------
 
-EdgeDB 4.0 adds full-text search functionality packaged in the ``fts`` module.
-By adding an ``fts::index`` to an object type you can transform any object
-into a searchable document:
+EdgeDB 4.0 adds :ref:`full-text search <ref_std_fts>` functionality packaged
+in the ``fts`` module. By adding an ``fts::index`` to an object type you can
+transform any object into a searchable document:
 
 .. code-block:: sdl
 
@@ -130,7 +130,8 @@ The ``fts::index`` indicates to EdgeDB that this object type is a valid target
 for full-text search. The property that will be searched as well as the
 language is provided in the index.
 
-The ``fts::search`` function allows searching objects for a particular phrase:
+The :eql:func:`fts::search` function allows searching objects for a particular
+phrase:
 
 .. code-block:: edgeql-repl
 
@@ -200,7 +201,7 @@ fields:
   {
     default::Item {
       name: 'Candy corn',
-      description: 'It\'s a great Halloween treat',
+      description: 'A great Halloween treat',
       score: 0.30396354,
     },
   }
