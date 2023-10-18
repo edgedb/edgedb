@@ -183,7 +183,7 @@ def should_preload_parser(
     cases: Iterable[unittest.TestCase],
 ) -> bool:
     for cas in cases:
-        if isinstance(cas, PreloadParserGrammarMixin):
+        if issubclass(cas, PreloadParserGrammarMixin):
             return True
     return False
 

@@ -123,7 +123,8 @@ pub fn preload_spec(py: Python, spec_filepath: &PyString) -> PyResult<PyNone> {
     }
 
     let spec_filepath = spec_filepath.to_string(py)?;
-    let bytes = std::fs::read(spec_filepath.as_ref()).ok().unwrap();
+    let bytes = std::fs::read(spec_filepath.as_ref())
+        .unwrap_or_else(|e| panic!("Cannot read grammar spec from {spec_filepath} ({e})"));
 
     let spec: parser::Spec = bitcode::deserialize::<parser::SpecSerializable>(&bytes)
         .unwrap()

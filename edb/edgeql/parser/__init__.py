@@ -247,5 +247,5 @@ def preload_spec() -> None:
 def get_spec_filepath():
     "Returns an absolute path to the serialized grammar spec file"
 
-    edgeql_dir = pathlib.Path(__file__).parent.parent.parent
+    edgeql_dir = pathlib.Path(__file__).parent.parent
     return str(edgeql_dir / 'grammar.bc')

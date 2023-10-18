@@ -21,7 +21,6 @@ from typing import *
 from edb.edgeql import ast as qlast
 from edb.edgeql import tokenizer
 from edb.edgeql import parser as qlparser
-from edb.edgeql.parser import grammar as qlgrammar
 from edb.edgeql.parser.grammar import tokens as qltokens
 
 import edb._edgeql_parser as rust_parser

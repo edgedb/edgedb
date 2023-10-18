@@ -1864,7 +1864,7 @@ SCHEMA_COMPUTABLES = {
     },
 }
 
-DB1 = mk_db([
+DB1_stub = [
     # Person
     {"id": bsid(0x10), "__type__": PersonT,
      "name": "Phil Emarg",
@@ -1894,7 +1894,15 @@ DB1 = mk_db([
      "tgt": [bslink(0x82), bslink(0x83)]},
     {"id": bsid(0x93), "__type__": "Obj", "n": 3,
      "tgt": [bslink(0x83), bslink(0x84)]},
-] + load_json_db(CARDS_DB), SCHEMA_COMPUTABLES)
+]
+
+
+def mk_DB1():
+    return mk_db(
+        DB1_stub + load_json_db(CARDS_DB),
+        SCHEMA_COMPUTABLES,
+    )
+
 
 parser = argparse.ArgumentParser(description='Toy EdgeQL eval model')
 parser.add_argument('--debug', '-d', action='store_true',
@@ -1916,7 +1924,7 @@ parser.add_argument('commands', metavar='cmd', type=str, nargs='*',
 
 
 def main() -> None:
-    db = DB1
+    db = mk_DB1()
 
     args = parser.parse_args()
 

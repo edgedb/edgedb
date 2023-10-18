@@ -22,11 +22,12 @@ import unittest
 from edb.tools import toy_eval_model as model
 
 from edb.common import assert_data_shape
+from edb.testbase.lang import PreloadParserGrammarMixin
 
 bag = assert_data_shape.bag
 
 
-class TestModelSmokeTests(unittest.TestCase):
+class TestModelSmokeTests(unittest.TestCase, PreloadParserGrammarMixin):
     """Unit tests for the toy evaluator model.
 
     These are intended as smoke tests. Since obviously we don't want
@@ -34,11 +35,12 @@ class TestModelSmokeTests(unittest.TestCase):
     goal should be that we could run the real tests against the model.
     """
 
-    DB1 = model.DB1
-
     def assert_test_query(
-        self, query, expected, *, db=DB1, sort=None, singleton_cheating=False
+        self, query, expected, *, db=None, sort=None, singleton_cheating=False
     ):
+        if not db:
+            db = model.mk_DB1()
+
         qltree = model.parse(query)
         result = model.go(qltree, db, singleton_cheating)
         if sort:
