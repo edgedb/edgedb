@@ -10,6 +10,7 @@ import pathlib
 
 from . import start as start  # noqa
 
+
 def get_spec_filepath():
     "Returns an absolute path to the serialized grammar spec file"
 
