@@ -24,7 +24,7 @@ from edb.common import parsing
 
 import edb._edgeql_parser as rust_parser
 
-from . import grammar as qlgrammar
+from . import grammar
 from .grammar import tokens
 
 from .. import ast as qlast
@@ -127,8 +127,10 @@ def parse(
     if isinstance(source, str):
         source = qltokenizer.Source.from_string(source)
 
-    start_token_name = start_token.__name__[2:]
-    result, productions = rust_parser.parse(start_token_name, source.tokens())
+    start_name = start_token.__name__[2:]
+    result, productions = rust_parser.parse(
+        grammar.get_spec_filepath(), start_name, source.tokens()
+    )
 
     if len(result.errors()) > 0:
         # TODO: emit multiple errors
@@ -229,9 +231,9 @@ def _cst_to_ast(
             production_id = node.id()
             production = productions[production_id]
 
-            sym = production.lhs.nontermType()
-            assert len(args) == len(production.rhs)
-            production.method(sym, *args)
+            non_term_type, method = production
+            sym = non_term_type()
+            method(sym, *args)
 
             # push into result stack
             result.append(sym)
@@ -239,14 +241,6 @@ def _cst_to_ast(
     return result.pop()
 
 
-def preload(allow_rebuild: bool = False) -> None:
-    grammar = qlgrammar.start
-    try:
-        spec = parsing.load_parser_spec(grammar, allow_rebuild=False)
-    except parsing.ParserSpecIncompatibleError as e:
-        if allow_rebuild:
-            spec = parsing.load_parser_spec(grammar, allow_rebuild=True)
-        else:
-            raise errors.InternalServerError(e.args[0]) from None
-
-    rust_parser.cache_spec(spec)
+def preload() -> None:
+    path = grammar.get_spec_filepath()
+    rust_parser.preload_spec(path)

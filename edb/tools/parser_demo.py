@@ -21,6 +21,7 @@ from typing import *
 from edb.edgeql import ast as qlast
 from edb.edgeql import tokenizer
 from edb.edgeql import parser as qlparser
+from edb.edgeql.parser import grammar as qlgrammar
 from edb.edgeql.parser.grammar import tokens as qltokens
 
 import edb._edgeql_parser as rust_parser
@@ -43,10 +44,13 @@ def main():
             print(e)
             continue
 
+        spec_path = qlgrammar.get_spec_filepath()
+        print(spec_path)
+
         start_t = qltokens.T_STARTSDLDOCUMENT if sdl else qltokens.T_STARTBLOCK
         start_t_name = start_t.__name__[2:]
         tokens = source.tokens()
-        result, productions = rust_parser.parse(start_t_name, tokens)
+        result, productions = rust_parser.parse(spec_path, start_t_name, tokens)
 
         print('-' * 30)
         print()

@@ -42,7 +42,7 @@ py_class!(pub class OpaqueToken |py| {
         Ok(PyString::new(py, &self._inner(py).to_string()))
     }
     def __reduce__(&self) -> PyResult<PyTuple> {
-        let data: Vec<u8> = rmp_serde::to_vec(self._inner(py)).unwrap().to_vec();
+        let data = bitcode::serialize(self._inner(py)).unwrap();
 
         return Ok((
             get_fn_unpickle_token(py),
@@ -79,7 +79,7 @@ pub fn init_module(py: Python) {
 }
 
 pub fn _unpickle_token(py: Python, bytes: &PyBytes) -> PyResult<OpaqueToken> {
-    let token = rmp_serde::from_slice(bytes.data(py)).unwrap();
+    let token = bitcode::deserialize(bytes.data(py)).unwrap();
     OpaqueToken::create_instance(py, token)
 }
 

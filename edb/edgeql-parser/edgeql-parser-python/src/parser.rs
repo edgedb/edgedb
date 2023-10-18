@@ -11,10 +11,15 @@ use crate::errors::{parser_error_into_tuple, ParserResult};
 use crate::pynormalize::value_to_py_object;
 use crate::tokenizer::OpaqueToken;
 
-pub fn parse(py: Python, start_token_name: &PyString, tokens: PyObject) -> PyResult<PyTuple> {
+pub fn parse(
+    py: Python,
+    spec_filepath: &PyString,
+    start_token_name: &PyString,
+    tokens: PyObject,
+) -> PyResult<PyTuple> {
     let start_token_name = start_token_name.to_string(py).unwrap();
 
-    let (spec, productions) = get_spec(py)?;
+    let (spec, productions) = get_spec(py, &spec_filepath.to_string(py)?)?;
 
     let tokens = downcast_tokens(py, &start_token_name, tokens)?;
 
@@ -105,46 +110,69 @@ fn downcast_tokens<'a>(
     Ok(buf)
 }
 
-pub fn cache_spec(py: Python, py_spec: &PyObject) -> PyResult<PyNone> {
-    if PARSER_SPECS.get().is_some() {
-        return Ok(PyNone);
-    }
-
-    let x = load_spec(py, py_spec)?;
-    PARSER_SPECS.set(x).ok();
-    Ok(PyNone)
-}
-
-fn get_spec(py: Python<'_>) -> Result<&(parser::Spec, PyObject), cpython::PyErr> {
+fn get_spec(
+    py: Python,
+    spec_filepath: &str,
+) -> Result<&'static (parser::Spec, PyObject), cpython::PyErr> {
     if let Some(x) = PARSER_SPECS.get() {
         return Ok(x);
     }
 
-    let parsing_mod = py.import("edb.common.parsing")?;
-    let load_parser_spec = parsing_mod.get(py, "load_parser_spec")?;
+    // Try to load from file
+    let spec = load_spec(spec_filepath);
+    let productions = load_productions(py, &spec)?;
 
-    let grammar_name = "edb.edgeql.parser.grammar.start";
-    let grammar_mod = py.import(grammar_name)?;
-    let py_spec = load_parser_spec.call(py, (grammar_mod,), None)?;
-
-    let x = load_spec(py, &py_spec)?;
-
-    PARSER_SPECS.set(x).ok();
+    PARSER_SPECS.set((spec, productions)).ok();
     Ok(PARSER_SPECS.get().unwrap())
 }
 
-fn load_spec(py: Python, py_spec: &PyObject) -> PyResult<(parser::Spec, PyObject)> {
+/// Loads the grammar specification from file and caches it in memory.
+pub fn preload_spec(py: Python, spec_filepath: &PyString) -> PyResult<PyNone> {
+    get_spec(py, &spec_filepath.to_string(py)?)?;
+    Ok(PyNone)
+}
+
+/// Serialize the grammar specification and write it to a file.
+///
+/// Called from setup.py.
+pub fn save_spec(py: Python, py_spec: &PyObject, dst: &PyString) -> PyResult<PyNone> {
+    let spec = spec_from_python(py, py_spec)?;
+    let spec_serialized = bitcode::serialize(&spec).unwrap();
+
+    let dst = dst.to_string(py)?.to_string();
+
+    std::fs::write(dst, spec_serialized).ok().unwrap();
+    Ok(PyNone)
+}
+
+fn load_spec(spec_filepath: &str) -> parser::Spec {
+    let bytes = std::fs::read(spec_filepath).ok().unwrap();
+
+    bitcode::deserialize::<parser::SpecSerializable>(&bytes)
+        .unwrap()
+        .into()
+}
+
+fn spec_from_python(py: Python, py_spec: &PyObject) -> PyResult<parser::SpecSerializable> {
     let spec_to_json = py.import("edb.common.parsing")?.get(py, "spec_to_json")?;
 
     let res = spec_to_json.call(py, (py_spec,), None)?;
-    let res = PyTuple::downcast_from(py, res)?;
 
-    let spec_json = PyString::downcast_from(py, res.get_item(py, 0))?;
+    let spec_json = PyString::downcast_from(py, res)?;
     let spec_json = spec_json.to_string(py).unwrap();
-    let spec = parser::Spec::from_json(&spec_json).unwrap();
-    let productions = res.get_item(py, 1);
 
-    Ok((spec, productions))
+    Ok(serde_json::from_str::<parser::SpecSerializable>(&spec_json).unwrap())
+}
+
+fn load_productions(py: Python<'_>, spec: &parser::Spec) -> PyResult<PyObject> {
+    let grammar_name = "edb.edgeql.parser.grammar.start";
+    let grammar_mod = py.import(grammar_name)?;
+    let load_productions = py
+        .import("edb.common.parsing")?
+        .get(py, "load_spec_productions")?;
+
+    let productions = load_productions.call(py, (&spec.production_names, grammar_mod), None)?;
+    Ok(productions)
 }
 
 fn to_py_cst<'a>(cst: &'a parser::CSTNode<'a>, py: Python) -> PyResult<CSTNode> {
