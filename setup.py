@@ -18,7 +18,6 @@
 
 
 import binascii
-import importlib
 import os
 import os.path
 import pathlib
@@ -860,12 +859,12 @@ class build_parsers(setuptools.Command):
     def run(self, *args, **kwargs):
         # load grammar definitions and build the parser
         from edb.common import parsing
-        from edb.edgeql.parser import grammar as qlgrammar       
+        from edb.edgeql.parser import grammar as qlgrammar
         spec = parsing.load_parser_spec(qlgrammar.start)
 
         # prepare destination
-        dst = str(self.target_root / 'edb' / 'grammar.bc')
-        os.makedirs(os.path.dirname(dst), exist_ok=True)        
+        dst = str(self.target_root / 'edb' / 'edgeql' / 'grammar.bc')
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
 
         # serialize
         import edb._edgeql_parser as rust_parser
