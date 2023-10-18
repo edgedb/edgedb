@@ -853,7 +853,7 @@ links to a second object without a link back to the first.
 
 Spider-Man's villains always have a grudging respect for him, and their names
 can be displayed to reflect that if we know the ID of a movie that they
-starred in. (Note the ability to :ref:`cast <ref_eql_casts>` from a ``uuid``
+starred in. (Note the ability to :ref:`cast from a uuid <ref_uuid_casting>`
 to an object type, which was added in EdgeDB 3.0!)
 
 .. code-block:: edgeql-repl
