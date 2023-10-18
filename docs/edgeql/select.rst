@@ -847,7 +847,7 @@ Filtering on a known backlink
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Another handy use for backlinks is using them to filter and find items
-when doing a ```select`` (or an ``update`` or other operation, of course).
+when doing a ``select`` (or an ``update`` or other operation, of course).
 This can work as a nice shortcut when you have the id of one object that
 links to a second object without a link back to the first.
 
