@@ -52,12 +52,12 @@ py_module_initializer!(
         m.add(
             py,
             "parse",
-            py_fn!(py, parse(parser_name: &PyString, data: PyObject)),
+            py_fn!(py, parse(spec_filepath: &PyString, parser_name: &PyString, data: PyObject)),
         )?;
         m.add(
             py,
             "preload_spec",
-            py_fn!(py, preload_spec()),
+            py_fn!(py, preload_spec(spec_filepath: &PyString)),
         )?;
         m.add(
             py,

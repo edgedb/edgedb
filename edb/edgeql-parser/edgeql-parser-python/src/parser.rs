@@ -11,10 +11,15 @@ use crate::errors::{parser_error_into_tuple, ParserResult};
 use crate::pynormalize::value_to_py_object;
 use crate::tokenizer::OpaqueToken;
 
-pub fn parse(py: Python, start_token_name: &PyString, tokens: PyObject) -> PyResult<PyTuple> {
+pub fn parse(
+    py: Python,
+    spec_filepath: &PyString,
+    start_token_name: &PyString,
+    tokens: PyObject,
+) -> PyResult<PyTuple> {
     let start_token_name = start_token_name.to_string(py).unwrap();
 
-    let (spec, productions) = get_spec(py)?;
+    let (spec, productions) = get_spec(py, &spec_filepath.to_string(py)?)?;
 
     let tokens = downcast_tokens(py, &start_token_name, tokens)?;
 
@@ -105,13 +110,16 @@ fn downcast_tokens<'a>(
     Ok(buf)
 }
 
-fn get_spec(py: Python<'_>) -> Result<&(parser::Spec, PyObject), cpython::PyErr> {
+fn get_spec(
+    py: Python,
+    spec_filepath: &str,
+) -> Result<&'static (parser::Spec, PyObject), cpython::PyErr> {
     if let Some(x) = PARSER_SPECS.get() {
         return Ok(x);
     }
 
     // Try to load from file
-    let spec = load_spec();
+    let spec = load_spec(spec_filepath);
     let productions = load_productions(py, &spec)?;
 
     PARSER_SPECS.set((spec, productions)).ok();
@@ -119,8 +127,8 @@ fn get_spec(py: Python<'_>) -> Result<&(parser::Spec, PyObject), cpython::PyErr>
 }
 
 /// Loads the grammar specification from file and caches it in memory.
-pub fn preload_spec(py: Python) -> PyResult<PyNone> {
-    get_spec(py)?;
+pub fn preload_spec(py: Python, spec_filepath: &PyString) -> PyResult<PyNone> {
+    get_spec(py, &spec_filepath.to_string(py)?)?;
     Ok(PyNone)
 }
 
@@ -137,8 +145,8 @@ pub fn save_spec(py: Python, py_spec: &PyObject, dst: &PyString) -> PyResult<PyN
     Ok(PyNone)
 }
 
-fn load_spec() -> parser::Spec {
-    let bytes = std::fs::read("./edb/grammar.bc").ok().unwrap();
+fn load_spec(spec_filepath: &str) -> parser::Spec {
+    let bytes = std::fs::read(spec_filepath).ok().unwrap();
 
     bitcode::deserialize::<parser::SpecSerializable>(&bytes)
         .unwrap()

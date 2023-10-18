@@ -24,6 +24,7 @@ from edb.common import parsing
 
 import edb._edgeql_parser as rust_parser
 
+from . import grammar
 from .grammar import tokens
 
 from .. import ast as qlast
@@ -126,8 +127,10 @@ def parse(
     if isinstance(source, str):
         source = qltokenizer.Source.from_string(source)
 
-    start_token_name = start_token.__name__[2:]
-    result, productions = rust_parser.parse(start_token_name, source.tokens())
+    start_name = start_token.__name__[2:]
+    result, productions = rust_parser.parse(
+        grammar.get_spec_filepath(), start_name, source.tokens()
+    )
 
     if len(result.errors()) > 0:
         # TODO: emit multiple errors
@@ -239,4 +242,5 @@ def _cst_to_ast(
 
 
 def preload() -> None:
-    rust_parser.preload_spec()
+    path = grammar.get_spec_filepath()
+    rust_parser.preload_spec(path)
