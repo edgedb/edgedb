@@ -137,25 +137,15 @@ pub fn preload_spec(py: Python, spec_filepath: &PyString) -> PyResult<PyNone> {
 /// Serialize the grammar specification and write it to a file.
 ///
 /// Called from setup.py.
-pub fn save_spec(py: Python, py_spec: &PyObject, dst: &PyString) -> PyResult<PyNone> {
-    let spec = spec_from_python(py, py_spec)?;
-    let spec_serialized = bitcode::serialize(&spec).unwrap();
+pub fn save_spec(py: Python, spec_json: &PyString, dst: &PyString) -> PyResult<PyNone> {
+    let spec_json = spec_json.to_string(py).unwrap();
+    let spec: parser::SpecSerializable = serde_json::from_str(&spec_json).unwrap();
+    let spec_bitcode = bitcode::serialize(&spec).unwrap();
 
     let dst = dst.to_string(py)?.to_string();
 
-    std::fs::write(dst, spec_serialized).ok().unwrap();
+    std::fs::write(dst, spec_bitcode).ok().unwrap();
     Ok(PyNone)
-}
-
-fn spec_from_python(py: Python, py_spec: &PyObject) -> PyResult<parser::SpecSerializable> {
-    let spec_to_json = py.import("edb.common.parsing")?.get(py, "spec_to_json")?;
-
-    let res = spec_to_json.call(py, (py_spec,), None)?;
-
-    let spec_json = PyString::downcast_from(py, res)?;
-    let spec_json = spec_json.to_string(py).unwrap();
-
-    Ok(serde_json::from_str::<parser::SpecSerializable>(&spec_json).unwrap())
 }
 
 fn load_productions(py: Python<'_>, spec: &parser::Spec) -> PyResult<PyObject> {

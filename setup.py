@@ -861,6 +861,7 @@ class build_parsers(setuptools.Command):
         from edb.common import parsing
         from edb.edgeql.parser import grammar as qlgrammar
         spec = parsing.load_parser_spec(qlgrammar.start)
+        spec_json = parsing.spec_to_json(spec)
 
         # prepare destination
         dst = str(self.target_root / 'edb' / 'edgeql' / 'grammar.bc')
@@ -868,7 +869,7 @@ class build_parsers(setuptools.Command):
 
         # serialize
         import edb._edgeql_parser as rust_parser
-        rust_parser.save_spec(spec, str(dst))
+        rust_parser.save_spec(spec_json, str(dst))
 
 
 class build_rust(setuptools_rust.build.build_rust):
