@@ -1417,7 +1417,6 @@ def range_for_material_objtype(
             with ctx.newrel() as sctx:
                 sctx.pending_type_ctes.add(rw_key)
                 sctx.pending_query = sctx.rel
-                sctx.volatility_ref = ()
                 # Normally we want to compile type rewrites without
                 # polluting them with any sort of overlays, but when
                 # compiling triggers, we recompile all of the type
