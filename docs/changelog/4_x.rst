@@ -134,7 +134,7 @@ The ``fts::search`` function allows searching objects for a particular phrase:
 
 .. code-block:: edgeql-repl
 
-  edgedb> select fts::search(Item, 'candy corn', language := 'eng');
+  db> select fts::search(Item, 'candy corn', language := 'eng');
   {
     (
       object := default::Item {id: 9da06b18-69b2-11ee-96b9-1bedbe75ad4f},
@@ -152,11 +152,11 @@ values to order the results:
 
 .. code-block:: edgeql-repl
 
-  edgedb> with res := (
-  .......   select fts::search(Item, 'candy corn', language := 'eng')
-  ....... )
-  ....... select res.object {name, score := res.score}
-  ....... order by res.score desc;
+  db> with res := (
+  ...   select fts::search(Item, 'candy corn', language := 'eng')
+  ... )
+  ... select res.object {name, score := res.score}
+  ... order by res.score desc;
   {
     default::Item {name: 'Candy corn', score: 0.6079271},
     default::Item {name: 'Canned corn', score: 0.30396354},
@@ -192,11 +192,11 @@ fields:
 
 .. code-block:: edgeql-repl
 
-  edgedb> with res := (
-  .......   select fts::search(Item, 'trick or treat', language := 'eng')
-  ....... )
-  ....... select res.object {name, description, score := res.score}
-  ....... order by res.score desc;
+  db> with res := (
+  ...   select fts::search(Item, 'trick or treat', language := 'eng')
+  ... )
+  ... select res.object {name, description, score := res.score}
+  ... order by res.score desc;
   {
     default::Item {
       name: 'Candy corn',
@@ -209,13 +209,18 @@ fields:
 Multiranges
 -----------
 
-We've made it easier to work with ranges by adding ``multirange`` as one of
-the datatypes. Multiranges consist of one or more ranges and allow expressing
-intervals that are not contiguous. Multiranges are automatically normalized to
-contain non-overlapping ranges that are ordered according to their boundaries.
-All the usual range functions like ``overlaps`` or ``contains`` work with any
-combination of ranges and multiranges providing more flexibility in
-expressions.
+We've made it easier to work with ranges by adding a :ref:`multirange
+<ref_std_range>` datatype. Multiranges consist of one or more ranges and allow
+expressing intervals that are not contiguous. Multiranges are automatically
+normalized to contain non-overlapping ranges that are ordered according to
+their boundaries. All the usual range operators and functions like
+``overlaps`` or ``contains`` work with any combination of ranges and
+multiranges, providing more flexibility in expressions.
+
+.. code-block:: edgeql-repl
+
+    db> select multirange([range(8, 10)]) + range(1, 5) - range(3, 4);
+    {[range(1, 3), range(4, 5), range(8, 10)]}
 
 
 Extensions
@@ -302,9 +307,9 @@ needs.
 
 .. code-block:: edgeql-repl
 
-  edgedb> select ext::pgcrypto::digest('encrypt this', 'sha1');
+  db> select ext::pgcrypto::digest('encrypt this', 'sha1');
   {b'\x05\x82\xd8YLF\xe7\xd4\x12\x91\n\xdb$\xf1!v\xf9\xd4\x89\xc4'}
-  edgedb> select ext::pgcrypto::gen_salt('md5');
+  db> select ext::pgcrypto::gen_salt('md5');
   {'$1$FjNlXgX7'}
 
 Standard algorithms are "md5", "sha1", "sha224", "sha256", "sha384" and
@@ -318,9 +323,9 @@ pg_trgm
 This extension provides functionality used to determine string similarity,
 which makes it a good text search alternative for some use cases:
 
-edgedb> with x := {'hello world', 'word hero', 'help the world'}
-....... select res := (x, ext::pg_trgm::word_similarity(x, 'hello world'))
-....... order by res.1 desc;
+db> with x := {'hello world', 'word hero', 'help the world'}
+... select res := (x, ext::pg_trgm::word_similarity(x, 'hello world'))
+... order by res.1 desc;
 {('hello world', 1), ('help the world', 0.5), ('word hero', 0.35714287)}
 
 
@@ -344,7 +349,7 @@ baseline server memory consumption by 40%.
 
   .. code-block:: edgeql-repl
 
-    edgedb> select if count(Object) > 0 then 'got data' else 'no data';
+    db> select if count(Object) > 0 then 'got data' else 'no data';
     {'got data'}
 
 * Support conditional DML.
@@ -388,9 +393,9 @@ baseline server memory consumption by 40%.
 
   .. code-block:: edgeql-repl
 
-    edgedb> select enc::base64_encode(b'hello');
+    db> select enc::base64_encode(b'hello');
     {'aGVsbG8='}
-    edgedb> select enc::base64_decode('aGVsbG8=');
+    db> select enc::base64_decode('aGVsbG8=');
     {b'hello'}
 
 * Add ``when`` clause to triggers to enable them to be conditional.

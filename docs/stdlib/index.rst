@@ -77,6 +77,7 @@ Range Types
 -----------
 
 - :ref:`Range <ref_std_range>`
+- :ref:`Multirange <ref_std_multirange>`
 
 Object Types
 ------------
