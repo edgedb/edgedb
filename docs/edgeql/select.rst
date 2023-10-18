@@ -848,11 +848,11 @@ Filtering on a known backlink
 
 Another handy use for backlinks is using them to filter and find items
 when doing a ``select`` (or an ``update`` or other operation, of course).
-This can work as a nice shortcut when you have the id of one object that
+This can work as a nice shortcut when you have the ID of one object that
 links to a second object without a link back to the first.
 
 Spider-Man's villains always have a grudging respect for him, and their names
-can be displayed to reflect that if we know the id of a movie that they
+can be displayed to reflect that if we know the ID of a movie that they
 starred in. (Note the ability to :ref:`cast <ref_eql_casts>` from a ``uuid``
 to an object type, which was added in EdgeDB 3.0!)
 
@@ -871,7 +871,7 @@ to an object type, which was added in EdgeDB 3.0!)
     }
 
 In other words, "select every ``Villain`` object that the ``Movie`` object
-of this id links to via a link called ``characters``".
+of this ID links to via a link called ``characters``".
 
 A backlink is naturally not required, however. The same operation without
 traversing a backlink would look like this:
