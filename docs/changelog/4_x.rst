@@ -4,18 +4,24 @@ v4.0
 
 :edb-alt-title: EdgeDB v4
 
+This release cycle is much shorter than the previous ones. It reflects our new
+approach at EdgeDB where the goal is to provide improvements at a steady
+regular pace rather than in big, but infrequent batches. Going forward we
+expect to maintain this shorter release cadence focusing on a few features at
+a time.
+
 To play with the new features, install the CLI using `our installation guide
 <https://www.edgedb.com/install>`_ and initialize a new project.
 
 .. code-block:: bash
 
-  $ edgedb project init
+  $ edgedb project init --server-version 4.0-beta.1
 
 
 Upgrading
 =========
 
-**Local instances**
+**Local and Cloud instances**
 
 To upgrade a local project, first ensure that your CLI is up to date with
 ``edgedb cli upgrade``. Then run the following command inside the project
@@ -23,20 +29,24 @@ directory.
 
 .. code-block:: bash
 
-  $ edgedb project upgrade
+  $ edgedb project upgrade --to-testing
 
 Alternatively, specify an instance name if you aren't using a project.
 
 .. code-block:: bash
 
-  $ edgedb instance upgrade -I my_instance
+  $ edgedb instance upgrade --to-testing -I my_instance
 
 **Hosted instances**
 
 To upgrade a remote (hosted) instance, we recommend the following
 dump-and-restore process.
 
-1. Spin up an empty 4.0 instance. You can use one of our :ref:`deployment
+1. EdgeDB v4.0 only supports PostgreSQL 14 (or above). So check the version of
+   PostgreSQL you are using before upgrading EdgeDB. If you're using Postgres
+   13 or below, you should upgrade Postgres first.
+
+2. Spin up an empty 4.0 instance. You can use one of our :ref:`deployment
    guides <ref_guide_deployment>`, but you will need to modify some of the
    commands to use our testing channel and the beta release.
 
@@ -54,7 +64,7 @@ dump-and-restore process.
 
    .. code-block:: bash
 
-       $ sudo apt-get update && sudo apt-get install edgedb-4
+       $ sudo apt-get update && sudo apt-get install edgedb-4-beta1
 
    Under CentOS/RHEL, use this installation command:
 
@@ -65,9 +75,9 @@ dump-and-restore process.
    In any required ``systemctl`` commands, replace ``edgedb-server-3`` with
    ``edgedb-server-4``.
 
-   Under any Docker setups, supply the ``4.0`` tag.
+   Under any Docker setups, supply the ``4.0-beta.1`` tag.
 
-2. Take your application offline, then dump your v3.x database with the CLI
+3. Take your application offline, then dump your v3.x database with the CLI
 
    .. code-block:: bash
 
@@ -77,7 +87,7 @@ dump-and-restore process.
    directory on your local disk called ``my_database.dump``. The directory name
    isn't important.
 
-3. Restore the empty v4.x instance from the dump
+4. Restore the empty v4.x instance from the dump
 
    .. code-block:: bash
 
@@ -87,12 +97,6 @@ dump-and-restore process.
    instance.
 
    This process will involve some downtime, specifically during steps 2 and 3.
-
-**Pre-1.0 Instances**
-
-If you're still running pre-1.0 EdgeDB instances (e.g., 1.0-beta3) and want to
-upgrade to 4.0, we recommend you upgrade to version 2.x first, followed by
-another upgrade to 4.0, both using the same dump-and-restore process.
 
 
 New features
@@ -142,7 +146,7 @@ The ``fts::search`` function allows searching objects for a particular phrase:
     ),
   }
 
-The search results are provided as a tuple containing the matching documnet
+The search results are provided as a tuple containing the matching document
 object and a score. Higher score indicates a better match. So we can use these
 values to order the results:
 
@@ -221,7 +225,7 @@ auth
 ----
 
 The new ``auth`` extension adds a full authentication service that runs
-alongside your database instance saving you the hassle of having to learn and
+alongside your database instance, saving you the hassle of having to learn and
 implement the intricacies of OAuth or secure password storage.
 
 - OAuth Integration: Seamlessly authenticate with GitHub, Google, Apple, and
@@ -245,8 +249,8 @@ which you can use directly in your access policies, or in your own globals.
     module default {
         global current_customer := (
             assert_single((
-                select Customer { * }
-                filter global ext::auth::ClientTokenIdentity = .identity
+                select Customer
+                filter .identity = global ext::auth::ClientTokenIdentity
             ))
         );
 
@@ -268,7 +272,7 @@ which you can use directly in your access policies, or in your own globals.
 
             access policy customer_has_full_access
                 allow all
-                using (global current_customer.id ?= .customer.id);
+                using (global current_customer ?= .customer);
         }
     }
 
@@ -293,7 +297,7 @@ pgcrypto
 --------
 
 We've added ``pgcrypto`` to our extensions. This exposes ``digest``, ``hmac``,
-``gen_salt`` and ``crypt`` functions for your hashing, ecrypting and salting
+``gen_salt`` and ``crypt`` functions for your hashing, encrypting and salting
 needs.
 
 .. code-block:: edgeql-repl
@@ -303,12 +307,16 @@ needs.
   edgedb> select ext::pgcrypto::gen_salt('md5');
   {'$1$FjNlXgX7'}
 
+Standard algorithms are "md5", "sha1", "sha224", "sha256", "sha384" and
+"sha512". Moreover, any digest algorithm OpenSSL supports is automatically
+picked up.
+
 
 pg_trgm
 -------
 
-This extension provides a bunch of functionality used to determine string
-similarity, which makes it a good text search alternative for some use cases:
+This extension provides functionality used to determine string similarity,
+which makes it a good text search alternative for some use cases:
 
 edgedb> with x := {'hello world', 'word hero', 'help the world'}
 ....... select res := (x, ext::pg_trgm::word_similarity(x, 'hello world'))
@@ -323,8 +331,9 @@ Additional changes
 EdgeQL
 ------
 
-* Add ``anyobject`` pseudo type.
-  (:eql:gh:`#5961`)
+We've made a few internal changes affecting performance, the biggest of which
+was rewriting EdgeQL parser in Rust. Overall we've manged to reduce the
+baseline server memory consumption by 40%.
 
 * Add new style of ``if``/``then``/``else`` syntax.
   (:eql:gh:`#6074`)
@@ -339,7 +348,7 @@ EdgeQL
     {'got data'}
 
 * Support conditional DML.
-  (:eql:gh:`#4437`)
+  (:eql:gh:`#6181`)
 
   It can be useful to be able to create, update or delete different objects
   based on some condition:
@@ -364,10 +373,15 @@ EdgeQL
            (insert User { name := 'Alice' });
 
 * Add ``contains`` for JSON so that it can be used with ``pg::gin`` index.
-  (:eql:gh:`#5703`)
+  (:eql:gh:`#5910`)
 
-* Add :eql:func:`to_bytes` and its counterpart :eql:func:`to_str`.
-  (:eql:gh:`#4281`)
+* Add :eql:func:`to_bytes` to convert :eql:type:`str` into :eql:type:`bytes`
+  using UTF-8 encoding.
+  (:eql:gh:`#5960`)
+
+* Add :eql:func:`to_str` to convert :eql:type:`bytes` into :eql:type:`str`
+  using UTF-8 encoding.
+  (:eql:gh:`#5960`)
 
 * Add ``enc::base64_encode`` and ``enc::base64_decode`` functions.
   (:eql:gh:`#5963`)
@@ -379,14 +393,37 @@ EdgeQL
     edgedb> select enc::base64_decode('aGVsbG8=');
     {b'hello'}
 
-* Support optional config values.
-  (:eql:gh:`#6025`)
-
 * Add ``when`` clause to triggers to enable them to be conditional.
-  (:eql:gh:`#5994`)
+  (:eql:gh:`#6184`)
 
 * Allow empty arrays without cast in ``insert``.
   (:eql:gh:`#6218`)
+
+
+GraphQL
+-------
+
+* Change how globals are passed in GraphQL queries.
+  (:eql:gh:`#5864`)
+
+  Instead of using a separate ``globals`` field (which is non-standard), use
+  ``variables`` to add a ``__globals__`` object to pass the global variables.
+
+  In order to ensure backwards compatibility, the old way of passing globals
+  is still valid. In case both the new and the old methods are used the
+  globals being passed in them must match or else the query will be rejected.
+
+* Fix GraphQL bug with objects without editable fields.
+  (:eql:gh:`#6056`)
+
+* Fix GraphQL issues with deeply nested modules.
+  (:eql:gh:`#6056`)
+
+* Fix GraphQL ``__typename`` for non-default modules and mutations.
+  (:eql:gh:`#6035`)
+
+* Fix GraphQL fragments on types from non-default module.
+  (:eql:gh:`#6035`)
 
 
 
@@ -399,17 +436,14 @@ Bug fixes
 * Fix cardinality inference of calls to functions with ``optional`` args.
   (:eql:gh:`#5867`)
 
-* Fix duplicating outputs for some tuples.
-  (:eql:gh:`#5957`)
-
 * Fix the undefined order of columns in  SQL ``COPY``.
-  (:eql:gh:`#5716`)
+  (:eql:gh:`#6036`)
 
 * Fix drop of union links when source has a subtype.
   (:eql:gh:`#6044`)
 
 * Fix link deletion policies on links to union types.
-  (:eql:gh:`#6026`)
+  (:eql:gh:`#6033`)
 
 * Fix deletion issues of aliases that use ``with``
   (:eql:gh:`#6052`)
@@ -417,38 +451,23 @@ Bug fixes
 * Make ``id`` of schema objects stable.
   (:eql:gh:`#6058`)
 
-* Fix GraphQL bug with objects without editable fields.
-  (:eql:gh:`#6039`)
-
-* Fix GraphQL issues with deeply nested modules.
-  (:eql:gh:`#6039`)
-
-* Fix GraphQL ``__typename`` for non-default modules and mutations.
-  (:eql:gh:`#5985`)
-
-* Fix GraphQL fragments on types from non-default module.
-  (:eql:gh:`#5985`)
-
-* Change how globals are passed in GraphQL queries.
-  (:eql:gh:`#5863`)
-
 * Support ``listen_ports`` greater than 32767.
   (:eql:gh:`#6194`)
 
 * Fix migration issues with some overloaded indexes/constraints in SDL.
-  (:eql:gh:`#6161`)
+  (:eql:gh:`#6172`)
 
-* Fix issue with certain kinds of ``insert`` expressions.
-  (:eql:gh:`#6057`)
+* Support DML on right hand side of coalesce expressions.
+  (:eql:gh:`#6202`)
 
 * Fix cardinality inference of polymorphic shape elements.
-  (:eql:gh:`#6254`)
+  (:eql:gh:`#6255`)
 
-* Fix migraiton issue involving property defaults.
-  (:eql:gh:`#6261`)
+* Fix migration issue involving property defaults.
+  (:eql:gh:`#6265`)
 
 * Fix bugs in ``set ... using`` statements with ``assert_exists`` and similar.
-  (:eql:gh:`#6266`)
+  (:eql:gh:`#6267`)
 
 * Fix cardinality bug when a property appears in multiple splats.
-  (:eql:gh:`#6254`)
+  (:eql:gh:`#6255`)
