@@ -82,19 +82,16 @@ def get_volatility_ref(
 
 def setup_iterator_volatility(
         iterator: Optional[Union[irast.Set, pgast.IteratorCTE]], *,
-        is_cte: bool=False,
         ctx: context.CompilerContextLevel) -> None:
     if iterator is None:
         return
-
-    old = () if is_cte else ctx.volatility_ref
 
     path_id = iterator.path_id
 
     # We use a callback scheme here to avoid inserting volatility ref
     # columns unless there is actually a volatile operation that
     # requires it.
-    ctx.volatility_ref = old + (
+    ctx.volatility_ref += (
         lambda stmt, xctx: get_volatility_ref(path_id, stmt, ctx=xctx),)
 
 
