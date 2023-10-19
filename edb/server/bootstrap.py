@@ -1404,13 +1404,10 @@ async def _init_stdlib(
     await _store_static_bin_cache(
         ctx,
         f'stdschema{version_key}',
-        pickle.dumps(schema, protocol=pickle.HIGHEST_PROTOCOL),
-    )
-
-    await _store_static_bin_cache(
-        ctx,
-        f'reflschema{version_key}',
-        pickle.dumps(stdlib.reflschema, protocol=pickle.HIGHEST_PROTOCOL),
+        pickle.dumps(
+            (schema, stdlib.reflschema),
+            protocol=pickle.HIGHEST_PROTOCOL,
+        ),
     )
 
     await _store_static_bin_cache(

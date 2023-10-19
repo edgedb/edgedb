@@ -233,11 +233,11 @@ def new_compiler(
 async def new_compiler_from_pg(con: metaschema.PGConnection) -> Compiler:
     num_patches = await get_patch_count(con)
 
+    std_schema, reflection_schema = await load_cached_schema(con, num_patches)
+
     return new_compiler(
-        std_schema=await load_cached_schema(con, num_patches, 'stdschema'),
-        reflection_schema=await load_cached_schema(
-            con, num_patches, 'reflschema'
-        ),
+        std_schema=std_schema,
+        reflection_schema=reflection_schema,
         schema_class_layout=await load_schema_class_layout(
             con, num_patches
         ),
@@ -310,10 +310,9 @@ async def get_patch_count(backend_conn: metaschema.PGConnection) -> int:
 async def load_cached_schema(
     backend_conn: metaschema.PGConnection,
     patches: int,
-    key: str,
-) -> s_schema.Schema:
+) -> tuple[s_schema.Schema, s_schema.Schema]:
     vkey = pg_patches.get_version_key(patches)
-    key += vkey
+    key = f"stdschema{vkey}"
     data = await backend_conn.sql_fetch_val(
         b"""
         SELECT bin FROM edgedbinstdata.instdata
@@ -322,20 +321,17 @@ async def load_cached_schema(
         args=[key.encode("utf-8")],
     )
     try:
-        res: s_schema.FlatSchema = pickle.loads(data)
+        res: tuple[s_schema.FlatSchema, s_schema.FlatSchema] = (
+            pickle.loads(data))
         if vkey != pg_patches.get_version_key(len(pg_patches.PATCHES)):
-            res = s_schema.upgrade_schema(res)
-        return res
+            std_schema = s_schema.upgrade_schema(res[0])
+            refl_schema = s_schema.upgrade_schema(res[1])
+        else:
+            std_schema, refl_schema = res
+        return (std_schema, refl_schema)
     except Exception as e:
         raise RuntimeError(
             'could not load std schema pickle') from e
-
-
-async def load_std_schema(
-    backend_conn: metaschema.PGConnection,
-    patches: int,
-) -> s_schema.Schema:
-    return await load_cached_schema(backend_conn, patches, 'stdschema')
 
 
 async def load_schema_intro_query(
