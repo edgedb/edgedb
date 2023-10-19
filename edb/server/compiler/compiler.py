@@ -313,6 +313,8 @@ async def load_std_and_reflection_schema(
     patches: int,
 ) -> tuple[s_schema.Schema, s_schema.Schema]:
     vkey = pg_patches.get_version_key(patches)
+
+    # stdschema and reflschema are combined in one pickle to preserve sharing.
     key = f"std_and_reflection_schema{vkey}"
     data = await backend_conn.sql_fetch_val(
         b"""
