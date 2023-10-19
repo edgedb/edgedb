@@ -420,6 +420,7 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.path_scope = collections.ChainMap()
                 self.rel_hierarchy = {}
                 self.scope_tree = prevlevel.scope_tree.root
+                self.volatility_ref = ()
 
                 self.disable_semi_join = frozenset()
                 self.force_optional = frozenset()

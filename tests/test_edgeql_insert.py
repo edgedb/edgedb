@@ -1218,6 +1218,57 @@ class TestInsert(tb.QueryTestCase):
                 "violates exclusivity constraint"):
             await self.con.execute(Q)
 
+    async def test_edgeql_insert_policy_cast(self):
+        # Test for #6305, where a cast in a global used in an access policy
+        # was causing a stray volatility ref to show up in the wrong CTE
+        await self.con.execute('''
+            create global sub_id -> uuid;
+            create global sub := <Subordinate>(global sub_id);
+            alter type Note {
+                create access policy asdf allow all using (
+                    (.subject in global sub) ?? false
+                )
+            };
+        ''')
+
+        sub = await self.con.query_single('''
+            insert Subordinate { name := "asdf" };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.AccessPolicyError,
+                "violation on insert of default::Note"):
+            await self.con.execute('''
+                insert Person { notes := (insert Note { name := "" }) };
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.AccessPolicyError,
+                "violation on insert of default::Note"):
+            await self.con.execute('''
+                insert Person {
+                    notes := (insert Note {
+                        name := "",
+                        subject := assert_single(
+                          (select Subordinate filter .name = 'asdf'))
+                    })
+                };
+            ''')
+
+        await self.con.execute('''
+            set global sub_id := <uuid>$0
+        ''', sub.id)
+
+        await self.con.execute('''
+            insert Person {
+                notes := (insert Note {
+                    name := "",
+                    subject := assert_single(
+                      (select Subordinate filter .name = 'asdf'))
+                })
+            };
+        ''')
+
     async def test_edgeql_insert_for_01(self):
         await self.con.execute(r'''
             FOR x IN {3, 5, 7, 2}
