@@ -326,13 +326,13 @@ jobs:
         include:
           - postgres-version: 14
             single-mode: ''
-            multi-tenant-mode: 'remote-compiler'
-          - postgres-version: 14
-            single-mode: ''
-            multi-tenant-mode: 'multi-tenant'
+            multi-tenant-mode: ''
           - postgres-version: 15
             single-mode: ''
-            multi-tenant-mode: ''
+            multi-tenant-mode: 'remote-compiler'
+          - postgres-version: 15
+            single-mode: ''
+            multi-tenant-mode: 'multi-tenant'
     services:
       postgres:
         image: fantix/pgvector:${{ matrix.postgres-version }}
