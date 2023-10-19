@@ -7,7 +7,6 @@ on:
       - master
       - ci
       - "releases/*"
-      - "stable/*"
   pull_request:
     branches:
       - '**'
