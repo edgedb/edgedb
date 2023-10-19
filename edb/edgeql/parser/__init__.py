@@ -18,13 +18,13 @@
 
 from __future__ import annotations
 from typing import *
+import pathlib
 
 from edb import errors
 from edb.common import parsing
 
 import edb._edgeql_parser as rust_parser
 
-from . import grammar
 from .grammar import tokens
 
 from .. import ast as qlast
@@ -128,9 +128,7 @@ def parse(
         source = qltokenizer.Source.from_string(source)
 
     start_name = start_token.__name__[2:]
-    result, productions = rust_parser.parse(
-        grammar.get_spec_filepath(), start_name, source.tokens()
-    )
+    result, productions = rust_parser.parse(start_name, source.tokens())
 
     if len(result.errors()) > 0:
         # TODO: emit multiple errors
@@ -241,6 +239,13 @@ def _cst_to_ast(
     return result.pop()
 
 
-def preload() -> None:
-    path = grammar.get_spec_filepath()
+def preload_spec() -> None:
+    path = get_spec_filepath()
     rust_parser.preload_spec(path)
+
+
+def get_spec_filepath():
+    "Returns an absolute path to the serialized grammar spec file"
+
+    edgeql_dir = pathlib.Path(__file__).parent.parent
+    return str(edgeql_dir / 'grammar.bc')

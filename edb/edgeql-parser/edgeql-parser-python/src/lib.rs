@@ -52,7 +52,7 @@ py_module_initializer!(
         m.add(
             py,
             "parse",
-            py_fn!(py, parse(spec_filepath: &PyString, parser_name: &PyString, data: PyObject)),
+            py_fn!(py, parse(parser_name: &PyString, data: PyObject)),
         )?;
         m.add(
             py,
@@ -62,7 +62,7 @@ py_module_initializer!(
         m.add(
             py,
             "save_spec",
-            py_fn!(py, save_spec(py_spec: &PyObject, dst: &PyString)),
+            py_fn!(py, save_spec(py_spec: &PyString, dst: &PyString)),
         )?;
         m.add(py, "CSTNode", py.get_type::<CSTNode>())?;
         m.add(py, "Production", py.get_type::<Production>())?;
