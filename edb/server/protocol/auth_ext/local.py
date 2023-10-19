@@ -68,9 +68,14 @@ class Client:
         return await self.provider.update_password(
             self.db, *args, **kwargs)
 
-    async def get_email_by_identity_id(self, *args, **kwargs):
+    async def get_email_by_identity_id(self, identity_id: str):
         return await self.provider.get_email_by_identity_id(
-            self.db, *args, **kwargs
+            self.db, identity_id
+        )
+
+    async def get_verified_by_identity_id(self, identity_id: str):
+        return await self.provider.get_verified_by_identity_id(
+            self.db, identity_id
         )
 
     async def verify_email(self, *args, **kwargs):
@@ -317,7 +322,7 @@ filter .identity.id = identity_id
 set { verified_at := verified_at };""",
             variables={
                 "identity_id": identity_id,
-                "verified_at": verified_at,
+                "verified_at": verified_at.isoformat(),
             },
             cached_globally=True,
         )
@@ -339,9 +344,32 @@ set { verified_at := verified_at };""",
         )
 
         result_json = json.loads(r.decode())
-        if len(result_json == 0):
+        if len(result_json) == 0:
             return None
 
         assert len(result_json) == 1
 
         return result_json[0]["email"]
+
+
+    async def get_verified_by_identity_id(
+        self, db: Any, identity_id: str
+    ) -> str | None:
+        r = await execute.parse_execute_json(
+            db,
+            """
+            select ext::auth::EmailFactor {
+              verified_at,
+            } filter .identity.id = <uuid>$identity_id;
+            """,
+            variables={"identity_id": identity_id},
+            cached_globally=True,
+        )
+
+        result_json = json.loads(r.decode())
+        if len(result_json) == 0:
+            return None
+
+        assert len(result_json) == 1
+
+        return result_json[0]["verified_at"]
