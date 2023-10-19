@@ -3855,7 +3855,6 @@ def process_encoded_param(
     if (param_cte := ctx.param_ctes.get(param.name)) is None:
         with ctx.newrel() as sctx:
             sctx.pending_query = sctx.rel
-            sctx.volatility_ref = ()
             sctx.rel_overlays = context.RelOverlays()
             arg_ref = dispatch.compile(decoder, ctx=sctx)
 
