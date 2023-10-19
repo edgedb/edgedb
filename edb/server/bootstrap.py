@@ -1400,6 +1400,7 @@ async def _init_stdlib(
     stdlib = stdlib._replace(stdschema=schema)
     version_key = patches.get_version_key(len(patches.PATCHES))
 
+    # stdschema and reflschema are combined in one pickle to preserve sharing
     await _store_static_bin_cache(
         ctx,
         f'std_and_reflection_schema{version_key}',
