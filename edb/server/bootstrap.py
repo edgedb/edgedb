@@ -865,12 +865,11 @@ def prepare_patch(
 
     if not global_schema_update:
         updates.update(dict(
-            stdschema=schema,
-            reflschema=reflschema,
+            std_and_reflection_schema=(schema, reflschema),
         ))
 
     bins = (
-        'stdschema', 'reflschema', 'global_schema', 'classlayout',
+        'std_and_reflection_schema', 'global_schema', 'classlayout',
         'report_configs_typedesc_1_0', 'report_configs_typedesc_2_0',
     )
     rawbin = (
@@ -1403,7 +1402,7 @@ async def _init_stdlib(
 
     await _store_static_bin_cache(
         ctx,
-        f'stdschema{version_key}',
+        f'std_and_reflection_schema{version_key}',
         pickle.dumps(
             (schema, stdlib.reflschema),
             protocol=pickle.HIGHEST_PROTOCOL,

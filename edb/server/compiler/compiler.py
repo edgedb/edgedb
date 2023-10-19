@@ -233,7 +233,8 @@ def new_compiler(
 async def new_compiler_from_pg(con: metaschema.PGConnection) -> Compiler:
     num_patches = await get_patch_count(con)
 
-    std_schema, reflection_schema = await load_cached_schema(con, num_patches)
+    std_schema, reflection_schema = await load_std_and_reflection_schema(
+        con, num_patches)
 
     return new_compiler(
         std_schema=std_schema,
@@ -307,12 +308,12 @@ async def get_patch_count(backend_conn: metaschema.PGConnection) -> int:
     return res
 
 
-async def load_cached_schema(
+async def load_std_and_reflection_schema(
     backend_conn: metaschema.PGConnection,
     patches: int,
 ) -> tuple[s_schema.Schema, s_schema.Schema]:
     vkey = pg_patches.get_version_key(patches)
-    key = f"stdschema{vkey}"
+    key = f"std_and_reflection_schema{vkey}"
     data = await backend_conn.sql_fetch_val(
         b"""
         SELECT bin FROM edgedbinstdata.instdata
@@ -321,13 +322,12 @@ async def load_cached_schema(
         args=[key.encode("utf-8")],
     )
     try:
-        res: tuple[s_schema.FlatSchema, s_schema.FlatSchema] = (
-            pickle.loads(data))
+        std_schema: s_schema.FlatSchema
+        refl_schema: s_schema.FlatSchema
+        std_schema, refl_schema = pickle.loads(data)
         if vkey != pg_patches.get_version_key(len(pg_patches.PATCHES)):
-            std_schema = s_schema.upgrade_schema(res[0])
-            refl_schema = s_schema.upgrade_schema(res[1])
-        else:
-            std_schema, refl_schema = res
+            std_schema = s_schema.upgrade_schema(std_schema)
+            refl_schema = s_schema.upgrade_schema(refl_schema)
         return (std_schema, refl_schema)
     except Exception as e:
         raise RuntimeError(
