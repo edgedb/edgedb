@@ -375,7 +375,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         }};
 
         CONFIGURE CURRENT DATABASE
-        INSERT ext::auth::EmailPasswordProviderConfig {{}};
+        INSERT ext::auth::EmailPasswordProviderConfig {{
+            require_verification := false,
+        }};
         """,
     ]
 
@@ -2472,7 +2474,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertTrue(
                 reset_url.startswith(form_data['reset_url'] + '?reset_token=')
             )
-
             claims = await self.extract_jwt_claims(
                 reset_url.split('=', maxsplit=1)[1]
             )
