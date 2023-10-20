@@ -15,12 +15,9 @@ async def send_password_reset_email(
     tenant: tenant.Tenant,
     to_addr: str,
     reset_url: str,
-    secret_token: str,
     test_mode: bool,
 ):
     from_addr = util.get_config(db, "ext::auth::SMTPConfig::sender")
-    reset_token_params = urllib.parse.urlencode({"reset_token": secret_token})
-    reset_url = f"{reset_url}?{reset_token_params}"
     ui_config = util.maybe_get_config(
         db, "ext::auth::AuthConfig::ui", CompositeConfigType
     )
