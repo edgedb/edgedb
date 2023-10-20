@@ -351,7 +351,6 @@ set { verified_at := verified_at };""",
 
         return result_json[0]["email"]
 
-
     async def get_verified_by_identity_id(
         self, db: Any, identity_id: str
     ) -> str | None:

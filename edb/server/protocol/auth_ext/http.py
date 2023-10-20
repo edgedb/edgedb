@@ -392,7 +392,9 @@ class Router:
                         pkce_code = await pkce.link_identity_challenge(
                             self.db, local_identity.id, maybe_challenge
                         )
-                        session_token = self._make_session_token(local_identity.id)
+                        session_token = self._make_session_token(
+                            local_identity.id
+                        )
                         _set_cookie(response, "edgedb-session", session_token)
                         if data.get("redirect_to") is not None:
                             response.status = http.HTTPStatus.FOUND
@@ -471,7 +473,7 @@ class Router:
                             )
                             response.status = http.HTTPStatus.FOUND
                             response.custom_headers["Location"] = (
-                               _with_appended_qs(redirect_to, {"code": [code]})
+                                _with_appended_qs(redirect_to, {"code": [code]})
                             )
                         case (str(challenge), _):
                             await pkce.create(self.db, challenge)
@@ -1391,7 +1393,6 @@ class Router:
             )
 
 
-
 def _fail_with_error(
     *,
     response: Any,
@@ -1470,6 +1471,7 @@ def _with_appended_qs(url: str, query: dict[str, list[str]]) -> str:
 
     url_parts[4] = urllib.parse.urlencode(existing_query, doseq=True)
     return urllib.parse.urlunparse(url_parts)
+
 
 def _check_keyset(candidate: dict[str, Any], keyset: set[str]):
     missing_fields = [

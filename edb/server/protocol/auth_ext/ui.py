@@ -379,7 +379,9 @@ def render_email_verification_page(
     resend_url = None
     if verification_token:
         verification_token = html.escape(verification_token)
-        resend_url = f"resend-verification?verification_token={verification_token}"
+        resend_url = (
+            f"resend-verification?verification_token={verification_token}"
+        )
     if not is_valid:
         messages = ''.join(
             [_render_error_message(error) for error in error_messages]
@@ -457,7 +459,7 @@ def render_resend_verification_done_page(
         original email, or on the signin page.
         """
     else:
-        verification_token = html.escape(verification_token);
+        verification_token = html.escape(verification_token)
         if is_valid:
             content = f'''
             Your verification email has been resent. Please check your email.
