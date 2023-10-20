@@ -851,7 +851,7 @@ aa';
 % OK %
         SELECT ((a < b) > c);
         """
-    
+
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r"Unexpected '>='", line=2, col=23)
     def test_edgeql_syntax_ops_31(self):
