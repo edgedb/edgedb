@@ -2816,6 +2816,13 @@ aa';
         );
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Missing keyword 'SELECT'", line=2, col=9)
+    def test_edgeql_syntax_select_13(self):
+        """
+        default::Movie.name;
+        """
+
     def test_edgeql_syntax_group_01(self):
         """
         GROUP User
