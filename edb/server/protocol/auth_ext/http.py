@@ -41,7 +41,7 @@ from edb.ir import statypes
 from edb.server.config.types import CompositeConfigType
 from edb.server import tenant as edbtenant
 
-from . import oauth, local, errors, util, pkce, ui, email
+from . import oauth, local, errors, util, pkce, ui, email as auth_emails
 
 
 logger = logging.getLogger('edb.server')
@@ -543,12 +543,11 @@ class Router:
                         })
                         reset_url = f"{data['reset_url']}?{reset_token_params}"
 
-                        await email.send_password_reset_email(
+                        await auth_emails.send_password_reset_email(
                             db=self.db,
                             tenant=self.tenant,
                             to_addr=data["email"],
                             reset_url=reset_url,
-                            secret_token=new_reset_token,
                             test_mode=self.test_mode,
                         )
 
@@ -1357,7 +1356,7 @@ class Router:
             },
             expires_in=datetime.timedelta(seconds=0),
         )
-        await email.send_verification_email(
+        await auth_emails.send_verification_email(
             db=self.db,
             tenant=self.tenant,
             to_addr=to_addr,
