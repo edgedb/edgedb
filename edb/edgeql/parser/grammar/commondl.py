@@ -241,7 +241,7 @@ class FuncDeclArgName(Nonterm):
         self.val = dp.val
         self.context = dp.context
 
-    def reduce_ARGUMENT(self, dp):
+    def reduce_PARAMETER(self, dp):
         if dp.val[1].isdigit():
             raise EdgeQLSyntaxError(
                 f'numeric parameters are not supported',
