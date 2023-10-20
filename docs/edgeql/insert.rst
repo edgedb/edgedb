@@ -120,10 +120,9 @@ EdgeQL's composable syntax makes link insertion painless. Below, we insert
   {default::Movie {id: 9b1cf9e6-3e95-11ec-95a2-138eeb32759c}}
 
 To assign to the ``Movie.characters`` link, we're using a *subquery*. This
-subquery is executed and resolves to a singleton set of type ``Person``, which
-is assignable to ``characters``.  Note that the inner ``select Person``
-statement is wrapped in parentheses; this is required for all subqueries in
-EdgeQL.
+subquery is executed and resolves to a set of type ``Person``, which is
+assignable to ``characters``.  Note that the inner ``select Person`` statement
+is wrapped in parentheses; this is required for all subqueries in EdgeQL.
 
 Now let's assign to a *single link*.
 

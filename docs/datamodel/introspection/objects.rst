@@ -47,6 +47,7 @@ Introspection of the ``schema::ObjectType``:
 Consider the following schema:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     abstract type Addressable {
         property address -> str;
@@ -57,6 +58,22 @@ Consider the following schema:
         required property name -> str;
 
         multi link friends -> User;
+
+        # define an index for User based on name
+        index on (.name);
+    }
+
+.. code-block:: sdl
+
+    abstract type Addressable {
+        address: str;
+    }
+
+    type User extending Addressable {
+        # define some properties and a link
+        required name: str;
+
+        multi friends: User;
 
         # define an index for User based on name
         index on (.name);

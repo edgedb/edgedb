@@ -283,8 +283,8 @@ For the most part, the policy types correspond to EdgeQL's *statement types*:
 - ``delete``: Applies to delete queries.
 - ``update``: Applies to update queries.
 
-Additionally, the ``update`` operation can broken down into two sub-policies:
-``update read`` and ``update write``.
+Additionally, the ``update`` operation can be broken down into two
+sub-policies: ``update read`` and ``update write``.
 
 - ``update read``: This policy restricts *which* objects can be updated. It
   runs *pre-update*; that is, this policy is executed before the updates have

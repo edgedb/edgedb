@@ -407,8 +407,8 @@ Sets
 
         select User.<owner[is Issue];
 
-        # With the use of type intersection it's possible to refer to
-        # specific property of Issue now:
+        # With the use of type intersection it's possible to refer
+        # to a specific property of Issue now:
         select User.<owner[is Issue].title;
 
 

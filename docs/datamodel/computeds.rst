@@ -11,9 +11,12 @@ Computeds
   This section assumes a basic understanding of EdgeQL. If you aren't familiar
   with it, feel free to skip this page for now.
 
-Object types can contain *computed* links and properties. Computed properties
+Object types can contain *computed* properties and links. Computed properties
 and links are not persisted in the database. Instead, they are evaluated *on
-the fly* whenever that field is queried.
+the fly* whenever that field is queried. Computed properties must be declared
+with the ``property`` keyword and computed links must be declared with the
+``link`` keyword. While these keywords are optional for non-computed fields
+in EdgeDB 3.0+, they are still required for computed fields.
 
 .. code-block:: sdl
     :version-lt: 3.0

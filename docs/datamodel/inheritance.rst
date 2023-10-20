@@ -238,7 +238,7 @@ Use ``abstract`` to declare reusable, user-defined constraint types.
     abstract constraint in_range(min: anyreal, max: anyreal) {
       errmessage :=
         'Value must be in range [{min}, {max}].';
-      using (max > __subject__ and __subject__ >= min);
+      using (min <= __subject__ and __subject__ < max);
     }
 
     type Player {
@@ -252,7 +252,7 @@ Use ``abstract`` to declare reusable, user-defined constraint types.
     abstract constraint in_range(min: anyreal, max: anyreal) {
       errmessage :=
         'Value must be in range [{min}, {max}].';
-      using (max > __subject__ and __subject__ >= min);
+      using (min <= __subject__ and __subject__ < max);
     }
 
     type Player {

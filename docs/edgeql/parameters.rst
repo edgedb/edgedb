@@ -201,6 +201,6 @@ and the property to order by.
 Schema definition language (SDL) and :ref:`configure
 <ref_eql_statements_configure>` statements **cannot** be parameterized. Data
 definition language (DDL) has limited support for parameters, but it's not a
-recommended pattern. Some of the limitations might be lifted in the future
+recommended pattern. Some of the limitations might be lifted in future
 versions.
 
