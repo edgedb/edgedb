@@ -1761,8 +1761,19 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             select JSONTest {id, val}
             filter contains(.val, <json>(b := 123))
         ''')
+        res = res['fine_grained']
+
+        if len(res['subplans']) >= 2:
+            # Postgres version <16  
+            res = res['subplans'][1]
+        else:
+            # Postgres version >=16
+            # Response seems to be inlined, so let's remove all but last thing
+            # in the pipeline.
+            res['pipeline'] = res['pipeline'][-1:]
+
         self.assert_plan(
-            res['fine_grained']['subplans'][1],
+            res,
             {
                 "pipeline": [
                     {
