@@ -67,6 +67,7 @@ async def send_verification_email(
         {
             "verification_token": verification_token,
             "provider": provider,
+            "email": to_addr,
         }
     )
     verify_url = f"{verify_url}?{verification_token_params}"
