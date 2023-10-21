@@ -219,7 +219,20 @@ impl<'s> Parser<'s> {
                 && self.compare_stack(
                     &[
                         Cond::keyword("for"),
-                        Cond::Production("OptionalOptional"),
+                        Cond::Production("Identifier"),
+                        Cond::keyword("in"),
+                    ],
+                    i,
+                    ctx,
+                )
+            {
+                return Some((i + 3, ParserRule::ForIterator));
+            }
+            if !found_union
+                && self.compare_stack(
+                    &[
+                        Cond::keyword("for"),
+                        Cond::keyword("optional"),
                         Cond::Production("Identifier"),
                         Cond::keyword("in"),
                     ],

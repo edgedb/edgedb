@@ -3431,6 +3431,49 @@ aa';
         FOR x in <datetime>'1999-03-31T15:17:00Z' UNION x;
         """
 
+    def test_edgeql_syntax_barefor_01(self):
+        """
+        FOR x in ({1,2} + {3,4}) { x };
+
+% OK %
+
+        FOR x in ({1,2} + {3,4}) UNION { x };
+        """
+
+    def test_edgeql_syntax_barefor_02(self):
+        """
+        FOR x IN {(('Alice', 'White') UNION ('Bob', 'Green'))}
+        {(
+            SELECT User{first_tname, last_name, age}
+            FILTER (
+                (.first_name = x.0)
+                AND
+                (.last_name = x.1)
+            )
+        )};
+
+% OK %
+
+        FOR x IN {(('Alice', 'White') UNION ('Bob', 'Green'))} UNION
+        {(
+            SELECT User{first_tname, last_name, age}
+            FILTER (
+                (.first_name = x.0)
+                AND
+                (.last_name = x.1)
+            )
+        )};
+        """
+
+    def test_edgeql_syntax_barefor_03(self):
+        """
+        FOR x in ({1,2} + {3,4}) { x, 2 };
+
+% OK %
+
+        FOR x in ({1,2} + {3,4}) UNION { x, 2 };
+        """
+
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   'Missing parentheses around complex expression in a '
                   'FOR iterator clause',
