@@ -38,10 +38,9 @@ from edb import errors as edb_errors
 from edb.common import debug
 from edb.common import markup
 from edb.ir import statypes
-from edb.server.config.types import CompositeConfigType
 from edb.server import tenant as edbtenant
 
-from . import oauth, local, errors, util, pkce, ui, email as auth_emails
+from . import oauth, local, errors, util, pkce, ui, config, email as auth_emails
 
 
 logger = logging.getLogger('edb.server')
@@ -1320,7 +1319,7 @@ class Router:
     def _get_ui_config(self):
         return util.maybe_get_config(
             self.db, "ext::auth::AuthConfig::ui",
-            CompositeConfigType
+            config.UIConfig
         )
 
     def _get_password_provider(self):
