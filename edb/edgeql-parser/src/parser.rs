@@ -689,7 +689,8 @@ fn get_token_kind(token_name: &str) -> Kind {
         ":=" => Assign,
         "-=" => SubAssign,
 
-        "ARGUMENT" => Argument,
+        "PARAMETER" => Parameter,
+        "PARAMETERANDTYPE" => ParameterAndType,
         "SUBSTITUTION" => Substitution,
 
         _ => {

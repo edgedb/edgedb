@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::BTreeSet;
 
 use edgeql_parser::keywords::Keyword;
@@ -77,45 +76,45 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
                     Some(Token { kind: Kind::Keyword(Keyword("limit")), .. })))
             && tok.text != "9223372036854775808"
             => {
-                rewritten_tokens.extend(arg_type_cast( "__std__", "int64",
-                    next_var(),
-                    tok.span));
+                rewritten_tokens.push(arg_type_cast(
+                    "int64", next_var(), tok.span
+                ));
                 variables.push(Variable {
                     value: tok.value.clone().unwrap(),
                 });
                 continue;
             }
             Kind::FloatConst => {
-                rewritten_tokens.extend(arg_type_cast( "__std__", "float64",
-                    next_var(),
-                    tok.span));
+                rewritten_tokens.push(arg_type_cast(
+                    "float64", next_var(), tok.span
+                ));
                 variables.push(Variable {
                     value: tok.value.clone().unwrap(),
                 });
                 continue;
             }
             Kind::BigIntConst => {
-                rewritten_tokens.extend(arg_type_cast( "__std__", "bigint",
-                    next_var(),
-                    tok.span));
+                rewritten_tokens.push(arg_type_cast(
+                    "bigint", next_var(), tok.span
+                ));
                 variables.push(Variable {
                     value: tok.value.clone().unwrap(),
                 });
                 continue;
             }
             Kind::DecimalConst => {
-                rewritten_tokens.extend(arg_type_cast( "__std__", "decimal",
-                    next_var(),
-                    tok.span));
+                rewritten_tokens.push(arg_type_cast(
+                    "decimal", next_var(), tok.span
+                ));
                 variables.push(Variable {
                     value: tok.value.clone().unwrap(),
                 });
                 continue;
             }
             Kind::Str => {
-                rewritten_tokens.extend(arg_type_cast( "__std__", "str",
-                    next_var(),
-                    tok.span));
+                rewritten_tokens.push(arg_type_cast(
+                    "str", next_var(), tok.span
+                ));
                 variables.push(Variable {
                     value: tok.value.clone().unwrap(),
                 });
@@ -178,14 +177,15 @@ fn is_operator(token: &Token) -> bool {
         | DistinctFrom | Comma | OpenParen | CloseParen | OpenBracket | CloseBracket
         | OpenBrace | CloseBrace | Dot | Semicolon | Colon | Add | Sub | Mul | Div | Modulo
         | Pow | Less | Greater | Eq | Ampersand | Pipe | At => true,
-        DecimalConst | FloatConst | IntConst | BigIntConst | BinStr | Argument | Str
-        | BacktickName | Keyword(_) | Ident | Substitution | EOF | EOI | Epsilon | StartBlock
-        | StartExtension | StartFragment | StartMigration | StartSDLDocument => false,
+        DecimalConst | FloatConst | IntConst | BigIntConst | BinStr | Parameter
+        | ParameterAndType | Str | BacktickName | Keyword(_) | Ident | Substitution | EOF | EOI
+        | Epsilon | StartBlock | StartExtension | StartFragment | StartMigration
+        | StartSDLDocument => false,
     }
 }
 
 fn serialize_tokens(tokens: &[Token]) -> String {
-    use edgeql_parser::tokenizer::Kind::Argument;
+    use edgeql_parser::tokenizer::Kind::Parameter;
 
     let mut buf = String::new();
     let mut needs_space = false;
@@ -194,7 +194,7 @@ fn serialize_tokens(tokens: &[Token]) -> String {
             break;
         }
 
-        if needs_space && !is_operator(token) && token.kind != Argument {
+        if needs_space && !is_operator(token) && token.kind != Parameter {
             buf.push(' ');
         }
         buf.push_str(&token.text);
@@ -210,7 +210,7 @@ where
     let mut max_visited = None::<usize>;
     let mut names = BTreeSet::new();
     for t in tokens {
-        if t.kind == Kind::Argument {
+        if t.kind == Kind::Parameter {
             if let Ok(v) = t.text[1..].parse() {
                 if max_visited.map(|old| v > old).unwrap_or(true) {
                     max_visited = Some(v);
@@ -236,37 +236,16 @@ fn hash(text: &str) -> [u8; 64] {
     return result;
 }
 
-/// Produces tokens corresponding to (<module::typ>$var)
-fn arg_type_cast(
-    module: &'static str,
-    typ: &'static str,
-    var: String,
-    span: Span,
-) -> [Token<'static>; 8] {
-    fn tk(kind: Kind, text: Cow<'_, str>, span: Span) -> Token {
-        let value = if kind == Kind::Ident {
-            Some(Value::String(text.to_string()))
-        } else {
-            None
-        };
-        Token {
-            kind,
-            text,
-            value,
-            span,
-        }
+/// Produces tokens corresponding to (<lit typ>$var)
+fn arg_type_cast(typ: &'static str, var: String, span: Span) -> Token<'static> {
+    // the `lit` is required so these tokens have different text than an actual
+    // type cast and parameter, so their hashes don't clash.
+    Token {
+        kind: Kind::ParameterAndType,
+        text: format!("<lit {typ}>{var}").into(),
+        value: None,
+        span,
     }
-
-    [
-        tk(Kind::OpenParen, "(".into(), span),
-        tk(Kind::Less, "<".into(), span),
-        tk(Kind::Ident, module.into(), span),
-        tk(Kind::Namespace, "::".into(), span),
-        tk(Kind::Ident, typ.into(), span),
-        tk(Kind::Greater, ">".into(), span),
-        tk(Kind::Argument, var.into(), span),
-        tk(Kind::CloseParen, ")".into(), span),
-    ]
 }
 
 #[cfg(test)]

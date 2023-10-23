@@ -24,6 +24,7 @@ from edb import errors
 
 from edb.testbase import lang as tb
 from edb.edgeql import generate_source as edgeql_to_source
+from edb.edgeql import tokenizer
 from edb.edgeql.parser import grammar as qlgrammar
 from edb.tools import test
 
@@ -3593,7 +3594,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"named arguments do not need a '\$' prefix, "
+                  r"named parameters do not need a '\$' prefix, "
                   r"rewrite as 'a := \.\.\.'",
                   line=2, col=25)
     def test_edgeql_syntax_function_08(self):
@@ -6241,3 +6242,35 @@ aa';
 % OK %
         DESCRIBE INSTANCE CONFIG AS DDL;
         """
+
+
+class TestEdgeQLNormalization(EdgeQLSyntaxTest):
+
+    def _run_test(self, *, source, spec=None, expected=None):
+        super()._run_test(
+            source=tokenizer.NormalizedSource.from_string(source),
+            spec=spec,
+            expected=expected
+        )
+
+    def assert_equal(
+        self,
+        expected,
+        result,
+        *,
+        re_filter: str | None = None,
+        message: str | None = None
+    ) -> None:
+        pass
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=25)
+    def test_edgeql_normalization_01(self):
+        '''
+        select count(foo 1);
+        '''
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=22)
+    def test_edgeql_normalization_02(self):
+        '''
+        select count 1;
+        '''
