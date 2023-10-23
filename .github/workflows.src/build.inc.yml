@@ -13,8 +13,9 @@
         echo branch="${branch}" >> $GITHUB_OUTPUT
       id: whichver
 
-<% for tgt in targets.linux -%>
-<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<%- for tgt in targets.linux %>
+<%- set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+
   build-<< tgt.name >>:
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
     needs: prep
@@ -46,10 +47,11 @@
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
-<% endfor -%>
+<%- endfor %>
 
-<% for tgt in targets.macos -%>
-<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<%- for tgt in targets.macos %>
+<%- set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+
   build-<< tgt.name >>:
     runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
     needs: prep
@@ -99,10 +101,11 @@
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
-<% endfor -%>
+<%- endfor %>
 
-<% for tgt in targets.linux -%>
-<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<%- for tgt in targets.linux %>
+<%- set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+
   test-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
@@ -125,10 +128,11 @@
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: << 0 if tgt.runs_on and 'self-hosted' in tgt.runs_on else 1 >>
-<% endfor -%>
+<%- endfor %>
 
-<% for tgt in targets.macos -%>
-<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<%- for tgt in targets.macos %>
+<%- set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+
   test-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
     runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
@@ -154,22 +158,23 @@
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
       run: |
         edgedb-pkg/integration/macos/test.sh
-<% endfor -%>
+<%- endfor %>
 
-<% if publish_all -%>
+<%- if publish_all %>
   collect:
     needs:
-    <%- for tgt in targets.linux + targets.macos -%>
+    <%- for tgt in targets.linux + targets.macos %>
     - test-<< tgt.name >>
-    <%- endfor -%>
+    <%- endfor %>
     runs-on: ubuntu-latest
     steps:
       - run: echo 'All build+tests passed, ready to publish now!'
-<% endif -%>
+<%- endif %>
 
-<% for tgt in targets.linux -%>
-<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") -%>
-<% for publish in publications %>
+<%- for tgt in targets.linux %>
+<%- set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<%- for publish in publications %>
+
   publish<< publish.suffix>>-<< tgt.name >>:
     needs: [<% if publish_all %>collect<% else %>test-<< tgt.name >><% endif %>]
     runs-on: ubuntu-latest
@@ -229,11 +234,12 @@
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-<% endfor -%>
-<% endfor -%>
+<%- endfor %>
+<%- endfor %>
 
-<% for tgt in targets.macos -%>
-<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<%- for tgt in targets.macos %>
+<%- set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+
   publish-<< tgt.name >>:
     needs: [<% if publish_all %>collect<% else %>test-<< tgt.name >><% endif %>]
     runs-on: ubuntu-latest
@@ -265,11 +271,12 @@
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-<% endfor -%>
+<%- endfor %>
 
-<% set docker_tgts = targets.linux | selectattr("docker_arch") | list -%>
-<% if docker_tgts -%>
-<% set pub_outputs = "needs.check-published-" + (docker_tgts|first)["name"] + ".outputs" %>
+<%- set docker_tgts = targets.linux | selectattr("docker_arch") | list %>
+<%- if docker_tgts %>
+<%- set pub_outputs = "needs.check-published-" + (docker_tgts|first)["name"] + ".outputs" %>
+
   publish-docker:
     needs:
       <%- for tgt in docker_tgts %>
@@ -360,7 +367,7 @@
         workdir: dockerfile
         buildargs: version=${{ << pub_outputs >>.version-slot }},exact_version=${{ << pub_outputs >>.version-core }}<% if subdist != "" %>,subdist=<< subdist >><% endif %>
         platforms: << docker_tgts|map(attribute="docker_arch")|join(",") >>
-<% endif %>
+<%- endif %>
 
   workflow-notifications:
     if: failure() && github.event_name != 'pull_request'
@@ -401,4 +408,4 @@
           icon_emoji: ':hammer:'
           include_jobs: 'on-failure'
 
-<%- endmacro -%>
+<%- endmacro %>

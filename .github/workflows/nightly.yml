@@ -24,7 +24,6 @@ jobs:
         echo branch="${branch}" >> $GITHUB_OUTPUT
       id: whichver
 
-
   build-debian-buster-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
@@ -2280,7 +2279,6 @@ jobs:
         workdir: dockerfile
         buildargs: version=${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-buster-x86_64.outputs.version-core }},subdist=nightly
         platforms: linux/amd64,linux/arm64
-
 
   workflow-notifications:
     if: failure() && github.event_name != 'pull_request'

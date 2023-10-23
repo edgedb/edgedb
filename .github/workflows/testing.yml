@@ -19,7 +19,6 @@ jobs:
         echo branch="${branch}" >> $GITHUB_OUTPUT
       id: whichver
 
-
   build-debian-buster-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
@@ -1064,8 +1063,32 @@ jobs:
         PKG_PLATFORM_VERSION: "aarch64"
       run: |
         edgedb-pkg/integration/macos/test.sh
-collect:
-    needs:- test-debian-buster-x86_64- test-debian-buster-aarch64- test-debian-bullseye-x86_64- test-debian-bullseye-aarch64- test-debian-bookworm-x86_64- test-debian-bookworm-aarch64- test-ubuntu-bionic-x86_64- test-ubuntu-bionic-aarch64- test-ubuntu-focal-x86_64- test-ubuntu-focal-aarch64- test-ubuntu-jammy-x86_64- test-ubuntu-jammy-aarch64- test-centos-7-x86_64- test-centos-8-x86_64- test-centos-8-aarch64- test-rockylinux-9-x86_64- test-rockylinux-9-aarch64- test-linux-x86_64- test-linux-aarch64- test-linuxmusl-x86_64- test-linuxmusl-aarch64- test-macos-x86_64- test-macos-aarch64runs-on: ubuntu-latest
+  collect:
+    needs:
+    - test-debian-buster-x86_64
+    - test-debian-buster-aarch64
+    - test-debian-bullseye-x86_64
+    - test-debian-bullseye-aarch64
+    - test-debian-bookworm-x86_64
+    - test-debian-bookworm-aarch64
+    - test-ubuntu-bionic-x86_64
+    - test-ubuntu-bionic-aarch64
+    - test-ubuntu-focal-x86_64
+    - test-ubuntu-focal-aarch64
+    - test-ubuntu-jammy-x86_64
+    - test-ubuntu-jammy-aarch64
+    - test-centos-7-x86_64
+    - test-centos-8-x86_64
+    - test-centos-8-aarch64
+    - test-rockylinux-9-x86_64
+    - test-rockylinux-9-aarch64
+    - test-linux-x86_64
+    - test-linux-aarch64
+    - test-linuxmusl-x86_64
+    - test-linuxmusl-aarch64
+    - test-macos-x86_64
+    - test-macos-aarch64
+    runs-on: ubuntu-latest
     steps:
       - run: echo 'All build+tests passed, ready to publish now!'
 
@@ -2302,7 +2325,6 @@ collect:
         workdir: dockerfile
         buildargs: version=${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-buster-x86_64.outputs.version-core }},subdist=testing
         platforms: linux/amd64,linux/arm64
-
 
   workflow-notifications:
     if: failure() && github.event_name != 'pull_request'
