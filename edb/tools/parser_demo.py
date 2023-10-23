@@ -320,4 +320,7 @@ QUERIES = [
     '''
     (SELECT User.name) OFFSET 2;
     ''',
+    '''
+    default::Movie.name;
+    ''',
 ]
