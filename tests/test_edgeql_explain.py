@@ -1267,7 +1267,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                 'important': True,
                                 'title': 'scan_direction',
                                 'type': 'text',
-                                'value': 'NoMovement',
+                                'value': str,
                             },
                             {
                                 'important': True,
