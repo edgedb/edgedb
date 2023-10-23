@@ -169,7 +169,6 @@ class T_PARAMETER(Token):
 
 
 class T_PARAMETERANDTYPE(Token):
-    pass
     "A special token produced by normalization"
 
 
