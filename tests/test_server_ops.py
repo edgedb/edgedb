@@ -1299,7 +1299,9 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             await conn.execute('create extension auth')
             await conn.execute('''
                 configure current database
-                insert ext::auth::EmailPasswordProviderConfig {};
+                insert ext::auth::EmailPasswordProviderConfig {
+                    require_verification := false,
+                };
             ''')
         finally:
             await conn.aclose()
