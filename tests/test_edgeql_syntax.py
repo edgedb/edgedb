@@ -18,7 +18,6 @@
 
 
 import re
-from typing import Optional
 import unittest  # NOQA
 
 from edb import errors
@@ -3588,7 +3587,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"named arguments do not need a '\$' prefix, "
+                  r"named parameters do not need a '\$' prefix, "
                   r"rewrite as 'a := \.\.\.'",
                   line=2, col=25)
     def test_edgeql_syntax_function_08(self):

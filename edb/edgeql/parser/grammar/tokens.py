@@ -169,7 +169,8 @@ class T_PARAMETER(Token):
 
 
 class T_PARAMETERANDTYPE(Token):
-    "A special token produced by normalization"
+    # A special token produced by normalization
+    pass
 
 
 class T_ASSIGN(Token, lextoken=':='):
