@@ -1445,34 +1445,42 @@ class Expr(Nonterm):
 
 class CompareOp(Nonterm):
     @parsing.inline(0)
+    @parsing.precedence(precedence.P_COMPARE_OP)
     def reduce_DISTINCTFROM(self, *_):
         pass
 
     @parsing.inline(0)
+    @parsing.precedence(precedence.P_COMPARE_OP)
     def reduce_GREATEREQ(self, *_):
         pass
 
     @parsing.inline(0)
+    @parsing.precedence(precedence.P_COMPARE_OP)
     def reduce_LESSEQ(self, *_):
         pass
 
     @parsing.inline(0)
+    @parsing.precedence(precedence.P_COMPARE_OP)
     def reduce_NOTDISTINCTFROM(self, *_):
         pass
 
     @parsing.inline(0)
+    @parsing.precedence(precedence.P_COMPARE_OP)
     def reduce_NOTEQ(self, *_):
         pass
 
     @parsing.inline(0)
+    @parsing.precedence(precedence.P_COMPARE_OP)
     def reduce_LANGBRACKET(self, *_):
         pass
 
     @parsing.inline(0)
+    @parsing.precedence(precedence.P_COMPARE_OP)
     def reduce_RANGBRACKET(self, *_):
         pass
 
     @parsing.inline(0)
+    @parsing.precedence(precedence.P_COMPARE_OP)
     def reduce_EQUALS(self, *_):
         pass
 
