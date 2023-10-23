@@ -682,10 +682,16 @@ Strings
     .. code-block:: edgeql-repl
 
         db> select to_str(<datetime>'2018-05-07 15:01:22.306916-05',
-        ...               'FMDDth of FMMonth, YYYY');
+        ...               'FMDDth "of" FMMonth, YYYY');
         {'7th of May, 2018'}
         db> select to_str(<cal::local_date>'2018-05-07', 'CCth "century"');
         {'21st century'}
+
+    .. note::
+    
+        If you want to use literal text in your format string, it's best to
+        enclose it in double quotes as shown above with ``of`` and
+        ``century``.
 
     When converting one of the numeric types, this function is the
     reverse of: :eql:func:`to_bigint`, :eql:func:`to_decimal`,
@@ -968,17 +974,17 @@ Date and time formatting options
 |                         | (i-xii; i=January)                     |
 +-------------------------+----------------------------------------+
 | TZ                      | upper case time-zone abbreviation      |
-|                         | (only supported in to_char)            |
+|                         | (only supported in :eql:func:`to_str`) |
 +-------------------------+----------------------------------------+
 | tz                      | lower case time-zone abbreviation      |
-|                         | (only supported in to_char)            |
+|                         | (only supported in :eql:func:`to_str`) |
 +-------------------------+----------------------------------------+
 | TZH                     | time-zone hours                        |
 +-------------------------+----------------------------------------+
 | TZM                     | time-zone minutes                      |
 +-------------------------+----------------------------------------+
 | OF                      | time-zone offset from UTC (only        |
-|                         | supported in to_char)                  |
+|                         | supported in :eql:func:`to_str`)       |
 +-------------------------+----------------------------------------+
 
 Some additional formatting modifiers:
@@ -1011,6 +1017,10 @@ the *FX* prefix modifier is used. For example:
     ...     '2000    JUN', 'FXYYYY MON');
     InternalServerError: invalid value "   " for "MON"
 
+Ordinary text is allowed in :eql:func:`to_str` format strings and will be
+output literally.  For better compatibility you should put a plain substring
+in double quotes to force it to be interpreted as literal text even if it
+contains template patterns now or could in the future.
 
 .. _ref_std_converters_number_fmt:
 
