@@ -110,7 +110,8 @@ pub enum Kind {
     Ampersand,       // &
     Pipe,            // |
     At,              // @
-    Argument,        // $something, $`something`
+    Parameter,       // $something, $`something`
+    ParameterAndType,// <lit int>$something
     DecimalConst,
     FloatConst,
     IntConst,
@@ -527,7 +528,7 @@ impl<'a> Tokenizer<'a> {
                                             "backtick-quoted argument cannot be empty",
                                         ));
                                     }
-                                    return Ok((Argument, idx + 1));
+                                    return Ok((Parameter, idx + 1));
                                 }
                                 check_prohibited(c, false)?;
                             }
@@ -588,7 +589,7 @@ impl<'a> Tokenizer<'a> {
                         )));
                     }
                 }
-                return Ok((Argument, end_idx));
+                return Ok((Parameter, end_idx));
             }
             '\\' => match iter.next() {
                 Some((_, '(')) => {

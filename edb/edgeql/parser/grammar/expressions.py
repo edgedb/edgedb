@@ -1543,14 +1543,27 @@ class ExprList(ListNonterm, element=Expr, separator=tokens.T_COMMA):
 
 
 class Constant(Nonterm):
-    # ARGUMENT
+    # PARAMETER
     # | BaseNumberConstant
     # | BaseStringConstant
     # | BaseBooleanConstant
     # | BaseBytesConstant
 
-    def reduce_ARGUMENT(self, *kids):
-        self.val = qlast.Parameter(name=kids[0].val[1:])
+    def reduce_PARAMETER(self, param):
+        self.val = qlast.Parameter(name=param.val[1:])
+
+    def reduce_PARAMETERANDTYPE(self, param):
+        assert param.val.startswith('<lit ')
+        type_name, param_name = param.val.removeprefix('<lit ').split('>$')
+        self.val = qlast.TypeCast(
+            type=qlast.TypeName(
+                maintype=qlast.ObjectRef(
+                    name=type_name,
+                    module='__std__'
+                )
+            ),
+            expr=qlast.Parameter(name=param_name),
+        )
 
     @parsing.inline(0)
     def reduce_BaseNumberConstant(self, *kids):
@@ -1813,14 +1826,14 @@ class FuncCallArgExpr(Nonterm):
             kids[2].val,
         )
 
-    def reduce_ARGUMENT_ASSIGN_Expr(self, *kids):
+    def reduce_PARAMETER_ASSIGN_Expr(self, *kids):
         if kids[0].val[1].isdigit():
             raise errors.EdgeQLSyntaxError(
-                f"numeric named arguments are not supported",
+                f"numeric named parameters are not supported",
                 context=kids[0].context)
         else:
             raise errors.EdgeQLSyntaxError(
-                f"named arguments do not need a '$' prefix, "
+                f"named parameters do not need a '$' prefix, "
                 f"rewrite as '{kids[0].val[1:]} := ...'",
                 context=kids[0].context)
 
