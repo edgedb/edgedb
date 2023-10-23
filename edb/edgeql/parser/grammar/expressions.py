@@ -1553,8 +1553,8 @@ class Constant(Nonterm):
         self.val = qlast.Parameter(name=param.val[1:])
 
     def reduce_PARAMETERANDTYPE(self, param):
-        text: str = param.val[1:]
-        type_name, param_name = text.removeprefix('<').split('>$')
+        assert param.val.startswith('<lit ')
+        type_name, param_name = param.val.removeprefix('<lit ').split('>$')
         self.val = qlast.TypeCast(
             type=qlast.TypeName(
                 maintype=qlast.ObjectRef(

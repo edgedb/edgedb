@@ -236,11 +236,13 @@ fn hash(text: &str) -> [u8; 64] {
     return result;
 }
 
-/// Produces tokens corresponding to (<module::typ>$var)
+/// Produces tokens corresponding to (<lit typ>$var)
 fn arg_type_cast(typ: &'static str, var: String, span: Span) -> Token<'static> {
+    // the `lit` is required so these tokens have different text than an actual
+    // type cast and parameter, so their hashes don't clash.
     Token {
         kind: Kind::ParameterAndType,
-        text: format!("<{typ}>{var}").into(),
+        text: format!("<lit {typ}>{var}").into(),
         value: None,
         span,
     }

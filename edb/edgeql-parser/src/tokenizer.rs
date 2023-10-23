@@ -111,7 +111,7 @@ pub enum Kind {
     Pipe,            // |
     At,              // @
     Parameter,       // $something, $`something`
-    ParameterAndType,// <int>$something
+    ParameterAndType,// <lit int>$something
     DecimalConst,
     FloatConst,
     IntConst,
