@@ -317,7 +317,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        postgres-version: [ 14 ]
+        postgres-version: [ 16 ]
         single-mode:
          - ''
          - 'NOCREATEDB NOCREATEROLE'
@@ -329,8 +329,11 @@ jobs:
             multi-tenant-mode: ''
           - postgres-version: 15
             single-mode: ''
+            multi-tenant-mode: ''
+          - postgres-version: 16
+            single-mode: ''
             multi-tenant-mode: 'remote-compiler'
-          - postgres-version: 15
+          - postgres-version: 16
             single-mode: ''
             multi-tenant-mode: 'multi-tenant'
     services:
