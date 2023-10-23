@@ -1,0 +1,473 @@
+====
+v4.0
+====
+
+:edb-alt-title: EdgeDB v4
+
+This release cycle is much shorter than the previous ones. It reflects our new
+approach at EdgeDB where the goal is to provide improvements at a steady
+regular pace rather than in big, but infrequent batches. Going forward we
+expect to maintain this shorter release cadence focusing on a few features at
+a time.
+
+To play with the new features, install the CLI using `our installation guide
+<https://www.edgedb.com/install>`_ and initialize a new project.
+
+.. code-block:: bash
+
+  $ edgedb project init --server-version 4.0-beta.1
+
+
+Upgrading
+=========
+
+**Local and Cloud instances**
+
+To upgrade a local project, first ensure that your CLI is up to date with
+``edgedb cli upgrade``. Then run the following command inside the project
+directory.
+
+.. code-block:: bash
+
+  $ edgedb project upgrade --to-testing
+
+Alternatively, specify an instance name if you aren't using a project.
+
+.. code-block:: bash
+
+  $ edgedb instance upgrade --to-testing -I my_instance
+
+**Hosted instances**
+
+To upgrade a remote (hosted) instance, we recommend the following
+dump-and-restore process.
+
+1. EdgeDB v4.0 only supports PostgreSQL 14 (or above). So check the version of
+   PostgreSQL you are using before upgrading EdgeDB. If you're using Postgres
+   13 or below, you should upgrade Postgres first.
+
+2. Spin up an empty 4.0 instance. You can use one of our :ref:`deployment
+   guides <ref_guide_deployment>`, but you will need to modify some of the
+   commands to use our testing channel and the beta release.
+
+   Under Debian/Ubuntu, when adding the EdgeDB package repository, use this
+   command instead:
+
+   .. code-block:: bash
+
+       $ echo deb [signed-by=/usr/local/share/keyrings/edgedb-keyring.gpg] \
+           https://packages.edgedb.com/apt \
+           $(grep "VERSION_CODENAME=" /etc/os-release | cut -d= -f2) main \
+           | sudo tee /etc/apt/sources.list.d/edgedb.list
+
+   Use this command for installation under Debian/Ubuntu:
+
+   .. code-block:: bash
+
+       $ sudo apt-get update && sudo apt-get install edgedb-4-beta1
+
+   Under CentOS/RHEL, use this installation command:
+
+   .. code-block:: bash
+
+       $ sudo yum install edgedb-3
+
+   In any required ``systemctl`` commands, replace ``edgedb-server-3`` with
+   ``edgedb-server-4``.
+
+   Under any Docker setups, supply the ``4.0-beta.1`` tag.
+
+3. Take your application offline, then dump your v3.x database with the CLI
+
+   .. code-block:: bash
+
+       $ edgedb dump --dsn <old dsn> --all --format dir my_database.dump/
+
+   This will dump the schema and contents of your current database to a
+   directory on your local disk called ``my_database.dump``. The directory name
+   isn't important.
+
+4. Restore the empty v4.x instance from the dump
+
+   .. code-block:: bash
+
+       $ edgedb restore --all my_database.dump/ --dsn <new dsn>
+
+   Once the restore is complete, update your application to connect to the new
+   instance.
+
+   This process will involve some downtime, specifically during steps 2 and 3.
+
+
+New features
+============
+
+Full-text Search
+----------------
+
+EdgeDB 4.0 adds full-text search functionality packaged in the ``fts`` module.
+By adding an ``fts::index`` to an object type you can transform any object
+into a searchable document:
+
+.. code-block:: sdl
+
+    type Item {
+      required available: bool {
+        default := false;
+      };
+      required name: str;
+      required description: str;
+
+      index fts::index on (
+        fts::with_options(
+          .name,
+          language := fts::Language.eng
+        )
+      );
+    }
+
+The ``fts::index`` indicates to EdgeDB that this object type is a valid target
+for full-text search. The property that will be searched as well as the
+language is provided in the index.
+
+The ``fts::search`` function allows searching objects for a particular phrase:
+
+.. code-block:: edgeql-repl
+
+  edgedb> select fts::search(Item, 'candy corn', language := 'eng');
+  {
+    (
+      object := default::Item {id: 9da06b18-69b2-11ee-96b9-1bedbe75ad4f},
+      score := 0.30396354,
+    ),
+    (
+      object := default::Item {id: 92375624-69b2-11ee-96b9-675b9b87ac70},
+      score := 0.6079271,
+    ),
+  }
+
+The search results are provided as a tuple containing the matching document
+object and a score. Higher score indicates a better match. So we can use these
+values to order the results:
+
+.. code-block:: edgeql-repl
+
+  edgedb> with res := (
+  .......   select fts::search(Item, 'candy corn', language := 'eng')
+  ....... )
+  ....... select res.object {name, score := res.score}
+  ....... order by res.score desc;
+  {
+    default::Item {name: 'Candy corn', score: 0.6079271},
+    default::Item {name: 'Canned corn', score: 0.30396354},
+  }
+
+You can only have at most one ``fts::index`` defined for any particular type.
+So if there are multiple properties that should be searchable, they can all be
+specified in that one index:
+
+.. code-block:: sdl
+
+    type Item {
+      required available: bool {
+        default := false;
+      };
+      required name: str;
+      required description: str;
+
+      index fts::index on ((
+        fts::with_options(
+          .name,
+          language := fts::Language.eng
+        ),
+        fts::with_options(
+          .description,
+          language := fts::Language.eng
+        )
+      ));
+    }
+
+The above schema declares both ``name`` and ``description`` as searchable
+fields:
+
+.. code-block:: edgeql-repl
+
+  edgedb> with res := (
+  .......   select fts::search(Item, 'trick or treat', language := 'eng')
+  ....... )
+  ....... select res.object {name, description, score := res.score}
+  ....... order by res.score desc;
+  {
+    default::Item {
+      name: 'Candy corn',
+      description: 'It\'s a great Halloween treat',
+      score: 0.30396354,
+    },
+  }
+
+
+Multiranges
+-----------
+
+We've made it easier to work with ranges by adding ``multirange`` as one of
+the datatypes. Multiranges consist of one or more ranges and allow expressing
+intervals that are not contiguous. Multiranges are automatically normalized to
+contain non-overlapping ranges that are ordered according to their boundaries.
+All the usual range functions like ``overlaps`` or ``contains`` work with any
+combination of ranges and multiranges providing more flexibility in
+expressions.
+
+
+Extensions
+==========
+
+auth
+----
+
+The new ``auth`` extension adds a full authentication service that runs
+alongside your database instance, saving you the hassle of having to learn and
+implement the intricacies of OAuth or secure password storage.
+
+- OAuth Integration: Seamlessly authenticate with GitHub, Google, Apple, and
+  Azure/Microsoft.
+- Email & Password Support: Includes robust email+password authentication with
+  reset password functionality.
+- Easy Configuration: Set up via our configuration system.
+- Hosted UI: Use our hosted authentication UI to quickly add authentication to
+  your app.
+
+When a user signs up, we create a new object of type ``ext::auth::Identity``,
+which you can link to in your own schema. We then provide you with a token that
+can be set as the global ``ext::auth::client_token`` which will automatically
+populate another computed global called ``ext::auth::ClientTokenIdentity``
+which you can use directly in your access policies, or in your own globals.
+
+.. code-block:: sdl
+
+    using extension auth;
+
+    module default {
+        global current_customer := (
+            assert_single((
+                select Customer
+                filter .identity = global ext::auth::ClientTokenIdentity
+            ))
+        );
+
+        type Customer {
+            required text: str;
+            required identity: ext::auth::Identity;
+        }
+
+        type Item {
+            required sku: str;
+            required description: str;
+        }
+
+        type Cart {
+            required customer: Customer;
+            multi items: Item {
+                quantity: int32;
+            };
+
+            access policy customer_has_full_access
+                allow all
+                using (global current_customer ?= .customer);
+        }
+    }
+
+
+Here's an example query using the TypeScript client:
+
+.. code-block:: typescript
+
+    import { createClient } from "edgedb";
+
+    declare const tokenFromAuthServer: string;
+    const client = createClient()
+      .withGlobals({
+        "ext::auth::client_token": tokenFromAuthServer
+      });
+
+    const carts = await client.query(`select Cart { * };`);
+
+
+
+pgcrypto
+--------
+
+We've added ``pgcrypto`` to our extensions. This exposes ``digest``, ``hmac``,
+``gen_salt`` and ``crypt`` functions for your hashing, encrypting and salting
+needs.
+
+.. code-block:: edgeql-repl
+
+  edgedb> select ext::pgcrypto::digest('encrypt this', 'sha1');
+  {b'\x05\x82\xd8YLF\xe7\xd4\x12\x91\n\xdb$\xf1!v\xf9\xd4\x89\xc4'}
+  edgedb> select ext::pgcrypto::gen_salt('md5');
+  {'$1$FjNlXgX7'}
+
+Standard algorithms are "md5", "sha1", "sha224", "sha256", "sha384" and
+"sha512". Moreover, any digest algorithm OpenSSL supports is automatically
+picked up.
+
+
+pg_trgm
+-------
+
+This extension provides functionality used to determine string similarity,
+which makes it a good text search alternative for some use cases:
+
+edgedb> with x := {'hello world', 'word hero', 'help the world'}
+....... select res := (x, ext::pg_trgm::word_similarity(x, 'hello world'))
+....... order by res.1 desc;
+{('hello world', 1), ('help the world', 0.5), ('word hero', 0.35714287)}
+
+
+
+Additional changes
+==================
+
+EdgeQL
+------
+
+We've made a few internal changes affecting performance, the biggest of which
+was rewriting EdgeQL parser in Rust. Overall we've manged to reduce the
+baseline server memory consumption by 40%.
+
+* Add new style of ``if``/``then``/``else`` syntax.
+  (:eql:gh:`#6074`)
+
+  Many people find it more natural to write "if ... then .. else ..." for
+  conditional expressions because it mirrors the conditional statement from
+  other familiar programming languages.
+
+  .. code-block:: edgeql-repl
+
+    edgedb> select if count(Object) > 0 then 'got data' else 'no data';
+    {'got data'}
+
+* Support conditional DML.
+  (:eql:gh:`#6181`)
+
+  It can be useful to be able to create, update or delete different objects
+  based on some condition:
+
+  .. code-block:: edgeql
+
+    with
+      name := <str>$0,
+      admin := <bool>$1
+    select if admin then (
+        insert AdminUser { name := name }
+    ) else (
+        insert User { name := name }
+    )
+
+  A different use-case of conditional DML is using a :eql:op:`coalesce`
+  operator to express things like "select or insert if missing":
+
+  .. code-block:: edgeql
+
+    select (select User filter .name = 'Alice') ??
+           (insert User { name := 'Alice' });
+
+* Add ``contains`` for JSON so that it can be used with ``pg::gin`` index.
+  (:eql:gh:`#5910`)
+
+* Add :eql:func:`to_bytes` to convert :eql:type:`str` into :eql:type:`bytes`
+  using UTF-8 encoding.
+  (:eql:gh:`#5960`)
+
+* Add :eql:func:`to_str` to convert :eql:type:`bytes` into :eql:type:`str`
+  using UTF-8 encoding.
+  (:eql:gh:`#5960`)
+
+* Add ``enc::base64_encode`` and ``enc::base64_decode`` functions.
+  (:eql:gh:`#5963`)
+
+  .. code-block:: edgeql-repl
+
+    edgedb> select enc::base64_encode(b'hello');
+    {'aGVsbG8='}
+    edgedb> select enc::base64_decode('aGVsbG8=');
+    {b'hello'}
+
+* Add ``when`` clause to triggers to enable them to be conditional.
+  (:eql:gh:`#6184`)
+
+* Allow empty arrays without cast in ``insert``.
+  (:eql:gh:`#6218`)
+
+
+GraphQL
+-------
+
+* Change how globals are passed in GraphQL queries.
+  (:eql:gh:`#5864`)
+
+  Instead of using a separate ``globals`` field (which is non-standard), use
+  ``variables`` to add a ``__globals__`` object to pass the global variables.
+
+  In order to ensure backwards compatibility, the old way of passing globals
+  is still valid. In case both the new and the old methods are used the
+  globals being passed in them must match or else the query will be rejected.
+
+* Fix GraphQL bug with objects without editable fields.
+  (:eql:gh:`#6056`)
+
+* Fix GraphQL issues with deeply nested modules.
+  (:eql:gh:`#6056`)
+
+* Fix GraphQL ``__typename`` for non-default modules and mutations.
+  (:eql:gh:`#6035`)
+
+* Fix GraphQL fragments on types from non-default module.
+  (:eql:gh:`#6035`)
+
+
+
+Bug fixes
+---------
+
+* Fix a casting bug for some aliased expressions.
+  (:eql:gh:`#5788`)
+
+* Fix cardinality inference of calls to functions with ``optional`` args.
+  (:eql:gh:`#5867`)
+
+* Fix the undefined order of columns in  SQL ``COPY``.
+  (:eql:gh:`#6036`)
+
+* Fix drop of union links when source has a subtype.
+  (:eql:gh:`#6044`)
+
+* Fix link deletion policies on links to union types.
+  (:eql:gh:`#6033`)
+
+* Fix deletion issues of aliases that use ``with``
+  (:eql:gh:`#6052`)
+
+* Make ``id`` of schema objects stable.
+  (:eql:gh:`#6058`)
+
+* Support ``listen_ports`` greater than 32767.
+  (:eql:gh:`#6194`)
+
+* Fix migration issues with some overloaded indexes/constraints in SDL.
+  (:eql:gh:`#6172`)
+
+* Support DML on right hand side of coalesce expressions.
+  (:eql:gh:`#6202`)
+
+* Fix cardinality inference of polymorphic shape elements.
+  (:eql:gh:`#6255`)
+
+* Fix migration issue involving property defaults.
+  (:eql:gh:`#6265`)
+
+* Fix bugs in ``set ... using`` statements with ``assert_exists`` and similar.
+  (:eql:gh:`#6267`)
+
+* Fix cardinality bug when a property appears in multiple splats.
+  (:eql:gh:`#6255`)
