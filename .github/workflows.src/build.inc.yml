@@ -237,6 +237,7 @@
 <%- endfor %>
 <%- endfor %>
 
+<%- if publications %>
 <%- for tgt in targets.macos %>
 <%- set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
 
@@ -272,9 +273,10 @@
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 <%- endfor %>
+<%- endif %>
 
 <%- set docker_tgts = targets.linux | selectattr("docker_arch") | list %>
-<%- if docker_tgts %>
+<%- if docker_tgts and publications %>
 <%- set pub_outputs = "needs.check-published-" + (docker_tgts|first)["name"] + ".outputs" %>
 
   publish-docker:
@@ -394,7 +396,9 @@
       - publish<< publish.suffix>>-<< tgt.name >>
     <%- endfor %>
     <%- endfor %>
+    <%- if docker_tgts and publications %>
       - publish-docker
+    <%- endif %>
     runs-on: ubuntu-latest
     permissions:
       actions: 'read'
