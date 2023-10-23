@@ -1764,7 +1764,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         res = res['fine_grained']
 
         if len(res['subplans']) >= 2:
-            # Postgres version <16  
+            # Postgres version <16
             res = res['subplans'][1]
         else:
             # Postgres version >=16
