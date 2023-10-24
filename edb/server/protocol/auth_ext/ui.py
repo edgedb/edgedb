@@ -239,6 +239,7 @@ def render_signup_page(
         base_path}/ui/signup" />
       <input type="hidden" name="redirect_to" value="{redirect_to}" />
       <input type="hidden" name="challenge" value="{challenge}" />
+      <input type="hidden" name="verify_url" value="{base_path}/ui/verify" />
 
       <label for="email">Email</label>
       <input id="email" name="email" type="email" value="{email or ''}" />
@@ -361,6 +362,126 @@ def render_reset_password_page(
 
       {content}
     </form>'''
+    )
+
+
+def render_email_verification_page(
+    *,
+    is_valid: bool,
+    error_messages: list[str],
+    verification_token: Optional[str] = None,
+    # config
+    app_name: Optional[str] = None,
+    logo_url: Optional[str] = None,
+    dark_logo_url: Optional[str] = None,
+    brand_color: Optional[str] = None
+):
+    resend_url = None
+    if verification_token:
+        verification_token = html.escape(verification_token)
+        resend_url = (
+            f"resend-verification?verification_token={verification_token}"
+        )
+    if not is_valid:
+        messages = ''.join(
+            [_render_error_message(error) for error in error_messages]
+        )
+        content = (
+            f'''
+            {messages}
+            {f'<a href="{resend_url}">Try sending another reset email</a>'
+             if resend_url else ''}
+            '''
+        )
+    else:
+        content = '''
+        Email has been successfully verified. You may now
+        <a href="signin">sign in</a>
+        '''
+
+    return _render_base_page(
+        title=f'Verify email{f" for {app_name}" if app_name else ""}',
+        logo_url=logo_url,
+        dark_logo_url=dark_logo_url,
+        brand_color=brand_color,
+        cleanup_search_params=['error'],
+        content=f'''
+      <h1>{f'<span>Verify email for</span> {html.escape(app_name)}'
+           if app_name else '<span>Verify email</span>'}</h1>
+
+      {content}'''
+    )
+
+
+def render_email_verification_expired_page(
+    verification_token: str,
+    # config
+    app_name: Optional[str] = None,
+    logo_url: Optional[str] = None,
+    dark_logo_url: Optional[str] = None,
+    brand_color: Optional[str] = None
+):
+    verification_token = html.escape(verification_token)
+    content = f'''
+    Your verification token has expired.
+    <a href="resend-verification?verification_token={verification_token}">
+        Click here to resend the verification email
+    </a>
+    '''
+
+    return _render_base_page(
+        title=f'Verification expired{f" for {app_name}" if app_name else ""}',
+        logo_url=logo_url,
+        dark_logo_url=dark_logo_url,
+        brand_color=brand_color,
+        cleanup_search_params=['error'],
+        content=f'''
+      <h1>{f'<span>Verification expired for</span> {html.escape(app_name)}'
+           if app_name else '<span>Verification expired</span>'}</h1>
+
+      {content}'''
+    )
+
+
+def render_resend_verification_done_page(
+    *,
+    is_valid: bool,
+    verification_token: Optional[str] = None,
+    # config
+    app_name: Optional[str] = None,
+    logo_url: Optional[str] = None,
+    dark_logo_url: Optional[str] = None,
+    brand_color: Optional[str] = None
+):
+    if verification_token is None:
+        content = f"""
+        Missing verification token, please follow the link provided in the
+        original email, or on the signin page.
+        """
+    else:
+        verification_token = html.escape(verification_token)
+        if is_valid:
+            content = f'''
+            Your verification email has been resent. Please check your email.
+            '''
+        else:
+            content = f'''
+            Unable to resend verification email. Please try again.
+            '''
+
+    return _render_base_page(
+        title=(
+            f'Email verification resent{f" for {app_name}" if app_name else ""}'
+        ),
+        logo_url=logo_url,
+        dark_logo_url=dark_logo_url,
+        brand_color=brand_color,
+        cleanup_search_params=['error'],
+        content=f'''
+      <h1>{f'<span>Email verification resent for</span> {html.escape(app_name)}'
+           if app_name else '<span>Email verification resent</span>'}</h1>
+
+      {content}'''
     )
 
 
@@ -512,6 +633,46 @@ def render_password_reset_email(
 <html>
   <body>
     <a href="{reset_url}">Reset password</a>
+  </body>
+</html>
+        """,
+        "html",
+        "utf-8",
+    )
+    alternative.attach(html_msg)
+    msg.attach(alternative)
+    return msg
+
+
+def render_verification_email(
+    *,
+    from_addr: str,
+    to_addr: str,
+    verify_url: str,
+    app_name: Optional[str] = None,
+    logo_url: Optional[str] = None,
+    dark_logo_url: Optional[str] = None,
+    brand_color: Optional[str] = None,
+) -> multipart.MIMEMultipart:
+    msg = multipart.MIMEMultipart()
+    msg["From"] = from_addr
+    msg["To"] = to_addr
+    msg["Subject"] = "Verify your email"
+    alternative = multipart.MIMEMultipart('alternative')
+    plain_text_msg = mime_text.MIMEText(
+        f"""
+        {verify_url}
+        """,
+        "plain",
+        "utf-8",
+    )
+    alternative.attach(plain_text_msg)
+    html_msg = mime_text.MIMEText(
+        f"""
+<!DOCTYPE html>
+<html>
+  <body>
+    <a href="{verify_url}">Verify your email</a>
   </body>
 </html>
         """,

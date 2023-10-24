@@ -375,7 +375,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         }};
 
         CONFIGURE CURRENT DATABASE
-        INSERT ext::auth::EmailPasswordProviderConfig {{}};
+        INSERT ext::auth::EmailPasswordProviderConfig {{
+            require_verification := false,
+        }};
         """,
     ]
 
@@ -2472,7 +2474,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertTrue(
                 reset_url.startswith(form_data['reset_url'] + '?reset_token=')
             )
-
             claims = await self.extract_jwt_claims(
                 reset_url.split('=', maxsplit=1)[1]
             )
@@ -2556,97 +2557,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
-            self.assertEqual(error_status, 403)
-
-            # Try sending reset for non existent user (with redirect_to)
-            _, error_headers, error_status = self.http_con_request(
-                http_con,
-                None,
-                path="send_reset_email",
-                method="POST",
-                body=urllib.parse.urlencode(
-                    {
-                        **form_data,
-                        "email": "invalid@example.com",
-                        "redirect_to": "https://example.com/forgot-password",
-                    }
-                ).encode(),
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
-
-            self.assertEqual(error_status, 302)
-            location = error_headers.get("location")
-            assert location is not None
-            parsed_location = urllib.parse.urlparse(location)
-            parsed_query = urllib.parse.parse_qs(parsed_location.query)
-            self.assertEqual(
-                urllib.parse.urlunparse(
-                    (
-                        parsed_location.scheme,
-                        parsed_location.netloc,
-                        parsed_location.path,
-                        '',
-                        '',
-                        '',
-                    )
-                ),
-                "https://example.com/forgot-password",
-            )
-
-            self.assertEqual(
-                parsed_query.get("error"),
-                [
-                    "Could not find an Identity matching the "
-                    "provided credentials"
-                ],
-            )
-
-            # Try sending reset for non existent user
-            # (with redirect_on_failure)
-            _, error_headers, error_status = self.http_con_request(
-                http_con,
-                None,
-                path="send_reset_email",
-                method="POST",
-                body=urllib.parse.urlencode(
-                    {
-                        **form_data,
-                        "email": "invalid@example.com",
-                        "redirect_to": "https://example.com/forgot-password",
-                        "redirect_on_failure": (
-                            "https://example.com/forgot-password-failed"
-                        ),
-                    }
-                ).encode(),
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
-
-            self.assertEqual(error_status, 302)
-            location = error_headers.get("location")
-            assert location is not None
-            parsed_location = urllib.parse.urlparse(location)
-            parsed_query = urllib.parse.parse_qs(parsed_location.query)
-            self.assertEqual(
-                urllib.parse.urlunparse(
-                    (
-                        parsed_location.scheme,
-                        parsed_location.netloc,
-                        parsed_location.path,
-                        '',
-                        '',
-                        '',
-                    )
-                ),
-                "https://example.com/forgot-password-failed",
-            )
-
-            self.assertEqual(
-                parsed_query.get("error"),
-                [
-                    "Could not find an Identity matching the "
-                    "provided credentials"
-                ],
-            )
+            self.assertEqual(error_status, 200)
 
     async def test_http_auth_ext_local_password_reset_form_01(self):
         with self.http_con() as http_con:

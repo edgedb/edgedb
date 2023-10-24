@@ -1297,9 +1297,17 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             await conn.execute(ddl)
             await conn.execute('create extension pgcrypto')
             await conn.execute('create extension auth')
-            await conn.execute('''
+            await conn.execute(f'''
+                configure current database set
+                ext::auth::AuthConfig::auth_signing_key := '{"a" * 32}';
+
                 configure current database
-                insert ext::auth::EmailPasswordProviderConfig {};
+                insert ext::auth::EmailPasswordProviderConfig {{
+                    require_verification := false,
+                }};
+
+                configure current database set
+                ext::auth::SMTPConfig::sender := 'noreply@example.com';
             ''')
         finally:
             await conn.aclose()
