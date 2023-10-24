@@ -138,9 +138,6 @@ cdef class DatabaseConnectionView:
         tuple _session_state_db_cache
         tuple _session_state_cache
 
-
-        object _eql_to_compiled
-
         object _txid
         object _in_tx_db_config
         object _in_tx_savepoints
@@ -163,7 +160,6 @@ cdef class DatabaseConnectionView:
 
         object __weakref__
 
-    cdef _invalidate_local_cache(self)
     cdef _reset_tx_state(self)
 
     cdef clear_tx_error(self)
