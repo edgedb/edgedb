@@ -153,3 +153,43 @@ class OAuthProviderFailure(AuthExtError):
 
     def __str__(self) -> str:
         return self.description
+
+
+class VerificationTokenExpired(AuthExtError):
+    """Email verification token has expired"""
+
+    def __init__(
+        self,
+        description: str = "Email verification token has expired",
+    ):
+        self.description = description
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"description={self.description!r}"
+            ")"
+        )
+
+    def __str__(self) -> str:
+        return self.description
+
+
+class VerificationRequired(AuthExtError):
+    """Email verification is required"""
+
+    def __init__(
+        self,
+        description: str = "Email verification is required",
+    ):
+        self.description = description
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"description={self.description!r}"
+            ")"
+        )
+
+    def __str__(self) -> str:
+        return self.description

@@ -20,6 +20,8 @@ import argon2
 import json
 import hashlib
 import base64
+import dataclasses
+import datetime
 
 from typing import Any
 from edb.errors import ConstraintViolationError
@@ -30,14 +32,20 @@ from . import errors, util, data
 ph = argon2.PasswordHasher()
 
 
+@dataclasses.dataclass
+class EmailPasswordProviderConfig:
+    name: str
+    require_verification: bool
+
+
 class Client:
     def __init__(self, db: Any, provider_name: str):
         self.db = db
 
         match provider_name:
             case "builtin::local_emailpassword":
-                self._get_provider_config(provider_name)
-                self.provider = EmailPasswordProvider()
+                provider_config = self._get_provider_config(provider_name)
+                self.provider = EmailPasswordProvider(provider_config)
             case _:
                 raise errors.InvalidData(f"Invalid provider: {provider_name}")
 
@@ -46,9 +54,6 @@ class Client:
 
     async def authenticate(self, *args, **kwargs):
         return await self.provider.authenticate(self.db, *args, **kwargs)
-
-    async def logout(self, *args, **kwargs):
-        return await self.provider.logout(*args, **kwargs)
 
     async def get_identity_and_secret(self, *args, **kwargs):
         return await self.provider.get_identity_and_secret(
@@ -63,21 +68,45 @@ class Client:
         return await self.provider.update_password(
             self.db, *args, **kwargs)
 
-    def _get_provider_config(self, provider_name: str):
+    async def get_email_by_identity_id(self, identity_id: str):
+        return await self.provider.get_email_by_identity_id(
+            self.db, identity_id
+        )
+
+    async def get_verified_by_identity_id(self, identity_id: str):
+        return await self.provider.get_verified_by_identity_id(
+            self.db, identity_id
+        )
+
+    async def verify_email(self, *args, **kwargs):
+        return await self.provider.verify_email(
+            self.db, *args, **kwargs
+        )
+
+    def _get_provider_config(
+        self, provider_name: str
+    ) -> EmailPasswordProviderConfig:
         provider_client_config = util.get_config(
             self.db, "ext::auth::AuthConfig::providers", frozenset
         )
         for cfg in provider_client_config:
             if cfg.name == provider_name:
-                return cfg
+                return EmailPasswordProviderConfig(
+                    name=cfg.name,
+                    require_verification=cfg.require_verification,
+                )
 
         raise errors.MissingConfiguration(
-            provider_name,
-            f"Provider is not configured"
+            provider_name, f"Provider is not configured"
         )
 
 
 class EmailPasswordProvider:
+    config: EmailPasswordProviderConfig
+
+    def __init__(self, config: EmailPasswordProviderConfig):
+        self.config = config
+
     async def register(self, db: Any, input: dict[str, Any]):
         match (input.get("email"), input.get("password")):
             case (str(e), str(p)):
@@ -216,7 +245,6 @@ select ext::auth::EmailPasswordFactor {
     async def validate_reset_secret(
         self, db: Any, identity_id: str, secret: str
     ):
-
         r = await execute.parse_execute_json(
             db=db,
             query="""\
@@ -272,9 +300,75 @@ filter .identity.id = identity_id
 set { password_hash := new_hash };""",
             variables={
                 'identity_id': identity_id,
-                'new_hash': ph.hash(password)
+                'new_hash': ph.hash(password),
             },
             cached_globally=True,
         )
 
         return local_identity
+
+    async def verify_email(
+        self, db: Any, identity_id: str, verified_at: datetime.datetime
+    ):
+        r = await execute.parse_execute_json(
+            db=db,
+            query="""\
+with
+  identity_id := <uuid><str>$identity_id,
+  verified_at := <datetime>$verified_at,
+update ext::auth::EmailPasswordFactor
+filter .identity.id = identity_id
+  and not exists .verified_at ?? false
+set { verified_at := verified_at };""",
+            variables={
+                "identity_id": identity_id,
+                "verified_at": verified_at.isoformat(),
+            },
+            cached_globally=True,
+        )
+
+        return r
+
+    async def get_email_by_identity_id(
+        self, db: Any, identity_id: str
+    ) -> str | None:
+        r = await execute.parse_execute_json(
+            db,
+            """
+            select ext::auth::EmailFactor {
+              email,
+            } filter .identity.id = <uuid>$identity_id;
+            """,
+            variables={"identity_id": identity_id},
+            cached_globally=True,
+        )
+
+        result_json = json.loads(r.decode())
+        if len(result_json) == 0:
+            return None
+
+        assert len(result_json) == 1
+
+        return result_json[0]["email"]
+
+    async def get_verified_by_identity_id(
+        self, db: Any, identity_id: str
+    ) -> str | None:
+        r = await execute.parse_execute_json(
+            db,
+            """
+            select ext::auth::EmailFactor {
+              verified_at,
+            } filter .identity.id = <uuid>$identity_id;
+            """,
+            variables={"identity_id": identity_id},
+            cached_globally=True,
+        )
+
+        result_json = json.loads(r.decode())
+        if len(result_json) == 0:
+            return None
+
+        assert len(result_json) == 1
+
+        return result_json[0]["verified_at"]
