@@ -195,7 +195,7 @@ def compile_ForQuery(
         if (
             qlstmt.optional
             and not qlstmt.from_desugaring
-            and not ctx.env.options.devmode
+            and not ctx.env.options.testmode
         ):
             raise errors.UnsupportedFeatureError(
                 "'FOR OPTIONAL' is an internal testing feature",
@@ -299,8 +299,8 @@ def _make_group_binding(
 def compile_InternalGroupQuery(
     expr: qlast.InternalGroupQuery, *, ctx: context.ContextLevel
 ) -> irast.Set:
-    # We disallow use of FOR GROUP except for when running on a dev build.
-    if not expr.from_desugaring and not ctx.env.options.devmode:
+    # We disallow use of FOR GROUP except for when running in test mode.
+    if not expr.from_desugaring and not ctx.env.options.testmode:
         raise errors.UnsupportedFeatureError(
             "'FOR GROUP' is an internal testing feature",
             context=expr.context,

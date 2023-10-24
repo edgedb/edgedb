@@ -88,9 +88,6 @@ class GlobalCompilerOptions:
     #: Whether to just treat all globals as empty instead of compiling them
     make_globals_empty: bool = False
 
-    #: Is this a dev instance of the compiler
-    devmode: bool = False
-
     #: Is the compiler running in testmode
     testmode: bool = False
 
