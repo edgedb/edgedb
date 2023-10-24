@@ -126,6 +126,7 @@ cdef class PGConnection:
 
         object pgaddr
         object server
+        object tenant
         bint is_system_db
         bint close_requested
 
@@ -158,7 +159,8 @@ cdef class PGConnection:
     cdef make_clean_stmt_message(self, bytes stmt_name)
     cdef make_auth_password_md5_message(self, bytes salt)
     cdef send_query_unit_group(
-        self, object query_unit_group, object bind_datas, bytes state,
+        self, object query_unit_group, bint sync,
+        object bind_datas, bytes state,
         ssize_t start, ssize_t end, int dbver, object parse_array
     )
 
@@ -183,4 +185,5 @@ cdef class PGConnection:
 
     cdef _rewrite_sql_error_response(self, PGMessage action, WriteBuffer buf)
 
+    cdef inline str get_tenant_label(self)
     cpdef set_stmt_cache_size(self, int maxsize)

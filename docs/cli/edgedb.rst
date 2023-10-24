@@ -20,7 +20,12 @@ print all the responses into the standard output:
 
     cat myscript.edgeql | edgedb [<connection-option>...]
 
+The above command also works on PowerShell in Windows, while the classic
+Windows Command Prompt uses a different command as shown below:
 
+.. cli:synopsis::
+
+    type myscript.edgeql | edgedb [<connection-option>...]
 
 Description
 ===========
@@ -184,9 +189,10 @@ many of the commands:
 :cli:synopsis:`\\analyze QUERY`
   .. note::
 
-      This backslash command is compatible with EdgeDB server 3.0 and above.
+      This command is compatible with EdgeDB server 3.0 and above.
 
-  Run a query performance analysis on the given query.
+  Run a query performance analysis on the given query. Most conveniently used
+  without a backslash by just adding ``analyze`` before any query.
 
 .. rubric:: Data Operations
 

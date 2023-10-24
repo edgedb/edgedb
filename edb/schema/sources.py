@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 from typing import *
+from typing import overload
 
 from . import delta as sd
 from . import indexes
@@ -63,7 +64,7 @@ class Source(
         default=so.DEFAULT_CONSTRUCTOR)
 
     @overload
-    def maybe_get_ptr(  # NoQA: F811
+    def maybe_get_ptr(
         self,
         schema: s_schema.Schema,
         name: sn.UnqualName,
@@ -73,7 +74,7 @@ class Source(
         ...
 
     @overload
-    def maybe_get_ptr(  # NoQA: F811
+    def maybe_get_ptr(
         self,
         schema: s_schema.Schema,
         name: sn.UnqualName,
@@ -82,7 +83,7 @@ class Source(
     ) -> Optional[s_pointers.Pointer]:
         ...
 
-    def maybe_get_ptr(  # NoQA: F811
+    def maybe_get_ptr(
         self,
         schema: s_schema.Schema,
         name: sn.UnqualName,
@@ -99,7 +100,7 @@ class Source(
         return ptr
 
     @overload
-    def getptr(  # NoQA: F811
+    def getptr(
         self,
         schema: s_schema.Schema,
         name: sn.UnqualName,
@@ -109,7 +110,7 @@ class Source(
         ...
 
     @overload
-    def getptr(  # NoQA: F811
+    def getptr(
         self,
         schema: s_schema.Schema,
         name: sn.UnqualName,
@@ -118,7 +119,7 @@ class Source(
     ) -> s_pointers.Pointer:
         ...
 
-    def getptr(  # NoQA: F811
+    def getptr(
         self,
         schema: s_schema.Schema,
         name: sn.UnqualName,
@@ -152,6 +153,31 @@ class Source(
         schema = self.add_classref(
             schema, 'pointers', pointer, replace=replace)
         return schema
+
+    def get_addon_columns(
+        self, schema: s_schema.Schema
+    ) -> Sequence[Tuple[str, Tuple[str, str]]]:
+        """
+        Returns a list of columns that are present in the backing table of
+        this source, apart from the columns for pointers.
+        """
+        res = []
+        from edb.common import debug
+
+        if not debug.flags.zombodb:
+            (fts_index, _) = indexes.get_effective_fts_index(self, schema)
+
+            if fts_index:
+                res.append(
+                    (
+                        '__fts_document__',
+                        (
+                            'pg_catalog',
+                            'tsvector',
+                        ),
+                    )
+                )
+        return res
 
 
 def populate_pointer_set_for_source_union(

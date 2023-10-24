@@ -24,6 +24,7 @@ from __future__ import annotations
 from typing import *
 
 from edb import errors
+from edb.common import parsing
 from edb.common.typeutils import not_none
 
 from edb.ir import ast as irast
@@ -37,6 +38,8 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import operators as s_oper
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
+from edb.schema import indexes as s_indexes
+from edb.schema import schema as s_schema
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
@@ -45,7 +48,6 @@ from edb.edgeql import parser as qlparser
 from . import casts
 from . import context
 from . import dispatch
-from . import inference
 from . import pathctx
 from . import polyres
 from . import schemactx
@@ -307,16 +309,32 @@ def compile_FunctionCall(
         global_args=global_args,
     )
 
-    ir_set = setgen.ensure_set(fcall, typehint=rtype, path_id=path_id, ctx=ctx)
+    # Apply special function handling
+    if special_func := _SPECIAL_FUNCTIONS.get(str(func_name)):
+        res = special_func(fcall, ctx=ctx)
+    else:
+        res = fcall
+
+    ir_set = setgen.ensure_set(res, typehint=rtype, path_id=path_id, ctx=ctx)
     return stmt.maybe_add_view(ir_set, ctx=ctx)
 
 
-#: A dictionary of conditional callables and the indices
-#: of the arguments that are evaluated conditionally.
-CONDITIONAL_OPS = {
-    sn.QualName('std', 'IF'): {0, 2},
-    sn.QualName('std', '??'): {1},
-}
+class _SpecialCaseFunc(Protocol):
+    def __call__(
+        self, call: irast.FunctionCall, *, ctx: context.ContextLevel
+    ) -> irast.Expr:
+        pass
+
+
+_SPECIAL_FUNCTIONS: dict[str, _SpecialCaseFunc] = {}
+
+
+def _special_case(name: str) -> Callable[[_SpecialCaseFunc], _SpecialCaseFunc]:
+    def func(f: _SpecialCaseFunc) -> _SpecialCaseFunc:
+        _SPECIAL_FUNCTIONS[name] = f
+        return f
+
+    return func
 
 
 def compile_operator(
@@ -332,9 +350,6 @@ def compile_operator(
             f'no operator matches the given name and argument types',
             context=qlexpr.context)
 
-    fq_op_name = next(iter(opers)).get_shortname(ctx.env.schema)
-    conditional_args = CONDITIONAL_OPS.get(fq_op_name)
-
     typemods = polyres.find_callable_typemods(
         opers, num_args=len(qlargs), kwargs_names=set(), ctx=ctx)
 
@@ -348,12 +363,11 @@ def compile_operator(
         arg_ir = polyres.compile_arg(
             qlarg,
             typemods[ai],
-            in_conditional=bool(conditional_args and ai in conditional_args),
             prefer_subquery_args=prefer_subquery_args,
             ctx=ctx,
         )
 
-        arg_type = inference.infer_type(arg_ir, ctx.env)
+        arg_type = setgen.get_set_type(arg_ir, ctx=ctx)
         if arg_type is None:
             raise errors.QueryError(
                 f'could not resolve the type of operand '
@@ -645,7 +659,7 @@ def _check_free_shape_op(
     virt_obj = ctx.env.schema.get(
         'std::FreeObject', type=s_objtypes.ObjectType)
     for arg in ir.args:
-        typ = inference.infer_type(arg.expr, ctx.env)
+        typ = setgen.get_set_type(arg.expr, ctx=ctx)
         if typ.issubclass(ctx.env.schema, virt_obj):
             raise errors.QueryError(
                 f'cannot use {ir.func_shortname.name} on free shape',
@@ -706,7 +720,7 @@ def compile_func_call_args(
         arg_ir = polyres.compile_arg(
             arg, typemods[ai], prefer_subquery_args=prefer_subquery_args,
             ctx=ctx)
-        arg_type = inference.infer_type(arg_ir, ctx.env)
+        arg_type = setgen.get_set_type(arg_ir, ctx=ctx)
         if arg_type is None:
             raise errors.QueryError(
                 f'could not resolve the type of positional argument '
@@ -720,7 +734,7 @@ def compile_func_call_args(
             arg, typemods[aname], prefer_subquery_args=prefer_subquery_args,
             ctx=ctx)
 
-        arg_type = inference.infer_type(arg_ir, ctx.env)
+        arg_type = setgen.get_set_type(arg_ir, ctx=ctx)
         if arg_type is None:
             raise errors.QueryError(
                 f'could not resolve the type of named argument '
@@ -898,3 +912,101 @@ def finalize_args(
                           is_default=barg.is_default))
 
     return args, typemods
+
+
+@_special_case('fts::search')
+def compile_fts_search(
+    call: irast.FunctionCall, *, ctx: context.ContextLevel
+) -> irast.Expr:
+
+    # validate that object has fts::index index
+    object_arg = call.args[2]
+    object_typeref = object_arg.expr.typeref
+    object_typeref = object_typeref.material_type or object_typeref
+    stype_id = object_typeref.id
+
+    schema = ctx.env.schema
+    pctx = object_arg.context
+
+    stype = schema.get_by_id(stype_id, type=s_types.Type)
+
+    if union_variants := stype.get_union_of(schema):
+        for variant in union_variants.objects(schema):
+            schema, variant = variant.material_type(schema)
+            _validate_has_fts_index(variant, schema, pctx)
+    else:
+        _validate_has_fts_index(stype, schema, pctx)
+
+    return call
+
+
+def _validate_has_fts_index(
+    stype: s_types.Type,
+    schema: s_schema.Schema,
+    pctx: Optional[parsing.ParserContext],
+) -> None:
+    if isinstance(stype, s_indexes.IndexableSubject):
+        (fts_index, _) = s_indexes.get_effective_fts_index(stype, schema)
+    else:
+        fts_index = None
+
+    if not fts_index:
+        raise errors.InvalidReferenceError(
+            f"fts::search requires an fts::index index on type "
+            f"'{stype.get_displayname(schema)}'",
+            context=pctx,
+        )
+
+
+@_special_case('fts::with_options')
+def compile_fts_with_options(
+    call: irast.FunctionCall, *, ctx: context.ContextLevel
+) -> irast.Expr:
+    # language has already been typechecked to be an enum
+    lang = call.args[0].expr
+    assert lang.typeref
+    lang_ty_id = lang.typeref.id
+    lang_ty = ctx.env.schema.get_by_id(lang_ty_id, type=s_scalars.ScalarType)
+    assert lang_ty
+
+    lang_domain = set()  # languages that the fts index needs to support
+    if irutils.is_const(lang):
+        # language is constant
+        # -> determine its only value at compile time
+        lang_const = irutils.as_const(lang)
+        assert lang_const
+        lang_domain.add(str(lang_const.value).lower())
+
+    else:
+        # language is not constant
+        # -> use all possible values of the enum
+
+        enum_values = lang_ty.get_enum_values(ctx.env.schema)
+        assert enum_values
+        for enum_value in enum_values:
+            lang_domain.add(enum_value.lower())
+
+    # weight_category
+    weight_expr = call.args[1].expr
+    if not irutils.is_const(weight_expr):
+        raise errors.InvalidValueError(
+            f"fts::search weight_category must be a constant",
+            context=weight_expr.context,
+        )
+    weight_const = irutils.as_const(weight_expr)
+    if weight_const:
+        weight = str(weight_const.value)
+    else:
+        weight = None
+        assert weight
+
+    return irast.FTSDocument(
+        text=call.args[2].expr,
+        language=lang,
+        language_domain=lang_domain,
+        weight=weight,
+        typeref=typegen.type_to_typeref(
+            ctx.env.schema.get('fts::document', type=s_scalars.ScalarType),
+            env=ctx.env,
+        )
+    )

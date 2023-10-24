@@ -38,6 +38,7 @@ from edb import errors
 from edb import edgeql
 from edb.edgeql import ast as qlast
 from edb.edgeql import parser as qlparser
+from edb.edgeql.parser import grammar as qlgrammar
 from edb.edgeql import qltypes
 
 from edb.server import defines
@@ -174,12 +175,29 @@ class BaseDocTest(unittest.TestCase, metaclass=DocTestMeta):
         )
 
 
-class BaseSyntaxTest(BaseDocTest):
+class PreloadParserGrammarMixin:
+    pass
+
+
+def should_preload_parser(
+    cases: Iterable[unittest.TestCase],
+) -> bool:
+    for cas in cases:
+        if issubclass(cas, PreloadParserGrammarMixin):
+            return True
+    return False
+
+
+def preload_parser() -> None:
+    qlparser.preload_spec()
+
+
+class BaseSyntaxTest(BaseDocTest, PreloadParserGrammarMixin):
     ast_to_source: Optional[Any] = None
     markup_dump_lexer: Optional[str] = None
 
     @classmethod
-    def get_parser(cls):
+    def get_grammar_token(cls) -> Type[qlgrammar.tokens.GrammarToken]:
         raise NotImplementedError
 
     def run_test(self, *, source, spec, expected=None):
@@ -187,15 +205,12 @@ class BaseSyntaxTest(BaseDocTest):
         if debug:
             markup.dump_code(source, lexer=self.markup_dump_lexer)
 
-        p = self.get_parser()
-
-        inast = p.parse(source)
+        inast = qlparser.parse(self.get_grammar_token(), source)
 
         if debug:
             markup.dump(inast)
 
         # make sure that the AST has context
-        #
         context.ContextValidator().visit(inast)
 
         processed_src = self.ast_to_source(inast)
@@ -206,59 +221,6 @@ class BaseSyntaxTest(BaseDocTest):
         expected_src = source if expected is None else expected
 
         self.assert_equal(expected_src, processed_src)
-
-
-class TestCasesSetup:
-    def __init__(self, parsers: List[qlparser.EdgeQLParserBase]) -> None:
-        self.parsers = parsers
-
-
-def get_test_cases_setup(
-    cases: Iterable[unittest.TestCase],
-) -> Optional[TestCasesSetup]:
-    parsers: List[qlparser.EdgeQLParserBase] = []
-
-    for case in cases:
-        if not hasattr(case, 'get_parser'):
-            continue
-
-        parser = case.get_parser()
-        if not parser:
-            continue
-
-        parsers.append(parser)
-
-    if not parsers:
-        return None
-    else:
-        return TestCasesSetup(parsers)
-
-
-def run_test_cases_setup(setup: TestCasesSetup, jobs: int) -> None:
-    qlparser.preload(
-        parsers=setup.parsers,
-        allow_rebuild=True,
-        paralellize=jobs > 1,
-    )
-
-
-class AstValueTest(BaseDocTest):
-    def run_test(self, *, source, spec=None, expected=None):
-        debug = bool(os.environ.get(self.parser_debug_flag))
-        if debug:
-            markup.dump_code(source, lexer=self.markup_dump_lexer)
-
-        p = self.get_parser()
-
-        inast = p.parse(source)
-
-        if debug:
-            markup.dump(inast)
-
-        for var in inast.definitions[0].variables:
-            asttype, val = expected[var.name]
-            self.assertIsInstance(var.value, asttype)
-            self.assertEqual(var.value.value, val)
 
 
 _std_schema = None
@@ -277,7 +239,7 @@ def _load_std_schema():
                 std_dirs_hash, 'transient-stdschema.pickle')
 
         if schema is None:
-            schema = s_schema.FlatSchema()
+            schema = s_schema.EMPTY_SCHEMA
             for modname in [*s_schema.STD_SOURCES, *s_schema.TESTMODE_SOURCES]:
                 schema = s_std.load_std_module(schema, modname)
             schema, _ = s_std.make_schema_version(schema)
@@ -310,8 +272,7 @@ def _load_reflection_schema():
             std_schema = _load_std_schema()
             reflection = s_refl.generate_structure(std_schema)
             classlayout = reflection.class_layout
-            context = sd.CommandContext()
-            context.stdmode = True
+            context = sd.CommandContext(stdmode=True)
             reflschema = reflection.intro_schema_delta.apply(
                 std_schema, context)
 
@@ -339,7 +300,7 @@ def new_compiler():
     )
 
 
-class BaseSchemaTest(BaseDocTest):
+class BaseSchemaTest(BaseDocTest, PreloadParserGrammarMixin):
     DEFAULT_MODULE = 'default'
     SCHEMA: Optional[str] = None
 
@@ -515,7 +476,7 @@ class BaseSchemaTest(BaseDocTest):
             m = re.match(r'^SCHEMA(?:_(\w+))?', name)
             if m:
                 module_name = (m.group(1)
-                               or 'default').lower().replace('__', '.')
+                               or 'default').lower().replace('_', '::')
 
                 if '\n' in val:
                     # Inline schema source

@@ -23,7 +23,7 @@ import textwrap
 from typing import *
 
 from ..common import qname as qn
-from ..common import quote_ident as qi
+from ..common import quote_col as qc
 from ..common import quote_literal as ql
 from ..common import quote_type as qt
 
@@ -73,7 +73,7 @@ class FunctionExists(base.Condition):
         self.args = args
 
     def code(self, block: base.PLBlock) -> str:
-        args = f"ARRAY[{','.join(qi(a) for a in self.args)}]"
+        args = f"ARRAY[{','.join(qc(a) for a in self.args)}]"
 
         return textwrap.dedent(f'''\
             SELECT
@@ -111,7 +111,7 @@ class FunctionOperation:
 
             if isinstance(arg, tuple):
                 if arg[0] is not None:
-                    arg_expr += qn(arg[0])
+                    arg_expr += qn(arg[0], column=True)
                 if len(arg) > 1:
                     arg_expr += ' ' + qt(arg[1])
                 if include_defaults:

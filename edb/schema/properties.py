@@ -274,6 +274,17 @@ class PropertyCommand(
                 context=srcctx,
             )
 
+    def _check_linkprop_errors(self, node: qlast.DDLOperation) -> None:
+        for sub in node.commands:
+            # do not allow link property on properties
+            if isinstance(sub, qlast.CreateConcretePointer):
+                raise errors.InvalidDefinitionError(
+                    f'cannot create a link property on a property',
+                    context=node.context,
+                    hint='Link properties can only be created on links, whose '
+                         'target types are object types.',
+                )
+
 
 class CreateProperty(
     PropertyCommand,
@@ -294,8 +305,9 @@ class CreateProperty(
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if isinstance(astnode, qlast.CreateConcreteProperty):
-            assert isinstance(cmd, pointers.PointerCommand)
+            assert isinstance(cmd, PropertyCommand)
             cmd._process_create_or_alter_ast(schema, astnode, context)
+            cmd._check_linkprop_errors(astnode)
 
         return cmd
 
@@ -416,6 +428,7 @@ class AlterProperty(
             cmd._process_create_or_alter_ast(schema, astnode, context)
         else:
             cmd._process_alter_ast(schema, astnode, context)
+        cmd._check_linkprop_errors(astnode)
         return cmd
 
     def _apply_field_ast(

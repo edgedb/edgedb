@@ -388,7 +388,8 @@ class AdaptiveHAProxy(ha_base.ClusterProtocol):
         self.consul = ha_base.get_backend(self.parsed_dsn)
         self.master_addr = await self.consul.get_cluster_consensus()
         self.port = tb.find_available_port()
-        await self.consul.start_watching(self)
+        self.consul.set_failover_callback(self.on_switch_over)
+        await self.consul.start_watching()
         self.server = await asyncio.start_server(
             self._proxy_connection, "127.0.0.1", self.port
         )
@@ -502,13 +503,9 @@ class TestBackendHA(tb.TestCase):
                 backend_dsn=(
                     f"stolon+consul+http://127.0.0.1:{consul.http_port}"
                     f"/{pg1.cluster_name}"
+                    f"?pguser=suname&pgpassword=supass&pgdatabase=postgres"
                 ),
                 runstate_dir=str(pathlib.Path(consul.tmp_dir.name) / "edb"),
-                env=dict(
-                    PGUSER="suname",
-                    PGPASSWORD="supass",
-                    PGDATABASE="postgres",
-                ),
                 reset_auth=True,
                 debug=debug,
             ) as sd:

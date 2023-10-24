@@ -460,11 +460,19 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_IfElse(self, node: qlast.IfElse) -> None:
         self.write('(')
-        self.visit(node.if_expr)
-        self._write_keywords(' IF ')
-        self.visit(node.condition)
-        self._write_keywords(' ELSE ')
-        self.visit(node.else_expr)
+        if node.python_style:
+            self.visit(node.if_expr)
+            self._write_keywords(' IF ')
+            self.visit(node.condition)
+            self._write_keywords(' ELSE ')
+            self.visit(node.else_expr)
+        else:
+            self._write_keywords(' IF ')
+            self.visit(node.condition)
+            self._write_keywords(' THEN ')
+            self.visit(node.if_expr)
+            self._write_keywords(' ELSE ')
+            self.visit(node.else_expr)
         self.write(')')
 
     def visit_Tuple(self, node: qlast.Tuple) -> None:
@@ -548,7 +556,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         elif node.direction and node.direction != '>':
             self.write(node.direction)
 
-        self.write(ident_to_str(node.ptr.name, allow_num=True))
+        self.write(ident_to_str(node.name, allow_num=True))
 
     def visit_Splat(self, node: qlast.Splat) -> None:
         if node.type is not None:
@@ -729,11 +737,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._block_ws(-1)
             self.write(')')
 
-    def visit_AnyType(self, node: qlast.AnyType) -> None:
-        self.write('anytype')
-
-    def visit_AnyTuple(self, node: qlast.AnyTuple) -> None:
-        self.write('anytuple')
+    def visit_PseudoObjectRef(self, node: qlast.PseudoObjectRef) -> None:
+        self.write(node.name)
 
     def visit_TypeCast(self, node: qlast.TypeCast) -> None:
         self.write('<')
@@ -776,6 +781,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_Anchor(self, node: qlast.Anchor) -> None:
         self.write(node.name)
 
+    def visit_IRAnchor(self, node: qlast.IRAnchor) -> None:
+        self.write(node.name)
+
     def visit_SpecialAnchor(self, node: qlast.SpecialAnchor) -> None:
         self.write(node.name)
 
@@ -798,10 +806,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('(')
         if node.name is not None:
             self.write(ident_to_str(node.name), ': ')
-        if isinstance(node.maintype, qlast.Path):
-            self.visit(node.maintype)
-        else:
-            self.visit(node.maintype)
+
+        self.visit(node.maintype)
         if node.subtypes is not None:
             self.write('<')
             self.visit_list(node.subtypes, newlines=False)
@@ -1545,6 +1551,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._block_ws(0)
             self._write_keywords('FOR ' + str(node.scope) + ' ')
 
+            if node.condition:
+                self._block_ws(1)
+                self._write_keywords('WHEN ')
+                self.write('(')
+                self.visit(node.condition)
+                self.write(')')
+                self._block_ws(-1)
+
             self._write_keywords('DO ')
             self.write('(')
             self.visit(node.expr)
@@ -1652,7 +1666,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def _process_AlterConcretePointer_for_SDL(
         self,
-        node: Union[qlast.AlterConcreteProperty, qlast.AlterConcreteLink],
+        node: qlast.AlterObject,
     ) -> Tuple[List[str], FrozenSet[qlast.DDLOperation]]:
         keywords = []
         specials = set()
@@ -1673,36 +1687,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self,
         node: qlast.AlterConcreteProperty
     ) -> None:
-        keywords = []
-        ignored_cmds: Set[qlast.DDLOperation] = set()
-        after_name: Optional[Callable[[], None]] = None
-
-        if self.sdlmode:
-            if not self.descmode:
-                keywords.append('OVERLOADED')
-            quals, ignored_cmds_r = self._process_AlterConcretePointer_for_SDL(
-                node)
-            keywords.extend(quals)
-            ignored_cmds.update(ignored_cmds_r)
-
-            type_cmd = None
-            for cmd in node.commands:
-                if isinstance(cmd, qlast.SetPointerType):
-                    ignored_cmds.add(cmd)
-                    type_cmd = cmd
-                    break
-
-            def after_name() -> None:
-                if type_cmd is not None:
-                    self.write(' -> ')
-                    assert type_cmd.value
-                    self.visit(type_cmd.value)
-
-        keywords.append('PROPERTY')
-        self._visit_AlterObject(
-            node, *keywords, ignored_cmds=ignored_cmds,
-            allow_short=False, unqualified=True,
-            after_name=after_name)
+        self.visit_AlterConcretePointer(node, kind='PROPERTY')
 
     def visit_DropConcreteProperty(
         self,
@@ -1775,13 +1760,23 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     ) -> None:
         self.visit_CreateConcretePointer(node, kind=None)
 
+    def visit_AlterConcreteUnknownPointer(
+        self,
+        node: qlast.AlterConcreteLink
+    ) -> None:
+        self.visit_AlterConcretePointer(node, kind=None)
+
     def visit_CreateConcreteLink(
         self,
         node: qlast.CreateConcreteLink
     ) -> None:
         self.visit_CreateConcretePointer(node, kind='LINK')
 
-    def visit_AlterConcreteLink(self, node: qlast.AlterConcreteLink) -> None:
+    def visit_AlterConcretePointer(
+        self,
+        node: qlast.AlterObject,
+        kind: Optional[str],
+    ) -> None:
         keywords = []
         ignored_cmds: Set[qlast.DDLOperation] = set()
 
@@ -1817,10 +1812,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         else:
             after_name = None
 
-        keywords.append('LINK')
+        if kind:
+            keywords.append(kind)
         self._visit_AlterObject(
             node, *keywords, ignored_cmds=ignored_cmds,
             allow_short=False, unqualified=True, after_name=after_name)
+
+    def visit_AlterConcreteLink(self, node: qlast.AlterConcreteLink) -> None:
+        self.visit_AlterConcretePointer(node, kind='LINK')
 
     def visit_DropConcreteLink(self, node: qlast.DropConcreteLink) -> None:
         self._visit_DropObject(node, 'LINK', unqualified=True)

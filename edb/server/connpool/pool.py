@@ -1213,7 +1213,7 @@ class Pool(BasePool[C]):
                 dbname=block.dbname, event='disconnect', value=0)
         await asyncio.gather(*coros, return_exceptions=True)
         # We don't have to worry about pending_conns here -
-        # Server._pg_connect() will honor the failover and raise an error.
+        # Tenant._pg_connect() will honor the failover and raise an error.
 
     def iterate_connections(self) -> typing.Iterator[C]:
         for block in self._blocks.values():

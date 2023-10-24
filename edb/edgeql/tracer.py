@@ -34,7 +34,6 @@ from edb.schema import pointers as s_pointers
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
-from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 
@@ -50,6 +49,10 @@ class NamedObject:
 
     def get_name(self, schema: s_schema.Schema) -> sn.QualName:
         return self.name
+
+    @classmethod
+    def get_schema_class_displayname(cls) -> str:
+        return cls.__name__.lower()
 
 
 SentinelObject = NamedObject(
@@ -85,6 +88,10 @@ class Index(NamedObject):
 
 
 class ConcreteIndex(NamedObject):
+    pass
+
+
+class Field(NamedObject):
     pass
 
 
@@ -253,6 +260,18 @@ class Link(Pointer):
         return False
 
 
+class UnknownPointer(Pointer):
+    def is_property(
+        self,
+        schema: s_schema.Schema,
+    ) -> bool:
+        return False
+
+    @classmethod
+    def get_schema_class_displayname(cls) -> str:
+        return 'link or property'
+
+
 class AccessPolicy(NamedObject):
 
     def __init__(
@@ -352,6 +371,7 @@ def resolve_name(
     objects: Dict[sn.QualName, Optional[ObjectLike]],
     modaliases: Optional[Dict[Optional[str], str]],
     local_modules: AbstractSet[str],
+    declaration: bool=False,
 ) -> sn.QualName:
     """Resolve a name into a fully-qualified one.
 
@@ -359,7 +379,7 @@ def resolve_name(
     """
     module = ref.module
 
-    no_std = False
+    no_std = declaration
     if module and module.startswith('__current__::'):
         no_std = True
         module = f'{current_module}::{module.removeprefix("__current__::")}'
@@ -377,15 +397,13 @@ def resolve_name(
             module = fq_module + sep + rest
 
     qname = sn.QualName(module=module, name=ref.name)
-    if type is None:
-        return qname
 
     # check if there's a name in default module
-    # actually registered to the right type
+    # that matches
     if not no_std and not (
         ref.module and ref.module in local_modules
     ) and not (
-        isinstance(objects.get(qname), type)
+        objects.get(qname)
         or schema.get(
             qname, default=None, type=so.Object) is not None
     ):
@@ -724,7 +742,7 @@ def trace_Path(
                     tip = ctx.schema.get(refname, sourcectx=step.context)
 
         elif isinstance(step, qlast.Ptr):
-            pname = s_utils.ast_ref_to_unqualname(step.ptr)
+            pname = sn.UnqualName(step.name)
 
             if i == 0:
                 # Abbreviated path.
@@ -764,7 +782,7 @@ def trace_Path(
                                 src_src_name, src_name.name)
                         else:
                             source_name = src_name
-                        ctx.refs.add(qualify_name(source_name, step.ptr.name))
+                        ctx.refs.add(qualify_name(source_name, step.name))
             else:
                 if step.direction == '<':
                     if plen > i + 1 and isinstance(node.steps[i + 1],
@@ -785,7 +803,7 @@ def trace_Path(
                             if (isinstance(obj, (s_pointers.Pointer,
                                                  Pointer)) and
                                 fqname.name.split('@', 1)[1] ==
-                                    step.ptr.name):
+                                    step.name):
 
                                 target = obj.get_target(ctx.schema)
                                 # Ignore scalars, but include other
@@ -801,8 +819,7 @@ def trace_Path(
                 else:
                     if isinstance(tip, (Source, s_sources.Source)):
                         ptr = tip.maybe_get_ptr(
-                            ctx.schema,
-                            s_utils.ast_ref_to_unqualname(step.ptr),
+                            ctx.schema, sn.UnqualName(step.name)
                         )
                         if ptr is None:
                             # Invalid pointer reference, bail.
@@ -813,7 +830,7 @@ def trace_Path(
                         if ptr_source is not None:
                             sname = ptr_source.get_name(ctx.schema)
                             assert isinstance(sname, sn.QualName)
-                            ctx.refs.add(qualify_name(sname, step.ptr.name))
+                            ctx.refs.add(qualify_name(sname, step.name))
                             tip = ptr.get_target(ctx.schema)
 
                             if tip is None:
@@ -853,8 +870,7 @@ def trace_Path(
                 if prev_step.direction == '<':
                     if isinstance(tip, (s_sources.Source, ObjectType)):
                         ptr = tip.maybe_get_ptr(
-                            ctx.schema,
-                            s_utils.ast_ref_to_unqualname(prev_step.ptr),
+                            ctx.schema, sn.UnqualName(prev_step.name)
                         )
                         if ptr is None:
                             # Invalid pointer reference, bail.
@@ -862,8 +878,7 @@ def trace_Path(
 
                         if isinstance(tip, Type):
                             tip_name = tip.get_name(ctx.schema)
-                            ctx.refs.add(qualify_name(
-                                tip_name, prev_step.ptr.name))
+                            ctx.refs.add(qualify_name(tip_name, prev_step.name))
 
         elif isinstance(step, qlast.Splat):
             if step.type is not None:
@@ -883,8 +898,8 @@ def trace_Path(
 
 
 @trace.register
-def trace_SpecialAnchor(
-    node: qlast.SpecialAnchor, *, ctx: TracerContext
+def trace_Anchor(
+    node: qlast.Anchor, *, ctx: TracerContext
 ) -> Optional[ObjectLike]:
     if name := ctx.anchors.get(node.name):
         return ctx.objects[name]
@@ -1123,6 +1138,10 @@ def trace_SortExpr(node: qlast.SortExpr, *, ctx: TracerContext) -> None:
 @trace.register
 def trace_InsertQuery(node: qlast.InsertQuery, *, ctx: TracerContext) -> None:
     with alias_context(ctx, node.aliases) as ctx:
+        if node.unless_conflict:
+            trace(node.unless_conflict[0], ctx=ctx)
+            trace(node.unless_conflict[1], ctx=ctx)
+
         tip = trace(qlast.Path(steps=[node.subject]), ctx=ctx)
         _update_path_prefix(tip, ctx=ctx)
 

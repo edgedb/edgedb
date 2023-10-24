@@ -35,6 +35,9 @@ Bytes
     * - :eql:func:`find`
       - Finds the index of the first occurrence of a subsequence.
 
+    * - :eql:func:`to_bytes`
+      - :eql:func-desc:`to_bytes`
+
     * - :eql:func:`bytes_get_bit`
       - :eql:func-desc:`bytes_get_bit`
 
@@ -124,6 +127,18 @@ Bytes
 
 ---------
 
+.. eql:function:: std::to_bytes(s: str) -> bytes
+
+    :index: encode stringencoder
+
+    Create a :eql:type:`str` value to :eql:type:`bytes` using UTF-8 encoding.
+
+    .. code-block:: edgeql-repl
+
+        db> select to_bytes('テキスト');
+        {b'\xe3\x83\x86\xe3\x82\xad\xe3\x82\xb9\xe3\x83\x88'}
+
+---------
 
 .. eql:function:: std::bytes_get_bit(bytes: bytes, nth: int64) -> int64
 

@@ -253,6 +253,24 @@ std::to_str(json: std::json, fmt: OPTIONAL str={}) -> std::str
 
 
 CREATE FUNCTION
+std::to_str(b: std::bytes) -> std::str {
+    CREATE ANNOTATION std::description :=
+        'Convert a binary UTF-8 string to a text value.';
+    SET volatility := 'Immutable';
+    USING SQL $$ SELECT pg_catalog.convert_from("b", 'UTF8') $$;
+};
+
+
+CREATE FUNCTION
+std::to_bytes(s: std::str) -> std::bytes {
+    CREATE ANNOTATION std::description :=
+        'Convert a text string to a binary UTF-8 string.';
+    SET volatility := 'Immutable';
+    USING SQL $$ SELECT pg_catalog.convert_to("s", 'UTF8') $$;
+};
+
+
+CREATE FUNCTION
 std::to_json(str: std::str) -> std::json
 {
     CREATE ANNOTATION std::description :=

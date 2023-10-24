@@ -18,6 +18,9 @@
 
 
 import os
+import urllib
+import json
+import decimal
 
 import edgedb
 
@@ -31,6 +34,9 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
 
     SCHEMA_OTHER = os.path.join(os.path.dirname(__file__), 'schemas',
                                 'graphql_other.esdl')
+
+    SCHEMA_OTHER_DEEP = os.path.join(os.path.dirname(__file__), 'schemas',
+                                     'graphql_schema_other_deep.esdl')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'graphql_setup.edgeql')
@@ -268,6 +274,14 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
             )
         )
 
+    def test_http_edgeql_query_14(self):
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                r'Minimum allowed value for positive_int_t is 0'):
+            self.edgeql_query(
+                r'''SELECT <positive_int_t>-1''',
+            )
+
     def test_http_edgeql_query_globals_01(self):
         Q = r'''select GlobalTest { gstr, garray, gid, gdef, gdef2 }'''
 
@@ -357,3 +371,24 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                 [True],
                 use_http_post=use_http_post,
             )
+
+    def test_http_edgeql_decimal_params_01(self):
+        req_data = b'''{
+            "query": "select <array<decimal>>$test",
+            "variables": {
+                "test": [1234567890123456789.01234567890123456789]
+            }
+        }'''
+
+        req = urllib.request.Request(self.http_addr, method='POST')
+        req.add_header('Content-Type', 'application/json')
+        response = urllib.request.urlopen(
+            req, req_data, context=self.tls_context
+        )
+        resp_data = json.loads(response.read(), parse_float=decimal.Decimal)
+
+        self.assert_data_shape(resp_data, {
+            'data': [
+                [decimal.Decimal('1234567890123456789.01234567890123456789')]
+            ]
+        })

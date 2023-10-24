@@ -97,10 +97,9 @@ cdef object FMT_JSON_ELEMENTS = compiler.OutputFormat.JSON_ELEMENTS
 cdef object FMT_NONE = compiler.OutputFormat.NONE
 
 cdef tuple DUMP_VER_MIN = (0, 7)
-cdef tuple DUMP_VER_MAX = (1, 0)
+cdef tuple DUMP_VER_MAX = edbdef.CURRENT_PROTOCOL
 
 cdef tuple MIN_PROTOCOL = edbdef.MIN_PROTOCOL
-cdef tuple MAX_LEGACY_PROTOCOL = edbdef.MAX_LEGACY_PROTOCOL
 cdef tuple CURRENT_PROTOCOL = edbdef.CURRENT_PROTOCOL
 
 cdef object logger = logging.getLogger('edb.server')
@@ -111,6 +110,8 @@ DEF QUERY_HEADER_IMPLICIT_TYPENAMES = 0xFF02
 DEF QUERY_HEADER_IMPLICIT_TYPEIDS = 0xFF03
 DEF QUERY_HEADER_ALLOW_CAPABILITIES = 0xFF04
 DEF QUERY_HEADER_EXPLICIT_OBJECTIDS = 0xFF05
+
+DEF QUERY_HEADER_DUMP_SECRETS = 0xFF10
 
 DEF SERVER_HEADER_CAPABILITIES = 0x1001
 
@@ -152,13 +153,14 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     def __init__(
         self,
         server,
+        tenant,
         *,
         auth_data: bytes,
         conn_params: dict[str, str] | None,
-        protocol_version: tuple[int, int] = CURRENT_PROTOCOL,
+        protocol_version: edbdef.ProtocolVersion = CURRENT_PROTOCOL,
         **kwargs,
     ):
-        super().__init__(server, **kwargs)
+        super().__init__(server, tenant, **kwargs)
         self._con_status = EDGECON_NEW
 
         self._dbview = None
@@ -224,7 +226,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
     def close_for_idling(self):
         try:
-            self.write_error(
+            self.write_edgedb_error(
                 errors.IdleSessionTimeoutError(
                     'closing the connection due to idling')
             )
@@ -279,14 +281,20 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         logger.debug('received connection request by %s to database %s',
                      user, database)
 
-        if not self.server.is_database_connectable(database):
+        await self._authenticate(user, database, params)
+
+        logger.debug('successfully authenticated %s in database %s',
+                     user, database)
+
+        if not self.tenant.is_database_connectable(database):
             raise errors.AccessError(
                 f'database {database!r} does not accept connections'
             )
 
         await self._start_connection(database)
 
-        await self._authenticate(user, database, params)
+        self.dbname = database
+        self.username = user
 
         if self._transport_proto is srvargs.ServerConnTransport.HTTP:
             return
@@ -304,15 +312,17 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         msg_buf.end_message()
         buf.write_buffer(msg_buf)
 
+        if self.get_dbview().get_state_serializer() is None:
+            await self.get_dbview().reload_state_serializer()
         buf.write_buffer(self.make_state_data_description_msg())
 
         self.write(buf)
 
         if self.server.in_dev_mode():
-            pgaddr = dict(self.server._get_pgaddr())
+            pgaddr = dict(self.tenant.get_pgaddr())
             if pgaddr.get('password'):
                 pgaddr['password'] = '********'
-            pgaddr['database'] = self.server.get_pg_dbname(
+            pgaddr['database'] = self.tenant.get_pg_dbname(
                 self.get_dbview().dbname
             )
             pgaddr.pop('ssl', None)
@@ -322,11 +332,11 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.write_status(
             b'suggested_pool_concurrency',
-            str(self.server.get_suggested_client_pool_size()).encode()
+            str(self.tenant.suggested_client_pool_size).encode()
         )
         self.write_status(
             b'system_config',
-            self.server.get_report_config_data()
+            self.tenant.get_report_config_data(self.protocol_version),
         )
 
         self.write(self.sync_status())
@@ -376,7 +386,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         return params
 
     async def _start_connection(self, database: str) -> None:
-        dbv = await self.server.new_dbview(
+        dbv = await self.tenant.new_dbview(
             dbname=database,
             query_cache=self.query_cache_enabled,
             protocol_version=self.protocol_version,
@@ -391,7 +401,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         self._con_status = EDGECON_BAD
 
         if self._dbview is not None:
-            self.server.remove_dbview(self._dbview)
+            self.tenant.remove_dbview(self._dbview)
             self._dbview = None
 
     def _extract_token_from_auth_data(self, auth_data):
@@ -403,7 +413,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         return prefixed_token.strip()
 
-    def _auth_jwt(self, user, params):
+    def _auth_jwt(self, user, database, params):
         # token in the HTTP header has higher priority than
         # the ClientHandshake message, under the scenario of
         # binary protocol over HTTP
@@ -429,7 +439,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             raise errors.AuthenticationError(
                 'authentication failed: malformed JWT')
 
-        role = self.server.get_roles().get(user)
+        role = self.tenant.get_roles().get(user)
         if role is None:
             raise errors.AuthenticationError('authentication failed')
 
@@ -459,11 +469,11 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 f'authentication failed: malformed claims section in JWT'
             ) from None
 
-        self._check_jwt_authz(claims, token_version, user)
+        self._check_jwt_authz(claims, token_version, user, database)
 
-    def _check_jwt_authz(self, claims, token_version, user):
+    def _check_jwt_authz(self, claims, token_version, user, dbname):
         # Check general key validity (e.g. whether it's a revoked key)
-        self.server.check_jwt(claims)
+        self.tenant.check_jwt(claims)
 
         token_instances = None
         token_roles = None
@@ -485,7 +495,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         if (
             token_instances is not None
-            and self.server.get_instance_name() not in token_instances
+            and self.tenant.get_instance_name() not in token_instances
         ):
             raise errors.AuthenticationError(
                 'authentication failed: secret key does not authorize '
@@ -493,11 +503,11 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         if (
             token_databases is not None
-            and self.dbname not in token_databases
+            and dbname not in token_databases
         ):
             raise errors.AuthenticationError(
                 'authentication failed: secret key does not authorize '
-                f'access to database "{self.dbname}"')
+                f'access to database "{dbname}"')
 
         if token_roles is not None and user not in token_roles:
             raise errors.AuthenticationError(
@@ -598,15 +608,30 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         self,
         dbview.QueryRequestInfo query_req,
     ) -> dbview.CompiledQuery:
+        cdef dbview.DatabaseConnectionView dbv
+        dbv = self.get_dbview()
         if self.debug:
             source = query_req.source
             text = source.text()
             self.debug_print('PARSE', text)
-            self.debug_print('Cache key', source.cache_key())
+            self.debug_print(
+                'Cache key',
+                source.cache_key(),
+                f"protocol_version={query_req.protocol_version}",
+                f"output_format={query_req.output_format}",
+                f"expect_one={query_req.expect_one}",
+                f"implicit_limit={query_req.implicit_limit}",
+                f"inline_typeids={query_req.inline_typeids}",
+                f"inline_typenames={query_req.inline_typenames}",
+                f"inline_objectids={query_req.inline_objectids}",
+                f"allow_capabilities={query_req.allow_capabilities}",
+                f"modaliazes={dbv.get_modaliases()}",
+                f"session_config={dbv.get_session_config()}",
+            )
             self.debug_print('Extra variables', source.variables(),
                              'after', source.first_extra())
 
-        return await self.get_dbview().parse(query_req)
+        return await dbv.parse(query_req)
 
     cdef parse_cardinality(self, bytes card):
         if card[0] == CARD_MANY.value:
@@ -648,14 +673,14 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         cdef:
             dict attrs
             uint16_t num_fields
-            str key
-            str value
+            uint16_t key
+            bytes value
 
         attrs = {}
         num_fields = <uint16_t>self.buffer.read_int16()
         while num_fields:
-            key = self.buffer.read_len_prefixed_utf8()
-            value = self.buffer.read_len_prefixed_utf8()
+            key = <uint16_t>self.buffer.read_int16()
+            value = self.buffer.read_len_prefixed_bytes()
             attrs[key] = value
             num_fields -= 1
         return attrs
@@ -666,8 +691,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         num_fields = <uint16_t>self.buffer.read_int16()
         while num_fields:
-            self.buffer.read_len_prefixed_utf8()
-            self.buffer.read_len_prefixed_utf8()
+            self.buffer.read_int16()
+            self.buffer.read_len_prefixed_bytes()
             num_fields -= 1
 
     #############
@@ -869,6 +894,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         cdef:
             bytes eql
             dbview.QueryRequestInfo query_req
+            dbview.DatabaseConnectionView _dbview
             WriteBuffer parse_complete
             WriteBuffer buf
 
@@ -876,6 +902,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.ignore_headers()
 
+        _dbview = self.get_dbview()
+        if _dbview.get_state_serializer() is None:
+            await _dbview.reload_state_serializer()
         query_req = self.parse_execute_request()
         compiled = await self._parse(query_req)
 
@@ -902,14 +931,15 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.ignore_headers()
 
+        _dbview = self.get_dbview()
+        if _dbview.get_state_serializer() is None:
+            await _dbview.reload_state_serializer()
         query_req = self.parse_execute_request()
         in_tid = self.buffer.read_bytes(16)
         out_tid = self.buffer.read_bytes(16)
         args = self.buffer.read_len_prefixed_bytes()
 
         self.buffer.finish_message()
-
-        _dbview = self.get_dbview()
 
         if (
             self._last_anon_compiled is not None and
@@ -930,6 +960,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 if self._cancelled:
                     raise ConnectionAbortedError
             else:
+                metrics.edgeql_query_compilations.inc(
+                    1.0, self.get_tenant_label(), 'cache'
+                )
                 compiled = dbview.CompiledQuery(
                     query_unit_group=query_unit_group,
                     first_extra=query_req.source.first_extra(),
@@ -964,7 +997,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if self.debug:
             self.debug_print('EXECUTE', query_req.source.text())
 
-        metrics.edgeql_query_compilations.inc(1.0, 'cache')
+        force_script = any(x.needs_readback for x in query_unit_group)
         if (
             _dbview.in_tx_error()
             or query_unit_group[0].tx_savepoint_rollback
@@ -972,7 +1005,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         ):
             assert len(query_unit_group) == 1
             await self._execute_rollback(compiled)
-        elif len(query_unit_group) > 1:
+        elif len(query_unit_group) > 1 or force_script:
             await self._execute_script(compiled, args)
         else:
             use_prep = (
@@ -1003,26 +1036,30 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.flush()
 
-    async def legacy_main(self, params):
-        raise NotImplementedError
+    def check_readiness(self):
+        if self.tenant.is_blocked():
+            readiness_reason = self.tenant.get_readiness_reason()
+            msg = "the server is not accepting requests"
+            if readiness_reason:
+                msg = f"{msg}: {readiness_reason}"
+            raise errors.ServerBlockedError(msg)
+        elif not self.tenant.is_online():
+            readiness_reason = self.tenant.get_readiness_reason()
+            msg = "the server is going offline"
+            if readiness_reason:
+                msg = f"{msg}: {readiness_reason}"
+            raise errors.ServerOfflineError(msg)
 
     async def authenticate(self):
-        cdef:
-            bint is_legacy
-
+        self.check_readiness()
         params = await self.do_handshake()
-        is_legacy = self.protocol_version <= MAX_LEGACY_PROTOCOL
-        if not is_legacy:
-            await self.auth(params)
-
-        if is_legacy:
-            # GOTCHA: awaited outside
-            return self.legacy_main(params)
-        else:
-            self.server.on_binary_client_authed(self)
+        await self.auth(params)
+        self.server.on_binary_client_authed(self)
 
     async def main_step(self, char mtype):
         try:
+            self.check_readiness()
+
             if mtype == b'O':
                 await self.execute()
 
@@ -1090,7 +1127,21 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.get_dbview().tx_error()
             self.buffer.finish_message()
 
-            self.write_error(ex)
+            ex = await self.interpret_error(ex)
+
+            self.write_edgedb_error(ex)
+
+            if isinstance(
+                ex,
+                (errors.ServerOfflineError, errors.ServerBlockedError),
+            ):
+                # This server is going into "offline" or "blocked" mode,
+                # close the connection.
+                self.write(self.sync_status())
+                self.flush()
+                self.close()
+                return
+
             self.flush()
 
             # The connection was aborted while we were
@@ -1125,6 +1176,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 self.buffer.discard_message()
 
     cdef write_error(self, exc):
+        self.write_edgedb_error(execute.interpret_simple_error(exc))
+
+    cdef write_edgedb_error(self, exc):
         cdef:
             WriteBuffer buf
             int16_t fields_len
@@ -1146,29 +1200,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 'transport': self._transport,
         })
 
-        exc_code = None
-
-        if isinstance(exc, pgerror.BackendError):
-            exc = self.interpret_backend_error(exc)
-
         fields = {}
-        if (isinstance(exc, errors.EdgeDBError) and
-                type(exc) is not errors.EdgeDBError):
-            exc_code = exc.get_code()
+        if isinstance(exc, errors.EdgeDBError):
             fields.update(exc._attrs)
-
-        internal_error_code = errors.InternalServerError.get_code()
-        if not exc_code:
-            exc_code = internal_error_code
-
-        if (exc_code == internal_error_code
-                and not fields.get(base_errors.FIELD_HINT)):
-            fields[base_errors.FIELD_HINT] = (
-                f'This is most likely a bug in EdgeDB. '
-                f'Please consider opening an issue ticket '
-                f'at https://github.com/edgedb/edgedb/issues/new'
-                f'?template=bug_report.md'
-            )
 
         try:
             formatted_error = exc.__formatted_error__
@@ -1185,7 +1219,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         buf = WriteBuffer.new_message(b'E')
         buf.write_byte(<char><uint8_t>EdgeSeverity.EDGE_SEVERITY_ERROR)
-        buf.write_int32(<int32_t><uint32_t>exc_code)
+        buf.write_int32(<int32_t><uint32_t>exc.get_code())
         buf.write_len_prefixed_utf8(str(exc))
         buf.write_int16(len(fields))
         for k, v in fields.items():
@@ -1195,32 +1229,14 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.write(buf)
 
-    cdef interpret_backend_error(self, exc):
-        try:
-            static_exc = errormech.static_interpret_backend_error(
-                exc.fields)
-
-            # only use the backend if schema is required
-            if static_exc is errormech.SchemaRequired:
-                exc = errormech.interpret_backend_error(
-                    self.get_dbview().get_schema(),
-                    exc.fields
-                )
-            elif isinstance(static_exc, (
-                    errors.DuplicateDatabaseDefinitionError,
-                    errors.UnknownDatabaseError)):
-                tenant_id = self.server.get_tenant_id()
-                message = static_exc.args[0].replace(f'{tenant_id}_', '')
-                exc = type(static_exc)(message)
-            else:
-                exc = static_exc
-
-        except Exception:
-            exc = RuntimeError(
-                'unhandled error while calling interpret_backend_error(); '
-                'run with EDGEDB_DEBUG_SERVER to debug.')
-
-        return exc
+    async def interpret_error(self, exc):
+        dbv = self.get_dbview()
+        return await execute.interpret_error(
+            exc,
+            dbv._db,
+            global_schema_pickle=dbv.get_global_schema_pickle(),
+            user_schema_pickle=dbv.get_user_schema_pickle(),
+        )
 
     cdef write_status(self, bytes name, bytes value):
         cdef:
@@ -1311,7 +1327,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             WriteBuffer msg_buf
             dbview.DatabaseConnectionView _dbview
 
-        self.reject_headers()
+        headers = self.parse_headers()
+        include_secrets = headers.get(QUERY_HEADER_DUMP_SECRETS) == b'\x01'
+
         self.buffer.finish_message()
 
         _dbview = self.get_dbview()
@@ -1324,7 +1342,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         compiler_pool = server.get_compiler_pool()
 
         dbname = _dbview.dbname
-        pgcon = await server.acquire_pgcon(dbname)
+        tenant = self.tenant
+        pgcon = await tenant.acquire_pgcon(dbname)
         self._in_dump_restore = True
         try:
             # To avoid having races, we want to:
@@ -1354,17 +1373,20 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 ''',
             )
 
-            user_schema = await server.introspect_user_schema(pgcon)
-            global_schema = await server.introspect_global_schema(pgcon)
-            db_config = await server.introspect_db_config(pgcon)
+            user_schema_json = await server.introspect_user_schema_json(pgcon)
+            global_schema_json = (
+                await server.introspect_global_schema_json(pgcon)
+            )
+            db_config_json = await server.introspect_db_config(pgcon)
             dump_protocol = self.max_protocol
 
             schema_ddl, schema_dynamic_ddl, schema_ids, blocks = (
                 await compiler_pool.describe_database_dump(
-                    user_schema,
-                    global_schema,
-                    db_config,
+                    user_schema_json,
+                    global_schema_json,
+                    db_config_json,
                     dump_protocol,
+                    include_secrets,
                 )
             )
 
@@ -1459,7 +1481,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         finally:
             self._in_dump_restore = False
-            server.release_pgcon(dbname, pgcon)
+            tenant.release_pgcon(dbname, pgcon)
 
         msg_buf = WriteBuffer.new_message(b'C')
         msg_buf.write_int16(0)  # no headers
@@ -1500,6 +1522,11 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             raise
         else:
             _dbview.on_success(query_unit, {})
+            # _execute_utility_stmt is only used in restore(), where the state
+            # serializer is not coming with the COMMIT command. However, we try
+            # to keep the state serializer here anyways in case of future use
+            if query_unit_group.state_serializer is not None:
+                _dbview.set_state_serializer(query_unit_group.state_serializer)
 
     async def restore(self):
         cdef:
@@ -1512,6 +1539,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             raise errors.ProtocolError(
                 'RESTORE must not be executed while in transaction'
             )
+        if _dbview.get_state_serializer() is None:
+            await _dbview.reload_state_serializer()
 
         self.reject_headers()
         self.buffer.read_int16()  # discard -j level
@@ -1521,8 +1550,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         server = self.server
         compiler_pool = server.get_compiler_pool()
 
-        global_schema = _dbview.get_global_schema()
-        user_schema = _dbview.get_user_schema()
+        global_schema_pickle = _dbview.get_global_schema_pickle()
+        user_schema_pickle = _dbview.get_user_schema_pickle()
 
         dump_server_ver_str = None
         cat_ver = None
@@ -1567,7 +1596,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.buffer.finish_message()
         dbname = _dbview.dbname
-        pgcon = await server.acquire_pgcon(dbname)
+        tenant = self.tenant
+        pgcon = await tenant.acquire_pgcon(dbname)
 
         self._in_dump_restore = True
         try:
@@ -1589,8 +1619,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
             schema_sql_units, restore_blocks, tables = \
                 await compiler_pool.describe_database_restore(
-                    user_schema,
-                    global_schema,
+                    user_schema_pickle,
+                    global_schema_pickle,
                     dump_server_ver_str,
                     cat_ver,
                     schema_ddl,
@@ -1709,10 +1739,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         finally:
             self._transport.resume_reading()
             self._in_dump_restore = False
-            server.release_pgcon(dbname, pgcon)
+            tenant.release_pgcon(dbname, pgcon)
 
         execute.signal_side_effects(_dbview, dbview.SideEffects.SchemaChanges)
-        await server.introspect_db(dbname)
+        await tenant.introspect_db(dbname)
 
         if _dbview.is_state_desc_changed():
             self.write(self.make_state_data_description_msg())
@@ -1775,10 +1805,11 @@ cdef class VirtualTransport:
 
 async def eval_buffer(
     server,
+    tenant,
     database: str,
     data: bytes,
     conn_params: dict[str, str],
-    protocol_version: tuple[int, int],
+    protocol_version: edbdef.ProtocolVersion,
     auth_data: bytes,
     transport: srvargs.ServerConnTransport,
 ):
@@ -1790,6 +1821,7 @@ async def eval_buffer(
 
     proto = new_edge_connection(
         server,
+        tenant,
         passive=True,
         auth_data=auth_data,
         transport=transport,
@@ -1815,22 +1847,21 @@ async def eval_buffer(
     return data
 
 
-include "binary_v0.pyx"
-
-
 def new_edge_connection(
     server,
+    tenant,
     *,
     external_auth: bool = False,
     passive: bool = False,
     transport: srvargs.ServerConnTransport = (
         srvargs.ServerConnTransport.TCP),
     auth_data: bytes = b'',
-    protocol_version: tuple[int, int] = edbdef.CURRENT_PROTOCOL,
+    protocol_version: edbdef.ProtocolVersion = edbdef.CURRENT_PROTOCOL,
     conn_params: dict[str, str] | None = None,
 ):
-    return EdgeConnectionBackwardsCompatible(
+    return EdgeConnection(
         server,
+        tenant,
         external_auth=external_auth,
         passive=passive,
         transport=transport,
@@ -1842,6 +1873,7 @@ def new_edge_connection(
 
 async def run_script(
     server,
+    tenant,
     database: str,
     user: str,
     script: str,
@@ -1849,7 +1881,7 @@ async def run_script(
     cdef:
         EdgeConnection conn
         dbview.CompiledQuery compiled
-    conn = new_edge_connection(server)
+    conn = new_edge_connection(server, tenant)
     await conn._start_connection(database)
     try:
         compiled = await conn.get_dbview().parse(
@@ -1863,8 +1895,8 @@ async def run_script(
             await conn._execute_script(compiled, b'')
         else:
             await conn._execute(compiled, b'', use_prep_stmt=0)
-    except pgerror.BackendError as e:
-        exc = conn.interpret_backend_error(e)
+    except Exception as e:
+        exc = await conn.interpret_error(e)
         if isinstance(exc, errors.EdgeDBError):
             raise exc from None
         else:

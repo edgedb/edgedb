@@ -201,6 +201,8 @@ versioned sections of the documentation to the new syntax.
 Query performance analysis
 --------------------------
 
+.. edb:youtube-embed:: WoHJu0nq5z0
+
 Among other improvements, the UI now includes a visual query analyzer to help
 you tweak performance on your EdgeQL queries. Just drop the ``analyze`` keyword
 in front of your query in the UI's "Query Editor" tab to see the query analyzer
@@ -216,6 +218,8 @@ directly using the ``edgedb analyze <query>`` command.
 
 UI improvements
 ---------------
+
+.. edb:youtube-embed:: iwnP_6tkKgc
 
 The EdgeDB UI got a lot of love in this release. In addition to the visual
 query planning shown above, you'll see a number of improvements.
@@ -254,6 +258,8 @@ even when you're just learning EdgeQL.
 
 ``edgedb watch`` and a new development workflow
 -----------------------------------------------
+
+.. edb:youtube-embed:: _IUSPBm2xEA
 
 The new ``edgedb watch`` CLI command starts a long-running process that watches
 for changes in schema files in your project's ``dbschema`` directory and
@@ -306,6 +312,8 @@ these are ready to commit and push to your remote to share with your team.
 Triggers
 --------
 
+.. edb:youtube-embed:: ImgMfb_jCJQ?start=41
+
 Our new triggers feature is one of the most anticipated 3.0 features! Triggers
 allow you to define an expression to be executed whenever a given query type is
 run on an object type. The original query will *trigger* your pre-defined
@@ -335,6 +343,8 @@ You can read more about our triggers implementation in `the triggers RFC
 Mutation rewrites
 -----------------
 
+.. edb:youtube-embed:: ImgMfb_jCJQ?end=41
+
 The mutation rewrites feature is the sibling, or at least the first cousin, of
 triggers. Both are automatically invoked when a write operation occurs on the
 type they're on, but triggers are not able to make changes to the object that
@@ -361,6 +371,8 @@ Learn about our mutation rewrites implementation in `the mutation rewrites RFC
 
 Splats
 ------
+
+.. edb:youtube-embed:: 9-I1qjIp3KI
 
 This is one of the most fun features in 3.0, both to say _and_ to use! With
 splats, you can easily select all properties in your queries without typing all
@@ -458,6 +470,8 @@ ext::pgvector documentation <ref_ext_pgvector>`.
 
 SQL support
 -----------
+
+.. edb:youtube-embed:: 0KdY2MPb2oc
 
 EdgeDB supports running read-only SQL queries via the Postgres protocol to
 enable connecting EdgeDB to existing BI and analytics solutions. Any
@@ -600,8 +614,8 @@ EdgeQL
   .. code-block:: sdl
 
     type User {
-      required property email -> str { constraint exclusive; };
-      required property is_admin -> bool { default := false };
+      required email: str { constraint exclusive; };
+      required is_admin: bool { default := false };
       access policy admin_only
         allow all
         using (global current_user.is_admin ?? false) {
@@ -665,7 +679,7 @@ EdgeQL
   .. code-block:: sdl
 
       type User {
-        required property name -> str;
+        required name: str;
         index pg::spgist on (.name);
       };
 
@@ -982,6 +996,192 @@ more predictable cadence will be worth it. Every third release starting with
 3.0 will be a long-term support (LTS) release. These releases will continue to
 receive support for a year and a half after their initial release.
 
-
 .. _v3anno:
     https://www.edgedb.com/blog/edgedb-3-0
+
+3.1
+===
+
+* Add support for "offline" readiness state
+  (:eql:gh:`#5730`)
+
+* Bump ``max_pred_locks_per_transaction`` to 1024
+  (:eql:gh:`#5694`)
+
+* Be more permissive about differing postgres versions when using
+  remote compiler pool
+  (:eql:gh:`#5698`)
+
+* Do not lose constraint ``errmessage`` when a constraint is ALTERed
+  (:eql:gh:`#5701`)
+
+* Properly track implicit dependance on ``__type__`` in function calls
+  (:eql:gh:`#5715`)
+
+* Avoid very slow error formatting in non-error cases
+  (:eql:gh:`#5706`)
+
+* Push Docker images to ghcr.io also
+  (:eql:gh:`#5700`)
+
+* Fix tuple derefencing and top-level casting in exclusive constraints
+  (:eql:gh:`#5724`)
+
+* Add support for statement variants of prepared statement comands in
+  SQL mode
+  (:eql:gh:`#5685`)
+
+* Respect ``cfg::`` annotations on object configuration
+  (:eql:gh:`#5746`)
+
+* Avoid leaking database existence information to unauthenticated users
+  (:eql:gh:`#5744`)
+
+
+3.2
+===
+* Fix empty queries in the SQL layer
+  (:eql:gh:`#5776`)
+
+* Expand list of supported SQL range functions
+  (:eql:gh:`#5777`)
+
+* Fix psql ``\dt``
+  (:eql:gh:`#5779`)
+
+* Fix bugs in casting between ranges and json on empty set inputs
+  (:eql:gh:`#5792`)
+
+* Fix globals of scalar types defined later in the schema
+  (:eql:gh:`#5764`)
+
+* Fix moving access policy from child to parent
+  (:eql:gh:`#5786`)
+
+* Modestly speed up type creation in large schemas
+  (:eql:gh:`#5814`)
+
+3.3
+===
+* Fix creating roles in transactions
+  (:eql:gh:`#5925`)
+
+* Fix database check in JWT authentication
+  (:eql:gh:`#5928`)
+
+* Create extensions conditionally
+  (:eql:gh:`#5894`)
+
+* Stop putting deletes of self before alters of self in when making schema
+  deltas
+  (:eql:gh:`#5897`)
+
+* Fix dropping of extensions with nontrivial schemas
+  (:eql:gh:`#5897`)
+
+* Fix healthchecks on single-database instances
+  (:eql:gh:`#5900`)
+
+* Fix a bug in SQL name resolving
+  (:eql:gh:`#5860`)
+
+* Add hacky support for pgadmin
+  (:eql:gh:`#5877`)
+
+* Fix some issues with nontrivial function parameter defaults
+  (:eql:gh:`#5970`)
+
+* Fix named-tuple params that also appear in the schema
+  (:eql:gh:`#5964`)
+
+* Disallow more broken sorts of function overloads
+  (:eql:gh:`#5992`)
+
+* Prevent user modifications to extension modules
+  (:eql:gh:`#5993`)
+
+* Fix use of certain empty sets from multiple optional arguments
+  (:eql:gh:`#5990`)
+
+* Fix a casting bug.
+
+* Do not stack overflow on long arrays and similar
+  (:eql:gh:`#6004`)
+
+* Fix collisions between function parameters named id and the property
+  (:eql:gh:`#6000`)
+
+* Fix an infinite recursion when casting object->json in some cases
+  (:eql:gh:`#6007`)
+
+* Fix object to json casts inside functions
+  (:eql:gh:`#6016`)
+
+* Produce better errors on compiler stack overflows and properly interpret
+  errors raised from SQL when using HTTP protocols
+  (:eql:gh:`#6005`)
+
+
+3.4
+===
+
+* Repair instances created with rc1/rc2 to fix an issue that can
+  prevent creating migrations.
+
+* GraphQL: Fix bug with objects without editable fields.
+  (:eql:gh:`#6039`)
+
+* GraphQL: Fix issues with deeply nested modules.
+  (:eql:gh:`#6039`)
+
+* GraphQL: Fix ``__typename`` for non-default modules.
+  (:eql:gh:`#5985`)
+
+* GraphQL: Fix fragments on types from non-default module.
+  (:eql:gh:`#5985`)
+
+* GraphQL: Handle ``__typename`` in mutations.
+  (:eql:gh:`#5985`)
+
+* Make ``SET default`` of trivial values much faster
+  (:eql:gh:`#6134`)
+
+* Fix DELETE/UPDATE on parent types with children that have no policies
+  (:eql:gh:`#6136`)
+
+* Skip generating updates on abstract types, as a minor optimization
+  (:eql:gh:`#6135`)
+
+* Fix cast of empty set to type with access policy
+  (:eql:gh:`#6151`)
+
+* Fix ``group`` on backlinks in some situations
+  (:eql:gh:`#6152`)
+
+* Support using query parameters in ``SET GLOBAL`` commands
+  (:eql:gh:`#5670`)
+
+* Make using globals as defaults work
+  (:eql:gh:`#6153`)
+
+* Fix schema ordering bugs with rewrites
+  (:eql:gh:`#6154`)
+
+* Fix function params whose name collide with SQL type names
+  (:eql:gh:`#6150`)
+
+* Fix schema confusion with objects that shadow std objects
+  (:eql:gh:`#6155`)
+
+* Fix migration incomplete issues with functions that use multiple globals
+  (:eql:gh:`#6157`)
+
+* Fix several bugs in ``analyze``
+  (:eql:gh:`#5758`)
+
+* Fix spurious compiler cache misses when duration config values
+  are set in a session
+  (:eql:gh:`#6168`)
+
+* Properly reject indexes on non-immutable computeds
+  (:eql:gh:`#6170`)

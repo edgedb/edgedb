@@ -38,11 +38,7 @@ libraries* for the following languages.
 - `Rust <https://github.com/edgedb/edgedb-rust>`_
 - `.NET <https://github.com/edgedb/edgedb-net>`_
 - `Java <https://github.com/edgedb/edgedb-java>`_
-
-Unofficial (community-maintained) libraries are available for the following
-languages.
-
-- `Elixir <https://github.com/nsidnev/edgedb-elixir>`_
+- `Elixir <https://github.com/edgedb/edgedb-elixir>`_
 
 Usage
 -----
@@ -105,6 +101,11 @@ Configure the environment as needed for your preferred language.
 
     $ touch Main.java
 
+  .. code-tab:: bash
+    :caption: Elixir
+
+    $ mix new edgedb_quickstart
+
 Install the EdgeDB client library.
 
 .. tabs::
@@ -131,10 +132,9 @@ Install the EdgeDB client library.
     # Cargo.toml
 
     [dependencies]
-    edgedb-tokio = "0.3.0"
-    # additional dependencies
-    tokio = { version = "1", features = ["full"] }
-    anyhow = "1.0.63"
+    edgedb-tokio = "0.5.0"
+    # Additional dependency
+    tokio = { version = "1.28.1", features = ["macros", "rt-multi-thread"] }
 
   .. code-tab:: bash
     :caption: Go
@@ -160,6 +160,12 @@ Install the EdgeDB client library.
 
     // build.gradle
     implementation 'com.edgedb:driver'
+
+  .. code-tab:: elixir
+    :caption: Elixir
+
+    # mix.exs
+    {:edgedb, "~> 0.6.0"}
 
 Copy and paste the following simple script. This script initializes a
 ``Client`` instance. Clients manage an internal pool of connections to your
@@ -212,13 +218,15 @@ database and provide a set of methods for executing queries.
 
     // src/main.rs
     #[tokio::main]
-    async fn main() -> anyhow::Result<()> {
-        let conn = edgedb_tokio::create_client().await?;
+    async fn main() {
+        let conn = edgedb_tokio::create_client()
+            .await
+            .expect("Client initiation");
         let val = conn
             .query_required_single::<f64, _>("select random()", &())
-            .await?;
+            .await
+            .expect("Returning value");
         println!("Result: {}", val);
-        Ok(())
     }
 
   .. code-tab:: go
@@ -293,6 +301,18 @@ database and provide a set of methods for executing queries.
         }
     }
 
+  .. code-tab:: elixir
+    :caption: Elixir
+
+    # lib/edgedb_quickstart.ex
+    defmodule EdgeDBQuickstart do
+      def run do
+        {:ok, client} = EdgeDB.start_link()
+        result = EdgeDB.query_single!(client, "select random()")
+        IO.inspect(result)
+      end
+    end
+
 .. lint-on
 
 
@@ -335,6 +355,11 @@ Finally, execute the file.
 
     $ javac Main.java
     $ java Main
+
+  .. code-tab:: bash
+    :caption: Elixir
+
+    $ mix run -e EdgeDBQuickstart.run
 
 You should see a random number get printed to the console. This number was
 generated inside your EdgeDB instance using EdgeQL's built-in

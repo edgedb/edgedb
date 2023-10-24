@@ -48,8 +48,8 @@ vector and specifying the desired length in angle brackets:
         embedding: v3
     }
 
-To populate your data, you can cast a array of any of the numeric types into
-``etc::pgvector::vector`` or simply assign that array directly:
+To populate your data, you can cast an array of any of the numeric types into
+``ext::pgvector::vector`` or simply assign that array directly:
 
 .. code-block:: edgeql-repl
 
@@ -58,9 +58,7 @@ To populate your data, you can cast a array of any of the numeric types into
     edgedb> insert Item {embedding := [-0.1, 7, 0]};
     {default::Item {id: f410c844-0995-11ee-8804-176f28167dd1}}
 
-In fact, you can cast any of the numeric array types into
-``ext::pgvector::vector`` and you can also cast the vectors into an
-``array<float32>>``:
+You can also cast the vectors into an ``array<float32>>``:
 
 .. code-block:: edgeql-repl
 

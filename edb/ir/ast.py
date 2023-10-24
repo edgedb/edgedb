@@ -65,6 +65,7 @@ Set (
 
 from __future__ import annotations
 
+import abc
 import dataclasses
 import typing
 import uuid
@@ -206,6 +207,10 @@ class AnyTypeRef(TypeRef):
 
 
 class AnyTupleRef(TypeRef):
+    pass
+
+
+class AnyObjectRef(TypeRef):
     pass
 
 
@@ -357,6 +362,11 @@ class TupleIndirectionPointerRef(BasePointerRef):
     pass
 
 
+class SpecialPointerRef(BasePointerRef):
+    """Pointer ref used for internal columns, such as __fts_document__"""
+    pass
+
+
 class TypeIntersectionLink(s_pointers.PseudoPointer):
     """A Link-alike that can be used in type intersection path ids."""
 
@@ -476,6 +486,12 @@ class TupleIndirectionPointer(Pointer):
 class Expr(Base):
     __abstract_node__ = True
 
+    if typing.TYPE_CHECKING:
+        @property
+        @abc.abstractmethod
+        def typeref(self) -> TypeRef:
+            raise NotImplementedError
+
     # Sets to materialize at this point, keyed by the type/ptr id.
     materialized_sets: typing.Optional[
         typing.Dict[uuid.UUID, MaterializedSet]] = None
@@ -523,6 +539,12 @@ class Set(Base):
     # Currently only used for preventing duplicate explicit .id
     # insertions to BaseObject.
     ignore_rewrites: bool = False
+
+    # An expression to use instead of this one for the purpose of
+    # cardinality/multiplicity inference. This is used for when something
+    # is desugared in a way that doesn't preserve cardinality, but we
+    # need to anyway.
+    card_inference_override: typing.Optional[Set] = None
 
     def __repr__(self) -> str:
         return f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'
@@ -612,12 +634,12 @@ class ParamScalar(ParamTransType):
 
 @dataclasses.dataclass(eq=False)
 class ParamTuple(ParamTransType):
-    typs: tuple[ParamTransType, ...]
+    typs: tuple[tuple[typing.Optional[str], ParamTransType], ...]
 
     def flatten(self) -> tuple[typing.Any, ...]:
         return (
             (int(qltypes.TypeTag.TUPLE), self.idx)
-            + tuple(x.flatten() for x in self.typs)
+            + tuple(x.flatten() for _, x in self.typs)
         )
 
 
@@ -714,6 +736,9 @@ class Statement(Command):
 
 class TypeIntrospection(ImmutableExpr):
 
+    # The type value to return
+    output_typeref: TypeRef
+    # The type value *of the output*
     typeref: TypeRef
 
 
@@ -779,7 +804,7 @@ class BytesConstant(BaseConstant):
 
 class ConstantSet(ConstExpr, ImmutableExpr):
 
-    elements: typing.Tuple[BaseConstant, ...]
+    elements: typing.Tuple[BaseConstant | Parameter, ...]
 
 
 class Parameter(ImmutableExpr):
@@ -822,6 +847,7 @@ class TypeCheckOp(ImmutableExpr):
     right: TypeRef
     op: str
     result: typing.Optional[bool] = None
+    typeref: TypeRef
 
 
 class SortExpr(Base):
@@ -864,6 +890,7 @@ class Call(ImmutableExpr):
     force_return_cast: bool
 
     # Bound arguments.
+    # Named arguments will come first, followed by positional arguments.
     args: typing.List[CallArg]
 
     # Typemods of parameters.  This list corresponds to ".args"
@@ -958,6 +985,7 @@ class IndexIndirection(ImmutableExpr):
 
     expr: Base
     index: Base
+    typeref: TypeRef
 
 
 class SliceIndirection(ImmutableExpr):
@@ -965,6 +993,7 @@ class SliceIndirection(ImmutableExpr):
     expr: Set
     start: typing.Optional[Base]
     stop: typing.Optional[Base]
+    typeref: TypeRef
 
 
 class TypeCast(ImmutableExpr):
@@ -978,6 +1007,10 @@ class TypeCast(ImmutableExpr):
     sql_function: typing.Optional[str] = None
     sql_cast: bool
     sql_expr: bool
+
+    @property
+    def typeref(self) -> TypeRef:
+        return self.to_type
 
 
 class MaterializedSet(Base):
@@ -1023,6 +1056,10 @@ class Stmt(Expr):
     parent_stmt: typing.Optional[Stmt] = None
     iterator_stmt: typing.Optional[Set] = None
     bindings: typing.Optional[typing.List[Set]] = None
+
+    @property
+    def typeref(self) -> TypeRef:
+        return self.result.typeref
 
 
 class FilteredStmt(Stmt):
@@ -1152,10 +1189,15 @@ class OnConflictClause(Base):
 
 class InsertStmt(MutatingStmt):
     on_conflict: typing.Optional[OnConflictClause] = None
+    final_typeref: typing.Optional[TypeRef] = None
 
     @property
     def material_type(self) -> TypeRef:
         return self.subject.typeref.real_material_type
+
+    @property
+    def typeref(self) -> TypeRef:
+        return self.final_typeref or self.result.typeref
 
 
 # N.B: The PointerRef corresponds to the *definition* point of the rewrite.
@@ -1227,12 +1269,45 @@ class ConfigSet(ConfigCommand):
     required: bool
     backend_expr: typing.Optional[Set] = None
 
+    @property
+    def typeref(self) -> TypeRef:
+        return self.expr.typeref
+
 
 class ConfigReset(ConfigCommand):
 
     selector: typing.Optional[Set] = None
 
+    @property
+    def typeref(self) -> TypeRef:
+        return TypeRef(
+            id=so.get_known_type_id('anytype'),
+            name_hint=sn.UnqualName('anytype'),
+        )
+
 
 class ConfigInsert(ConfigCommand):
 
     expr: Set
+
+    @property
+    def typeref(self) -> TypeRef:
+        return self.expr.typeref
+
+
+class FTSDocument(ImmutableExpr):
+    """
+    Text and information on how to search through it.
+
+    Constructed with `fts::with_options`.
+    """
+
+    text: Set
+
+    language: Set
+
+    language_domain: typing.Set[str]
+
+    weight: typing.Optional[str]
+
+    typeref: TypeRef

@@ -36,7 +36,6 @@ from typing import *
 
 import immutables as immu
 
-from edb.common import uuidgen
 from edb.common.typeutils import downcast, not_none
 
 from edb.edgeql import ast as qlast
@@ -122,6 +121,13 @@ def init_dml_stmt(
                 typerefs.extend(irtyputils.get_typeref_descendants(component))
 
         typerefs.extend(irtyputils.get_typeref_descendants(top_typeref))
+
+        # Only update/delete concrete types. (Except in the degenerate
+        # corner case where there are none, in which case keep using
+        # everything so as to avoid needing a more complex special case.)
+        concrete_typerefs = [t for t in typerefs if not t.is_abstract]
+        if concrete_typerefs:
+            typerefs = concrete_typerefs
 
     dml_map = {}
 
@@ -493,8 +499,7 @@ def get_dml_range(
 
         if ir_qual_expr is not None:
             with subctx.new() as wctx:
-                clauses.setup_iterator_volatility(target_ir_set,
-                                                  is_cte=True, ctx=wctx)
+                clauses.setup_iterator_volatility(target_ir_set, ctx=wctx)
                 range_stmt.where_clause = astutils.extend_binop(
                     range_stmt.where_clause,
                     clauses.compile_filter_clause(
@@ -529,12 +534,12 @@ def compile_iterator_cte(
             parent=last_iterator)
 
     with ctx.newrel() as ictx:
+        ictx.scope_tree = ctx.scope_tree
         ictx.path_scope[iterator_set.path_id] = ictx.rel
 
         # Correlate with enclosing iterators
         merge_iterator(last_iterator, ictx.rel, ctx=ictx)
-        clauses.setup_iterator_volatility(last_iterator, is_cte=True,
-                                          ctx=ictx)
+        clauses.setup_iterator_volatility(last_iterator, ctx=ictx)
 
         clauses.compile_iterator_expr(ictx.rel, iterator_set, ctx=ictx)
         if iterator_set.path_id.is_objtype_path():
@@ -582,6 +587,8 @@ def _mk_dynamic_get_path(
         # This is used in rewrites to go back to the original
         if fallback_rvar:
             return fallback_rvar
+        if not rptr:
+            raise LookupError('only pointers appear in insert fallback')
         # Properties that aren't specified are {}
         return pgast.NullConstant()
     return dynamic_get_path
@@ -1424,8 +1431,7 @@ def compile_insert_else_body(
         compile_insert_else_body_failure_check(on_conflict, ctx=ictx)
 
         merge_iterator(enclosing_cte_iterator, ictx.rel, ctx=ictx)
-        clauses.setup_iterator_volatility(enclosing_cte_iterator,
-                                          is_cte=True, ctx=ictx)
+        clauses.setup_iterator_volatility(enclosing_cte_iterator, ctx=ictx)
 
         dispatch.compile(else_select, ctx=ictx)
         pathctx.put_path_id_map(ictx.rel, subject_id, else_select.path_id)
@@ -1455,7 +1461,6 @@ def compile_insert_else_body(
             ictx.enclosing_cte_iterator = pgast.IteratorCTE(
                 path_id=else_select.path_id, cte=else_select_cte,
                 parent=enclosing_cte_iterator)
-            ictx.volatility_ref = ()
             dispatch.compile(else_branch, ctx=ictx)
             pathctx.put_path_id_map(ictx.rel, subject_id, else_branch.path_id)
             # Discard else_branch from the path_id_mask to prevent subject_id
@@ -1473,17 +1478,11 @@ def compile_insert_else_body(
         # ELSE query of conflicting rows.
         with ctx.newrel() as ictx:
             merge_iterator(enclosing_cte_iterator, ictx.rel, ctx=ictx)
-            clauses.setup_iterator_volatility(enclosing_cte_iterator,
-                                              is_cte=True, ctx=ictx)
+            clauses.setup_iterator_volatility(enclosing_cte_iterator, ctx=ictx)
 
             # Set up a dummy path to represent all of the rows
             # that *aren't* being filtered out
-            dummy_pathid = irast.PathId.from_typeref(
-                typeref=irast.TypeRef(
-                    id=uuidgen.uuid1mc(),
-                    name_hint=sn.QualName(
-                        module='__derived__',
-                        name=ctx.env.aliases.get('dummy'))))
+            dummy_pathid = irast.PathId.new_dummy(ctx.env.aliases.get('dummy'))
             with ictx.subrel() as dctx:
                 dummy_q = dctx.rel
                 relctx.ensure_transient_identity_for_path(
@@ -1617,7 +1616,7 @@ def process_update_body(
         subctx.expr_exposed = False
         subctx.enclosing_cte_iterator = iterator
 
-        clauses.setup_iterator_volatility(iterator, is_cte=True, ctx=subctx)
+        clauses.setup_iterator_volatility(iterator, ctx=subctx)
 
         # compile contents CTE
         elements = [
@@ -1831,8 +1830,7 @@ def process_update_rewrites(
 
     with ctx.newrel() as rctx:
         rewrites_stmt = rctx.rel
-        clauses.setup_iterator_volatility(
-            iterator, is_cte=True, ctx=rctx)
+        clauses.setup_iterator_volatility(iterator, ctx=rctx)
         rctx.enclosing_cte_iterator = iterator
 
         # pruned down version of gen_dml_cte
@@ -1986,6 +1984,7 @@ def process_update_shape(
             and updvalue is not None
         ):
             with ctx.newscope() as scopectx:
+                scopectx.expr_exposed = False
                 val: pgast.BaseExpr
 
                 if irtyputils.is_tuple(element.typeref):
@@ -3180,7 +3179,6 @@ def compile_trigger(
                 ),
             )
             merge_iterator(tctx.enclosing_cte_iterator, tctx.rel, ctx=ctx)
-            tctx.volatility_ref = ()
 
         # While with FOR ALL, we register the sets as external rels
         else:

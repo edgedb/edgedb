@@ -13,3 +13,4 @@ Tutorials
     rest_apis_with_flask
     phoenix_github_oauth
     graphql_apis_with_strawberry
+    chatgpt_bot

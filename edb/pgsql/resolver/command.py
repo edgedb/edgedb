@@ -42,19 +42,26 @@ def resolve_CopyStmt(stmt: pgast.CopyStmt, *, ctx: Context) -> pgast.CopyStmt:
         # cannot be copied as a table, but needs to be wrapped into a
         # `SELECT * FROM view`.
         relation, table = dispatch.resolve_relation(stmt.relation, ctx=ctx)
+        col_map: Dict[str, str] = {
+            col.name: col.reference_as
+            for col in table.columns
+            if col.name and col.reference_as
+        }
         if stmt.colnames:
-            col_map: Dict[str, str] = {
-                col.name: col.reference_as
-                for col in table.columns
-                if col.name and col.reference_as
-            }
             col_names = [col_map[name] for name in stmt.colnames]
 
         if relation.schemaname == 'edgedbpub':
             # This is probably a view based on edgedb schema, so wrap it into
             # a select query.
             if not col_names:
-                target_list: Sequence[str | pgast.Star] = [pgast.Star()]
+                # Avoid adding the system columns here. Also order the columns
+                # the same way as in the information_schema: id first, then
+                # alphabetically.
+                target_list = [col_map['id']]
+                for col_name, real_col in sorted(col_map.items()):
+                    if col_name not in {'id', 'tableoid', 'xmin', 'cmin',
+                                        'xmax', 'cmax', 'ctid'}:
+                        target_list.append(real_col)
             else:
                 target_list = col_names
             query = pgast.SelectStmt(

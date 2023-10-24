@@ -57,7 +57,7 @@ from edb.pgsql import common as pgcommon
 from edb.pgsql.common import quote_ident as pg_qi
 from edb.pgsql.common import quote_literal as pg_ql
 from edb.pgsql import params as pg_params
-from edb.pgsql.codegen import SQLSourceGeneratorTranslationData
+from edb.pgsql import codegen as pg_codegen
 
 from edb.server.pgproto cimport hton
 from edb.server.pgproto cimport pgproto
@@ -122,13 +122,19 @@ cdef object logger = logging.getLogger('edb.server')
 # * 'A': an instance-level config setting from command-line arguments
 # * 'E': an instance-level config setting from environment variable
 SETUP_TEMP_TABLE_SCRIPT = '''
-        CREATE TEMPORARY TABLE _edgecon_state (
-            name text NOT NULL,
-            value jsonb NOT NULL,
-            type text NOT NULL CHECK(
-                type = 'C' OR type = 'B' OR type = 'A' OR type = 'E'),
-            UNIQUE(name, type)
-        );
+    CREATE TEMPORARY TABLE _edgecon_state (
+        name text NOT NULL,
+        value jsonb NOT NULL,
+        type text NOT NULL CHECK(
+            type = 'C' OR type = 'B' OR type = 'A' OR type = 'E'),
+        UNIQUE(name, type)
+    );
+'''
+SETUP_CONFIG_CACHE_SCRIPT = '''
+    CREATE TEMPORARY TABLE _config_cache (
+        source edgedb._sys_config_source_t,
+        value edgedb._sys_config_val_t NOT NULL
+    );
 '''
 
 def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
@@ -149,10 +155,14 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
         {pg_is_in_recovery}
 
         {SETUP_TEMP_TABLE_SCRIPT}
+        {SETUP_CONFIG_CACHE_SCRIPT}
 
         {INIT_CON_SCRIPT_DATA}
 
         PREPARE _clear_state AS
+            WITH x1 AS (
+                DELETE FROM _config_cache
+            )
             DELETE FROM _edgecon_state WHERE type = 'C' OR type = 'B';
 
         PREPARE _apply_state(jsonb) AS
@@ -558,6 +568,7 @@ cdef class PGConnection:
 
         self.pgaddr = addr
         self.server = None
+        self.tenant = None
         self.is_system_db = False
         self.close_requested = False
 
@@ -643,11 +654,12 @@ cdef class PGConnection:
     async def close(self):
         self.terminate()
 
-    def set_server(self, server):
-        self.server = server
+    def set_tenant(self, tenant):
+        self.tenant = tenant
+        self.server = tenant.server
 
     def mark_as_system_db(self):
-        if self.server.get_backend_runtime_params().has_create_database:
+        if self.tenant.get_backend_runtime_params().has_create_database:
             assert defines.EDGEDB_SYSTEM_DB in self.dbname
         self.is_system_db = True
 
@@ -656,7 +668,7 @@ cdef class PGConnection:
 
     async def listen_for_sysevent(self):
         try:
-            if self.server.get_backend_runtime_params().has_create_database:
+            if self.tenant.get_backend_runtime_params().has_create_database:
                 assert defines.EDGEDB_SYSTEM_DB in self.dbname
             await self.sql_execute(b'LISTEN __edgedb_sysevent__;')
         except Exception:
@@ -666,7 +678,7 @@ cdef class PGConnection:
                 raise
 
     async def signal_sysevent(self, event, **kwargs):
-        if self.server.get_backend_runtime_params().has_create_database:
+        if self.tenant.get_backend_runtime_params().has_create_database:
             assert defines.EDGEDB_SYSTEM_DB in self.dbname
         event = json.dumps({
             'event': event,
@@ -729,6 +741,12 @@ cdef class PGConnection:
                 # serialization conflicts.
                 raise error
 
+    cdef inline str get_tenant_label(self):
+        if self.tenant is None:
+            return "system"
+        else:
+            return self.tenant.get_instance_name()
+
     cdef bint before_prepare(
         self,
         bytes stmt_name,
@@ -749,7 +767,7 @@ cdef class PGConnection:
                 parse = 0
             else:
                 if self.debug:
-                    self.debug_print(f"discarding ps {stmt_name_to_clean!r}")
+                    self.debug_print(f"discarding ps {stmt_name!r}")
                 outbuf.write_buffer(
                     self.make_clean_stmt_message(stmt_name))
                 del self.prep_stmts[stmt_name]
@@ -763,6 +781,9 @@ cdef class PGConnection:
     def _build_apply_state_req(self, bytes serstate, WriteBuffer out):
         cdef:
             WriteBuffer buf
+
+        if self.debug:
+            self.debug_print("Syncing state: ", serstate)
 
         buf = WriteBuffer.new_message(b'B')
         buf.write_bytestring(b'')  # portal name
@@ -879,11 +900,14 @@ cdef class PGConnection:
                 while self.waiting_for_sync:
                     await self.wait_for_sync()
         finally:
-            metrics.backend_query_duration.observe(time.monotonic() - started_at)
+            metrics.backend_query_duration.observe(
+                time.monotonic() - started_at, self.get_tenant_label()
+            )
             await self.after_command()
 
     cdef send_query_unit_group(
-        self, object query_unit_group, object bind_datas, bytes state,
+        self, object query_unit_group, bint sync,
+        object bind_datas, bytes state,
         ssize_t start, ssize_t end, int dbver, object parse_array
     ):
         # parse_array is an array of booleans for output with the same size as
@@ -958,12 +982,37 @@ cdef class PGConnection:
 
             idx += 1
 
-        if end == len(query_unit_group.units):
+        if sync:
             self.write_sync(out)
         else:
             out.write_bytes(FLUSH_MESSAGE)
 
         self.write(out)
+
+    async def force_error(self):
+        self.before_command()
+
+        # Send a bogus parse that will cause an error to be generated
+        out = WriteBuffer.new()
+        buf = WriteBuffer.new_message(b'P')
+        buf.write_bytestring(b'')
+        buf.write_bytestring(b'???')
+        buf.write_int16(0)
+
+        # Then do a sync to get everything executed and lined back up
+        out.write_buffer(buf.end_message())
+        self.write_sync(out)
+
+        self.write(out)
+
+        try:
+            await self.wait_for_sync()
+        except pgerror.BackendError as e:
+            pass
+        else:
+            raise RuntimeError("Didn't get expected error!")
+        finally:
+            await self.after_command()
 
     async def wait_for_state_resp(self, bytes state, bint state_sync):
         if state_sync:
@@ -1353,7 +1402,9 @@ cdef class PGConnection:
                 dbver,
             )
         finally:
-            metrics.backend_query_duration.observe(time.monotonic() - started_at)
+            metrics.backend_query_duration.observe(
+                time.monotonic() - started_at, self.get_tenant_label()
+            )
             await self.after_command()
 
     async def sql_fetch(
@@ -1459,21 +1510,12 @@ cdef class PGConnection:
                     f"received too many columns for sql_fetch_col({sql!r})")
             return [row[0] for row in data]
 
-    async def _sql_execute(self, bytes sql, bytes state):
+    async def _sql_execute(self, bytes sql):
         cdef:
             WriteBuffer out
             WriteBuffer buf
 
         out = WriteBuffer.new()
-
-        if state is not None:
-            # Only used in legacy protocol binary_v0
-            self._build_apply_state_req(state, out)
-            # We must use SYNC and not FLUSH here, as otherwise
-            # scripts that contain `SET TRANSACTION ISOLATION LEVEL` would
-            # complain that transaction has already started (by our state
-            # sync query) and the type of the transaction cannot be changed.
-            self.write_sync(out)
 
         buf = WriteBuffer.new_message(b'Q')
         buf.write_bytestring(sql)
@@ -1484,12 +1526,6 @@ cdef class PGConnection:
 
         exc = None
         result = None
-
-        if state is not None:
-            await self._parse_apply_state_resp(3)
-            await self.wait_for_sync()
-            if not self.in_tx():
-                self.last_state = state
 
         while True:
             if not self.buffer.take_message():
@@ -1531,11 +1567,7 @@ cdef class PGConnection:
         else:
             return result
 
-    async def sql_execute(
-        self,
-        sql: bytes | tuple[bytes, ...],
-        state: Optional[bytes] = None,
-    ) -> None:
+    async def sql_execute(self, sql: bytes | tuple[bytes, ...]) -> None:
         self.before_command()
         started_at = time.monotonic()
 
@@ -1545,9 +1577,11 @@ cdef class PGConnection:
             sql_string = sql
 
         try:
-            return await self._sql_execute(sql_string, state)
+            return await self._sql_execute(sql_string)
         finally:
-            metrics.backend_query_duration.observe(time.monotonic() - started_at)
+            metrics.backend_query_duration.observe(
+                time.monotonic() - started_at, self.get_tenant_label()
+            )
             await self.after_command()
 
     async def sql_apply_state(
@@ -2087,7 +2121,7 @@ cdef class PGConnection:
         msg_buf: WriteBuffer,
         query: bytes,
         pos_bytes: bytes,
-        translation_data: Optional[SQLSourceGeneratorTranslationData],
+        translation_data: Optional[pg_codegen.TranslationData],
         offset: int = 0,
     ):
         if translation_data:
@@ -2798,7 +2832,9 @@ cdef class PGConnection:
                 self.aborted_with_error = er_cls(fields=fields)
 
                 pgcode = fields['C']
-                metrics.backend_connection_aborted.inc(1.0, pgcode)
+                metrics.backend_connection_aborted.inc(
+                    1.0, self.get_tenant_label(), pgcode
+                )
 
                 if pgcode in POSTGRES_SHUTDOWN_ERR_CODES:
                     pgreason = POSTGRES_SHUTDOWN_ERR_CODES[pgcode]
@@ -2811,8 +2847,8 @@ cdef class PGConnection:
                     )
 
                     if self.is_system_db:
-                        self.server.set_pg_unavailable_msg(pgmsg)
-                        self.server._on_sys_pgcon_failover_signal()
+                        self.tenant.set_pg_unavailable_msg(pgmsg)
+                        self.tenant.on_sys_pgcon_failover_signal()
 
                 else:
                     pgmsg = fields.get('M', '<empty message>')
@@ -2832,7 +2868,7 @@ cdef class PGConnection:
             # ParameterStatus
             name, value = self.parse_parameter_status_message()
             if self.is_system_db:
-                self.server._on_sys_pgcon_parameter_status_updated(name, value)
+                self.tenant.on_sys_pgcon_parameter_status_updated(name, value)
             self.parameter_status[name] = value
             return True
 
@@ -2865,21 +2901,19 @@ cdef class PGConnection:
                 event_payload = event_data.get('args')
                 if event == 'schema-changes':
                     dbname = event_payload['dbname']
-                    self.server._on_remote_ddl(dbname)
+                    self.tenant.on_remote_ddl(dbname)
                 elif event == 'database-config-changes':
                     dbname = event_payload['dbname']
-                    self.server._on_remote_database_config_change(dbname)
+                    self.tenant.on_remote_database_config_change(dbname)
                 elif event == 'system-config-changes':
-                    self.server._on_remote_system_config_change()
+                    self.tenant.on_remote_system_config_change()
                 elif event == 'global-schema-changes':
-                    self.server._on_global_schema_change()
+                    self.tenant.on_global_schema_change()
                 elif event == 'database-changes':
-                    self.server._on_remote_database_changes()
-                elif event == 'extension-changes':
-                    self.server._on_database_extensions_changes()
+                    self.tenant.on_remote_database_changes()
                 elif event == 'ensure-database-not-used':
                     dbname = event_payload['dbname']
-                    self.server._on_remote_database_quarantine(dbname)
+                    self.tenant.on_remote_database_quarantine(dbname)
                 else:
                     raise AssertionError(f'unexpected system event: {event!r}')
 
@@ -3102,12 +3136,12 @@ cdef class PGConnection:
             pinned_by.on_aborted_pgcon(self)
 
         if self.is_system_db:
-            self.server._on_sys_pgcon_connection_lost(exc)
-        elif self.server is not None:
+            self.tenant.on_sys_pgcon_connection_lost(exc)
+        elif self.tenant is not None:
             if not self.close_requested:
-                self.server._on_pgcon_broken()
+                self.tenant.on_pgcon_broken()
             else:
-                self.server._on_pgcon_lost()
+                self.tenant.on_pgcon_lost()
 
         if self.connected_fut is not None and not self.connected_fut.done():
             self.connected_fut.set_exception(ConnectionAbortedError())

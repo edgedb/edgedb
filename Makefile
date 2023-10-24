@@ -28,6 +28,10 @@ postgres: build-reqs
 	python setup.py build_postgres
 
 
+parsers:
+	python setup.py build_parsers --inplace
+
+
 ui: build-reqs
 	python setup.py build_ui
 

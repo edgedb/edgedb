@@ -473,7 +473,7 @@ def update_path(
 
 
 def ptr_name(ptr: qlast.Ptr) -> str:
-    name = ptr.ptr.name
+    name = ptr.name
     if ptr.type == 'property':
         name = '@' + name
     return name
@@ -652,7 +652,7 @@ def get_by_element(atom: Union[qlast.ObjectRef, qlast.Path]) -> ByElement:
         return IORef(atom.name)
     else:
         assert isinstance(atom.steps[0], qlast.Ptr)
-        return IPtr(atom.steps[0].ptr.name)
+        return IPtr(atom.steps[0].name)
 
 
 def flatten_grouping_atom(atom: qlast.GroupingAtom) -> Tuple[ByElement, ...]:
@@ -898,6 +898,8 @@ def eval_Shape(node: qlast.Shape, ctx: EvalContext) -> Result:
 def eval_For(node: qlast.ForQuery, ctx: EvalContext) -> Result:
     ctx = eval_aliases(node, ctx)
     iter_vals = strip_shapes(subquery(node.iterator, ctx=ctx))
+    if node.optional and not iter_vals:
+        iter_vals = [None]
     qil = ctx.query_input_list + [(IORef(node.iterator_alias),)]
     out = []
     for val in iter_vals:
@@ -1091,7 +1093,7 @@ def eval_computed(
         # For linkprops, we want both the source and the target in the
         # query input.
         paths.append(qlast.Path(
-            steps=paths[0].steps + [qlast.Ptr(ptr=qlast.ObjectRef(name=name))]
+            steps=paths[0].steps + [qlast.Ptr(name=name)]
         ))
         input_tuple = (src, obj)
 
@@ -1430,7 +1432,7 @@ def simplify_path(path: qlast.Path) -> IPath:
             spath.append(IORef(step.name))
         elif isinstance(step, qlast.Ptr):
             is_property = step.type == 'property'
-            spath.append(IPtr(step.ptr.name, step.direction, is_property))
+            spath.append(IPtr(step.name, step.direction, is_property))
         elif isinstance(step, qlast.TypeIntersection):
             spath.append(ITypeIntersection(
                 step.type.maintype.name))  # type: ignore
@@ -1862,7 +1864,7 @@ SCHEMA_COMPUTABLES = {
     },
 }
 
-DB1 = mk_db([
+DB1_stub = [
     # Person
     {"id": bsid(0x10), "__type__": PersonT,
      "name": "Phil Emarg",
@@ -1892,7 +1894,15 @@ DB1 = mk_db([
      "tgt": [bslink(0x82), bslink(0x83)]},
     {"id": bsid(0x93), "__type__": "Obj", "n": 3,
      "tgt": [bslink(0x83), bslink(0x84)]},
-] + load_json_db(CARDS_DB), SCHEMA_COMPUTABLES)
+]
+
+
+def mk_DB1():
+    return mk_db(
+        DB1_stub + load_json_db(CARDS_DB),
+        SCHEMA_COMPUTABLES,
+    )
+
 
 parser = argparse.ArgumentParser(description='Toy EdgeQL eval model')
 parser.add_argument('--debug', '-d', action='store_true',
@@ -1914,7 +1924,7 @@ parser.add_argument('commands', metavar='cmd', type=str, nargs='*',
 
 
 def main() -> None:
-    db = DB1
+    db = mk_DB1()
 
     args = parser.parse_args()
 

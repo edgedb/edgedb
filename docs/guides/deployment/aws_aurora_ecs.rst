@@ -94,6 +94,15 @@ against this instance, as with local instances.
   Type \help for help, \quit to quit.
   edgedb>
 
+To make changes to your EdgeDB deployment like upgrading the EdgeDB version or
+enabling the UI you can follow the CloudFormation
+`Updating a stack <stack-update_>`_ instructions. Search for
+``ContainerDefinitions`` in the template and you will find where EdgeDB's
+:ref:`environment variables <ref_guides_deployment_docker_customization>` are
+defined. To upgrade the EdgeDB version specify a
+`docker image tag <docker-tags_>`_ with the image name ``edgedb/edgedb`` in the
+second step of the update workflow.
+
 CloudFormation CLI
 ------------------
 
@@ -118,6 +127,10 @@ your terminal:
 .. _aws_console:
    https://console.aws.amazon.com
    /ec2/v2/home#NIC:search=ec2-security-group
+.. _stack-update:
+   https://docs.aws.amazon.com
+   /AWSCloudFormation/latest/UserGuide/cfn-whatis-howdoesitwork.html
+.. _docker-tags: https://hub.docker.com/r/edgedb/edgedb/tags
 
 
 Manual Install with CLI

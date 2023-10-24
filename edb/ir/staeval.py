@@ -27,9 +27,13 @@ import dataclasses
 import decimal
 import functools
 
+import immutables
+
+
 from edb import errors
 
 from edb.common import typeutils
+from edb.common import parsing
 from edb.common import uuidgen
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
@@ -66,13 +70,7 @@ def evaluate_to_python_val(
     ir: irast.Base,
     schema: s_schema.Schema,
 ) -> Any:
-    const: EvaluationResult
-    if isinstance(ir, irast.Set) and isinstance(ir.expr, irast.TypeCast):
-        # Special case for type casts.
-        # We cannot fold them, but can eval to Python
-        const = ir.expr
-    else:
-        const = evaluate(ir, schema=schema)
+    const = evaluate(ir, schema=schema)
     return const_to_python(const, schema=schema)
 
 
@@ -105,8 +103,14 @@ def evaluate_TypeCast(
         schema, ir_cast.from_type)
     schema, to_type = irtyputils.ir_typeref_to_type(
         schema, ir_cast.from_type)
-    schema_type_to_python_type(from_type, schema)
-    schema_type_to_python_type(to_type, schema)
+
+    if (
+        not isinstance(from_type, s_scalars.ScalarType)
+        or not isinstance(to_type, s_scalars.ScalarType)
+    ):
+        raise UnsupportedExpressionError('object cast not supported')
+    scalar_type_to_python_type(from_type, schema)
+    scalar_type_to_python_type(to_type, schema)
     evaluate(ir_cast.expr, schema)
     return ir_cast
 
@@ -148,6 +152,30 @@ def evaluate_Array(
     )
 
 
+def _process_op_result(
+    value: object,
+    typeref: irast.TypeRef,
+    schema: s_schema.Schema,
+    *,
+    srcctx: Optional[parsing.ParserContext]=None,
+) -> irast.ConstExpr:
+    qlconst: qlast.BaseConstant
+    if isinstance(value, str):
+        qlconst = qlast.StringConstant.from_python(value)
+    elif isinstance(value, bool):
+        qlconst = qlast.BooleanConstant.from_python(value)
+    else:
+        raise UnsupportedExpressionError(
+            f"unsupported result type: {type(value)}", context=srcctx
+        )
+
+    result = qlcompiler.compile_constant_tree_to_ir(
+        qlconst, styperef=typeref, schema=schema)
+
+    assert isinstance(result, irast.ConstExpr), 'expected ConstExpr'
+    return result
+
+
 op_table = {
     # Concatenation
     ('Infix', 'std::++'): lambda a, b: a + b,
@@ -155,6 +183,8 @@ op_table = {
     ('Infix', 'std::>'): lambda a, b: a > b,
     ('Infix', 'std::<='): lambda a, b: a <= b,
     ('Infix', 'std::<'): lambda a, b: a < b,
+    ('Infix', 'std::='): lambda a, b: a == b,
+    ('Infix', 'std::!='): lambda a, b: a != b,
 }
 
 
@@ -189,21 +219,38 @@ def evaluate_OperatorCall(
         args.append(arg_val)
 
     value = eval_func(*args)
-    qlconst: qlast.BaseConstant
-    if isinstance(value, str):
-        qlconst = qlast.StringConstant.from_python(value)
-    elif isinstance(value, bool):
-        qlconst = qlast.BooleanConstant.from_python(value)
-    else:
-        raise UnsupportedExpressionError(
-            f"unsupported result type: {type(value)}", context=opcall.context
-        )
+    return _process_op_result(
+        value, opcall.typeref, schema, srcctx=opcall.context)
 
-    result = qlcompiler.compile_constant_tree_to_ir(
-        qlconst, styperef=opcall.typeref, schema=schema)
 
-    assert isinstance(result, irast.ConstExpr), 'expected ConstExpr'
-    return result
+@evaluate.register(irast.SliceIndirection)
+def evaluate_SliceIndirection(
+        slice: irast.SliceIndirection,
+        schema: s_schema.Schema) -> irast.ConstExpr:
+
+    args = [slice.expr, slice.start, slice.stop]
+    vals = [
+        evaluate_to_python_val(arg, schema=schema) if arg else None
+        for arg in args
+    ]
+
+    for arg, arg_val in zip(args, vals):
+        if arg is None:
+            continue
+        if isinstance(arg_val, tuple):
+            raise UnsupportedExpressionError(
+                f'non-singleton operations are not supported',
+                context=slice.context)
+        if arg_val is None:
+            raise UnsupportedExpressionError(
+                f'empty operations are not supported',
+                context=slice.context)
+
+    base, start, stop = vals
+
+    value = base[start:stop]
+    return _process_op_result(
+        value, slice.expr.typeref, schema, srcctx=slice.context)
 
 
 def _evaluate_union(
@@ -214,7 +261,12 @@ def _evaluate_union(
     for arg in opcall.args:
         val = evaluate(arg.expr, schema=schema)
         if isinstance(val, irast.ConstantSet):
-            elements.extend(val.elements)
+            for el in val.elements:
+                if isinstance(el, irast.Parameter):
+                    raise UnsupportedExpressionError(
+                        f'{el!r} not supported in UNION',
+                        context=opcall.context)
+                elements.append(el)
         elif isinstance(val, irast.EmptySet):
             empty_set = val
         elif isinstance(val, irast.BaseConstant):
@@ -328,11 +380,12 @@ def cast_const_to_python(
 
 def schema_type_to_python_type(
         stype: s_types.Type,
-        schema: s_schema.Schema) -> type:
+        schema: s_schema.Schema) -> type | statypes.CompositeTypeSpec:
     if isinstance(stype, s_scalars.ScalarType):
         return scalar_type_to_python_type(stype, schema)
     elif isinstance(stype, s_objtypes.ObjectType):
-        return object_type_to_python_type(stype, schema)
+        return object_type_to_spec(
+            stype, schema, spec_class=statypes.CompositeTypeSpec)
     else:
         raise UnsupportedExpressionError(
             f'{stype.get_displayname(schema)} is not representable in Python')
@@ -357,8 +410,9 @@ def scalar_type_to_python_type(
     schema: s_schema.Schema,
 ) -> type:
     for basetype_name, pytype in typemap.items():
-        basetype = schema.get(basetype_name, type=s_obj.InheritingObject)
-        if stype.issubclass(schema, basetype):
+        basetype = schema.get(
+            basetype_name, type=s_scalars.ScalarType, default=None)
+        if basetype and stype.issubclass(schema, basetype):
             return pytype
 
     if stype.is_enum(schema):
@@ -368,18 +422,30 @@ def scalar_type_to_python_type(
         f'{stype.get_displayname(schema)} is not representable in Python')
 
 
-def object_type_to_python_type(
+T_spec = TypeVar('T_spec', bound=statypes.CompositeTypeSpec)
+
+
+class _Missing:
+    pass
+
+
+def object_type_to_spec(
     objtype: s_objtypes.ObjectType,
     schema: s_schema.Schema,
     *,
-    base_class: Optional[type] = None,
-    _memo: Optional[Dict[s_types.Type, type]] = None,
-) -> type:
+    # We pass a spec_class so that users like the config system can ask for
+    # their own subtyped versions of a spec.
+    spec_class: Type[T_spec],
+    parent: Optional[T_spec] = None,
+    _memo: Optional[Dict[s_types.Type, T_spec | type]] = None,
+) -> T_spec:
     if _memo is None:
         _memo = {}
+    # Prevent infinite recursion
+    _memo[objtype] = _Missing
+
     default: Any
-    fields = []
-    subclasses = []
+    fields = {}
 
     for pn, p in objtype.get_pointers(schema).items(schema):
         assert isinstance(p, s_pointers.Pointer)
@@ -392,16 +458,13 @@ def object_type_to_python_type(
 
         if isinstance(ptype, s_objtypes.ObjectType):
             pytype = _memo.get(ptype)
+            if pytype is _Missing:
+                raise UnsupportedExpressionError()
             if pytype is None:
-                pytype = object_type_to_python_type(
-                    ptype, schema, base_class=base_class, _memo=_memo)
+                pytype = object_type_to_spec(
+                    ptype, schema, spec_class=spec_class,
+                    parent=parent, _memo=_memo)
                 _memo[ptype] = pytype
-
-                for subtype in ptype.children(schema):
-                    subclasses.append(
-                        object_type_to_python_type(
-                            subtype, schema,
-                            base_class=pytype, _memo=_memo))
         else:
             pytype = scalar_type_to_python_type(ptype, schema)
 
@@ -428,45 +491,47 @@ def object_type_to_python_type(
         exclusive = schema.get('std::exclusive', type=s_constr.Constraint)
         unique = (
             not ptype.is_object_type()
-            and any(c.issubclass(schema, exclusive) for c in constraints)
+            and any(
+                c.issubclass(schema, exclusive) and not c.get_delegated(schema)
+                for c in constraints
+            )
         )
-        field = dataclasses.field(
-            compare=unique,
-            hash=unique,
-            repr=True,
+        fields[str_pn] = statypes.CompositeTypeSpecField(
+            name=str_pn,
+            type=pytype,
+            unique=unique,
             default=default,
+            secret=p.get_secret(schema),
         )
-        fields.append((str_pn, pytype, field))
 
-    bases: Tuple[type, ...]
-    if base_class is not None:
-        bases = (base_class,)
-    else:
-        bases = ()
-
-    ptype_dataclass = dataclasses.make_dataclass(
-        objtype.get_name(schema).name,
-        fields=fields,
-        bases=bases,
-        frozen=True,
-        namespace={'_subclasses': subclasses},
+    spec = spec_class(
+        name=str(objtype.get_name(schema)),
+        fields=immutables.Map(fields),
+        parent=parent,
     )
-    assert isinstance(ptype_dataclass, type)
-    return ptype_dataclass
+
+    for subtype in objtype.children(schema):
+        spec.children.append(
+            object_type_to_spec(
+                subtype, schema,
+                spec_class=spec_class,
+                parent=spec, _memo=_memo))
+
+    return spec
 
 
 @functools.singledispatch
 def evaluate_to_config_op(
         ir: irast.Base,
-        schema: s_schema.Schema) -> Any:
+        schema: s_schema.Schema) -> config.Operation:
     raise UnsupportedExpressionError(
         f'no config op evaluation handler for {ir.__class__}')
 
 
-@evaluate_to_config_op.register
+@evaluate_to_config_op.register(irast.ConfigSet)
 def evaluate_config_set(
         ir: irast.ConfigSet,
-        schema: s_schema.Schema) -> Any:
+        schema: s_schema.Schema) -> config.Operation:
 
     if ir.scope == qltypes.ConfigScope.GLOBAL:
         raise UnsupportedExpressionError(
@@ -488,10 +553,10 @@ def evaluate_config_set(
     )
 
 
-@evaluate_to_config_op.register
+@evaluate_to_config_op.register(irast.ConfigReset)
 def evaluate_config_reset(
         ir: irast.ConfigReset,
-        schema: s_schema.Schema) -> Any:
+        schema: s_schema.Schema) -> config.Operation:
 
     if ir.selector is not None:
         raise UnsupportedExpressionError(

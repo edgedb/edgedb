@@ -23,6 +23,8 @@ import enum
 import logging
 import os
 
+from edb.server import metrics
+
 from . import base
 
 
@@ -95,25 +97,31 @@ class AdaptiveHASupport:
     _state: State
     _unhealthy_timer_handle: Optional[asyncio.TimerHandle]
 
-    def __init__(self, cluster_protocol: base.ClusterProtocol):
+    def __init__(self, cluster_protocol: base.ClusterProtocol, tag: str):
         self._cluster_protocol = cluster_protocol
         self._state = State.UNHEALTHY
         self._pgcon_count = 0
         self._unexpected_disconnects = 0
         self._unhealthy_timer_handle = None
         self._sys_pgcon_healthy = False
+        self._tag = tag
+
+    def incr_metrics_counter(self, event: str, value: float = 1.0) -> None:
+        metrics.ha_events_total.inc(value, f"adaptive://{self._tag}", event)
 
     def set_state_failover(self, *, call_on_switch_over=True):
         self._state = State.FAILOVER
         self._reset()
         if call_on_switch_over:
             logger.critical("adaptive: HA failover detected")
+            self.incr_metrics_counter("failover")
             self._cluster_protocol.on_switch_over()
 
     def on_pgcon_broken(self, is_sys_pgcon: bool):
         if is_sys_pgcon:
             self._sys_pgcon_healthy = False
         if self._state == State.HEALTHY:
+            self.incr_metrics_counter("unhealthy")
             self._state = State.UNHEALTHY
             self._unexpected_disconnects = 1
             self._unhealthy_timer_handle = (
@@ -148,11 +156,13 @@ class AdaptiveHASupport:
         if is_sys_pgcon:
             self._sys_pgcon_healthy = True
         if self._state == State.UNHEALTHY:
+            self.incr_metrics_counter("healthy")
             self._state = State.HEALTHY
             logger.info("adaptive: Backend HA cluster is healthy")
             self._reset()
         elif self._state == State.FAILOVER:
             if self._sys_pgcon_healthy:
+                self.incr_metrics_counter("healthy")
                 self._state = State.HEALTHY
                 logger.info(
                     "adaptive: Backend HA cluster has recovered from failover"

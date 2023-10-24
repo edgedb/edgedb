@@ -18,6 +18,11 @@ Description
 ``edgedb instance start`` is a terminal command for starting a new
 EdgeDB instance.
 
+.. note::
+
+    The ``edgedb instance start`` command is not intended for use with
+    self-hosted instances.
+
 
 Options
 =======

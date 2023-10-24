@@ -104,9 +104,7 @@ def compile_and_apply_ddl_stmt(
                             qlast.ObjectRef(
                                 name='MigrationGeneratedBy', module='schema'
                             ),
-                            qlast.Ptr(
-                                ptr=qlast.ObjectRef(name='DDLStatement')
-                            ),
+                            qlast.Ptr(name='DDLStatement'),
                         ]
                     ),
                 )
@@ -251,17 +249,11 @@ def compile_and_apply_ddl_stmt(
     create_db = None
     drop_db = None
     create_db_template = None
-    create_ext = None
-    drop_ext = None
     if isinstance(stmt, qlast.DropDatabase):
         drop_db = stmt.name.name
     elif isinstance(stmt, qlast.CreateDatabase):
         create_db = stmt.name.name
         create_db_template = stmt.template.name if stmt.template else None
-    elif isinstance(stmt, qlast.CreateExtension):
-        create_ext = stmt.name.name
-    elif isinstance(stmt, qlast.DropExtension):
-        drop_ext = stmt.name.name
 
     if debug.flags.delta_execute:
         debug.header('Delta Script')
@@ -270,7 +262,7 @@ def compile_and_apply_ddl_stmt(
     return dbstate.DDLQuery(
         sql=sql,
         is_transactional=is_transactional,
-        single_unit=(
+        single_unit=bool(
             (not is_transactional)
             or (drop_db is not None)
             or (create_db is not None)
@@ -279,9 +271,6 @@ def compile_and_apply_ddl_stmt(
         create_db=create_db,
         drop_db=drop_db,
         create_db_template=create_db_template,
-        create_ext=create_ext,
-        drop_ext=drop_ext,
-        has_role_ddl=isinstance(stmt, qlast.RoleCommand),
         ddl_stmt_id=ddl_stmt_id,
         user_schema=current_tx.get_user_schema_if_updated(),  # type: ignore
         cached_reflection=current_tx.get_cached_reflection_if_updated(),
@@ -290,7 +279,9 @@ def compile_and_apply_ddl_stmt(
     )
 
 
-def _new_delta_context(ctx: compiler.CompileContext, args: Any=None):
+def _new_delta_context(
+    ctx: compiler.CompileContext, args: Any=None
+) -> s_delta.CommandContext:
     return s_delta.CommandContext(
         backend_runtime_params=ctx.compiler_state.backend_runtime_params,
         stdmode=ctx.bootstrap_mode,
@@ -299,7 +290,7 @@ def _new_delta_context(ctx: compiler.CompileContext, args: Any=None):
     )
 
 
-def _get_delta_context_args(ctx: compiler.CompileContext):
+def _get_delta_context_args(ctx: compiler.CompileContext) -> dict[str, Any]:
     """Get the args need from delta_from_ddl"""
     return dict(
         testmode=compiler._get_config_val(ctx, '__internal_testmode'),
@@ -311,7 +302,9 @@ def _get_delta_context_args(ctx: compiler.CompileContext):
     )
 
 
-def _process_delta(ctx: compiler.CompileContext, delta):
+def _process_delta(
+    ctx: compiler.CompileContext, delta: s_delta.DeltaRoot
+) -> tuple[pg_dbops.SQLBlock, FrozenSet[str], Any]:
     """Adapt and process the delta command."""
 
     current_tx = ctx.state.current_tx()
@@ -322,6 +315,7 @@ def _process_delta(ctx: compiler.CompileContext, delta):
         debug.dump(delta, schema=schema)
 
     pgdelta = pg_delta.CommandMeta.adapt(delta)
+    assert isinstance(pgdelta, pg_delta.DeltaRoot)
     context = _new_delta_context(ctx)
     schema = pgdelta.apply(schema, context)
     current_tx.update_schema(schema)
@@ -342,7 +336,7 @@ def _process_delta(ctx: compiler.CompileContext, delta):
         new_types = frozenset(str(tid) for tid in pgdelta.new_types)
 
     # Generate SQL DDL for the delta.
-    pgdelta.generate(block)
+    pgdelta.generate(block)  # type: ignore
 
     # Generate schema storage SQL (DML into schema storage tables).
     subblock = block.add_block()
@@ -358,7 +352,7 @@ def compile_dispatch_ql_migration(
     ql: qlast.MigrationCommand,
     *,
     in_script: bool,
-):
+) -> dbstate.BaseQuery:
     if ctx.expect_rollback and not isinstance(
         ql, (qlast.AbortMigration, qlast.AbortMigrationRewrite)
     ):
@@ -457,7 +451,7 @@ def _start_migration(
         assert ctx.compiler_state.std_schema is not None
         base_schema = s_schema.ChainedSchema(
             ctx.compiler_state.std_schema,
-            s_schema.FlatSchema(),
+            s_schema.EMPTY_SCHEMA,
             current_tx.get_global_schema(),
         )
         target_schema = s_ddl.apply_sdl(
@@ -693,6 +687,8 @@ def _describe_current_migration(
             else:
                 proposed_desc = None
 
+        extra = {}
+
         complete = False
         if proposed_desc is None:
             diff = s_ddl.delta_schemas(schema, mstate.target_schema)
@@ -700,6 +696,8 @@ def _describe_current_migration(
             if debug.flags.delta_plan and not complete:
                 debug.header('DESCRIBE CURRENT MIGRATION AS JSON mismatch')
                 debug.dump(diff)
+            if not complete:
+                extra['debug_diff'] = debug.dumps(diff)
 
         desc = (
             json.dumps(
@@ -712,6 +710,7 @@ def _describe_current_migration(
                     'complete': complete,
                     'confirmed': confirmed,
                     'proposed': proposed_desc,
+                    **extra,
                 }
             )
             .encode('unicode_escape')
@@ -953,7 +952,7 @@ def _start_migration_rewrite(
         # Start from an empty schema except for `module default`
     base_schema = s_schema.ChainedSchema(
         ctx.compiler_state.std_schema,
-        s_schema.FlatSchema(),
+        s_schema.EMPTY_SCHEMA,
         current_tx.get_global_schema(),
     )
     base_schema = s_ddl.apply_sdl(  # type: ignore
@@ -1108,7 +1107,7 @@ def _reset_schema(
 
     empty_schema = s_schema.ChainedSchema(
         ctx.compiler_state.std_schema,
-        s_schema.FlatSchema(),
+        s_schema.EMPTY_SCHEMA,
         current_tx.get_global_schema(),
     )
     empty_schema = s_ddl.apply_sdl(  # type: ignore
@@ -1178,7 +1177,7 @@ def repair_schema(
 
     empty_schema = s_schema.ChainedSchema(
         ctx.compiler_state.std_schema,
-        s_schema.FlatSchema(),
+        s_schema.EMPTY_SCHEMA,
         current_tx.get_global_schema(),
     )
 

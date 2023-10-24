@@ -301,6 +301,12 @@ class Constraint(
         if (
             ddl_identity is not None
             and self.field_is_inherited(schema, 'subjectexpr')
+            and (bases := self.get_bases(schema).objects(schema))
+            and (
+                bases[0].generic(schema)
+                or 'subjectexpr' not in (
+                    bases[0].get_ddl_identity(schema) or ())
+            )
         ):
             ddl_identity.pop('subjectexpr', None)
 
@@ -1553,6 +1559,10 @@ class RebaseConstraint(
     ConstraintCommand,
     referencing.RebaseReferencedInheritingObject[Constraint],
 ):
+    # finalexpr is fully determined by a bunch of ddl_identity fields,
+    # so it should be inherited by compute_inherited_fields if they are
+    EXTRA_INHERITED_FIELDS = {'finalexpr'}
+
     def _get_bases_for_ast(
         self,
         schema: s_schema.Schema,

@@ -1105,3 +1105,206 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         x: AT_LEAST_ONE
         """
+
+    def test_edgeql_ir_card_inference_129(self):
+        """
+        select assert(<bool>{})
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_130(self):
+        """
+        select assert(<bool>{}, message := {'uh', 'oh'})
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_131(self):
+        """
+        select assert(true, message := {'uh', 'oh'})
+% OK %
+        AT_LEAST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_132(self):
+        """
+        select distinct <str>{}
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_133(self):
+        """
+        select distinct 1
+% OK %
+        ONE
+        """
+
+    def test_edgeql_ir_card_inference_134(self):
+        """
+        select distinct {1, 2}
+% OK %
+        AT_LEAST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_135(self):
+        """
+        <str>{} if true else {'foo', 'bar'}
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_136(self):
+        """
+        <str>{} if true else 'foo'
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_137(self):
+        """
+        'bar' if true else 'foo'
+% OK %
+        ONE
+        """
+
+    def test_edgeql_ir_card_inference_138(self):
+        """
+        assert_exists(1, message := {"uh", "oh"})
+% OK %
+        AT_LEAST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_139(self):
+        """
+        if <bool>$0 then
+            (insert User { name := "test" })
+        else
+            (insert User { name := "???" })
+% OK %
+        ONE
+        """
+
+    def test_edgeql_ir_card_inference_140(self):
+        """
+        if <bool>$0 then
+            (insert User { name := "test" })
+        else
+            {(insert User { name := "???" }), (insert User { name := "!!!" })}
+% OK %
+        AT_LEAST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_141(self):
+        """
+        if <bool>$0 then
+            (insert User { name := "test" })
+        else
+            <User>{}
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_142(self):
+        """
+        select Named { [is Card].element }
+% OK %
+        element: AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_143(self):
+        """
+        select Named { element := [is Card].element }
+% OK %
+        element: AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_144(self):
+        """
+        select (
+          select assert_exists(Named) { [is Card].element } limit 1).element
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_145(self):
+        """
+        select Named { [is Named].name }
+% OK %
+        name: ONE
+        """
+
+    def test_edgeql_ir_card_inference_146(self):
+        """
+        select User { [is Named].name }
+% OK %
+        name: ONE
+        """
+
+    @tb.must_fail(errors.QueryError,
+                  "possibly an empty set returned")
+    def test_edgeql_ir_card_inference_147(self):
+        """
+        select Named { [is User].name }
+        """
+
+    @tb.must_fail(errors.QueryError,
+                  "possibly an empty set returned")
+    def test_edgeql_ir_card_inference_148(self):
+        """
+        select Named { name := [is User].name }
+        """
+
+    @tb.must_fail(errors.QueryError,
+                  "possibly an empty set returned")
+    def test_edgeql_ir_card_inference_149(self):
+        """
+        select Named { [is schema::Object].name }
+        """
+
+    @tb.must_fail(errors.QueryError,
+                  "possibly an empty set returned")
+    def test_edgeql_ir_card_inference_150(self):
+        """
+        select User { [is schema::Object].name }
+        """
+
+    def test_edgeql_ir_card_inference_151(self):
+        # lnk has a *delegated* constraint
+        """
+        select Tgt { back := .<lnk[is Src] }
+% OK %
+        back: MANY
+        """
+
+    def test_edgeql_ir_card_inference_152(self):
+        """
+        select Tgt { back := .<lnk[is SrcSub1] }
+% OK %
+        back: AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_153(self):
+        # Constraint is delegated, shouldn't apply here
+        """
+        select Named filter .name = ''
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_154(self):
+        # Constraint is delegated, shouldn't apply here
+        """
+        select Named2 filter .name = ''
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_155(self):
+        # But should apply to this subtype
+        """
+        select Named2Sub filter .name = ''
+% OK %
+        AT_MOST_ONE
+        """

@@ -165,6 +165,17 @@ class flags(metaclass=FlagsMeta):
             "Requires pydebug to be installed."
     )
 
+    sql_input = Flag(
+        doc="Enable logging of SQL incoming requests (pg compiler input)."
+    )
+
+    sql_output = Flag(
+        doc="Enable logging of SQL requests, compiled to the internal SQL"
+            "(pg compiler output)."
+    )
+
+    zombodb = Flag(doc="Enabled zombodb and disables postgres FTS")
+
 
 @contextlib.contextmanager
 def timeit(title='block'):
@@ -184,6 +195,11 @@ def header(*args):
 def dump(*args, **kwargs):
     from . import markup as _markup
     _markup.dump(*args, **kwargs)
+
+
+def dumps(*args, **kwargs):
+    from . import markup as _markup
+    return _markup.dumps(*args, **kwargs)
 
 
 def dump_code(*args, **kwargs):
