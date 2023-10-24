@@ -1984,6 +1984,7 @@ def process_update_shape(
             and updvalue is not None
         ):
             with ctx.newscope() as scopectx:
+                scopectx.expr_exposed = False
                 val: pgast.BaseExpr
 
                 if irtyputils.is_tuple(element.typeref):
