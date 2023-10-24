@@ -532,7 +532,8 @@ class Router:
                     try:
                         try:
                             identity, secret = (
-                                await local_client.get_identity_and_secret(data))
+                                await local_client.get_identity_and_secret(data)
+                            )
 
                             new_reset_token = self._make_secret_token(
                                 identity.id, secret
@@ -541,7 +542,9 @@ class Router:
                             reset_token_params = urllib.parse.urlencode({
                                 "reset_token": new_reset_token
                             })
-                            reset_url = f"{data['reset_url']}?{reset_token_params}"
+                            reset_url = (
+                                f"{data['reset_url']}?{reset_token_params}"
+                            )
 
                             await auth_emails.send_password_reset_email(
                                 db=self.db,
