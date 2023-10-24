@@ -2,8 +2,9 @@ import asyncio
 import urllib.parse
 import random
 
-from typing import Any, Coroutine
+from typing import Any, Coroutine, cast
 from edb.server import tenant
+from edb.server.config.types import CompositeConfigType
 
 from . import util, ui, smtp, config
 
@@ -16,9 +17,9 @@ async def send_password_reset_email(
     test_mode: bool,
 ):
     from_addr = util.get_config(db, "ext::auth::SMTPConfig::sender")
-    ui_config = util.maybe_get_config(
-        db, "ext::auth::AuthConfig::ui", config.UIConfig
-    )
+    ui_config = cast(config.UIConfig, util.maybe_get_config(
+        db, "ext::auth::AuthConfig::ui", CompositeConfigType
+    ))
     if ui_config is None:
         email_args = {}
     else:
@@ -54,9 +55,9 @@ async def send_verification_email(
     test_mode: bool,
 ):
     from_addr = util.get_config(db, "ext::auth::SMTPConfig::sender")
-    ui_config = util.maybe_get_config(
-        db, "ext::auth::AuthConfig::ui", config.UIConfig
-    )
+    ui_config = cast(config.UIConfig, util.maybe_get_config(
+        db, "ext::auth::AuthConfig::ui", CompositeConfigType
+    ))
     verification_token_params = urllib.parse.urlencode(
         {
             "verification_token": verification_token,
