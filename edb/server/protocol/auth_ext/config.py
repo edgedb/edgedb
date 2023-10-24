@@ -21,14 +21,13 @@ from typing import Optional
 
 
 class UIConfig:
-    def __init__(
-        self,
-        app_name: Optional[str] = None,
-        logo_url: Optional[str] = None,
-        dark_logo_url: Optional[str] = None,
-        brand_color: Optional[str] = None,
-    ) -> None:
-        self.app_name = app_name
-        self.logo_url = logo_url
-        self.dark_logo_url = dark_logo_url
-        self.brand_color = brand_color
+    redirect_to: str
+    redirect_to_on_signup: Optional[str]
+    app_name: Optional[str]
+    logo_url: Optional[str]
+    dark_logo_url: Optional[str]
+    brand_color: Optional[str]
+
+
+class ProviderConfig:
+    name: str
