@@ -560,7 +560,7 @@ fn tuple_paths() {
     assert_eq!(tok_str("$0.1.2.3.4.5"),
         ["$0", ".", "1", ".", "2", ".", "3", ".", "4", ".", "5"]);
     assert_eq!(tok_typ("$0.1.2.3.4.5"),
-        [Argument, Dot, IntConst, Dot, IntConst,
+        [Parameter, Dot, IntConst, Dot, IntConst,
                 Dot, IntConst, Dot, IntConst, Dot, IntConst]);
     assert_eq!(tok_err("tup.1n"),
         "unexpected char \'n\', only integers \
@@ -797,20 +797,20 @@ fn test_dollar() {
         ["select", "$a", "+", "b", ";", "$b", "test",
          ";", "$a", "+", "b", ";", "$b", ";"]);
     assert_eq!(tok_typ("select $a+b; $b test; $a+b; $b ;"),
-        [keyword("select"), Argument, Add, Ident, Semicolon, Argument, Ident,
-         Semicolon, Argument, Add, Ident, Semicolon, Argument, Semicolon]);
+        [keyword("select"), Parameter, Add, Ident, Semicolon, Parameter, Ident,
+         Semicolon, Parameter, Add, Ident, Semicolon, Parameter, Semicolon]);
     assert_eq!(tok_str("select $def x$y test; $def x$y"),
         ["select", "$def", "x", "$y", "test",
          ";", "$def", "x", "$y"]);
     assert_eq!(tok_typ("select $def x$y test; $def x$y"),
-        [keyword("select"), Argument, Ident, Argument, Ident,
-         Semicolon, Argument, Ident, Argument]);
+        [keyword("select"), Parameter, Ident, Parameter, Ident,
+         Semicolon, Parameter, Ident, Parameter]);
     assert_eq!(tok_str("select $`x``y` + $0 + $`zz` + $1.2 + $фыва"),
         ["select", "$`x``y`", "+", "$0", "+", "$`zz`", "+", "$1", ".", "2",
          "+", "$фыва"]);
     assert_eq!(tok_typ("select $`x``y` + $0 + $`zz` + $1.2 + $фыва"),
-        [keyword("select"), Argument, Add, Argument, Add, Argument,
-         Add, Argument, Dot, IntConst, Add, Argument]);
+        [keyword("select"), Parameter, Add, Parameter, Add, Parameter,
+         Add, Parameter, Dot, IntConst, Add, Parameter]);
     assert_eq!(tok_err(r#"$-"#),
         "bare $ is not allowed");
     assert_eq!(tok_err(r#"$0abc"#),

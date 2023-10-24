@@ -19,6 +19,8 @@
 from typing import *
 
 import html
+import urllib
+import re
 from email.mime import multipart
 from email.mime import text as mime_text
 
@@ -37,8 +39,10 @@ def render_login_page(
     providers: frozenset,
     error_message: Optional[str] = None,
     email: Optional[str] = None,
+    challenge: str,
     # config
     redirect_to: str,
+    redirect_to_on_signup: Optional[str] = None,
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
@@ -55,14 +59,26 @@ def render_login_page(
         if p.name.startswith('builtin::oauth_')
     ]
 
+    oauth_params = {
+        'redirect_to': redirect_to,
+        'challenge': challenge,
+    }
+
+    if redirect_to_on_signup:
+        oauth_params['redirect_to_on_signup'] = redirect_to_on_signup
+
+    oauth_label = "Sign in with" if password_provider else "Continue with"
     oauth_buttons = '\n'.join([
         f'''
-        <a href="authorize?provider={p.name}">
+        <a href="../authorize?{urllib.parse.urlencode({
+            'provider': p.name,
+            **oauth_params
+        })}">
         {(
             '<img src="_static/icon_' + p.name[15:] + '.svg" alt="' +
             p.display_name+' Icon" />'
         ) if p.name in known_oauth_provider_names else ''}
-        <span>Sign in with {p.display_name}</span>
+        <span>{oauth_label} {p.display_name}</span>
         </a>'''
         for p in oauth_providers
     ])
@@ -114,15 +130,18 @@ def render_login_page(
       <input type="hidden" name="redirect_on_failure" value="{
         base_path}/ui/signin" />
       <input type="hidden" name="redirect_to" value="{redirect_to}" />
+      <input type="hidden" name="challenge" value="{challenge}" />
 
       {_render_error_message(error_message)}
 
       <label for="email">Email</label>
-      <input id="email" name="email" type="email" value="{email or ''}" />
+      <input id="email" name="email" type="email" value="{email or ''}"
+        autofocus />
 
       <div class="field-header">
         <label for="password">Password</label>
-        <a id="forgot-password-link" class="field-note" href="forgot-password">
+        <a id="forgot-password-link" class="field-note" href="forgot-password"
+          tabindex="2">
           Forgot password?
         </a>
       </div>
@@ -132,7 +151,7 @@ def render_login_page(
 
       <div class="bottom-note">
         Don't have an account?
-        <a href="signup">Sign up</a>
+        <a href="signup" tabindex="3">Sign up</a>
       </div>""" if password_provider is not None else ''
     }
     </form>
@@ -143,9 +162,10 @@ def render_login_page(
 def render_signup_page(
     *,
     base_path: str,
-    provider_name: str,
+    providers: frozenset,
     error_message: Optional[str] = None,
     email: Optional[str] = None,
+    challenge: str,
     # config
     redirect_to: str,
     app_name: Optional[str] = None,
@@ -153,6 +173,38 @@ def render_signup_page(
     dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = None
 ):
+    password_provider = None
+    for p in providers:
+        if p.name == 'builtin::local_emailpassword':
+            password_provider = p
+            break
+
+    oauth_providers = [
+        p for p in providers
+        if p.name.startswith('builtin::oauth_')
+    ]
+
+    oauth_params = {
+        'redirect_to': redirect_to,
+        'challenge': challenge,
+        'redirect_to_on_signup': redirect_to,
+    }
+
+    oauth_label = "Sign up with" if password_provider else "Continue with"
+    oauth_buttons = '\n'.join([
+        f'''
+        <a href="../authorize?{urllib.parse.urlencode({
+            'provider': p.name,
+            **oauth_params
+        })}">
+        {(
+            '<img src="_static/icon_' + p.name[15:] + '.svg" alt="' +
+            p.display_name+' Icon" />'
+        ) if p.name in known_oauth_provider_names else ''}
+        <span>{oauth_label} {p.display_name}</span>
+        </a>'''
+        for p in oauth_providers
+    ])
     return _render_base_page(
         title=f'Sign up{f" to {app_name}" if app_name else ""}',
         logo_url=logo_url,
@@ -165,11 +217,28 @@ def render_signup_page(
            if app_name else '<span>Sign up</span>'}</h1>
 
       {_render_error_message(error_message)}
-
-      <input type="hidden" name="provider" value="{provider_name}" />
+    {
+      f"""
+      <div class="oauth-buttons">
+        {oauth_buttons}
+      </div>""" if len(oauth_providers) > 0 else ''
+    }
+    {
+      """
+      <div class="divider">
+        <span>or</span>
+      </div>"""
+      if password_provider is not None
+        and len(oauth_providers) > 0
+      else ''
+    }
+    {
+      f"""
+      <input type="hidden" name="provider" value="{password_provider.name}" />
       <input type="hidden" name="redirect_on_failure" value="{
         base_path}/ui/signup" />
       <input type="hidden" name="redirect_to" value="{redirect_to}" />
+      <input type="hidden" name="challenge" value="{challenge}" />
 
       <label for="email">Email</label>
       <input id="email" name="email" type="email" value="{email or ''}" />
@@ -183,6 +252,8 @@ def render_signup_page(
         Already have an account?
         <a href="signin">Sign in</a>
       </div>
+      </div>""" if password_provider is not None else ''
+    }
     </form>'''
     )
 
@@ -293,6 +364,9 @@ def render_reset_password_page(
     )
 
 
+hex_color_regexp = re.compile(r'[0-9a-fA-F]{6}')
+
+
 def _render_base_page(
     *,
     content: str,
@@ -321,6 +395,9 @@ def _render_base_page(
       }}
     </script>''' if len(cleanup_search_params) > 0 else ''
 
+    if brand_color is None or hex_color_regexp.fullmatch(brand_color) is None:
+        brand_color = '1f8aed'
+
     return f'''
 <!DOCTYPE html>
 <html>
@@ -331,7 +408,7 @@ def _render_base_page(
     <title>{html.escape(title)}</title>
     {cleanup_script}
   </head>
-  <body {'style="'+get_colour_vars(brand_color or '1f8aed')+'"'}>
+  <body {'style="'+get_colour_vars(brand_color)+'"'}>
     {logo}
     {content}
   </body>
@@ -455,6 +532,11 @@ def get_colour_vars(bg_hex: str):
     luma = rgb_to_luma(*bg_rgb)
     luma_dark = luma < 0.6
 
+    text_color = hsl_to_rgb(
+        bg_hsl[0], bg_hsl[1], min(90 if luma_dark else 35, bg_hsl[2])
+    )
+    dark_text_color = hsl_to_rgb(bg_hsl[0], bg_hsl[1], max(60, bg_hsl[2]))
+
     return f'''--accent-bg-color: #{bg_hex};
         --accent-bg-text-color: #{rgb_to_hex(
             *hsl_to_rgb(
@@ -468,14 +550,12 @@ def get_colour_vars(bg_hex: str):
                 bg_hsl[0], bg_hsl[1], bg_hsl[2] + (5 if luma_dark else -5)
             )
         )};
-        --accent-text-color: #{rgb_to_hex(
-            *hsl_to_rgb(
-                bg_hsl[0], bg_hsl[1], min(90 if luma_dark else 35, bg_hsl[2])
-            )
-        )};
-        --accent-text-dark-color: #{rgb_to_hex(
-            *hsl_to_rgb(bg_hsl[0], bg_hsl[1], max(60, bg_hsl[2]))
-        )}'''
+        --accent-text-color: #{rgb_to_hex(*text_color)};
+        --accent-text-dark-color: #{rgb_to_hex(*dark_text_color)};
+        --accent-focus-color: rgba({','.join(
+            str(c) for c in text_color)},0.6);
+        --accent-focus-dark-color: rgba({','.join(
+            str(c) for c in dark_text_color)},0.6);'''
 
 
 def hex_to_rgb(hex: str) -> tuple[float, float, float]:

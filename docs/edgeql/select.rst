@@ -102,19 +102,19 @@ And the following inserts:
 
 .. code-block:: edgeql-repl
 
-  db> insert Hero { 
+  db> insert Hero {
   ...   name := "Spider-Man",
-  ...   secret_identity := "Peter Parker" 
+  ...   secret_identity := "Peter Parker"
   ... };
   {default::Hero {id: 6be1c9c6...}}
 
-  db> insert Hero { 
-  ...   name := "Iron Man", 
-  ...   secret_identity := "Tony Stark" 
+  db> insert Hero {
+  ...   name := "Iron Man",
+  ...   secret_identity := "Tony Stark"
   ... };
   {default::Hero {id: 6bf7115a... }}
 
-  db> for n in { "Sandman", "Electro", "Green Goblin", "Doc Ock" } 
+  db> for n in { "Sandman", "Electro", "Green Goblin", "Doc Ock" }
   ...   union (
   ...     insert Villain {
   ...     name := n,
@@ -136,7 +136,7 @@ And the following inserts:
   db> insert Movie {
   ...  title := "Spider-Man: No Way Home",
   ...  release_year := 2021,
-  ...  characters := (select Person filter .name in 
+  ...  characters := (select Person filter .name in
   ...    { "Spider-Man", "Sandman", "Electro", "Green Goblin", "Doc Ock" })
   ...  };
   {default::Movie {id: 6c60c28a...}}
@@ -144,7 +144,7 @@ And the following inserts:
   db> insert Movie {
   ...  title := "Iron Man",
   ...  release_year := 2008,
-  ...  characters := (select Person filter .name in 
+  ...  characters := (select Person filter .name in
   ...   { "Iron Man", "Obadiah Stane" })
   ...  };
   {default::Movie {id: 6d1f430e...}}
@@ -403,8 +403,8 @@ with their names but also get any properties defined on the ``Hero`` for those
         secret_identity: 'Tony Stark'
       },
       default::Villain {
-        name: 'Sandman', 
-        id: 6c22bdf0-5c03-11ee-99ff-dfaea4d947ce, 
+        name: 'Sandman',
+        id: 6c22bdf0-5c03-11ee-99ff-dfaea4d947ce,
         secret_identity: {}
       },
       default::Villain {
@@ -440,33 +440,33 @@ properties and links on the specified type.
     ... };
     {
       default::Villain {
-        name: 'Sandman', 
+        name: 'Sandman',
         id: 6c22bdf0-5c03-11ee-99ff-dfaea4d947ce,
-        secret_identity: {}, 
+        secret_identity: {},
         villains: {}
       },
       default::Villain {
-        name: 'Electro', 
-        id: 6c22c3d6-5c03-11ee-99ff-734255881e5d, 
-        secret_identity: {}, 
+        name: 'Electro',
+        id: 6c22c3d6-5c03-11ee-99ff-734255881e5d,
+        secret_identity: {},
         villains: {}
       },
       default::Villain {
-        name: 'Green Goblin', 
-        id: 6c22c46c-5c03-11ee-99ff-c79f24cf638b, 
-        secret_identity: {}, 
+        name: 'Green Goblin',
+        id: 6c22c46c-5c03-11ee-99ff-c79f24cf638b,
+        secret_identity: {},
         villains: {}
       },
       default::Villain {
-        name: 'Doc Ock', 
-        id: 6c22c502-5c03-11ee-99ff-cbacc3918129, 
-        secret_identity: {}, 
+        name: 'Doc Ock',
+        id: 6c22c502-5c03-11ee-99ff-cbacc3918129,
+        secret_identity: {},
         villains: {}
       },
       default::Villain {
-        name: 'Obadiah Stane', 
-        id: 6c42c4ec-5c03-11ee-99ff-872c9906a467, 
-        secret_identity: {}, 
+        name: 'Obadiah Stane',
+        id: 6c42c4ec-5c03-11ee-99ff-872c9906a467,
+        secret_identity: {},
         villains: {}
       },
       default::Hero {
@@ -475,19 +475,19 @@ properties and links on the specified type.
         secret_identity: 'Peter Parker',
         villains: {
           default::Villain {
-            name: 'Electro', 
+            name: 'Electro',
             id: 6c22c3d6-5c03-11ee-99ff-734255881e5d
           },
           default::Villain {
-            name: 'Sandman', 
+            name: 'Sandman',
             id: 6c22bdf0-5c03-11ee-99ff-dfaea4d947ce
           },
           default::Villain {
-            name: 'Doc Ock', 
+            name: 'Doc Ock',
             id: 6c22c502-5c03-11ee-99ff-cbacc3918129
           },
           default::Villain {
-            name: 'Green Goblin', 
+            name: 'Green Goblin',
             id: 6c22c46c-5c03-11ee-99ff-c79f24cf638b
           },
         },
@@ -539,6 +539,14 @@ of the ``Villain`` type. In other words, we are in the **scope** of the
   ... filter .name = "Doc Ock";
   {default::Villain {name: 'Doc Ock'}}
 
+.. warning::
+
+    When using comparison operators like ``=`` or ``!=``, or boolean operators
+    ``and``, ``or``, and ``not``, keep in mind that these operators will
+    produce an empty set if an operand is an empty set. Check out :ref:`our
+    boolean cheatsheet <ref_cheatsheet_boolean>` for more info and help on how
+    to mitigate this if you know your operands may be an empty set.
+
 Learn to filter your queries by trying it in `our interactive filters
 tutorial </tutorial/basic-queries/config>`_.
 
@@ -575,7 +583,7 @@ filter to both the selected ``Hero`` objects and their linked ``villains``.
   ... } filter .name ilike "%man";
   {
     default::Hero {
-      name: 'Spider-Man', 
+      name: 'Spider-Man',
       villains: {
         default::Villain {
           name: 'Doc Ock'
@@ -583,7 +591,7 @@ filter to both the selected ``Hero`` objects and their linked ``villains``.
       }
     },
     default::Hero {
-      name: 'Iron Man', 
+      name: 'Iron Man',
       villains: {
         default::Villain {
           name: 'Obadiah Stane'
@@ -672,7 +680,7 @@ ordering across pagination queries.
   ... offset 2
   ... limit 2;
   {
-    default::Villain {name: 'Obadiah Stane'}, 
+    default::Villain {name: 'Obadiah Stane'},
     default::Villain {name: 'Sandman'},
   }
 
@@ -865,8 +873,8 @@ Below, we use a subquery to select all movies containing a villain's nemesis.
   ... };
   {
     default::Villain {
-      name: 'Sandman', 
-      nemesis_name: 'Spider-Man', 
+      name: 'Sandman',
+      nemesis_name: 'Spider-Man',
       movies_with_nemesis: {
         default::Movie {title: 'Spider-Man: No Way Home'}
       }
@@ -922,9 +930,9 @@ abstract type (such as ``Movie.characters``) or a :eql:op:`union type
   ... filter .title = "Iron Man 2";
   {
     default::Movie {
-      title: 'Iron Man', 
+      title: 'Iron Man',
       characters: {
-        default::Villain {name: 'Obadiah Stane'}, 
+        default::Villain {name: 'Obadiah Stane'},
         default::Hero {name: 'Iron Man'}
       }
     }
@@ -951,17 +959,17 @@ by prefixing property/link references with ``[is <type>]``. This is known as a
   {
     ...
     default::Villain {
-      name: 'Obadiah Stane', 
-      secret_identity: {}, 
-      number_of_villains: 0, 
+      name: 'Obadiah Stane',
+      secret_identity: {},
+      number_of_villains: 0,
       nemesis: default::Hero {
         name: 'Iron Man'
       }
     },
     default::Hero {
-      name: 'Spider-Man', 
-      secret_identity: 'Peter Parker', 
-      number_of_villains: 4, 
+      name: 'Spider-Man',
+      secret_identity: 'Peter Parker',
+      number_of_villains: 4,
       nemesis: {}
     },
     ...
@@ -988,13 +996,13 @@ these cases, EdgeQL supports a shorthand.
   {
     ...
     default::Villain {
-      name: 'Obadiah Stane', 
-      secret_identity: {}, 
+      name: 'Obadiah Stane',
+      secret_identity: {},
       nemesis: default::Hero {name: 'Iron Man'}
     },
     default::Hero {
-      name: 'Spider-Man', 
-      secret_identity: 'Peter Parker', 
+      name: 'Spider-Man',
+      secret_identity: 'Peter Parker',
       nemesis: {}
     },
     ...
@@ -1025,6 +1033,89 @@ exclusively fetch the ``Movie.characters`` of type ``Hero``.
     },
     ...
   }
+
+Accessing types in polymorphic queries
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+While the type of an object is displayed alongside the results of polymorphic
+queries run in the REPL, this is simply a convenience of the REPL and not a
+property that can be accessed. This is particularly noticeable if you cast an
+object to ``json``, making it impossible to determine the type if the query is
+polymorphic. First, the result of a query as the REPL presents it with type
+annotations displayed:
+
+.. code-block:: edgeql-repl
+
+    db> select Person limit 1;
+    {default::Villain {id: 6c22bdf0-5c03-11ee-99ff-dfaea4d947ce}}
+
+Note the type ``default::Villain``, which is displayed for the user's
+convenience but is not actually part of the data returned. This is the same
+query with the result cast as ``json`` to show only the data returned:
+
+.. code-block:: edgeql-repl
+
+    db> select <json>Person limit 1;
+    {Json("{\"id\": \"6c22bdf0-5c03-11ee-99ff-dfaea4d947ce\"}")}
+
+.. note::
+
+    We will continue to cast subesequent examples in this section to ``json``,
+    not because this is required for any of the functionality being
+    demonstrated, but to remove the convenience type annotations provided by
+    the REPL and make it easier to see what data is actually being returned by
+    the query.
+
+The type of an object is found inside ``__type__`` which is a link that
+carries various information about the object's type, including its ``name``.
+
+.. code-block:: edgeql-repl
+
+    db> select <json>Person {
+    ...  __type__: {
+    ...    name
+    ...    }
+    ...  } limit 1;
+    {Json("{\"__type__\": {\"name\": \"default::Villain\"}}")}
+
+This information can be pulled into the top level by assigning a name to
+the ``name`` property inside ``__type__``:
+
+.. code-block:: edgeql-repl
+
+    db> select <json>Person { type := .__type__.name } limit 1;
+    {Json("{\"type\": \"default::Villain\"}")}
+
+There is nothing magical about ``__type__``; it is a simple link to an object
+of the type ``ObjectType`` which contains all of the possible information to
+know about the type of the current object. The splat operator can be used to
+see this object's makeup, while the double splat operator produces too much
+output to show on this page. Playing around with the splat and double splat
+operator inside ``__type__`` is a quick way to get some insight into the
+internals of EdgeDB.
+
+.. code-block:: edgeql-repl
+
+    db> select Person.__type__ {*} limit 1;
+    {
+      schema::ObjectType {
+        id: 48be3a94-5bf3-11ee-bd60-0b44b607e31d,
+        name: 'default::Hero',
+        internal: false,
+        builtin: false,
+        computed_fields: [],
+        final: false,
+        is_final: false,
+        abstract: false,
+        is_abstract: false,
+        inherited_fields: [],
+        from_alias: false,
+        is_from_alias: false,
+        expr: {},
+        compound_type: false,
+        is_compound_type: false,
+      },
+    }
 
 .. _ref_eql_select_free_objects:
 

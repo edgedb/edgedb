@@ -32,7 +32,7 @@ class TestInsert(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'insert.esdl')
 
-    async def test_edgeql_insert_fail_1(self):
+    async def test_edgeql_insert_fail_01(self):
         with self.assertRaisesRegex(
             edgedb.MissingRequiredError,
             r"missing value for required property"
@@ -42,7 +42,7 @@ class TestInsert(tb.QueryTestCase):
                 INSERT InsertTest;
             ''')
 
-    async def test_edgeql_insert_fail_2(self):
+    async def test_edgeql_insert_fail_02(self):
         with self.assertRaisesRegex(
             edgedb.MissingRequiredError,
             r"missing value for required property"
@@ -54,7 +54,7 @@ class TestInsert(tb.QueryTestCase):
                 };
             ''')
 
-    async def test_edgeql_insert_fail_3(self):
+    async def test_edgeql_insert_fail_03(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             r"modification of computed property"
@@ -68,7 +68,7 @@ class TestInsert(tb.QueryTestCase):
                 };
             ''')
 
-    async def test_edgeql_insert_fail_4(self):
+    async def test_edgeql_insert_fail_04(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             r"mutation queries must specify values with ':='",
@@ -77,16 +77,17 @@ class TestInsert(tb.QueryTestCase):
                 INSERT Person { name };
             ''')
 
-    async def test_edgeql_insert_fail_5(self):
+    async def test_edgeql_insert_fail_05(self):
         with self.assertRaisesRegex(
-            edgedb.EdgeQLSyntaxError,
-            r"insert expression must be an object type reference",
+            edgedb.QueryError,
+            "INSERT only works with object types, not arbitrary "
+            "expressions"
         ):
             await self.con.execute('''
                 INSERT Person.notes { name := "note1" };
             ''')
 
-    async def test_edgeql_insert_fail_6(self):
+    async def test_edgeql_insert_fail_06(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             r"could not resolve partial path",
@@ -95,7 +96,7 @@ class TestInsert(tb.QueryTestCase):
                 INSERT Person { name := .name };
             ''')
 
-    async def test_edgeql_insert_fail_7(self):
+    async def test_edgeql_insert_fail_07(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             r"insert standard library type",
@@ -103,6 +104,28 @@ class TestInsert(tb.QueryTestCase):
             await self.con.execute('''
                 INSERT schema::Migration { script := 'foo' };
             ''')
+
+    async def test_edgeql_insert_fail_08(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "INSERT only works with object types, not arbitrary "
+            "expressions"
+        ):
+            await self.con.execute("""
+                insert Note {name := 'bad note'} union DerivedNote;
+            """)
+
+    async def test_edgeql_insert_fail_09(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "INSERT only works with object types, not conditional "
+            "expressions"
+        ):
+            await self.con.execute("""
+                insert Note {
+                    name := 'bad note'
+                } if not exists DerivedNote else DerivedNote;
+            """)
 
     async def test_edgeql_insert_simple_01(self):
         await self.con.execute(r"""
@@ -223,6 +246,35 @@ class TestInsert(tb.QueryTestCase):
                 {
                     'l2': 0,
                 },
+            ]
+        )
+
+        await self.con.execute(r"""
+            with _ := (
+                INSERT InsertTest {
+                    name := 'insert simple 01',
+                    l2 := (select 1 filter true),
+                }
+            ),
+            INSERT InsertTest {
+                name := 'insert simple 01',
+                l2 := 2,
+            }
+        """)
+        await self.assert_query_result(
+            r"""
+                SELECT
+                    InsertTest {
+                        l2
+                    }
+                FILTER
+                    InsertTest.name = 'insert simple 01'
+                ORDER BY .l2
+            """,
+            [
+                {'l2': 0},
+                {'l2': 1},
+                {'l2': 2},
             ]
         )
 
@@ -1165,6 +1217,57 @@ class TestInsert(tb.QueryTestCase):
                 edgedb.ConstraintViolationError,
                 "violates exclusivity constraint"):
             await self.con.execute(Q)
+
+    async def test_edgeql_insert_policy_cast(self):
+        # Test for #6305, where a cast in a global used in an access policy
+        # was causing a stray volatility ref to show up in the wrong CTE
+        await self.con.execute('''
+            create global sub_id -> uuid;
+            create global sub := <Subordinate>(global sub_id);
+            alter type Note {
+                create access policy asdf allow all using (
+                    (.subject in global sub) ?? false
+                )
+            };
+        ''')
+
+        sub = await self.con.query_single('''
+            insert Subordinate { name := "asdf" };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.AccessPolicyError,
+                "violation on insert of default::Note"):
+            await self.con.execute('''
+                insert Person { notes := (insert Note { name := "" }) };
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.AccessPolicyError,
+                "violation on insert of default::Note"):
+            await self.con.execute('''
+                insert Person {
+                    notes := (insert Note {
+                        name := "",
+                        subject := assert_single(
+                          (select Subordinate filter .name = 'asdf'))
+                    })
+                };
+            ''')
+
+        await self.con.execute('''
+            set global sub_id := <uuid>$0
+        ''', sub.id)
+
+        await self.con.execute('''
+            insert Person {
+                notes := (insert Note {
+                    name := "",
+                    subject := assert_single(
+                      (select Subordinate filter .name = 'asdf'))
+                })
+            };
+        ''')
 
     async def test_edgeql_insert_for_01(self):
         await self.con.execute(r'''
@@ -5685,7 +5788,7 @@ class TestInsert(tb.QueryTestCase):
 
         await self.con.execute('''
             INSERT Person {
-                id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff',
+                id := <uuid>to_json('"ffffffff-ffff-ffff-ffff-ffffffffffff"'),
                 name := "test",
              }
         ''')

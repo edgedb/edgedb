@@ -164,7 +164,12 @@ class T_AT(Token, lextoken='@'):
     pass
 
 
-class T_ARGUMENT(Token):
+class T_PARAMETER(Token):
+    pass
+
+
+class T_PARAMETERANDTYPE(Token):
+    # A special token produced by normalization
     pass
 
 

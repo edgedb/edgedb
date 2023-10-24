@@ -207,9 +207,14 @@ class EdgeQL:
     type_builtins = (
         "Base64Alphabet",
         "BaseObject",
+        "ElasticLanguage",
         "FreeObject",
         "JsonEmpty",
+        "Language",
+        "LuceneLanguage",
         "Object",
+        "PGLanguage",
+        "Weight",
         "anycontiguous",
         "anydiscrete",
         "anyenum",
@@ -226,6 +231,7 @@ class EdgeQL:
         "date_duration",
         "datetime",
         "decimal",
+        "document",
         "duration",
         "enum",
         "float32",
@@ -346,6 +352,7 @@ class EdgeQL:
         "re_replace",
         "re_test",
         "round",
+        "search",
         "sequence_next",
         "sequence_reset",
         "sqrt",
@@ -392,6 +399,16 @@ class EdgeQL:
         "uuid_generate_v4",
         "var",
         "var_pop",
+        "with_options",
+    )
+    index_builtins = (
+        "brin",
+        "btree",
+        "gin",
+        "gist",
+        "hash",
+        "index",
+        "spgist",
     )
     operators = (
         "!=",

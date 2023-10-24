@@ -3144,12 +3144,23 @@ class CreateCollectionType(
 
         if isinstance(self.scls, (Range, MultiRange)):
             from . import scalars as s_scalars
+            from edb.pgsql import types as pgtypes
 
             st = self.scls.get_subtypes(schema)[0]
 
-            if isinstance(st, s_scalars.ScalarType) and not st.is_base_type(
-                schema
-            ):
+            # general rule of what's supported
+            supported = (
+                isinstance(st, s_scalars.ScalarType) and st.is_base_type(schema)
+            )
+
+            if supported:
+                # actually test that it's supported
+                try:
+                    pgtypes.pg_type_from_object(schema, self.scls)
+                except Exception:
+                    supported = False
+
+            if not supported:
                 raise errors.UnsupportedFeatureError(
                     f'unsupported range subtype: {st.get_displayname(schema)}'
                 )

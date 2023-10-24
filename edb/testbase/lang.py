@@ -183,13 +183,13 @@ def should_preload_parser(
     cases: Iterable[unittest.TestCase],
 ) -> bool:
     for cas in cases:
-        if isinstance(cas, PreloadParserGrammarMixin):
+        if issubclass(cas, PreloadParserGrammarMixin):
             return True
     return False
 
 
 def preload_parser() -> None:
-    qlparser.preload(allow_rebuild=True)
+    qlparser.preload_spec()
 
 
 class BaseSyntaxTest(BaseDocTest, PreloadParserGrammarMixin):

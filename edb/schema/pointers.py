@@ -566,6 +566,10 @@ class Pointer(referencing.NamedReferencedInheritingObject,
     def is_generated(self, schema: s_schema.Schema) -> bool:
         return bool(self.get_from_alias(schema))
 
+    def get_subject(self, schema: s_schema.Schema) -> Optional[so.Object]:
+        # Required by ReferencedObject
+        return self.get_source(schema)
+
     @classmethod
     def get_displayname_static(cls, name: sn.Name) -> str:
         sn = cls.get_shortname_static(name)
@@ -782,6 +786,7 @@ class Pointer(referencing.NamedReferencedInheritingObject,
             if (
                 constr.issubclass(schema, exclusive)
                 and not constr.get_subjectexpr(schema)
+                and not constr.get_delegated(schema)
             ):
                 assert not constr.get_except_expr(schema)
                 constrs.append(constr)

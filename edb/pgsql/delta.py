@@ -4519,7 +4519,7 @@ class PointerMetaCommand(
                         partial=True,
                         steps=[
                             ql_ast.Ptr(
-                                ptr=ql_ast.ObjectRef(name=pname),
+                                name=pname,
                                 type='property' if is_lprop else None,
                             ),
                         ],
@@ -4864,7 +4864,7 @@ class PointerMetaCommand(
         root_uid = -1
         iter_uid = -2
         body_uid = -3
-        # scope tree wrapping is roughy equivalent to:
+        # scope tree wrapping is roughly equivalent to:
         # "(std::obj) uid:-1": {
         #   "BRANCH uid:-2",
         #   "FENCE uid:-3": { ... compiled scope children ... }
@@ -4876,7 +4876,9 @@ class PointerMetaCommand(
             unique_id=body_uid,
             fenced=True
         )
-        for child in ir.scope_tree.children:
+        # Need to make a copy of the children list because
+        # attach_child removes the node from the parent list.
+        for child in list(ir.scope_tree.children):
             scope_body.attach_child(child)
 
         scope_root = irast.ScopeTreeNode(
@@ -5911,7 +5913,10 @@ class AlterProperty(PropertyMetaCommand, adapts=s_props.AlterProperty):
         if self.metadata_only:
             return schema
 
-        if not is_comp:
+        if (
+            not is_comp
+            and (src and has_table(src.scls, schema))
+        ):
             orig_def_val = self.get_pointer_default(prop, orig_schema, context)
             def_val = self.get_pointer_default(prop, schema, context)
 

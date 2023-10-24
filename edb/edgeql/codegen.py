@@ -556,7 +556,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         elif node.direction and node.direction != '>':
             self.write(node.direction)
 
-        self.write(ident_to_str(node.ptr.name, allow_num=True))
+        self.write(ident_to_str(node.name, allow_num=True))
 
     def visit_Splat(self, node: qlast.Splat) -> None:
         if node.type is not None:

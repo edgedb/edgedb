@@ -10,21 +10,18 @@ edition = "2021"
 edgeql-parser = { path = "..", features = ["serde"] }
 bytes = "1.0.1"
 num-bigint = "0.4.3"
-bigdecimal = "0.3.0"
+bigdecimal = { version = "0.3.0", features = [ "string-only" ] }
 blake2 = "0.10.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-rmp-serde = "1.1.1"
 indexmap = "1.9.3"
 once_cell = "1.18.0"
+cpython = { version = "0.7.0", features = ["extension-module"] }
+bitcode = { version = "0.4.0", features = ["serde"] }
 
 [dependencies.edgedb-protocol]
 git = "https://github.com/edgedb/edgedb-rust"
 features = ["with-num-bigint", "with-bigdecimal"]
-
-[dependencies.cpython]
-version = "0.7.0"
-features = ["extension-module"]
 
 [lib]
 crate-type = ["lib", "cdylib"]

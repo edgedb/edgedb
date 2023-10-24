@@ -24,6 +24,7 @@ from edb import errors
 
 from edb.testbase import lang as tb
 from edb.edgeql import generate_source as edgeql_to_source
+from edb.edgeql import tokenizer
 from edb.edgeql.parser import grammar as qlgrammar
 from edb.tools import test
 
@@ -830,6 +831,49 @@ aa';
             (IF (x = 'c') THEN 100 ELSE
             0)));
         """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '<'", line=2, col=22)
+    def test_edgeql_syntax_ops_28(self):
+        """
+        SELECT a < b < c;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '>'", line=2, col=22)
+    def test_edgeql_syntax_ops_29(self):
+        """
+        SELECT a < b > c;
+        """
+
+    def test_edgeql_syntax_ops_30(self):
+        """
+        SELECT (a < b) > c;
+% OK %
+        SELECT ((a < b) > c);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '>='", line=2, col=23)
+    def test_edgeql_syntax_ops_31(self):
+        """
+        SELECT a <= b >= c;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '!='", line=2, col=23)
+    def test_edgeql_syntax_ops_32(self):
+        """
+        SELECT a != b != c;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '='", line=2, col=22)
+    def test_edgeql_syntax_ops_33(self):
+        """
+        SELECT a = b = c;
+        """
+
     def test_edgeql_syntax_required_01(self):
         """
         SELECT REQUIRED (User.groups.description);
@@ -2773,6 +2817,13 @@ aa';
         );
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Missing keyword 'SELECT'", line=2, col=9)
+    def test_edgeql_syntax_select_13(self):
+        """
+        default::Movie.name;
+        """
+
     def test_edgeql_syntax_group_01(self):
         """
         GROUP User
@@ -3021,7 +3072,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'insert expression must be an object type reference',
+                  'INSERT only works with object types, not arbitrary '
+                  'expressions',
                   line=2, col=16)
     def test_edgeql_syntax_insert_05(self):
         """
@@ -3542,7 +3594,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"named arguments do not need a '\$' prefix, "
+                  r"named parameters do not need a '\$' prefix, "
                   r"rewrite as 'a := \.\.\.'",
                   line=2, col=25)
     def test_edgeql_syntax_function_08(self):
@@ -3887,14 +3939,12 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing '\('",
-                  line=2, col=39)
+                  r"Unexpected '>'",
+                  line=2, col=38)
     def test_edgeql_syntax_introspect_05(self):
         """
         SELECT INTROSPECT tuple<int64>;
         """
-        # XXX: error recovery quality regression
-        #      parsed as `select ((INTROSPECT tuple < int64) > {})`
 
     # DDL
     #
@@ -6192,3 +6242,35 @@ aa';
 % OK %
         DESCRIBE INSTANCE CONFIG AS DDL;
         """
+
+
+class TestEdgeQLNormalization(EdgeQLSyntaxTest):
+
+    def _run_test(self, *, source, spec=None, expected=None):
+        super()._run_test(
+            source=tokenizer.NormalizedSource.from_string(source),
+            spec=spec,
+            expected=expected
+        )
+
+    def assert_equal(
+        self,
+        expected,
+        result,
+        *,
+        re_filter: str | None = None,
+        message: str | None = None
+    ) -> None:
+        pass
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=25)
+    def test_edgeql_normalization_01(self):
+        '''
+        select count(foo 1);
+        '''
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=22)
+    def test_edgeql_normalization_02(self):
+        '''
+        select count 1;
+        '''

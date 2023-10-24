@@ -20,7 +20,6 @@
 from __future__ import annotations
 from typing import *  # NoQA
 
-import functools
 import json
 import logging
 import os
@@ -284,34 +283,14 @@ class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
 
 
 def load_parser_spec(
-    mod: types.ModuleType,
-    allow_rebuild: bool = False,
+    mod: types.ModuleType
 ) -> parsing.Spec:
     return parsing.Spec(
         mod,
-        pickleFile=_localpath(mod, "pickle"),
         skinny=not debug.flags.edgeql_parser,
         logFile=_localpath(mod, "log"),
         verbose=bool(debug.flags.edgeql_parser),
-        unpickleHook=functools.partial(
-            _on_spec_unpickle, mod, allow_rebuild)
     )
-
-
-def _on_spec_unpickle(
-    mod: types.ModuleType,
-    allow_rebuild: bool,
-    spec: parsing.Spec,
-    compatibility: str,
-) -> None:
-    if compatibility != "compatible":
-        if allow_rebuild:
-            logger.info(f'rebuilding grammar for {mod.__name__}...')
-        else:
-            raise ParserSpecIncompatibleError(
-                f'parser tables for {mod.__name__} are missing or '
-                f'incompatible with parser source'
-            )
 
 
 def _localpath(mod, type):
@@ -320,7 +299,24 @@ def _localpath(mod, type):
         mod.__name__.rpartition('.')[2] + '.' + type)
 
 
-def spec_to_json(spec: parsing.Spec) -> tuple[str, list[Callable]]:
+def load_spec_productions(
+    production_names: List[Tuple[str, str]],
+    mod: types.ModuleType
+) -> List[Tuple[Type, Callable]]:
+    productions: List[Tuple[Any, Callable]] = []
+    for class_name, method_name in production_names:
+        cls = mod.__dict__.get(class_name, None)
+        if not cls:
+            # for NontermStart
+            productions.append((parsing.Nonterm(), lambda *args: None))
+            continue
+
+        method = cls.__dict__[method_name]
+        productions.append((cls, method))
+    return productions
+
+
+def spec_to_json(spec: parsing.Spec) -> str:
     # Converts a ParserSpec into JSON. Called from edgeql-parser Rust crate.
     assert spec.pureLR
 
@@ -356,13 +352,17 @@ def spec_to_json(spec: parsing.Spec) -> tuple[str, list[Callable]]:
 
             str_tok = token_map.get(str(tok), str(tok))
             if 'ShiftAction' in str(type(act)):
-                action_obj: Any = int(act.nextState)
+                action_obj: Any = {
+                    'Shift': int(act.nextState)
+                }
             else:
                 prod = act.production
                 action_obj = {
-                    'production_id': get_production_id(prod),
-                    'non_term': str(prod.lhs),
-                    'cnt': len(prod.rhs),
+                    'Reduce': {
+                        'production_id': get_production_id(prod),
+                        'non_term': str(prod.lhs),
+                        'cnt': len(prod.rhs),
+                    }
                 }
 
             out_st_actions.append((str_tok, action_obj))
@@ -389,5 +389,4 @@ def spec_to_json(spec: parsing.Spec) -> tuple[str, list[Callable]]:
         'inlines': inlines,
         'production_names': production_names,
     }
-    res_json = json.dumps(res)
-    return (res_json, productions)
+    return json.dumps(res)

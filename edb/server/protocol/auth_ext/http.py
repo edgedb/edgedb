@@ -20,6 +20,7 @@
 import asyncio
 import datetime
 import http
+import http.cookies
 import json
 import logging
 import urllib.parse
@@ -73,9 +74,14 @@ class Router:
         try:
             match args:
                 case ("authorize",):
-                    query = request.url.query.decode("ascii")
+                    query = urllib.parse.parse_qs(
+                        request.url.query.decode("ascii")
+                    )
                     provider_name = _get_search_param(query, "provider")
                     redirect_to = _get_search_param(query, "redirect_to")
+                    redirect_to_on_signup = _maybe_get_search_param(
+                        query, "redirect_to_on_signup"
+                    )
                     challenge = _get_search_param(query, "challenge")
                     oauth_client = oauth.Client(
                         db=self.db,
@@ -86,7 +92,8 @@ class Router:
                     authorize_url = await oauth_client.get_authorize_url(
                         redirect_uri=self._get_callback_url(),
                         state=self._make_state_claims(
-                            provider_name, redirect_to, challenge
+                            provider_name, redirect_to,
+                            redirect_to_on_signup, challenge
                         ),
                     )
                     response.status = http.HTTPStatus.FOUND
@@ -106,7 +113,9 @@ class Router:
                             form_data, "error_description"
                         )
                     elif request.url.query is not None:
-                        query = request.url.query.decode("ascii")
+                        query = urllib.parse.parse_qs(
+                            request.url.query.decode("ascii")
+                        )
                         state = _maybe_get_search_param(query, "state")
                         code = _maybe_get_search_param(query, "code")
                         error = _maybe_get_search_param(query, "error")
@@ -152,6 +161,9 @@ class Router:
                         claims = self._verify_and_extract_claims(state)
                         provider_name = claims["provider"]
                         redirect_to = claims["redirect_to"]
+                        redirect_to_on_signup = claims.get(
+                            "redirect_to_on_signup"
+                        )
                         challenge = claims["challenge"]
                     except Exception:
                         raise errors.InvalidData("Invalid state token")
@@ -162,6 +174,7 @@ class Router:
                     )
                     (
                         identity,
+                        new_identity,
                         auth_token,
                         refresh_token,
                     ) = await oauth_client.handle_callback(
@@ -177,7 +190,10 @@ class Router:
                             auth_token=auth_token,
                             refresh_token=refresh_token,
                         )
-                    parsed_url = urllib.parse.urlparse(redirect_to)
+                    parsed_url = urllib.parse.urlparse(
+                        (redirect_to_on_signup or redirect_to)
+                        if new_identity else redirect_to
+                    )
                     query_params = urllib.parse.parse_qs(parsed_url.query)
                     query_params["code"] = [pkce_code]
                     new_query = urllib.parse.urlencode(query_params, doseq=True)
@@ -186,13 +202,12 @@ class Router:
                     session_token = self._make_session_token(identity.id)
                     response.status = http.HTTPStatus.FOUND
                     response.custom_headers["Location"] = new_url
-                    response.custom_headers["Set-Cookie"] = (
-                        f"edgedb-session={session_token}; "
-                        f"HttpOnly; Secure; SameSite=Strict"
-                    )
+                    _set_cookie(response, "edgedb-session", session_token)
 
                 case ("token",):
-                    query = request.url.query.decode("ascii")
+                    query = urllib.parse.parse_qs(
+                        request.url.query.decode("ascii")
+                    )
                     code = _get_search_param(query, "code")
                     verifier = _get_search_param(query, "verifier")
 
@@ -255,23 +270,26 @@ class Router:
                         raise errors.InvalidData(
                             'Missing "provider" in register request'
                         )
+                    maybe_challenge = data.get("challenge")
+                    if maybe_challenge is None:
+                        raise errors.InvalidData(
+                            'Missing "challenge" in register request'
+                        )
+                    await pkce.create(self.db, maybe_challenge)
 
                     local_client = local.Client(
                         db=self.db, provider_name=register_provider_name
                     )
                     try:
                         identity = await local_client.register(data)
-                        session_token = self._make_session_token(identity.id)
-                        response.custom_headers["Set-Cookie"] = (
-                            f"edgedb-session={session_token}; "
-                            f"HttpOnly; Secure; SameSite=Strict"
+                        pkce_code = await pkce.link_identity_challenge(
+                            self.db, identity.id, maybe_challenge
                         )
                         if data.get("redirect_to") is not None:
                             response.status = http.HTTPStatus.FOUND
                             redirect_params = urllib.parse.urlencode(
                                 {
-                                    "identity_id": identity.id,
-                                    "auth_token": session_token,
+                                    "code": pkce_code,
                                 }
                             )
                             redirect_url = (
@@ -283,8 +301,7 @@ class Router:
                             response.content_type = b"application/json"
                             response.body = json.dumps(
                                 {
-                                    "identity_id": identity.id,
-                                    "auth_token": session_token,
+                                    "code": pkce_code
                                 }
                             ).encode()
                     except Exception as ex:
@@ -314,6 +331,12 @@ class Router:
                         raise errors.InvalidData(
                             'Missing "provider" in register request'
                         )
+                    maybe_challenge = data.get("challenge")
+                    if maybe_challenge is None:
+                        raise errors.InvalidData(
+                            'Missing "challenge" in register request'
+                        )
+                    await pkce.create(self.db, maybe_challenge)
 
                     local_client = local.Client(
                         db=self.db, provider_name=authenticate_provider_name
@@ -321,17 +344,16 @@ class Router:
                     try:
                         identity = await local_client.authenticate(data)
 
-                        session_token = self._make_session_token(identity.id)
-                        response.custom_headers["Set-Cookie"] = (
-                            f"edgedb-session={session_token}; "
-                            f"HttpOnly; Secure; SameSite=Strict"
+                        pkce_code = await pkce.link_identity_challenge(
+                            self.db, identity.id, maybe_challenge
                         )
+                        session_token = self._make_session_token(identity.id)
+                        _set_cookie(response, "edgedb-session", session_token)
                         if data.get("redirect_to") is not None:
                             response.status = http.HTTPStatus.FOUND
                             redirect_params = urllib.parse.urlencode(
                                 {
-                                    "identity_id": identity.id,
-                                    "auth_token": session_token,
+                                    "code": pkce_code,
                                 }
                             )
                             redirect_url = (
@@ -343,8 +365,7 @@ class Router:
                             response.content_type = b"application/json"
                             response.body = json.dumps(
                                 {
-                                    "identity_id": identity.id,
-                                    "auth_token": session_token,
+                                    "code": pkce_code,
                                 }
                             ).encode()
                     except Exception as ex:
@@ -482,7 +503,7 @@ class Router:
                         else:
                             raise ex
 
-                case ('reset_password', ):
+                case ('reset_password',):
                     data = self._get_data_from_request(request)
 
                     local_provider_name = data.get("provider")
@@ -511,10 +532,7 @@ class Router:
                         )
 
                         session_token = self._make_session_token(identity.id)
-                        response.custom_headers["Set-Cookie"] = (
-                            f"edgedb-session={session_token}; "
-                            f"HttpOnly; Secure; SameSite=Strict"
-                        )
+                        _set_cookie(response, "edgedb-session", session_token)
                         if data.get("redirect_to") is not None:
                             response.status = http.HTTPStatus.FOUND
                             redirect_params = urllib.parse.urlencode(
@@ -555,7 +573,7 @@ class Router:
                         else:
                             raise ex
 
-                case ('ui', 'signin',):
+                case ('ui', 'signin'):
                     ui_config = self._get_ui_config()
 
                     if ui_config is None:
@@ -567,17 +585,27 @@ class Router:
                             "ext::auth::AuthConfig::providers",
                             frozenset
                         )
-
                         if providers is None or len(providers) == 0:
                             raise errors.MissingConfiguration(
                                 'ext::auth::AuthConfig::providers',
                                 'No providers are configured'
                             )
 
-                        query = (
+                        query = urllib.parse.parse_qs(
                             request.url.query.decode("ascii")
-                            if request.url.query else ''
+                            if request.url.query
+                            else ''
                         )
+
+                        maybe_challenge = _get_pkce_challenge(
+                            response=response,
+                            cookies=request.cookies,
+                            query_dict=query,
+                        )
+                        if maybe_challenge is None:
+                            raise errors.InvalidData(
+                                'Missing "challenge" in register request'
+                            )
 
                         response.status = http.HTTPStatus.OK
                         response.content_type = b'text/html'
@@ -589,49 +617,67 @@ class Router:
                                 query, 'error'
                             ),
                             email=_maybe_get_search_param(query, 'email'),
+                            challenge=maybe_challenge,
                             app_name=ui_config.app_name,
                             logo_url=ui_config.logo_url,
                             dark_logo_url=ui_config.dark_logo_url,
                             brand_color=ui_config.brand_color,
                         )
 
-                case ('ui', 'signup',):
+                case ('ui', 'signup'):
                     ui_config = self._get_ui_config()
-                    password_provider = (
-                        self._get_password_provider()
-                        if ui_config is not None
-                        else None
-                    )
-
-                    if ui_config is None or password_provider is None:
+                    if ui_config is None:
                         response.status = http.HTTPStatus.NOT_FOUND
-                        response.body = (
-                            b'Password provider not configured'
-                            if ui_config else b'Auth UI not enabled'
-                        )
+                        response.body = b'Auth UI not enabled'
                     else:
-                        query = (
-                            request.url.query.decode("ascii")
-                            if request.url.query else ''
+                        providers = util.maybe_get_config(
+                            self.db,
+                            "ext::auth::AuthConfig::providers",
+                            frozenset
                         )
+                        if providers is None or len(providers) == 0:
+                            raise errors.MissingConfiguration(
+                                'ext::auth::AuthConfig::providers',
+                                'No providers are configured'
+                            )
+
+                        query = urllib.parse.parse_qs(
+                            request.url.query.decode("ascii")
+                            if request.url.query
+                            else ''
+                        )
+
+                        maybe_challenge = _get_pkce_challenge(
+                            response=response,
+                            cookies=request.cookies,
+                            query_dict=query,
+                        )
+                        if maybe_challenge is None:
+                            raise errors.InvalidData(
+                                'Missing "challenge" in register request'
+                            )
 
                         response.status = http.HTTPStatus.OK
                         response.content_type = b'text/html'
                         response.body = ui.render_signup_page(
                             base_path=self.base_path,
-                            provider_name=password_provider.name,
-                            redirect_to=ui_config.redirect_to,
+                            providers=providers,
+                            redirect_to=(
+                                ui_config.redirect_to_on_signup
+                                or ui_config.redirect_to
+                            ),
                             error_message=_maybe_get_search_param(
                                 query, 'error'
                             ),
                             email=_maybe_get_search_param(query, 'email'),
+                            challenge=maybe_challenge,
                             app_name=ui_config.app_name,
                             logo_url=ui_config.logo_url,
                             dark_logo_url=ui_config.dark_logo_url,
                             brand_color=ui_config.brand_color,
                         )
 
-                case ('ui', 'forgot-password',):
+                case ('ui', 'forgot-password'):
                     ui_config = self._get_ui_config()
                     password_provider = (
                         self._get_password_provider()
@@ -646,9 +692,10 @@ class Router:
                             if ui_config else b'Auth UI not enabled'
                         )
                     else:
-                        query = (
+                        query = urllib.parse.parse_qs(
                             request.url.query.decode("ascii")
-                            if request.url.query else ''
+                            if request.url.query
+                            else ''
                         )
 
                         response.status = http.HTTPStatus.OK
@@ -669,7 +716,7 @@ class Router:
                             brand_color=ui_config.brand_color,
                         )
 
-                case ('ui', 'reset-password',):
+                case ('ui', 'reset-password'):
                     ui_config = self._get_ui_config()
                     password_provider = (
                         self._get_password_provider()
@@ -684,9 +731,10 @@ class Router:
                             if ui_config else b'Auth UI not enabled'
                         )
                     else:
-                        query = (
+                        query = urllib.parse.parse_qs(
                             request.url.query.decode("ascii")
-                            if request.url.query else ''
+                            if request.url.query
+                            else ''
                         )
 
                         reset_token = _maybe_get_search_param(
@@ -799,7 +847,7 @@ class Router:
                 response=response,
                 status=http.HTTPStatus.INTERNAL_SERVER_ERROR,
                 message=str(ex),
-                ex_type=type(ex),
+                ex_type=edb_errors.InternalServerError,
             )
 
     def _get_callback_url(self) -> str:
@@ -814,7 +862,11 @@ class Router:
         return jwk.JWK(kty="oct", k=key_bytes.decode())
 
     def _make_state_claims(
-        self, provider: str, redirect_to: str, challenge: str
+        self,
+        provider: str,
+        redirect_to: str,
+        redirect_to_on_signup: Optional[str],
+        challenge: str
     ) -> str:
         signing_key = self._get_auth_signing_key()
         expires_at = (
@@ -828,6 +880,8 @@ class Router:
             "redirect_to": redirect_to,
             "challenge": challenge,
         }
+        if redirect_to_on_signup:
+            state_claims['redirect_to_on_signup'] = redirect_to_on_signup
         state_token = jwt.JWT(
             header={"alg": "HS256"},
             claims=state_claims,
@@ -969,13 +1023,15 @@ def _fail_with_error(
     response.status = status
 
 
-def _maybe_get_search_param(query: str, key: str) -> str | None:
-    params = urllib.parse.parse_qs(query).get(key)
+def _maybe_get_search_param(
+    query_dict: dict[str, list[str]], key: str
+) -> str | None:
+    params = query_dict.get(key)
     return params[0] if params else None
 
 
-def _get_search_param(query: str, key: str) -> str:
-    val = _maybe_get_search_param(query, key)
+def _get_search_param(query_dict: dict[str, list[str]], key: str) -> str:
+    val = _maybe_get_search_param(query_dict, key)
     if val is None:
         raise errors.InvalidData(f"Missing query parameter: {key}")
     return val
@@ -988,3 +1044,34 @@ def _maybe_get_form_field(
     if maybe_val is None:
         return None
     return maybe_val[0]
+
+
+def _get_pkce_challenge(
+    *,
+    response,
+    cookies: http.cookies.SimpleCookie,
+    query_dict: dict[str, list[str]]
+) -> str | None:
+    cookie_name = 'edgedb-pkce-challenge'
+    challenge: str | None = _maybe_get_search_param(query_dict, 'challenge')
+    if challenge is not None:
+        _set_cookie(response, cookie_name, challenge)
+    else:
+        if 'edgedb-pkce-challenge' in cookies:
+            challenge = cookies['edgedb-pkce-challenge'].value
+    return challenge
+
+
+def _set_cookie(
+    response: Any,
+    name: str,
+    value: str,
+    http_only: bool = True,
+    secure: bool = True,
+    same_site: str = "Strict",
+):
+    val: http.cookies.Morsel = http.cookies.SimpleCookie({name: value})[name]
+    val["httponly"] = http_only
+    val["secure"] = secure
+    val["samesite"] = same_site
+    response.custom_headers["Set-Cookie"] = val.OutputString()

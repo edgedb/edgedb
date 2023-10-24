@@ -222,7 +222,6 @@ pub struct Spec {
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(untagged))]
 pub enum Action {
     Shift(usize),
     Reduce(Reduce),
@@ -530,6 +529,7 @@ fn injection_cost(kind: &Kind) -> u16 {
         // A few keywords that should not be injected since they result in
         // confusing error messages.
         Keyword(keywords::Keyword("delete" | "update" | "link")) => 100,
+        Keyword(keywords::Keyword("insert")) => 20,
         Keyword(_) => 10,
 
         Dot => 5,
@@ -595,19 +595,18 @@ impl Terminal {
 }
 
 #[cfg(feature = "serde")]
-impl Spec {
-    pub fn from_json(j_spec: &str) -> Result<Spec, String> {
-        #[derive(Debug, serde::Serialize, serde::Deserialize)]
-        struct SpecJson {
-            pub actions: Vec<Vec<(String, Action)>>,
-            pub goto: Vec<Vec<(String, usize)>>,
-            pub start: String,
-            pub inlines: Vec<(usize, u8)>,
-            pub production_names: Vec<(String, String)>,
-        }
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct SpecSerializable {
+    pub actions: Vec<Vec<(String, Action)>>,
+    pub goto: Vec<Vec<(String, usize)>>,
+    pub start: String,
+    pub inlines: Vec<(usize, u8)>,
+    pub production_names: Vec<(String, String)>,
+}
 
-        let v = serde_json::from_str::<SpecJson>(j_spec).map_err(|e| e.to_string())?;
-
+#[cfg(feature = "serde")]
+impl From<SpecSerializable> for Spec {
+    fn from(v: SpecSerializable) -> Spec {
         let actions = v
             .actions
             .into_iter()
@@ -616,13 +615,14 @@ impl Spec {
             .collect();
         let goto = v.goto.into_iter().map(IndexMap::from_iter).collect();
         let inlines = IndexMap::from_iter(v.inlines);
-        Ok(Spec {
+
+        Spec {
             actions,
             goto,
             start: v.start,
             inlines,
             production_names: v.production_names,
-        })
+        }
     }
 }
 
@@ -689,7 +689,8 @@ fn get_token_kind(token_name: &str) -> Kind {
         ":=" => Assign,
         "-=" => SubAssign,
 
-        "ARGUMENT" => Argument,
+        "PARAMETER" => Parameter,
+        "PARAMETERANDTYPE" => ParameterAndType,
         "SUBSTITUTION" => Substitution,
 
         _ => {

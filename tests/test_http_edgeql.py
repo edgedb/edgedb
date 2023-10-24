@@ -18,6 +18,9 @@
 
 
 import os
+import urllib
+import json
+import decimal
 
 import edgedb
 
@@ -368,3 +371,24 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                 [True],
                 use_http_post=use_http_post,
             )
+
+    def test_http_edgeql_decimal_params_01(self):
+        req_data = b'''{
+            "query": "select <array<decimal>>$test",
+            "variables": {
+                "test": [1234567890123456789.01234567890123456789]
+            }
+        }'''
+
+        req = urllib.request.Request(self.http_addr, method='POST')
+        req.add_header('Content-Type', 'application/json')
+        response = urllib.request.urlopen(
+            req, req_data, context=self.tls_context
+        )
+        resp_data = json.loads(response.read(), parse_float=decimal.Decimal)
+
+        self.assert_data_shape(resp_data, {
+            'data': [
+                [decimal.Decimal('1234567890123456789.01234567890123456789')]
+            ]
+        })

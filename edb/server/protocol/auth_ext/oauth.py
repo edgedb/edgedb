@@ -71,19 +71,21 @@ class Client:
 
     async def handle_callback(
         self, code: str, redirect_uri: str
-    ) -> tuple[data.Identity, str | None, str | None]:
+    ) -> tuple[data.Identity, bool, str | None, str | None]:
         response = await self.provider.exchange_code(code, redirect_uri)
         user_info = await self.provider.fetch_user_info(response)
         auth_token = response.access_token
         refresh_token = response.refresh_token
 
         return (
-            await self._handle_identity(user_info),
+            *(await self._handle_identity(user_info)),
             auth_token,
             refresh_token,
         )
 
-    async def _handle_identity(self, user_info: data.UserInfo) -> data.Identity:
+    async def _handle_identity(
+        self, user_info: data.UserInfo
+    ) -> tuple[data.Identity, bool]:
         """Update or create an identity"""
 
         r = await execute.parse_execute_json(
@@ -92,22 +94,30 @@ class Client:
 with
   iss := <str>$issuer_url,
   sub := <str>$subject,
-
-select (insert ext::auth::Identity {
-  issuer := iss,
-  subject := sub,
-} unless conflict on ((.issuer, .subject)) else (
-  select ext::auth::Identity
-)) { * };""",
+  identity := (
+    insert ext::auth::Identity {
+      issuer := iss,
+      subject := sub,
+    } unless conflict on ((.issuer, .subject))
+      else ext::auth::Identity
+  )
+select {
+  identity := (select identity {*}),
+  new := (identity not in ext::auth::Identity)
+};""",
             variables={
                 "issuer_url": self.provider.issuer_url,
                 "subject": user_info.sub,
             },
+            cached_globally=True,
         )
         result_json = json.loads(r.decode())
         assert len(result_json) == 1
 
-        return data.Identity(**result_json[0])
+        return (
+            data.Identity(**result_json[0]['identity']),
+            result_json[0]['new']
+        )
 
     def _get_provider_config(self, provider_name: str):
         provider_client_config = util.get_config(

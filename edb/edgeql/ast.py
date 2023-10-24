@@ -350,7 +350,7 @@ class TypeIntersection(Base):
 
 
 class Ptr(Base):
-    ptr: ObjectRef
+    name: str
     direction: typing.Optional[str] = None
     type: typing.Optional[str] = None
 
@@ -394,7 +394,9 @@ class IfElse(Expr):
 
 
 class TupleElement(Base):
-    name: ObjectRef
+    # This stores the name in another node instead of as a str just so
+    # that the name can have a separate source context.
+    name: Ptr
     val: Expr
 
 

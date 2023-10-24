@@ -2001,6 +2001,24 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 """
             )
 
+    async def test_edgeql_ddl_default_14(self):
+        await self.con.execute(r"""
+            create type X;
+            insert X;
+        """)
+
+        with self.assertRaisesRegex(
+            edgedb.MissingRequiredError,
+            'missing value for required property',
+        ):
+            await self.con.execute(r"""
+                alter type X {
+                    create required property foo -> str {
+                        set default := (select "!" filter false);
+                    }
+                };
+            """)
+
     async def test_edgeql_ddl_default_circular(self):
         await self.con.execute(r"""
             CREATE TYPE TestDefaultCircular {
@@ -2771,6 +2789,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     set default := '';
                 };
             };
+            # And that aliases don't either
+            create alias Alias := Foo;
         """)
 
         await self.con.execute(r"""
@@ -3240,6 +3260,23 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 [
                     {'m_p': {'1', '2'}},
                     {'m_p': {'3'}},
+                ],
+            )
+
+        # Something simple but forcing it to use assert_exists
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                ALTER TYPE Foo ALTER PROPERTY p {
+                    SET REQUIRED USING (
+                        assert_exists((select '3' filter true)))
+                }
+            """)
+
+            await self.assert_query_result(
+                'SELECT Foo { p } ORDER BY .p',
+                [
+                    {'p': '1'},
+                    {'p': '3'},
                 ],
             )
 
@@ -6080,6 +6117,39 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 create scalar type Age extending int16;
                 create type User {
                     create property age -> range<Age>;
+                };
+            '''
+            )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError, r'unsupported range subtype'
+        ):
+            await self.con.execute(
+                '''
+                create type User {
+                    create property age -> range<schema::Object>;
+                };
+            '''
+            )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError, r'unsupported range subtype'
+        ):
+            await self.con.execute(
+                '''
+                create type User {
+                    create property age -> multirange<int16>;
+                };
+            '''
+            )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError, r'unsupported range subtype'
+        ):
+            await self.con.execute(
+                '''
+                create type User {
+                    create property age -> multirange<schema::Object>;
                 };
             '''
             )
@@ -13379,6 +13449,46 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
         await self._simple_rename_ref_tests(
             """CREATE ALIAS Alias := Note { command := .note ++ "!" };""",
             """DROP ALIAS Alias;""",
+        )
+
+    async def test_edgeql_ddl_rename_ref_rewrites_01(self):
+        await self._simple_rename_ref_tests(
+            """
+                alter type Note create property rtest -> str {
+                    create rewrite update using (.note);
+                };
+            """,
+            """
+                alter type default::Note drop property rtest;
+            """,
+            type_refs=0,
+        )
+
+    async def test_edgeql_ddl_rename_ref_triggers_01(self):
+        await self._simple_rename_ref_tests(
+            """
+                alter type Note {
+                    create trigger log_new after insert, update for each
+                    do (__new__.note);
+                };
+            """,
+            """
+                alter type default::Note drop trigger log_new;
+            """,
+            type_refs=0,
+        )
+
+    async def test_edgeql_ddl_rename_ref_prop_alias_01(self):
+        await self._simple_rename_ref_tests(
+            """
+                alter type Note {
+                    create property lol := (.note);
+                };
+            """,
+            """
+                alter type default::Note drop property lol;
+            """,
+            type_refs=0,
         )
 
     async def test_edgeql_ddl_describe_nested_module_01(self):

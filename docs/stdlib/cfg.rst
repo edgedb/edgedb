@@ -116,15 +116,26 @@ Client connections
 :eql:synopsis:`allow_user_specified_id -> bool`
   Makes it possible to set the ``.id`` property when inserting new objects.
 
-  Enabling this feature introduces some security vulnerabilities:
+  .. warning::
 
-  1. An unprivileged user can discover ids that already exist in the database
-     by trying to insert new values and noting when there is a constraint
-     violation on ``.id`` even if the user doesn't have access to the relevant
-     table.
+      Enabling this feature introduces some security vulnerabilities:
 
-  2. It allows re-using object ids for a different object type, which the
-     application might not expect.
+      1. An unprivileged user can discover ids that already exist in the
+         database by trying to insert new values and noting when there is a
+         constraint violation on ``.id`` even if the user doesn't have access
+         to the relevant table.
+
+      2. It allows re-using object ids for a different object type, which the
+         application might not expect.
+
+      Additionally, enabling can have serious performance implications as, on
+      an ``insert``, every object type must be checked for collisions.
+
+      As a result, we don't recommend enabling this. If you need to preserve
+      UUIDs from an external source on your objects, it's best to create a new
+      property to store these UUIDs. If you will need to filter on this
+      external UUID property, you may add an :ref:`index
+      <ref_datamodel_indexes>` on it.
 
 :eql:synopsis:`session_idle_timeout -> std::duration`
   Sets the timeout for how long client connections can stay inactive

@@ -233,11 +233,12 @@ def new_compiler(
 async def new_compiler_from_pg(con: metaschema.PGConnection) -> Compiler:
     num_patches = await get_patch_count(con)
 
+    std_schema, reflection_schema = await load_std_and_reflection_schema(
+        con, num_patches)
+
     return new_compiler(
-        std_schema=await load_cached_schema(con, num_patches, 'stdschema'),
-        reflection_schema=await load_cached_schema(
-            con, num_patches, 'reflschema'
-        ),
+        std_schema=std_schema,
+        reflection_schema=reflection_schema,
         schema_class_layout=await load_schema_class_layout(
             con, num_patches
         ),
@@ -307,13 +308,14 @@ async def get_patch_count(backend_conn: metaschema.PGConnection) -> int:
     return res
 
 
-async def load_cached_schema(
+async def load_std_and_reflection_schema(
     backend_conn: metaschema.PGConnection,
     patches: int,
-    key: str,
-) -> s_schema.Schema:
+) -> tuple[s_schema.Schema, s_schema.Schema]:
     vkey = pg_patches.get_version_key(patches)
-    key += vkey
+
+    # stdschema and reflschema are combined in one pickle to preserve sharing.
+    key = f"std_and_reflection_schema{vkey}"
     data = await backend_conn.sql_fetch_val(
         b"""
         SELECT bin FROM edgedbinstdata.instdata
@@ -322,20 +324,16 @@ async def load_cached_schema(
         args=[key.encode("utf-8")],
     )
     try:
-        res: s_schema.FlatSchema = pickle.loads(data)
+        std_schema: s_schema.FlatSchema
+        refl_schema: s_schema.FlatSchema
+        std_schema, refl_schema = pickle.loads(data)
         if vkey != pg_patches.get_version_key(len(pg_patches.PATCHES)):
-            res = s_schema.upgrade_schema(res)
-        return res
+            std_schema = s_schema.upgrade_schema(std_schema)
+            refl_schema = s_schema.upgrade_schema(refl_schema)
+        return (std_schema, refl_schema)
     except Exception as e:
         raise RuntimeError(
             'could not load std schema pickle') from e
-
-
-async def load_std_schema(
-    backend_conn: metaschema.PGConnection,
-    patches: int,
-) -> s_schema.Schema:
-    return await load_cached_schema(backend_conn, patches, 'stdschema')
 
 
 async def load_schema_intro_query(

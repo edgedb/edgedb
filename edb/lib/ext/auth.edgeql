@@ -58,6 +58,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property email: str {
             create delegated constraint exclusive;
         };
+        create property verified_at: std::datetime;
     };
 
     create type ext::auth::EmailPasswordFactor
@@ -71,11 +72,11 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
         create property auth_token: std::str {
             create annotation std::description :=
-                "Identity provider's auth token";
+                "Identity provider's auth token.";
         };
         create property refresh_token: std::str {
             create annotation std::description :=
-                "Identity provider's refresh token";
+                "Identity provider's refresh token.";
         };
         create link identity: ext::auth::Identity;
     };
@@ -98,21 +99,28 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             set readonly := true;
             set secret := true;
             create annotation std::description :=
-                "Secret provided by auth provider";
+                "Secret provided by auth provider.";
         };
 
         create required property client_id: std::str {
             set readonly := true;
             create annotation std::description :=
-                "ID for client provided by auth provider";
+                "ID for client provided by auth provider.";
         };
 
         create required property display_name: std::str {
             set readonly := true;
             set protected := true;
+            create annotation std::description :=
+                "Provider name to be displayed in login UI.";
         };
 
-        create property additional_scope: std::str;
+        create property additional_scope: std::str {
+            set readonly := true;
+            create annotation std::description :=
+                "Space-separated list of scopes to be included in the \
+                authorize request to the OAuth provider.";
+        };
     };
 
     create type ext::auth::AppleOAuthProvider
@@ -165,27 +173,65 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             set default := 'builtin::local_emailpassword';
             set protected := true;
         };
+
+        create required property require_verification: std::bool {
+            set default := true;
+        };
     };
 
-    create type ext::auth::UIConfig extending cfg::ConfigObject {
-        create required property redirect_to: std::str;
+    create scalar type ext::auth::FlowType extending std::enum<PKCE, Implicit>;
 
-        create property app_name: std::str;
-        create property logo_url: std::str;
-        create property dark_logo_url: std::str;
-        create property brand_color: std::str;
+    create type ext::auth::UIConfig extending cfg::ConfigObject {
+        create required property redirect_to: std::str {
+            create annotation std::description :=
+                "The url to redirect to after successful sign in.";
+        };
+
+        create property redirect_to_on_signup: std::str {
+            create annotation std::description :=
+                "The url to redirect to after a new user signs up. \
+                If not set, 'redirect_to' will be used instead.";
+        };
+
+        create required property flow_type: ext::auth::FlowType {
+            create annotation std::description :=
+                "The flow used when requesting authentication.";
+            set default := ext::auth::FlowType.PKCE;
+        };
+
+        create property app_name: std::str {
+            create annotation std::description :=
+                "The name of your application to be shown on the login \
+                screen.";
+        };
+
+        create property logo_url: std::str {
+            create annotation std::description :=
+                "A url to an image of your application's logo.";
+        };
+
+        create property dark_logo_url: std::str {
+            create annotation std::description :=
+                "A url to an image of your application's logo to be used \
+                with the dark theme.";
+        };
+
+        create property brand_color: std::str {
+            create annotation std::description :=
+                "The brand color of your application as a hex string.";
+        };
     };
 
     create type ext::auth::AuthConfig extending cfg::ExtensionConfig {
         create multi link providers -> ext::auth::ProviderConfig {
             create annotation std::description :=
-                "Configuration for auth provider clients";
+                "Configuration for auth provider clients.";
         };
 
         create link ui -> ext::auth::UIConfig {
             create annotation std::description :=
                 "Configuration for builtin auth UI. If not set the builtin \
-                UI is disabled";
+                UI is disabled.";
         };
 
         create property auth_signing_key -> std::str {
@@ -201,7 +247,6 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
                 indicates that the token should never expire.";
             set default := <std::duration>'336 hours';
         };
-
     };
 
     create scalar type ext::auth::SMTPSecurity extending enum<PlainText, TLS, STARTTLS, STARTTLSOrPlainText>;

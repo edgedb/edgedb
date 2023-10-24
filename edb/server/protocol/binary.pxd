@@ -100,6 +100,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     cdef dict parse_headers(self)
 
     cdef write_status(self, bytes name, bytes value)
+    cdef write_edgedb_error(self, exc)
 
     cdef write_log(self, EdgeSeverity severity, uint32_t code, str message)
 

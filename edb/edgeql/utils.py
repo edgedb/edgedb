@@ -160,7 +160,7 @@ def find_subject_ptrs(ast: qlast.Base) -> Set[str]:
             continue
 
         if isinstance(p, qlast.Ptr):
-            ptrs.add(p.ptr.name)
+            ptrs.add(p.name)
     return ptrs
 
 
@@ -172,7 +172,7 @@ def subject_paths_substitute(
     for path in find_paths(ast):
         if path.partial and isinstance(path.steps[0], qlast.Ptr):
             path.steps[0] = subject_paths_substitute(
-                subject_ptrs[path.steps[0].ptr.name],
+                subject_ptrs[path.steps[0].name],
                 subject_ptrs,
             )
         elif (
@@ -181,7 +181,7 @@ def subject_paths_substitute(
             and isinstance(path.steps[1], qlast.Ptr)
         ):
             path.steps[0:2] = [subject_paths_substitute(
-                subject_ptrs[path.steps[1].ptr.name],
+                subject_ptrs[path.steps[1].name],
                 subject_ptrs,
             )]
     return ast

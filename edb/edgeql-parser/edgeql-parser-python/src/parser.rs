@@ -1,9 +1,9 @@
-use once_cell::sync::OnceCell;
-
+use cpython::exc::AssertionError;
 use cpython::{
     ObjectProtocol, PyClone, PyInt, PyList, PyNone, PyObject, PyResult, PyString, PyTuple, Python,
     PythonObject, PythonObjectWithCheckedDowncast, ToPyObject,
 };
+use once_cell::sync::OnceCell;
 
 use edgeql_parser::parser;
 
@@ -105,46 +105,59 @@ fn downcast_tokens<'a>(
     Ok(buf)
 }
 
-pub fn cache_spec(py: Python, py_spec: &PyObject) -> PyResult<PyNone> {
+fn get_spec(py: Python) -> Result<&'static (parser::Spec, PyObject), cpython::PyErr> {
+    if let Some(x) = PARSER_SPECS.get() {
+        return Ok(x);
+    } else {
+        return Err(cpython::PyErr::new::<AssertionError, _>(
+            py,
+            ("grammar spec not loaded",),
+        ));
+    }
+}
+
+/// Loads the grammar specification from file and caches it in memory.
+pub fn preload_spec(py: Python, spec_filepath: &PyString) -> PyResult<PyNone> {
     if PARSER_SPECS.get().is_some() {
         return Ok(PyNone);
     }
 
-    let x = load_spec(py, py_spec)?;
-    PARSER_SPECS.set(x).ok();
+    let spec_filepath = spec_filepath.to_string(py)?;
+    let bytes = std::fs::read(spec_filepath.as_ref())
+        .unwrap_or_else(|e| panic!("Cannot read grammar spec from {spec_filepath} ({e})"));
+
+    let spec: parser::Spec = bitcode::deserialize::<parser::SpecSerializable>(&bytes)
+        .unwrap()
+        .into();
+    let productions = load_productions(py, &spec)?;
+
+    let _ = PARSER_SPECS.set((spec, productions));
     Ok(PyNone)
 }
 
-fn get_spec(py: Python<'_>) -> Result<&(parser::Spec, PyObject), cpython::PyErr> {
-    if let Some(x) = PARSER_SPECS.get() {
-        return Ok(x);
-    }
+/// Serialize the grammar specification and write it to a file.
+///
+/// Called from setup.py.
+pub fn save_spec(py: Python, spec_json: &PyString, dst: &PyString) -> PyResult<PyNone> {
+    let spec_json = spec_json.to_string(py).unwrap();
+    let spec: parser::SpecSerializable = serde_json::from_str(&spec_json).unwrap();
+    let spec_bitcode = bitcode::serialize(&spec).unwrap();
 
-    let parsing_mod = py.import("edb.common.parsing")?;
-    let load_parser_spec = parsing_mod.get(py, "load_parser_spec")?;
+    let dst = dst.to_string(py)?.to_string();
 
-    let grammar_name = "edb.edgeql.parser.grammar.start";
-    let grammar_mod = py.import(grammar_name)?;
-    let py_spec = load_parser_spec.call(py, (grammar_mod,), None)?;
-
-    let x = load_spec(py, &py_spec)?;
-
-    PARSER_SPECS.set(x).ok();
-    Ok(PARSER_SPECS.get().unwrap())
+    std::fs::write(dst, spec_bitcode).ok().unwrap();
+    Ok(PyNone)
 }
 
-fn load_spec(py: Python, py_spec: &PyObject) -> PyResult<(parser::Spec, PyObject)> {
-    let spec_to_json = py.import("edb.common.parsing")?.get(py, "spec_to_json")?;
+fn load_productions(py: Python<'_>, spec: &parser::Spec) -> PyResult<PyObject> {
+    let grammar_name = "edb.edgeql.parser.grammar.start";
+    let grammar_mod = py.import(grammar_name)?;
+    let load_productions = py
+        .import("edb.common.parsing")?
+        .get(py, "load_spec_productions")?;
 
-    let res = spec_to_json.call(py, (py_spec,), None)?;
-    let res = PyTuple::downcast_from(py, res)?;
-
-    let spec_json = PyString::downcast_from(py, res.get_item(py, 0))?;
-    let spec_json = spec_json.to_string(py).unwrap();
-    let spec = parser::Spec::from_json(&spec_json).unwrap();
-    let productions = res.get_item(py, 1);
-
-    Ok((spec, productions))
+    let productions = load_productions.call(py, (&spec.production_names, grammar_mod), None)?;
+    Ok(productions)
 }
 
 fn to_py_cst<'a>(cst: &'a parser::CSTNode<'a>, py: Python) -> PyResult<CSTNode> {

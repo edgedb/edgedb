@@ -880,6 +880,7 @@ class TestServerConfig(tb.QueryTestCase):
         )
 
     async def test_server_proto_configure_06(self):
+        con2 = None
         try:
             await self.con.execute('''
                 CONFIGURE SESSION SET singleprop := '42';
@@ -897,6 +898,11 @@ class TestServerConfig(tb.QueryTestCase):
                     '1', '2', '3'
                 ],
             )
+
+            con2 = await self.connect(database=self.con.dbname)
+            await con2.execute('''
+                start transaction
+            ''')
 
             await self.con.execute('''
                 CONFIGURE INSTANCE SET multiprop := {'4', '5'};
@@ -931,6 +937,8 @@ class TestServerConfig(tb.QueryTestCase):
             await self.con.execute('''
                 CONFIGURE INSTANCE RESET multiprop;
             ''')
+            if con2:
+                await con2.aclose()
 
     async def test_server_proto_configure_07(self):
         try:
@@ -1461,10 +1469,10 @@ class TestSeparateCluster(tb.TestCase):
                 *(con.aclose() for con in active_cons)
             )
 
-        self.assertIn(
-            f'\nedgedb_server_client_connections_idle_total ' +
-            f'{float(len(idle_cons))}\n',
-            metrics
+        self.assertRegex(
+            metrics,
+            r'\nedgedb_server_client_connections_idle_total\{.*\} ' +
+            f'{float(len(idle_cons))}\\n',
         )
 
     @unittest.skipIf(
@@ -1485,10 +1493,15 @@ class TestSeparateCluster(tb.TestCase):
 
             await asyncio.sleep(1)
 
-            await conn.recv_match(
+            msg = await conn.recv_match(
                 protocol.ErrorResponse,
                 message='closing the connection due to idling'
             )
+
+            # Resolve error code before comparing for better error messages
+            errcls = errors.EdgeDBError.get_error_class_from_code(
+                msg.error_code)
+            self.assertEqual(errcls, errors.IdleSessionTimeoutError)
 
     async def test_server_config_db_config(self):
         async with tb.start_edgedb_server(
@@ -1718,6 +1731,14 @@ class TestSeparateCluster(tb.TestCase):
                     cur_shared[0]
                 )
 
+                cur_eff = await c1.query_single('''
+                    select assert_single(cfg::Config.effective_io_concurrency)
+                ''')
+                await c1.query(f'''
+                    configure instance set
+                        effective_io_concurrency := {cur_eff}
+                ''')
+
                 await c1.aclose()
                 await c2.aclose()
                 await t1.aclose()
@@ -1783,11 +1804,16 @@ class TestSeparateCluster(tb.TestCase):
                 state=state_msg.state_data,
             )
 
-            await asyncio.wait_for(conn.recv_match(
+            msg = await asyncio.wait_for(conn.recv_match(
                 protocol.ErrorResponse,
                 message='terminating connection due to '
                         'idle-in-transaction timeout'
             ), 8)
+
+            # Resolve error code before comparing for better error messages
+            errcls = errors.EdgeDBError.get_error_class_from_code(
+                msg.error_code)
+            self.assertEqual(errcls, errors.IdleTransactionTimeoutError)
 
             with self.assertRaises((
                 edgedb.ClientConnectionFailedTemporarilyError,
@@ -1800,10 +1826,10 @@ class TestSeparateCluster(tb.TestCase):
             data = sd.fetch_metrics()
 
             # Postgres: ERROR_IDLE_IN_TRANSACTION_TIMEOUT=25P03
-            self.assertIn(
-                '\nedgedb_server_backend_connections_aborted_total' +
-                '{pgcode="25P03"} 1.0\n',
-                data
+            self.assertRegex(
+                data,
+                r'\nedgedb_server_backend_connections_aborted_total' +
+                r'\{.*pgcode="25P03"\} 1.0\n',
             )
 
     async def test_server_config_query_timeout(self):
