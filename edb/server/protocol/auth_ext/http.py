@@ -35,7 +35,7 @@ import aiosmtplib
 from jwcrypto import jwk, jwt
 
 from edb import errors as edb_errors
-from edb.common import debug
+from edb.common import debug, value_dispatch
 from edb.common import markup
 from edb.ir import statypes
 from edb.server import tenant as edbtenant
@@ -72,64 +72,8 @@ class Router:
             else None
         )
 
-        handler_args = (request, response)
         try:
-            match args:
-                # API routes
-                case ("authorize",):
-                    return await self.handle_authorize(*handler_args)
-                case ("callback",):
-                    return await self.handle_callback(*handler_args)
-                case ("token",):
-                    return await self.handle_token(*handler_args)
-                case ("register",):
-                    return await self.handle_register(*handler_args)
-                case ("authenticate",):
-                    return await self.handle_authenticate(*handler_args)
-                case ("verify",):
-                    return await self.handle_verify(*handler_args)
-                case ("resend-verification-email",):
-                    return await self.handle_resend_verification_email(
-                        *handler_args
-                    )
-                case ('send_reset_email',):
-                    return await self.handle_send_reset_email(*handler_args)
-                case ('reset_password',):
-                    return await self.handle_reset_password(*handler_args)
-
-                # UI routes
-                case ('ui', 'signin'):
-                    return await self.handle_ui_signin(*handler_args)
-                case ('ui', 'signup'):
-                    return await self.handle_ui_signup(*handler_args)
-                case ('ui', 'forgot-password'):
-                    return await self.handle_ui_forgot_password(*handler_args)
-                case ('ui', 'reset-password'):
-                    return await self.handle_ui_reset_password(*handler_args)
-                case ("ui", "verify"):
-                    return await self.handle_ui_verify(*handler_args)
-                case ("ui", "resend-verification"):
-                    return await self.handle_ui_resend_verification(
-                        *handler_args
-                    )
-                case ('ui', '_static', filename):
-                    filepath = os.path.join(
-                        os.path.dirname(__file__), '_static', filename
-                    )
-                    try:
-                        with open(filepath, 'rb') as f:
-                            response.status = http.HTTPStatus.OK
-                            response.content_type = (
-                                mimetypes.guess_type(filename)[0]
-                                or 'application/octet-stream'
-                            ).encode()
-                            response.body = f.read()
-                    except FileNotFoundError:
-                        response.status = http.HTTPStatus.NOT_FOUND
-
-                case _:
-                    raise errors.NotFound("Unknown auth endpoint")
-
+            return await self.handle(args, request, response)
         except errors.NotFound as ex:
             _fail_with_error(
                 response=response,
@@ -189,6 +133,28 @@ class Router:
                 ex_type=edb_errors.InternalServerError,
             )
 
+    @value_dispatch.value_dispatch
+    async def handle(self, args: list[str], request: Any, response: Any):
+        match args:
+            case ('ui', '_static', filename):
+                filepath = os.path.join(
+                    os.path.dirname(__file__), '_static', filename
+                )
+                try:
+                    with open(filepath, 'rb') as f:
+                        response.status = http.HTTPStatus.OK
+                        response.content_type = (
+                            mimetypes.guess_type(filename)[0]
+                            or 'application/octet-stream'
+                        ).encode()
+                        response.body = f.read()
+                except FileNotFoundError:
+                    response.status = http.HTTPStatus.NOT_FOUND
+
+            case _:
+                raise errors.NotFound("Unknown auth endpoint")
+
+    @handle.register(("authorize",))
     async def handle_authorize(self, request: Any, response: Any):
         query = urllib.parse.parse_qs(
             request.url.query.decode("ascii") if request.url.query else ""
@@ -212,6 +178,7 @@ class Router:
         response.status = http.HTTPStatus.FOUND
         response.custom_headers["Location"] = authorize_url
 
+    @handle.register(("callback",))
     async def handle_callback(self, request: Any, response: Any):
         if request.method == b"POST" and (
             request.content_type == b"application/x-www-form-urlencoded"
@@ -313,6 +280,7 @@ class Router:
         response.custom_headers["Location"] = new_url
         _set_cookie(response, "edgedb-session", session_token)
 
+    @handle.register(("token",))
     async def handle_token(self, request: Any, response: Any):
         query = urllib.parse.parse_qs(
             request.url.query.decode("ascii") if request.url.query else ""
@@ -359,6 +327,7 @@ class Router:
         else:
             response.status = http.HTTPStatus.FORBIDDEN
 
+    @handle.register(("register",))
     async def handle_register(self, request: Any, response: Any):
         data = self._get_data_from_request(request)
 
@@ -434,6 +403,7 @@ class Router:
             else:
                 raise ex
 
+    @handle.register(("authenticate",))
     async def handle_authenticate(self, request: Any, response: Any):
         data = self._get_data_from_request(request)
 
@@ -498,6 +468,7 @@ class Router:
             else:
                 raise ex
 
+    @handle.register(("verify",))
     async def handle_verify(self, request: Any, response: Any):
         data = self._get_data_from_request(request)
 
@@ -553,6 +524,7 @@ class Router:
             case (_, _):
                 response.status = http.HTTPStatus.NO_CONTENT
 
+    @handle.register(("resend-verification-email",))
     async def handle_resend_verification_email(
         self, request: Any, response: Any
     ):
@@ -582,6 +554,7 @@ class Router:
 
         response.status = http.HTTPStatus.OK
 
+    @handle.register(("send_reset_email",))
     async def handle_send_reset_email(self, request: Any, response: Any):
         data = self._get_data_from_request(request)
 
@@ -649,6 +622,7 @@ class Router:
             else:
                 raise ex
 
+    @handle.register(("reset_password",))
     async def handle_reset_password(self, request: Any, response: Any):
         data = self._get_data_from_request(request)
 
@@ -702,6 +676,7 @@ class Router:
             else:
                 raise ex
 
+    @handle.register(("ui", "signin"))
     async def handle_ui_signin(self, request: Any, response: Any):
         ui_config = self._get_ui_config()
 
@@ -749,6 +724,7 @@ class Router:
                 brand_color=ui_config.brand_color,
             )
 
+    @handle.register(("ui", "signup"))
     async def handle_ui_signup(self, request: Any, response: Any):
         ui_config = self._get_ui_config()
         if ui_config is None:
@@ -797,6 +773,7 @@ class Router:
                 brand_color=ui_config.brand_color,
             )
 
+    @handle.register(("ui", "forgot-password"))
     async def handle_ui_forgot_password(self, request: Any, response: Any):
         ui_config = self._get_ui_config()
         password_provider = (
@@ -829,6 +806,7 @@ class Router:
                 brand_color=ui_config.brand_color,
             )
 
+    @handle.register(("ui", "reset-password"))
     async def handle_ui_reset_password(self, request: Any, response: Any):
         ui_config = self._get_ui_config()
         password_provider = (
@@ -884,6 +862,7 @@ class Router:
                 brand_color=ui_config.brand_color,
             )
 
+    @handle.register(("ui", "verify"))
     async def handle_ui_verify(self, request: Any, response: Any):
         error_messages: list[str] = []
         ui_config = self._get_ui_config()
@@ -989,6 +968,7 @@ class Router:
             brand_color=ui_config.brand_color,
         )
 
+    @handle.register(("ui", "resend-verification"))
     async def handle_ui_resend_verification(self, request: Any, response: Any):
         query = urllib.parse.parse_qs(
             request.url.query.decode("ascii") if request.url.query else ""
@@ -1016,14 +996,17 @@ class Router:
             email = await local_client.get_email_by_identity_id(
                 identity_id=identity_id
             )
-            await self._send_verification_email(
-                provider=password_provider.name,
-                identity_id=identity_id,
-                to_addr=email,
-                verify_url=f"{self.base_path}/ui/verify",
-                maybe_challenge=maybe_challenge,
-                maybe_redirect_to=maybe_redirect_to,
-            )
+            if email is None:
+                await auth_emails.send_fake_email(self.tenant)
+            else:
+                await self._send_verification_email(
+                    provider=password_provider.name,
+                    identity_id=identity_id,
+                    to_addr=email,
+                    verify_url=f"{self.base_path}/ui/verify",
+                    maybe_challenge=maybe_challenge,
+                    maybe_redirect_to=maybe_redirect_to,
+                )
         except Exception:
             is_valid = False
 
@@ -1229,17 +1212,22 @@ class Router:
                 )
 
     def _get_ui_config(self):
-        return cast(config.UIConfig, util.maybe_get_config(
-            self.db, "ext::auth::AuthConfig::ui",
-            CompositeConfigType
-        ))
+        return cast(
+            config.UIConfig,
+            util.maybe_get_config(
+                self.db, "ext::auth::AuthConfig::ui", CompositeConfigType
+            ),
+        )
 
     def _get_password_provider(self):
-        providers = cast(list[config.ProviderConfig], util.get_config(
-            self.db,
-            "ext::auth::AuthConfig::providers",
-            frozenset,
-        ))
+        providers = cast(
+            list[config.ProviderConfig],
+            util.get_config(
+                self.db,
+                "ext::auth::AuthConfig::providers",
+                frozenset,
+            ),
+        )
         password_providers = [
             p for p in providers if (p.name == 'builtin::local_emailpassword')
         ]
