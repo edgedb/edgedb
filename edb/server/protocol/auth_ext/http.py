@@ -372,6 +372,7 @@ class Router:
             db=self.db, provider_name=register_provider_name
         )
         require_verification = local_client.provider.config.require_verification
+        pkce_code: Optional[str] = None
 
         try:
             identity = await local_client.register(data)
@@ -416,6 +417,8 @@ class Router:
                         {"verification_email_sent_at": (now_iso8601)}
                     ).encode()
                 else:
+                    if pkce_code is None:
+                        raise errors.PKCECreationFailed
                     response.body = json.dumps({"code": pkce_code}).encode()
         except Exception as ex:
             redirect_on_failure = data.get(
@@ -884,11 +887,17 @@ class Router:
     async def handle_ui_verify(self, request: Any, response: Any):
         error_messages: list[str] = []
         ui_config = self._get_ui_config()
+        if ui_config is None:
+            response.status = http.HTTPStatus.NOT_FOUND
+            response.body = b'Auth UI not enabled'
+            return
+
         password_provider = (
             self._get_password_provider() if ui_config is not None else None
         )
         is_valid = True
         maybe_pkce_code: str | None = None
+        redirect_to = ui_config.redirect_to_on_signup or ui_config.redirect_to
 
         if password_provider is None:
             response.status = http.HTTPStatus.NOT_FOUND

@@ -193,3 +193,22 @@ class VerificationRequired(AuthExtError):
 
     def __str__(self) -> str:
         return self.description
+
+
+class PKCECreationFailed(AuthExtError):
+    """Failed to create a valid PKCEChallenge object"""
+
+    def __init__(
+        self, description: str = "Failed to create a valid PKCEChallenge object"
+    ):
+        self.description = description
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"description={self.description!r}"
+            ")"
+        )
+
+    def __str__(self) -> str:
+        return self.description
