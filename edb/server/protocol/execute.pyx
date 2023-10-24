@@ -25,8 +25,10 @@ from typing import (
 import asyncio
 import decimal
 import json
+import logging
 
 import immutables
+from jwcrypto import jwt
 
 from edb import errors
 from edb.common import debug
@@ -45,6 +47,8 @@ from edb.server.pgproto.pgproto cimport WriteBuffer
 from edb.server.pgcon cimport pgcon
 from edb.server.pgcon import errors as pgerror
 
+
+cdef object logger = logging.getLogger('edb.server')
 
 cdef object FMT_NONE = compiler.OutputFormat.NONE
 
@@ -710,3 +714,121 @@ def interpret_simple_error(
             exc = static_exc
 
     return _check_for_ise(exc)
+
+
+# JWT auth stuff that is shraed between protocols
+def extract_token_from_auth_data(auth_data):
+    header_value = auth_data.decode("ascii")
+    scheme, _, prefixed_token = header_value.partition(" ")
+    if scheme.lower() != "bearer":
+        raise errors.AuthenticationError(
+            'authentication failed: unrecognized authentication scheme')
+
+    return prefixed_token.strip()
+
+
+def auth_jwt(tenant, prefixed_token, user, dbname: str):
+    if not prefixed_token:
+        raise errors.AuthenticationError(
+            'authentication failed: no authorization data provided')
+
+    token_version = 0
+    for prefix in ["nbwt1_", "nbwt_", "edbt1_", "edbt_"]:
+        encoded_token = prefixed_token.removeprefix(prefix)
+        if encoded_token != prefixed_token:
+            if prefix == "nbwt1_" or prefix == "edbt1_":
+                token_version = 1
+            break
+    else:
+        raise errors.AuthenticationError(
+            'authentication failed: malformed JWT')
+
+    role = tenant.get_roles().get(user)
+    if role is None:
+        raise errors.AuthenticationError('authentication failed')
+
+    skey = tenant.server.get_jws_key()
+
+    try:
+        token = jwt.JWT(
+            key=skey,
+            algs=["RS256", "ES256"],
+            jwt=encoded_token,
+        )
+    except jwt.JWException as e:
+        logger.debug('authentication failure', exc_info=True)
+        raise errors.AuthenticationError(
+            f'authentication failed: {e.args[0]}'
+        ) from None
+    except Exception as e:
+        logger.debug('authentication failure', exc_info=True)
+        raise errors.AuthenticationError(
+            f'authentication failed: cannot decode JWT'
+        ) from None
+
+    try:
+        claims = json.loads(token.claims)
+    except Exception as e:
+        raise errors.AuthenticationError(
+            f'authentication failed: malformed claims section in JWT'
+        ) from None
+
+    _check_jwt_authz(
+        tenant, claims, token_version, user, dbname)
+
+
+def _check_jwt_authz(tenant, claims, token_version, user, dbname: str):
+    # Check general key validity (e.g. whether it's a revoked key)
+    tenant.check_jwt(claims)
+
+    token_instances = None
+    token_roles = None
+    token_databases = None
+
+    if token_version == 1:
+        token_roles = _get_jwt_edb_scope(claims, "edb.r")
+        token_instances = _get_jwt_edb_scope(claims, "edb.i")
+        token_databases = _get_jwt_edb_scope(claims, "edb.d")
+    else:
+        namespace = "edgedb.server"
+        if not claims.get(f"{namespace}.any_role"):
+            token_roles = claims.get(f"{namespace}.roles")
+            if not isinstance(token_roles, list):
+                raise errors.AuthenticationError(
+                    f'authentication failed: malformed claims section in'
+                    f' JWT: expected a list in "{namespace}.roles"'
+                )
+
+    if (
+        token_instances is not None
+        and tenant.get_instance_name() not in token_instances
+    ):
+        raise errors.AuthenticationError(
+            'authentication failed: secret key does not authorize '
+            f'access to this instance')
+
+    if (
+        token_databases is not None
+        and dbname not in token_databases
+    ):
+        raise errors.AuthenticationError(
+            'authentication failed: secret key does not authorize '
+            f'access to database "{dbname}"')
+
+    if token_roles is not None and user not in token_roles:
+        raise errors.AuthenticationError(
+            'authentication failed: secret key does not authorize '
+            f'access in role "{user}"')
+
+
+def _get_jwt_edb_scope(claims, claim):
+    if not claims.get(f"{claim}.all"):
+        scope = claims.get(claim, [])
+        if not isinstance(scope, list):
+            raise errors.AuthenticationError(
+                f'authentication failed: malformed claims section in'
+                f' JWT: expected a list in "{claim}"'
+            )
+        return frozenset(scope)
+    else:
+        return None
