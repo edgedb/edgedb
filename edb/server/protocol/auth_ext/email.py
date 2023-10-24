@@ -89,6 +89,12 @@ async def send_verification_email(
     )
     await _protected_send(coro, tenant)
 
+async def send_fake_email(tenant: tenant.Tenant):
+    async def noop_coroutine():
+        pass
+    coro = noop_coroutine()
+    await _protected_send(coro, tenant)
+
 
 async def _protected_send(
     coro: Coroutine[Any, Any, None], tenant: tenant.Tenant

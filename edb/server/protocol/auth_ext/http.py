@@ -508,18 +508,16 @@ class Router:
                         identity_id
                     )
                     if email is None:
-                        raise errors.NoIdentityFound(
-                            f"Could not find email for identity {identity_id}"
+                        await auth_emails.send_fake_email(self.tenant)
+                    else:
+                        await self._send_verification_email(
+                            provider=data["provider"],
+                            identity_id=identity_id,
+                            to_addr=email,
+                            verify_url=f"{self.base_path}/verify",
+                            maybe_challenge=maybe_challenge,
+                            maybe_redirect_to=maybe_redirect_to,
                         )
-
-                    await self._send_verification_email(
-                        provider=data["provider"],
-                        identity_id=identity_id,
-                        to_addr=email,
-                        verify_url=f"{self.base_path}/verify",
-                        maybe_challenge=maybe_challenge,
-                        maybe_redirect_to=maybe_redirect_to,
-                    )
 
                     response.status = http.HTTPStatus.OK
 
@@ -532,25 +530,28 @@ class Router:
                     )
 
                     try:
-                        identity, secret = (
-                            await local_client.get_identity_and_secret(data))
+                        try:
+                            identity, secret = (
+                                await local_client.get_identity_and_secret(data))
 
-                        new_reset_token = self._make_secret_token(
-                            identity.id, secret
-                        )
+                            new_reset_token = self._make_secret_token(
+                                identity.id, secret
+                            )
 
-                        reset_token_params = urllib.parse.urlencode({
-                            "reset_token": new_reset_token
-                        })
-                        reset_url = f"{data['reset_url']}?{reset_token_params}"
+                            reset_token_params = urllib.parse.urlencode({
+                                "reset_token": new_reset_token
+                            })
+                            reset_url = f"{data['reset_url']}?{reset_token_params}"
 
-                        await auth_emails.send_password_reset_email(
-                            db=self.db,
-                            tenant=self.tenant,
-                            to_addr=data["email"],
-                            reset_url=reset_url,
-                            test_mode=self.test_mode,
-                        )
+                            await auth_emails.send_password_reset_email(
+                                db=self.db,
+                                tenant=self.tenant,
+                                to_addr=data["email"],
+                                reset_url=reset_url,
+                                test_mode=self.test_mode,
+                            )
+                        except errors.NoIdentityFound:
+                            await auth_emails.send_fake_email(self.tenant)
 
                         return_data = (
                             {
