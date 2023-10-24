@@ -121,6 +121,9 @@ class CustomSNI_HTTPSConnection(http.client.HTTPSConnection):
         self.sock = self._context.wrap_socket(self.sock,
                                               server_hostname=server_hostname)
 
+    def true_close(self):
+        self.close()
+
 
 class StubbornHttpConnection(CustomSNI_HTTPSConnection):
 
@@ -772,10 +775,14 @@ class ClusterTestCase(BaseHTTPTestCase):
 
     @classmethod
     @contextlib.contextmanager
-    def http_con(cls, server=None):
+    def http_con(cls, server=None, keep_alive=True, server_hostname=None):
         if server is None:
             server = cls
-        with super().http_con(server) as http_con:
+        with super().http_con(
+            server,
+            keep_alive=keep_alive,
+            server_hostname=server_hostname,
+        ) as http_con:
             yield http_con
 
     @property

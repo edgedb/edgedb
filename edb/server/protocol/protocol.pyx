@@ -37,16 +37,19 @@ from edb.common import markup
 from edb.graphql import extension as graphql_ext
 
 from edb.server import args as srvargs
+from edb.server import config
 from edb.server.protocol cimport binary
 from edb.server.protocol import binary
 from edb.server.protocol import pg_ext
 from edb.server import defines as edbdef
+from edb.server.dbview cimport dbview
 # Without an explicit cimport of `pgproto.debug`, we
 # can't cimport `protocol.binary` for some reason.
 from edb.server.pgproto.debug cimport PG_DEBUG
 
 from . import auth
 from . import edgeql_ext
+from . import execute
 from . import metrics
 from . import server_info
 from . import notebook_ext
@@ -588,6 +591,10 @@ cdef class HttpProtocol:
                 else:
                     args = path_parts[3:]
 
+                if extname != 'auth':
+                    if not self._check_http_auth(request, response, dbname):
+                        return
+
                 db = self.tenant.maybe_get_db(dbname=dbname)
                 if db is None:
                     return self._not_found(request, response)
@@ -705,6 +712,35 @@ cdef class HttpProtocol:
         response.body = message.encode("utf-8")
         response.status = http.HTTPStatus.BAD_REQUEST
         response.close_connection = True
+
+    def _check_http_auth(
+        self,
+        HttpRequest request,
+        HttpResponse response,
+        str dbname,
+    ):
+        dbindex: dbview.DatabaseIndex = self.tenant._dbindex
+        if not config.lookup(
+            'require_http_endpoint_auth',
+            dbindex.get_sys_config(),
+            spec=dbindex._sys_config_spec,
+        ):
+            return True
+
+        try:
+            prefixed_token = execute.extract_token_from_auth_data(
+                request.authorization)
+            execute.auth_jwt(self.tenant, prefixed_token, 'edgedb', dbname)
+        except Exception as ex:
+            if debug.flags.server:
+                markup.dump(ex)
+
+            response.body = str(ex).encode()
+            response.status = http.HTTPStatus.BAD_REQUEST
+            response.close_connection = True
+            return False
+
+        return True
 
 
 def get_request_url(request, is_tls):

@@ -237,6 +237,20 @@ class TestServerAuth(tb.ConnectedTestCase):
             await self.con.execute(
                 f'CREATE SUPERUSER ROLE myrole_{"x" * s_def.MAX_NAME_LENGTH};')
 
+    async def _jwt_http_request(self, server, sk, db='edgedb', proto='edgeql'):
+        with self.http_con(server, keep_alive=False) as con:
+            return self.http_con_request(
+                con,
+                path=f'/db/{db}/{proto}',
+                # ... the graphql ones will produce an error, but that's
+                # still a 200
+                params=dict(query='select 1'),
+                headers=dict(Authorization=f'bearer {sk}'),
+            )
+
+    def _jwt_gql_request(self, server, sk):
+        return self._jwt_http_request(server, sk, proto='graphql')
+
     @unittest.skipIf(
         "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
         "cannot use CONFIGURE INSTANCE in multi-tenant mode",
@@ -253,6 +267,17 @@ class TestServerAuth(tb.ConnectedTestCase):
             default_auth_method=args.ServerAuthMethod.JWT,
             extra_args=["--instance-name=localtest"],
         ) as sd:
+            base_sk = secretkey.generate_secret_key(jwk)
+            conn = await sd.connect(secret_key=base_sk)
+            await conn.execute('''
+                CONFIGURE INSTANCE set require_http_endpoint_auth := true;
+            ''')
+            await conn.execute('''
+                CREATE EXTENSION edgeql_http;
+                CREATE EXTENSION graphql;
+            ''')
+            await conn.aclose()
+
             # bad secret keys
             with self.assertRaisesRegex(
                 edgedb.AuthenticationError,
@@ -269,6 +294,23 @@ class TestServerAuth(tb.ConnectedTestCase):
             ):
                 await sd.connect(secret_key=corrupt_sk)
 
+            body, _, code = await self._jwt_http_request(sd, corrupt_sk)
+            self.assertEqual(code, 400, f"Wrong result: {body}")
+            body, _, code = await self._jwt_gql_request(sd, corrupt_sk)
+            self.assertEqual(code, 400, f"Wrong result: {body}")
+
+            # Try to mess up the *signature* part of it
+            wrong_sk = sk[:-20] + ("1" if sk[-20] == "0" else "0") + sk[-20:]
+            with self.assertRaisesRegex(
+                edgedb.AuthenticationError,
+                'authentication failed: Verification failed',
+            ):
+                await sd.connect(secret_key=wrong_sk)
+
+            body, _, code = await self._jwt_http_request(
+                sd, corrupt_sk, db='non_existant')
+            self.assertEqual(code, 400, f"Wrong result: {body}")
+
             good_keys = [
                 [],
                 [("roles", ["edgedb"])],
@@ -282,6 +324,11 @@ class TestServerAuth(tb.ConnectedTestCase):
                     sk = secretkey.generate_secret_key(jwk, **params_dict)
                     conn = await sd.connect(secret_key=sk)
                     await conn.aclose()
+
+                    body, _, code = await self._jwt_http_request(sd, sk)
+                    self.assertEqual(code, 200, f"Wrong result: {body}")
+                    body, _, code = await self._jwt_gql_request(sd, sk)
+                    self.assertEqual(code, 200, f"Wrong result: {body}")
 
             bad_keys = {
                 (("roles", ("bad-role",)),):
@@ -304,6 +351,11 @@ class TestServerAuth(tb.ConnectedTestCase):
                         "authentication failed: " + msg,
                     ):
                         await sd.connect(secret_key=sk)
+
+                    body, _, code = await self._jwt_http_request(sd, sk)
+                    self.assertEqual(code, 400, f"Wrong result: {body}")
+                    body, _, code = await self._jwt_gql_request(sd, sk)
+                    self.assertEqual(code, 400, f"Wrong result: {body}")
 
     @unittest.skipIf(
         "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,

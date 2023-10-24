@@ -139,6 +139,13 @@ ALTER TYPE cfg::AbstractConfig {
         CREATE ANNOTATION cfg::system := 'true';
     };
 
+    CREATE PROPERTY require_http_endpoint_auth -> std::bool {
+        SET default := false;
+        CREATE ANNOTATION cfg::system := 'true';
+        CREATE ANNOTATION std::description :=
+            'Whether to require JWT authentication for HTTP endpoints.';
+    };
+
     CREATE PROPERTY allow_dml_in_functions -> std::bool {
         SET default := false;
         CREATE ANNOTATION cfg::affects_compilation := 'true';
