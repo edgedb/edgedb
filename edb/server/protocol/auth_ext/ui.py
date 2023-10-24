@@ -104,7 +104,7 @@ def render_login_page(
         brand_color=brand_color,
         cleanup_search_params=['error', 'email'],
         content=f'''
-    <form method="POST" action="../authenticate" novalidate>
+    <form class="container" method="POST" action="../authenticate" novalidate>
       <h1>{f'<span>Sign in to</span> {html.escape(app_name)}'
            if app_name else '<span>Sign in</span>'}</h1>
 
@@ -212,7 +212,7 @@ def render_signup_page(
         brand_color=brand_color,
         cleanup_search_params=['error', 'email'],
         content=f'''
-    <form method="POST" action="../register" novalidate>
+    <form class="container" method="POST" action="../register" novalidate>
       <h1>{f'<span>Sign up to</span> {html.escape(app_name)}'
            if app_name else '<span>Sign up</span>'}</h1>
 
@@ -300,7 +300,7 @@ def render_forgot_password_page(
         brand_color=brand_color,
         cleanup_search_params=['error', 'email', 'email_sent'],
         content=f'''
-    <form method="POST" action="../send_reset_email">
+    <form class="container" method="POST" action="../send_reset_email">
       <h1>{f'<span>Reset password for</span> {html.escape(app_name)}'
            if app_name else '<span>Reset password</span>'}</h1>
 
@@ -356,7 +356,7 @@ def render_reset_password_page(
         brand_color=brand_color,
         cleanup_search_params=['error'],
         content=f'''
-    <form method="POST" action="../reset_password">
+    <form class="container" method="POST" action="../reset_password">
       <h1>{f'<span>Reset password for</span> {html.escape(app_name)}'
            if app_name else '<span>Reset password</span>'}</h1>
 
@@ -406,10 +406,12 @@ def render_email_verification_page(
         brand_color=brand_color,
         cleanup_search_params=['error'],
         content=f'''
+    <div class="container">
       <h1>{f'<span>Verify email for</span> {html.escape(app_name)}'
            if app_name else '<span>Verify email</span>'}</h1>
 
-      {content}'''
+      {content}
+    </form>''',
     )
 
 
@@ -419,15 +421,18 @@ def render_email_verification_expired_page(
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
-    brand_color: Optional[str] = None
+    brand_color: Optional[str] = None,
 ):
     verification_token = html.escape(verification_token)
-    content = f'''
-    Your verification token has expired.
-    <a href="resend-verification?verification_token={verification_token}">
-        Click here to resend the verification email
-    </a>
-    '''
+    content = _render_error_message(
+        f'''
+        Your verification token has expired.
+        <a href="resend-verification?verification_token={verification_token}">
+            Click here to resend the verification email
+        </a>
+        ''',
+        False,
+    )
 
     return _render_base_page(
         title=f'Verification expired{f" for {app_name}" if app_name else ""}',
@@ -436,10 +441,12 @@ def render_email_verification_expired_page(
         brand_color=brand_color,
         cleanup_search_params=['error'],
         content=f'''
+    <div class="container">
       <h1>{f'<span>Verification expired for</span> {html.escape(app_name)}'
            if app_name else '<span>Verification expired</span>'}</h1>
 
-      {content}'''
+      {content}
+    </div>''',
     )
 
 
@@ -451,13 +458,16 @@ def render_resend_verification_done_page(
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
-    brand_color: Optional[str] = None
+    brand_color: Optional[str] = None,
 ):
     if verification_token is None:
-        content = f"""
-        Missing verification token, please follow the link provided in the
-        original email, or on the signin page.
-        """
+        content = _render_error_message(
+            f"""
+            Missing verification token, please follow the link provided in the
+            original email, or on the signin page.
+            """,
+            False,
+        )
     else:
         verification_token = html.escape(verification_token)
         if is_valid:
@@ -478,10 +488,12 @@ def render_resend_verification_done_page(
         brand_color=brand_color,
         cleanup_search_params=['error'],
         content=f'''
+    <div class="container">
       <h1>{f'<span>Email verification resent for</span> {html.escape(app_name)}'
            if app_name else '<span>Email verification resent</span>'}</h1>
 
-      {content}'''
+      {content}
+    </div>''',
     )
 
 
