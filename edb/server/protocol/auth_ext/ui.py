@@ -306,7 +306,7 @@ def render_forgot_password_page(
         brand_color=brand_color,
         cleanup_search_params=['error', 'email', 'email_sent'],
         content=f'''
-    <form class="container" method="POST" action="../send_reset_email">
+    <form class="container" method="POST" action="../send-reset-email">
       <h1>{f'<span>Reset password for</span> {html.escape(app_name)}'
            if app_name else '<span>Reset password</span>'}</h1>
 
