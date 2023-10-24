@@ -13,8 +13,9 @@
         echo branch="${branch}" >> $GITHUB_OUTPUT
       id: whichver
 
-<% for tgt in targets.linux %>
-<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<%- for tgt in targets.linux %>
+<%- set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+
   build-<< tgt.name >>:
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
     needs: prep
@@ -34,21 +35,23 @@
         <%- if subdist != "nightly" %>
         BUILD_IS_RELEASE: "true"
         <%- endif %>
-<% if tgt.family == "generic" %>
+        <%- if tgt.family == "generic" %>
         BUILD_GENERIC: true
-<% endif %>
-<% if tgt.platform_libc %>
+        <%- endif %>
+        <%- if tgt.platform_libc %>
         PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
-<% endif %>
+        <%- endif %>
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
-<% endfor %>
-<% for tgt in targets.macos %>
-<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<%- endfor %>
+
+<%- for tgt in targets.macos %>
+<%- set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+
   build-<< tgt.name >>:
     runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
     needs: prep
@@ -88,9 +91,9 @@
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_PLATFORM_ARCH: "<< tgt.platform_arch if tgt.platform_arch else '' >>"
         METAPKG_GIT_CACHE: disabled
-<% if tgt.family == "generic" %>
+        <%- if tgt.family == "generic" %>
         BUILD_GENERIC: true
-<% endif %>
+        <%- endif %>
       run: |
         edgedb-pkg/integration/macos/build.sh
 
@@ -98,9 +101,11 @@
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
-<% endfor %>
-<% for tgt in targets.linux %>
-<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<%- endfor %>
+
+<%- for tgt in targets.linux %>
+<%- set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+
   test-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
@@ -123,10 +128,11 @@
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: << 0 if tgt.runs_on and 'self-hosted' in tgt.runs_on else 1 >>
+<%- endfor %>
 
-<% endfor %>
-<% for tgt in targets.macos %>
-<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<%- for tgt in targets.macos %>
+<%- set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+
   test-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
     runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
@@ -152,8 +158,9 @@
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
       run: |
         edgedb-pkg/integration/macos/test.sh
-<% endfor %>
-<% if publish_all %>
+<%- endfor %>
+
+<%- if publish_all %>
   collect:
     needs:
     <%- for tgt in targets.linux + targets.macos %>
@@ -162,10 +169,12 @@
     runs-on: ubuntu-latest
     steps:
       - run: echo 'All build+tests passed, ready to publish now!'
-<% endif %>
-<% for tgt in targets.linux %>
-<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
-<% for publish in publications %>
+<%- endif %>
+
+<%- for tgt in targets.linux %>
+<%- set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<%- for publish in publications %>
+
   publish<< publish.suffix>>-<< tgt.name >>:
     needs: [<% if publish_all %>collect<% else %>test-<< tgt.name >><% endif %>]
     runs-on: ubuntu-latest
@@ -180,9 +189,11 @@
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         <%- if subdist != "" %>
-        PKG_SUBDIST: "<< subdist >>"<%- endif %>
+        PKG_SUBDIST: "<< subdist >>"
+        <%- endif %>
         <%- if publish.server != "" %>
-        PACKAGE_SERVER: << publish.server >><%- endif %>
+        PACKAGE_SERVER: << publish.server >>
+        <%- endif %>
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
@@ -209,9 +220,11 @@
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         <%- if subdist != "" %>
-        PKG_SUBDIST: "<< subdist >>"<%- endif %>
+        PKG_SUBDIST: "<< subdist >>"
+        <%- endif %>
         <%- if publish.server != "" %>
-        PACKAGE_SERVER: << publish.server >><%- endif %>
+        PACKAGE_SERVER: << publish.server >>
+        <%- endif %>
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -221,10 +234,13 @@
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-<% endfor %>
-<% endfor %>
-<% for tgt in targets.macos %>
-<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<%- endfor %>
+<%- endfor %>
+
+<%- if publications %>
+<%- for tgt in targets.macos %>
+<%- set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+
   publish-<< tgt.name >>:
     needs: [<% if publish_all %>collect<% else %>test-<< tgt.name >><% endif %>]
     runs-on: ubuntu-latest
@@ -256,15 +272,18 @@
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-<% endfor %>
-<% set docker_tgts = targets.linux | selectattr("docker_arch") | list %>
-<% if docker_tgts %>
-<% set pub_outputs = "needs.check-published-" + (docker_tgts|first)["name"] + ".outputs" %>
+<%- endfor %>
+<%- endif %>
+
+<%- set docker_tgts = targets.linux | selectattr("docker_arch") | list %>
+<%- if docker_tgts and publications %>
+<%- set pub_outputs = "needs.check-published-" + (docker_tgts|first)["name"] + ".outputs" %>
+
   publish-docker:
     needs:
-      <% for tgt in docker_tgts %>
+      <%- for tgt in docker_tgts %>
       - check-published-<< tgt.name >>
-      <% endfor %>
+      <%- endfor %>
     runs-on: ubuntu-latest
 
     steps:
@@ -350,7 +369,7 @@
         workdir: dockerfile
         buildargs: version=${{ << pub_outputs >>.version-slot }},exact_version=${{ << pub_outputs >>.version-core }}<% if subdist != "" %>,subdist=<< subdist >><% endif %>
         platforms: << docker_tgts|map(attribute="docker_arch")|join(",") >>
-<% endif %>
+<%- endif %>
 
   workflow-notifications:
     if: failure() && github.event_name != 'pull_request'
@@ -377,7 +396,9 @@
       - publish<< publish.suffix>>-<< tgt.name >>
     <%- endfor %>
     <%- endfor %>
+    <%- if docker_tgts and publications %>
       - publish-docker
+    <%- endif %>
     runs-on: ubuntu-latest
     permissions:
       actions: 'read'
