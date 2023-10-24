@@ -46,7 +46,7 @@ def render_login_page(
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
-    brand_color: Optional[str] = None
+    brand_color: Optional[str] = None,
 ):
     password_provider = None
     for p in providers:
@@ -55,8 +55,7 @@ def render_login_page(
             break
 
     oauth_providers = [
-        p for p in providers
-        if p.name.startswith('builtin::oauth_')
+        p for p in providers if p.name.startswith('builtin::oauth_')
     ]
 
     oauth_params = {
@@ -68,8 +67,9 @@ def render_login_page(
         oauth_params['redirect_to_on_signup'] = redirect_to_on_signup
 
     oauth_label = "Sign in with" if password_provider else "Continue with"
-    oauth_buttons = '\n'.join([
-        f'''
+    oauth_buttons = '\n'.join(
+        [
+            f'''
         <a href="../authorize?{urllib.parse.urlencode({
             'provider': p.name,
             **oauth_params
@@ -80,10 +80,12 @@ def render_login_page(
         ) if p.name in known_oauth_provider_names else ''}
         <span>{oauth_label} {p.display_name}</span>
         </a>'''
-        for p in oauth_providers
-    ])
+            for p in oauth_providers
+        ]
+    )
 
-    forgot_link_script = f'''<script>
+    forgot_link_script = (
+        f'''<script>
         const forgotLink = document.getElementById("forgot-password-link");
         const emailInput = document.getElementById("email");
 
@@ -95,7 +97,10 @@ def render_login_page(
         forgotLink.href = `forgot-password?email=${{
         encodeURIComponent(emailInput.value)
         }}`
-        </script>''' if password_provider is not None else ''
+        </script>'''
+        if password_provider is not None
+        else ''
+    )
 
     return _render_base_page(
         title=f'Sign in{f" to {app_name}" if app_name else ""}',
@@ -155,7 +160,7 @@ def render_login_page(
       </div>""" if password_provider is not None else ''
     }
     </form>
-    {forgot_link_script}'''
+    {forgot_link_script}''',
     )
 
 
@@ -171,7 +176,7 @@ def render_signup_page(
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
-    brand_color: Optional[str] = None
+    brand_color: Optional[str] = None,
 ):
     password_provider = None
     for p in providers:
@@ -180,8 +185,7 @@ def render_signup_page(
             break
 
     oauth_providers = [
-        p for p in providers
-        if p.name.startswith('builtin::oauth_')
+        p for p in providers if p.name.startswith('builtin::oauth_')
     ]
 
     oauth_params = {
@@ -191,8 +195,9 @@ def render_signup_page(
     }
 
     oauth_label = "Sign up with" if password_provider else "Continue with"
-    oauth_buttons = '\n'.join([
-        f'''
+    oauth_buttons = '\n'.join(
+        [
+            f'''
         <a href="../authorize?{urllib.parse.urlencode({
             'provider': p.name,
             **oauth_params
@@ -203,8 +208,9 @@ def render_signup_page(
         ) if p.name in known_oauth_provider_names else ''}
         <span>{oauth_label} {p.display_name}</span>
         </a>'''
-        for p in oauth_providers
-    ])
+            for p in oauth_providers
+        ]
+    )
     return _render_base_page(
         title=f'Sign up{f" to {app_name}" if app_name else ""}',
         logo_url=logo_url,
@@ -255,7 +261,7 @@ def render_signup_page(
       </div>
       </div>""" if password_provider is not None else ''
     }
-    </form>'''
+    </form>''',
     )
 
 
@@ -270,7 +276,7 @@ def render_forgot_password_page(
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
-    brand_color: Optional[str] = None
+    brand_color: Optional[str] = None,
 ):
     if email_sent is not None:
         content = _render_success_message(
@@ -310,7 +316,7 @@ def render_forgot_password_page(
         Back to
         <a href="signin">Sign In</a>
       </div>
-    </form>'''
+    </form>''',
     )
 
 
@@ -326,13 +332,13 @@ def render_reset_password_page(
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
-    brand_color: Optional[str] = None
+    brand_color: Optional[str] = None,
 ):
     if not is_valid:
         content = _render_error_message(
             f'''Reset token is invalid, it may have expired.
             <a href="forgot-password">Try sending another reset email</a>''',
-            False
+            False,
         )
     else:
         content = f'''
@@ -361,7 +367,7 @@ def render_reset_password_page(
            if app_name else '<span>Reset password</span>'}</h1>
 
       {content}
-    </form>'''
+    </form>''',
     )
 
 
@@ -374,7 +380,7 @@ def render_email_verification_page(
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
-    brand_color: Optional[str] = None
+    brand_color: Optional[str] = None,
 ):
     resend_url = None
     if verification_token:
@@ -386,13 +392,11 @@ def render_email_verification_page(
         messages = ''.join(
             [_render_error_message(error) for error in error_messages]
         )
-        content = (
-            f'''
+        content = f'''
             {messages}
             {f'<a href="{resend_url}">Try sending another reset email</a>'
              if resend_url else ''}
             '''
-        )
     else:
         content = '''
         Email has been successfully verified. You may now
@@ -509,15 +513,20 @@ def _render_base_page(
     dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = None,
 ):
-    logo = f'''
+    logo = (
+        f'''
       <picture class="brand-logo">
         {'<source srcset="'+html.escape(dark_logo_url)+
           '" media="(prefers-color-scheme: dark)" />'
           if dark_logo_url else ''}
         <img src="{html.escape(logo_url)}" />
-      </picture>''' if logo_url else ''
+      </picture>'''
+        if logo_url
+        else ''
+    )
 
-    cleanup_script = f'''<script>
+    cleanup_script = (
+        f'''<script>
       const params = ["{'", "'.join(cleanup_search_params)}"];
       const url = new URL(location);
       if (params.some((p) => url.searchParams.has(p))) {{
@@ -526,7 +535,10 @@ def _render_base_page(
         }}
         history.replaceState(null, '', url);
       }}
-    </script>''' if len(cleanup_search_params) > 0 else ''
+    </script>'''
+        if len(cleanup_search_params) > 0
+        else ''
+    )
 
     if brand_color is None or hex_color_regexp.fullmatch(brand_color) is None:
         brand_color = '1f8aed'
@@ -550,7 +562,8 @@ def _render_base_page(
 
 
 def _render_error_message(error_message: Optional[str], escape: bool = True):
-    return (f'''
+    return (
+        f'''
         <div class="error-message">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="20"
           viewBox="0 0 24 20" fill="none">
@@ -570,7 +583,9 @@ def _render_error_message(error_message: Optional[str], escape: bool = True):
         </svg>
         <span>{html.escape(error_message) if escape else error_message}</span>
         </div>'''
-            if error_message else '')
+        if error_message
+        else ''
+    )
 
 
 def _render_success_message(success_message: str):
@@ -754,15 +769,23 @@ def rgb_to_hsl(r: float, g: float, b: float) -> tuple[float, float, float]:
     l = max(r, g, b)
     s = l - min(r, g, b)
     h = (
-        ((g - b) / s) if l == r else
-        (2 + (b - r) / s) if l == g else
-        (4 + (r - g) / s)
-    ) if s != 0 else 0
+        (
+            ((g - b) / s)
+            if l == r
+            else (2 + (b - r) / s)
+            if l == g
+            else (4 + (r - g) / s)
+        )
+        if s != 0
+        else 0
+    )
     return (
         60 * h + 360 if 60 * h < 0 else 60 * h,
-        100 * (
+        100
+        * (
             (s / (2 * l - s) if l <= 0.5 else s / (2 - (2 * l - s)))
-            if s != 0 else 0
+            if s != 0
+            else 0
         ),
         (100 * (2 * l - s)) / 2,
     )
