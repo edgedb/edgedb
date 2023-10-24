@@ -930,14 +930,10 @@ class Router:
                         identity_id=identity_id,
                     )
                 except errors.VerificationTokenExpired:
-                    local_client = local.Client(self.db, password_provider.name)
-                    email = await local_client.get_email_by_identity_id(
-                        identity_id=identity_id
-                    )
                     response.status = http.HTTPStatus.OK
                     response.content_type = b"text/html"
                     response.body = ui.render_email_verification_expired_page(
-                        verification_token=(maybe_verification_token),
+                        verification_token=maybe_verification_token,
                         app_name=ui_config.app_name,
                         logo_url=ui_config.logo_url,
                         dark_logo_url=ui_config.dark_logo_url,
