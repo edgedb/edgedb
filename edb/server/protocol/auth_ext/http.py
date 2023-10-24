@@ -48,6 +48,8 @@ logger = logging.getLogger('edb.server')
 
 
 class Router:
+    test_url: Optional[str]
+
     def __init__(self, *, db: Any, base_path: str, tenant: edbtenant.Tenant):
         self.db = db
         self.base_path = base_path
@@ -60,7 +62,7 @@ class Router:
         if self.db.db_config is None:
             await self.db.introspection()
 
-        test_url = (
+        self.test_url = (
             request.params[b'oauth-test-server'].decode()
             if (
                 self.test_mode
@@ -70,995 +72,49 @@ class Router:
             else None
         )
 
+        handler_args = (request, response)
         try:
             match args:
+                # API routes
                 case ("authorize",):
-                    query = urllib.parse.parse_qs(
-                        request.url.query.decode("ascii")
-                        if request.url.query
-                        else ""
-                    )
-                    provider_name = _get_search_param(query, "provider")
-                    redirect_to = _get_search_param(query, "redirect_to")
-                    redirect_to_on_signup = _maybe_get_search_param(
-                        query, "redirect_to_on_signup"
-                    )
-                    challenge = _get_search_param(query, "challenge")
-                    oauth_client = oauth.Client(
-                        db=self.db,
-                        provider_name=provider_name,
-                        base_url=test_url
-                    )
-                    await pkce.create(self.db, challenge)
-                    authorize_url = await oauth_client.get_authorize_url(
-                        redirect_uri=self._get_callback_url(),
-                        state=self._make_state_claims(
-                            provider_name, redirect_to,
-                            redirect_to_on_signup, challenge
-                        ),
-                    )
-                    response.status = http.HTTPStatus.FOUND
-                    response.custom_headers["Location"] = authorize_url
-
+                    return await self.handle_authorize(*handler_args)
                 case ("callback",):
-                    if request.method == b"POST" and (
-                        request.content_type
-                        == b"application/x-www-form-urlencoded"
-                    ):
-                        form_data = urllib.parse.parse_qs(request.body.decode())
-                        state = _maybe_get_form_field(form_data, "state")
-                        code = _maybe_get_form_field(form_data, "code")
-
-                        error = _maybe_get_form_field(form_data, "error")
-                        error_description = _maybe_get_form_field(
-                            form_data, "error_description"
-                        )
-                    elif request.url.query is not None:
-                        query = urllib.parse.parse_qs(
-                            request.url.query.decode("ascii")
-                            if request.url.query
-                            else ""
-                        )
-                        state = _maybe_get_search_param(query, "state")
-                        code = _maybe_get_search_param(query, "code")
-                        error = _maybe_get_search_param(query, "error")
-                        error_description = _maybe_get_search_param(
-                            query, "error_description"
-                        )
-                    else:
-                        raise errors.OAuthProviderFailure(
-                            "Provider did not respond with expected data"
-                        )
-
-                    if state is None:
-                        raise errors.InvalidData(
-                            "Provider did not include the 'state' parameter in "
-                            "callback"
-                        )
-
-                    if error is not None:
-                        try:
-                            claims = self._verify_and_extract_claims(state)
-                            redirect_to = cast(str, claims["redirect_to"])
-                        except Exception:
-                            raise errors.InvalidData("Invalid state token")
-
-                        params = {
-                            "error": error,
-                        }
-                        if error_description is not None:
-                            params["error_description"] = error_description
-                        response.custom_headers[
-                            "Location"
-                        ] = f"{redirect_to}?{urllib.parse.urlencode(params)}"
-                        response.status = http.HTTPStatus.FOUND
-                        return
-
-                    if code is None:
-                        raise errors.InvalidData(
-                            "Provider did not include the 'code' parameter in "
-                            "callback"
-                        )
-
-                    try:
-                        claims = self._verify_and_extract_claims(state)
-                        provider_name = cast(str, claims["provider"])
-                        redirect_to = cast(str, claims["redirect_to"])
-                        redirect_to_on_signup = cast(
-                            Optional[str], claims.get("redirect_to_on_signup")
-                        )
-                        challenge = cast(str, claims["challenge"])
-                    except Exception:
-                        raise errors.InvalidData("Invalid state token")
-                    oauth_client = oauth.Client(
-                        db=self.db,
-                        provider_name=provider_name,
-                        base_url=test_url,
-                    )
-                    (
-                        identity,
-                        new_identity,
-                        auth_token,
-                        refresh_token,
-                    ) = await oauth_client.handle_callback(
-                        code, self._get_callback_url()
-                    )
-                    pkce_code = await pkce.link_identity_challenge(
-                        self.db, identity.id, challenge
-                    )
-                    if auth_token or refresh_token:
-                        await pkce.add_provider_tokens(
-                            self.db,
-                            id=pkce_code,
-                            auth_token=auth_token,
-                            refresh_token=refresh_token,
-                        )
-                    parsed_url = urllib.parse.urlparse(
-                        (redirect_to_on_signup or redirect_to)
-                        if new_identity else redirect_to
-                    )
-                    query_params = urllib.parse.parse_qs(parsed_url.query)
-                    query_params["code"] = [pkce_code]
-                    new_query = urllib.parse.urlencode(query_params, doseq=True)
-                    new_url = parsed_url._replace(query=new_query).geturl()
-
-                    session_token = self._make_session_token(identity.id)
-                    response.status = http.HTTPStatus.FOUND
-                    response.custom_headers["Location"] = new_url
-                    _set_cookie(response, "edgedb-session", session_token)
-
+                    return await self.handle_callback(*handler_args)
                 case ("token",):
-                    query = urllib.parse.parse_qs(
-                        request.url.query.decode("ascii")
-                        if request.url.query
-                        else ""
-                    )
-                    code = _get_search_param(query, "code")
-                    verifier = _get_search_param(query, "verifier")
-
-                    verifier_size = len(verifier)
-
-                    if verifier_size < 43:
-                        raise errors.InvalidData(
-                            "Verifier must be at least 43 characters long"
-                        )
-                    if verifier_size > 128:
-                        raise errors.InvalidData(
-                            "Verifier must be shorter than 128 "
-                            "characters long"
-                        )
-                    try:
-                        pkce_object = await pkce.get_by_id(self.db, code)
-                    except Exception:
-                        raise errors.NoIdentityFound(
-                            "Could not find a matching PKCE code"
-                        )
-
-                    if pkce_object.identity_id is None:
-                        raise errors.InvalidData(
-                            "Code is not associated with an Identity"
-                        )
-
-                    hashed_verifier = hashlib.sha256(verifier.encode()).digest()
-                    base64_url_encoded_verifier = base64.urlsafe_b64encode(
-                        hashed_verifier
-                    ).rstrip(b'=')
-
-                    if (
-                        base64_url_encoded_verifier.decode()
-                        == pkce_object.challenge
-                    ):
-                        await pkce.delete(self.db, code)
-                        session_token = self._make_session_token(
-                            pkce_object.identity_id
-                        )
-                        response.status = http.HTTPStatus.OK
-                        response.content_type = b"application/json"
-                        response.body = json.dumps(
-                            {
-                                "auth_token": session_token,
-                                "identity_id": pkce_object.identity_id,
-                                "provider_token": pkce_object.auth_token,
-                                "provider_refresh_token": (
-                                    pkce_object.refresh_token
-                                ),
-                            }
-                        ).encode()
-                    else:
-                        response.status = http.HTTPStatus.FORBIDDEN
-
+                    return await self.handle_token(*handler_args)
                 case ("register",):
-                    data = self._get_data_from_request(request)
-
-                    maybe_redirect_to = data.get("redirect_to")
-                    maybe_challenge = data.get("challenge")
-                    register_provider_name = data.get("provider")
-                    if register_provider_name is None:
-                        raise errors.InvalidData(
-                            'Missing "provider" in register request'
-                        )
-
-                    local_client = local.Client(
-                        db=self.db, provider_name=register_provider_name
-                    )
-                    require_verification = (
-                        local_client.provider.config.require_verification
-                    )
-
-                    try:
-                        identity = await local_client.register(data)
-                        if not require_verification:
-                            if maybe_challenge is None:
-                                raise errors.InvalidData(
-                                    'Missing "challenge" in register request'
-                                )
-                            await pkce.create(self.db, maybe_challenge)
-                            pkce_code = await pkce.link_identity_challenge(
-                                self.db, identity.id, maybe_challenge
-                            )
-
-                        await self._send_verification_email(
-                            provider=register_provider_name,
-                            identity_id=identity.id,
-                            to_addr=data["email"],
-                            verify_url=data.get(
-                                "verify_url", f"{self.base_path}/ui/verify"
-                            ),
-                            maybe_challenge=maybe_challenge,
-                            maybe_redirect_to=maybe_redirect_to,
-                        )
-
-                        now_iso8601 = datetime.datetime.now(
-                            datetime.timezone.utc
-                        ).isoformat()
-                        if maybe_redirect_to is not None:
-                            response.status = http.HTTPStatus.FOUND
-                            redirect_params = urllib.parse.urlencode(
-                                {"verification_email_sent_at": now_iso8601}
-                                if require_verification
-                                else {"code": pkce_code}
-                            )
-                            redirect_url = (
-                                f"{maybe_redirect_to}?{redirect_params}"
-                            )
-                            response.custom_headers["Location"] = redirect_url
-                        else:
-                            response.status = http.HTTPStatus.CREATED
-                            response.content_type = b"application/json"
-                            if require_verification:
-                                response.body = json.dumps(
-                                    {
-                                        "verification_email_sent_at": (
-                                            now_iso8601
-                                        )
-                                    }
-                                ).encode()
-                            else:
-                                response.body = json.dumps(
-                                    {
-                                        "code": pkce_code
-                                    }
-                                ).encode()
-                    except Exception as ex:
-                        redirect_on_failure = data.get(
-                            "redirect_on_failure", maybe_redirect_to
-                        )
-                        if redirect_on_failure is not None:
-                            response.status = http.HTTPStatus.FOUND
-                            redirect_params = urllib.parse.urlencode(
-                                {
-                                    "error": str(ex),
-                                    "email": data.get('email', '')
-                                }
-                            )
-                            redirect_url = (
-                                f"{redirect_on_failure}?{redirect_params}"
-                            )
-                            response.custom_headers["Location"] = redirect_url
-                        else:
-                            raise ex
-
+                    return await self.handle_register(*handler_args)
                 case ("authenticate",):
-                    data = self._get_data_from_request(request)
-
-                    authenticate_provider_name = data.get("provider")
-                    if authenticate_provider_name is None:
-                        raise errors.InvalidData(
-                            'Missing "provider" in register request'
-                        )
-                    maybe_challenge = data.get("challenge")
-                    if maybe_challenge is None:
-                        raise errors.InvalidData(
-                            'Missing "challenge" in register request'
-                        )
-                    await pkce.create(self.db, maybe_challenge)
-
-                    local_client = local.Client(
-                        db=self.db, provider_name=authenticate_provider_name
-                    )
-                    try:
-                        local_identity = await local_client.authenticate(data)
-                        verified_at = (
-                            await local_client.get_verified_by_identity_id(
-                                identity_id=local_identity.id
-                            )
-                        )
-                        if (
-                            local_client.provider.config.require_verification
-                            and verified_at is None
-                        ):
-                            raise errors.VerificationRequired()
-
-                        pkce_code = await pkce.link_identity_challenge(
-                            self.db, local_identity.id, maybe_challenge
-                        )
-                        session_token = self._make_session_token(
-                            local_identity.id
-                        )
-                        _set_cookie(response, "edgedb-session", session_token)
-                        if data.get("redirect_to") is not None:
-                            response.status = http.HTTPStatus.FOUND
-                            redirect_params = urllib.parse.urlencode(
-                                {
-                                    "code": pkce_code,
-                                }
-                            )
-                            redirect_url = (
-                                f"{data['redirect_to']}?{redirect_params}"
-                            )
-                            response.custom_headers["Location"] = redirect_url
-                        else:
-                            response.status = http.HTTPStatus.OK
-                            response.content_type = b"application/json"
-                            response.body = json.dumps(
-                                {
-                                    "code": pkce_code,
-                                }
-                            ).encode()
-                    except Exception as ex:
-                        redirect_on_failure = data.get(
-                            "redirect_on_failure", data.get("redirect_to")
-                        )
-                        if redirect_on_failure is not None:
-                            response.status = http.HTTPStatus.FOUND
-                            redirect_params = urllib.parse.urlencode(
-                                {
-                                    "error": str(ex),
-                                    "email": data.get('email', ''),
-                                }
-                            )
-                            redirect_url = (
-                                f"{redirect_on_failure}?{redirect_params}"
-                            )
-                            response.custom_headers["Location"] = redirect_url
-                        else:
-                            raise ex
-
+                    return await self.handle_authenticate(*handler_args)
                 case ("verify",):
-                    data = self._get_data_from_request(request)
-
-                    _check_keyset(data, {"verification_token", "provider"})
-
-                    (
-                        identity_id,
-                        issued_at,
-                        maybe_challenge,
-                        maybe_redirect_to
-                    ) = self._get_data_from_verification_token(
-                        data["verification_token"]
-                    )
-
-                    try:
-                        await self._try_verify_email(
-                            provider=data["provider"],
-                            issued_at=issued_at,
-                            identity_id=identity_id,
-                        )
-                    except errors.VerificationTokenExpired:
-                        response.status = http.HTTPStatus.FORBIDDEN
-                        response.content_type = b"application/json"
-                        response.body = json.dumps({
-                            "message": (
-                                "The 'iat' claim in verification token is older"
-                                " than 24 hours"
-                            )
-                        }).encode()
-                        return
-
-                    match (maybe_challenge, maybe_redirect_to):
-                        case (str(challenge), str(redirect_to)):
-                            await pkce.create(self.db, challenge)
-                            code = await pkce.link_identity_challenge(
-                                self.db, identity_id, challenge
-                            )
-                            response.status = http.HTTPStatus.FOUND
-                            response.custom_headers["Location"] = (
-                                _with_appended_qs(redirect_to, {"code": [code]})
-                            )
-                        case (str(challenge), _):
-                            await pkce.create(self.db, challenge)
-                            code = await pkce.link_identity_challenge(
-                                self.db, identity_id, challenge
-                            )
-                            response.status = http.HTTPStatus.OK
-                            response.content_type = b"application/json"
-                            response.body = json.dumps({"code": code}).encode()
-                        case (_, str(redirect_to)):
-                            response.status = http.HTTPStatus.FOUND
-                            response.custom_headers["Location"] = redirect_to
-                        case (_, _):
-                            response.status = http.HTTPStatus.NO_CONTENT
-
+                    return await self.handle_verify(*handler_args)
                 case ("resend-verification-email",):
-                    data = self._get_data_from_request(request)
-
-                    _check_keyset(data, {"verification_token", "provider"})
-                    (
-                        identity_id,
-                        _,
-                        maybe_challenge,
-                        maybe_redirect_to
-                    ) = self._get_data_from_verification_token(
-                        data["verification_token"]
+                    return await self.handle_resend_verification_email(
+                        *handler_args
                     )
-
-                    local_client = local.Client(
-                        db=self.db, provider_name=data["provider"]
-                    )
-                    email = await local_client.get_email_by_identity_id(
-                        identity_id
-                    )
-                    if email is None:
-                        await auth_emails.send_fake_email(self.tenant)
-                    else:
-                        await self._send_verification_email(
-                            provider=data["provider"],
-                            identity_id=identity_id,
-                            to_addr=email,
-                            verify_url=f"{self.base_path}/verify",
-                            maybe_challenge=maybe_challenge,
-                            maybe_redirect_to=maybe_redirect_to,
-                        )
-
-                    response.status = http.HTTPStatus.OK
-
-                case ('send_reset_email', ):
-                    data = self._get_data_from_request(request)
-
-                    _check_keyset(data, {"provider", "reset_url"})
-                    local_client = local.Client(
-                        db=self.db, provider_name=data["provider"]
-                    )
-
-                    try:
-                        try:
-                            identity, secret = (
-                                await local_client.get_identity_and_secret(data)
-                            )
-
-                            new_reset_token = self._make_secret_token(
-                                identity.id, secret
-                            )
-
-                            reset_token_params = urllib.parse.urlencode({
-                                "reset_token": new_reset_token
-                            })
-                            reset_url = (
-                                f"{data['reset_url']}?{reset_token_params}"
-                            )
-
-                            await auth_emails.send_password_reset_email(
-                                db=self.db,
-                                tenant=self.tenant,
-                                to_addr=data["email"],
-                                reset_url=reset_url,
-                                test_mode=self.test_mode,
-                            )
-                        except errors.NoIdentityFound:
-                            await auth_emails.send_fake_email(self.tenant)
-
-                        return_data = (
-                            {
-                                "email_sent": data.get('email'),
-                            }
-                        )
-
-                        if data.get("redirect_to") is not None:
-                            response.status = http.HTTPStatus.FOUND
-                            redirect_params = urllib.parse.urlencode(
-                                return_data
-                            )
-                            redirect_url = (
-                                f"{data['redirect_to']}?{redirect_params}"
-                            )
-                            response.custom_headers["Location"] = redirect_url
-                        else:
-                            response.status = http.HTTPStatus.OK
-                            response.content_type = b"application/json"
-                            response.body = json.dumps(
-                                return_data
-                            ).encode()
-                    except aiosmtplib.SMTPException as ex:
-                        if not debug.flags.server:
-                            logger.warning(
-                                "Failed to send emails via SMTP", exc_info=True
-                            )
-                        raise edb_errors.InternalServerError(
-                            "Failed to send the email, please try again later."
-                        ) from ex
-
-                    except Exception as ex:
-                        redirect_on_failure = data.get(
-                            "redirect_on_failure", data.get("redirect_to")
-                        )
-                        if redirect_on_failure is not None:
-                            response.status = http.HTTPStatus.FOUND
-                            redirect_params = urllib.parse.urlencode(
-                                {
-                                    "error": str(ex),
-                                    "email": data.get('email', ''),
-                                }
-                            )
-                            redirect_url = (
-                                f"{redirect_on_failure}?{redirect_params}"
-                            )
-                            response.custom_headers["Location"] = redirect_url
-                        else:
-                            raise ex
-
+                case ('send_reset_email',):
+                    return await self.handle_send_reset_email(*handler_args)
                 case ('reset_password',):
-                    data = self._get_data_from_request(request)
+                    return await self.handle_reset_password(*handler_args)
 
-                    _check_keyset(data, {"provider", "reset_token"})
-                    local_client = local.Client(
-                        db=self.db, provider_name=data["provider"]
-                    )
-
-                    try:
-                        reset_token = data['reset_token']
-
-                        identity_id, secret = (
-                            self._get_data_from_reset_token(reset_token)
-                        )
-
-                        identity = await local_client.update_password(
-                            identity_id, secret, data
-                        )
-
-                        session_token = self._make_session_token(identity.id)
-                        _set_cookie(response, "edgedb-session", session_token)
-                        if data.get("redirect_to") is not None:
-                            response.status = http.HTTPStatus.FOUND
-                            redirect_params = urllib.parse.urlencode(
-                                {
-                                    "identity_id": identity.id,
-                                    "auth_token": session_token,
-                                }
-                            )
-                            redirect_url = (
-                                f"{data['redirect_to']}?{redirect_params}"
-                            )
-                            response.custom_headers["Location"] = redirect_url
-                        else:
-                            response.status = http.HTTPStatus.OK
-                            response.content_type = b"application/json"
-                            response.body = json.dumps(
-                                {
-                                    "identity_id": identity.id,
-                                    "auth_token": session_token,
-                                }
-                            ).encode()
-                    except Exception as ex:
-                        redirect_on_failure = data.get(
-                            "redirect_on_failure", data.get("redirect_to")
-                        )
-                        if redirect_on_failure is not None:
-                            response.status = http.HTTPStatus.FOUND
-                            redirect_params = urllib.parse.urlencode(
-                                {
-                                    "error": str(ex),
-                                    "reset_token": data.get('reset_token', ''),
-                                }
-                            )
-                            redirect_url = (
-                                f"{redirect_on_failure}?{redirect_params}"
-                            )
-                            response.custom_headers["Location"] = redirect_url
-                        else:
-                            raise ex
-
+                # UI routes
                 case ('ui', 'signin'):
-                    ui_config = self._get_ui_config()
-
-                    if ui_config is None:
-                        response.status = http.HTTPStatus.NOT_FOUND
-                        response.body = b'Auth UI not enabled'
-                    else:
-                        providers = util.maybe_get_config(
-                            self.db,
-                            "ext::auth::AuthConfig::providers",
-                            frozenset
-                        )
-                        if providers is None or len(providers) == 0:
-                            raise errors.MissingConfiguration(
-                                'ext::auth::AuthConfig::providers',
-                                'No providers are configured'
-                            )
-
-                        query = urllib.parse.parse_qs(
-                            request.url.query.decode("ascii")
-                            if request.url.query
-                            else ""
-                        )
-
-                        maybe_challenge = _get_pkce_challenge(
-                            response=response,
-                            cookies=request.cookies,
-                            query_dict=query,
-                        )
-                        if maybe_challenge is None:
-                            raise errors.InvalidData(
-                                'Missing "challenge" in register request'
-                            )
-
-                        response.status = http.HTTPStatus.OK
-                        response.content_type = b'text/html'
-                        response.body = ui.render_login_page(
-                            base_path=self.base_path,
-                            providers=providers,
-                            redirect_to=ui_config.redirect_to,
-                            error_message=_maybe_get_search_param(
-                                query, 'error'
-                            ),
-                            email=_maybe_get_search_param(query, 'email'),
-                            challenge=maybe_challenge,
-                            app_name=ui_config.app_name,
-                            logo_url=ui_config.logo_url,
-                            dark_logo_url=ui_config.dark_logo_url,
-                            brand_color=ui_config.brand_color,
-                        )
-
+                    return await self.handle_ui_signin(*handler_args)
                 case ('ui', 'signup'):
-                    ui_config = self._get_ui_config()
-                    if ui_config is None:
-                        response.status = http.HTTPStatus.NOT_FOUND
-                        response.body = b'Auth UI not enabled'
-                    else:
-                        providers = util.maybe_get_config(
-                            self.db,
-                            "ext::auth::AuthConfig::providers",
-                            frozenset
-                        )
-                        if providers is None or len(providers) == 0:
-                            raise errors.MissingConfiguration(
-                                'ext::auth::AuthConfig::providers',
-                                'No providers are configured'
-                            )
-
-                        query = urllib.parse.parse_qs(
-                            request.url.query.decode("ascii")
-                            if request.url.query
-                            else ""
-                        )
-
-                        maybe_challenge = _get_pkce_challenge(
-                            response=response,
-                            cookies=request.cookies,
-                            query_dict=query,
-                        )
-                        if maybe_challenge is None:
-                            raise errors.InvalidData(
-                                'Missing "challenge" in register request'
-                            )
-
-                        response.status = http.HTTPStatus.OK
-                        response.content_type = b'text/html'
-                        response.body = ui.render_signup_page(
-                            base_path=self.base_path,
-                            providers=providers,
-                            redirect_to=(
-                                ui_config.redirect_to_on_signup
-                                or ui_config.redirect_to
-                            ),
-                            error_message=_maybe_get_search_param(
-                                query, 'error'
-                            ),
-                            email=_maybe_get_search_param(query, 'email'),
-                            challenge=maybe_challenge,
-                            app_name=ui_config.app_name,
-                            logo_url=ui_config.logo_url,
-                            dark_logo_url=ui_config.dark_logo_url,
-                            brand_color=ui_config.brand_color,
-                        )
-
+                    return await self.handle_ui_signup(*handler_args)
                 case ('ui', 'forgot-password'):
-                    ui_config = self._get_ui_config()
-                    password_provider = (
-                        self._get_password_provider()
-                        if ui_config is not None
-                        else None
-                    )
-
-                    if ui_config is None or password_provider is None:
-                        response.status = http.HTTPStatus.NOT_FOUND
-                        response.body = (
-                            b'Password provider not configured'
-                            if ui_config else b'Auth UI not enabled'
-                        )
-                    else:
-                        query = urllib.parse.parse_qs(
-                            request.url.query.decode("ascii")
-                            if request.url.query
-                            else ""
-                        )
-
-                        response.status = http.HTTPStatus.OK
-                        response.content_type = b'text/html'
-                        response.body = ui.render_forgot_password_page(
-                            base_path=self.base_path,
-                            provider_name=password_provider.name,
-                            error_message=_maybe_get_search_param(
-                                query, 'error'
-                            ),
-                            email=_maybe_get_search_param(query, 'email'),
-                            email_sent=_maybe_get_search_param(
-                                query, 'email_sent'
-                            ),
-                            app_name=ui_config.app_name,
-                            logo_url=ui_config.logo_url,
-                            dark_logo_url=ui_config.dark_logo_url,
-                            brand_color=ui_config.brand_color,
-                        )
-
+                    return await self.handle_ui_forgot_password(*handler_args)
                 case ('ui', 'reset-password'):
-                    ui_config = self._get_ui_config()
-                    password_provider = (
-                        self._get_password_provider()
-                        if ui_config is not None
-                        else None
-                    )
-
-                    if ui_config is None or password_provider is None:
-                        response.status = http.HTTPStatus.NOT_FOUND
-                        response.body = (
-                            b'Password provider not configured'
-                            if ui_config else b'Auth UI not enabled'
-                        )
-                    else:
-                        query = urllib.parse.parse_qs(
-                            request.url.query.decode("ascii")
-                            if request.url.query
-                            else ""
-                        )
-
-                        reset_token = _maybe_get_search_param(
-                            query, 'reset_token')
-
-                        if reset_token is not None:
-                            try:
-                                identity_id, secret = (
-                                    self._get_data_from_reset_token(
-                                        reset_token
-                                    )
-                                )
-
-                                local_client = local.Client(
-                                    db=self.db,
-                                    provider_name=password_provider.name
-                                )
-
-                                is_valid = await (
-                                    local_client.validate_reset_secret(
-                                        identity_id, secret
-                                    )
-                                )
-                            except Exception:
-                                is_valid = False
-                        else:
-                            is_valid = False
-
-                        response.status = http.HTTPStatus.OK
-                        response.content_type = b'text/html'
-                        response.body = ui.render_reset_password_page(
-                            base_path=self.base_path,
-                            provider_name=password_provider.name,
-                            is_valid=is_valid,
-                            redirect_to=ui_config.redirect_to,
-                            reset_token=reset_token,
-                            error_message=_maybe_get_search_param(
-                                query, 'error'
-                            ),
-                            app_name=ui_config.app_name,
-                            logo_url=ui_config.logo_url,
-                            dark_logo_url=ui_config.dark_logo_url,
-                            brand_color=ui_config.brand_color,
-                        )
-
+                    return await self.handle_ui_reset_password(*handler_args)
                 case ("ui", "verify"):
-                    error_messages: list[str] = []
-                    ui_config = self._get_ui_config()
-                    password_provider = (
-                        self._get_password_provider()
-                        if ui_config is not None
-                        else None
-                    )
-                    is_valid = True
-                    maybe_pkce_code: str | None = None
-
-                    if password_provider is None:
-                        response.status = http.HTTPStatus.NOT_FOUND
-                        response.body = (
-                            b'Password provider not configured'
-                        )
-                        return
-
-                    query = urllib.parse.parse_qs(
-                        request.url.query.decode("ascii")
-                        if request.url.query
-                        else ""
-                    )
-                    maybe_verification_token = _maybe_get_search_param(
-                        query, "verification_token"
-                    )
-                    if maybe_verification_token is None:
-                        error_messages.append(
-                            "Missing email verification token."
-                        )
-                        is_valid = False
-                    else:
-                        try:
-                            (
-                                identity_id,
-                                issued_at,
-                                maybe_challenge,
-                                maybe_redirect_to
-                            ) = self._get_data_from_verification_token(
-                                maybe_verification_token
-                            )
-                            try:
-                                await self._try_verify_email(
-                                    provider=password_provider.name,
-                                    issued_at=issued_at,
-                                    identity_id=identity_id,
-                                )
-                            except errors.VerificationTokenExpired:
-                                local_client = local.Client(
-                                    self.db, password_provider.name
-                                )
-                                email = (
-                                    await local_client.get_email_by_identity_id(
-                                        identity_id=identity_id
-                                    )
-                                )
-                                response.status = http.HTTPStatus.OK
-                                response.content_type = b"text/html"
-                                response.body = (
-                                    ui.render_email_verification_expired_page(
-                                        verification_token=(
-                                            maybe_verification_token
-                                        ),
-                                        app_name=ui_config.app_name,
-                                        logo_url=ui_config.logo_url,
-                                        dark_logo_url=ui_config.dark_logo_url,
-                                        brand_color=ui_config.brand_color,
-                                    )
-                                )
-                                return
-
-                            match maybe_challenge:
-                                case str(ch):
-                                    await pkce.create(self.db, ch)
-                                    maybe_pkce_code = (
-                                        await pkce.link_identity_challenge(
-                                            self.db,
-                                            identity_id,
-                                            ch,
-                                        )
-                                    )
-                                case _:
-                                    maybe_pkce_code = None
-
-                            match maybe_redirect_to:
-                                case str(rt):
-                                    redirect_to = _with_appended_qs(
-                                        rt,
-                                        {
-                                            "code": [maybe_pkce_code],
-                                        }
-                                    ) if maybe_pkce_code else rt
-                                case _:
-                                    redirect_to = cast(
-                                        str, ui_config.redirect_to
-                                    )
-
-                        except Exception as ex:
-                            error_messages.append(repr(ex))
-                            is_valid = False
-
-                    # Only redirect back if verification succeeds
-                    if is_valid:
-                        response.status = http.HTTPStatus.FOUND
-                        response.custom_headers["Location"] = redirect_to
-                        return
-
-                    response.status = http.HTTPStatus.OK
-                    response.content_type = b'text/html'
-                    response.body = ui.render_email_verification_page(
-                        verification_token=maybe_verification_token,
-                        is_valid=is_valid,
-                        error_messages=error_messages,
-                        app_name=ui_config.app_name,
-                        logo_url=ui_config.logo_url,
-                        dark_logo_url=ui_config.dark_logo_url,
-                        brand_color=ui_config.brand_color,
-                    )
-
+                    return await self.handle_ui_verify(*handler_args)
                 case ("ui", "resend-verification"):
-                    query = urllib.parse.parse_qs(
-                        request.url.query.decode("ascii")
-                        if request.url.query
-                        else ""
+                    return await self.handle_ui_resend_verification(
+                        *handler_args
                     )
-                    ui_config = self._get_ui_config()
-                    password_provider = (
-                        self._get_password_provider()
-                        if ui_config is not None
-                        else None
-                    )
-                    is_valid = True
-
-                    if password_provider is None:
-                        response.status = http.HTTPStatus.NOT_FOUND
-                        response.body = (
-                            b'Password provider not configured'
-                        )
-                        return
-                    try:
-                        _check_keyset(query, {"verification_token"})
-                        verification_token = query["verification_token"][0]
-                        (
-                            identity_id,
-                            _,
-                            maybe_challenge,
-                            maybe_redirect_to
-                        ) = self._get_data_from_verification_token(
-                            verification_token
-                        )
-                        local_client = local.Client(
-                            self.db, password_provider.name
-                        )
-                        email = await local_client.get_email_by_identity_id(
-                            identity_id=identity_id
-                        )
-                        await self._send_verification_email(
-                            provider=password_provider.name,
-                            identity_id=identity_id,
-                            to_addr=email,
-                            verify_url=f"{self.base_path}/ui/verify",
-                            maybe_challenge=maybe_challenge,
-                            maybe_redirect_to=maybe_redirect_to,
-
-                        )
-                    except Exception:
-                        is_valid = False
-
-                    response.status = http.HTTPStatus.OK
-                    response.content_type = b"text/html"
-                    response.body = ui.render_resend_verification_done_page(
-                        is_valid=is_valid,
-                        verification_token=_maybe_get_search_param(
-                            query, "verification_token"
-                        ),
-                        app_name=ui_config.app_name,
-                        logo_url=ui_config.logo_url,
-                        dark_logo_url=ui_config.dark_logo_url,
-                        brand_color=ui_config.brand_color,
-                    )
-
                 case ('ui', '_static', filename):
                     filepath = os.path.join(
-                        os.path.dirname(__file__),
-                        '_static', filename
+                        os.path.dirname(__file__), '_static', filename
                     )
                     try:
                         with open(filepath, 'rb') as f:
@@ -1133,6 +189,857 @@ class Router:
                 ex_type=edb_errors.InternalServerError,
             )
 
+    async def handle_authorize(self, request: Any, response: Any):
+        query = urllib.parse.parse_qs(
+            request.url.query.decode("ascii") if request.url.query else ""
+        )
+        provider_name = _get_search_param(query, "provider")
+        redirect_to = _get_search_param(query, "redirect_to")
+        redirect_to_on_signup = _maybe_get_search_param(
+            query, "redirect_to_on_signup"
+        )
+        challenge = _get_search_param(query, "challenge")
+        oauth_client = oauth.Client(
+            db=self.db, provider_name=provider_name, base_url=self.test_url
+        )
+        await pkce.create(self.db, challenge)
+        authorize_url = await oauth_client.get_authorize_url(
+            redirect_uri=self._get_callback_url(),
+            state=self._make_state_claims(
+                provider_name, redirect_to, redirect_to_on_signup, challenge
+            ),
+        )
+        response.status = http.HTTPStatus.FOUND
+        response.custom_headers["Location"] = authorize_url
+
+    async def handle_callback(self, request: Any, response: Any):
+        if request.method == b"POST" and (
+            request.content_type == b"application/x-www-form-urlencoded"
+        ):
+            form_data = urllib.parse.parse_qs(request.body.decode())
+            state = _maybe_get_form_field(form_data, "state")
+            code = _maybe_get_form_field(form_data, "code")
+
+            error = _maybe_get_form_field(form_data, "error")
+            error_description = _maybe_get_form_field(
+                form_data, "error_description"
+            )
+        elif request.url.query is not None:
+            query = urllib.parse.parse_qs(
+                request.url.query.decode("ascii") if request.url.query else ""
+            )
+            state = _maybe_get_search_param(query, "state")
+            code = _maybe_get_search_param(query, "code")
+            error = _maybe_get_search_param(query, "error")
+            error_description = _maybe_get_search_param(
+                query, "error_description"
+            )
+        else:
+            raise errors.OAuthProviderFailure(
+                "Provider did not respond with expected data"
+            )
+
+        if state is None:
+            raise errors.InvalidData(
+                "Provider did not include the 'state' parameter in " "callback"
+            )
+
+        if error is not None:
+            try:
+                claims = self._verify_and_extract_claims(state)
+                redirect_to = cast(str, claims["redirect_to"])
+            except Exception:
+                raise errors.InvalidData("Invalid state token")
+
+            params = {
+                "error": error,
+            }
+            if error_description is not None:
+                params["error_description"] = error_description
+            response.custom_headers[
+                "Location"
+            ] = f"{redirect_to}?{urllib.parse.urlencode(params)}"
+            response.status = http.HTTPStatus.FOUND
+            return
+
+        if code is None:
+            raise errors.InvalidData(
+                "Provider did not include the 'code' parameter in " "callback"
+            )
+
+        try:
+            claims = self._verify_and_extract_claims(state)
+            provider_name = cast(str, claims["provider"])
+            redirect_to = cast(str, claims["redirect_to"])
+            redirect_to_on_signup = cast(
+                Optional[str], claims.get("redirect_to_on_signup")
+            )
+            challenge = cast(str, claims["challenge"])
+        except Exception:
+            raise errors.InvalidData("Invalid state token")
+        oauth_client = oauth.Client(
+            db=self.db,
+            provider_name=provider_name,
+            base_url=self.test_url,
+        )
+        (
+            identity,
+            new_identity,
+            auth_token,
+            refresh_token,
+        ) = await oauth_client.handle_callback(code, self._get_callback_url())
+        pkce_code = await pkce.link_identity_challenge(
+            self.db, identity.id, challenge
+        )
+        if auth_token or refresh_token:
+            await pkce.add_provider_tokens(
+                self.db,
+                id=pkce_code,
+                auth_token=auth_token,
+                refresh_token=refresh_token,
+            )
+        parsed_url = urllib.parse.urlparse(
+            (redirect_to_on_signup or redirect_to)
+            if new_identity
+            else redirect_to
+        )
+        query_params = urllib.parse.parse_qs(parsed_url.query)
+        query_params["code"] = [pkce_code]
+        new_query = urllib.parse.urlencode(query_params, doseq=True)
+        new_url = parsed_url._replace(query=new_query).geturl()
+
+        session_token = self._make_session_token(identity.id)
+        response.status = http.HTTPStatus.FOUND
+        response.custom_headers["Location"] = new_url
+        _set_cookie(response, "edgedb-session", session_token)
+
+    async def handle_token(self, request: Any, response: Any):
+        query = urllib.parse.parse_qs(
+            request.url.query.decode("ascii") if request.url.query else ""
+        )
+        code = _get_search_param(query, "code")
+        verifier = _get_search_param(query, "verifier")
+
+        verifier_size = len(verifier)
+
+        if verifier_size < 43:
+            raise errors.InvalidData(
+                "Verifier must be at least 43 characters long"
+            )
+        if verifier_size > 128:
+            raise errors.InvalidData(
+                "Verifier must be shorter than 128 " "characters long"
+            )
+        try:
+            pkce_object = await pkce.get_by_id(self.db, code)
+        except Exception:
+            raise errors.NoIdentityFound("Could not find a matching PKCE code")
+
+        if pkce_object.identity_id is None:
+            raise errors.InvalidData("Code is not associated with an Identity")
+
+        hashed_verifier = hashlib.sha256(verifier.encode()).digest()
+        base64_url_encoded_verifier = base64.urlsafe_b64encode(
+            hashed_verifier
+        ).rstrip(b'=')
+
+        if base64_url_encoded_verifier.decode() == pkce_object.challenge:
+            await pkce.delete(self.db, code)
+            session_token = self._make_session_token(pkce_object.identity_id)
+            response.status = http.HTTPStatus.OK
+            response.content_type = b"application/json"
+            response.body = json.dumps(
+                {
+                    "auth_token": session_token,
+                    "identity_id": pkce_object.identity_id,
+                    "provider_token": pkce_object.auth_token,
+                    "provider_refresh_token": (pkce_object.refresh_token),
+                }
+            ).encode()
+        else:
+            response.status = http.HTTPStatus.FORBIDDEN
+
+    async def handle_register(self, request: Any, response: Any):
+        data = self._get_data_from_request(request)
+
+        maybe_redirect_to = data.get("redirect_to")
+        maybe_challenge = data.get("challenge")
+        register_provider_name = data.get("provider")
+        if register_provider_name is None:
+            raise errors.InvalidData('Missing "provider" in register request')
+
+        local_client = local.Client(
+            db=self.db, provider_name=register_provider_name
+        )
+        require_verification = local_client.provider.config.require_verification
+        pkce_code: Optional[str] = None
+
+        try:
+            identity = await local_client.register(data)
+            if not require_verification:
+                if maybe_challenge is None:
+                    raise errors.InvalidData(
+                        'Missing "challenge" in register request'
+                    )
+                await pkce.create(self.db, maybe_challenge)
+                pkce_code = await pkce.link_identity_challenge(
+                    self.db, identity.id, maybe_challenge
+                )
+
+            await self._send_verification_email(
+                provider=register_provider_name,
+                identity_id=identity.id,
+                to_addr=data["email"],
+                verify_url=data.get(
+                    "verify_url", f"{self.base_path}/ui/verify"
+                ),
+                maybe_challenge=maybe_challenge,
+                maybe_redirect_to=maybe_redirect_to,
+            )
+
+            now_iso8601 = datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat()
+            if maybe_redirect_to is not None:
+                response.status = http.HTTPStatus.FOUND
+                redirect_params = urllib.parse.urlencode(
+                    {"verification_email_sent_at": now_iso8601}
+                    if require_verification
+                    else {"code": pkce_code}
+                )
+                redirect_url = f"{maybe_redirect_to}?{redirect_params}"
+                response.custom_headers["Location"] = redirect_url
+            else:
+                response.status = http.HTTPStatus.CREATED
+                response.content_type = b"application/json"
+                if require_verification:
+                    response.body = json.dumps(
+                        {"verification_email_sent_at": (now_iso8601)}
+                    ).encode()
+                else:
+                    if pkce_code is None:
+                        raise errors.PKCECreationFailed
+                    response.body = json.dumps({"code": pkce_code}).encode()
+        except Exception as ex:
+            redirect_on_failure = data.get(
+                "redirect_on_failure", maybe_redirect_to
+            )
+            if redirect_on_failure is not None:
+                response.status = http.HTTPStatus.FOUND
+                redirect_params = urllib.parse.urlencode(
+                    {"error": str(ex), "email": data.get('email', '')}
+                )
+                redirect_url = f"{redirect_on_failure}?{redirect_params}"
+                response.custom_headers["Location"] = redirect_url
+            else:
+                raise ex
+
+    async def handle_authenticate(self, request: Any, response: Any):
+        data = self._get_data_from_request(request)
+
+        authenticate_provider_name = data.get("provider")
+        if authenticate_provider_name is None:
+            raise errors.InvalidData('Missing "provider" in register request')
+        maybe_challenge = data.get("challenge")
+        if maybe_challenge is None:
+            raise errors.InvalidData('Missing "challenge" in register request')
+        await pkce.create(self.db, maybe_challenge)
+
+        local_client = local.Client(
+            db=self.db, provider_name=authenticate_provider_name
+        )
+        try:
+            local_identity = await local_client.authenticate(data)
+            verified_at = await local_client.get_verified_by_identity_id(
+                identity_id=local_identity.id
+            )
+            if (
+                local_client.provider.config.require_verification
+                and verified_at is None
+            ):
+                raise errors.VerificationRequired()
+
+            pkce_code = await pkce.link_identity_challenge(
+                self.db, local_identity.id, maybe_challenge
+            )
+            session_token = self._make_session_token(local_identity.id)
+            _set_cookie(response, "edgedb-session", session_token)
+            if data.get("redirect_to") is not None:
+                response.status = http.HTTPStatus.FOUND
+                redirect_params = urllib.parse.urlencode(
+                    {
+                        "code": pkce_code,
+                    }
+                )
+                redirect_url = f"{data['redirect_to']}?{redirect_params}"
+                response.custom_headers["Location"] = redirect_url
+            else:
+                response.status = http.HTTPStatus.OK
+                response.content_type = b"application/json"
+                response.body = json.dumps(
+                    {
+                        "code": pkce_code,
+                    }
+                ).encode()
+        except Exception as ex:
+            redirect_on_failure = data.get(
+                "redirect_on_failure", data.get("redirect_to")
+            )
+            if redirect_on_failure is not None:
+                response.status = http.HTTPStatus.FOUND
+                redirect_params = urllib.parse.urlencode(
+                    {
+                        "error": str(ex),
+                        "email": data.get('email', ''),
+                    }
+                )
+                redirect_url = f"{redirect_on_failure}?{redirect_params}"
+                response.custom_headers["Location"] = redirect_url
+            else:
+                raise ex
+
+    async def handle_verify(self, request: Any, response: Any):
+        data = self._get_data_from_request(request)
+
+        _check_keyset(data, {"verification_token", "provider"})
+
+        (
+            identity_id,
+            issued_at,
+            maybe_challenge,
+            maybe_redirect_to,
+        ) = self._get_data_from_verification_token(data["verification_token"])
+
+        try:
+            await self._try_verify_email(
+                provider=data["provider"],
+                issued_at=issued_at,
+                identity_id=identity_id,
+            )
+        except errors.VerificationTokenExpired:
+            response.status = http.HTTPStatus.FORBIDDEN
+            response.content_type = b"application/json"
+            response.body = json.dumps(
+                {
+                    "message": (
+                        "The 'iat' claim in verification token is older"
+                        " than 24 hours"
+                    )
+                }
+            ).encode()
+            return
+
+        match (maybe_challenge, maybe_redirect_to):
+            case (str(challenge), str(redirect_to)):
+                await pkce.create(self.db, challenge)
+                code = await pkce.link_identity_challenge(
+                    self.db, identity_id, challenge
+                )
+                response.status = http.HTTPStatus.FOUND
+                response.custom_headers["Location"] = _with_appended_qs(
+                    redirect_to, {"code": [code]}
+                )
+            case (str(challenge), _):
+                await pkce.create(self.db, challenge)
+                code = await pkce.link_identity_challenge(
+                    self.db, identity_id, challenge
+                )
+                response.status = http.HTTPStatus.OK
+                response.content_type = b"application/json"
+                response.body = json.dumps({"code": code}).encode()
+            case (_, str(redirect_to)):
+                response.status = http.HTTPStatus.FOUND
+                response.custom_headers["Location"] = redirect_to
+            case (_, _):
+                response.status = http.HTTPStatus.NO_CONTENT
+
+    async def handle_resend_verification_email(
+        self, request: Any, response: Any
+    ):
+        data = self._get_data_from_request(request)
+
+        _check_keyset(data, {"verification_token", "provider"})
+        (
+            identity_id,
+            _,
+            maybe_challenge,
+            maybe_redirect_to,
+        ) = self._get_data_from_verification_token(data["verification_token"])
+
+        local_client = local.Client(db=self.db, provider_name=data["provider"])
+        email = await local_client.get_email_by_identity_id(identity_id)
+        if email is None:
+            await auth_emails.send_fake_email(self.tenant)
+        else:
+            await self._send_verification_email(
+                provider=data["provider"],
+                identity_id=identity_id,
+                to_addr=email,
+                verify_url=f"{self.base_path}/verify",
+                maybe_challenge=maybe_challenge,
+                maybe_redirect_to=maybe_redirect_to,
+            )
+
+        response.status = http.HTTPStatus.OK
+
+    async def handle_send_reset_email(self, request: Any, response: Any):
+        data = self._get_data_from_request(request)
+
+        _check_keyset(data, {"provider", "reset_url"})
+        local_client = local.Client(db=self.db, provider_name=data["provider"])
+
+        try:
+            try:
+                (
+                    identity,
+                    secret,
+                ) = await local_client.get_identity_and_secret(data)
+
+                new_reset_token = self._make_secret_token(identity.id, secret)
+
+                reset_token_params = urllib.parse.urlencode(
+                    {"reset_token": new_reset_token}
+                )
+                reset_url = f"{data['reset_url']}?{reset_token_params}"
+
+                await auth_emails.send_password_reset_email(
+                    db=self.db,
+                    tenant=self.tenant,
+                    to_addr=data["email"],
+                    reset_url=reset_url,
+                    test_mode=self.test_mode,
+                )
+            except errors.NoIdentityFound:
+                await auth_emails.send_fake_email(self.tenant)
+
+            return_data = {
+                "email_sent": data.get('email'),
+            }
+
+            if data.get("redirect_to") is not None:
+                response.status = http.HTTPStatus.FOUND
+                redirect_params = urllib.parse.urlencode(return_data)
+                redirect_url = f"{data['redirect_to']}?{redirect_params}"
+                response.custom_headers["Location"] = redirect_url
+            else:
+                response.status = http.HTTPStatus.OK
+                response.content_type = b"application/json"
+                response.body = json.dumps(return_data).encode()
+        except aiosmtplib.SMTPException as ex:
+            if not debug.flags.server:
+                logger.warning("Failed to send emails via SMTP", exc_info=True)
+            raise edb_errors.InternalServerError(
+                "Failed to send the email, please try again later."
+            ) from ex
+
+        except Exception as ex:
+            redirect_on_failure = data.get(
+                "redirect_on_failure", data.get("redirect_to")
+            )
+            if redirect_on_failure is not None:
+                response.status = http.HTTPStatus.FOUND
+                redirect_params = urllib.parse.urlencode(
+                    {
+                        "error": str(ex),
+                        "email": data.get('email', ''),
+                    }
+                )
+                redirect_url = f"{redirect_on_failure}?{redirect_params}"
+                response.custom_headers["Location"] = redirect_url
+            else:
+                raise ex
+
+    async def handle_reset_password(self, request: Any, response: Any):
+        data = self._get_data_from_request(request)
+
+        _check_keyset(data, {"provider", "reset_token"})
+        local_client = local.Client(db=self.db, provider_name=data["provider"])
+
+        try:
+            reset_token = data['reset_token']
+
+            identity_id, secret = self._get_data_from_reset_token(reset_token)
+
+            identity = await local_client.update_password(
+                identity_id, secret, data
+            )
+
+            session_token = self._make_session_token(identity.id)
+            _set_cookie(response, "edgedb-session", session_token)
+            if data.get("redirect_to") is not None:
+                response.status = http.HTTPStatus.FOUND
+                redirect_params = urllib.parse.urlencode(
+                    {
+                        "identity_id": identity.id,
+                        "auth_token": session_token,
+                    }
+                )
+                redirect_url = f"{data['redirect_to']}?{redirect_params}"
+                response.custom_headers["Location"] = redirect_url
+            else:
+                response.status = http.HTTPStatus.OK
+                response.content_type = b"application/json"
+                response.body = json.dumps(
+                    {
+                        "identity_id": identity.id,
+                        "auth_token": session_token,
+                    }
+                ).encode()
+        except Exception as ex:
+            redirect_on_failure = data.get(
+                "redirect_on_failure", data.get("redirect_to")
+            )
+            if redirect_on_failure is not None:
+                response.status = http.HTTPStatus.FOUND
+                redirect_params = urllib.parse.urlencode(
+                    {
+                        "error": str(ex),
+                        "reset_token": data.get('reset_token', ''),
+                    }
+                )
+                redirect_url = f"{redirect_on_failure}?{redirect_params}"
+                response.custom_headers["Location"] = redirect_url
+            else:
+                raise ex
+
+    async def handle_ui_signin(self, request: Any, response: Any):
+        ui_config = self._get_ui_config()
+
+        if ui_config is None:
+            response.status = http.HTTPStatus.NOT_FOUND
+            response.body = b'Auth UI not enabled'
+        else:
+            providers = util.maybe_get_config(
+                self.db,
+                "ext::auth::AuthConfig::providers",
+                frozenset,
+            )
+            if providers is None or len(providers) == 0:
+                raise errors.MissingConfiguration(
+                    'ext::auth::AuthConfig::providers',
+                    'No providers are configured',
+                )
+
+            query = urllib.parse.parse_qs(
+                request.url.query.decode("ascii") if request.url.query else ""
+            )
+
+            maybe_challenge = _get_pkce_challenge(
+                response=response,
+                cookies=request.cookies,
+                query_dict=query,
+            )
+            if maybe_challenge is None:
+                raise errors.InvalidData(
+                    'Missing "challenge" in register request'
+                )
+
+            response.status = http.HTTPStatus.OK
+            response.content_type = b'text/html'
+            response.body = ui.render_login_page(
+                base_path=self.base_path,
+                providers=providers,
+                redirect_to=ui_config.redirect_to,
+                error_message=_maybe_get_search_param(query, 'error'),
+                email=_maybe_get_search_param(query, 'email'),
+                challenge=maybe_challenge,
+                app_name=ui_config.app_name,
+                logo_url=ui_config.logo_url,
+                dark_logo_url=ui_config.dark_logo_url,
+                brand_color=ui_config.brand_color,
+            )
+
+    async def handle_ui_signup(self, request: Any, response: Any):
+        ui_config = self._get_ui_config()
+        if ui_config is None:
+            response.status = http.HTTPStatus.NOT_FOUND
+            response.body = b'Auth UI not enabled'
+        else:
+            providers = util.maybe_get_config(
+                self.db,
+                "ext::auth::AuthConfig::providers",
+                frozenset,
+            )
+            if providers is None or len(providers) == 0:
+                raise errors.MissingConfiguration(
+                    'ext::auth::AuthConfig::providers',
+                    'No providers are configured',
+                )
+
+            query = urllib.parse.parse_qs(
+                request.url.query.decode("ascii") if request.url.query else ""
+            )
+
+            maybe_challenge = _get_pkce_challenge(
+                response=response,
+                cookies=request.cookies,
+                query_dict=query,
+            )
+            if maybe_challenge is None:
+                raise errors.InvalidData(
+                    'Missing "challenge" in register request'
+                )
+
+            response.status = http.HTTPStatus.OK
+            response.content_type = b'text/html'
+            response.body = ui.render_signup_page(
+                base_path=self.base_path,
+                providers=providers,
+                redirect_to=(
+                    ui_config.redirect_to_on_signup or ui_config.redirect_to
+                ),
+                error_message=_maybe_get_search_param(query, 'error'),
+                email=_maybe_get_search_param(query, 'email'),
+                challenge=maybe_challenge,
+                app_name=ui_config.app_name,
+                logo_url=ui_config.logo_url,
+                dark_logo_url=ui_config.dark_logo_url,
+                brand_color=ui_config.brand_color,
+            )
+
+    async def handle_ui_forgot_password(self, request: Any, response: Any):
+        ui_config = self._get_ui_config()
+        password_provider = (
+            self._get_password_provider() if ui_config is not None else None
+        )
+
+        if ui_config is None or password_provider is None:
+            response.status = http.HTTPStatus.NOT_FOUND
+            response.body = (
+                b'Password provider not configured'
+                if ui_config
+                else b'Auth UI not enabled'
+            )
+        else:
+            query = urllib.parse.parse_qs(
+                request.url.query.decode("ascii") if request.url.query else ""
+            )
+
+            response.status = http.HTTPStatus.OK
+            response.content_type = b'text/html'
+            response.body = ui.render_forgot_password_page(
+                base_path=self.base_path,
+                provider_name=password_provider.name,
+                error_message=_maybe_get_search_param(query, 'error'),
+                email=_maybe_get_search_param(query, 'email'),
+                email_sent=_maybe_get_search_param(query, 'email_sent'),
+                app_name=ui_config.app_name,
+                logo_url=ui_config.logo_url,
+                dark_logo_url=ui_config.dark_logo_url,
+                brand_color=ui_config.brand_color,
+            )
+
+    async def handle_ui_reset_password(self, request: Any, response: Any):
+        ui_config = self._get_ui_config()
+        password_provider = (
+            self._get_password_provider() if ui_config is not None else None
+        )
+
+        if ui_config is None or password_provider is None:
+            response.status = http.HTTPStatus.NOT_FOUND
+            response.body = (
+                b'Password provider not configured'
+                if ui_config
+                else b'Auth UI not enabled'
+            )
+        else:
+            query = urllib.parse.parse_qs(
+                request.url.query.decode("ascii") if request.url.query else ""
+            )
+
+            reset_token = _maybe_get_search_param(query, 'reset_token')
+
+            if reset_token is not None:
+                try:
+                    (
+                        identity_id,
+                        secret,
+                    ) = self._get_data_from_reset_token(reset_token)
+
+                    local_client = local.Client(
+                        db=self.db,
+                        provider_name=password_provider.name,
+                    )
+
+                    is_valid = await local_client.validate_reset_secret(
+                        identity_id, secret
+                    )
+                except Exception:
+                    is_valid = False
+            else:
+                is_valid = False
+
+            response.status = http.HTTPStatus.OK
+            response.content_type = b'text/html'
+            response.body = ui.render_reset_password_page(
+                base_path=self.base_path,
+                provider_name=password_provider.name,
+                is_valid=is_valid,
+                redirect_to=ui_config.redirect_to,
+                reset_token=reset_token,
+                error_message=_maybe_get_search_param(query, 'error'),
+                app_name=ui_config.app_name,
+                logo_url=ui_config.logo_url,
+                dark_logo_url=ui_config.dark_logo_url,
+                brand_color=ui_config.brand_color,
+            )
+
+    async def handle_ui_verify(self, request: Any, response: Any):
+        error_messages: list[str] = []
+        ui_config = self._get_ui_config()
+        if ui_config is None:
+            response.status = http.HTTPStatus.NOT_FOUND
+            response.body = b'Auth UI not enabled'
+            return
+
+        password_provider = (
+            self._get_password_provider() if ui_config is not None else None
+        )
+        is_valid = True
+        maybe_pkce_code: str | None = None
+        redirect_to = ui_config.redirect_to_on_signup or ui_config.redirect_to
+
+        if password_provider is None:
+            response.status = http.HTTPStatus.NOT_FOUND
+            response.body = b'Password provider not configured'
+            return
+
+        query = urllib.parse.parse_qs(
+            request.url.query.decode("ascii") if request.url.query else ""
+        )
+        maybe_verification_token = _maybe_get_search_param(
+            query, "verification_token"
+        )
+        if maybe_verification_token is None:
+            error_messages.append("Missing email verification token.")
+            is_valid = False
+        else:
+            try:
+                (
+                    identity_id,
+                    issued_at,
+                    maybe_challenge,
+                    maybe_redirect_to,
+                ) = self._get_data_from_verification_token(
+                    maybe_verification_token
+                )
+                try:
+                    await self._try_verify_email(
+                        provider=password_provider.name,
+                        issued_at=issued_at,
+                        identity_id=identity_id,
+                    )
+                except errors.VerificationTokenExpired:
+                    response.status = http.HTTPStatus.OK
+                    response.content_type = b"text/html"
+                    response.body = ui.render_email_verification_expired_page(
+                        verification_token=maybe_verification_token,
+                        app_name=ui_config.app_name,
+                        logo_url=ui_config.logo_url,
+                        dark_logo_url=ui_config.dark_logo_url,
+                        brand_color=ui_config.brand_color,
+                    )
+                    return
+
+                match maybe_challenge:
+                    case str(ch):
+                        await pkce.create(self.db, ch)
+                        maybe_pkce_code = await pkce.link_identity_challenge(
+                            self.db,
+                            identity_id,
+                            ch,
+                        )
+                    case _:
+                        maybe_pkce_code = None
+
+                match maybe_redirect_to:
+                    case str(rt):
+                        redirect_to = (
+                            _with_appended_qs(
+                                rt,
+                                {
+                                    "code": [maybe_pkce_code],
+                                },
+                            )
+                            if maybe_pkce_code
+                            else rt
+                        )
+                    case _:
+                        redirect_to = cast(str, ui_config.redirect_to)
+
+            except Exception as ex:
+                error_messages.append(repr(ex))
+                is_valid = False
+
+        # Only redirect back if verification succeeds
+        if is_valid:
+            response.status = http.HTTPStatus.FOUND
+            response.custom_headers["Location"] = redirect_to
+            return
+
+        response.status = http.HTTPStatus.OK
+        response.content_type = b'text/html'
+        response.body = ui.render_email_verification_page(
+            verification_token=maybe_verification_token,
+            is_valid=is_valid,
+            error_messages=error_messages,
+            app_name=ui_config.app_name,
+            logo_url=ui_config.logo_url,
+            dark_logo_url=ui_config.dark_logo_url,
+            brand_color=ui_config.brand_color,
+        )
+
+    async def handle_ui_resend_verification(self, request: Any, response: Any):
+        query = urllib.parse.parse_qs(
+            request.url.query.decode("ascii") if request.url.query else ""
+        )
+        ui_config = self._get_ui_config()
+        password_provider = (
+            self._get_password_provider() if ui_config is not None else None
+        )
+        is_valid = True
+
+        if password_provider is None:
+            response.status = http.HTTPStatus.NOT_FOUND
+            response.body = b'Password provider not configured'
+            return
+        try:
+            _check_keyset(query, {"verification_token"})
+            verification_token = query["verification_token"][0]
+            (
+                identity_id,
+                _,
+                maybe_challenge,
+                maybe_redirect_to,
+            ) = self._get_data_from_verification_token(verification_token)
+            local_client = local.Client(self.db, password_provider.name)
+            email = await local_client.get_email_by_identity_id(
+                identity_id=identity_id
+            )
+            await self._send_verification_email(
+                provider=password_provider.name,
+                identity_id=identity_id,
+                to_addr=email,
+                verify_url=f"{self.base_path}/ui/verify",
+                maybe_challenge=maybe_challenge,
+                maybe_redirect_to=maybe_redirect_to,
+            )
+        except Exception:
+            is_valid = False
+
+        response.status = http.HTTPStatus.OK
+        response.content_type = b"text/html"
+        response.body = ui.render_resend_verification_done_page(
+            is_valid=is_valid,
+            verification_token=_maybe_get_search_param(
+                query, "verification_token"
+            ),
+            app_name=ui_config.app_name,
+            logo_url=ui_config.logo_url,
+            dark_logo_url=ui_config.dark_logo_url,
+            brand_color=ui_config.brand_color,
+        )
+
     def _get_callback_url(self) -> str:
         return f"{self.base_path}/callback"
 
@@ -1149,12 +1056,12 @@ class Router:
         provider: str,
         redirect_to: str,
         redirect_to_on_signup: Optional[str],
-        challenge: str
+        challenge: str,
     ) -> str:
         signing_key = self._get_auth_signing_key()
-        expires_at = (
-            datetime.datetime.now(datetime.timezone.utc) +
-            datetime.timedelta(minutes=5))
+        expires_at = datetime.datetime.now(
+            datetime.timezone.utc
+        ) + datetime.timedelta(minutes=5)
 
         state_claims = {
             "iss": self.base_path,
@@ -1213,12 +1120,11 @@ class Router:
         secret: str,
         additional_claims: dict[str, str | int | float | bool | None]
         | None = None,
-        expires_in: datetime.timedelta | None = None
+        expires_in: datetime.timedelta | None = None,
     ) -> str:
         signing_key = self._get_auth_signing_key()
         expires_in = (
-            datetime.timedelta(minutes=10) if expires_in is None
-            else expires_in
+            datetime.timedelta(minutes=10) if expires_in is None else expires_in
         )
         expires_at = datetime.datetime.now(datetime.timezone.utc) + expires_in
 
@@ -1283,13 +1189,14 @@ class Router:
 
         maybe_issued_at = claims.get("iat")
         if maybe_issued_at is None:
-            raise errors.InvalidData(
-                "Missing 'iat' in 'verification_token'"
-            )
+            raise errors.InvalidData("Missing 'iat' in 'verification_token'")
 
         return_value: Tuple[str, float, Optional[str], Optional[str]]
         match (
-            identity_id, maybe_issued_at, maybe_challenge, maybe_redirect_to
+            identity_id,
+            maybe_issued_at,
+            maybe_challenge,
+            maybe_redirect_to,
         ):
             case (str(id), float(issued_at), challenge, redirect_to):
                 return_value = (id, issued_at, challenge, redirect_to)
@@ -1328,14 +1235,13 @@ class Router:
         ))
 
     def _get_password_provider(self):
-        providers = util.get_config(
+        providers = cast(list[config.ProviderConfig], util.get_config(
             self.db,
             "ext::auth::AuthConfig::providers",
-            frozenset
-        )
+            frozenset,
+        ))
         password_providers = [
-            p for p in providers
-            if (p.name == 'builtin::local_emailpassword')
+            p for p in providers if (p.name == 'builtin::local_emailpassword')
         ]
 
         return password_providers[0] if len(password_providers) == 1 else None
@@ -1383,12 +1289,8 @@ class Router:
         if token_age > datetime.timedelta(hours=24):
             raise errors.VerificationTokenExpired()
 
-        local_client = local.Client(
-            db=self.db, provider_name=provider
-        )
-        updated = await local_client.verify_email(
-            identity_id, current_time
-        )
+        local_client = local.Client(db=self.db, provider_name=provider)
+        updated = await local_client.verify_email(identity_id, current_time)
         if updated is None:
             raise errors.NoIdentityFound(
                 "Could not verify email for identity"
@@ -1441,7 +1343,7 @@ def _get_pkce_challenge(
     *,
     response,
     cookies: http.cookies.SimpleCookie,
-    query_dict: dict[str, list[str]]
+    query_dict: dict[str, list[str]],
 ) -> str | None:
     cookie_name = 'edgedb-pkce-challenge'
     challenge: str | None = _maybe_get_search_param(query_dict, 'challenge')
@@ -1478,12 +1380,8 @@ def _with_appended_qs(url: str, query: dict[str, list[str]]) -> str:
 
 
 def _check_keyset(candidate: dict[str, Any], keyset: set[str]):
-    missing_fields = [
-        field for field in keyset
-        if field not in candidate
-    ]
+    missing_fields = [field for field in keyset if field not in candidate]
     if missing_fields:
         raise errors.InvalidData(
-            "Missing required fields: "
-            ", ".join(missing_fields)
+            "Missing required fields: " ", ".join(missing_fields)
         )
