@@ -28,6 +28,7 @@ from edb.tools import test
 
 class TestInsert(tb.QueryTestCase):
     '''The scope of the tests is testing various modes of Object creation.'''
+    INTERNAL_TESTMODE = False
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'insert.esdl')

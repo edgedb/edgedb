@@ -1538,7 +1538,6 @@ def _get_compile_options(
             and not ctx.schema_reflection_mode
         ) or is_explain,
         testmode=_get_config_val(ctx, '__internal_testmode'),
-        devmode=_is_dev_instance(ctx),
         schema_reflection_mode=ctx.schema_reflection_mode
     )
 
@@ -1648,7 +1647,7 @@ def _compile_ql_administer(
     script_info: Optional[irast.ScriptInfo] = None,
 ) -> dbstate.BaseQuery:
     if ql.expr.func == 'statistics_update':
-        if not _is_dev_instance(ctx):
+        if not _get_config_val(ctx, '__internal_testmode'):
             raise errors.QueryError(
                 'statistics_update() can only be executed in test mode',
                 context=ql.context)
@@ -2942,13 +2941,6 @@ def _check_force_database_error(
             "invalid 'force_database_error' value'")
 
     raise errval
-
-
-def _is_dev_instance(ctx: CompileContext) -> bool:
-    # Determine whether we are on a dev instance by the presence
-    # of a test schema element.
-    std_schema = ctx.compiler_state.std_schema
-    return bool(std_schema.get('cfg::TestSessionConfig', None))
 
 
 def _get_config_val(

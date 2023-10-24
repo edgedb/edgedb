@@ -386,6 +386,7 @@ def _compile_dml_coalesce(
                 rhs_b
             ]),
             optional=True,
+            from_desugaring=True,
         )
 
         subctx.iterator_path_ids |= {lhs_ir.path_id}
