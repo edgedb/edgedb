@@ -144,7 +144,8 @@ instances can link to the same target(s).
 
 In the ``GroupChat`` example, the ``GroupChat.members`` link is now
 ``exclusive``. Two ``GroupChat`` objects cannot link to the same ``Person``;
-put differently, no ``Person`` can be a ``member`` of multiple ``GroupChat``s.
+put differently, no ``Person`` can be a ``member`` of multiple ``GroupChat``
+objects.
 
 .. _ref_guide_modeling_relations:
 
