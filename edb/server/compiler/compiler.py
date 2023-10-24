@@ -26,6 +26,7 @@ import json
 import hashlib
 import pickle
 import textwrap
+import time
 import uuid
 
 import immutables
@@ -2335,6 +2336,11 @@ def _try_compile(
     ctx: CompileContext,
     source: edgeql.Source,
 ) -> dbstate.QueryUnitGroup:
+    if _get_config_val(ctx, '__internal_testmode'):
+        sentinel = "# EDGEDB_TEST_COMPILER_SLEEP = "
+        text = source.text()
+        if text.startswith(sentinel):
+            time.sleep(float(text[len(sentinel):text.index("\n")]))
 
     default_cardinality = enums.Cardinality.NO_RESULT
     statements = edgeql.parse_block(source)
