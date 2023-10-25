@@ -2575,7 +2575,7 @@ aa';
         COMMIT;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=15)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=16)
     def test_edgeql_syntax_with_03(self):
         """
         WITH MODULE welp
@@ -5147,7 +5147,9 @@ aa';
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=42)
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected 'std'",
+                  line=2, col=43)
     def test_edgeql_syntax_ddl_property_03(self):
         """
         CREATE ABSTRACT PROPERTY PROPERTY std::property {
@@ -6241,6 +6243,14 @@ aa';
         DESCRIBE SYSTEM CONFIG;
 % OK %
         DESCRIBE INSTANCE CONFIG AS DDL;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Missing keyword 'TYPE'",
+                  line=2, col=15)
+    def test_edgeql_syntax_create_01(self):
+        """
+        crEAte something;
         """
 
 
