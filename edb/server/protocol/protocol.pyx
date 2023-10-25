@@ -457,10 +457,6 @@ cdef class HttpProtocol:
                 return self._not_found(request, response)
 
             dbname = path_parts[1]
-            db = self.server.maybe_get_db(dbname=dbname)
-            if db is None:
-                return self._not_found(request, response)
-
             extname = path_parts[2] if path_parts_len > 2 else None
 
             # Binary proto tunnelled through HTTP
@@ -523,6 +519,10 @@ cdef class HttpProtocol:
                 # Check if this is a request to a registered extension
                 if extname == 'edgeql':
                     extname = 'edgeql_http'
+
+                db = self.server.maybe_get_db(dbname=dbname)
+                if db is None:
+                    return self._not_found(request, response)
 
                 if extname not in db.extensions:
                     return self._not_found(request, response)
