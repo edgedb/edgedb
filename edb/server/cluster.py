@@ -367,6 +367,14 @@ class BaseCluster:
             }
         ''')
 
+    async def trust_http_connections(self) -> None:
+        self._admin_query('''
+            CONFIGURE INSTANCE INSERT Auth {
+                priority := 1,
+                method := (INSERT Trust { transports := "HTTP" }),
+            }
+        ''')
+
     def has_create_database(self) -> bool:
         return True
 
