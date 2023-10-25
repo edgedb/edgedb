@@ -731,6 +731,9 @@ cdef class HttpProtocol:
             authmethod_name = authmethod._tspec.name.split('::')[1]
 
             if authmethod_name == 'JWT':
+                if not self.is_tls:
+                    raise errors.AuthenticationError(
+                        'JWT HTTP auth must use HTTPS')
                 prefixed_token = execute.extract_token_from_auth_data(
                     request.authorization)
                 execute.auth_jwt(self.tenant, prefixed_token, user, dbname)
