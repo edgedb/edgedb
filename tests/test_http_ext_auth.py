@@ -2629,7 +2629,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             body, headers, status = self.http_con_request(
                 http_con,
                 None,
-                path="reset_password",
+                path="reset-password",
                 method="POST",
                 body=auth_data_encoded,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -2674,7 +2674,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             _, _, error_status = self.http_con_request(
                 http_con,
                 None,
-                path="reset_password",
+                path="reset-password",
                 method="POST",
                 body=auth_data_encoded,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -2687,7 +2687,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             _, error_headers, error_status = self.http_con_request(
                 http_con,
                 None,
-                path="reset_password",
+                path="reset-password",
                 method="POST",
                 body=urllib.parse.urlencode(
                     {
