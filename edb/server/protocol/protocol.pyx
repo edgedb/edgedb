@@ -592,7 +592,9 @@ cdef class HttpProtocol:
                     args = path_parts[3:]
 
                 if extname != 'auth':
-                    if not self._check_http_auth(request, response, dbname):
+                    if not await self._check_http_auth(
+                        request, response, dbname
+                    ):
                         return
 
                 db = self.tenant.maybe_get_db(dbname=dbname)
@@ -713,24 +715,30 @@ cdef class HttpProtocol:
         response.status = http.HTTPStatus.BAD_REQUEST
         response.close_connection = True
 
-    def _check_http_auth(
+    async def _check_http_auth(
         self,
         HttpRequest request,
         HttpResponse response,
         str dbname,
     ):
         dbindex: dbview.DatabaseIndex = self.tenant._dbindex
-        if not config.lookup(
-            'require_http_endpoint_auth',
-            dbindex.get_sys_config(),
-            spec=dbindex._sys_config_spec,
-        ):
-            return True
 
         try:
-            prefixed_token = execute.extract_token_from_auth_data(
-                request.authorization)
-            execute.auth_jwt(self.tenant, prefixed_token, 'edgedb', dbname)
+            user = 'edgedb'  # I guess?
+
+            authmethod = await self.tenant.get_auth_method(
+                user, srvargs.ServerConnTransport.HTTP)
+            authmethod_name = authmethod._tspec.name.split('::')[1]
+
+            if authmethod_name == 'JWT':
+                prefixed_token = execute.extract_token_from_auth_data(
+                    request.authorization)
+                execute.auth_jwt(self.tenant, prefixed_token, user, dbname)
+            elif authmethod_name == 'Trust':
+                pass
+            else:
+                raise errors.AuthenticationError('authentication failed')
+
         except Exception as ex:
             if debug.flags.server:
                 markup.dump(ex)

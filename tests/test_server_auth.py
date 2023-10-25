@@ -270,9 +270,6 @@ class TestServerAuth(tb.ConnectedTestCase):
             base_sk = secretkey.generate_secret_key(jwk)
             conn = await sd.connect(secret_key=base_sk)
             await conn.execute('''
-                CONFIGURE INSTANCE set require_http_endpoint_auth := true;
-            ''')
-            await conn.execute('''
                 CREATE EXTENSION edgeql_http;
                 CREATE EXTENSION graphql;
             ''')
