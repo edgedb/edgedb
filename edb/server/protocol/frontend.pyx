@@ -28,7 +28,7 @@ from edb.common import debug
 from edb.server import args as srvargs
 from edb.server.pgcon import errors as pgerror
 
-from . import execute
+from . import auth_helpers
 
 
 DEF FLUSH_BUFFER_AFTER = 100_000
@@ -623,7 +623,8 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                     raise errors.BinaryProtocolError(
                         f'client selected an invalid SASL authentication '
                         f'mechanism')
-                verifier, mock_auth = execute.scram_get_verifier(user)
+                verifier, mock_auth = auth_helpers.scram_get_verifier(
+                    self.tenant, user)
 
                 try:
                     bare_offset, cb_flag, authzid, username, client_nonce = (

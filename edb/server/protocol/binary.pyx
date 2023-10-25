@@ -65,6 +65,8 @@ from edb.server import defines as edbdef
 from edb.server.compiler import errormech
 from edb.server.compiler import enums
 from edb.server.compiler import sertypes
+
+from edb.server.protocol import auth_helpers
 from edb.server.protocol import execute
 from edb.server.protocol cimport frontend
 from edb.server.pgcon cimport pgcon
@@ -408,12 +410,13 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         # the ClientHandshake message, under the scenario of
         # binary protocol over HTTP
         if self._auth_data:
-            prefixed_token = execute.extract_token_from_auth_data(
+            prefixed_token = auth_helpers.extract_token_from_auth_data(
                 self._auth_data)
         else:
             prefixed_token = params.get('secret_key')
 
-        return execute.auth_jwt(self.tenant, prefixed_token, user, database)
+        return auth_helpers.auth_jwt(
+            self.tenant, prefixed_token, user, database)
 
     cdef WriteBuffer _make_authentication_sasl_initial(self, list methods):
         cdef WriteBuffer msg_buf

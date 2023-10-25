@@ -48,8 +48,8 @@ from edb.server.dbview cimport dbview
 from edb.server.pgproto.debug cimport PG_DEBUG
 
 from . import auth
+from . import auth_helpers
 from . import edgeql_ext
-from . import execute
 from . import metrics
 from . import server_info
 from . import notebook_ext
@@ -734,17 +734,17 @@ cdef class HttpProtocol:
                 if not self.is_tls:
                     raise errors.AuthenticationError(
                         'JWT HTTP auth must use HTTPS')
-                prefixed_token = execute.extract_token_from_auth_data(
+                prefixed_token = auth_helpers.extract_token_from_auth_data(
                     request.authorization)
-                execute.auth_jwt(self.tenant, prefixed_token, user, dbname)
+                auth_helpers.auth_jwt(self.tenant, prefixed_token, user, dbname)
             elif authmethod_name == 'SCRAM':
                 if not self.is_tls:
                     raise errors.AuthenticationError(
                         'Basic HTTP auth must use HTTPS')
 
-                prefixed_token = execute.extract_token_from_auth_data(
+                prefixed_token = auth_helpers.extract_token_from_auth_data(
                     request.authorization, method='basic')
-                execute.auth_basic(self.tenant, prefixed_token, user)
+                auth_helpers.auth_basic(self.tenant, prefixed_token, user)
             elif authmethod_name == 'Trust':
                 pass
             else:
