@@ -525,6 +525,7 @@ async def init_cluster(
         destroy = True
     else:
         cluster = edgedb_cluster.Cluster(
+            testmode=True,
             data_dir=data_dir,
             log_level=log_level,
             security=security,

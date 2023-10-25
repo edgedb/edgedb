@@ -737,7 +737,7 @@ cdef class HttpProtocol:
                 prefixed_token = auth_helpers.extract_token_from_auth_data(
                     request.authorization)
                 auth_helpers.auth_jwt(self.tenant, prefixed_token, user, dbname)
-            elif authmethod_name == 'SCRAM':
+            elif authmethod_name == 'Password':
                 if not self.is_tls:
                     raise errors.AuthenticationError(
                         'Basic HTTP auth must use HTTPS')
@@ -747,6 +747,11 @@ cdef class HttpProtocol:
                 auth_helpers.auth_basic(self.tenant, prefixed_token, user)
             elif authmethod_name == 'Trust':
                 pass
+            elif authmethod_name == 'SCRAM':
+                raise errors.AuthenticationError(
+                    'authentication failed: '
+                    'SCRAM authentication required but not supported for HTTP'
+                )
             else:
                 raise errors.AuthenticationError('authentication failed')
 

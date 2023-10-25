@@ -62,6 +62,11 @@ CREATE TYPE cfg::JWT EXTENDING cfg::AuthMethod {
         SET default := { cfg::ConnectionTransport.HTTP };
     };
 };
+CREATE TYPE cfg::Password EXTENDING cfg::AuthMethod {
+    ALTER PROPERTY transports {
+        SET default := { cfg::ConnectionTransport.SIMPLE_HTTP };
+    };
+};
 
 CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
     CREATE REQUIRED PROPERTY priority -> std::int64 {

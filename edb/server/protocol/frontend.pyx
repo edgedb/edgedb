@@ -576,6 +576,12 @@ cdef class FrontendConnection(AbstractFrontendConnection):
             self._auth_jwt(user, database, params)
         elif authmethod_name == 'Trust':
             self._auth_trust(user)
+        elif authmethod_name == 'Password':
+            raise errors.AuthenticationError(
+                'authentication failed: '
+                'Simple password authentication required but it is only '
+                'supported for HTTP endpoints'
+            )
         else:
             raise errors.InternalServerError(
                 f'unimplemented auth method: {authmethod_name}')
