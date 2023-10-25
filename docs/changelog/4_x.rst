@@ -326,9 +326,9 @@ Here's an example query using the TypeScript client:
 pgcrypto
 --------
 
-We've added ``pgcrypto`` to our extensions. This exposes ``digest``, ``hmac``,
-``gen_salt`` and ``crypt`` functions for your hashing, encrypting and salting
-needs.
+We've added :ref:`pgcrypto <ref_ext_pgcrypto>` to our extensions. This exposes
+``digest``, ``hmac``, ``gen_salt`` and ``crypt`` functions for your hashing,
+encrypting and salting needs.
 
 .. code-block:: edgeql-repl
 
