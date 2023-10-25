@@ -124,6 +124,7 @@ class ServerConnTransport(enum.StrEnum):
     HTTP = "HTTP"
     TCP = "TCP"
     TCP_PG = "TCP_PG"
+    SIMPLE_HTTP = "SIMPLE_HTTP"
 
 
 class ServerAuthMethods:
@@ -150,6 +151,7 @@ DEFAULT_AUTH_METHODS = ServerAuthMethods({
     ServerConnTransport.TCP: ServerAuthMethod.Scram,
     ServerConnTransport.TCP_PG: ServerAuthMethod.Scram,
     ServerConnTransport.HTTP: ServerAuthMethod.JWT,
+    ServerConnTransport.SIMPLE_HTTP: ServerAuthMethod.Scram,
 })
 
 

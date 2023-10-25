@@ -727,7 +727,7 @@ cdef class HttpProtocol:
             user = 'edgedb'  # I guess?
 
             authmethod = await self.tenant.get_auth_method(
-                user, srvargs.ServerConnTransport.HTTP)
+                user, srvargs.ServerConnTransport.SIMPLE_HTTP)
             authmethod_name = authmethod._tspec.name.split('::')[1]
 
             if authmethod_name == 'JWT':

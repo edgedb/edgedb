@@ -371,7 +371,7 @@ class BaseCluster:
         self._admin_query('''
             CONFIGURE INSTANCE INSERT Auth {
                 priority := 1,
-                method := (INSERT Trust { transports := "HTTP" }),
+                method := (INSERT Trust { transports := "SIMPLE_HTTP" }),
             }
         ''')
 
