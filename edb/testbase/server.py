@@ -2120,7 +2120,6 @@ class _EdgeDBServer:
                     SET password := '{password}';
                 }};
                 """
-            print('boots:', bootstrap_command)
 
         if self.bootstrap_command is not None:
             bootstrap_command += self.bootstrap_command
