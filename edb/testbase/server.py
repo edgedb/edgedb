@@ -24,6 +24,7 @@ from typing import *
 
 import asyncio
 import atexit
+import base64
 import contextlib
 import dataclasses
 import functools
@@ -455,6 +456,7 @@ class BaseHTTPTestCase(TestCase):
         params: Optional[dict[str, str]] = None,
         *,
         prefix: Optional[str] = None,
+        headers: Optional[dict[str, str]] = None,
         body: Any,
         path: str = "",
     ):
@@ -464,7 +466,10 @@ class BaseHTTPTestCase(TestCase):
             method="POST",
             body=json.dumps(body).encode(),
             prefix=prefix,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                **(headers or {}),
+            },
             path=path,
         )
 
@@ -534,7 +539,7 @@ async def init_cluster(
 
     await cluster.start(port=0)
     await cluster.set_test_config()
-    await cluster.trust_http_connections()
+    # await cluster.trust_http_connections()
     await cluster.set_superuser_password('test')
 
     if cleanup_atexit:
@@ -725,6 +730,18 @@ class ClusterTestCase(BaseHTTPTestCase):
                             database=database,
                             secret_key=secret_key))
         return conargs
+
+    @classmethod
+    def make_auth_header(cls, password=None):
+        # urllib *does* have actual support for basic auth but it is so much
+        # more annoying than just doing it yourself...
+        conargs = cls.get_connect_args(password=password)
+        username = conargs.get('user')
+        password = conargs.get('password')
+        key = f'{username}:{password}'.encode('ascii')
+        basic_header = f'Basic {base64.b64encode(key).decode("ascii")}'
+
+        return basic_header
 
     @classmethod
     def get_parallelism_granularity(cls):
@@ -2101,6 +2118,7 @@ class _EdgeDBServer:
                     SET password := '{password}';
                 }};
                 """
+            print('boots:', bootstrap_command)
 
         if self.bootstrap_command is not None:
             bootstrap_command += self.bootstrap_command
