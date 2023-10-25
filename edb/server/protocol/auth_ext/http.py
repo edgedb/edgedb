@@ -92,7 +92,7 @@ class Router:
                     return await self.handle_resend_verification_email(
                         *handler_args
                     )
-                case ('send_reset_email',):
+                case ('send-reset-email',):
                     return await self.handle_send_reset_email(*handler_args)
                 case ('reset_password',):
                     return await self.handle_reset_password(*handler_args)

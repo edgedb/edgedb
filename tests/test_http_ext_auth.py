@@ -2431,7 +2431,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             body, _, status = self.http_con_request(
                 http_con,
                 None,
-                path="send_reset_email",
+                path="send-reset-email",
                 method="POST",
                 body=form_data_encoded,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -2504,7 +2504,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             _, redirect_headers, redirect_status = self.http_con_request(
                 http_con,
                 None,
-                path="send_reset_email",
+                path="send-reset-email",
                 method="POST",
                 body=urllib.parse.urlencode(
                     {
@@ -2546,7 +2546,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             _, _, error_status = self.http_con_request(
                 http_con,
                 None,
-                path="send_reset_email",
+                path="send-reset-email",
                 method="POST",
                 body=urllib.parse.urlencode(
                     {
@@ -2592,7 +2592,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             _, _, status = self.http_con_request(
                 http_con,
                 None,
-                path="send_reset_email",
+                path="send-reset-email",
                 method="POST",
                 body=form_data_encoded,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
