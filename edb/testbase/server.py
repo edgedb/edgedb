@@ -732,10 +732,12 @@ class ClusterTestCase(BaseHTTPTestCase):
         return conargs
 
     @classmethod
-    def make_auth_header(cls, password=None):
+    def make_auth_header(
+        cls, user=edgedb_defines.EDGEDB_SUPERUSER, password=None
+    ):
         # urllib *does* have actual support for basic auth but it is so much
         # more annoying than just doing it yourself...
-        conargs = cls.get_connect_args(password=password)
+        conargs = cls.get_connect_args(user=user, password=password)
         username = conargs.get('user')
         password = conargs.get('password')
         key = f'{username}:{password}'.encode('ascii')

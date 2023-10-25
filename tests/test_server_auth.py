@@ -47,6 +47,9 @@ class TestServerAuth(tb.ConnectedTestCase):
             self.skipTest('create role is not supported by the backend')
 
         await self.con.query('''
+            CREATE EXTENSION edgeql_http;
+        ''')
+        await self.con.query('''
             CREATE SUPERUSER ROLE foo {
                 SET password := 'foo-pass';
             }
@@ -61,12 +64,18 @@ class TestServerAuth(tb.ConnectedTestCase):
                 password='wrong',
             )
 
+        # Test wrong password on http basic auth
+        body, _, code = await self._basic_http_request(None, 'foo', 'wrong')
+        self.assertEqual(code, 400, f"Wrong result: {body}")
+
         # good password
         conn = await self.connect(
             user='foo',
             password='foo-pass',
         )
         await conn.aclose()
+        body, _, code = await self._basic_http_request(None, 'foo', 'foo-pass')
+        self.assertEqual(code, 200, f"Wrong result: {body}")
 
         await self.con.query('''
             CONFIGURE INSTANCE INSERT Auth {
@@ -236,6 +245,19 @@ class TestServerAuth(tb.ConnectedTestCase):
                 r'characters are not supported'):
             await self.con.execute(
                 f'CREATE SUPERUSER ROLE myrole_{"x" * s_def.MAX_NAME_LENGTH};')
+
+    async def _basic_http_request(
+        self, server, user, password, db='edgedb',
+    ):
+        with self.http_con(server, keep_alive=False) as con:
+            return self.http_con_request(
+                con,
+                path=f'/db/{db}/edgeql',
+                params=dict(query='select 1'),
+                headers=dict(
+                    Authorization=self.make_auth_header(user, password),
+                ),
+            )
 
     async def _jwt_http_request(self, server, sk, db='edgedb', proto='edgeql'):
         with self.http_con(server, keep_alive=False) as con:

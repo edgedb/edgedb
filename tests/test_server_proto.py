@@ -2276,7 +2276,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
         else:
             server_args['adjacent_to'] = self.con
 
-        headers={
+        headers = {
             'Authorization': self.make_auth_header(),
         }
 
