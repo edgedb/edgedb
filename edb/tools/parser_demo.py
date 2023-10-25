@@ -323,4 +323,8 @@ QUERIES = [
     '''
     default::Movie.name;
     ''',
+    '''
+    WITH MODULE welp
+    CREATE DATABASE sample;
+    ''',
 ]
