@@ -33,6 +33,8 @@ Standard Library
     fts
     sys
     cfg
+    pgcrypto
+    pg_trgm
     pgvector
     deprecated
 

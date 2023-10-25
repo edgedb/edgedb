@@ -712,7 +712,7 @@ class EQLFunctionDirective(BaseEQLDirective):
         if debug.flags.disable_docs_edgeql_validation:
             signode['eql-fullname'] = fullname = sig.split('(')[0]
             signode['eql-signature'] = sig
-            mod, name = fullname.split('::')
+            mod, name = fullname.rsplit('::', 1)
             signode['eql-module'] = mod
             signode['eql-name'] = name
 
