@@ -22,8 +22,12 @@ from typing import (
     Optional,
 )
 
+from edgedb import scram
+
 import asyncio
+import base64
 import decimal
+import hashlib
 import json
 import logging
 
@@ -717,10 +721,10 @@ def interpret_simple_error(
 
 
 # JWT auth stuff that is shraed between protocols
-def extract_token_from_auth_data(auth_data):
+def extract_token_from_auth_data(auth_data, method='bearer'):
     header_value = auth_data.decode("ascii")
     scheme, _, prefixed_token = header_value.partition(" ")
-    if scheme.lower() != "bearer":
+    if scheme.lower() != method:
         raise errors.AuthenticationError(
             'authentication failed: unrecognized authentication scheme')
 
@@ -832,3 +836,69 @@ def _get_jwt_edb_scope(claims, claim):
         return frozenset(scope)
     else:
         return None
+
+
+def scram_get_verifier(tenant, user):
+    roles = tenant.get_roles()
+
+    rolerec = roles.get(user)
+    if rolerec is not None:
+        verifier_string = rolerec['password']
+        if verifier_string is not None:
+            try:
+                verifier = scram.parse_verifier(verifier_string)
+            except ValueError:
+                raise errors.AuthenticationError(
+                    f'invalid SCRAM verifier for user {user!r}') from None
+            is_mock = False
+            return verifier, is_mock
+
+    # To avoid revealing the validity of the submitted user name,
+    # generate a mock verifier using a salt derived from the
+    # received user name and the cluster mock auth nonce.
+    # The same approach is taken by Postgres.
+    nonce = tenant.get_instance_data('mock_auth_nonce')
+    salt = hashlib.sha256(nonce.encode() + user.encode()).digest()
+
+    verifier = scram.SCRAMVerifier(
+        mechanism='SCRAM-SHA-256',
+        iterations=scram.DEFAULT_ITERATIONS,
+        salt=salt[:scram.DEFAULT_SALT_LENGTH],
+        stored_key=b'',
+        server_key=b'',
+    )
+    is_mock = True
+    return verifier, is_mock
+
+
+def scram_verify_password(password: str, verifier: object) -> bool:
+    """Check the given password against a verifier.
+
+    Returns True if the password is OK, False otherwise.
+    """
+
+    # adapted from edgedb-python's scram.verify_password but made to
+    # take a verifier object instead of a string
+
+    bpassword = scram.saslprep(password).encode('utf-8')
+    salted_password = scram.get_salted_password(
+        bpassword, verifier.salt, verifier.iterations)
+    computed_key = scram.get_server_key(salted_password)
+    return verifier.server_key == computed_key
+
+
+def auth_basic(tenant, prefixed_token: str, user: str):
+    # XXX: Better check?
+    try:
+        decoded = base64.b64decode(prefixed_token).decode('utf-8')
+    except ValueError:
+        raise errors.AuthenticationError(
+            'authentication failed: malformed authentication') from None
+    username, colon, password = decoded.partition(':')
+    if colon != ':':
+        raise errors.AuthenticationError(
+            'authentication failed: malformed authentication')
+
+    verifier, mock_auth = scram_get_verifier(tenant, username)
+    if not scram_verify_password(password, verifier) or mock_auth:
+        raise errors.AuthenticationError('authentication failed')

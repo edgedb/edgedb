@@ -737,6 +737,14 @@ cdef class HttpProtocol:
                 prefixed_token = execute.extract_token_from_auth_data(
                     request.authorization)
                 execute.auth_jwt(self.tenant, prefixed_token, user, dbname)
+            elif authmethod_name == 'SCRAM':
+                if not self.is_tls:
+                    raise errors.AuthenticationError(
+                        'Basic HTTP auth must use HTTPS')
+
+                prefixed_token = execute.extract_token_from_auth_data(
+                    request.authorization, method='basic')
+                execute.auth_basic(self.tenant, prefixed_token, user)
             elif authmethod_name == 'Trust':
                 pass
             else:
