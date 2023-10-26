@@ -410,8 +410,11 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         # the ClientHandshake message, under the scenario of
         # binary protocol over HTTP
         if self._auth_data:
-            prefixed_token = auth_helpers.extract_token_from_auth_data(
+            scheme, prefixed_token = auth_helpers.extract_token_from_auth_data(
                 self._auth_data)
+            if scheme != 'bearer':
+                raise errors.AuthenticationError(
+                    'authentication failed: unrecognized authentication scheme')
         else:
             prefixed_token = params.get('secret_key')
 

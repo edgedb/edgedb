@@ -77,6 +77,32 @@ class TestServerAuth(tb.ConnectedTestCase):
         body, _, code = await self._basic_http_request(None, 'foo', 'foo-pass')
         self.assertEqual(code, 200, f"Wrong result: {body}")
 
+        # Force foo to use a JWT so auth fails
+        await self.con.query('''
+            CONFIGURE INSTANCE INSERT Auth {
+                comment := 'foo-jwt',
+                priority := -1,
+                user := 'foo',
+                method := (INSERT JWT {
+                    transports := "SIMPLE_HTTP",
+                }),
+            }
+        ''')
+
+        # Should fail now
+        body, _, code = await self._basic_http_request(None, 'foo', 'foo-pass')
+        self.assertEqual(code, 400, f"Wrong result: {body}")
+
+        # But *edgedb* should still work
+        body, _, code = await self._basic_http_request(
+            None, 'edgedb', None)
+        self.assertEqual(code, 200, f"Wrong result: {body}")
+
+        await self.con.query('''
+            CONFIGURE INSTANCE RESET Auth
+            filter .comment = 'foo-jwt'
+        ''')
+
         await self.con.query('''
             CONFIGURE INSTANCE INSERT Auth {
                 comment := 'test',
@@ -259,7 +285,9 @@ class TestServerAuth(tb.ConnectedTestCase):
                 ),
             )
 
-    async def _jwt_http_request(self, server, sk, db='edgedb', proto='edgeql'):
+    async def _jwt_http_request(
+        self, server, sk, username='edgedb', db='edgedb', proto='edgeql'
+    ):
         with self.http_con(server, keep_alive=False) as con:
             return self.http_con_request(
                 con,
@@ -267,7 +295,10 @@ class TestServerAuth(tb.ConnectedTestCase):
                 # ... the graphql ones will produce an error, but that's
                 # still a 200
                 params=dict(query='select 1'),
-                headers=dict(Authorization=f'bearer {sk}'),
+                headers={
+                    'Authorization': f'bearer {sk}',
+                    'X-EdgeDB-User': username,
+                },
             )
 
     def _jwt_gql_request(self, server, sk):
@@ -291,6 +322,22 @@ class TestServerAuth(tb.ConnectedTestCase):
         ) as sd:
             base_sk = secretkey.generate_secret_key(jwk)
             conn = await sd.connect(secret_key=base_sk)
+            await conn.execute('''
+                CREATE SUPERUSER ROLE foo {
+                    SET password := 'foo-pass';
+                }
+            ''')
+            # Force foo to use passwords for simple auth so auth fails
+            await self.con.query('''
+                CONFIGURE INSTANCE INSERT Auth {
+                    comment := 'foo-jwt',
+                    priority := -1,
+                    user := 'foo',
+                    method := (INSERT Password {
+                        transports := "SIMPLE_HTTP",
+                    }),
+                }
+            ''')
             await conn.execute('''
                 CREATE EXTENSION edgeql_http;
                 CREATE EXTENSION graphql;
@@ -328,6 +375,18 @@ class TestServerAuth(tb.ConnectedTestCase):
 
             body, _, code = await self._jwt_http_request(
                 sd, corrupt_sk, db='non_existant')
+            self.assertEqual(code, 400, f"Wrong result: {body}")
+
+            # Good key (control check, mostly)
+            body, _, code = await self._jwt_http_request(sd, base_sk)
+            self.assertEqual(code, 200, f"Wrong result: {body}")
+            # Good key but nonexistant user
+            body, _, code = await self._jwt_http_request(
+                sd, base_sk, username='elonmusk')
+            self.assertEqual(code, 400, f"Wrong result: {body}")
+            # Good key but user needs password auth
+            body, _, code = await self._jwt_http_request(
+                sd, base_sk, username='elonmusk')
             self.assertEqual(code, 400, f"Wrong result: {body}")
 
             good_keys = [

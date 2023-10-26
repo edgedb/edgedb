@@ -36,14 +36,10 @@ from edb.server.protocol cimport args_ser
 cdef object logger = logging.getLogger('edb.server')
 
 
-def extract_token_from_auth_data(auth_data, method='bearer'):
+def extract_token_from_auth_data(auth_data):
     header_value = auth_data.decode("ascii")
-    scheme, _, prefixed_token = header_value.partition(" ")
-    if scheme.lower() != method:
-        raise errors.AuthenticationError(
-            'authentication failed: unrecognized authentication scheme')
-
-    return prefixed_token.strip()
+    scheme, _, payload = header_value.partition(" ")
+    return scheme.lower(), payload.strip()
 
 
 def auth_jwt(tenant, prefixed_token, user, dbname: str):
@@ -202,10 +198,9 @@ def scram_verify_password(password: str, verifier: object) -> bool:
     return verifier.server_key == computed_key
 
 
-def auth_basic(tenant, prefixed_token: str, user: str):
-    # XXX: Better check?
+cdef parse_basic_auth(auth_payload: str):
     try:
-        decoded = base64.b64decode(prefixed_token).decode('utf-8')
+        decoded = base64.b64decode(auth_payload).decode('utf-8')
     except ValueError:
         raise errors.AuthenticationError(
             'authentication failed: malformed authentication') from None
@@ -213,6 +208,23 @@ def auth_basic(tenant, prefixed_token: str, user: str):
     if colon != ':':
         raise errors.AuthenticationError(
             'authentication failed: malformed authentication')
+    return username, password
+
+
+def extract_http_user(scheme, auth_payload, params):
+    if scheme == 'basic':
+        username, _ = parse_basic_auth(auth_payload)
+        return username
+    else:
+        # Respect X-EdgeDB-User if present, but otherwise default to 'edgedb'
+        if params and b'user' in params:
+            return params[b'user'].decode('ascii')
+        else:
+            return 'edgedb'
+
+
+def auth_basic(tenant, auth_payload: str):
+    username, password = parse_basic_auth(auth_payload)
 
     verifier, mock_auth = scram_get_verifier(tenant, username)
     if not scram_verify_password(password, verifier) or mock_auth:

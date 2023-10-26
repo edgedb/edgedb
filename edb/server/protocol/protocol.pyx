@@ -724,27 +724,31 @@ cdef class HttpProtocol:
         dbindex: dbview.DatabaseIndex = self.tenant._dbindex
 
         try:
-            user = 'edgedb'  # I guess?
+            # Extract the username from the relevant request headers
+            scheme, auth_payload = auth_helpers.extract_token_from_auth_data(
+                request.authorization)
+            user = auth_helpers.extract_http_user(
+                scheme, auth_payload, request.params)
 
+            # Fetch the configured auth method
             authmethod = await self.tenant.get_auth_method(
                 user, srvargs.ServerConnTransport.SIMPLE_HTTP)
             authmethod_name = authmethod._tspec.name.split('::')[1]
 
-            if authmethod_name == 'JWT':
+            # If the auth method and the provided auth information match,
+            # try to resolve the authentication.
+            if authmethod_name == 'JWT' and scheme == 'bearer':
                 if not self.is_tls:
                     raise errors.AuthenticationError(
                         'JWT HTTP auth must use HTTPS')
-                prefixed_token = auth_helpers.extract_token_from_auth_data(
-                    request.authorization)
-                auth_helpers.auth_jwt(self.tenant, prefixed_token, user, dbname)
-            elif authmethod_name == 'Password':
+
+                auth_helpers.auth_jwt(self.tenant, auth_payload, user, dbname)
+            elif authmethod_name == 'Password' and scheme == 'basic':
                 if not self.is_tls:
                     raise errors.AuthenticationError(
                         'Basic HTTP auth must use HTTPS')
 
-                prefixed_token = auth_helpers.extract_token_from_auth_data(
-                    request.authorization, method='basic')
-                auth_helpers.auth_basic(self.tenant, prefixed_token, user)
+                auth_helpers.auth_basic(self.tenant, auth_payload)
             elif authmethod_name == 'Trust':
                 pass
             elif authmethod_name == 'SCRAM':
@@ -753,7 +757,8 @@ cdef class HttpProtocol:
                     'SCRAM authentication required but not supported for HTTP'
                 )
             else:
-                raise errors.AuthenticationError('authentication failed')
+                raise errors.AuthenticationError(
+                    'authentication failed: wrong method used')
 
         except Exception as ex:
             if debug.flags.server:
