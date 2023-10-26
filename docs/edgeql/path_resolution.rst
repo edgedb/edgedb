@@ -187,4 +187,5 @@ be applied to each value in the result.
 
 The :ref:`offset <ref_eql_select_pagination>` and
 :ref:`limit <ref_eql_select_pagination>` clauses are not nested in the scope
-because they need to be applied globally to the entire result set of your query.
+because they need to be applied globally to the entire result set of your
+query.
