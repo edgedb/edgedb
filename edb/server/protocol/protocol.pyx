@@ -48,7 +48,7 @@ from edb.server.dbview cimport dbview
 from edb.server.pgproto.debug cimport PG_DEBUG
 
 from . import auth
-from . import auth_helpers
+from . cimport auth_helpers
 from . import edgeql_ext
 from . import metrics
 from . import server_info

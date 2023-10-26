@@ -28,7 +28,7 @@ from edb.common import debug
 from edb.server import args as srvargs
 from edb.server.pgcon import errors as pgerror
 
-from . import auth_helpers
+from . cimport auth_helpers
 
 
 DEF FLUSH_BUFFER_AFTER = 100_000

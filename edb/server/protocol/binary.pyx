@@ -66,7 +66,7 @@ from edb.server.compiler import errormech
 from edb.server.compiler import enums
 from edb.server.compiler import sertypes
 
-from edb.server.protocol import auth_helpers
+from edb.server.protocol cimport auth_helpers
 from edb.server.protocol import execute
 from edb.server.protocol cimport frontend
 from edb.server.pgcon cimport pgcon

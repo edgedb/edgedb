@@ -36,13 +36,13 @@ from edb.server.protocol cimport args_ser
 cdef object logger = logging.getLogger('edb.server')
 
 
-def extract_token_from_auth_data(auth_data):
+cdef extract_token_from_auth_data(auth_data: bytes):
     header_value = auth_data.decode("ascii")
     scheme, _, payload = header_value.partition(" ")
     return scheme.lower(), payload.strip()
 
 
-def auth_jwt(tenant, prefixed_token, user, dbname: str):
+cdef auth_jwt(tenant, prefixed_token: str, user: str, dbname: str):
     if not prefixed_token:
         raise errors.AuthenticationError(
             'authentication failed: no authorization data provided')
@@ -92,7 +92,7 @@ def auth_jwt(tenant, prefixed_token, user, dbname: str):
         tenant, claims, token_version, user, dbname)
 
 
-def _check_jwt_authz(tenant, claims, token_version, user, dbname: str):
+cdef _check_jwt_authz(tenant, claims, token_version, user: str, dbname: str):
     # Check general key validity (e.g. whether it's a revoked key)
     tenant.check_jwt(claims)
 
@@ -136,7 +136,7 @@ def _check_jwt_authz(tenant, claims, token_version, user, dbname: str):
             f'access in role "{user}"')
 
 
-def _get_jwt_edb_scope(claims, claim):
+cdef _get_jwt_edb_scope(claims, claim):
     if not claims.get(f"{claim}.all"):
         scope = claims.get(claim, [])
         if not isinstance(scope, list):
@@ -149,7 +149,7 @@ def _get_jwt_edb_scope(claims, claim):
         return None
 
 
-def scram_get_verifier(tenant, user):
+cdef scram_get_verifier(tenant, user: str):
     roles = tenant.get_roles()
 
     rolerec = roles.get(user)
@@ -211,7 +211,7 @@ cdef parse_basic_auth(auth_payload: str):
     return username, password
 
 
-def extract_http_user(scheme, auth_payload, params):
+cdef extract_http_user(scheme, auth_payload, params):
     """Extract the username from an HTTP request.
 
     Raises an AuthenticationError if something is too malformed.
@@ -231,7 +231,7 @@ def extract_http_user(scheme, auth_payload, params):
         return username, None
 
 
-def auth_basic(tenant, username: str, password: str):
+cdef auth_basic(tenant, username: str, password: str):
     verifier, mock_auth = scram_get_verifier(tenant, username)
     if not scram_verify_password(password, verifier) or mock_auth:
         raise errors.AuthenticationError('authentication failed')
