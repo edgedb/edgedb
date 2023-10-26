@@ -56,7 +56,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                         }
                     '''
                 }
-                data, headers, status = self.http_con_request(con, req1_data)
+                data, headers, status = self.http_con_request(
+                    con, req1_data,
+                    headers={
+                        'Authorization': self.make_auth_header(),
+                    },
+                )
                 self.assertEqual(status, 200)
                 self.assertNotIn('connection', headers)
                 self.assertEqual(
@@ -76,7 +81,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                         }
                     '''
                 }
-                data, headers, status = self.http_con_request(con, req2_data)
+                data, headers, status = self.http_con_request(
+                    con, req2_data,
+                    headers={
+                        'Authorization': self.make_auth_header(),
+                    },
+                )
                 self.assertEqual(status, 200)
                 self.assertNotIn('connection', headers)
                 self.assertEqual(
@@ -89,7 +99,11 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_http_errors_01(self):
         with self.http_con() as con:
             data, headers, status = self.http_con_request(
-                con, {}, path='non-existant')
+                con, {}, path='non-existant',
+                headers={
+                    'Authorization': self.make_auth_header(),
+                },
+            )
 
             self.assertEqual(status, 404)
             self.assertEqual(headers['connection'], 'close')
@@ -100,7 +114,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
 
     def test_graphql_http_errors_02(self):
         with self.http_con() as con:
-            data, headers, status = self.http_con_request(con, {})
+            data, headers, status = self.http_con_request(
+                con, {},
+                headers={
+                    'Authorization': self.make_auth_header(),
+                },
+            )
 
             self.assertEqual(status, 400)
             self.assertEqual(headers['connection'], 'close')
@@ -112,7 +131,11 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_http_errors_03(self):
         with self.http_con() as con:
             data, headers, status = self.http_con_request(
-                con, {'query': 'blah', 'variables': 'bazz'})
+                con, {'query': 'blah', 'variables': 'bazz'},
+                headers={
+                    'Authorization': self.make_auth_header(),
+                },
+            )
 
             self.assertEqual(status, 400)
             self.assertEqual(headers['connection'], 'close')
@@ -125,7 +148,11 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         with self.http_con() as con:
             con.send(b'blah\r\n\r\n\r\n\r\n')
             data, headers, status = self.http_con_request(
-                con, {'query': 'blah', 'variables': 'bazz'})
+                con, {'query': 'blah', 'variables': 'bazz'},
+                headers={
+                    'Authorization': self.make_auth_header(),
+                },
+            )
 
             self.assertEqual(status, 400)
             self.assertEqual(headers['connection'], 'close')

@@ -24,6 +24,7 @@ from typing import *
 
 import asyncio
 import atexit
+import base64
 import contextlib
 import dataclasses
 import functools
@@ -120,6 +121,9 @@ class CustomSNI_HTTPSConnection(http.client.HTTPSConnection):
 
         self.sock = self._context.wrap_socket(self.sock,
                                               server_hostname=server_hostname)
+
+    def true_close(self):
+        self.close()
 
 
 class StubbornHttpConnection(CustomSNI_HTTPSConnection):
@@ -452,6 +456,7 @@ class BaseHTTPTestCase(TestCase):
         params: Optional[dict[str, str]] = None,
         *,
         prefix: Optional[str] = None,
+        headers: Optional[dict[str, str]] = None,
         body: Any,
         path: str = "",
     ):
@@ -461,7 +466,10 @@ class BaseHTTPTestCase(TestCase):
             method="POST",
             body=json.dumps(body).encode(),
             prefix=prefix,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                **(headers or {}),
+            },
             path=path,
         )
 
@@ -517,6 +525,7 @@ async def init_cluster(
         destroy = True
     else:
         cluster = edgedb_cluster.Cluster(
+            testmode=True,
             data_dir=data_dir,
             log_level=log_level,
             security=security,
@@ -531,6 +540,7 @@ async def init_cluster(
 
     await cluster.start(port=0)
     await cluster.set_test_config()
+    # await cluster.trust_http_connections()
     await cluster.set_superuser_password('test')
 
     if cleanup_atexit:
@@ -723,6 +733,20 @@ class ClusterTestCase(BaseHTTPTestCase):
         return conargs
 
     @classmethod
+    def make_auth_header(
+        cls, user=edgedb_defines.EDGEDB_SUPERUSER, password=None
+    ):
+        # urllib *does* have actual support for basic auth but it is so much
+        # more annoying than just doing it yourself...
+        conargs = cls.get_connect_args(user=user, password=password)
+        username = conargs.get('user')
+        password = conargs.get('password')
+        key = f'{username}:{password}'.encode('ascii')
+        basic_header = f'Basic {base64.b64encode(key).decode("ascii")}'
+
+        return basic_header
+
+    @classmethod
     def get_parallelism_granularity(cls):
         if cls.PARALLELISM_GRANULARITY == 'default':
             if cls.TRANSACTION_ISOLATION:
@@ -772,10 +796,14 @@ class ClusterTestCase(BaseHTTPTestCase):
 
     @classmethod
     @contextlib.contextmanager
-    def http_con(cls, server=None):
+    def http_con(cls, server=None, keep_alive=True, server_hostname=None):
         if server is None:
             server = cls
-        with super().http_con(server) as http_con:
+        with super().http_con(
+            server,
+            keep_alive=keep_alive,
+            server_hostname=server_hostname,
+        ) as http_con:
             yield http_con
 
     @property

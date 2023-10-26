@@ -117,6 +117,7 @@ class ServerAuthMethod(enum.StrEnum):
     Trust = "Trust"
     Scram = "SCRAM"
     JWT = "JWT"
+    Password = "Password"
 
 
 class ServerConnTransport(enum.StrEnum):
@@ -124,6 +125,7 @@ class ServerConnTransport(enum.StrEnum):
     HTTP = "HTTP"
     TCP = "TCP"
     TCP_PG = "TCP_PG"
+    SIMPLE_HTTP = "SIMPLE_HTTP"
 
 
 class ServerAuthMethods:
@@ -150,6 +152,7 @@ DEFAULT_AUTH_METHODS = ServerAuthMethods({
     ServerConnTransport.TCP: ServerAuthMethod.Scram,
     ServerConnTransport.TCP_PG: ServerAuthMethod.Scram,
     ServerConnTransport.HTTP: ServerAuthMethod.JWT,
+    ServerConnTransport.SIMPLE_HTTP: ServerAuthMethod.Password,
 })
 
 

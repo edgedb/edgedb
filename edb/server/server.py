@@ -1151,16 +1151,15 @@ class Server(BaseServer):
 
             patches[num] = entry
             _, _, updates, _ = entry
-            if 'stdschema' in updates:
-                self._std_schema = updates['stdschema']
+            if 'std_and_reflection_schema' in updates:
+                self._std_schema, self._refl_schema = updates[
+                    'std_and_reflection_schema']
                 # +config patches might modify config_spec, which requires
                 # a reload of it from the schema.
                 if '+config' in kind:
                     config_spec = config.load_spec_from_schema(self._std_schema)
                     self._config_settings = config_spec
 
-            if 'reflschema' in updates:
-                self._refl_schema = updates['reflschema']
             if 'local_intro_query' in updates:
                 self._local_intro_query = updates['local_intro_query']
             if 'global_intro_query' in updates:

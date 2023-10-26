@@ -22,9 +22,14 @@ from typing import (
     Optional,
 )
 
+from edgedb import scram
+
 import asyncio
+import base64
 import decimal
+import hashlib
 import json
+import logging
 
 import immutables
 
@@ -45,6 +50,8 @@ from edb.server.pgproto.pgproto cimport WriteBuffer
 from edb.server.pgcon cimport pgcon
 from edb.server.pgcon import errors as pgerror
 
+
+cdef object logger = logging.getLogger('edb.server')
 
 cdef object FMT_NONE = compiler.OutputFormat.NONE
 
