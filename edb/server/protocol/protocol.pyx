@@ -727,12 +727,12 @@ cdef class HttpProtocol:
             # Extract the username from the relevant request headers
             scheme, auth_payload = auth_helpers.extract_token_from_auth_data(
                 request.authorization)
-            user = auth_helpers.extract_http_user(
+            username, opt_password = auth_helpers.extract_http_user(
                 scheme, auth_payload, request.params)
 
             # Fetch the configured auth method
             authmethod = await self.tenant.get_auth_method(
-                user, srvargs.ServerConnTransport.SIMPLE_HTTP)
+                username, srvargs.ServerConnTransport.SIMPLE_HTTP)
             authmethod_name = authmethod._tspec.name.split('::')[1]
 
             # If the auth method and the provided auth information match,
@@ -742,13 +742,14 @@ cdef class HttpProtocol:
                     raise errors.AuthenticationError(
                         'JWT HTTP auth must use HTTPS')
 
-                auth_helpers.auth_jwt(self.tenant, auth_payload, user, dbname)
+                auth_helpers.auth_jwt(
+                    self.tenant, auth_payload, username, dbname)
             elif authmethod_name == 'Password' and scheme == 'basic':
                 if not self.is_tls:
                     raise errors.AuthenticationError(
                         'Basic HTTP auth must use HTTPS')
 
-                auth_helpers.auth_basic(self.tenant, auth_payload)
+                auth_helpers.auth_basic(self.tenant, username, opt_password)
             elif authmethod_name == 'Trust':
                 pass
             elif authmethod_name == 'SCRAM':

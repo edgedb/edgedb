@@ -212,20 +212,26 @@ cdef parse_basic_auth(auth_payload: str):
 
 
 def extract_http_user(scheme, auth_payload, params):
+    """Extract the username from an HTTP request.
+
+    Raises an AuthenticationError if something is too malformed.
+
+    Returns the username, along with the password, if appropriate.
+    (To avoid needing to parse the packet twice.)
+    """
+
     if scheme == 'basic':
-        username, _ = parse_basic_auth(auth_payload)
-        return username
+        return parse_basic_auth(auth_payload)
     else:
         # Respect X-EdgeDB-User if present, but otherwise default to 'edgedb'
         if params and b'user' in params:
-            return params[b'user'].decode('ascii')
+            username = params[b'user'].decode('ascii')
         else:
-            return 'edgedb'
+            username = 'edgedb'
+        return username, None
 
 
-def auth_basic(tenant, auth_payload: str):
-    username, password = parse_basic_auth(auth_payload)
-
+def auth_basic(tenant, username: str, password: str):
     verifier, mock_auth = scram_get_verifier(tenant, username)
     if not scram_verify_password(password, verifier) or mock_auth:
         raise errors.AuthenticationError('authentication failed')
