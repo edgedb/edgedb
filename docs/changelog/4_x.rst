@@ -334,12 +334,15 @@ db> with x := {'hello world', 'word hero', 'help the world'}
 Additional changes
 ==================
 
-EdgeQL
-------
+Performance
+-----------
 
 We've made a few internal changes affecting performance, the biggest of which
 was rewriting EdgeQL parser in Rust. Overall we've manged to reduce the
 baseline server memory consumption by 40%.
+
+EdgeQL
+------
 
 * Add new style of ``if``/``then``/``else`` syntax.
   (:eql:gh:`#6074`)
