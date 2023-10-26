@@ -235,9 +235,10 @@ Sets
     .. note::
 
         DML (i.e., :ref:`insert <ref_eql_insert>`, :ref:`update
-        <ref_eql_update>`, :ref:`delete <ref_eql_delete>`) is not supported in
-        ``if...else``. If you need to do one of these conditionally, you can
-        use a :ref:`for loop conditional <ref_eql_for_conditional_dml>` as a
+        <ref_eql_update>`, :ref:`delete <ref_eql_delete>`) was not supported
+        in ``if...else`` prior to EdgeDB 4.0. If you need to do one of these
+        on an older version of EdgeDB, you can use a 
+        :ref:`for loop conditional <ref_eql_for_conditional_dml>` as a
         workaround.
 
 
