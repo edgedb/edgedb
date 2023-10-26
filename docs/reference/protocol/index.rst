@@ -21,21 +21,23 @@ clients and servers.  The protocol is supported over TCP/IP.
 
 .. _ref_protocol_connecting:
 
-Connecting to EdgeDB 
+Connecting to EdgeDB
 ====================
 
-The EdgeDB binary protocol has two modes of operation: sockets and HTTP 
-tunnelling. When connecting to EdgeDB, the client can specify an accepted 
-`ALPN Protocol`_ to use. If the client does not specify an ALPN protocol, 
-HTTP tunnelling is assumed. 
+The EdgeDB binary protocol has two modes of operation: sockets and HTTP
+tunnelling. When connecting to EdgeDB, the client can specify an accepted
+`ALPN Protocol`_ to use. If the client does not specify an ALPN protocol,
+HTTP tunnelling is assumed.
 
 Sockets
 -------
 
-When using the ``edgedb-binary`` ALPN protocol, the client and server 
+When using the ``edgedb-binary`` ALPN protocol, the client and server
 communicate over a raw TCP/IP socket, following the :ref:`message format
 <ref_message_format>` and :ref:`message flow <ref_message_flow>` described
 below.
+
+.. _ref_http_tunnelling:
 
 HTTP Tunnelling
 ---------------
@@ -55,16 +57,16 @@ containing the authorization payload with the format:
 .. code-block::
 
   Authorization: {AUTH METHOD} data={PAYLOAD}
- 
-The client then reads the ``www-authenticate`` response header with the 
-following format: 
+
+The client then reads the ``www-authenticate`` response header with the
+following format:
 
 .. code-block::
 
   www-authenticate: {AUTH METHOD} {AUTH PAYLOAD}
 
 The auth payload's format is described by the auth method, usually
-``SCRAM-SHA-256``. If the auth method differs from the requested method, 
+``SCRAM-SHA-256``. If the auth method differs from the requested method,
 the client should abort the authentication attempt.
 
 Once the :ref:`authentication <ref_authentication>` phase is complete, the
@@ -72,20 +74,20 @@ final response's body will contain an authorization token used to authenticate
 the HTTP connection. The client then sends any following message to
 ``/db/{DATABASE}`` with the following headers:
 
-* ``X-EdgeDB-User``: The username specified in the 
+* ``X-EdgeDB-User``: The username specified in the
   :ref:`connection parameters <ref_reference_connection>`.
 
-* ``Authorization``: The authorization token received from the 
+* ``Authorization``: The authorization token received from the
   :ref:`authentication <ref_authentication>` phase, prefixed by ``Bearer``.
 
 * ``Content-Type``: Always ``application/x.edgedb.v_1_0.binary``.
 
-The response should be checked to match the content type, and the body should 
+The response should be checked to match the content type, and the body should
 be parsed as the :ref:`message format <ref_message_format>` described below;
 multiple message can be included in the response body, and should be parsed in
 order.
 
-.. _ALPN Protocol: 
+.. _ALPN Protocol:
     https://github.com/edgedb/rfcs/blob/master/text/
     1008-tls-and-alpn.rst#alpn-and-protocol-changes
 
