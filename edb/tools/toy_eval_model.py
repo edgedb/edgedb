@@ -66,6 +66,7 @@ from edb.common.compiler import AliasGenerator
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
 from edb.edgeql import desugar_group
+from edb.edgeql import parser as qlparser
 
 
 from dataclasses import dataclass, replace, field
@@ -1924,6 +1925,8 @@ parser.add_argument('commands', metavar='cmd', type=str, nargs='*',
 
 
 def main() -> None:
+    qlparser.preload_spec()
+
     db = mk_DB1()
 
     args = parser.parse_args()
