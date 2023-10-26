@@ -2724,3 +2724,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 parsed_query.get("error"),
                 ["Invalid 'reset_token'"],
             )
+
+    async def test_client_token_identity_card(self):
+        await self.con.query_single('''
+            select global ext::auth::ClientTokenIdentity
+        ''')
