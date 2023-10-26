@@ -114,7 +114,7 @@ speed up queries that filter, order, or group on both properties.
     <https://www.postgresql.org/docs/current/indexes-multicolumn.html>`_ to
     learn more about how the query planner uses these indexes.
 
-In EdgeDB, this is index is created by indexing on a ``tuple`` of properties.
+In EdgeDB, this index is created by indexing on a ``tuple`` of properties.
 
 .. code-block:: sdl
     :version-lt: 3.0

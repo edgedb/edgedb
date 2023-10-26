@@ -127,7 +127,7 @@ nested.
     db> select ('Apple', 7, true);
     {('Apple', 7, true)} # unnamed tuple
     db> select (fruit := 'Apple', quantity := 3.14, fresh := true);
-    {(fruit := 'Apple', quantity := 3.14, fresh := true)} # unnamed tuple
+    {(fruit := 'Apple', quantity := 3.14, fresh := true)} # named tuple
     db> select <json>["this", "is", "an", "array"];
     {"[\"this\", \"is\", \"an\", \"array\"]"}
 
@@ -683,7 +683,6 @@ executing a query.
     client = edgedb.create_async_client()
 
     async def main():
-
         result = await client.query("select <str>$param", param="Play it, Sam")
         # => "Play it, Sam"
 

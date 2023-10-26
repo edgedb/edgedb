@@ -67,8 +67,9 @@ Required links
 
 All links are either ``optional`` or ``required``; the default is ``optional``.
 Use the ``required`` keyword to declare a required link. A required link must
-point to *at least one* target instance. In this scenario, every ``Person``
-must have a ``best_friend``:
+point to *at least one* target instance, and if the cardinality of the required
+link is ``single``, it must point to *exactly one* target instance. In this
+scenario, every ``Person`` must have *exactly one* ``best_friend``:
 
 .. code-block:: sdl
     :version-lt: 3.0
@@ -143,7 +144,8 @@ instances can link to the same target(s).
 
 In the ``GroupChat`` example, the ``GroupChat.members`` link is now
 ``exclusive``. Two ``GroupChat`` objects cannot link to the same ``Person``;
-put differently, no ``Person`` can be a ``member`` of multiple ``GroupChat``.
+put differently, no ``Person`` can be a ``member`` of multiple ``GroupChat``
+objects.
 
 .. _ref_guide_modeling_relations:
 
@@ -340,10 +342,10 @@ A user can like multiple movies. And in the absence of an ``exclusive``
 constraint, each movie can be liked by multiple users. Thus this is a
 *many-to-many* relationship.
 
-Filtering, limiting, and ordering links
+Filtering, ordering, and limiting links
 ---------------------------------------
 
-The clauses ``order by``, ``filter`` and ``limit`` can be used on links
+The clauses ``filter``, ``order by`` and ``limit`` can be used on links
 as well.
 
 If no properties of a link are selected, you can put the relevant clauses
@@ -472,8 +474,8 @@ properties of the relationships and properties of the target objects. On the
 other hand, for one-to-one, one-to-many, and many-to-one relationships there's
 an exact correspondence between the link and one of the objects being linked.
 In these situations any property of the relationship can be equally expressed
-as the property of the target object (for one-to-many and one-to-one cases) or
-as the property of the source object (for many-to-one and one-to-one cases).
+as the property of the source object (for one-to-many and one-to-one cases) or
+as the property of the target object (for many-to-one and one-to-one cases).
 It is generally advisable to use object properties instead of link properties
 in these cases due to better ergonomics of selecting, updating, and even
 casting into :eql:type:`json` when keeping all data in the same place rather

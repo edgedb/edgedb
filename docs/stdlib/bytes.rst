@@ -131,7 +131,7 @@ Bytes
 
     :index: encode stringencoder
 
-    Create a :eql:type:`str` value to :eql:type:`bytes` using UTF-8 encoding.
+    Convert a :eql:type:`str` value to :eql:type:`bytes` using UTF-8 encoding.
 
     .. code-block:: edgeql-repl
 

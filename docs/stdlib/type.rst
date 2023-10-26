@@ -231,10 +231,11 @@ Types
         with module example
         select Text {
             name :=
-                Text[is Issue].name IF Text is Issue ELSE
+                Text[is Issue].name if Text is Issue else
                 <str>{},
                 # the cast to str is necessary here, because
-                # the type of the computed expression must be defined
+                # the type of the computed expression must be
+                # defined
             body,
         };
 

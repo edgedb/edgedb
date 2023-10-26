@@ -191,7 +191,7 @@ Strings
     .. code-block:: edgeql-repl
 
         db> select 'some text'[8];
-        {'x'}
+        {'t'}
         db> select 'some text'[9];
         InvalidValueError: string index 9 is out of bounds
 
@@ -259,9 +259,9 @@ Strings
 
     Case-sensitive simple string matching.
 
-    Returns ``true`` if the *value* ``V`` matches the *pattern* ``P``
-    and ``false`` otherwise.  The operator ``not like`` is
-    the negation of ``like``.
+    Returns ``true`` if the *value* (the ``str`` on the left) matches the
+    *pattern* (the ``str`` on the right) and ``false`` otherwise. The operator
+    ``not like`` is the negation of ``like``.
 
     The pattern matching rules are as follows:
 

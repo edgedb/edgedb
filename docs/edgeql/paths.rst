@@ -107,7 +107,7 @@ friend of another User*.
     select User.friends;
 
 Paths can traverse to an arbitrary depth in a series of nested links.
-Both ``select`` queries below ends up showing the author of the ``BlogPost``.
+Both ``select`` queries below end up showing the author of the ``BlogPost``.
 The second query returns the friends of the friends of the author of the
 ``BlogPost``, which in this case is just the author.
 
