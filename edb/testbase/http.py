@@ -106,6 +106,7 @@ class EdgeQLTestCase(BaseHttpExtensionTest):
                 req_data['globals'] = globals
             req = urllib.request.Request(self.http_addr, method='POST')
             req.add_header('Content-Type', 'application/json')
+            req.add_header('Authorization', self.make_auth_header())
             response = urllib.request.urlopen(
                 req, json.dumps(req_data).encode(), context=self.tls_context
             )
@@ -115,8 +116,12 @@ class EdgeQLTestCase(BaseHttpExtensionTest):
                 req_data['variables'] = json.dumps(variables)
             if globals is not None:
                 req_data['globals'] = json.dumps(globals)
-            response = urllib.request.urlopen(
+            req = urllib.request.Request(
                 f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}',
+            )
+            req.add_header('Authorization', self.make_auth_header())
+            response = urllib.request.urlopen(
+                req,
                 context=self.tls_context,
             )
             resp_data = json.loads(response.read())
@@ -184,6 +189,7 @@ class GraphQLTestCase(BaseHttpExtensionTest):
 
             req = urllib.request.Request(self.http_addr, method='POST')
             req.add_header('Content-Type', 'application/json')
+            req.add_header('Authorization', self.make_auth_header())
             response = urllib.request.urlopen(
                 req, json.dumps(req_data).encode(), context=self.tls_context
             )
@@ -198,8 +204,12 @@ class GraphQLTestCase(BaseHttpExtensionTest):
                 req_data['globals'] = json.dumps(deprecated_globals)
             if variables is not None:
                 req_data['variables'] = json.dumps(variables)
-            response = urllib.request.urlopen(
+            req = urllib.request.Request(
                 f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}',
+            )
+            req.add_header('Authorization', self.make_auth_header())
+            response = urllib.request.urlopen(
+                req,
                 context=self.tls_context,
             )
             resp_data = json.loads(response.read())

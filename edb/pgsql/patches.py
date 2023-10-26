@@ -74,4 +74,13 @@ The current kinds are:
  * repair - fix up inconsistencies in *user* schemas
 """
 PATCHES: list[tuple[str, str]] = _setup_patches([
+    ('edgeql+schema+config', '''
+ALTER SCALAR TYPE cfg::ConnectionTransport EXTENDING
+    enum<TCP, TCP_PG, HTTP, SIMPLE_HTTP>;
+CREATE TYPE cfg::Password EXTENDING cfg::AuthMethod {
+    ALTER PROPERTY transports {
+        SET default := { cfg::ConnectionTransport.SIMPLE_HTTP };
+    };
+};
+'''),
 ])

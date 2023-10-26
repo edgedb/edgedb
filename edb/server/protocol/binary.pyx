@@ -37,7 +37,6 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
                          UINT32_MAX
 
 import immutables
-from jwcrypto import jwt
 
 from edb import buildmeta
 from edb import edgeql
@@ -66,6 +65,8 @@ from edb.server import defines as edbdef
 from edb.server.compiler import errormech
 from edb.server.compiler import enums
 from edb.server.compiler import sertypes
+
+from edb.server.protocol cimport auth_helpers
 from edb.server.protocol import execute
 from edb.server.protocol cimport frontend
 from edb.server.pgcon cimport pgcon
@@ -404,127 +405,21 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.tenant.remove_dbview(self._dbview)
             self._dbview = None
 
-    def _extract_token_from_auth_data(self, auth_data):
-        header_value = auth_data.decode("ascii")
-        scheme, _, prefixed_token = header_value.partition(" ")
-        if scheme.lower() != "bearer":
-            raise errors.AuthenticationError(
-                'authentication failed: unrecognized authentication scheme')
-
-        return prefixed_token.strip()
-
     def _auth_jwt(self, user, database, params):
         # token in the HTTP header has higher priority than
         # the ClientHandshake message, under the scenario of
         # binary protocol over HTTP
         if self._auth_data:
-            prefixed_token = self._extract_token_from_auth_data(
-                self._auth_data
-            )
+            scheme, prefixed_token = auth_helpers.extract_token_from_auth_data(
+                self._auth_data)
+            if scheme != 'bearer':
+                raise errors.AuthenticationError(
+                    'authentication failed: unrecognized authentication scheme')
         else:
             prefixed_token = params.get('secret_key')
 
-        if not prefixed_token:
-            raise errors.AuthenticationError(
-                'authentication failed: no authorization data provided')
-
-        token_version = 0
-        for prefix in ["nbwt1_", "nbwt_", "edbt1_", "edbt_"]:
-            encoded_token = prefixed_token.removeprefix(prefix)
-            if encoded_token != prefixed_token:
-                if prefix == "nbwt1_" or prefix == "edbt1_":
-                    token_version = 1
-                break
-        else:
-            raise errors.AuthenticationError(
-                'authentication failed: malformed JWT')
-
-        role = self.tenant.get_roles().get(user)
-        if role is None:
-            raise errors.AuthenticationError('authentication failed')
-
-        skey = self.server.get_jws_key()
-
-        try:
-            token = jwt.JWT(
-                key=skey,
-                algs=["RS256", "ES256"],
-                jwt=encoded_token,
-            )
-        except jwt.JWException as e:
-            logger.debug('authentication failure', exc_info=True)
-            raise errors.AuthenticationError(
-                f'authentication failed: {e.args[0]}'
-            ) from None
-        except Exception as e:
-            logger.debug('authentication failure', exc_info=True)
-            raise errors.AuthenticationError(
-                f'authentication failed: cannot decode JWT'
-            ) from None
-
-        try:
-            claims = json.loads(token.claims)
-        except Exception as e:
-            raise errors.AuthenticationError(
-                f'authentication failed: malformed claims section in JWT'
-            ) from None
-
-        self._check_jwt_authz(claims, token_version, user, database)
-
-    def _check_jwt_authz(self, claims, token_version, user, dbname):
-        # Check general key validity (e.g. whether it's a revoked key)
-        self.tenant.check_jwt(claims)
-
-        token_instances = None
-        token_roles = None
-        token_databases = None
-
-        if token_version == 1:
-            token_roles = self._get_jwt_edb_scope(claims, "edb.r")
-            token_instances = self._get_jwt_edb_scope(claims, "edb.i")
-            token_databases = self._get_jwt_edb_scope(claims, "edb.d")
-        else:
-            namespace = "edgedb.server"
-            if not claims.get(f"{namespace}.any_role"):
-                token_roles = claims.get(f"{namespace}.roles")
-                if not isinstance(token_roles, list):
-                    raise errors.AuthenticationError(
-                        f'authentication failed: malformed claims section in'
-                        f' JWT: expected a list in "{namespace}.roles"'
-                    )
-
-        if (
-            token_instances is not None
-            and self.tenant.get_instance_name() not in token_instances
-        ):
-            raise errors.AuthenticationError(
-                'authentication failed: secret key does not authorize '
-                f'access to this instance')
-
-        if (
-            token_databases is not None
-            and dbname not in token_databases
-        ):
-            raise errors.AuthenticationError(
-                'authentication failed: secret key does not authorize '
-                f'access to database "{dbname}"')
-
-        if token_roles is not None and user not in token_roles:
-            raise errors.AuthenticationError(
-                'authentication failed: secret key does not authorize '
-                f'access in role "{user}"')
-
-    def _get_jwt_edb_scope(self, claims, claim):
-        if not claims.get(f"{claim}.all"):
-            scope = claims.get(claim, [])
-            if not isinstance(scope, list):
-                raise errors.AuthenticationError(
-                    f'authentication failed: malformed claims section in'
-                    f' JWT: expected a list in "{claim}"'
-                )
-            return frozenset(scope)
-        else:
-            return None
+        return auth_helpers.auth_jwt(
+            self.tenant, prefixed_token, user, database)
 
     cdef WriteBuffer _make_authentication_sasl_initial(self, list methods):
         cdef WriteBuffer msg_buf

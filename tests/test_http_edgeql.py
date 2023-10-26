@@ -47,7 +47,11 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
     def test_http_edgeql_proto_errors_01(self):
         with self.http_con() as con:
             data, headers, status = self.http_con_request(
-                con, {}, path='non-existant')
+                con, {}, path='non-existant',
+                headers={
+                    'Authorization': self.make_auth_header(),
+                },
+            )
 
             self.assertEqual(status, 404)
             self.assertEqual(headers['connection'], 'close')
@@ -58,7 +62,13 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
 
     def test_http_edgeql_proto_errors_02(self):
         with self.http_con() as con:
-            data, headers, status = self.http_con_request(con, {})
+            data, headers, status = self.http_con_request(
+                con,
+                {},
+                headers={
+                    'Authorization': self.make_auth_header(),
+                },
+            )
 
             self.assertEqual(status, 400)
             self.assertEqual(headers['connection'], 'close')
@@ -71,7 +81,12 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
         with self.http_con() as con:
             con.send(b'blah\r\n\r\n\r\n\r\n')
             data, headers, status = self.http_con_request(
-                con, {'query': 'blah', 'variables': 'bazz'})
+                con,
+                {'query': 'blah', 'variables': 'bazz'},
+                headers={
+                    'Authorization': self.make_auth_header(),
+                },
+            )
 
             self.assertEqual(status, 400)
             self.assertEqual(headers['connection'], 'close')
@@ -382,6 +397,7 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
 
         req = urllib.request.Request(self.http_addr, method='POST')
         req.add_header('Content-Type', 'application/json')
+        req.add_header('Authorization', self.make_auth_header())
         response = urllib.request.urlopen(
             req, req_data, context=self.tls_context
         )

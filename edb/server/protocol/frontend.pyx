@@ -18,7 +18,6 @@
 
 
 import asyncio
-import hashlib
 import logging
 import time
 
@@ -28,6 +27,9 @@ from edb import errors
 from edb.common import debug
 from edb.server import args as srvargs
 from edb.server.pgcon import errors as pgerror
+
+from . cimport auth_helpers
+
 
 DEF FLUSH_BUFFER_AFTER = 100_000
 cdef object logger = logging.getLogger('edb.server')
@@ -574,6 +576,12 @@ cdef class FrontendConnection(AbstractFrontendConnection):
             self._auth_jwt(user, database, params)
         elif authmethod_name == 'Trust':
             self._auth_trust(user)
+        elif authmethod_name == 'Password':
+            raise errors.AuthenticationError(
+                'authentication failed: '
+                'Simple password authentication required but it is only '
+                'supported for HTTP endpoints'
+            )
         else:
             raise errors.InternalServerError(
                 f'unimplemented auth method: {authmethod_name}')
@@ -621,7 +629,8 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                     raise errors.BinaryProtocolError(
                         f'client selected an invalid SASL authentication '
                         f'mechanism')
-                verifier, mock_auth = self._get_scram_verifier(user)
+                verifier, mock_auth = auth_helpers.scram_get_verifier(
+                    self.tenant, user)
 
                 try:
                     bare_offset, cb_flag, authzid, username, client_nonce = (
@@ -699,35 +708,3 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                 self.flush()
 
                 done = True
-
-    def _get_scram_verifier(self, user):
-        roles = self.tenant.get_roles()
-
-        rolerec = roles.get(user)
-        if rolerec is not None:
-            verifier_string = rolerec['password']
-            if verifier_string is not None:
-                try:
-                    verifier = scram.parse_verifier(verifier_string)
-                except ValueError:
-                    raise errors.AuthenticationError(
-                        f'invalid SCRAM verifier for user {user!r}') from None
-                is_mock = False
-                return verifier, is_mock
-
-        # To avoid revealing the validity of the submitted user name,
-        # generate a mock verifier using a salt derived from the
-        # received user name and the cluster mock auth nonce.
-        # The same approach is taken by Postgres.
-        nonce = self.tenant.get_instance_data('mock_auth_nonce')
-        salt = hashlib.sha256(nonce.encode() + user.encode()).digest()
-
-        verifier = scram.SCRAMVerifier(
-            mechanism='SCRAM-SHA-256',
-            iterations=scram.DEFAULT_ITERATIONS,
-            salt=salt[:scram.DEFAULT_SALT_LENGTH],
-            stored_key=b'',
-            server_key=b'',
-        )
-        is_mock = True
-        return verifier, is_mock
