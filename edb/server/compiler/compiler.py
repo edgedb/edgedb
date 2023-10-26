@@ -117,6 +117,7 @@ class CompileContext:
     bootstrap_mode: bool = False
     internal_schema_mode: bool = False
     log_ddl_as_migrations: bool = True
+    dump_restore_mode: bool = False
     notebook: bool = False
 
     def _assert_not_in_migration_block(
@@ -1045,6 +1046,7 @@ class Compiler:
             schema_object_ids=schema_object_ids,
             log_ddl_as_migrations=False,
             protocol_version=protocol_version,
+            dump_restore_mode=True,
         )
 
         ctx.state.start_tx()
@@ -2209,26 +2211,28 @@ def _try_compile(
             unit.drop_ext = comp.drop_ext
             unit.has_role_ddl = comp.has_role_ddl
             unit.ddl_stmt_id = comp.ddl_stmt_id
-            if comp.user_schema is not None:
-                unit.user_schema = pickle.dumps(comp.user_schema, -1)
-            if comp.cached_reflection is not None:
-                unit.cached_reflection = \
-                    pickle.dumps(comp.cached_reflection, -1)
-            if comp.global_schema is not None:
-                unit.global_schema = pickle.dumps(comp.global_schema, -1)
+            if not ctx.dump_restore_mode:
+                if comp.user_schema is not None:
+                    unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                if comp.cached_reflection is not None:
+                    unit.cached_reflection = \
+                        pickle.dumps(comp.cached_reflection, -1)
+                if comp.global_schema is not None:
+                    unit.global_schema = pickle.dumps(comp.global_schema, -1)
 
             unit.config_ops.extend(comp.config_ops)
 
         elif isinstance(comp, dbstate.TxControlQuery):
             unit.sql = comp.sql
             unit.cacheable = comp.cacheable
-            if comp.user_schema is not None:
-                unit.user_schema = pickle.dumps(comp.user_schema, -1)
-            if comp.cached_reflection is not None:
-                unit.cached_reflection = \
-                    pickle.dumps(comp.cached_reflection, -1)
-            if comp.global_schema is not None:
-                unit.global_schema = pickle.dumps(comp.global_schema, -1)
+            if not ctx.dump_restore_mode:
+                if comp.user_schema is not None:
+                    unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                if comp.cached_reflection is not None:
+                    unit.cached_reflection = \
+                        pickle.dumps(comp.cached_reflection, -1)
+                if comp.global_schema is not None:
+                    unit.global_schema = pickle.dumps(comp.global_schema, -1)
 
             if comp.modaliases is not None:
                 unit.modaliases = comp.modaliases
@@ -2253,11 +2257,12 @@ def _try_compile(
         elif isinstance(comp, dbstate.MigrationControlQuery):
             unit.sql = comp.sql
             unit.cacheable = comp.cacheable
-            if comp.user_schema is not None:
-                unit.user_schema = pickle.dumps(comp.user_schema, -1)
-            if comp.cached_reflection is not None:
-                unit.cached_reflection = \
-                    pickle.dumps(comp.cached_reflection, -1)
+            if not ctx.dump_restore_mode:
+                if comp.user_schema is not None:
+                    unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                if comp.cached_reflection is not None:
+                    unit.cached_reflection = \
+                        pickle.dumps(comp.cached_reflection, -1)
             unit.ddl_stmt_id = comp.ddl_stmt_id
 
             if comp.modaliases is not None:
