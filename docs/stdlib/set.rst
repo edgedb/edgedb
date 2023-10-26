@@ -217,8 +217,8 @@ Sets
 
     .. code-block:: edgeql-repl
 
-        db> select 'hello' if 2 * 2 = 4 else 'bye';
-        {'hello'}
+        db> select 'real life' if 2 * 2 = 4 else 'dream';
+        {'real life'}
 
     ``if..else`` expressions can be chained when checking multiple conditions
     is necessary:
@@ -244,6 +244,46 @@ Sets
 
 -----------
 
+
+.. eql:operator:: if..else: set of anytype if bool else set of anytype \
+                                -> set of anytype
+
+    .. versionadded:: 4.0
+
+    Produces one of two possible results based on a given condition using
+    ``then`` for an alternative order to ``if..else`` above.
+
+    .. eql:synopsis::
+
+        if <condition> then <left_expr> else <right_expr>
+
+    If the :eql:synopsis:`<condition>` is ``true``, the ``if...else``
+    expression produces the value of the :eql:synopsis:`<left_expr>`. If the
+    :eql:synopsis:`<condition>` is ``false``, however, the ``if...else``
+    expression produces the value of the :eql:synopsis:`<right_expr>`.
+
+    .. code-block:: edgeql-repl
+
+        db> select if 2 * 2 = 4 then 'real life' else 'dream';
+        {'real life'}
+
+    ``if..else`` expressions can be chained when checking multiple conditions
+    is necessary:
+
+    .. code-block:: edgeql-repl
+
+        db> with color := 'yellow', select
+        ... if color = 'red' then
+        ...   'Apple'
+        ... else if color = 'yellow' then
+        ...   'Banana'
+        ... else if color = 'orange' then
+        ...   'Orange'
+        ... else
+        ...   'Other';
+        {'Banana'}
+
+-----------
 
 .. eql:operator:: coalesce: optional anytype ?? set of anytype \
                               -> set of anytype
