@@ -60,6 +60,7 @@ from edb.server import protocol
 from edb.server import tenant as edbtenant
 from edb.server.protocol import binary  # type: ignore
 from edb.server.protocol import pg_ext  # type: ignore
+from edb.server.protocol import ui_ext  # type: ignore
 from edb.server.protocol.auth_ext import pkce
 from edb.server import metrics
 from edb.server import pgcon
@@ -357,6 +358,9 @@ class BaseServer:
         return self._config_settings
 
     async def init(self):
+        if self.is_admin_ui_enabled():
+            ui_ext.cache_assets()
+
         sys_config = self._get_sys_config()
         if not self._listen_hosts:
             self._listen_hosts = (
