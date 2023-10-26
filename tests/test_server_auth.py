@@ -22,6 +22,8 @@ import pathlib
 import signal
 import tempfile
 import unittest
+import urllib.error
+import urllib.request
 
 import jwcrypto.jwk
 
@@ -47,6 +49,9 @@ class TestServerAuth(tb.ConnectedTestCase):
             self.skipTest('create role is not supported by the backend')
 
         await self.con.query('''
+            CREATE EXTENSION edgeql_http;
+        ''')
+        await self.con.query('''
             CREATE SUPERUSER ROLE foo {
                 SET password := 'foo-pass';
             }
@@ -61,12 +66,43 @@ class TestServerAuth(tb.ConnectedTestCase):
                 password='wrong',
             )
 
+        # Test wrong password on http basic auth
+        body, code = await self._basic_http_request(None, 'foo', 'wrong')
+        self.assertEqual(code, 401, f"Wrong result: {body}")
+
         # good password
         conn = await self.connect(
             user='foo',
             password='foo-pass',
         )
         await conn.aclose()
+        body, code = await self._basic_http_request(None, 'foo', 'foo-pass')
+        self.assertEqual(code, 200, f"Wrong result: {body}")
+
+        # Force foo to use a JWT so auth fails
+        await self.con.query('''
+            CONFIGURE INSTANCE INSERT Auth {
+                comment := 'foo-jwt',
+                priority := -1,
+                user := 'foo',
+                method := (INSERT JWT {
+                    transports := "SIMPLE_HTTP",
+                }),
+            }
+        ''')
+
+        # Should fail now
+        body, code = await self._basic_http_request(None, 'foo', 'foo-pass')
+        self.assertEqual(code, 401, f"Wrong result: {body}")
+
+        # But *edgedb* should still work
+        body, code = await self._basic_http_request(None, 'edgedb', None)
+        self.assertEqual(code, 200, f"Wrong result: {body}")
+
+        await self.con.query('''
+            CONFIGURE INSTANCE RESET Auth
+            filter .comment = 'foo-jwt'
+        ''')
 
         await self.con.query('''
             CONFIGURE INSTANCE INSERT Auth {
@@ -237,6 +273,54 @@ class TestServerAuth(tb.ConnectedTestCase):
             await self.con.execute(
                 f'CREATE SUPERUSER ROLE myrole_{"x" * s_def.MAX_NAME_LENGTH};')
 
+    async def _basic_http_request(
+        self, server, user, password, db='edgedb',
+    ):
+        url = f'{self.http_addr}/db/{db}/edgeql'
+        params = dict(query='select 1')
+        password = password or self.get_connect_args()['password']
+
+        # Do the elaborate dance to let urllib do basic auth
+        # Most tests we just construct the header ourselves because that
+        # was very easy to integrate and also less confusing, but it's
+        # worth making sure that we interoperate with *something*.
+        https_handler = urllib.request.HTTPSHandler(context=self.tls_context)
+
+        passman = urllib.request.HTTPPasswordMgr()
+        passman.add_password('edgedb', url, user, password)
+        auth_handler = urllib.request.HTTPBasicAuthHandler(passman)
+        opener = urllib.request.build_opener(https_handler, auth_handler)
+
+        request = urllib.request.Request(
+            f'{url}/?{urllib.parse.urlencode(params)}',
+        )
+        try:
+            resp = opener.open(request)
+        except urllib.error.HTTPError as e:
+            resp = e.fp
+        resp_body = resp.read()
+        resp_status = resp.status
+        return resp_body, resp_status
+
+    async def _jwt_http_request(
+        self, server, sk, username='edgedb', db='edgedb', proto='edgeql'
+    ):
+        with self.http_con(server, keep_alive=False) as con:
+            return self.http_con_request(
+                con,
+                path=f'/db/{db}/{proto}',
+                # ... the graphql ones will produce an error, but that's
+                # still a 200
+                params=dict(query='select 1'),
+                headers={
+                    'Authorization': f'bearer {sk}',
+                    'X-EdgeDB-User': username,
+                },
+            )
+
+    def _jwt_gql_request(self, server, sk):
+        return self._jwt_http_request(server, sk, proto='graphql')
+
     @unittest.skipIf(
         "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
         "cannot use CONFIGURE INSTANCE in multi-tenant mode",
@@ -253,6 +337,30 @@ class TestServerAuth(tb.ConnectedTestCase):
             default_auth_method=args.ServerAuthMethod.JWT,
             extra_args=["--instance-name=localtest"],
         ) as sd:
+            base_sk = secretkey.generate_secret_key(jwk)
+            conn = await sd.connect(secret_key=base_sk)
+            await conn.execute('''
+                CREATE SUPERUSER ROLE foo {
+                    SET password := 'foo-pass';
+                }
+            ''')
+            # Force foo to use passwords for simple auth so auth fails
+            await self.con.query('''
+                CONFIGURE INSTANCE INSERT Auth {
+                    comment := 'foo-jwt',
+                    priority := -1,
+                    user := 'foo',
+                    method := (INSERT Password {
+                        transports := "SIMPLE_HTTP",
+                    }),
+                }
+            ''')
+            await conn.execute('''
+                CREATE EXTENSION edgeql_http;
+                CREATE EXTENSION graphql;
+            ''')
+            await conn.aclose()
+
             # bad secret keys
             with self.assertRaisesRegex(
                 edgedb.AuthenticationError,
@@ -269,6 +377,35 @@ class TestServerAuth(tb.ConnectedTestCase):
             ):
                 await sd.connect(secret_key=corrupt_sk)
 
+            body, _, code = await self._jwt_http_request(sd, corrupt_sk)
+            self.assertEqual(code, 401, f"Wrong result: {body}")
+            body, _, code = await self._jwt_gql_request(sd, corrupt_sk)
+            self.assertEqual(code, 401, f"Wrong result: {body}")
+
+            # Try to mess up the *signature* part of it
+            wrong_sk = sk[:-20] + ("1" if sk[-20] == "0" else "0") + sk[-20:]
+            with self.assertRaisesRegex(
+                edgedb.AuthenticationError,
+                'authentication failed: Verification failed',
+            ):
+                await sd.connect(secret_key=wrong_sk)
+
+            body, _, code = await self._jwt_http_request(
+                sd, corrupt_sk, db='non_existant')
+            self.assertEqual(code, 401, f"Wrong result: {body}")
+
+            # Good key (control check, mostly)
+            body, _, code = await self._jwt_http_request(sd, base_sk)
+            self.assertEqual(code, 200, f"Wrong result: {body}")
+            # Good key but nonexistant user
+            body, _, code = await self._jwt_http_request(
+                sd, base_sk, username='elonmusk')
+            self.assertEqual(code, 401, f"Wrong result: {body}")
+            # Good key but user needs password auth
+            body, _, code = await self._jwt_http_request(
+                sd, base_sk, username='elonmusk')
+            self.assertEqual(code, 401, f"Wrong result: {body}")
+
             good_keys = [
                 [],
                 [("roles", ["edgedb"])],
@@ -282,6 +419,11 @@ class TestServerAuth(tb.ConnectedTestCase):
                     sk = secretkey.generate_secret_key(jwk, **params_dict)
                     conn = await sd.connect(secret_key=sk)
                     await conn.aclose()
+
+                    body, _, code = await self._jwt_http_request(sd, sk)
+                    self.assertEqual(code, 200, f"Wrong result: {body}")
+                    body, _, code = await self._jwt_gql_request(sd, sk)
+                    self.assertEqual(code, 200, f"Wrong result: {body}")
 
             bad_keys = {
                 (("roles", ("bad-role",)),):
@@ -304,6 +446,11 @@ class TestServerAuth(tb.ConnectedTestCase):
                         "authentication failed: " + msg,
                     ):
                         await sd.connect(secret_key=sk)
+
+                    body, _, code = await self._jwt_http_request(sd, sk)
+                    self.assertEqual(code, 401, f"Wrong result: {body}")
+                    body, _, code = await self._jwt_gql_request(sd, sk)
+                    self.assertEqual(code, 401, f"Wrong result: {body}")
 
     @unittest.skipIf(
         "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
