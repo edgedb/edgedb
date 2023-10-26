@@ -198,7 +198,7 @@ database and provide a set of methods for executing queries.
   .. code-tab:: typescript
     :caption: Deno
 
-    import {createClient} from 'https://deno.land/x/edgedb';
+    import {createClient} from 'https://deno.land/x/edgedb/mod.ts';
 
     const client = createClient();
 
