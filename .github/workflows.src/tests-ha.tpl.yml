@@ -16,6 +16,19 @@ jobs:
 
     steps:
     <%- call build() -%>
+    # Our HA tests currently only work on Postgres 14 (see #6332),
+    # so check it out before we compute our build cache keys.
+    - name: Switch back to Postgres 14
+      shell: bash
+      run: |
+        set -e
+        cd postgres
+        # Fetch postgres 14, since the clone was shallow
+        git fetch origin REL_14_8 --depth=1
+        # For whatever reason the tag doesn't get fetched, so find it
+        # at FETCH_HEAD
+        git checkout FETCH_HEAD
+
     - name: Compute cache keys
       env:
         GIST_TOKEN: ${{ secrets.CI_BOT_GIST_TOKEN }}
