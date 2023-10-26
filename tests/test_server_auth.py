@@ -66,7 +66,7 @@ class TestServerAuth(tb.ConnectedTestCase):
 
         # Test wrong password on http basic auth
         body, _, code = await self._basic_http_request(None, 'foo', 'wrong')
-        self.assertEqual(code, 400, f"Wrong result: {body}")
+        self.assertEqual(code, 401, f"Wrong result: {body}")
 
         # good password
         conn = await self.connect(
@@ -91,7 +91,7 @@ class TestServerAuth(tb.ConnectedTestCase):
 
         # Should fail now
         body, _, code = await self._basic_http_request(None, 'foo', 'foo-pass')
-        self.assertEqual(code, 400, f"Wrong result: {body}")
+        self.assertEqual(code, 401, f"Wrong result: {body}")
 
         # But *edgedb* should still work
         body, _, code = await self._basic_http_request(
@@ -361,9 +361,9 @@ class TestServerAuth(tb.ConnectedTestCase):
                 await sd.connect(secret_key=corrupt_sk)
 
             body, _, code = await self._jwt_http_request(sd, corrupt_sk)
-            self.assertEqual(code, 400, f"Wrong result: {body}")
+            self.assertEqual(code, 401, f"Wrong result: {body}")
             body, _, code = await self._jwt_gql_request(sd, corrupt_sk)
-            self.assertEqual(code, 400, f"Wrong result: {body}")
+            self.assertEqual(code, 401, f"Wrong result: {body}")
 
             # Try to mess up the *signature* part of it
             wrong_sk = sk[:-20] + ("1" if sk[-20] == "0" else "0") + sk[-20:]
@@ -375,7 +375,7 @@ class TestServerAuth(tb.ConnectedTestCase):
 
             body, _, code = await self._jwt_http_request(
                 sd, corrupt_sk, db='non_existant')
-            self.assertEqual(code, 400, f"Wrong result: {body}")
+            self.assertEqual(code, 401, f"Wrong result: {body}")
 
             # Good key (control check, mostly)
             body, _, code = await self._jwt_http_request(sd, base_sk)
@@ -383,11 +383,11 @@ class TestServerAuth(tb.ConnectedTestCase):
             # Good key but nonexistant user
             body, _, code = await self._jwt_http_request(
                 sd, base_sk, username='elonmusk')
-            self.assertEqual(code, 400, f"Wrong result: {body}")
+            self.assertEqual(code, 401, f"Wrong result: {body}")
             # Good key but user needs password auth
             body, _, code = await self._jwt_http_request(
                 sd, base_sk, username='elonmusk')
-            self.assertEqual(code, 400, f"Wrong result: {body}")
+            self.assertEqual(code, 401, f"Wrong result: {body}")
 
             good_keys = [
                 [],
@@ -431,9 +431,9 @@ class TestServerAuth(tb.ConnectedTestCase):
                         await sd.connect(secret_key=sk)
 
                     body, _, code = await self._jwt_http_request(sd, sk)
-                    self.assertEqual(code, 400, f"Wrong result: {body}")
+                    self.assertEqual(code, 401, f"Wrong result: {body}")
                     body, _, code = await self._jwt_gql_request(sd, sk)
-                    self.assertEqual(code, 400, f"Wrong result: {body}")
+                    self.assertEqual(code, 401, f"Wrong result: {body}")
 
     @unittest.skipIf(
         "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,

@@ -766,7 +766,7 @@ cdef class HttpProtocol:
                 markup.dump(ex)
 
             response.body = str(ex).encode()
-            response.status = http.HTTPStatus.BAD_REQUEST
+            response.status = http.HTTPStatus.UNAUTHORIZED
             response.close_connection = True
             return False
 
