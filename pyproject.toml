@@ -2,7 +2,7 @@
 name = "edgedb-server"
 description = "EdgeDB Server"
 requires-python = '>=3.10.0'
-dynamic = ["entry-points", "version"]
+dynamic = ["version"]
 dependencies = [
     'edgedb==1.3.0',
 
@@ -19,6 +19,11 @@ dependencies = [
     'setproctitle~=1.2',
     'wcwidth~=0.2',
 ]
+
+[project.scripts]
+edgedb-server = "edb.server.main:main"
+edb = "edb.tools.edb:edbcommands"
+edgedb = "edb.cli:rustcli"
 
 [project.optional-dependencies]
 test = [
