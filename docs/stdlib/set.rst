@@ -331,6 +331,14 @@ Sets
     Without the coalescing operator, the above query will skip any
     ``Issue`` without priority.
 
+    As of EdgeDB 4.0, the coalescing operator can be used to express
+    things like "select or insert if missing":
+  
+    .. code-block:: edgeql
+
+        select 
+          (select User filter .name = 'Alice') ??
+          (insert User { name := 'Alice' }); 
 
 ----------
 
