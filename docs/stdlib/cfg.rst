@@ -304,7 +304,7 @@ Client connections
 
 .. eql:type:: cfg::Password
 
-  ``cfg::Password`` indicates simple password-based authenticationk.
+  ``cfg::Password`` indicates simple password-based authentication.
 
   Unlike :eql:type:`cfg::SCRAM`, this policy transmits the password
   over the (encrypted) channel.  It is implemened using HTTP Basic
