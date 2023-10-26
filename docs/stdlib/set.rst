@@ -232,6 +232,17 @@ Sets
         ...        'Other';
         {'Banana'}
 
+    It can be used to create, update, or delete different objects based on
+    some condition:
+
+    .. code-block:: edgeql
+    
+        with
+          name := <str>$0,
+          admin := <bool>$1
+        select (insert AdminUser { name := name }) if admin
+          else (insert User { name := name });
+
     .. note::
 
         DML (i.e., :ref:`insert <ref_eql_insert>`, :ref:`update
@@ -245,7 +256,7 @@ Sets
 -----------
 
 
-.. eql:operator:: if..else: set of anytype if bool else set of anytype \
+.. eql:operator:: if..else: if bool then set of anytype else set of anytype \
                                 -> set of anytype
 
     .. versionadded:: 4.0
@@ -282,6 +293,21 @@ Sets
         ... else
         ...   'Other';
         {'Banana'}
+
+    It can be used to create, update, or delete different objects based on
+    some condition:
+
+    .. code-block:: edgeql
+    
+        with
+          name := <str>$0,
+          admin := <bool>$1
+        select if admin then (
+            insert AdminUser { name := name }
+        ) else (
+            insert User { name := name }
+        )
+
 
 -----------
 
