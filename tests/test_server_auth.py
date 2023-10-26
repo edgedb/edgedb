@@ -22,6 +22,8 @@ import pathlib
 import signal
 import tempfile
 import unittest
+import urllib.error
+import urllib.request
 
 import jwcrypto.jwk
 
@@ -65,7 +67,7 @@ class TestServerAuth(tb.ConnectedTestCase):
             )
 
         # Test wrong password on http basic auth
-        body, _, code = await self._basic_http_request(None, 'foo', 'wrong')
+        body, code = await self._basic_http_request(None, 'foo', 'wrong')
         self.assertEqual(code, 401, f"Wrong result: {body}")
 
         # good password
@@ -74,7 +76,7 @@ class TestServerAuth(tb.ConnectedTestCase):
             password='foo-pass',
         )
         await conn.aclose()
-        body, _, code = await self._basic_http_request(None, 'foo', 'foo-pass')
+        body, code = await self._basic_http_request(None, 'foo', 'foo-pass')
         self.assertEqual(code, 200, f"Wrong result: {body}")
 
         # Force foo to use a JWT so auth fails
@@ -90,12 +92,11 @@ class TestServerAuth(tb.ConnectedTestCase):
         ''')
 
         # Should fail now
-        body, _, code = await self._basic_http_request(None, 'foo', 'foo-pass')
+        body, code = await self._basic_http_request(None, 'foo', 'foo-pass')
         self.assertEqual(code, 401, f"Wrong result: {body}")
 
         # But *edgedb* should still work
-        body, _, code = await self._basic_http_request(
-            None, 'edgedb', None)
+        body, code = await self._basic_http_request(None, 'edgedb', None)
         self.assertEqual(code, 200, f"Wrong result: {body}")
 
         await self.con.query('''
@@ -275,15 +276,31 @@ class TestServerAuth(tb.ConnectedTestCase):
     async def _basic_http_request(
         self, server, user, password, db='edgedb',
     ):
-        with self.http_con(server, keep_alive=False) as con:
-            return self.http_con_request(
-                con,
-                path=f'/db/{db}/edgeql',
-                params=dict(query='select 1'),
-                headers=dict(
-                    Authorization=self.make_auth_header(user, password),
-                ),
-            )
+        url = f'{self.http_addr}/db/{db}/edgeql'
+        params = dict(query='select 1')
+        password = password or self.get_connect_args()['password']
+
+        # Do the elaborate dance to let urllib do basic auth
+        # Most tests we just construct the header ourselves because that
+        # was very easy to integrate and also less confusing, but it's
+        # worth making sure that we interoperate with *something*.
+        https_handler = urllib.request.HTTPSHandler(context=self.tls_context)
+
+        passman = urllib.request.HTTPPasswordMgr()
+        passman.add_password('edgedb', url, user, password)
+        auth_handler = urllib.request.HTTPBasicAuthHandler(passman)
+        opener = urllib.request.build_opener(https_handler, auth_handler)
+
+        request = urllib.request.Request(
+            f'{url}/?{urllib.parse.urlencode(params)}',
+        )
+        try:
+            resp = opener.open(request)
+        except urllib.error.HTTPError as e:
+            resp = e.fp
+        resp_body = resp.read()
+        resp_status = resp.status
+        return resp_body, resp_status
 
     async def _jwt_http_request(
         self, server, sk, username='edgedb', db='edgedb', proto='edgeql'

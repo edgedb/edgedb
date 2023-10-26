@@ -723,6 +723,7 @@ cdef class HttpProtocol:
     ):
         dbindex: dbview.DatabaseIndex = self.tenant._dbindex
 
+        scheme = None
         try:
             # Extract the username from the relevant request headers
             scheme, auth_payload = auth_helpers.extract_token_from_auth_data(
@@ -768,6 +769,13 @@ cdef class HttpProtocol:
             response.body = str(ex).encode()
             response.status = http.HTTPStatus.UNAUTHORIZED
             response.close_connection = True
+
+            # If no scheme was specified, add a WWW-Authenticate header
+            if scheme == '':
+                response.custom_headers['WWW-Authenticate'] = (
+                    'Basic realm="edgedb", Bearer'
+                )
+
             return False
 
         return True
