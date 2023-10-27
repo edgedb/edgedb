@@ -38,6 +38,9 @@ Bytes
     * - :eql:func:`to_bytes`
       - :eql:func-desc:`to_bytes`
 
+    * - :eql:func:`to_str`
+      - :eql:func-desc:`to_str`
+
     * - :eql:func:`bytes_get_bit`
       - :eql:func-desc:`bytes_get_bit`
 
@@ -131,12 +134,30 @@ Bytes
 
     :index: encode stringencoder
 
-    Convert a :eql:type:`str` value to :eql:type:`bytes` using UTF-8 encoding.
+    Converts a :eql:type:`str` value to :eql:type:`bytes` using
+    UTF-8 encoding.
 
     .. code-block:: edgeql-repl
 
         db> select to_bytes('テキスト');
         {b'\xe3\x83\x86\xe3\x82\xad\xe3\x82\xb9\xe3\x83\x88'}
+
+
+---------
+
+.. eql:function:: std::to_str(b: bytes) -> bytes
+
+    Converts a :eql:type:`bytes` value to :eql:type:`str` using UTF-8
+    encoding. Returns an InvalidValueError if input UTF-8 is invalid.
+
+    .. code-block:: edgeql-repl
+
+        db> select to_str(b'\xe3\x83\x86');
+        {'テ'}
+        db> select to_str(b'\xe3\x83');
+        edgedb error: InvalidValueError: invalid byte sequence for
+        encoding "UTF8": 0xe3 0x83
+
 
 ---------
 
