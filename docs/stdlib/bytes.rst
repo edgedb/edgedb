@@ -152,7 +152,7 @@ Bytes
 
 ---------
 
-.. eql:function:: std::to_str(b: bytes) -> bytes
+.. eql:function:: std::to_str(b: bytes) -> str
 
     .. versionadded:: 4.0
 
