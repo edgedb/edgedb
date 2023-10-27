@@ -1185,3 +1185,74 @@ receive support for a year and a half after their initial release.
 
 * Properly reject indexes on non-immutable computeds
   (:eql:gh:`#6170`)
+
+3.5
+===
+* Fix migrations modifying WHEN clauses on access policies
+
+* Produce proper error messages when defining a field twice
+  (:eql:gh:`#5785`)
+
+* Fix a protocol bug involving ``CONFIGURE INSTANCE``
+  (:eql:gh:`#6258`)
+
+* Fix some regressions involving property defaults
+  (:eql:gh:`#6265`)
+
+* Fix scope bugs in ``SET ... USING`` statements
+  (:eql:gh:`#6267`)
+
+* Handle decimal params in edgeql_http protocol without loss of
+  precision
+  (:eql:gh:`#5848`)
+
+* Mark md5 as not being used for security, allowing use of EdgeDB
+  in a FIPS-complaint environment.
+  (:eql:gh:`#6268`)
+
+* Fix compilation of explicit ids in inserts that can be empty
+  (:eql:gh:`#6281`)
+
+* Fix some migration crashes due to missing source contexts
+  (:eql:gh:`#6288`)
+
+* Fix unused WITH DML when body is an INSERT
+  (:eql:gh:`#6287`)
+
+* Fix configuring effective_io_concurrency
+  (:eql:gh:`#6289`)
+
+* Fix type name injection on computed backlinks without a shape
+  (:eql:gh:`#6290`)
+
+* Fix renames of types with rewrites on them
+  (:eql:gh:`#6293`)
+
+* Fix renames of properties that have computeds aliasing them
+  (:eql:gh:`#6294`)
+
+* Fix use of UNLESS CONFLICT in triggers
+  (:eql:gh:`#6297`)
+
+* Fix uuid->object casts in access policies in nested INSERTs
+  (:eql:gh:`#6313`)
+
+* Make 'reference to a non-existent schema item <id>' an ISE.
+  It's always a bug, and that should be made clear to users.
+  (:eql:gh:`#6314`)
+
+* Make edgedb+http tunneled protocol not leak db existance before auth
+  (:eql:gh:`#6350`)
+
+* Substantially speed up restoring of dumps with large schemas
+  (:eql:gh:`#6362`)
+
+* Make migration deadlocks less likely in some common cases
+  (:eql:gh:`#6379`)
+
+* Support calling functions that use globals in property/link defaults
+  (:eql:gh:`#6381`)
+
+* Correctly update functions when globals/aliases/computeds they depend on
+  change
+  (:eql:gh:`#6382`)
