@@ -172,7 +172,7 @@ Bytes
 
 .. eql:function:: std::bytes_get_bit(bytes: bytes, nth: int64) -> int64
 
-    Returns the specified bit of the bytes value.
+    Returns the specified bit of the :eql:type:`bytes` value.
 
     When looking for the *nth* bit, this function will enumerate bits from
     least to most significant in each byte.
@@ -191,7 +191,7 @@ Bytes
 
     .. versionadded:: 4.0
 
-    Returns a Base64-encoded str of the bytes value.
+    Returns a Base64-encoded :eql:type:`str` of the :eql:type:`bytes` value.
 
     .. code-block:: edgeql-repl
 
@@ -204,8 +204,8 @@ Bytes
 
     .. versionadded:: 4.0
 
-    Returns the bytes of a Base64-encoded str. Returns an InvalidValueError
-    if input is not valid Base64.
+    Returns the :eql:type:`bytes` of a Base64-encoded :eql:type:`str`.
+    Returns an InvalidValueError if input is not valid Base64.
 
     .. code-block:: edgeql-repl
 

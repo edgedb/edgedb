@@ -381,6 +381,8 @@ Generic
     ``true`` if the json data contains the element specified as *needle* or
     ``false`` otherwise:
 
+    .. code-block:: edgeql-repl
+
         db> with haystack := to_json('{
         ...   "city": "Baerlon",
         ...   "city": "Caemlyn"
