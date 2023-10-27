@@ -2729,3 +2729,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         await self.con.query_single('''
             select global ext::auth::ClientTokenIdentity
         ''')
+
+    async def test_http_auth_ext_static_files(self):
+        with MockAuthProvider(), self.http_con() as http_con:
+            _, _, status = self.http_con_request(
+                http_con,
+                path="ui/_static/icon_github.svg",
+            )
+
+            self.assertEqual(status, 200)
