@@ -48,7 +48,7 @@ Connection
 Once you've activated the extension, your instance will listen for incoming
 GraphQL queries via HTTP at the following URL.
 
-``http://127.0.0.1:<instance-port>/db/<database-name>/graphql``
+``http://<instance-hostname><instance-port>/db/<database-name>/graphql``
 
 The value of ``<database-name>`` is probably ``edgedb``, which is the name of
 the default database that is created when an instance is first created. (If
@@ -81,7 +81,13 @@ named ``inst2``, we would send an HTTP request to
   the GraphiQL endpoint is available at
   ``http://localhost:10702/db/edgedb/graphql/explore``.
 
-But what kind of HTTP request should this be? And what data should it contain?
+Authentication
+--------------
+
+.. versionadded:: 4.0
+
+Authentication for the GraphQL endpoint is identical to that for the
+:ref:`EdgeQL HTTP endpoing <ref_http_auth>`.
 
 .. _ref_graphql_protocol:
 

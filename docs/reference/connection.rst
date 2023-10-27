@@ -335,16 +335,15 @@ instance:
 
 - ``EDGEDB_PASSWORD`` **will** override the password specified in
   ``EDGEDB_DSN``
-- ``EDGEDB_PASSWORD`` **will be ignored** if a DSN is passed explicitly using
-  the ``--dsn`` flag. Explicit parameters take precedence over environment
-  variables. To override the password of an explicit DSN, you need to pass it
-  explicitly as well:
+- ``EDGEDB_PASSWORD`` **will be ignored** if a DSN is passed
+  explicitly using the ``--dsn`` flag. Explicit parameters take
+  precedence over environment variables. To override the password of
+  an explicit DSN, you need to pass it explicitly as well:
 
   .. code-block:: bash
 
      $ edgedb --dsn edgedb://username:oldpass@hostname.com --password qwerty
      # connects to edgedb://username:qwerty@hostname.com
 
-- ``EDGEDB_PASSWORD`` **will** override the stored password associated with a
-  project-linked instance. (This is unlikely to be desirable.)
-
+- ``EDGEDB_PASSWORD`` **will** override the stored password associated
+  with a project-linked instance. (This is unlikely to be desirable.)

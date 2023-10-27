@@ -5,7 +5,7 @@ Schema
 ======
 
 
-This page is indended as a rapid-fire overview of EdgeDB's schema definition
+This page is intended as a rapid-fire overview of EdgeDB's schema definition
 language (SDL) so you can hit the ground running with EdgeDB. Refer to the
 linked pages for more in-depth documentation!
 

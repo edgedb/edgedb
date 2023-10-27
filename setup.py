@@ -918,18 +918,8 @@ def _version():
     return buildmeta.get_version_from_scm(ROOT_PATH)
 
 
-_entry_points = {
-    'edgedb-server = edb.server.main:main',
-    'edgedb = edb.cli:rustcli',
-    'edb = edb.tools.edb:edbcommands',
-}
-
-
 setuptools.setup(
     version=_version(),
-    entry_points={
-        "console_scripts": _entry_points,
-    },
     cmdclass={
         'build': build,
         'build_metadata': build_metadata,

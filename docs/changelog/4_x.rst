@@ -224,6 +224,30 @@ multiranges, providing more flexibility in expressions.
     {[range(1, 3), range(4, 5), range(8, 10)]}
 
 
+GraphQL and HTTP authentication
+===============================
+
+..
+   We'll drop the rc1 mention after the real release
+
+Starting in rc1, the :ref:`EdgeQL over HTTP <ref_edgeql_http>`
+and :ref:`GraphQL <ref_graphql_index>` endpoints support
+(and by default require) authentication.
+
+.. lint-off
+
+By default,
+`HTTP Basic Authentication
+<https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication#basic_authentication_scheme>`_ is used.
+
+.. lint-on
+
+Full details are available in the :ref:`EdgeQL over HTTP documentation
+<ref_http_auth>`.
+
+This is a backwards-incompatible change. It is possible to opt-in to
+the old behavior, but not recommended.
+
 Extensions
 ==========
 

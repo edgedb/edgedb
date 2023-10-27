@@ -139,7 +139,6 @@ class Router:
             )
 
         except errors.InvalidData as ex:
-            markup.dump(ex)
             _fail_with_error(
                 response=response,
                 status=http.HTTPStatus.BAD_REQUEST,

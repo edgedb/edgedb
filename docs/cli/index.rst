@@ -75,7 +75,7 @@ macOS run:
    $ rm "$(which edgedb)"
 
 To remove all configuration files, run ``edgedb info`` to list the directories
-where EdgeDB stores data, then use ``rf -rf <dir>`` to delete those
+where EdgeDB stores data, then use ``rm -rf <dir>`` to delete those
 directories.
 
 If the command-line tool was installed by the user (recommended) then it
