@@ -43,6 +43,7 @@ commands <ref_eql_ddl_triggers>`.
       after
         {insert | update | delete} [, ...]
         for {each | all}
+        [ when (<condition>) ]
         do <expr>
     "}"
 
