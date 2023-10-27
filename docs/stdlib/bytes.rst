@@ -44,6 +44,11 @@ Bytes
     * - :eql:func:`bytes_get_bit`
       - :eql:func-desc:`bytes_get_bit`
 
+    * - :eql:func:`enc::base64_encode`
+      - :eql:func-desc:`enc::base64_encode`
+
+    * - :eql:func:`enc::base64_decode`
+      - :eql:func-desc:`enc::base64_decode`
 
 ----------
 
@@ -174,3 +179,29 @@ Bytes
         ...           8, 9, 10, 11, 12, 13 ,14, 15}
         ... union bytes_get_bit(b'ab', n);
         {1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0}
+
+
+---------
+
+.. eql:function:: enc::base64_encode(b: bytes) -> str
+
+    Returns a Base64-encoded str of the bytes value.
+
+    .. code-block:: edgeql-repl
+
+        db> select enc::base64_encode(b'hello');
+        {'aGVsbG8='}
+
+---------
+
+.. eql:function:: enc::base64_decode(s: str) -> bytes
+
+    Returns the bytes of a Base64-encoded str. Returns an InvalidValueError
+    if input is not valid Base64.
+
+    .. code-block:: edgeql-repl
+
+        db> select enc::base64_decode('aGVsbG8=');
+        {b'hello'}
+        db> select enc::base64_decode('aGVsbG8');
+        edgedb error: InvalidValueError: invalid base64 end sequence
