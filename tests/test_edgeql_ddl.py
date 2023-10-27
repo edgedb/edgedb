@@ -7129,20 +7129,24 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.con.execute('''
             alter global foo set default := "!";
+            create function get_foo() -> optional str using (global foo);
         ''')
 
         # Try it again now that there is a default
         await self.con.execute('''
             alter type Foo { create required property name2 -> str {
                 set default := (global foo);
-            } }
+            } };
+            alter type Foo { create required property name3 -> str {
+                set default := (get_foo());
+            } };
         ''')
 
         await self.assert_query_result(
             '''
-                select Foo { name, name2 }
+                select Foo { name, name2, name3 }
             ''',
-            [{'name': "test", 'name2': "!"}],
+            [{'name': "test", 'name2': "!", 'name3': "!"}],
         )
 
     async def test_edgeql_ddl_property_computable_01(self):
