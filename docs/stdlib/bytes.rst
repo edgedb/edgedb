@@ -137,9 +137,9 @@ Bytes
 
 .. eql:function:: std::to_bytes(s: str) -> bytes
 
-    .. versionadded:: 4.0
-
     :index: encode stringencoder
+
+    .. versionadded:: 4.0
 
     Converts a :eql:type:`str` value to :eql:type:`bytes` using
     UTF-8 encoding.
@@ -157,7 +157,9 @@ Bytes
     .. versionadded:: 4.0
 
     Converts a :eql:type:`bytes` value to :eql:type:`str` using UTF-8
-    encoding. Returns an InvalidValueError if input UTF-8 is invalid.
+    encoding.
+    
+    Returns an InvalidValueError if input UTF-8 is invalid.
 
     .. code-block:: edgeql-repl
 
@@ -205,6 +207,7 @@ Bytes
     .. versionadded:: 4.0
 
     Returns the :eql:type:`bytes` of a Base64-encoded :eql:type:`str`.
+    
     Returns an InvalidValueError if input is not valid Base64.
 
     .. code-block:: edgeql-repl

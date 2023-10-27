@@ -256,13 +256,14 @@ Sets
 -----------
 
 
-.. eql:operator:: if..else: if bool then set of anytype else set of anytype \
-                                -> set of anytype
+.. eql:operator:: if..then..else: if bool then set of anytype else set of \
+                                anytype -> set of anytype
 
     .. versionadded:: 4.0
 
-    Produces one of two possible results based on a given condition using
-    ``then`` for an alternative order to ``if..else`` above.
+    Produces one of two possible results based on a given condition.
+    
+    Uses ``then`` for an alternative syntax order to ``if..else`` above.
 
     .. eql:synopsis::
 
