@@ -152,26 +152,6 @@ Bytes
 
 ---------
 
-.. eql:function:: std::to_str(b: bytes) -> str
-
-    .. versionadded:: 4.0
-
-    Converts a :eql:type:`bytes` value to :eql:type:`str` using UTF-8
-    encoding.
-    
-    Returns an InvalidValueError if input UTF-8 is invalid.
-
-    .. code-block:: edgeql-repl
-
-        db> select to_str(b'\xe3\x83\x86');
-        {'テ'}
-        db> select to_str(b'\xe3\x83');
-        edgedb error: InvalidValueError: invalid byte sequence for
-        encoding "UTF8": 0xe3 0x83
-
-
----------
-
 .. eql:function:: std::bytes_get_bit(bytes: bytes, nth: int64) -> int64
 
     Returns the specified bit of the :eql:type:`bytes` value.
