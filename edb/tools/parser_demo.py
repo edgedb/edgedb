@@ -327,4 +327,7 @@ QUERIES = [
     WITH MODULE welp
     CREATE DATABASE sample;
     ''',
+    '''
+    INSERT Foo FILTER Foo.bar = 42;
+    ''',
 ]
