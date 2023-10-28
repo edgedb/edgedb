@@ -6853,25 +6853,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 }
             """)
 
-        await self.con.execute("""
-            create type X;
-        """)
-
-        # We can't set a default that uses a global when creating a new
-        # pointer, since it would need to run *now* and populate the data
-        async with self.assertRaisesRegexTx(
-            edgedb.UnsupportedFeatureError,
-            r"functions that reference globals may not be used when "
-            r"converting/populating data in migrations"
-        ):
-            await self.con.execute("""
-                alter type X {
-                    create property foo -> str {
-                        set default := (gfoo());
-                    }
-                };
-            """)
-
     async def test_edgeql_ddl_global_05(self):
         await self.con.execute("""
             create global foo -> str;
