@@ -417,6 +417,12 @@ class AlterAliasLike(
             elif not expr and is_alias and self.has_attribute_value('expr'):
                 self.add(self._delete_alias_type(self.scls, schema, context))
 
+            schema = self._propagate_if_expr_refs(
+                schema,
+                context,
+                action=self.get_friendly_description(schema=schema),
+            )
+
         return super()._alter_begin(schema, context)
 
 

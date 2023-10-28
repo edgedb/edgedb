@@ -2002,7 +2002,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         include_ancestors: bool=False,
         extra_refs: Optional[Dict[so.Object, List[str]]]=None,
         filter: Type[so.Object] | Tuple[Type[so.Object], ...] | None = None,
-        metadata_only: bool=True,
+        metadata_only: bool=False,
     ) -> s_schema.Schema:
         scls = self.scls
         expr_refs = s_expr.get_expr_referrers(schema, scls)
@@ -3340,6 +3340,7 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
             context,
             action=f'rename {vn}',
             fixer=self._fix_referencing_expr,
+            metadata_only=True,
         )
 
         if not context.canonical:

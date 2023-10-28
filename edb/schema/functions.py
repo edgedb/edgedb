@@ -2173,7 +2173,7 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
 
         vn = scls.get_verbosename(schema, with_parent=True)
         schema = self._propagate_if_expr_refs(
-            schema, context, metadata_only=False, extra_refs=extra_refs,
+            schema, context, extra_refs=extra_refs,
             action=f'alter the definition of {vn}')
 
         return schema
