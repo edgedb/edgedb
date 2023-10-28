@@ -6854,25 +6854,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 }
             """)
 
-        await self.con.execute("""
-            create type X;
-        """)
-
-        # We can't set a default that uses a global when creating a new
-        # pointer, since it would need to run *now* and populate the data
-        async with self.assertRaisesRegexTx(
-            edgedb.UnsupportedFeatureError,
-            r"functions that reference globals may not be used when "
-            r"converting/populating data in migrations"
-        ):
-            await self.con.execute("""
-                alter type X {
-                    create property foo -> str {
-                        set default := (gfoo());
-                    }
-                };
-            """)
-
     async def test_edgeql_ddl_global_05(self):
         await self.con.execute("""
             create global foo -> str;
@@ -7130,20 +7111,24 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.con.execute('''
             alter global foo set default := "!";
+            create function get_foo() -> optional str using (global foo);
         ''')
 
         # Try it again now that there is a default
         await self.con.execute('''
             alter type Foo { create required property name2 -> str {
                 set default := (global foo);
-            } }
+            } };
+            alter type Foo { create required property name3 -> str {
+                set default := (get_foo());
+            } };
         ''')
 
         await self.assert_query_result(
             '''
-                select Foo { name, name2 }
+                select Foo { name, name2, name3 }
             ''',
-            [{'name': "test", 'name2': "!"}],
+            [{'name': "test", 'name2': "!", 'name3': "!"}],
         )
 
     async def test_edgeql_ddl_property_computable_01(self):
