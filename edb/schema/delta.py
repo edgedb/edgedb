@@ -2064,6 +2064,9 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 delta_create, cmd_create, ctx_stack = ref.init_delta_branch(
                     schema, context, cmdtype=AlterObject)
 
+                cmd_drop.from_expr_propagation = True
+                cmd_create.from_expr_propagation = True
+
                 # Mark it metadata_only so that if it actually gets
                 # applied, only the metadata is changed but not
                 # the real underlying schema.
@@ -2071,11 +2074,11 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                     cmd_drop.metadata_only = True
                     cmd_create.metadata_only = True
 
-                    # Treat the drop as canonical, since we only need
-                    # to eliminate the reference, not get to a fully
-                    # consistent state, and the canonicalization can
-                    # mess up "associated" attributes.
-                    cmd_drop.canonical = True
+                # Treat the drop as canonical, since we only need
+                # to eliminate the reference, not get to a fully
+                # consistent state, and the canonicalization can
+                # mess up "associated" attributes.
+                cmd_drop.canonical = True
 
                 try:
                     # Compute a dummy value
@@ -3485,6 +3488,9 @@ class AlterObject(AlterObjectOrFragment[so.Object_T], Generic[so.Object_T]):
 
     #: If True, only apply changes to properties, not "real" schema changes
     metadata_only = struct.Field(bool, default=False)
+
+    #: Is this from an expression change being propagated.
+    from_expr_propagation = struct.Field(bool, default=False)
 
     def get_verb(self) -> str:
         return 'alter'

@@ -386,7 +386,12 @@ class AlterAliasLike(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        if not context.canonical and not self.metadata_only:
+        if (
+            not context.canonical
+            # FIXME: This is not really correct, but alias altering is
+            # currently too broken to accept expr propagations.
+            and not self.from_expr_propagation
+        ):
             expr = self.get_attribute_value('expr')
             is_alias = self._is_alias(self.scls, schema)
             if expr:
