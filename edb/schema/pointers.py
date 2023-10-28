@@ -2101,7 +2101,7 @@ class AlterPointer(
     ) -> s_schema.Schema:
         schema = super()._alter_begin(schema, context)
 
-        if (
+        if not context.canonical and (
             self.get_attribute_value('expr') is not None
             or bool(self.get_subcommands(type=constraints.ConstraintCommand))
             or (
