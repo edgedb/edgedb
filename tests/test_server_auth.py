@@ -345,7 +345,7 @@ class TestServerAuth(tb.ConnectedTestCase):
                 }
             ''')
             # Force foo to use passwords for simple auth so auth fails
-            await self.con.query('''
+            await conn.query('''
                 CONFIGURE INSTANCE INSERT Auth {
                     comment := 'foo-jwt',
                     priority := -1,
@@ -403,7 +403,7 @@ class TestServerAuth(tb.ConnectedTestCase):
             self.assertEqual(code, 401, f"Wrong result: {body}")
             # Good key but user needs password auth
             body, _, code = await self._jwt_http_request(
-                sd, base_sk, username='elonmusk')
+                sd, base_sk, username='foo')
             self.assertEqual(code, 401, f"Wrong result: {body}")
 
             good_keys = [
