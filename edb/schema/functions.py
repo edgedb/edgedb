@@ -1314,18 +1314,9 @@ class Function(
         """Return a minimal function body that satisfies its return type."""
         rt = self.get_return_type(schema)
 
-        if rt.is_scalar():
-            # scalars and enums can be cast from a string
-            text = f'SELECT <{rt.get_displayname(schema)}>""'
-        elif rt.is_object_type():
-            # just grab an object of the appropriate type
-            text = f'SELECT {rt.get_displayname(schema)} LIMIT 1'
-        else:
-            # Can't easily create a valid cast, so just cast empty set
-            # into the given type. Technically this potentially breaks
-            # cardinality requirement, but since this is a dummy
-            # expression it doesn't matter at the moment.
-            text = f'SELECT <{rt.get_displayname(schema)}>{{}}'
+        text = f'''
+            SELECT assert_exists(<{rt.get_displayname(schema)}>{{}}) LIMIT 1
+        '''
 
         return s_expr.Expression(text=text)
 
