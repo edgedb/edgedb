@@ -2575,7 +2575,9 @@ aa';
         COMMIT;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=16)
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected keyword 'DATABASE'",
+                  line=3, col=16)
     def test_edgeql_syntax_with_03(self):
         """
         WITH MODULE welp

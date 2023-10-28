@@ -325,25 +325,16 @@ def spec_to_json(spec: parsing.Spec) -> str:
     }
 
     # productions
-    productions: list[Any] = []
-    production_ids: dict[Any, int] = {}
-    inlines: list[tuple[int, int]] = []
+    productions_all: Set[Any] = set()
+    for st_actions in spec.actions():
+        for _, acts in st_actions.items():
+            act = cast(Any, acts[0])
+            if 'ReduceAction' in str(type(act)):
+                prod = act.production
+                productions_all.add(prod)
+    productions, production_id = sort_productions(productions_all)
 
-    def get_production_id(prod: Any) -> int:
-        if prod in production_ids:
-            return production_ids[prod]
-
-        id = len(productions)
-        productions.append(prod)
-        production_ids[prod] = id
-
-        inline = getattr(prod.method, 'inline_index', None)
-        if inline is not None:
-            assert isinstance(inline, int)
-            inlines.append((id, inline))
-
-        return id
-
+    # actions
     actions = []
     for st_actions in spec.actions():
         out_st_actions = []
@@ -359,7 +350,7 @@ def spec_to_json(spec: parsing.Spec) -> str:
                 prod = act.production
                 action_obj = {
                     'Reduce': {
-                        'production_id': get_production_id(prod),
+                        'production_id': production_id[prod],
                         'non_term': str(prod.lhs),
                         'cnt': len(prod.rhs),
                     }
@@ -367,6 +358,7 @@ def spec_to_json(spec: parsing.Spec) -> str:
 
             out_st_actions.append((str_tok, action_obj))
 
+        out_st_actions.sort(key=lambda item: item[0])
         actions.append(out_st_actions)
 
     # goto
@@ -378,15 +370,34 @@ def spec_to_json(spec: parsing.Spec) -> str:
 
         goto.append(out_goto)
 
-    production_names = [
-        tuple(prod.qualified.split('.')[-2:]) for prod in productions
-    ]
+    # inlines
+    inlines = []
+    for prod in productions:
+        id = production_id[prod]
+        inline = getattr(prod.method, 'inline_index', None)
+        if inline is not None:
+            assert isinstance(inline, int)
+            inlines.append((id, inline))
 
     res = {
         'actions': actions,
         'goto': goto,
         'start': str(spec.start_sym()),
         'inlines': inlines,
-        'production_names': production_names,
+        'production_names': list(map(production_name, productions)),
     }
     return json.dumps(res)
+
+
+def sort_productions(
+    productions_all: Set[Any]
+) -> Tuple[List[Any], Dict[Any, int]]:
+    productions = list(productions_all)
+    productions.sort(key=production_name)
+
+    productions_id = {prod: id for id, prod in enumerate(productions)}
+    return (productions, productions_id)
+
+
+def production_name(prod: Any) -> Tuple[str, ...]:
+    return tuple(prod.qualified.split('.')[-2:])

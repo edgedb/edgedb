@@ -134,12 +134,20 @@ def parse(
         # TODO: emit multiple errors
 
         # Heuristic to pick the error:
+        # - the only Unexpected, if it is a keyword
         # - first encountered,
         # - Unexpected before Missing,
         # - original order.
         errs: List[ParserError] = result.errors()
-        errs.sort(key=lambda e: (e[1][0], -ord(e[0][1])))
-        error = errs[0]
+        unexpected = [e for e in errs if e[0].startswith('Unexpected')]
+        if (
+            len(unexpected) == 1
+            and unexpected[0][0].startswith('Unexpected keyword')
+        ):
+            error = unexpected[0]
+        else:
+            errs.sort(key=lambda e: (e[1][0], -ord(e[0][1])))
+            error = errs[0]
 
         message, span, hint, details = error
         position = qltokenizer.inflate_position(source.text(), span)
