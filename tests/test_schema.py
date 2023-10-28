@@ -8425,6 +8425,20 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             """,
         ])
 
+    def test_schema_migrations_alias_alter_01(self):
+        self._assert_migration_equivalence([
+            r"""
+            alias X := '0';
+            alias Y := X;
+            alias Z := Y;
+            """,
+            r"""
+            alias X := '1';
+            alias Y := X;
+            alias Z := Y;
+            """,
+        ])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""

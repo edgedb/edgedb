@@ -5435,6 +5435,48 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     );
                 """)
 
+    async def test_edgeql_ddl_function_recompile_01(self):
+        # Test that we recompile functions as things change
+        await self.con.execute('''
+            create alias X0 := '1';
+            create alias X := X0;
+            create global Y -> str { set default := '2' };
+            create type Z { create property p := '3' };
+            insert Z;
+            create function test() -> set of str using (
+                X ++ (global Y) ++ Z.p
+            );
+        ''')
+
+        await self.assert_query_result(
+            'select test()',
+            ['123']
+        )
+
+        await self.con.execute('''
+            alter alias X0 using ('A');
+        ''')
+        await self.assert_query_result(
+            'select test()',
+            ['A23']
+        )
+
+        await self.con.execute('''
+            alter global Y { set default := 'B' };
+        ''')
+        await self.assert_query_result(
+            'select test()',
+            ['AB3']
+        )
+
+        await self.con.execute('''
+            alter type Z alter property p using ('C');
+        ''')
+        await self.assert_query_result(
+            'select test()',
+            ['ABC']
+        )
+
     async def test_edgeql_ddl_module_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaError,

@@ -602,7 +602,6 @@ class AlterObjectType(ObjectTypeCommand,
                 action=self.get_friendly_description(schema=schema),
                 include_ancestors=True,
                 filter=functions.Function,
-                metadata_only=False,
             )
 
         return schema

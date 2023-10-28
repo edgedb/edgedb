@@ -1729,6 +1729,10 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         default=None,
     )
 
+    #: Is this from an expression change being propagated.
+    #: FIXME: Every place this is used is a hack and some are bugs.
+    from_expr_propagation = struct.Field(bool, default=False)
+
     scls: so.Object_T
     _delta_action: ClassVar[str]
     _schema_metaclass: ClassVar[  # type: ignore
@@ -1988,22 +1992,79 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
             return op
 
+    def _fix_referencing_expr_after_rename(
+        self,
+        schema: s_schema.Schema,
+        cmd: ObjectCommand[so.Object],
+        fn: str,
+        context: CommandContext,
+        expr: s_expr.Expression,
+    ) -> s_expr.Expression:
+        if isinstance(self, RenameObject):
+            new_name = self.new_name
+        elif (fops := self.get_subcommands(type=RenameObject)):
+            new_name = fops[0].new_name
+        else:
+            raise AssertionError("not a rename!")
+
+        # Recompile the expression with reference tracking on so that we
+        # can clean up the ast.
+        field = cmd.get_schema_metaclass().get_field(fn)
+        compiled = cmd.compile_expr_field(
+            schema, context, field, expr,
+            track_schema_ref_exprs=True)
+        assert compiled.irast.schema_ref_exprs is not None
+
+        # Now that the compilation is done, try to do the fixup.
+        new_shortname = sn.shortname_from_fullname(new_name)
+        old_shortname = sn.shortname_from_fullname(self.classname).name
+        for ref in compiled.irast.schema_ref_exprs.get(self.scls, []):
+            assert isinstance(
+                ref,
+                (qlast.ObjectRef, qlast.FunctionCall, qlast.Ptr)
+            ), f"only support object refs and func calls but got {ref}"
+            if isinstance(ref, qlast.FunctionCall):
+                ref.func = ((new_shortname.module, new_shortname.name)
+                            if isinstance(new_shortname, sn.QualName)
+                            else new_shortname.name)
+            elif (
+                isinstance(ref, (qlast.Ptr, qlast.ObjectRef))
+                and ref.name == old_shortname
+            ):
+                ref.name = new_shortname.name
+                if (
+                    isinstance(new_shortname, sn.QualName)
+                    and isinstance(ref, qlast.ObjectRef)
+                    and new_shortname.module != "__"
+                ):
+                    ref.module = new_shortname.module
+
+        # say as_fragment=True as a hack to avoid renormalizing it
+        out = s_expr.Expression.from_ast(
+            compiled.qlast, schema, modaliases={}, as_fragment=True)
+        return out
+
     def _propagate_if_expr_refs(
         self,
         schema: s_schema.Schema,
         context: CommandContext,
         *,
         action: str,
-        fixer: Optional[
-            Callable[[s_schema.Schema, ObjectCommand[so.Object], str,
-                      CommandContext, s_expr.Expression],
-                     s_expr.Expression]
-        ]=None,
         include_ancestors: bool=False,
         extra_refs: Optional[Dict[so.Object, List[str]]]=None,
         filter: Type[so.Object] | Tuple[Type[so.Object], ...] | None = None,
-        metadata_only: bool=True,
+        metadata_only: bool=False,
     ) -> s_schema.Schema:
+
+        # If we are a rename or contain a rename, we need to fix up expressions
+        if (
+            isinstance(self, RenameObject)
+            or self.get_subcommands(type=RenameObject)
+        ):
+            fixer = self._fix_referencing_expr_after_rename
+        else:
+            fixer = None
+
         scls = self.scls
         expr_refs = s_expr.get_expr_referrers(schema, scls)
         if include_ancestors and isinstance(scls, so.InheritingObject):
@@ -2064,6 +2125,9 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 delta_create, cmd_create, ctx_stack = ref.init_delta_branch(
                     schema, context, cmdtype=AlterObject)
 
+                cmd_drop.from_expr_propagation = True
+                cmd_create.from_expr_propagation = True
+
                 # Mark it metadata_only so that if it actually gets
                 # applied, only the metadata is changed but not
                 # the real underlying schema.
@@ -2071,11 +2135,11 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                     cmd_drop.metadata_only = True
                     cmd_create.metadata_only = True
 
-                    # Treat the drop as canonical, since we only need
-                    # to eliminate the reference, not get to a fully
-                    # consistent state, and the canonicalization can
-                    # mess up "associated" attributes.
-                    cmd_drop.canonical = True
+                # Treat the drop as canonical, since we only need
+                # to eliminate the reference, not get to a fully
+                # consistent state, and the canonicalization can
+                # mess up "associated" attributes.
+                cmd_drop.canonical = True
 
                 try:
                     # Compute a dummy value
@@ -3280,51 +3344,6 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         new_name = mcls.get_displayname_static(self.new_name)
         return f"rename {object_desc} to '{new_name}'"
 
-    def _fix_referencing_expr(
-        self,
-        schema: s_schema.Schema,
-        cmd: ObjectCommand[so.Object],
-        fn: str,
-        context: CommandContext,
-        expr: s_expr.Expression,
-    ) -> s_expr.Expression:
-        # Recompile the expression with reference tracking on so that we
-        # can clean up the ast.
-        field = cmd.get_schema_metaclass().get_field(fn)
-        compiled = cmd.compile_expr_field(
-            schema, context, field, expr,
-            track_schema_ref_exprs=True)
-        assert compiled.irast.schema_ref_exprs is not None
-
-        # Now that the compilation is done, try to do the fixup.
-        new_shortname = sn.shortname_from_fullname(self.new_name)
-        old_shortname = sn.shortname_from_fullname(self.classname).name
-        for ref in compiled.irast.schema_ref_exprs.get(self.scls, []):
-            assert isinstance(
-                ref,
-                (qlast.ObjectRef, qlast.FunctionCall, qlast.Ptr)
-            ), f"only support object refs and func calls but got {ref}"
-            if isinstance(ref, qlast.FunctionCall):
-                ref.func = ((new_shortname.module, new_shortname.name)
-                            if isinstance(new_shortname, sn.QualName)
-                            else new_shortname.name)
-            elif (
-                isinstance(ref, (qlast.Ptr, qlast.ObjectRef))
-                and ref.name == old_shortname
-            ):
-                ref.name = new_shortname.name
-                if (
-                    isinstance(new_shortname, sn.QualName)
-                    and isinstance(ref, qlast.ObjectRef)
-                    and new_shortname.module != "__"
-                ):
-                    ref.module = new_shortname.module
-
-        # say as_fragment=True as a hack to avoid renormalizing it
-        out = s_expr.Expression.from_ast(
-            compiled.qlast, schema, modaliases={}, as_fragment=True)
-        return out
-
     def _alter_begin(
         self,
         schema: s_schema.Schema,
@@ -3334,13 +3353,16 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         context.renames[self.classname] = self.new_name
         context.renamed_objs.add(scls)
 
-        vn = scls.get_verbosename(schema)
-        schema = self._propagate_if_expr_refs(
-            schema,
-            context,
-            action=f'rename {vn}',
-            fixer=self._fix_referencing_expr,
-        )
+        # Propagate the change, but only if it wasn't handled by the
+        # enclosing Alter.
+        if context.current().op not in context.affected_finalization:
+            vn = scls.get_verbosename(schema)
+            schema = self._propagate_if_expr_refs(
+                schema,
+                context,
+                action=f'rename {vn}',
+                metadata_only=True,
+            )
 
         if not context.canonical:
             self.set_attribute_value(
