@@ -5438,7 +5438,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_function_recompile_01(self):
         # Test that we recompile functions as things change
         await self.con.execute('''
-            create alias X := '1';
+            create alias X0 := '1';
+            create alias X := X0;
             create global Y -> str { set default := '2' };
             create type Z { create property p := '3' };
             insert Z;
@@ -5453,7 +5454,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
         await self.con.execute('''
-            alter alias X using ('A');
+            alter alias X0 using ('A');
         ''')
         await self.assert_query_result(
             'select test()',

@@ -1729,6 +1729,10 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         default=None,
     )
 
+    #: Is this from an expression change being propagated.
+    #: FIXME: Every place this is used is a hack and some are bugs.
+    from_expr_propagation = struct.Field(bool, default=False)
+
     scls: so.Object_T
     _delta_action: ClassVar[str]
     _schema_metaclass: ClassVar[  # type: ignore
@@ -3502,9 +3506,6 @@ class AlterObject(AlterObjectOrFragment[so.Object_T], Generic[so.Object_T]):
 
     #: If True, only apply changes to properties, not "real" schema changes
     metadata_only = struct.Field(bool, default=False)
-
-    #: Is this from an expression change being propagated.
-    from_expr_propagation = struct.Field(bool, default=False)
 
     def get_verb(self) -> str:
         return 'alter'
