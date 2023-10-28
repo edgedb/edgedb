@@ -80,6 +80,15 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
     ) -> s_schema.Schema:
         from . import referencing as s_referencing
 
+        # HACK: Don't inherit fields if the command comes from
+        # expression change propagation. It shouldn't be necessary,
+        # and can cause a knock-on bug: when aliases directly refer to
+        # another alias, they *incorrectly* have 'expr' marked as an
+        # inherited_field, which causes trouble here.
+        # Fixing this in 3.x/4.x would require a schema repair, though.
+        if self.from_expr_propagation:
+            return schema
+
         mcls = self.get_schema_metaclass()
         scls = self.scls
 
