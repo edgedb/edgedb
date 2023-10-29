@@ -874,6 +874,11 @@ aa';
         SELECT a = b = c;
         """
 
+    def test_edgeql_toplevel_if(self):
+        """
+        IF true THEN (SELECT Foo) ELSE (INSERT Foo);
+        """
+
     def test_edgeql_syntax_required_01(self):
         """
         SELECT REQUIRED (User.groups.description);
