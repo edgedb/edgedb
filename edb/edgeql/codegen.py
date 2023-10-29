@@ -459,7 +459,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(')')
 
     def visit_IfElse(self, node: qlast.IfElse) -> None:
-        self.write('(')
+        parent = node._parent  # type: ignore
+        parenthesize = not (
+            isinstance(parent, qlast.SelectQuery)
+            and parent.implicit
+            and parent._parent is None  # type: ignore
+        )
+        if parenthesize:
+            self.write('(')
         if node.python_style:
             self.visit(node.if_expr)
             self._write_keywords(' IF ')
@@ -467,13 +474,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._write_keywords(' ELSE ')
             self.visit(node.else_expr)
         else:
-            self._write_keywords(' IF ')
+            self._write_keywords('IF ')
             self.visit(node.condition)
             self._write_keywords(' THEN ')
             self.visit(node.if_expr)
             self._write_keywords(' ELSE ')
             self.visit(node.else_expr)
-        self.write(')')
+        if parenthesize:
+            self.write(')')
 
     def visit_Tuple(self, node: qlast.Tuple) -> None:
         self.write('(')

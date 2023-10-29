@@ -8293,6 +8293,14 @@ aa \
             [[]],
         )
 
+    async def test_edgeql_expr_if_else_toplevel(self):
+        await self.assert_query_result(
+            r"""
+                if true then 10 else 11
+            """,
+            [10],
+        )
+
     async def test_edgeql_expr_setop_01(self):
         await self.assert_query_result(
             r"""SELECT EXISTS <str>{};""",

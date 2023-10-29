@@ -1422,13 +1422,9 @@ class Expr(Nonterm):
             python_style=True,
         )
 
-    def reduce_IF_Expr_THEN_Expr_ELSE_Expr(self, *kids):
-        _, condition, _, if_expr, _, else_expr = kids
-        self.val = qlast.IfElse(
-            condition=condition.val,
-            if_expr=if_expr.val,
-            else_expr=else_expr.val,
-        )
+    @parsing.inline(0)
+    def reduce_IfThenElseExpr(self, _):
+        pass
 
     def reduce_Expr_UNION_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op='UNION',
@@ -1441,6 +1437,16 @@ class Expr(Nonterm):
     def reduce_Expr_INTERSECT_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op='INTERSECT',
                                right=kids[2].val)
+
+
+class IfThenElseExpr(Nonterm):
+    def reduce_IF_Expr_THEN_Expr_ELSE_Expr(self, *kids):
+        _, condition, _, if_expr, _, else_expr = kids
+        self.val = qlast.IfElse(
+            condition=condition.val,
+            if_expr=if_expr.val,
+            else_expr=else_expr.val,
+        )
 
 
 class CompareOp(Nonterm):

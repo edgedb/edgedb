@@ -84,6 +84,9 @@ class SingleStatement(Nonterm):
         # Expressions
         pass
 
+    def reduce_IfThenElseExpr(self, *kids):
+        self.val = qlast.SelectQuery(result=kids[0].val, implicit=True)
+
     @parsing.inline(0)
     def reduce_DDLStmt(self, _):
         # Data definition commands
