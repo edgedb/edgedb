@@ -18,6 +18,10 @@ Use annotations to add descriptions to types and links:
         };
     }
 
+    type Review {
+        content -> str;      
+    }
+
 .. code-block:: sdl
 
     type Label {
@@ -30,6 +34,10 @@ Use annotations to add descriptions to types and links:
         };
     }
 
+    type Review {
+        content: str;
+    }
+
 
 ----------
 
@@ -38,37 +46,37 @@ Retrieving the annotations can be done via an introspection query:
 
 .. code-block:: edgeql-repl
 
-    db> with module schema
-    ... select ObjectType {
+    db> select introspect(Label) {
     ...     name,
     ...     annotations: {name, @value},
     ...     links: {name, annotations: {name, @value}}
-    ... }
-    ... filter .name = 'default::Label';
+    ... };
     {
-        Object {
+        schema::ObjectType {
             name: 'default::Label',
             annotations: {
-                Object {
-                    name: 'std::description',
+                schema::Annotation {
+                    name: 'std::description', 
                     @value: 'Special label to stick on reviews'
-                }
+                },
             },
             links: {
-                Object {
+                schema::Link {
+                    name: '__type__',
+                    annotations: {}
+                },
+                schema::Link {
                     name: 'review',
                     annotations: {
-                        Object {
+                        schema::Annotation {
                             name: 'std::description',
-                            @value: 'Special label to stick on reviews'
-                        }
-                    }
+                            @value: 'This review needs some attention',
+                        },
+                    },
                 },
-                Object { name: '__type__', annotations: {} }
-            }
-        }
+            },
+        },
     }
-
 
 ----------
 
@@ -78,22 +86,21 @@ command:
 
 .. code-block:: edgeql-repl
 
-    db> \d+ Label
+    db> \d -v Label
     type default::Label {
         annotation std::description := 'Special label to stick on reviews';
-        required single link __type__ -> schema::Type {
+        required single link __type__: schema::ObjectType {
             readonly := true;
         };
-        single link review -> default::Review {
-            annotation std::description := 'Special label to stick on reviews';
+        optional single link review: default::Review {
+            annotation std::description := 'This review needs some attention';
         };
-        required single property comments -> std::str;
-        required single property id -> std::uuid {
+        required single property comments: std::str;
+        required single property id: std::uuid {
             readonly := true;
             constraint std::exclusive;
         };
     };
-
 
 .. list-table::
   :class: seealso
