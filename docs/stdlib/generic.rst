@@ -377,6 +377,22 @@ Generic
         ... );
         {true}
 
+    When *haystack* is :ref:`JSON <ref_std_json>`, the function will return
+    ``true`` if the json data contains the element specified as *needle* or
+    ``false`` otherwise:
+
+    .. code-block:: edgeql-repl
+
+        db> with haystack := to_json('{
+        ...   "city": "Baerlon",
+        ...   "city": "Caemlyn"
+        ... }'),
+        ... needle := to_json('{
+        ...   "city": "Caemlyn"
+        ... }'),
+        ... select contains(haystack, needle);
+        {true}
+
 
 ----------
 

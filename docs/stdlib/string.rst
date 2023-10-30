@@ -749,6 +749,17 @@ Strings
         A version of ``std::to_str`` exists which operates on arrays but has
         been deprecated; :eql:func:`array_join` should be used instead.
 
+    A :eql:type:`bytes` value can be converted to a :eql:type:`str` using 
+    UTF-8 encoding. Returns an InvalidValueError if input UTF-8 is invalid.
+
+    .. code-block:: edgeql-repl
+
+        db> select to_str(b'\xe3\x83\x86');
+        {'テ'}
+        db> select to_str(b'\xe3\x83');
+        edgedb error: InvalidValueError: invalid byte sequence for
+        encoding "UTF8": 0xe3 0x83
+
 
 ----------
 
