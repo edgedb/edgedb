@@ -411,13 +411,13 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     };
 
     create global ext::auth::client_token -> std::str;
-    create global ext::auth::ClientTokenIdentity := (
+    create single global ext::auth::ClientTokenIdentity := (
         with
             conf := {
                 key := (
-                    cfg::Config.extensions[is ext::auth::AuthConfig]
-                    .auth_signing_key
-                ),
+                    select cfg::Config.extensions[is ext::auth::AuthConfig]
+                    limit 1
+                ).auth_signing_key,
             },
             jwt := {
                 claims := ext::auth::_jwt_verify(
