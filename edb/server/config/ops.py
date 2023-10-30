@@ -459,7 +459,8 @@ def to_edgeql(
         if setting.secret and not with_secrets:
             continue
         if isinstance(setting.type, types.ConfigTypeSpec):
-            for x in value.value:
+            values = value.value if setting.set_of else [value.value]
+            for x in values:
                 # We look at the specific type of the object because
                 # a subtype could have a secret that the parent doesn't.
                 if x._tspec.has_secret and not with_secrets:

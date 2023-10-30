@@ -98,7 +98,7 @@ class DumpTestCaseMixin:
 
 
 class TestDumpV4(tb.StableDumpTestCase, DumpTestCaseMixin):
-    EXTENSIONS = ["pgvector", "_conf"]
+    EXTENSIONS = ["pgvector", "_conf", "pgcrypto", "auth"]
     BACKEND_SUPERUSER = True
 
     SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',

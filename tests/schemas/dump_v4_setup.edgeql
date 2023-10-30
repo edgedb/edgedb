@@ -47,3 +47,7 @@ CONFIGURE CURRENT DATABASE INSERT ext::_conf::SecretObj {
     value := 'spam',
     secret := '123456',
 };
+
+CONFIGURE CURRENT DATABASE INSERT ext::auth::UIConfig {
+    redirect_to := 'http://example.edgedb.com'
+};
