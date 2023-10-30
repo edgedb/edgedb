@@ -154,6 +154,14 @@ class Router:
                 ex_type=edb_errors.ProtocolError,
             )
 
+        except errors.PKCEVerificationFailed as ex:
+            _fail_with_error(
+                response=response,
+                status=http.HTTPStatus.FORBIDDEN,
+                message=str(ex),
+                ex_type=edb_errors.ProtocolError,
+            )
+
         except errors.NoIdentityFound:
             _fail_with_error(
                 response=response,
@@ -356,7 +364,7 @@ class Router:
                 }
             ).encode()
         else:
-            response.status = http.HTTPStatus.FORBIDDEN
+            raise errors.PKCEVerificationFailed
 
     async def handle_register(self, request: Any, response: Any):
         data = self._get_data_from_request(request)
