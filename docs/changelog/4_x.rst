@@ -563,3 +563,43 @@ Fixes of new 4.0 features
 
 * Add styled container to verification pages
   (:eql:gh:`#6343`)
+
+
+RC 2
+====
+
+Fixes from 3.0
+--------------
+
+..
+   Below this point everything should be in 3.x too so we can drop it
+   in the final version
+
+* Make migration deadlocks less likely in some common cases
+  (:eql:gh:`#6379`)
+
+* Support globals-using functions in defaults
+  (:eql:gh:`#6381`)
+
+* Recompile functions when globals/aliases/computeds change
+  (:eql:gh:`#6382`)
+
+Fixes of new 4.0 features
+-------------------------
+* Make ``ext::auth::ClientTokenIdentity`` single
+  (:eql:gh:`#6369`)
+
+* Fix assets on built-in auth UI in the release build
+  (:eql:gh:`#6377`)
+
+* Make parser spec generation deterministic
+  (:eql:gh:`#6375`)
+
+* Allow ``if .. then .. else`` at the top level
+  (:eql:gh:`#6385`)
+
+* Fix dumping of auth ext UIConfig
+  (:eql:gh:`#6390`)
+
+* Require PKCE in auth ext password reset flow
+  (:eql:gh:`#6396`)
