@@ -504,3 +504,62 @@ Bug fixes
 
 * Fix cardinality bug when a property appears in multiple splats.
   (:eql:gh:`#6255`)
+
+
+RC 1
+====
+
+Fixes from 3.0
+--------------
+
+* Make comparison operators non-associative
+  (:eql:gh:`#6327`)
+
+* Support (and require) auth for HTTP endpoints
+  (:eql:gh:`#6352`)
+
+* Fix an obscure parser bug caused by constant extraction
+  (:eql:gh:`#6328`)
+
+..
+   Below this point everything should be in 3.x too so we can drop it
+   in the final version
+
+* Fix uuid->object casts in access policies in nested INSERTs
+  (:eql:gh:`#6313`)
+
+* Make 'reference to a non-existent schema item <id>' an ISE.
+  It's always a bug, and that should be made clear to users.
+  (:eql:gh:`#6314`)
+
+* Fix UPDATE with rewrites on tuples
+  (:eql:gh:`#6337`)
+
+* Make edgedb+http tunneled protocol not leak db existance before auth
+  (:eql:gh:`#6350`)
+
+* Substantially speed up restoring of dumps with large schemas
+  (:eql:gh:`#6362`)
+
+* Change adaptive pool scale-up condition
+  (:eql:gh:`#6357`)
+
+Fixes of new 4.0 features
+-------------------------
+* Tweak parser error messages
+  (:eql:gh:`#6353`, :eql:gh:`#6329`)
+
+* Use consistent kebab-case for auth URLs
+  (:eql:gh:`#6351`)
+
+* Use even more consistent kebab-case for auth URLs
+  (:eql:gh:`#6355`)
+
+* Add ext::auth email verification
+  (:eql:gh:`#6324`)
+
+* Fix coalesce with DML in non-dev builds
+  (:eql:gh:`#6346`)
+
+* Add styled container to verification pages
+  (:eql:gh:`#6343`)
