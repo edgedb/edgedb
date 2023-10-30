@@ -92,11 +92,11 @@ def render_login_page(
         emailInput.addEventListener("input", (e) => {{
         forgotLink.href = `forgot-password?email=${{
             encodeURIComponent(e.target.value)
-        }}`
+        }}&challenge={challenge}`
         }});
         forgotLink.href = `forgot-password?email=${{
         encodeURIComponent(emailInput.value)
-        }}`
+        }}&challenge={challenge}`
         </script>'''
         if password_provider is not None
         else ''
@@ -145,7 +145,10 @@ def render_login_page(
 
       <div class="field-header">
         <label for="password">Password</label>
-        <a id="forgot-password-link" class="field-note" href="forgot-password"
+        <a
+          id="forgot-password-link"
+          class="field-note"
+          href="forgot-password&challenge={challenge}"
           tabindex="2">
           Forgot password?
         </a>
@@ -269,6 +272,7 @@ def render_forgot_password_page(
     *,
     base_path: str,
     provider_name: str,
+    challenge: str,
     error_message: Optional[str] = None,
     email: Optional[str] = None,
     email_sent: Optional[str] = None,
@@ -287,10 +291,11 @@ def render_forgot_password_page(
         {_render_error_message(error_message)}
 
         <input type="hidden" name="provider" value="{provider_name}" />
+        <input type="hidden" name="challenge" value="{challenge}" />
         <input type="hidden" name="redirect_on_failure" value="{
-          base_path}/ui/forgot-password" />
+          base_path}/ui/forgot-password?challenge={challenge}" />
         <input type="hidden" name="redirect_to" value="{
-          base_path}/ui/forgot-password" />
+          base_path}/ui/forgot-password?challenge={challenge}" />
         <input type="hidden" name="reset_url" value="{
             base_path}/ui/reset-password" />
 
@@ -326,6 +331,7 @@ def render_reset_password_page(
     provider_name: str,
     is_valid: bool,
     redirect_to: str,
+    challenge: Optional[str] = None,
     reset_token: Optional[str] = None,
     error_message: Optional[str] = None,
     # config
@@ -334,10 +340,18 @@ def render_reset_password_page(
     dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = None,
 ):
-    if not is_valid:
+    if not is_valid and challenge is None:
+        content = _render_error_message(
+            f'''Reset token is invalid, challenge string is missing. Please
+            return to the app, and attempt to log in again.''',
+            False,
+        )
+    elif not is_valid and challenge is not None:
         content = _render_error_message(
             f'''Reset token is invalid, it may have expired.
-            <a href="forgot-password">Try sending another reset email</a>''',
+            <a href="forgot-password?challenge={challenge}">
+              Try sending another reset email
+            </a>''',
             False,
         )
     else:
@@ -394,7 +408,8 @@ def render_email_verification_page(
         )
         content = f'''
             {messages}
-            {f'<a href="{resend_url}">Try sending another reset email</a>'
+            {(f'<a href="{resend_url}">Try sending another verification'
+              'email</a>')
              if resend_url else ''}
             '''
     else:

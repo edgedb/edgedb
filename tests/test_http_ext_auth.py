@@ -2582,14 +2582,22 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             # Send reset
+            verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b'=')
+            challenge = (
+                base64.urlsafe_b64encode(
+                    hashlib.sha256(verifier).digest()
+                )
+                .rstrip(b'=')
+                .decode()
+            )
             form_data = {
                 "provider": provider_name,
                 "reset_url": "https://example.com/reset-password",
                 "email": form_data['email'],
+                "challenge": challenge,
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
-
-            _, _, status = self.http_con_request(
+            body, _, status = self.http_con_request(
                 http_con,
                 None,
                 path="send-reset-email",
@@ -2626,7 +2634,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             }
             auth_data_encoded = urllib.parse.urlencode(auth_data).encode()
 
-            body, headers, status = self.http_con_request(
+            body, _, status = self.http_con_request(
                 http_con,
                 None,
                 path="reset-password",
@@ -2649,25 +2657,20 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEqual(len(identity), 1)
 
-            auth_token = self.maybe_get_auth_token(headers)
-            assert auth_token is not None
-
+            pkce_challenge = await self.con.query_single(
+                """
+                with module ext::auth
+                select PKCEChallenge { id }
+                filter .identity.id = <uuid>$identity_id
+                and .challenge = <str>$challenge
+                """,
+                identity_id=identity[0].id,
+                challenge=challenge,
+            )
             self.assertEqual(
                 json.loads(body),
-                {
-                    "identity_id": str(identity[0].id),
-                    "auth_token": auth_token,
-                },
+                {"code": str(pkce_challenge.id)},
             )
-
-            now = utcnow()
-            tomorrow = now + datetime.timedelta(hours=25)
-            session_claims = await self.extract_jwt_claims(auth_token)
-
-            self.assertEqual(session_claims.get("sub"), str(identity[0].id))
-            self.assertEqual(session_claims.get("iss"), str(self.http_addr))
-            self.assertTrue(session_claims.get("exp") > now.timestamp())
-            self.assertTrue(session_claims.get("exp") < tomorrow.timestamp())
 
             # Try to re-use the reset token
 
