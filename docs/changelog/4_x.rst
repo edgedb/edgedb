@@ -584,6 +584,9 @@ Fixes from 3.0
 * Recompile functions when globals/aliases/computeds change
   (:eql:gh:`#6382`)
 
+* Increase --wait-until-available time in edb cli dev command
+  (:eql:gh:`#6395`)
+
 Fixes of new 4.0 features
 -------------------------
 * Make ``ext::auth::ClientTokenIdentity`` single
@@ -602,4 +605,10 @@ Fixes of new 4.0 features
   (:eql:gh:`#6390`)
 
 * Require PKCE in auth ext password reset flow
+  (:eql:gh:`#6396`)
+
+* Provide an error message for failed PKCE verification
+  (:eql:gh:`#6383`)
+
+* Require PKCE in password reset flow
   (:eql:gh:`#6396`)
