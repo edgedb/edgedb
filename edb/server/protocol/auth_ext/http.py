@@ -592,7 +592,7 @@ class Router:
     async def handle_send_reset_email(self, request: Any, response: Any):
         data = self._get_data_from_request(request)
 
-        _check_keyset(data, {"provider", "reset_url"})
+        _check_keyset(data, {"provider", "reset_url", "challenge"})
         local_client = local.Client(db=self.db, provider_name=data["provider"])
 
         try:
@@ -602,7 +602,9 @@ class Router:
                     secret,
                 ) = await local_client.get_identity_and_secret(data)
 
-                new_reset_token = self._make_secret_token(identity.id, secret)
+                new_reset_token = self._make_secret_token(
+                    identity.id, secret, {"challenge": data["challenge"]}
+                )
 
                 reset_token_params = urllib.parse.urlencode(
                     {"reset_token": new_reset_token}
@@ -665,33 +667,27 @@ class Router:
         try:
             reset_token = data['reset_token']
 
-            identity_id, secret = self._get_data_from_reset_token(reset_token)
-
-            identity = await local_client.update_password(
-                identity_id, secret, data
+            identity_id, secret, challenge = self._get_data_from_reset_token(
+                reset_token
             )
 
-            session_token = self._make_session_token(identity.id)
-            _set_cookie(response, "edgedb-session", session_token)
+            await local_client.update_password(
+                identity_id, secret, data
+            )
+            await pkce.create(self.db, challenge)
+            code = await pkce.link_identity_challenge(
+                self.db, identity_id, challenge
+            )
+
             if data.get("redirect_to") is not None:
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = urllib.parse.urlencode(
-                    {
-                        "identity_id": identity.id,
-                        "auth_token": session_token,
-                    }
-                )
+                redirect_params = urllib.parse.urlencode({"code": code})
                 redirect_url = f"{data['redirect_to']}?{redirect_params}"
                 response.custom_headers["Location"] = redirect_url
             else:
                 response.status = http.HTTPStatus.OK
                 response.content_type = b"application/json"
-                response.body = json.dumps(
-                    {
-                        "identity_id": identity.id,
-                        "auth_token": session_token,
-                    }
-                ).encode()
+                response.body = json.dumps({"code": code}).encode()
         except Exception as ex:
             redirect_on_failure = data.get(
                 "redirect_on_failure", data.get("redirect_to")
@@ -821,6 +817,7 @@ class Router:
             query = urllib.parse.parse_qs(
                 request.url.query.decode("ascii") if request.url.query else ""
             )
+            challenge = _get_search_param(query, "challenge")
 
             response.status = http.HTTPStatus.OK
             response.content_type = b'text/html'
@@ -830,6 +827,7 @@ class Router:
                 error_message=_maybe_get_search_param(query, 'error'),
                 email=_maybe_get_search_param(query, 'email'),
                 email_sent=_maybe_get_search_param(query, 'email_sent'),
+                challenge=challenge,
                 app_name=ui_config.app_name,
                 logo_url=ui_config.logo_url,
                 dark_logo_url=ui_config.dark_logo_url,
@@ -841,6 +839,7 @@ class Router:
         password_provider = (
             self._get_password_provider() if ui_config is not None else None
         )
+        challenge: Optional[str] = None
 
         if ui_config is None or password_provider is None:
             response.status = http.HTTPStatus.NOT_FOUND
@@ -861,6 +860,7 @@ class Router:
                     (
                         identity_id,
                         secret,
+                        challenge,
                     ) = self._get_data_from_reset_token(reset_token)
 
                     local_client = local.Client(
@@ -884,6 +884,7 @@ class Router:
                 is_valid=is_valid,
                 redirect_to=ui_config.redirect_to,
                 reset_token=reset_token,
+                challenge=challenge,
                 error_message=_maybe_get_search_param(query, 'error'),
                 app_name=ui_config.app_name,
                 logo_url=ui_config.logo_url,
@@ -1023,6 +1024,11 @@ class Router:
             email = await local_client.get_email_by_identity_id(
                 identity_id=identity_id
             )
+            if email is None:
+                raise errors.NoIdentityFound(
+                    "Could not find email for provided identity"
+                )
+
             await self._send_verification_email(
                 provider=password_provider.name,
                 identity_id=identity_id,
@@ -1157,7 +1163,7 @@ class Router:
         verified = jwt.JWT(key=signing_key, jwt=jwtStr)
         return json.loads(verified.claims)
 
-    def _get_data_from_reset_token(self, token: str) -> Tuple[str, str]:
+    def _get_data_from_reset_token(self, token: str) -> Tuple[str, str, str]:
         try:
             claims = self._verify_and_extract_claims(token)
         except Exception:
@@ -1165,11 +1171,12 @@ class Router:
 
         identity_id = cast(Optional[str], claims.get('sub'))
         secret = cast(Optional[str], claims.get('jti'))
+        challenge = cast(Optional[str], claims.get("challenge"))
 
-        if identity_id is None or secret is None:
+        if identity_id is None or secret is None or challenge is None:
             raise errors.InvalidData("Invalid 'reset_token'")
 
-        return (identity_id, secret)
+        return (identity_id, secret, challenge)
 
     def _get_data_from_verification_token(
         self, token: str
@@ -1236,17 +1243,22 @@ class Router:
                 )
 
     def _get_ui_config(self):
-        return cast(config.UIConfig, util.maybe_get_config(
-            self.db, "ext::auth::AuthConfig::ui",
-            CompositeConfigType
-        ))
+        return cast(
+            config.UIConfig,
+            util.maybe_get_config(
+                self.db, "ext::auth::AuthConfig::ui", CompositeConfigType
+            ),
+        )
 
     def _get_password_provider(self):
-        providers = cast(list[config.ProviderConfig], util.get_config(
-            self.db,
-            "ext::auth::AuthConfig::providers",
-            frozenset,
-        ))
+        providers = cast(
+            list[config.ProviderConfig],
+            util.get_config(
+                self.db,
+                "ext::auth::AuthConfig::providers",
+                frozenset,
+            ),
+        )
         password_providers = [
             p for p in providers if (p.name == 'builtin::local_emailpassword')
         ]
