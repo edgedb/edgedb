@@ -408,7 +408,8 @@ def render_email_verification_page(
         )
         content = f'''
             {messages}
-            {f'<a href="{resend_url}">Try sending another verification email</a>'
+            {(f'<a href="{resend_url}">Try sending another verification'
+              'email</a>')
              if resend_url else ''}
             '''
     else:
