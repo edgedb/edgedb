@@ -944,6 +944,8 @@ class StdlibBits(NamedTuple):
     local_intro_query: str
     #: Global object introspection SQL query.
     global_intro_query: str
+    #: Number of patches already baked into the stdlib.
+    num_patches: int
 
 
 async def _make_stdlib(
@@ -1079,6 +1081,7 @@ async def _make_stdlib(
         classlayout=reflection.class_layout,
         local_intro_query=local_intro_sql,
         global_intro_query=global_intro_sql,
+        num_patches=len(patches.PATCHES),
     )
 
 
@@ -1398,7 +1401,7 @@ async def _init_stdlib(
     await metaschema.patch_pg_extensions(conn, backend_params)
 
     stdlib = stdlib._replace(stdschema=schema)
-    version_key = patches.get_version_key(len(patches.PATCHES))
+    version_key = patches.get_version_key(stdlib.num_patches)
 
     # stdschema and reflschema are combined in one pickle to preserve sharing
     await _store_static_bin_cache(
@@ -1780,12 +1783,6 @@ async def _populate_misc_instance_data(
         json.dumps(json_instance_data),
     )
 
-    await _store_static_json_cache(
-        ctx,
-        'num_patches',
-        json.dumps(len(patches.PATCHES)),
-    )
-
     backend_params = ctx.cluster.get_runtime_params()
     instance_params = backend_params.instance_params
     await _store_static_json_cache(
@@ -2154,7 +2151,7 @@ async def _bootstrap(ctx: BootstrapContext) -> edbcompiler.CompilerState:
             compiler,
             config_spec,
         )
-        version_key = patches.get_version_key(len(patches.PATCHES))
+        version_key = patches.get_version_key(stdlib.num_patches)
         await _store_static_json_cache(
             tpl_ctx,
             f'sysqueries{version_key}',
@@ -2171,6 +2168,12 @@ async def _bootstrap(ctx: BootstrapContext) -> edbcompiler.CompilerState:
             tpl_ctx,
             f'report_configs_typedesc_2_0{version_key}',
             report_configs_typedesc_2_0,
+        )
+
+        await _store_static_json_cache(
+            tpl_ctx,
+            'num_patches',
+            json.dumps(stdlib.num_patches),
         )
 
         schema = s_schema.EMPTY_SCHEMA
