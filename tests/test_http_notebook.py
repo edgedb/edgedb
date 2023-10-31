@@ -30,8 +30,10 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest):
     # EdgeQL/HTTP queries cannot run in a transaction
     TRANSACTION_ISOLATION = False
 
+    EXTENSIONS = ['notebook']
+
     @classmethod
-    def get_extension_name(cls):
+    def get_extension_path(cls):
         return 'notebook'
 
     def run_queries(self, queries: List[str]):

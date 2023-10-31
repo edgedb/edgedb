@@ -37,15 +37,9 @@ bag = assert_data_shape.bag
 
 
 class BaseHttpExtensionTest(server.QueryTestCase):
-    EXTENSION_SETUP: List[str] = []
-
-    @classmethod
-    def get_extension_name(cls):
-        raise NotImplementedError
-
     @classmethod
     def get_extension_path(cls):
-        return cls.get_extension_name()
+        raise NotImplementedError
 
     @classmethod
     def get_api_prefix(cls):
@@ -54,29 +48,18 @@ class BaseHttpExtensionTest(server.QueryTestCase):
         return f'/db/{dbname}/{extpath}'
 
     @classmethod
-    def get_setup_script(cls):
-        script = super().get_setup_script()
-
-        extname = cls.get_extension_name()
-        script += f'\nCREATE EXTENSION pgcrypto;\n'
-        script += f'\nCREATE EXTENSION {extname};\n'
-        script += "\n".join(cls.EXTENSION_SETUP)
-        return script
-
-    @classmethod
     def tearDownClass(cls):
-        extname = cls.get_extension_name()
-        cls.loop.run_until_complete(
-            cls.con.execute(f'DROP EXTENSION {extname};')
-        )
+        # This isn't really necessary but helps test extension dropping
+        for extname in reversed(cls.EXTENSIONS):
+            cls.loop.run_until_complete(
+                cls.con.execute(f'DROP EXTENSION {extname};')
+            )
         super().tearDownClass()
 
 
 class ExtAuthTestCase(BaseHttpExtensionTest):
 
-    @classmethod
-    def get_extension_name(cls):
-        return 'auth'
+    EXTENSIONS = ['pgcrypto', 'auth']
 
     @classmethod
     def get_extension_path(cls):
@@ -85,9 +68,7 @@ class ExtAuthTestCase(BaseHttpExtensionTest):
 
 class EdgeQLTestCase(BaseHttpExtensionTest):
 
-    @classmethod
-    def get_extension_name(cls):
-        return 'edgeql_http'
+    EXTENSIONS = ['edgeql_http']
 
     @classmethod
     def get_extension_path(cls):
@@ -160,8 +141,10 @@ class EdgeQLTestCase(BaseHttpExtensionTest):
 
 class GraphQLTestCase(BaseHttpExtensionTest):
 
+    EXTENSIONS = ['graphql']
+
     @classmethod
-    def get_extension_name(cls):
+    def get_extension_path(cls):
         return 'graphql'
 
     def graphql_query(self, query, *, operation_name=None,
