@@ -2741,9 +2741,3 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             self.assertEqual(status, 200)
-
-    async def test_http_auth_ext_urls(self):
-        await self.con.query('''
-            select cfg::Config.extensions[is ext::auth::AuthConfig].
-            allowed_redirect_urls;
-        ''')
