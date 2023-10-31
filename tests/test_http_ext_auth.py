@@ -349,6 +349,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         CONFIGURE CURRENT DATABASE SET
         ext::auth::SMTPConfig::sender := 'noreply@example.com';
 
+        CONFIGURE CURRENT DATABASE SET
+        ext::auth::AuthConfig::allowed_redirect_urls := {{
+            'http://example.com'
+        }};
+
         CONFIGURE CURRENT DATABASE
         INSERT ext::auth::GitHubOAuthProvider {{
             secret := '{GITHUB_SECRET}',
