@@ -338,7 +338,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     TRANSACTION_ISOLATION = False
     PARALLELISM_GRANULARITY = 'suite'
 
-    EXTENSION_SETUP = [
+    SETUP = [
         f"""
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::auth_signing_key := '{SIGNING_KEY}';

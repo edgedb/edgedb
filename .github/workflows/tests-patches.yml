@@ -468,7 +468,7 @@ jobs:
         # has timeouts.
         edb server --bootstrap-only --data-dir test-dir
         # Should we run *all* the tests?
-        edb test -j2 -v --data-dir test-dir tests/test_edgeql_json.py tests/test_edgeql_casts.py tests/test_edgeql_functions.py tests/test_edgeql_expressions.py tests/test_edgeql_policies.py tests/test_edgeql_vector.py tests/test_edgeql_scope.py
+        edb test -j2 -v --data-dir test-dir tests/test_edgeql_json.py tests/test_edgeql_casts.py tests/test_edgeql_functions.py tests/test_edgeql_expressions.py tests/test_edgeql_policies.py tests/test_edgeql_vector.py tests/test_edgeql_scope.py tests/test_http_ext_auth.py
 
     - name: Test downgrading a database after an upgrade
       if: ${{ !contains(matrix.edgedb-version, '-rc') && !contains(matrix.edgedb-version, '-beta') }}
