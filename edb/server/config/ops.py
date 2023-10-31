@@ -41,6 +41,9 @@ from . import spec
 from . import types
 
 
+MAX_CONFIG_SET_SIZE = 128
+
+
 class OpCode(enum.StrEnum):
 
     CONFIG_ADD = 'ADD'
@@ -116,6 +119,11 @@ def _check_object_set_uniqueness(
             )
         new_values.add(new_value)
 
+    if len(new_values) > MAX_CONFIG_SET_SIZE:
+        raise errors.ConfigurationError(
+            f'invalid value for the '
+            f'{setting.name!r} setting: set is too large')
+
     return frozenset(new_values)
 
 
@@ -174,9 +182,15 @@ class Operation(NamedTuple):
                     f'invalid value type for the '
                     f'{setting.name!r} setting')
             else:
-                return frozenset(
+                val = frozenset(
                     coerce_single_value(setting, v)
                     for v in self.value)  # type: ignore
+                if len(val) > MAX_CONFIG_SET_SIZE:
+                    raise errors.ConfigurationError(
+                        f'invalid value for the '
+                        f'{setting.name!r} setting: set is too large')
+                return val
+
         else:
             try:
                 return coerce_single_value(setting, self.value)
