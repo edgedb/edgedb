@@ -508,110 +508,11 @@ Bug fixes
 * Fix cardinality bug when a property appears in multiple splats.
   (:eql:gh:`#6255`)
 
-
-RC 1
-====
-
-Fixes from 3.0
---------------
-
 * Make comparison operators non-associative
   (:eql:gh:`#6327`)
-
-* Support (and require) auth for HTTP endpoints
-  (:eql:gh:`#6352`)
 
 * Fix an obscure parser bug caused by constant extraction
   (:eql:gh:`#6328`)
 
-..
-   Below this point everything should be in 3.x too so we can drop it
-   in the final version
-
-* Fix uuid->object casts in access policies in nested INSERTs
-  (:eql:gh:`#6313`)
-
-* Make 'reference to a non-existent schema item <id>' an ISE.
-  It's always a bug, and that should be made clear to users.
-  (:eql:gh:`#6314`)
-
-* Fix UPDATE with rewrites on tuples
-  (:eql:gh:`#6337`)
-
-* Make edgedb+http tunneled protocol not leak db existance before auth
-  (:eql:gh:`#6350`)
-
-* Substantially speed up restoring of dumps with large schemas
-  (:eql:gh:`#6362`)
-
-* Change adaptive pool scale-up condition
-  (:eql:gh:`#6357`)
-
-Fixes of new 4.0 features
--------------------------
-* Tweak parser error messages
-  (:eql:gh:`#6353`, :eql:gh:`#6329`)
-
-* Use consistent kebab-case for auth URLs
-  (:eql:gh:`#6351`)
-
-* Use even more consistent kebab-case for auth URLs
-  (:eql:gh:`#6355`)
-
-* Add ext::auth email verification
-  (:eql:gh:`#6324`)
-
-* Fix coalesce with DML in non-dev builds
-  (:eql:gh:`#6346`)
-
-* Add styled container to verification pages
-  (:eql:gh:`#6343`)
-
-
-RC 2
-====
-
-Fixes from 3.0
---------------
-
-..
-   Below this point everything should be in 3.x too so we can drop it
-   in the final version
-
-* Make migration deadlocks less likely in some common cases
-  (:eql:gh:`#6379`)
-
-* Support globals-using functions in defaults
-  (:eql:gh:`#6381`)
-
-* Recompile functions when globals/aliases/computeds change
-  (:eql:gh:`#6382`)
-
-* Increase --wait-until-available time in edb cli dev command
-  (:eql:gh:`#6395`)
-
-Fixes of new 4.0 features
--------------------------
-* Make ``ext::auth::ClientTokenIdentity`` single
-  (:eql:gh:`#6369`)
-
-* Fix assets on built-in auth UI in the release build
-  (:eql:gh:`#6377`)
-
-* Make parser spec generation deterministic
-  (:eql:gh:`#6375`)
-
-* Allow ``if .. then .. else`` at the top level
-  (:eql:gh:`#6385`)
-
-* Fix dumping of auth ext UIConfig
-  (:eql:gh:`#6390`)
-
-* Require PKCE in auth ext password reset flow
-  (:eql:gh:`#6396`)
-
-* Provide an error message for failed PKCE verification
-  (:eql:gh:`#6383`)
-
-* Require PKCE in password reset flow
-  (:eql:gh:`#6396`)
+* Cap the size of sets in ``multi`` configuration values to ``128``
+  (:eql:gh:`#6402`)
