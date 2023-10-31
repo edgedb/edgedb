@@ -247,6 +247,15 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
                 indicates that the token should never expire.";
             set default := <std::duration>'336 hours';
         };
+
+        create multi property allowed_redirect_urls -> std::str {
+            create annotation std::description :=
+                "When redirecting the user in various flows, the URL will be \
+                checked against this list to ensure they are going \
+                to a trusted domain controlled by the application. URLs are \
+                matched based on checking if the candidate redirect URL is \
+                a match or a subdirectory of any of these allowed URLs";
+        };
     };
 
     create scalar type ext::auth::SMTPSecurity extending enum<PlainText, TLS, STARTTLS, STARTTLSOrPlainText>;

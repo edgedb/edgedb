@@ -349,6 +349,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         CONFIGURE CURRENT DATABASE SET
         ext::auth::SMTPConfig::sender := 'noreply@example.com';
 
+        CONFIGURE CURRENT DATABASE SET
+        ext::auth::AuthConfig::allowed_redirect_urls := {{
+            'https://example.com'
+        }};
+
         CONFIGURE CURRENT DATABASE
         INSERT ext::auth::GitHubOAuthProvider {{
             secret := '{GITHUB_SECRET}',
@@ -699,7 +704,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                             "login": "octocat",
                             "name": "monalisa octocat",
                             "email": "octocat@example.com",
-                            "avatar_url": "http://example.com/example.jpg",
+                            "avatar_url": "https://example.com/example.jpg",
                             "updated_at": now.isoformat(),
                         }
                     ),
@@ -811,7 +816,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                             "login": "octocat",
                             "name": "monalisa octocat",
                             "email": "octocat+2@example.com",
-                            "avatar_url": "http://example.com/example.jpg",
+                            "avatar_url": "https://example.com/example.jpg",
                             "updated_at": now.isoformat(),
                         }
                     ),
@@ -1775,7 +1780,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": provider_name,
                 "email": "test@example.com",
                 "password": "test_password",
-                "redirect_to": "http://example.com/some/path",
+                "redirect_to": "https://example.com/some/path",
                 "challenge": str(uuid.uuid4()),
             }
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
@@ -1814,7 +1819,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             assert location is not None
             parsed_location = urllib.parse.urlparse(location)
             parsed_query = urllib.parse.parse_qs(parsed_location.query)
-            self.assertEqual(parsed_location.scheme, "http")
+            self.assertEqual(parsed_location.scheme, "https")
             self.assertEqual(parsed_location.netloc, "example.com")
             self.assertEqual(parsed_location.path, "/some/path")
             self.assertEqual(
@@ -1894,7 +1899,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             # Try to register the same user again (with redirect_on_failure)
-            redirect_on_failure_url = "http://example.com/different/path"
+            redirect_on_failure_url = "https://example.com/different/path"
             (
                 _,
                 redirect_on_failure_headers,
@@ -1936,6 +1941,33 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 parsed_query.get("error"),
                 ["This user has already been registered"],
             )
+
+    async def test_http_auth_ext_local_password_register_form_02(self):
+        with self.http_con() as http_con:
+            provider_config = await self.get_builtin_provider_config_by_name(
+                "local_emailpassword"
+            )
+            provider_name = provider_config.name
+
+            form_data = {
+                "provider": provider_name,
+                "email": "test@example.com",
+                "password": "test_password",
+                "redirect_to": "https://not-on-the-allow-list.com/some/path",
+                "challenge": str(uuid.uuid4()),
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEquals(status, 400)
 
     async def test_http_auth_ext_local_password_register_json_02(self):
         with self.http_con() as http_con:
@@ -2197,7 +2229,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": form_data["provider"],
                 "email": random_email,
                 "password": form_data["password"],
-                "redirect_to": "http://example.com/some/path",
+                "redirect_to": "https://example.com/some/path",
                 "challenge": str(uuid.uuid4()),
             }
             auth_data_encoded_redirect_to = urllib.parse.urlencode(
@@ -2248,8 +2280,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": form_data["provider"],
                 "email": random_email,
                 "password": form_data["password"],
-                "redirect_to": "http://example.com/some/path",
-                "redirect_on_failure": "http://example.com/failure/path",
+                "redirect_to": "https://example.com/some/path",
+                "redirect_on_failure": "https://example.com/failure/path",
                 "challenge": str(uuid.uuid4()),
             }
             auth_data_encoded_redirect_on_failure = urllib.parse.urlencode(
@@ -2303,7 +2335,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         refresh_token := <str>$refresh_token,
                         identity := (
                             insert ext::auth::Identity {
-                                issuer := "http://example.com",
+                                issuer := "https://example.com",
                                 subject := "abcdefg",
                             }
                         ),
@@ -2559,6 +2591,28 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEqual(error_status, 200)
 
+    async def test_http_auth_ext_local_password_forgot_form_02(self):
+        with self.http_con() as http_con:
+            provider_name = "builtin::local_emailpassword"
+
+            form_data = {
+                "provider": provider_name,
+                "reset_url": "https://not-on-the-allow-list.com/reset-password",
+                "email": f"{uuid.uuid4()}@example.com",
+                "challenge": uuid.uuid4(),
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="send-reset-email",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            self.assertEquals(status, 400)
+
     async def test_http_auth_ext_local_password_reset_form_01(self):
         with self.http_con() as http_con:
             provider_name = 'builtin::local_emailpassword'
@@ -2728,6 +2782,37 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 ["Invalid 'reset_token'"],
             )
 
+    async def test_http_auth_ext_local_password_reset_form_02(self):
+        with self.http_con() as http_con:
+            provider_name = 'builtin::local_emailpassword'
+
+            # Send reset
+            verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b'=')
+            challenge = (
+                base64.urlsafe_b64encode(
+                    hashlib.sha256(verifier).digest()
+                )
+                .rstrip(b'=')
+                .decode()
+            )
+            form_data = {
+                "provider": provider_name,
+                "reset_url": "https://not-on-the-allow-list.com/reset-password",
+                "email": f"{uuid.uuid4()}@example.com",
+                "challenge": challenge,
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="send-reset-email",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 400)
+
     async def test_client_token_identity_card(self):
         await self.con.query_single('''
             select global ext::auth::ClientTokenIdentity
@@ -2741,3 +2826,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             self.assertEqual(status, 200)
+
+    async def test_http_auth_ext_urls(self):
+        await self.con.query('''
+            select cfg::Config.extensions[is ext::auth::AuthConfig].
+            allowed_redirect_urls;
+        ''')
