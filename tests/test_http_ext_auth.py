@@ -409,6 +409,16 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls.loop.run_until_complete(
+            cls.con.execute(
+                f"""
+                CONFIGURE CURRENT DATABASE SET
+                ext::auth::AuthConfig::allowed_redirect_urls := {{
+                    '{cls.http_addr}'
+                }};
+                """
+            )
+        )
         cls.loop.run_until_complete(cls._wait_for_db_config())
 
     @classmethod
