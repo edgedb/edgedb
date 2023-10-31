@@ -70,6 +70,9 @@ The current kinds are:
  * metaschema-sql - create a function from metaschema
  * edgeql - runs an edgeql DDL command
  * edgeql+schema - runs an edgeql DDL command and updates the std schemas
+ * edgeql+user_ext|<extname> - updates extensions installed in user databases
+ *                           - should be paired with an ext-pkg patch
+ * ...+config - updates config views
  * ext-pkg - installs an extension package given a name
  * repair - fix up inconsistencies in *user* schemas
 """
