@@ -1397,7 +1397,7 @@ class Router:
             frozenset,
         )
         allowed_urls = cast(FrozenSet[str], allowed_urls).union(
-            {str(self.base_path)}
+            {self.base_path}
         )
         lower_url = url.lower()
 
