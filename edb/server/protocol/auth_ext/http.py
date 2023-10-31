@@ -397,9 +397,7 @@ class Router:
                 provider=register_provider_name,
                 identity_id=identity.id,
                 to_addr=data["email"],
-                verify_url=data.get(
-                    "verify_url", f"{self.base_path}/ui/verify"
-                ),
+                verify_url=f"{self.base_path}/ui/verify",
                 maybe_challenge=maybe_challenge,
                 maybe_redirect_to=maybe_redirect_to,
             )
@@ -609,7 +607,9 @@ class Router:
                 reset_token_params = urllib.parse.urlencode(
                     {"reset_token": new_reset_token}
                 )
-                reset_url = f"{data['reset_url']}?{reset_token_params}"
+                reset_url = (
+                    f"{self.base_path}/ui/reset-password?{reset_token_params}"
+                )
 
                 await auth_emails.send_password_reset_email(
                     db=self.db,
@@ -836,18 +836,12 @@ class Router:
 
     async def handle_ui_reset_password(self, request: Any, response: Any):
         ui_config = self._get_ui_config()
-        password_provider = (
-            self._get_password_provider() if ui_config is not None else None
-        )
+        password_provider = self._get_password_provider()
         challenge: Optional[str] = None
 
-        if ui_config is None or password_provider is None:
+        if password_provider is None:
             response.status = http.HTTPStatus.NOT_FOUND
-            response.body = (
-                b'Password provider not configured'
-                if ui_config
-                else b'Auth UI not enabled'
-            )
+            response.body = b'Password provider not configured'
         else:
             query = urllib.parse.parse_qs(
                 request.url.query.decode("ascii") if request.url.query else ""
@@ -886,23 +880,17 @@ class Router:
                 reset_token=reset_token,
                 challenge=challenge,
                 error_message=_maybe_get_search_param(query, 'error'),
-                app_name=ui_config.app_name,
-                logo_url=ui_config.logo_url,
-                dark_logo_url=ui_config.dark_logo_url,
-                brand_color=ui_config.brand_color,
+                app_name=ui_config.app_name if ui_config else None,
+                logo_url=ui_config.logo_url if ui_config else None,
+                dark_logo_url=ui_config.dark_logo_url if ui_config else None,
+                brand_color=ui_config.brand_color if ui_config else None,
             )
 
     async def handle_ui_verify(self, request: Any, response: Any):
         error_messages: list[str] = []
         ui_config = self._get_ui_config()
-        if ui_config is None:
-            response.status = http.HTTPStatus.NOT_FOUND
-            response.body = b'Auth UI not enabled'
-            return
 
-        password_provider = (
-            self._get_password_provider() if ui_config is not None else None
-        )
+        password_provider = self._get_password_provider()
         is_valid = True
         maybe_pkce_code: str | None = None
         redirect_to = ui_config.redirect_to_on_signup or ui_config.redirect_to
@@ -942,10 +930,14 @@ class Router:
                     response.content_type = b"text/html"
                     response.body = ui.render_email_verification_expired_page(
                         verification_token=maybe_verification_token,
-                        app_name=ui_config.app_name,
-                        logo_url=ui_config.logo_url,
-                        dark_logo_url=ui_config.dark_logo_url,
-                        brand_color=ui_config.brand_color,
+                        app_name=ui_config.app_name if ui_config else None,
+                        logo_url=ui_config.logo_url if ui_config else None,
+                        dark_logo_url=ui_config.dark_logo_url
+                        if ui_config
+                        else None,
+                        brand_color=ui_config.brand_color
+                        if ui_config
+                        else None,
                     )
                     return
 
@@ -973,14 +965,14 @@ class Router:
                             else rt
                         )
                     case _:
-                        redirect_to = cast(str, ui_config.redirect_to)
+                        redirect_to = cast(Optional[str], ui_config.redirect_to)
 
             except Exception as ex:
                 error_messages.append(repr(ex))
                 is_valid = False
 
         # Only redirect back if verification succeeds
-        if is_valid:
+        if is_valid and redirect_to is not None:
             response.status = http.HTTPStatus.FOUND
             response.custom_headers["Location"] = redirect_to
             return
@@ -991,10 +983,10 @@ class Router:
             verification_token=maybe_verification_token,
             is_valid=is_valid,
             error_messages=error_messages,
-            app_name=ui_config.app_name,
-            logo_url=ui_config.logo_url,
-            dark_logo_url=ui_config.dark_logo_url,
-            brand_color=ui_config.brand_color,
+            app_name=ui_config.app_name if ui_config else None,
+            logo_url=ui_config.logo_url if ui_config else None,
+            dark_logo_url=ui_config.dark_logo_url if ui_config else None,
+            brand_color=ui_config.brand_color if ui_config else None,
         )
 
     async def handle_ui_resend_verification(self, request: Any, response: Any):
