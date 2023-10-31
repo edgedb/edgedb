@@ -15,10 +15,13 @@ try:
     db = edgedb.create_client(
         host='localhost', port=10000, tls_security='insecure'
     )
-    for name in ['json', 'functions', 'expressions', 'casts', 'policies', 'vector', 'scope']:
+    for name in [
+        'json', 'functions', 'expressions', 'casts', 'policies', 'vector',
+        'scope', 'httpextauth',
+    ]:
         db.execute(f'create database {name};')
 
-    # For the scope database, let's actually migration to it.  This
+    # For the scope database, let's actually migrate to it.  This
     # will test that the migrations can still work after the upgrade.
     db2 = edgedb.create_client(
         host='localhost', port=10000, tls_security='insecure', database='scope'
@@ -34,6 +37,19 @@ try:
         POPULATE MIGRATION;
         COMMIT MIGRATION;
     ''')
+    db2.close()
+
+    # For the httpextauth database, create the proper extensions, so
+    # that patching of the auth extension in place can get tested.
+    db2 = edgedb.create_client(
+        host='localhost', port=10000, tls_security='insecure',
+        database='httpextauth'
+    )
+    db2.execute(f'''
+        create extension pgcrypto;
+        create extension auth;
+    ''')
+    db2.close()
 
 finally:
     proc.terminate()
