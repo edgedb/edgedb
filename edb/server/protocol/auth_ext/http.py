@@ -1394,8 +1394,9 @@ class Router:
         allowed_urls = util.get_config(
             self.db,
             "ext::auth::AuthConfig::allowed_redirect_urls",
-            Set[str],
+            frozenset,
         )
+        allowed_urls = cast(Set[str], allowed_urls)
         parsed_url = urllib.parse.urlparse(url)
 
         for allowed_url in allowed_urls:
