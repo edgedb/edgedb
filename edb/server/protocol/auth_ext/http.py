@@ -1396,27 +1396,13 @@ class Router:
             "ext::auth::AuthConfig::allowed_redirect_urls",
             frozenset,
         )
-        allowed_urls = cast(Set[str], allowed_urls)
-        parsed_url = urllib.parse.urlparse(url)
+        allowed_urls = cast(FrozenSet[str], allowed_urls).union(
+            {str(self.base_path)}
+        )
+        lower_url = url.lower()
 
         for allowed_url in allowed_urls:
-            if url == allowed_url:
-                return True
-
-            parsed_allowed_url = urllib.parse.urlparse(allowed_url)
-            url_hostname = parsed_url.hostname
-            allowed_hostname = parsed_allowed_url.hostname
-            if url_hostname is None or allowed_hostname is None:
-                continue
-            url_hostname_domain = '.'.join(url_hostname.split('.')[-2:])
-            allowed_hostname_domain = '.'.join(allowed_hostname.split('.')[-2:])
-
-            if (
-                parsed_url.scheme == parsed_allowed_url.scheme
-                and url_hostname_domain == allowed_hostname_domain
-                and parsed_url.port == parsed_allowed_url.port
-                and parsed_url.path.startswith(parsed_allowed_url.path)
-            ):
+            if lower_url.startswith(allowed_url.lower()):
                 return True
 
         return False
