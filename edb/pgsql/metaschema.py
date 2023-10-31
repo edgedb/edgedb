@@ -6376,6 +6376,7 @@ def get_config_type_views(
     schema: s_schema.Schema,
     conf: s_objtypes.ObjectType,
     scope: Optional[qltypes.ConfigScope],
+    existing_view_columns: Optional[dict[str, list[str]]]=None,
 ) -> dbops.CommandGroup:
     commands = dbops.CommandGroup()
 
@@ -6385,6 +6386,7 @@ def get_config_type_views(
         scope=scope,
         path=[],
         rptr=None,
+        existing_view_columns=existing_view_columns,
     )
     commands.add_commands([
         dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
@@ -6396,22 +6398,32 @@ def get_config_type_views(
 
 def get_config_views(
     schema: s_schema.Schema,
+    existing_view_columns: Optional[dict[str, list[str]]]=None,
 ) -> dbops.CommandGroup:
     commands = dbops.CommandGroup()
 
     conf = schema.get('cfg::Config', type=s_objtypes.ObjectType)
     commands.add_command(
-        get_config_type_views(schema, conf, scope=None),
+        get_config_type_views(
+            schema, conf, scope=None,
+            existing_view_columns=existing_view_columns,
+        ),
     )
 
     conf = schema.get('cfg::InstanceConfig', type=s_objtypes.ObjectType)
     commands.add_command(
-        get_config_type_views(schema, conf, scope=qltypes.ConfigScope.INSTANCE),
+        get_config_type_views(
+            schema, conf, scope=qltypes.ConfigScope.INSTANCE,
+            existing_view_columns=existing_view_columns,
+        ),
     )
 
     conf = schema.get('cfg::DatabaseConfig', type=s_objtypes.ObjectType)
     commands.add_command(
-        get_config_type_views(schema, conf, scope=qltypes.ConfigScope.DATABASE),
+        get_config_type_views(
+            schema, conf, scope=qltypes.ConfigScope.DATABASE,
+            existing_view_columns=existing_view_columns,
+        ),
     )
 
     return commands
@@ -6620,6 +6632,7 @@ def _generate_config_type_view(
     scope: Optional[qltypes.ConfigScope],
     path: List[Tuple[s_pointers.Pointer, List[s_pointers.Pointer]]],
     rptr: Optional[s_pointers.Pointer],
+    existing_view_columns: Optional[dict[str, list[str]]],
     _memo: Optional[Set[s_obj.Object]] = None,
 ) -> Tuple[
     List[Tuple[Tuple[str, str], str]],
@@ -6880,6 +6893,7 @@ def _generate_config_type_view(
             scope=scope,
             path=target_path,
             rptr=link,
+            existing_view_columns=existing_view_columns,
             _memo=_memo,
         )
 
@@ -6891,6 +6905,7 @@ def _generate_config_type_view(
                     scope=scope,
                     path=target_path,
                     rptr=link,
+                    existing_view_columns=existing_view_columns,
                     _memo=_memo,
                 )
                 views.extend(desc_views)
@@ -6913,13 +6928,38 @@ def _generate_config_type_view(
         views.extend(target_views)
 
     # You can't change the order of a postgres view... so
-    # sort by the order the pointers were added to the source.
-    # N.B: This only works because we are using the original in-memory
-    # schema. If it was loaded from reflection it probably wouldn't
-    # work.
-    ptr_indexes = {
-        v: i for i, v in enumerate(stype.get_pointers(schema).objects(schema))
-    }
+    # we have to maintain the original order.
+    #
+    # If we are applying patches that modify the config views,
+    # then we will have an existing_view_columns map that tells us
+    # the existing order in postgres.
+    # If it isn't already in that map, then we order based on
+    # the order in the pointers refdict, which will be the order
+    # the pointers were created, *if* they were added to the in-memory
+    # schema in this process.  (If it was loaded from reflection, that
+    # order won't be preserved, which is why we need existing_view_columns).
+    #
+    # FIXME: We should consider adding enough info to the schema to not need
+    # this complication.
+    existing_indexes = {
+        v: i for i, v in enumerate(existing_view_columns.get(str(stype.id), []))
+    } if existing_view_columns else {}
+    ptr_indexes = {}
+    for i, v in enumerate(stype.get_pointers(schema).objects(schema)):
+        # First try the id
+        if (eidx := existing_indexes.get(str(v.id))) is not None:
+            idx = (0, eidx)
+        # Certain columns use their actual names, so try the actual
+        # name also.
+        elif (
+            eidx := existing_indexes.get(v.get_shortname(schema).name)
+        ) is not None:
+            idx = (0, eidx)
+        # Not already in the database, use the order in pointers refdict
+        else:
+            idx = (1, i)
+        ptr_indexes[v] = idx
+
     target_cols_sorted = sorted(
         target_cols.items(), key=lambda p: ptr_indexes[p[0]]
     )
@@ -6957,6 +6997,7 @@ def _generate_config_type_view(
             scope=scope,
             path=target_path,
             rptr=link,
+            existing_view_columns=existing_view_columns,
             _memo=_memo,
         )
         views.extend(target_views)
@@ -6969,6 +7010,7 @@ def _generate_config_type_view(
                     scope=scope,
                     path=target_path,
                     rptr=link,
+                    existing_view_columns=existing_view_columns,
                     _memo=_memo,
                 )
                 views.extend(desc_views)
