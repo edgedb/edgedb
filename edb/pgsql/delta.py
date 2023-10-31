@@ -5776,16 +5776,14 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
             self.alter_ancestor_inhviews(
                 orig_schema, context, source,
                 exclude_children=frozenset((source,)))
-            old_table_name = common.get_backend_name(
-                orig_schema, source, catenate=False)
+            old_table_name = self._get_table_name(source, orig_schema)
             self.pgops.add(dbops.DropTable(name=old_table_name))
 
         if has_table(prop, orig_schema):
             self.drop_inhview(orig_schema, context, prop)
             self.alter_ancestor_inhviews(
                 schema, context, prop, exclude_children={prop})
-            old_table_name = common.get_backend_name(
-                orig_schema, prop, catenate=False)
+            old_table_name = self._get_table_name(prop, orig_schema)
             self.pgops.add(dbops.DropTable(name=old_table_name))
             self.schedule_endpoint_delete_action_update(
                 prop, orig_schema, schema, context)

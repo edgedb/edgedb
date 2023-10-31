@@ -1145,10 +1145,16 @@ class Server(BaseServer):
 
             idx = num_patches + num
             if not (entry := await self._get_patch_log(conn, idx)):
+                patch_info = await bootstrap.gather_patch_info(
+                    num, kind, patch, conn
+                )
+
                 entry = bootstrap.prepare_patch(
                     num, kind, patch, self._std_schema, self._refl_schema,
                     self._schema_class_layout,
-                    self._tenant.get_backend_runtime_params())
+                    self._tenant.get_backend_runtime_params(),
+                    patch_info=patch_info,
+                )
 
                 await bootstrap._store_static_bin_cache_conn(
                     conn, f'patch_log_{idx}', pickle.dumps(entry))
@@ -1189,12 +1195,35 @@ class Server(BaseServer):
     ) -> None:
         """Apply any un-applied patches to the database."""
         num_patches = await self.get_patch_count(conn)
-        for num, (sql_b, syssql, _, repair) in patches.items():
+        for num, (sql_b, syssql, keys, repair) in patches.items():
             if num_patches <= num:
                 if sys:
                     sql_b += syssql
                 logger.info("applying patch %d to database '%s'", num, dbname)
                 sql = tuple(x.encode('utf-8') for x in sql_b)
+
+                # If we are doing a user_ext update, we need to
+                # actually run that against each user database.
+                if keys.get('is_user_ext_update'):
+                    from . import bootstrap
+                    global_schema = await self.introspect_global_schema(conn)
+                    user_schema = await self._introspect_user_schema(
+                        conn, global_schema)
+
+                    kind, patch = pg_patches.PATCHES[num]
+                    patch_info = await bootstrap.gather_patch_info(
+                        num, kind, patch, conn
+                    )
+                    entry = bootstrap.prepare_patch(
+                        num, kind, patch, self._std_schema, self._refl_schema,
+                        self._schema_class_layout,
+                        self._tenant.get_backend_runtime_params(),
+                        patch_info=patch_info,
+                        user_schema=user_schema,
+                        global_schema=global_schema,
+                    )
+
+                    sql += tuple(x.encode('utf-8') for x in entry[0])
 
                 # Only do repairs when they are the *last* pending
                 # repair in the patch queue. We make sure that every
