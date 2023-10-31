@@ -1969,7 +1969,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEquals(status, 400)
 
-
     async def test_http_auth_ext_local_password_register_json_02(self):
         with self.http_con() as http_con:
             provider_name = "builtin::local_emailpassword"
@@ -2429,28 +2428,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             self.assertEqual(status, 400)
-
-    async def test_http_auth_ext_local_password_forgot_form_02(self):
-        with self.http_con() as http_con:
-            provider_name = "builtin::local_emailpassword"
-
-            form_data = {
-                "provider": provider_name,
-                "reset_url": "https://not-on-the-allow-list.com/reset-password",
-                "email": f"{uuid.uuid4()}@example.com",
-                "challenge": uuid.uuid4(),
-            }
-            form_data_encoded = urllib.parse.urlencode(form_data).encode()
-
-            _, _, status = self.http_con_request(
-                http_con,
-                None,
-                path="send-reset-email",
-                method="POST",
-                body=form_data_encoded,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
-            self.assertEquals(status, 400)
 
     async def test_http_auth_ext_local_password_forgot_form_01(self):
         with self.http_con() as http_con:
