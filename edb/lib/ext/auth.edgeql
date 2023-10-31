@@ -252,7 +252,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             create annotation std::description :=
                 "When redirecting the user in various flows, the URL will be \
                 checked against this list to ensure they are going \
-                to a trusted domain controlled by thee application. URLs are \
+                to a trusted domain controlled by the application. URLs are \
                 matched based on checking if the candidate redirect URL is \
                 a match or a subdirectory of any of these allowed URLs";
         };
