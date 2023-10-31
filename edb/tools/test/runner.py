@@ -339,18 +339,18 @@ class ParallelTestSuite(unittest.TestSuite):
                 else:
                     break
 
-            # Post the terminal message to the queue so that
-            # test-monitor can stop.
-            result_queue.put((None, None, None))
-
-            # Give the test-monitor thread some time to
-            # process the queue messages.  If something
-            # goes wrong, the thread will be forcibly
-            # joined by a timeout.
-            result_thread.join(timeout=3)
-
         # Wait for pool to shutdown, this includes test teardowns.
         pool.join()
+
+        # Post the terminal message to the queue so that
+        # test-monitor can stop.
+        result_queue.put((None, None, None))
+
+        # Give the test-monitor thread some time to
+        # process the queue messages.  If something
+        # goes wrong, the thread will be forcibly
+        # joined by a timeout.
+        result_thread.join(timeout=3)
 
         return result
 
