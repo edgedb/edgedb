@@ -474,6 +474,14 @@ class TestServerConfig(tb.QueryTestCase):
                 };
             ''')
 
+        props = {str(x) for x in range(500)}
+        with self.assertRaisesRegex(
+                edgedb.ConfigurationError,
+                'too large'):
+            await self.con.query(f'''
+                CONFIGURE SESSION SET multiprop := {props};
+            ''')
+
     async def test_server_proto_configure_02(self):
         conf = await self.con.query_single('''
             SELECT cfg::Config.__internal_testvalue LIMIT 1
