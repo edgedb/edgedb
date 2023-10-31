@@ -206,15 +206,13 @@ class Router:
             query, "redirect_to_on_signup"
         )
         if not self._is_url_allowed(redirect_to):
-            raise errors.MissingConfiguration(
-                "allowed_redirect_urls",
+            raise errors.InvalidData(
                 "Redirect URL does not match any allowed URLs.",
             )
         if redirect_to_on_signup and not self._is_url_allowed(
             redirect_to_on_signup
         ):
-            raise errors.MissingConfiguration(
-                "allowed_redirect_urls",
+            raise errors.InvalidData(
                 "Redirect URL does not match any allowed URLs.",
             )
         challenge = _get_search_param(query, "challenge")
@@ -271,8 +269,7 @@ class Router:
                 raise errors.InvalidData("Invalid state token")
 
             if not self._is_url_allowed(redirect_to):
-                raise errors.MissingConfiguration(
-                    "allowed_redirect_urls",
+                raise errors.InvalidData(
                     "Redirect URL does not match any allowed URLs.",
                 )
 
@@ -300,15 +297,13 @@ class Router:
                 Optional[str], claims.get("redirect_to_on_signup")
             )
             if not self._is_url_allowed(redirect_to):
-                raise errors.MissingConfiguration(
-                    "allowed_redirect_urls",
+                raise errors.InvalidData(
                     "Redirect URL does not match any allowed URLs.",
                 )
             if redirect_to_on_signup and not self._is_url_allowed(
                 redirect_to_on_signup
             ):
-                raise errors.MissingConfiguration(
-                    "allowed_redirect_urls",
+                raise errors.InvalidData(
                     "Redirect URL does not match any allowed URLs.",
                 )
             challenge = cast(str, claims["challenge"])
@@ -401,8 +396,7 @@ class Router:
 
         maybe_redirect_to = cast(Optional[str], data.get("redirect_to"))
         if maybe_redirect_to and not self._is_url_allowed(maybe_redirect_to):
-            raise errors.MissingConfiguration(
-                "allowed_redirect_urls",
+            raise errors.InvalidData(
                 "Redirect URL does not match any allowed URLs.",
             )
         maybe_challenge = cast(Optional[str], data.get("challenge"))
@@ -489,8 +483,7 @@ class Router:
 
         maybe_redirect_to = data.get("redirect_to")
         if maybe_redirect_to and not self._is_url_allowed(maybe_redirect_to):
-            raise errors.MissingConfiguration(
-                "allowed_redirect_urls",
+            raise errors.InvalidData(
                 "Redirect URL does not match any allowed URLs.",
             )
 
@@ -536,8 +529,7 @@ class Router:
             )
             if redirect_on_failure is not None:
                 if not self._is_url_allowed(redirect_on_failure):
-                    raise errors.MissingConfiguration(
-                        "allowed_redirect_urls",
+                    raise errors.InvalidData(
                         "Redirect URL does not match any allowed URLs.",
                     )
                 response.status = http.HTTPStatus.FOUND
@@ -642,14 +634,12 @@ class Router:
         _check_keyset(data, {"provider", "reset_url", "challenge"})
         local_client = local.Client(db=self.db, provider_name=data["provider"])
         if not self._is_url_allowed(data["reset_url"]):
-            raise errors.MissingConfiguration(
-                "allowed_redirect_urls",
+            raise errors.InvalidData(
                 "Redirect URL does not match any allowed URLs.",
             )
         maybe_redirect_to = data.get("redirect_to")
         if maybe_redirect_to and not self._is_url_allowed(maybe_redirect_to):
-            raise errors.MissingConfiguration(
-                "allowed_redirect_urls",
+            raise errors.InvalidData(
                 "Redirect URL does not match any allowed URLs.",
             )
 
@@ -705,8 +695,7 @@ class Router:
             )
             if redirect_on_failure is not None:
                 if not self._is_url_allowed(redirect_on_failure):
-                    raise errors.MissingConfiguration(
-                        "allowed_redirect_urls",
+                    raise errors.InvalidData(
                         "Redirect URL does not match any allowed URLs.",
                     )
                 response.status = http.HTTPStatus.FOUND
@@ -729,8 +718,7 @@ class Router:
 
         maybe_redirect_to = data.get("redirect_to")
         if maybe_redirect_to and not self._is_url_allowed(maybe_redirect_to):
-            raise errors.MissingConfiguration(
-                "allowed_redirect_urls",
+            raise errors.InvalidData(
                 "Redirect URL does not match any allowed URLs.",
             )
 
@@ -762,8 +750,7 @@ class Router:
             )
             if redirect_on_failure is not None:
                 if not self._is_url_allowed(redirect_on_failure):
-                    raise errors.MissingConfiguration(
-                        "allowed_redirect_urls",
+                    raise errors.InvalidData(
                         "Redirect URL does not match any allowed URLs.",
                     )
                 response.status = http.HTTPStatus.FOUND

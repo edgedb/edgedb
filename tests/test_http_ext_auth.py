@@ -1942,6 +1942,34 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 ["This user has already been registered"],
             )
 
+    async def test_http_auth_ext_local_password_register_form_02(self):
+        with self.http_con() as http_con:
+            provider_config = await self.get_builtin_provider_config_by_name(
+                "local_emailpassword"
+            )
+            provider_name = provider_config.name
+
+            form_data = {
+                "provider": provider_name,
+                "email": "test@example.com",
+                "password": "test_password",
+                "redirect_to": "https://not-on-the-allow-list.com/some/path",
+                "challenge": str(uuid.uuid4()),
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEquals(status, 400)
+
+
     async def test_http_auth_ext_local_password_register_json_02(self):
         with self.http_con() as http_con:
             provider_name = "builtin::local_emailpassword"
@@ -2402,6 +2430,28 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEqual(status, 400)
 
+    async def test_http_auth_ext_local_password_forgot_form_02(self):
+        with self.http_con() as http_con:
+            provider_name = "builtin::local_emailpassword"
+
+            form_data = {
+                "provider": provider_name,
+                "reset_url": "https://not-on-the-allow-list.com/reset-password",
+                "email": f"{uuid.uuid4()}@example.com",
+                "challenge": uuid.uuid4(),
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="send-reset-email",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            self.assertEquals(status, 400)
+
     async def test_http_auth_ext_local_password_forgot_form_01(self):
         with self.http_con() as http_con:
             provider_name = "builtin::local_emailpassword"
@@ -2563,6 +2613,28 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             self.assertEqual(error_status, 200)
+
+    async def test_http_auth_ext_local_password_forgot_form_02(self):
+        with self.http_con() as http_con:
+            provider_name = "builtin::local_emailpassword"
+
+            form_data = {
+                "provider": provider_name,
+                "reset_url": "https://not-on-the-allow-list.com/reset-password",
+                "email": f"{uuid.uuid4()}@example.com",
+                "challenge": uuid.uuid4(),
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="send-reset-email",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            self.assertEquals(status, 400)
 
     async def test_http_auth_ext_local_password_reset_form_01(self):
         with self.http_con() as http_con:
@@ -2732,6 +2804,37 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 parsed_query.get("error"),
                 ["Invalid 'reset_token'"],
             )
+
+    async def test_http_auth_ext_local_password_reset_form_02(self):
+        with self.http_con() as http_con:
+            provider_name = 'builtin::local_emailpassword'
+
+            # Send reset
+            verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b'=')
+            challenge = (
+                base64.urlsafe_b64encode(
+                    hashlib.sha256(verifier).digest()
+                )
+                .rstrip(b'=')
+                .decode()
+            )
+            form_data = {
+                "provider": provider_name,
+                "reset_url": "https://not-on-the-allow-list.com/reset-password",
+                "email": f"{uuid.uuid4()}@example.com",
+                "challenge": challenge,
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="send-reset-email",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 400)
 
     async def test_client_token_identity_card(self):
         await self.con.query_single('''
