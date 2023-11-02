@@ -21,7 +21,7 @@ We secure authentication tokens and other sensitive data by using PKCE
    then base64url encode the resulting string. This new string is called
    the ``challenge``.
 
-   .. code-block:: tsx
+   .. code-block:: javascript
 
       import crypto from "node:crypto";
 
@@ -47,7 +47,7 @@ We secure authentication tokens and other sensitive data by using PKCE
       including the URL of the route you want to use to verify user
       emails:
 
-      .. code-block:: tsx
+      .. code-block:: javascript
 
          const EDGEDB_AUTH_BASE_URL = new URL(
            `db/${process.env.DB_NAME}/ext/auth`,
@@ -78,7 +78,7 @@ We secure authentication tokens and other sensitive data by using PKCE
       request to the EdgeDB Auth API to attempt to authenticate the
       user:
 
-      .. code-block:: tsx
+      .. code-block:: javascript
 
          const EDGEDB_AUTH_BASE_URL = new URL(
            `db/${process.env.DB_NAME}/ext/auth`,
@@ -109,7 +109,7 @@ We secure authentication tokens and other sensitive data by using PKCE
       request to the EdgeDB Auth API to attempt to verify the user’s
       email:
 
-      .. code-block:: tsx
+      .. code-block:: javascript
 
          const EDGEDB_AUTH_BASE_URL = new URL(
            `db/${process.env.DB_NAME}/ext/auth`,
@@ -121,7 +121,9 @@ We secure authentication tokens and other sensitive data by using PKCE
          const provider = searchParams.get("provider");
          const email = searchParams.get("email");
          if (!verificationToken || !provider || !email) {
-           throw new Error("Missing required data in request search parameters");
+           throw new Error(
+            "Missing required data in request search parameters"
+          );
          }
 
          const response = await fetch(verifyUrl.href, {
@@ -145,7 +147,7 @@ We secure authentication tokens and other sensitive data by using PKCE
    1, make a request to the EdgeDB Auth API to exchange the ``code`` and
    ``verifier`` for an ``auth_token`` and ``identity_id``.
 
-   .. code-block:: tsx
+   .. code-block:: javascript
 
       const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
       tokenUrl.searchParams.set("code", code);
@@ -154,7 +156,9 @@ We secure authentication tokens and other sensitive data by using PKCE
         method: "GET",
       });
       if (!tokenResponse.ok) {
-        throw new Error("Could not exchange code and verifier for an auth token");
+        throw new Error(
+          "Could not exchange code and verifier for an auth token"
+        );
       }
       const { auth_token: authToken, identity_id: identityId } =
         await tokenResponse.json();
