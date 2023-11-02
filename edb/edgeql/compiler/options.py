@@ -97,6 +97,9 @@ class GlobalCompilerOptions:
     # are we invoking the compiler from inside a CONFIGURE?
     in_server_config_op: bool = False
 
+    # This this restoring a dump?
+    dump_restore_mode: bool = False
+
 
 @dataclass
 class CompilerOptions(GlobalCompilerOptions):

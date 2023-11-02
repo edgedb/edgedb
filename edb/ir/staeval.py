@@ -502,6 +502,7 @@ def object_type_to_spec(
             unique=unique,
             default=default,
             secret=p.get_secret(schema),
+            protected=p.get_protected(schema),
         )
 
     spec = spec_class(

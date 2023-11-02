@@ -1557,7 +1557,7 @@ def _get_compile_options(
             and not ctx.schema_reflection_mode
         ) or is_explain,
         testmode=_get_config_val(ctx, '__internal_testmode'),
-        schema_reflection_mode=ctx.schema_reflection_mode
+        schema_reflection_mode=ctx.schema_reflection_mode,
     )
 
 
@@ -2101,7 +2101,8 @@ def _compile_ql_config_op(
         schema=schema,
         options=qlcompiler.CompilerOptions(
             modaliases=modaliases,
-            in_server_config_op=True
+            in_server_config_op=True,
+            dump_restore_mode=ctx.dump_restore_mode,
         ),
     )
 
