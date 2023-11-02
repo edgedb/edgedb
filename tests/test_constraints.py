@@ -1773,3 +1773,26 @@ class TestConstraintsDDL(tb.DDLTestCase):
             edgedb.ConstraintViolationError, "Minimum allowed value for"
         ):
             await self.con.execute("insert X { y := -1 }")
+
+    async def test_constraints_abstract_object(self):
+        await self.con.execute(
+            """
+                create abstract type ChatBase {
+                    create multi property messages: str {
+                        create constraint exclusive;
+                    };
+                };
+
+                create type Dialog extending ChatBase;
+                create type Monolog extending ChatBase;
+                insert Dialog;
+                insert Monolog;
+            """
+        )
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "messages violates exclusivity constraint"
+        ):
+            await self.con.execute("""
+                update ChatBase set { messages += 'hello world' };
+            """)
