@@ -21,8 +21,8 @@ into the EdgeDB server. Here's how you can integrate it with your app.
 Enable extension in your schema
 ===============================
 
-Auth is an EdgeDB extension. To enable it, you will need to add the extension to
-your app’s schema:
+Auth is an EdgeDB extension. To enable it, you will need to add the extension
+to your app’s schema:
 
 .. code-block:: sdl
 
@@ -67,11 +67,11 @@ JSON Web Token. This is effectively the “session” time.
 allowed_redirect_urls
 ---------------------
 
-This value is a set of strings that we use to ensure we only redirect to domains
-that are under the control of the application using the Auth extension. We
-compare any ``redirect_to`` URLs against this list. A URL is considered a "match"
-if the URL is exactly the same as one on the list, or is a sub-path of a URL on
-the list.
+This value is a set of strings that we use to ensure we only redirect to
+domains that are under the control of the application using the Auth extension.
+We compare any ``redirect_to`` URLs against this list. A URL is considered a
+"match" if the URL is exactly the same as one on the list, or is a sub-path of
+a URL on the list.
 
 For example, if the set includes ``https://example.com/myapp``:
 
@@ -164,11 +164,15 @@ OAuth
 We currently support four different OAuth providers (with a few more
 coming soon):
 
+.. lint-off
+
 -  `Apple <https://developer.apple.com/documentation/sign_in_with_apple/sign_in_with_apple_rest_api/authenticating_users_with_sign_in_with_apple>`__
 -  `Azure
    (Microsoft) <https://learn.microsoft.com/en-us/entra/identity-platform/v2-protocols-oidc>`__
 -  `GitHub <https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app>`__
 -  `Google <https://developers.google.com/identity/protocols/oauth2>`__
+
+.. lint-on
 
 The instructions for creating an app for each provider can be found on
 each provider’s developer documentation website, which is linked above.
@@ -274,6 +278,8 @@ protected resource, in this case being able to insert a ``Post``.
 
 Let’s now insert a ``Post``.
 
+.. lint-off
+
 .. code-block:: tsx
 
    const client = createClient().withGlobals({
@@ -290,6 +296,8 @@ Let’s now insert a ``Post``.
        text: 'if your grave doesnt say "rest in peace" on it you are automatically drafted into the skeleton war'
      }
    );
+
+.. lint-on
 
 I can even delete it, since I have access through the global:
 
