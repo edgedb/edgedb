@@ -642,7 +642,7 @@ async def drop_db(conn, dbname):
     # with a retry loop. Without this, tests would flake
     # a lot.
     async for tr in TestCase.try_until_succeeds(
-        ignore=edgedb.ExecutionError,
+        ignore=(edgedb.ExecutionError, edgedb.ClientConnectionError),
         timeout=30
     ):
         async with tr:
