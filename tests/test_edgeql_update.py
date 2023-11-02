@@ -2479,7 +2479,8 @@ class TestUpdate(tb.QueryTestCase):
                         @note
                     } ORDER BY .name
                 } FILTER
-                    .name LIKE 'update-test-subtract-%';
+                    .name LIKE 'update-test-subtract-%'
+                  ORDER BY .name;
             """,
             [
                 {
@@ -2528,7 +2529,8 @@ class TestUpdate(tb.QueryTestCase):
                         @note
                     } ORDER BY .name
                 } FILTER
-                    .name LIKE 'update-test-subtract-%';
+                    .name LIKE 'update-test-subtract-%'
+                  ORDER BY .name;
             """,
             [
                 {
@@ -3271,16 +3273,18 @@ class TestUpdate(tb.QueryTestCase):
                 SELECT _ {
                     name,
                     str_tags ORDER BY _.str_tags
-                };
+                }
+                 ORDER BY .name;
+
             """,
             [
                 {
-                    'name': 'add-dupes-scalar-foo',
-                    'str_tags': ['baz', 'baz', 'foo', 'foo', 'foo', 'foo'],
-                },
-                {
                     'name': 'add-dupes-scalar-bar',
                     'str_tags': ['bar', 'bar', 'bar', 'bar', 'baz'],
+                },
+                {
+                    'name': 'add-dupes-scalar-foo',
+                    'str_tags': ['baz', 'baz', 'foo', 'foo', 'foo', 'foo'],
                 },
             ]
         )
