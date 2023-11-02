@@ -4,6 +4,12 @@
 Auth
 ====
 
+.. toctree::
+    :maxdepth: 1
+
+    built_in_ui
+    email_password
+
 :edb-alt-title: Using EdgeDB Auth
 
 EdgeDB Auth is a batteries-included authentication solution for your app built
@@ -39,8 +45,8 @@ schema change, you will see the "Auth Admin" icon in the left-hand toolbar.
 The auth admin UI exposes these values:
 
 
-``auth_signing_key``
---------------------
+auth_signing_key
+----------------
 
 The extension uses JSON Web Tokens (JWTs) internally for many operations.
 ``auth_signing_key`` is the value that is used as a symmetric key for signing
@@ -49,15 +55,15 @@ no need to save this value for your own application use. It is exposed mainly
 to allow rotation.
 
 
-``token_time_to_live``
-----------------------
+token_time_to_live
+------------------
 
 This value controls the expiration time on the authentication token’s
 JSON Web Token. This is effectively the “session” time.
 
 
-``allowed_redirect_urls``
--------------------------
+allowed_redirect_urls
+---------------------
 
 This value is a set of strings that we use to ensure we only redirect to domains
 that are under the control of the application using the Auth extension. We
@@ -67,18 +73,27 @@ the list.
 
 For example, if the set includes ``https://example.com/myapp``:
 
-Match
-- ``https://example.com/myapp``
-- ``https://example.com/myapp/auth``
-- ``https://example.com/myapp/auth/verify``
-- ``https://example.com/myapp/somewhere/else``
+.. list-table::
+   :header-rows: 1
 
-No Match
-- ``http://example.com/myapp`` - Does not match the protocol
-- ``https://example.com:443/myapp`` - Does not match the port
-- ``https://auth.example.com/myapp`` - Does not match the subdomain
-- ``https://example.com/different/subpath`` - Does not match the pathname or
-extend it
+   * - URL
+     - Match
+   * - ``https://example.com/myapp``
+     - ✅
+   * - ``https://example.com/myapp/auth``
+     - ✅
+   * - ``https://example.com/myapp/auth/verify``
+     - ✅
+   * - ``https://example.com/myapp/somewhere/else``
+     - ✅
+   * - ``http://example.com/myapp``
+     - Does not match the protocol
+   * - ``https://example.com:443/myapp``
+     - Does not match the port
+   * - ``https://auth.example.com/myapp``
+     - Does not match the subdomain
+   * - ``https://example.com/different/subpath``
+     - Does not match the pathname or extend it
 
 .. note::
 
@@ -180,7 +195,7 @@ be found running this CLI command:
 
 .. code-block:: bash
 
-   edgedb instance credentials
+   $ edgedb instance credentials
 
 This will output a table that includes the hostnames and ports of all your
 instances. Grab those from the row corresponding to the correct instance for
@@ -215,127 +230,6 @@ Select your method for detailed configuration:
 
     built_in_ui
     email_password
-
-
-
-Build your own UI
------------------
-
-oy
-
-Email and password
-^^^^^^^^^^^^^^^^^^
-
-beep
-boop
-
-
-OAuth
-^^^^^
-bop
-
-We secure authentication tokens and other sensitive data by using PKCE
-(Proof Key of Code Exchange).
-
-1. Your application server should create a 32-byte base64 URL encoded
-   string (which will be 43-44 bytes after encoding), which we will call
-   the ``verifier``. You need to store this value for the duration of
-   the flow. One way to accomplish this bit of state is to use an
-   HttpOnly cookie when the browser makes a request to the server for
-   this value, which you can then use to retrieve it from the cookie
-   store at the end of the flow.
-
-2. You take this ``verifier`` string, and then hash it with SHA256, and
-   then base64url encode the resulting string. This new string is called
-   the ``challenge``.
-
-   .. code-block:: tsx
-
-      import crypto from "node:crypto";
-
-      function initiatePKCE() {
-      	const verifier = crypto
-          .randomBytes(32)
-          .toString("base64url");
-
-      	cookies().set("edgedb_pkce_verifier", verifier);
-      	const challenge = crypto
-      	  .createHash("sha256")
-      	  .update(verifier)
-      	  .digest("base64url");
-
-        return challenge;
-      }
-
-3. Once you generate the PKCE verifier and challenge you need to link
-   the user to the EdgeDB Auth UI API, which will then redirect the
-   user’s browser to the configured Identity Provider.
-
-   .. code-block:: tsx
-
-      function getConfiguredProviders() {
-        const providers = await client.query<Provider>(`
-          select cfg::Config.extensions[is ext::auth::AuthConfig].providers {
-            name,
-            displayName := [is ext::auth::OAuthProviderConfig].display_name,
-          };
-        `);
-        return providers;
-      }
-
-      const challenge = await initiatePKCE();
-      const providers = await getConfiguredProviders();
-      const redirectTo = new URL(process.env.REDIRECT_TO_URL);
-      const makeProviderHref = (name) => {
-        const url = new URL("authorize", EDGEDB_AUTH_BASE_URL);
-        url.searchParams.set("provider", name);
-        url.searchParams.set("challenge", challenge);
-        url.searchParams.set("redirect_to", redirectTo);
-        return url.href;
-      };
-
-      return (
-        <>
-          {providers.map(({ name, display_name }) => (
-            <a href={makeProviderHref(name)}>
-              Sign in with {display_name}
-            </a>
-          )}
-        </>
-      );
-
-4. Once the flow completes, EdgeDB will redirect the browser to your
-   ``redirect_to`` URL with a ``code`` in the query parameter.
-
-5. From the redirect_to route, make a request to the EdgeDB Auth API to
-   exchange the ``code`` and ``verifier`` for an ``auth_token`` and
-   ``identity_id``.
-
-   .. code-block:: tsx
-
-      const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
-      tokenUrl.searchParams.set("code", code);
-      tokenUrl.searchParams.set("verifier", verifier);
-      const tokenResponse = await fetch(tokenUrl.href, {
-        method: "GET",
-      });
-      if (!tokenResponse.ok) {
-        throw new Error("Could not exchange code and verifier for an auth token");
-      }
-      const { auth_token: authToken, identity_id: identityId } =
-        await tokenResponse.json();
-
-      const client = anonymousClient.withGlobals({
-        "ext::auth::client_token": authToken,
-      });
-      await client.query(
-        `
-        with identity := assert_exists(global ext::auth::ClientTokenIdentity),
-        insert User {
-          name := "",
-          identities := identity,
-        };`,
-      );
 
 
 Example usage
