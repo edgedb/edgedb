@@ -747,7 +747,10 @@ def _gen_pointers_from_defaults(
 
     scls_pointers = stype.get_pointers(ctx.env.schema)
     for pn, ptrcls in scls_pointers.items(ctx.env.schema):
-        if pn in specified_ptrs or ptrcls.is_pure_computable(ctx.env.schema):
+        if (
+            (pn in specified_ptrs or ptrcls.is_pure_computable(ctx.env.schema))
+            and not ptrcls.get_protected(ctx.env.schema)
+        ):
             continue
 
         default_expr = ptrcls.get_default(ctx.env.schema)
@@ -1730,6 +1733,12 @@ def _normalize_view_ptr_expr(
         and ptrcls.get_protected(ctx.env.schema)
         and not from_default
     ):
+        # 4.0 shipped with a bug where dumps included protected fields
+        # in config values, so we need to suppress the error in that
+        # case.  Default value injection is set up to *always* inject
+        # on protected pointers.
+        if ctx.env.options.dump_restore_mode:
+            return ptrcls, None
         raise errors.QueryError(
             f'cannot assign to {ptrcls.get_verbosename(ctx.env.schema)}: '
             f'it is protected',
