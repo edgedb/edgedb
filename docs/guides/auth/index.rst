@@ -176,8 +176,8 @@ coming soon):
 
 The instructions for creating an app for each provider can be found on
 each provider’s developer documentation website, which is linked above.
-The important things you’ll need to find and make note of for your configuration
-are the **client ID** and **secret**.
+The important things you’ll need to find and make note of for your
+configuration are the **client ID** and **secret**.
 
 Once you select the OAuth provider in the configuration UI, you will need to
 provide those values and the ``additional_scope``:
@@ -303,4 +303,6 @@ I can even delete it, since I have access through the global:
 
 .. code-block:: tsx
 
-   await client.query(`delete Post filter .id = <str>$id`, { id: inserted.id });
+    await client.query(`delete Post filter .id = <str>$id`, {
+      id: inserted.id
+    });
