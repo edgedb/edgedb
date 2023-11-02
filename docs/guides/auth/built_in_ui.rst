@@ -57,7 +57,8 @@ We secure authentication tokens and other sensitive data by using PKCE
 
       /**
       * You can get this value by running `edgedb instance credentials`.
-      * Value should be: `${protocol}://${host}:${port}/db/${database}/ext/auth/
+      * Value should be:
+      * `${protocol}://${host}:${port}/db/${database}/ext/auth/
       */
       const EDGEDB_AUTH_BASE_URL = process.env.EDGEDB_AUTH_BASE_URL;
       const SERVER_PORT = 3000;
@@ -90,9 +91,9 @@ We secure authentication tokens and other sensitive data by using PKCE
    .. code-block:: javascript
 
       /**
-      * In Node, the `req.url` is only the `pathname` portion of a URL. In order
-      * to generate a full URL, we need to build the protocol and host from other
-      * parts of the request.
+      * In Node, the `req.url` is only the `pathname` portion of a URL. In
+      * order to generate a full URL, we need to build the protocol and host
+      * from other parts of the request.
       *
       * One reason we like to use `URL` objects here is to easily parse the
       * `URLSearchParams` from the request, and rather than do more error prone
@@ -201,7 +202,8 @@ We secure authentication tokens and other sensitive data by using PKCE
             const error = requestUrl.searchParams.get("error");
             res.status = 400;
             res.end(
-               `OAuth callback is missing 'code'. OAuth provider responded with error: ${error}`,
+               `OAuth callback is missing 'code'. \
+      OAuth provider responded with error: ${error}`,
             );
             return;
          }
@@ -213,7 +215,8 @@ We secure authentication tokens and other sensitive data by using PKCE
          if (!verifier) {
             res.status = 400;
             res.end(
-               `Could not find 'verifier' in the cookie store. Is this the same user agent/browser that started the authorization flow?`,
+               `Could not find 'verifier' in the cookie store. Is this the \
+      same user agent/browser that started the authorization flow?`,
             );
             return;
          }
