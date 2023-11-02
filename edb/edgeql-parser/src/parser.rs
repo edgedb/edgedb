@@ -1,8 +1,10 @@
+mod custom_errors;
+
 use append_only_vec::AppendOnlyVec;
 use indexmap::IndexMap;
 
 use crate::helpers::quote_name;
-use crate::keywords::Keyword;
+use crate::keywords::{self, Keyword};
 use crate::position::Span;
 use crate::tokenizer::{Error, Kind, Token, Value};
 
@@ -34,6 +36,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
         node_count: 0,
         can_recover: true,
         errors: Vec::new(),
+        has_custom_error: false,
     };
 
     // append EIO
@@ -78,7 +81,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
 
                     let injection = new_token_for_injection(*token_kind, ctx);
 
-                    let cost = error_cost(token_kind);
+                    let cost = injection_cost(token_kind);
                     let error = Error::new(format!("Missing {injection}")).with_span(gap_span);
                     inject.push_error(error, cost);
 
@@ -92,8 +95,26 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
                     }
                 }
 
-                // option 2: skip the token
+                // option 2: check for a custom error and skip token
+                //   Due to performance reasons, this is done only on first
+                //   error, not during all the steps of recovery.
+                if parser.error_cost == 0 {
+                    if let Some(error) = parser.custom_error(ctx, token) {
+                        parser
+                            .push_error(error.default_span_to(token.span), ERROR_COST_CUSTOM_ERROR);
+                        parser.has_custom_error = true;
 
+                        new_parsers.push(parser);
+                        continue;
+                    }
+                } else if parser.has_custom_error {
+                    // when there is a custom error, just skip the tokens until
+                    // the parser recovers
+                    new_parsers.push(parser);
+                    continue;
+                }
+
+                // option 3: skip the token
                 let mut skip = parser;
                 let error = Error::new(format!("Unexpected {token}")).with_span(token.span);
                 skip.push_error(error, ERROR_COST_SKIP);
@@ -101,7 +122,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
                     // extra penalty
                     skip.error_cost += ERROR_COST_INJECT_MAX;
                     skip.can_recover = false;
-                };
+                }
 
                 // println!("   --> [skip]");
 
@@ -112,20 +133,27 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
 
         // has any parser recovered?
         if new_parsers.len() > 1 {
+            new_parsers.sort_by_key(Parser::adjusted_cost);
+
             let recovered = new_parsers.iter().position(Parser::has_recovered);
 
             if let Some(recovered) = recovered {
-                let mut recovered = new_parsers.swap_remove(recovered);
-                recovered.error_cost = 0;
+                // make sure not to discard custom errors
+                let any_custom_error = new_parsers.iter().any(|p| p.has_custom_error);
+                if !any_custom_error || new_parsers[recovered].has_custom_error {
+                    // recover a parser and discard the rest
+                    let mut recovered = new_parsers.swap_remove(recovered);
+                    recovered.error_cost = 0;
+                    recovered.has_custom_error = false;
 
-                new_parsers.clear();
-                new_parsers.push(recovered);
+                    new_parsers.clear();
+                    new_parsers.push(recovered);
+                }
             }
         }
 
         // prune: pick only X best parsers
         if new_parsers.len() > PARSER_COUNT_MAX {
-            new_parsers.sort_by_key(Parser::adjusted_cost);
             new_parsers.drain(PARSER_COUNT_MAX..);
         }
 
@@ -144,13 +172,24 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
     } else {
         None
     };
-    (node, parser.errors)
+    let errors = custom_errors::post_process(parser.errors);
+    (node, errors)
 }
 
 impl<'s> Context<'s> {
     fn alloc_terminal(&self, t: Terminal) -> &'_ Terminal {
         let idx = self.terminal_arena.push(t);
         &self.terminal_arena[idx]
+    }
+
+    fn alloc_slice_and_push(&self, slice: &Option<&[usize]>, element: usize) -> &[usize] {
+        let curr_len = slice.map_or(0, |x| x.len());
+        let mut new = Vec::with_capacity(curr_len + 1);
+        if let Some(inlined_ids) = slice {
+            new.extend(*inlined_ids);
+        }
+        new.push(element);
+        self.arena.alloc_slice_clone(new.as_slice())
     }
 }
 
@@ -178,11 +217,11 @@ pub struct Spec {
     pub goto: Vec<IndexMap<String, usize>>,
     pub start: String,
     pub inlines: IndexMap<usize, u8>,
+    pub production_names: Vec<(String, String)>,
 }
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(untagged))]
 pub enum Action {
     Shift(usize),
     Reduce(Reduce),
@@ -225,6 +264,10 @@ pub struct Terminal {
 pub struct Production<'a> {
     pub id: usize,
     pub args: &'a [CSTNode<'a>],
+
+    /// When a production is inlined, its id is saved into the new production
+    /// This is needed when matching CST nodes by production id.
+    pub inlined_ids: Option<&'a [usize]>,
 }
 
 struct StackNode<'p> {
@@ -244,9 +287,14 @@ struct Parser<'s> {
     /// number of nodes pushed to stack since last error
     node_count: u16,
 
+    /// prevent parser from recovering, for cases when EOF was skipped
     can_recover: bool,
 
     errors: Vec<Error>,
+
+    /// A flag that is used to make the parser prefer custom errors over other
+    /// recovery paths
+    has_custom_error: bool,
 }
 
 impl<'s> Parser<'s> {
@@ -286,6 +334,7 @@ impl<'s> Parser<'s> {
         let value = CSTNode::Production(Production {
             id: reduce.production_id,
             args,
+            inlined_ids: None,
         });
 
         let nstate = self.stack_top.state;
@@ -296,11 +345,18 @@ impl<'s> Parser<'s> {
         let mut value = value;
         if let CSTNode::Production(production) = value {
             if let Some(inline_position) = ctx.spec.inlines.get(&production.id) {
+                let inlined_id = production.id;
                 // inline rule found
                 let args = production.args;
                 let span = get_span_of_nodes(args);
 
                 value = args[*inline_position as usize];
+
+                // save inlined id
+                if let CSTNode::Production(new_prod) = &mut value {
+                    new_prod.inlined_ids =
+                        Some(ctx.alloc_slice_and_push(&new_prod.inlined_ids, inlined_id));
+                }
 
                 extend_span(&mut value, span, ctx);
             } else {
@@ -352,7 +408,7 @@ impl<'s> Parser<'s> {
     }
 
     #[cfg(never)]
-    fn print_stack(&self) {
+    fn print_stack(&self, ctx: &'s Context) {
         let prefix = "STACK: ";
 
         let mut stack = Vec::new();
@@ -365,16 +421,23 @@ impl<'s> Parser<'s> {
 
         let names = stack
             .iter()
-            .map(|s| format!("{:?}", s.value))
+            .map(|s| match s.value {
+                CSTNode::Empty => format!("Empty"),
+                CSTNode::Terminal(term) => format!("{term}"),
+                CSTNode::Production(prod) => {
+                    let prod_name = &ctx.spec.production_names[prod.id];
+                    format!("{}.{}", prod_name.0, prod_name.1)
+                }
+            })
             .collect::<Vec<_>>();
 
-        let mut states = format!("{:6}", ' ');
+        let mut states = format!("{:5}", ' ');
         for (index, node) in stack.iter().enumerate() {
             let name_width = names[index].chars().count();
-            states += &format!(" {:<width$}", node.state, width = name_width);
+            states += &format!("  {:<width$}", node.state, width = name_width);
         }
 
-        println!("{}{}", prefix, names.join(" "));
+        println!("{}{}", prefix, names.join("  "));
         println!("{}", states);
     }
 
@@ -397,15 +460,34 @@ impl<'s> Parser<'s> {
     fn has_recovered(&self) -> bool {
         self.can_recover && self.adjusted_cost() == 0
     }
+
+    fn get_from_top(&self, steps: usize) -> Option<&StackNode<'s>> {
+        self.stack_top.step_up(steps)
+    }
+}
+
+impl<'a> StackNode<'a> {
+    fn step_up(&self, steps: usize) -> Option<&StackNode<'a>> {
+        let mut node = Some(self);
+        for _ in 0..steps {
+            match node {
+                None => return None,
+                Some(n) => node = n.parent,
+            }
+        }
+        node
+    }
 }
 
 fn get_span_of_nodes(args: &[CSTNode]) -> Option<Span> {
     let start = args.iter().find_map(|x| match x {
         CSTNode::Terminal(t) => Some(t.span.start),
+        CSTNode::Production(p) => get_span_of_nodes(p.args).map(|x| x.start),
         _ => None,
     })?;
     let end = args.iter().rev().find_map(|x| match x {
         CSTNode::Terminal(t) => Some(t.span.end),
+        CSTNode::Production(p) => get_span_of_nodes(p.args).map(|x| x.end),
         _ => None,
     })?;
     Some(Span { start, end })
@@ -417,7 +499,7 @@ fn extend_span<'a>(value: &mut CSTNode<'a>, span: Option<Span>, ctx: &'a Context
     };
 
     let CSTNode::Terminal(terminal) = value else {
-        return
+        return;
     };
 
     let mut new_term = terminal.clone();
@@ -435,14 +517,20 @@ const PARSER_COUNT_MAX: usize = 10;
 
 const ERROR_COST_INJECT_MAX: u16 = 15;
 const ERROR_COST_SKIP: u16 = 3;
+const ERROR_COST_CUSTOM_ERROR: u16 = 3;
 
-fn error_cost(kind: &Kind) -> u16 {
+fn injection_cost(kind: &Kind) -> u16 {
     use Kind::*;
 
     match kind {
-        Ident => 9,
+        Ident => 10,
         Substitution => 8,
-        Keyword(_) => 10,
+
+        // Manual keyword tweaks to encourage some error messages and discourage others.
+        Keyword(keywords::Keyword("delete" | "update" | "migration" | "role" | "global")) => 100,
+        Keyword(keywords::Keyword("insert")) => 20,
+        Keyword(keywords::Keyword("select" | "property" | "type")) => 10,
+        Keyword(_) => 15,
 
         Dot => 5,
         OpenBrace | OpenBracket => 5,
@@ -493,21 +581,32 @@ impl Terminal {
             is_placeholder: false,
         }
     }
+
+    #[cfg(feature = "serde")]
+    pub fn from_start_name(start_name: &str) -> Self {
+        Terminal {
+            kind: get_token_kind(start_name),
+            text: "".to_string(),
+            value: None,
+            span: Default::default(),
+            is_placeholder: false,
+        }
+    }
 }
 
 #[cfg(feature = "serde")]
-impl Spec {
-    pub fn from_json(j_spec: &str) -> Result<Spec, String> {
-        #[derive(Debug, serde::Serialize, serde::Deserialize)]
-        struct SpecJson {
-            pub actions: Vec<Vec<(String, Action)>>,
-            pub goto: Vec<Vec<(String, usize)>>,
-            pub start: String,
-            pub inlines: Vec<(usize, u8)>,
-        }
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct SpecSerializable {
+    pub actions: Vec<Vec<(String, Action)>>,
+    pub goto: Vec<Vec<(String, usize)>>,
+    pub start: String,
+    pub inlines: Vec<(usize, u8)>,
+    pub production_names: Vec<(String, String)>,
+}
 
-        let v = serde_json::from_str::<SpecJson>(j_spec).map_err(|e| e.to_string())?;
-
+#[cfg(feature = "serde")]
+impl From<SpecSerializable> for Spec {
+    fn from(v: SpecSerializable) -> Spec {
         let actions = v
             .actions
             .into_iter()
@@ -516,12 +615,14 @@ impl Spec {
             .collect();
         let goto = v.goto.into_iter().map(IndexMap::from_iter).collect();
         let inlines = IndexMap::from_iter(v.inlines);
-        Ok(Spec {
+
+        Spec {
             actions,
             goto,
             start: v.start,
             inlines,
-        })
+            production_names: v.production_names,
+        }
     }
 }
 
@@ -577,12 +678,19 @@ fn get_token_kind(token_name: &str) -> Kind {
         "NICONST" => BigIntConst,
         "SCONST" => Str,
 
+        "STARTBLOCK" => StartBlock,
+        "STARTEXTENSION" => StartExtension,
+        "STARTFRAGMENT" => StartFragment,
+        "STARTMIGRATION" => StartMigration,
+        "STARTSDLDOCUMENT" => StartSDLDocument,
+
         "+=" => AddAssign,
         "->" => Arrow,
         ":=" => Assign,
         "-=" => SubAssign,
 
-        "ARGUMENT" => Argument,
+        "PARAMETER" => Parameter,
+        "PARAMETERANDTYPE" => ParameterAndType,
         "SUBSTITUTION" => Substitution,
 
         _ => {

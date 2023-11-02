@@ -9,8 +9,8 @@ CLI
 :edb-alt-title: The EdgeDB CLI
 
 The ``edgedb`` command-line interface (CLI) provides an idiomatic way to
-install EdgeDB, spin up local instances, open a REPL, execute queries, manage
-auth roles, introspect schema, create migrations, and more.
+install EdgeDB, spin up local instances, open a REPL, execute queries,
+manage auth roles, introspect schema, create migrations, and more.
 
 You can install it with one shell command.
 
@@ -75,7 +75,7 @@ macOS run:
    $ rm "$(which edgedb)"
 
 To remove all configuration files, run ``edgedb info`` to list the directories
-where EdgeDB stores data, then use ``rf -rf <dir>`` to delete those
+where EdgeDB stores data, then use ``rm -rf <dir>`` to delete those
 directories.
 
 If the command-line tool was installed by the user (recommended) then it

@@ -136,8 +136,11 @@ def _build_shape(
     for name, pointer in shape.pointers.items():
         subpath = f"{path}.{name}"
 
-        if pointer.main_alias:
-            info = index.by_alias[pointer.main_alias]
+        if (
+            pointer.main_alias is not None and
+            (c_info := index.by_alias.get(pointer.main_alias)) is not None
+        ):
+            info = c_info
         else:
             for alias in pointer.aliases:
                 if c_info := index.by_alias.get(alias):

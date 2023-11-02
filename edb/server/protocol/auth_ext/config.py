@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2008-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2023-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,24 +17,17 @@
 #
 
 
-from __future__ import annotations
-
-from edb.common import parsing
-
-from .expressions import Nonterm
-from .precedence import *  # NOQA
-from .tokens import *  # NOQA
-from .statements import *  # NOQA
-from .ddl import *  # NOQA
+from typing import Optional
 
 
-class SingleDDLOrQuery(Nonterm):
-    "%start"
+class UIConfig:
+    redirect_to: str
+    redirect_to_on_signup: Optional[str]
+    app_name: Optional[str]
+    logo_url: Optional[str]
+    dark_logo_url: Optional[str]
+    brand_color: Optional[str]
 
-    @parsing.inline(0)
-    def reduce_Stmt_EOF(self, *kids):
-        pass
 
-    @parsing.inline(0)
-    def reduce_DDLStmt_EOF(self, *kids):
-        pass
+class ProviderConfig:
+    name: str

@@ -49,7 +49,7 @@ async def handle_request(
         if path_parts == ['status', 'ready'] and request.method == b'GET':
             if tenant is None:
                 # TODO(fantix): test the compiler pool
-                _response_ok(response, "OK")
+                _response_ok(response, b"OK")
             else:
                 await tenant.create_task(
                     handle_readiness_query(request, response, tenant),
@@ -58,7 +58,7 @@ async def handle_request(
         elif path_parts == ['status', 'alive'] and request.method == b'GET':
             if tenant is None:
                 # TODO(fantix): test the compiler pool
-                _response_ok(response, "OK")
+                _response_ok(response, b"OK")
             else:
                 await tenant.create_task(
                     handle_liveness_query(request, response, tenant),
@@ -123,6 +123,8 @@ async def _ping(tenant):
         # Disable query cache because we need to ensure that the compiled
         # pool is healthy.
         query_cache_enabled=False,
+        cached_globally=True,
+        use_metrics=False,
     )
 
 

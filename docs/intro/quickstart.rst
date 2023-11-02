@@ -146,7 +146,7 @@ see the following file structure.
   │   ├── default.esdl
   │   ├── migrations
 
-EdgeDB schemas are defined with a dedicated schema description language called
+EdgeDB schemas are defined with a dedicated schema definition language called
 (predictably) EdgeDB SDL (or just **SDL** for short). It's an elegant,
 declarative way to define your data model.
 

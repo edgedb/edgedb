@@ -18,6 +18,11 @@ Description
 This command is used to upgrade EdgeDB instances individually or in
 bulk.
 
+.. note::
+
+    The ``edgedb instance upgrade`` command is not intended for use with
+    self-hosted instances.
+
 
 Options
 =======

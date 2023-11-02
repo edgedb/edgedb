@@ -379,7 +379,7 @@ class TestServerCompilerPool(tbs.TestCase):
             self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
 
 
-class TestCompilerPool(tbs.TestCase):
+class TestCompilerPool(tbs.TestCase, tb.PreloadParserGrammarMixin):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -407,12 +407,6 @@ class TestCompilerPool(tbs.TestCase):
                         self._std_schema),
                 ),
             )
-            # HACK: For adaptive pool, force the creation of a second
-            # worker. This is needed to work around issue #4680, where
-            # we won't scale up from a single connection.
-            if issubclass(pool_class, pool.SimpleAdaptivePool):
-                await pool_._create_worker()
-
             try:
                 w1 = await pool_._acquire_worker()
                 w2 = await pool_._acquire_worker()

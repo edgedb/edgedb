@@ -20,7 +20,6 @@
 from __future__ import annotations
 from typing import *  # NoQA
 
-import functools
 import json
 import logging
 import os
@@ -51,7 +50,7 @@ class TokenMeta(type):
         if precedence_class is not None:
             result._precedence_class = precedence_class
 
-        if name == 'Token':
+        if name == 'Token' or name == 'GrammarToken':
             return result
 
         if token is None:
@@ -284,34 +283,14 @@ class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
 
 
 def load_parser_spec(
-    mod: types.ModuleType,
-    allow_rebuild: bool = False,
+    mod: types.ModuleType
 ) -> parsing.Spec:
     return parsing.Spec(
         mod,
-        pickleFile=_localpath(mod, "pickle"),
         skinny=not debug.flags.edgeql_parser,
         logFile=_localpath(mod, "log"),
         verbose=bool(debug.flags.edgeql_parser),
-        unpickleHook=functools.partial(
-            _on_spec_unpickle, mod, allow_rebuild)
     )
-
-
-def _on_spec_unpickle(
-    mod: types.ModuleType,
-    allow_rebuild: bool,
-    spec: parsing.Spec,
-    compatibility: str,
-) -> None:
-    if compatibility != "compatible":
-        if allow_rebuild:
-            logger.info(f'rebuilding grammar for {mod.__name__}...')
-        else:
-            raise ParserSpecIncompatibleError(
-                f'parser tables for {mod.__name__} are missing or '
-                f'incompatible with parser source'
-            )
 
 
 def _localpath(mod, type):
@@ -320,7 +299,24 @@ def _localpath(mod, type):
         mod.__name__.rpartition('.')[2] + '.' + type)
 
 
-def spec_to_json(spec: parsing.Spec) -> tuple[str, list[Callable]]:
+def load_spec_productions(
+    production_names: List[Tuple[str, str]],
+    mod: types.ModuleType
+) -> List[Tuple[Type, Callable]]:
+    productions: List[Tuple[Any, Callable]] = []
+    for class_name, method_name in production_names:
+        cls = mod.__dict__.get(class_name, None)
+        if not cls:
+            # for NontermStart
+            productions.append((parsing.Nonterm(), lambda *args: None))
+            continue
+
+        method = cls.__dict__[method_name]
+        productions.append((cls, method))
+    return productions
+
+
+def spec_to_json(spec: parsing.Spec) -> str:
     # Converts a ParserSpec into JSON. Called from edgeql-parser Rust crate.
     assert spec.pureLR
 
@@ -329,25 +325,16 @@ def spec_to_json(spec: parsing.Spec) -> tuple[str, list[Callable]]:
     }
 
     # productions
-    productions: list[Any] = []
-    production_ids: dict[Any, int] = {}
-    inlines: list[tuple[int, int]] = []
+    productions_all: Set[Any] = set()
+    for st_actions in spec.actions():
+        for _, acts in st_actions.items():
+            act = cast(Any, acts[0])
+            if 'ReduceAction' in str(type(act)):
+                prod = act.production
+                productions_all.add(prod)
+    productions, production_id = sort_productions(productions_all)
 
-    def get_production_id(prod: Any) -> int:
-        if prod in production_ids:
-            return production_ids[prod]
-
-        id = len(productions)
-        productions.append(prod)
-        production_ids[prod] = id
-
-        inline = getattr(prod.method, 'inline_index', None)
-        if inline is not None:
-            assert isinstance(inline, int)
-            inlines.append((id, inline))
-
-        return id
-
+    # actions
     actions = []
     for st_actions in spec.actions():
         out_st_actions = []
@@ -356,17 +343,22 @@ def spec_to_json(spec: parsing.Spec) -> tuple[str, list[Callable]]:
 
             str_tok = token_map.get(str(tok), str(tok))
             if 'ShiftAction' in str(type(act)):
-                action_obj: Any = int(act.nextState)
+                action_obj: Any = {
+                    'Shift': int(act.nextState)
+                }
             else:
                 prod = act.production
                 action_obj = {
-                    'production_id': get_production_id(prod),
-                    'non_term': str(prod.lhs),
-                    'cnt': len(prod.rhs),
+                    'Reduce': {
+                        'production_id': production_id[prod],
+                        'non_term': str(prod.lhs),
+                        'cnt': len(prod.rhs),
+                    }
                 }
 
             out_st_actions.append((str_tok, action_obj))
 
+        out_st_actions.sort(key=lambda item: item[0])
         actions.append(out_st_actions)
 
     # goto
@@ -378,11 +370,34 @@ def spec_to_json(spec: parsing.Spec) -> tuple[str, list[Callable]]:
 
         goto.append(out_goto)
 
+    # inlines
+    inlines = []
+    for prod in productions:
+        id = production_id[prod]
+        inline = getattr(prod.method, 'inline_index', None)
+        if inline is not None:
+            assert isinstance(inline, int)
+            inlines.append((id, inline))
+
     res = {
         'actions': actions,
         'goto': goto,
         'start': str(spec.start_sym()),
         'inlines': inlines,
+        'production_names': list(map(production_name, productions)),
     }
-    res_json = json.dumps(res)
-    return (res_json, productions)
+    return json.dumps(res)
+
+
+def sort_productions(
+    productions_all: Set[Any]
+) -> Tuple[List[Any], Dict[Any, int]]:
+    productions = list(productions_all)
+    productions.sort(key=production_name)
+
+    productions_id = {prod: id for id, prod in enumerate(productions)}
+    return (productions, productions_id)
+
+
+def production_name(prod: Any) -> Tuple[str, ...]:
+    return tuple(prod.qualified.split('.')[-2:])

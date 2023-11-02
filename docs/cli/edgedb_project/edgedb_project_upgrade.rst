@@ -28,6 +28,11 @@ In all cases your data is preserved and converted using dump/restore
 mechanism. This might fail if lower version is specified (for example
 if upgrading from nightly to the stable version).
 
+.. note::
+
+    The ``edgedb project upgrade`` command is not intended for use with
+    self-hosted instances.
+
 
 Options
 =======

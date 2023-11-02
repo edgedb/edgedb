@@ -439,3 +439,104 @@ union (
         text := str_replace(p.1, '\n', ' ')
     }
 );
+insert Sentence {number := 0, text := "This will not be indexed"};
+
+insert Text {text := 'hello world'};
+insert Text {text := 'running and jumping fox'};
+insert FancyText {text := 'fancy hello', style := 0};
+insert FancyText {text := 'elaborate and foxy', style := 10};
+insert QuotedText {text := 'the world is big', author := 'Alice'};
+insert QuotedText {text := 'this is simple', author := 'Bob'};
+insert FancyQuotedText {
+    text := 'the fox chases the rabbit', author := 'Cameron', style := 1,
+};
+insert FancyQuotedText {
+    text := 'the rabbit is fast', author := 'Cameron', style := 2,
+};
+insert TitledText {
+    title := 'big',
+    text := 'important'
+};
+
+insert Post {
+    title := 'first post',
+    body := 'The sky is so red.',
+};
+insert Post {
+    title := 'angry reply',
+    body := "No! Wrong! It's blue!",
+    note := 'blue reply',
+};
+insert Post {
+    title := 'helpful reply',
+    body := "That's Rayleigh scattering for you",
+    weight_a := 0,
+};
+insert Post {
+    title := 'random stuff',
+    body := 'angry giraffes',
+    note := 'random angry stuff',
+    weight_a := 0.1,
+};
+insert Post {
+    title := 'no body',
+    note := 'no body',
+};
+
+insert Description {
+    num := 1,
+    raw := 'red umbrella',
+};
+insert Description {
+    num := 2,
+    raw := 'red and white candy cane',
+};
+insert Description {
+    num := 3,
+    raw := 'fancy pants',
+};
+
+# Let's use some words that have the same spelling, but different meaning
+# based on the language.
+insert MultiLang {
+    eng := "The window pane is clear",
+    fra := "La vitre est claire",
+    ita := "Il vetro della finestra è chiaro",
+};
+insert MultiLang {
+    eng := "No pain no gain",
+    fra := "Qui ne tente rien n'a rien",
+    ita := "Chi la dura la vince",
+};
+insert MultiLang {
+    eng := "This delicious bread",
+    fra := "Ce délicieux pain",
+    ita := "Questo pane buonissimo",
+};
+insert MultiLang {
+    eng := "The breaded pork is nice",
+    fra := "Le porc pané est bon",
+    ita := "Il maiale impanato è buono",
+};
+insert DynamicLang {
+    text := "The window pane is clear",
+    lang := fts::Language.eng,
+};
+insert DynamicLang {
+    text := "No pain no gain",
+    lang := fts::Language.eng,
+};
+insert DynamicLang {
+    text := "Ce délicieux pain",
+    lang := fts::Language.fra,
+};
+insert DynamicLang {
+    text := "Questo pane buonissimo",
+    lang := fts::Language.ita,
+};
+insert TouristVocab {
+    text := "The window pane is clear -- Il vetro della finestra è chiaro",
+};
+insert TouristVocab {
+    text := "This delicious bread -- Questo pane buonissimo",
+};

@@ -614,8 +614,8 @@ EdgeQL
   .. code-block:: sdl
 
     type User {
-      required property email -> str { constraint exclusive; };
-      required property is_admin -> bool { default := false };
+      required email: str { constraint exclusive; };
+      required is_admin: bool { default := false };
       access policy admin_only
         allow all
         using (global current_user.is_admin ?? false) {
@@ -679,7 +679,7 @@ EdgeQL
   .. code-block:: sdl
 
       type User {
-        required property name -> str;
+        required name: str;
         index pg::spgist on (.name);
       };
 
@@ -1120,3 +1120,139 @@ receive support for a year and a half after their initial release.
 * Produce better errors on compiler stack overflows and properly interpret
   errors raised from SQL when using HTTP protocols
   (:eql:gh:`#6005`)
+
+
+3.4
+===
+
+* Repair instances created with rc1/rc2 to fix an issue that can
+  prevent creating migrations.
+
+* GraphQL: Fix bug with objects without editable fields.
+  (:eql:gh:`#6039`)
+
+* GraphQL: Fix issues with deeply nested modules.
+  (:eql:gh:`#6039`)
+
+* GraphQL: Fix ``__typename`` for non-default modules.
+  (:eql:gh:`#5985`)
+
+* GraphQL: Fix fragments on types from non-default module.
+  (:eql:gh:`#5985`)
+
+* GraphQL: Handle ``__typename`` in mutations.
+  (:eql:gh:`#5985`)
+
+* Make ``SET default`` of trivial values much faster
+  (:eql:gh:`#6134`)
+
+* Fix DELETE/UPDATE on parent types with children that have no policies
+  (:eql:gh:`#6136`)
+
+* Skip generating updates on abstract types, as a minor optimization
+  (:eql:gh:`#6135`)
+
+* Fix cast of empty set to type with access policy
+  (:eql:gh:`#6151`)
+
+* Fix ``group`` on backlinks in some situations
+  (:eql:gh:`#6152`)
+
+* Support using query parameters in ``SET GLOBAL`` commands
+  (:eql:gh:`#5670`)
+
+* Make using globals as defaults work
+  (:eql:gh:`#6153`)
+
+* Fix schema ordering bugs with rewrites
+  (:eql:gh:`#6154`)
+
+* Fix function params whose name collide with SQL type names
+  (:eql:gh:`#6150`)
+
+* Fix schema confusion with objects that shadow std objects
+  (:eql:gh:`#6155`)
+
+* Fix migration incomplete issues with functions that use multiple globals
+  (:eql:gh:`#6157`)
+
+* Fix several bugs in ``analyze``
+  (:eql:gh:`#5758`)
+
+* Fix spurious compiler cache misses when duration config values
+  are set in a session
+  (:eql:gh:`#6168`)
+
+* Properly reject indexes on non-immutable computeds
+  (:eql:gh:`#6170`)
+
+3.5
+===
+* Fix migrations modifying WHEN clauses on access policies
+
+* Produce proper error messages when defining a field twice
+  (:eql:gh:`#5785`)
+
+* Fix a protocol bug involving ``CONFIGURE INSTANCE``
+  (:eql:gh:`#6258`)
+
+* Fix some regressions involving property defaults
+  (:eql:gh:`#6265`)
+
+* Fix scope bugs in ``SET ... USING`` statements
+  (:eql:gh:`#6267`)
+
+* Handle decimal params in edgeql_http protocol without loss of
+  precision
+  (:eql:gh:`#5848`)
+
+* Mark md5 as not being used for security, allowing use of EdgeDB
+  in a FIPS-complaint environment.
+  (:eql:gh:`#6268`)
+
+* Fix compilation of explicit ids in inserts that can be empty
+  (:eql:gh:`#6281`)
+
+* Fix some migration crashes due to missing source contexts
+  (:eql:gh:`#6288`)
+
+* Fix unused WITH DML when body is an INSERT
+  (:eql:gh:`#6287`)
+
+* Fix configuring effective_io_concurrency
+  (:eql:gh:`#6289`)
+
+* Fix type name injection on computed backlinks without a shape
+  (:eql:gh:`#6290`)
+
+* Fix renames of types with rewrites on them
+  (:eql:gh:`#6293`)
+
+* Fix renames of properties that have computeds aliasing them
+  (:eql:gh:`#6294`)
+
+* Fix use of UNLESS CONFLICT in triggers
+  (:eql:gh:`#6297`)
+
+* Fix uuid->object casts in access policies in nested INSERTs
+  (:eql:gh:`#6313`)
+
+* Make 'reference to a non-existent schema item <id>' an ISE.
+  It's always a bug, and that should be made clear to users.
+  (:eql:gh:`#6314`)
+
+* Make edgedb+http tunneled protocol not leak db existance before auth
+  (:eql:gh:`#6350`)
+
+* Substantially speed up restoring of dumps with large schemas
+  (:eql:gh:`#6362`)
+
+* Make migration deadlocks less likely in some common cases
+  (:eql:gh:`#6379`)
+
+* Support calling functions that use globals in property/link defaults
+  (:eql:gh:`#6381`)
+
+* Correctly update functions when globals/aliases/computeds they depend on
+  change
+  (:eql:gh:`#6382`)

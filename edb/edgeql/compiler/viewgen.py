@@ -45,7 +45,6 @@ from edb.schema import objects as s_objects
 from edb.schema import pointers as s_pointers
 from edb.schema import properties as s_props
 from edb.schema import types as s_types
-from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -273,6 +272,7 @@ def _process_view(
     }
 
     # Now look for any splats and expand them.
+    splat_descs: dict[str, ShapeElementDesc] = {}
     for shape_el in elements:
         if not isinstance(shape_el.expr.steps[0], qlast.Splat):
             continue
@@ -349,14 +349,44 @@ def _process_view(
         )
 
         for splat_el in expanded_splat:
-            shape_desc.append(
-                _shape_el_ql_to_shape_el_desc(
-                    splat_el,
-                    source=view_scls,
-                    s_ctx=s_ctx,
-                    ctx=ctx
-                )
+            desc = _shape_el_ql_to_shape_el_desc(
+                splat_el, source=view_scls, s_ctx=s_ctx, ctx=ctx
             )
+            if old_desc := splat_descs.get(desc.ptr_name):
+                # If pointers appear in multiple splats, we take the
+                # one from the ancestor class. If neither class is an
+                # ancestor, we reject it.
+                # TODO: Accept it instead, if the types are the same.
+                new_source: object = desc.source
+                old_source: object = old_desc.source
+                if isinstance(new_source, s_links.Link):
+                    new_source = new_source.get_source(ctx.env.schema)
+                assert isinstance(new_source, s_objtypes.ObjectType)
+                if isinstance(old_source, s_links.Link):
+                    old_source = old_source.get_source(ctx.env.schema)
+                assert isinstance(old_source, s_objtypes.ObjectType)
+                new_source = schemactx.concretify(new_source, ctx=ctx)
+                old_source = schemactx.concretify(old_source, ctx=ctx)
+
+                if new_source.issubclass(ctx.env.schema, old_source):
+                    # Do nothing.
+                    pass
+                elif old_source.issubclass(ctx.env.schema, new_source):
+                    # Take the new one
+                    splat_descs[desc.ptr_name] = desc
+                else:
+                    vn1 = old_source.get_verbosename(schema=ctx.env.schema)
+                    vn2 = new_source.get_verbosename(schema=ctx.env.schema)
+                    raise errors.QueryError(
+                        f"link or property '{desc.ptr_name}' appears in splats "
+                        f"for unrelated types: {vn1} and {vn2}",
+                        context=splat.context,
+                    )
+
+            else:
+                splat_descs[desc.ptr_name] = desc
+
+    shape_desc.extend(splat_descs.values())
 
     for shape_el_desc in shape_desc:
         with ctx.new() as scopectx:
@@ -392,7 +422,7 @@ def _process_view(
         # Make up a dummy shape element
         name = ptrcls.get_shortname(schema).name
         dummy_el = qlast.ShapeElement(expr=qlast.Path(
-            steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=name))]))
+            steps=[qlast.Ptr(name=name)]))
         dummy_el_desc = _shape_el_ql_to_shape_el_desc(
             dummy_el, source=view_scls, s_ctx=s_ctx, ctx=ctx
         )
@@ -474,9 +504,9 @@ def _process_view(
     # Produce the shape. The main thing here is that we need to fixup
     # all of the rptrs to properly point back at ir_set.
     for _, ptrcls, shape_op, ptr_set in shape_ptrs:
-        srcctx = None
+        psrcctx = None
         if ptrcls in ctx.env.pointer_specified_info:
-            _, _, srcctx = ctx.env.pointer_specified_info[ptrcls]
+            _, _, psrcctx = ctx.env.pointer_specified_info[ptrcls]
 
         if ptr_set:
             src_path_id = path_id
@@ -500,7 +530,7 @@ def _process_view(
             # already has a context, since for explain output that
             # seems nicer, but this is what we want for producing
             # actual error messages.
-            ptr_set.context = srcctx
+            ptr_set.context = psrcctx
 
             _setup_shape_source(ptr_set, ctx=ctx)
 
@@ -510,7 +540,7 @@ def _process_view(
                 ir_set,
                 ptrcls,
                 same_computable_scope=True,
-                srcctx=srcctx,
+                srcctx=psrcctx or srcctx,
                 ctx=ctx,
             )
 
@@ -587,7 +617,7 @@ def _shape_el_ql_to_shape_el_desc(
             f'unexpected path length in view shape: {len(steps)}')
 
     assert isinstance(lexpr, qlast.Ptr)
-    ptrname = lexpr.ptr.name
+    ptrname = lexpr.name
 
     if target_typexpr is None:
         path_ql = qlast.Path(
@@ -638,10 +668,12 @@ def _expand_splat(
     for ptr in pointers.objects(ctx.env.schema):
         if not isinstance(ptr, s_props.Property):
             continue
+        if ptr.get_secret(ctx.env.schema):
+            continue
         sname = ptr.get_shortname(ctx.env.schema)
         if sname.name in skip_ptrs:
             continue
-        step = qlast.Ptr(ptr=s_utils.name_to_ast_ref(sname))
+        step = qlast.Ptr(name=sname.name)
         # Make sure not to overwrite the id property.
         if not ptr.is_id_pointer(ctx.env.schema):
             steps = path + [step]
@@ -665,7 +697,7 @@ def _expand_splat(
                 qlast.ShapeElement(
                     expr=qlast.Path(
                         steps=[qlast.Ptr(
-                            ptr=s_utils.name_to_ast_ref(sname),
+                            name=sname.name,
                             type='property',
                         )]
                     ),
@@ -682,11 +714,7 @@ def _expand_splat(
                 continue
             elements.append(
                 qlast.ShapeElement(
-                    expr=qlast.Path(
-                        steps=path + [qlast.Ptr(
-                            ptr=s_utils.name_to_ast_ref(pn),
-                        )]
-                    ),
+                    expr=qlast.Path(steps=path + [qlast.Ptr(name=pn.name)]),
                     elements=_expand_splat(
                         ptr.get_target(ctx.env.schema),
                         rlink=ptr,
@@ -719,7 +747,10 @@ def _gen_pointers_from_defaults(
 
     scls_pointers = stype.get_pointers(ctx.env.schema)
     for pn, ptrcls in scls_pointers.items(ctx.env.schema):
-        if pn in specified_ptrs or ptrcls.is_pure_computable(ctx.env.schema):
+        if (
+            (pn in specified_ptrs or ptrcls.is_pure_computable(ctx.env.schema))
+            and not ptrcls.get_protected(ctx.env.schema)
+        ):
             continue
 
         default_expr = ptrcls.get_default(ctx.env.schema)
@@ -729,14 +760,7 @@ def _gen_pointers_from_defaults(
         ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
         default_ql = qlast.ShapeElement(
             expr=qlast.Path(
-                steps=[
-                    qlast.Ptr(
-                        ptr=qlast.ObjectRef(
-                            name=ptrcls_sn.name,
-                            module=ptrcls_sn.module,
-                        ),
-                    ),
-                ],
+                steps=[qlast.Ptr(name=ptrcls_sn.name)],
             ),
             compexpr=qlast.DetachedExpr(
                 expr=default_expr.qlast,
@@ -1100,9 +1124,7 @@ def _compile_rewrites_for_stype(
             ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
             shape_ql = qlast.ShapeElement(
                 expr=qlast.Path(
-                    steps=[
-                        qlast.Ptr(ptr=s_utils.name_to_ast_ref(ptrcls_sn)),
-                    ],
+                    steps=[qlast.Ptr(name=ptrcls_sn.name)],
                 ),
                 compexpr=qlast.DetachedExpr(
                     expr=rewrite_expr.qlast,
@@ -1335,6 +1357,8 @@ def _normalize_view_ptr_expr(
     is_polymorphic = shape_el_desc.is_polymorphic
     target_typexpr = shape_el_desc.target_typexpr
 
+    is_independent_polymorphic = False
+
     compexpr: Optional[qlast.Expr] = shape_el.compexpr
     if compexpr is None and is_mutation:
         raise errors.QueryError(
@@ -1352,10 +1376,29 @@ def _normalize_view_ptr_expr(
             ctx=ctx,
             source_context=shape_el.context,
         )
+        real_ptrcls = None
         if is_polymorphic:
+            # For polymorphic pointers, we need to see if the *real*
+            # base class has the pointer, because if so we need to use
+            # that when doing cardinality inference (since it may need
+            # to raise an error, if it is required). If it isn't
+            # present on the real type, take note of that so that we
+            # suppress the inherited cardinality.
+            try:
+                real_ptrcls = setgen.resolve_ptr(
+                    view_scls,
+                    ptrname,
+                    track_ref=shape_el_desc.ptr_ql,
+                    ctx=ctx,
+                    source_context=shape_el.context,
+                )
+            except errors.InvalidReferenceError:
+                is_independent_polymorphic = True
             ptrcls = schemactx.derive_ptr(ptrcls, view_scls, ctx=ctx)
+        real_ptrcls = real_ptrcls or ptrcls
 
-        base_ptrcls = ptrcls.get_bases(ctx.env.schema).first(ctx.env.schema)
+        base_ptrcls = real_ptrcls.get_bases(
+            ctx.env.schema).first(ctx.env.schema)
         base_ptr_is_computable = base_ptrcls in ctx.env.source_map
         ptr_name = sn.QualName(
             module='__',
@@ -1437,7 +1480,7 @@ def _normalize_view_ptr_expr(
 
         ptr_required = base_required
         ptr_cardinality = base_cardinality
-        if shape_el.where:
+        if shape_el.where or is_polymorphic:
             # If the shape has a filter on it, we need to force a reinference
             # of the cardinality, to produce an error if needed.
             ptr_cardinality = None
@@ -1469,7 +1512,7 @@ def _normalize_view_ptr_expr(
                 irexpr, ptrcls=ptrcls,
                 materialize_visible=True, skipped_bindings={path_id},
                 ctx=ctx)
-            ptr_target = inference.infer_type(irexpr, ctx.env)
+            ptr_target = setgen.get_set_type(irexpr, ctx=ctx)
 
     # compexpr is not None
     else:
@@ -1561,7 +1604,7 @@ def _normalize_view_ptr_expr(
             irexpr, ptrcls=ptrcls,
             materialize_visible=True, skipped_bindings={path_id},
             ctx=ctx)
-        ptr_target = inference.infer_type(irexpr, ctx.env)
+        ptr_target = setgen.get_set_type(irexpr, ctx=ctx)
 
         if (
             shape_el.operation.op is qlast.ShapeOp.APPEND
@@ -1684,6 +1727,24 @@ def _normalize_view_ptr_expr(
             context=compexpr and compexpr.context,
         )
 
+    if (
+        s_ctx.exprtype.is_mutation()
+        and ptrcls
+        and ptrcls.get_protected(ctx.env.schema)
+        and not from_default
+    ):
+        # 4.0 shipped with a bug where dumps included protected fields
+        # in config values, so we need to suppress the error in that
+        # case.  Default value injection is set up to *always* inject
+        # on protected pointers.
+        if ctx.env.options.dump_restore_mode:
+            return ptrcls, None
+        raise errors.QueryError(
+            f'cannot assign to {ptrcls.get_verbosename(ctx.env.schema)}: '
+            f'it is protected',
+            context=compexpr and compexpr.context,
+        )
+
     # Prohibit invalid operations on id
     id_access = (
         ptrcls
@@ -1697,13 +1758,16 @@ def _normalize_view_ptr_expr(
         (compexpr is not None or is_polymorphic)
         and id_access and not from_default and ptrcls
     ):
-        ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
+        vn = ptrcls.get_verbosename(ctx.env.schema)
         if is_polymorphic:
-            msg = (f'cannot access {ptrcls_sn.name} on a polymorphic '
+            msg = (f'cannot access {vn} on a polymorphic '
                    f'shape element')
         else:
-            msg = f'cannot assign to {ptrcls_sn.name}'
-        if not ctx.env.options.allow_user_specified_id:
+            msg = f'cannot assign to {vn}'
+        if (
+            not ctx.env.options.allow_user_specified_id
+            and s_ctx.exprtype.is_mutation()
+        ):
             hint = (
                 'consider enabling the "allow_user_specified_id" '
                 'configuration parameter to allow setting custom object ids'
@@ -1866,7 +1930,11 @@ def _normalize_view_ptr_expr(
 
         base_cardinality = None
         base_required = None
-        if base_ptrcls is not None and not base_ptrcls_is_alias:
+        if (
+            base_ptrcls is not None
+            and not base_ptrcls_is_alias
+            and not is_independent_polymorphic
+        ):
             base_cardinality = _get_base_ptr_cardinality(base_ptrcls, ctx=ctx)
             base_required = base_ptrcls.get_required(ctx.env.schema)
 
@@ -2075,7 +2143,7 @@ def _inline_type_computable(
             required=True,
             expr=qlast.Path(
                 steps=[qlast.Ptr(
-                    ptr=qlast.ObjectRef(name=compname),
+                    name=compname,
                     direction=s_pointers.PointerDirection.Outbound,
                 )],
             ),
@@ -2083,11 +2151,11 @@ def _inline_type_computable(
                 steps=[
                     qlast.Source(),
                     qlast.Ptr(
-                        ptr=qlast.ObjectRef(name='__type__'),
+                        name='__type__',
                         direction=s_pointers.PointerDirection.Outbound,
                     ),
                     qlast.Ptr(
-                        ptr=qlast.ObjectRef(name=propname),
+                        name=propname,
                         direction=s_pointers.PointerDirection.Outbound,
                     )
                 ]
@@ -2104,7 +2172,7 @@ def _inline_type_computable(
             # we see through that.
             base_stype = stype.get_nearest_non_derived_parent(ctx.env.schema)
             base_ir_set = setgen.ensure_set(
-                ir_set, type_override=base_stype, ctx=ctx)
+                ir_set, type_override=base_stype, ctx=scopectx)
 
             scopectx.anchors[qlast.Source().name] = base_ir_set
             ptr, ptr_set = _normalize_view_ptr_expr(

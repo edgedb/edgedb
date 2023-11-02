@@ -660,12 +660,12 @@ class Cluster(BaseCluster):
         self._connection_addr = None
         connected = False
 
-        for n in range(timeout + 1):
-            # pg usually comes up pretty quickly, but not so
-            # quickly that we don't hit the wait case. Make our
-            # first sleep pretty short, to shave almost a second
-            # off the happy case.
-            sleep_time = 1 if n else 0.10
+        for n in range(timeout + 9):
+            # pg usually comes up pretty quickly, but not so quickly
+            # that we don't hit the wait case. Make our first several
+            # waits pretty short, to shave almost a second off the
+            # happy case.
+            sleep_time = 1.0 if n >= 10 else 0.1
 
             try:
                 conn_addr = self._get_connection_addr()
@@ -884,6 +884,24 @@ async def get_remote_pg_cluster(
 
         addr = await ha_backend.get_cluster_consensus()
         dsn = 'postgresql://{}:{}'.format(*addr)
+
+        if parsed.query:
+            # Allow passing through Postgres connection parameters from the HA
+            # backend DSN as "pg" prefixed query strings. For example, an HA
+            # backend DSN with `?pgpassword=123` will result an actual backend
+            # DSN with `?password=123`. They have higher priority than the `PG`
+            # prefixed environment variables like `PGPASSWORD`.
+            pq = urllib.parse.parse_qs(parsed.query, strict_parsing=True)
+            query = {}
+            for k, v in pq.items():
+                if k.startswith("pg") and k not in ["pghost", "pgport"]:
+                    if isinstance(v, list):
+                        val = v[-1]
+                    else:
+                        val = cast(str, v)
+                    query[k[2:]] = val
+            if query:
+                dsn += f"?{urllib.parse.urlencode(query)}"
 
     addrs, params = pgconnparams.parse_dsn(dsn)
     if len(addrs) > 1:

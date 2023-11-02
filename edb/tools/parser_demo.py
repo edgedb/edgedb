@@ -21,7 +21,7 @@ from typing import *
 from edb.edgeql import ast as qlast
 from edb.edgeql import tokenizer
 from edb.edgeql import parser as qlparser
-from edb.edgeql.parser import grammar as qlgrammar
+from edb.edgeql.parser.grammar import tokens as qltokens
 
 import edb._edgeql_parser as rust_parser
 
@@ -30,7 +30,10 @@ from edb.tools.edb import edbcommands
 
 @edbcommands.command("parser-demo")
 def main():
-    for q in QUERIES:
+
+    qlparser.preload_spec()
+
+    for q in QUERIES[-10:]:
         sdl = q.startswith('sdl')
         if sdl:
             q = q[3:]
@@ -43,15 +46,16 @@ def main():
             print(e)
             continue
 
-        grammar = qlgrammar.sdldocument if sdl else qlgrammar.block
+        start_t = qltokens.T_STARTSDLDOCUMENT if sdl else qltokens.T_STARTBLOCK
+        start_t_name = start_t.__name__[2:]
         tokens = source.tokens()
-        result, productions = rust_parser.parse(grammar.__name__, tokens)
+        result, productions = rust_parser.parse(start_t_name, tokens)
 
         print('-' * 30)
         print()
 
         for index, error in enumerate(result.errors()):
-            message, span = error
+            message, span, hint, details = error
             (start, end) = tokenizer.inflate_span(source.text(), span)
 
             print(f'Error [{index+1}/{len(result.errors())}]:')
@@ -62,11 +66,14 @@ def main():
             )
             print(
                 ' ' * (start.column - 1)
-                + '^'
-                + '-' * (end.column - start.column - 1)
+                + '^' * (end.column - start.column)
                 + ' '
                 + message
             )
+            if details:
+                print(f'  Details: {details}')
+            if hint:
+                print(f'  Hint: {hint}')
             print()
 
         if result.out():
@@ -299,6 +306,28 @@ QUERIES = [
     SELECT ((count(foo 1)));
     ''',
     '''
-    SELECT ((((count(foo, 1)))));
+    SELECT count(SELECT 1);
+    ''',
+    '''
+    SELECT (
+        # reserved keywords
+        select := 2
+    );
+    ''',
+    '''
+    SELECT INTROSPECT tuple<int64>;
+    ''',
+    '''
+    (SELECT User.name) OFFSET 2;
+    ''',
+    '''
+    default::Movie.name;
+    ''',
+    '''
+    WITH MODULE welp
+    CREATE DATABASE sample;
+    ''',
+    '''
+    INSERT Foo FILTER Foo.bar = 42;
     ''',
 ]

@@ -63,7 +63,7 @@ async def handle_request(
     try:
         if request.method == b'POST':
             if request.content_type and b'json' in request.content_type:
-                body = json.loads(request.body)
+                body = json.loads(request.body, parse_float=decimal.Decimal)
                 if not isinstance(body, dict):
                     raise TypeError(
                         'the body of the request must be a JSON object')

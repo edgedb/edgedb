@@ -477,3 +477,8 @@ class InheritableDBObject(DBObject):
     @property
     def inherit(self) -> bool:
         return self.get_metadata('ddl:inherit') or False
+
+
+class NoOpCommand(Command):
+    def generate_self_block(self, block: PLBlock) -> Optional[PLBlock]:
+        return None

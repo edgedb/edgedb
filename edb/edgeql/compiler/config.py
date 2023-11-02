@@ -34,6 +34,7 @@ from edb.ir import staeval as ireval
 from edb.ir import statypes as statypes
 from edb.ir import typeutils as irtyputils
 
+from edb.schema import constraints as s_constr
 from edb.schema import globals as s_globals
 from edb.schema import links as s_links
 from edb.schema import name as sn
@@ -47,10 +48,8 @@ from edb.edgeql import ast as qlast
 from . import casts
 from . import context
 from . import dispatch
-from . import inference
 from . import setgen
-from . import compile_ast_to_ir
-from . import options
+from . import typegen
 
 
 class SettingInfo(NamedTuple):
@@ -62,6 +61,7 @@ class SettingInfo(NamedTuple):
     backend_setting: str | None
     affects_compilation: bool
     is_system_config: bool
+    ptr: Optional[s_pointers.Pointer]
 
 
 @dispatch.compile.register
@@ -73,7 +73,7 @@ def compile_ConfigSet(
     info = _validate_op(expr, ctx=ctx)
     param_val = dispatch.compile(expr.expr, ctx=ctx)
     param_type = info.param_type
-    val_type = inference.infer_type(param_val, ctx.env)
+    val_type = setgen.get_set_type(param_val, ctx=ctx)
     compatible = s_types.is_type_compatible(
         val_type, param_type, schema=ctx.env.schema)
     if not compatible:
@@ -106,6 +106,10 @@ def compile_ConfigSet(
             )
         else:
             backend_expr = None
+
+    if info.ptr:
+        _enforce_pointer_constraints(
+            info.ptr, param_val, ctx=ctx, for_obj=False)
 
     config_set = irast.ConfigSet(
         name=info.param_name,
@@ -145,18 +149,30 @@ def compile_ConfigReset(
             name=param_type_name.name,
             module=param_type_name.module,
         )
-        select = qlast.SelectQuery(
-            result=qlast.Shape(
-                expr=qlast.Path(steps=[param_type_ref]),
-                elements=s_utils.get_config_type_shape(
-                    ctx.env.schema, info.param_type, path=[param_type_ref]),
-            ),
-            where=filter_expr,
+        body = qlast.Shape(
+            expr=qlast.Path(steps=[param_type_ref]),
+            elements=s_utils.get_config_type_shape(
+                ctx.env.schema, info.param_type, path=[param_type_ref]),
         )
+        # The body needs to have access to secrets, since they get put
+        # into the shape and are necessary for compiling the deletion
+        # code, so compile the body in a way that we allow it.
+        # The filter should *not* be able to access secret pointers, though.
+        with ctx.new() as sctx:
+            sctx.current_schema_views += (info.param_type,)
+            body_ir = dispatch.compile(body, ctx=sctx)
 
-        ctx.modaliases[None] = 'cfg'
-        select_ir = setgen.ensure_set(
-            dispatch.compile(select, ctx=ctx), ctx=ctx)
+        with ctx.new() as sctx:
+            sctx.anchors = sctx.anchors.copy()
+            select = qlast.SelectQuery(
+                result=sctx.create_anchor(body_ir, 'a'),
+                where=filter_expr,
+            )
+
+            sctx.modaliases = ctx.modaliases.copy()
+            sctx.modaliases[None] = 'cfg'
+            select_ir = setgen.ensure_set(
+                dispatch.compile(select, ctx=sctx), ctx=sctx)
 
     config_reset = irast.ConfigReset(
         name=info.param_name,
@@ -231,7 +247,7 @@ def _inject_tname(
     insert_stmt.shape.append(
         qlast.ShapeElement(
             expr=qlast.Path(
-                steps=[qlast.Ptr(ptr=qlast.ObjectRef(name='_tname'))],
+                steps=[qlast.Ptr(name='_tname')],
             ),
             compexpr=qlast.Path(
                 steps=[
@@ -240,7 +256,7 @@ def _inject_tname(
                             maintype=insert_stmt.subject,
                         ),
                     ),
-                    qlast.Ptr(ptr=qlast.ObjectRef(name='name')),
+                    qlast.Ptr(name='name'),
                 ],
             ),
         ),
@@ -256,6 +272,14 @@ def _validate_config_object(
         assert element.rptr is not None
         if element.rptr.ptrref.shortname.name == 'id':
             continue
+
+        ptr = typegen.ptrcls_from_ptrref(
+            element.rptr.ptrref.real_material_ptr,
+            ctx=ctx,
+        )
+        if isinstance(ptr, s_pointers.Pointer):
+            _enforce_pointer_constraints(
+                ptr, element, ctx=ctx, for_obj=True)
 
         if (irtyputils.is_object(element.typeref)
                 and isinstance(element.expr, irast.InsertStmt)):
@@ -279,7 +303,41 @@ def _validate_global_op(
                        requires_restart=False,
                        backend_setting=None,
                        is_system_config=False,
-                       affects_compilation=False)
+                       affects_compilation=False,
+                       ptr=None)
+
+
+def _enforce_pointer_constraints(
+        ptr: s_pointers.Pointer, expr: irast.Set, *,
+        ctx: context.ContextLevel,
+        for_obj: bool) -> None:
+    constraints = ptr.get_constraints(ctx.env.schema)
+    for constraint in constraints.objects(ctx.env.schema):
+        if constraint.issubclass(
+            ctx.env.schema,
+            ctx.env.schema.get('std::exclusive', type=s_constr.Constraint),
+        ):
+            continue
+
+        with ctx.detached() as sctx:
+            sctx.partial_path_prefix = expr
+            sctx.anchors = ctx.anchors.copy()
+            sctx.anchors[qlast.Subject().name] = expr
+
+            final_expr = constraint.get_finalexpr(ctx.env.schema)
+            assert final_expr is not None and final_expr.qlast is not None
+            ir = dispatch.compile(final_expr.qlast, ctx=sctx)
+
+        result = ireval.evaluate(ir, schema=ctx.env.schema)
+        assert isinstance(result, irast.BooleanConstant)
+        if result.value != 'true':
+            if for_obj:
+                name = ptr.get_verbosename(ctx.env.schema, with_parent=True)
+            else:
+                name = repr(ptr.get_shortname(ctx.env.schema).name)
+            raise errors.ConfigurationError(
+                f'invalid setting value for {name}'
+            )
 
 
 def _validate_op(
@@ -311,6 +369,7 @@ def _validate_op(
 
     assert isinstance(cfg_host_type, s_objtypes.ObjectType)
     cfg_type = None
+    ptr = None
 
     if isinstance(expr, (qlast.ConfigSet, qlast.ConfigReset)):
         # TODO: Fix this. The problem is that it gets lost when serializing it
@@ -318,6 +377,13 @@ def _validate_op(
             raise errors.UnsupportedFeatureError(
                 'SESSION configuration of extension-defined config variables '
                 'is not yet implemented'
+            )
+
+        # This error is legit, though
+        if is_ext_config and expr.scope == qltypes.ConfigScope.INSTANCE:
+            raise errors.ConfigurationError(
+                'INSTANCE configuration of extension-defined config variables '
+                'is not allowed'
             )
 
         # expr.name is the actual name of the property.
@@ -421,28 +487,6 @@ def _validate_op(
     else:
         affects_compilation = False
 
-    if isinstance(expr, qlast.ConfigSet):
-        constraints = ptr.get_constraints(ctx.env.schema)
-        for constraint in constraints.objects(ctx.env.schema):
-            subject = expr.expr
-            opts = options.CompilerOptions(
-                anchors={qlast.Subject().name: subject},
-                path_prefix_anchor=qlast.Subject().name,
-                apply_query_rewrites=False,
-                schema_object_context=type(constraint),
-            )
-            final_expr = constraint.get_finalexpr(ctx.env.schema)
-            assert final_expr is not None and final_expr.qlast is not None
-            ir = compile_ast_to_ir(
-                final_expr.qlast, ctx.env.schema, options=opts
-            )
-            result = ireval.evaluate(ir.expr, schema=ctx.env.schema)
-            assert isinstance(result, irast.BooleanConstant)
-            if result.value != 'true':
-                raise errors.ConfigurationError(
-                    f'invalid setting value for {name!r}'
-                )
-
     if system and expr.scope is not qltypes.ConfigScope.INSTANCE:
         raise errors.ConfigurationError(
             f'{name!r} is a system-level configuration parameter; '
@@ -455,4 +499,5 @@ def _validate_op(
                        requires_restart=requires_restart,
                        backend_setting=backend_setting,
                        is_system_config=is_system_config,
-                       affects_compilation=affects_compilation)
+                       affects_compilation=affects_compilation,
+                       ptr=ptr)

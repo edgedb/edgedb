@@ -1236,3 +1236,18 @@ class CopyStmt(Statement):
     options: CopyOptions
 
     where_clause: typing.Optional[BaseExpr] = None
+
+
+class FTSDocument(BaseExpr):
+    """
+    Text and information on how to search through it.
+
+    Constructed with `fts::with_options`.
+    """
+
+    text: BaseExpr
+
+    language: BaseExpr
+    language_domain: typing.Set[str]
+
+    weight: typing.Optional[str]

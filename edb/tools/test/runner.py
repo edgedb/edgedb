@@ -79,13 +79,19 @@ def teardown_suite() -> None:
     suite._handleModuleTearDown(result)  # type: ignore[attr-defined]
 
 
-def init_worker(status_queue: multiprocessing.SimpleQueue,
-                param_queue: multiprocessing.SimpleQueue,
-                result_queue: multiprocessing.SimpleQueue) -> None:
+def init_worker(
+    status_queue: multiprocessing.SimpleQueue,
+    param_queue: multiprocessing.SimpleQueue,
+    result_queue: multiprocessing.SimpleQueue,
+    additional_init: Optional[Callable]
+) -> None:
     global result
     global coverage_run
     global py_hash_secret
     global py_random_seed
+
+    if additional_init:
+        additional_init()
 
     # Make sure the generator is re-seeded, as we have inherited
     # the seed from the parent process.
@@ -278,12 +284,15 @@ def monitor_thread(queue, result):
 
 
 class ParallelTestSuite(unittest.TestSuite):
-    def __init__(self, tests, server_conn, num_workers, backend_dsn):
+    def __init__(
+        self, tests, server_conn, num_workers, backend_dsn, init_worker
+    ):
         self.tests = tests
         self.server_conn = server_conn
         self.num_workers = num_workers
         self.stop_requested = False
         self.backend_dsn = backend_dsn
+        self.init_worker = init_worker
 
     def run(self, result):
         # We use SimpleQueues because they are more predictable.
@@ -303,7 +312,9 @@ class ParallelTestSuite(unittest.TestSuite):
             args=(result_queue, result), daemon=True)
         result_thread.start()
 
-        initargs = (status_queue, worker_param_queue, result_queue)
+        initargs = (
+            status_queue, worker_param_queue, result_queue, self.init_worker
+        )
 
         pool = multiprocessing.Pool(
             self.num_workers,
@@ -328,29 +339,30 @@ class ParallelTestSuite(unittest.TestSuite):
                 else:
                     break
 
-            # Post the terminal message to the queue so that
-            # test-monitor can stop.
-            result_queue.put((None, None, None))
-
-            # Give the test-monitor thread some time to
-            # process the queue messages.  If something
-            # goes wrong, the thread will be forcibly
-            # joined by a timeout.
-            result_thread.join(timeout=3)
-
         # Wait for pool to shutdown, this includes test teardowns.
         pool.join()
+
+        # Post the terminal message to the queue so that
+        # test-monitor can stop.
+        result_queue.put((None, None, None))
+
+        # Give the test-monitor thread some time to
+        # process the queue messages.  If something
+        # goes wrong, the thread will be forcibly
+        # joined by a timeout.
+        result_thread.join(timeout=3)
 
         return result
 
 
 class SequentialTestSuite(unittest.TestSuite):
 
-    def __init__(self, tests, server_conn, backend_dsn):
+    def __init__(self, tests, server_conn, backend_dsn, worker_init):
         self.tests = tests
         self.server_conn = server_conn
         self.stop_requested = False
         self.backend_dsn = backend_dsn
+        self.worker_init = worker_init
 
     def run(self, result_):
         global result
@@ -361,6 +373,9 @@ class SequentialTestSuite(unittest.TestSuite):
                 json.dumps(self.server_conn)
         if self.backend_dsn:
             os.environ['EDGEDB_TEST_BACKEND_DSN'] = self.backend_dsn
+
+        if self.worker_init:
+            self.worker_init()
 
         random.seed(py_random_seed)
 
@@ -891,7 +906,8 @@ class ParallelTextTestRunner:
             use_experimental_interpreter=self.use_experimental_interpreter)
         server_used = (False if self.use_experimental_interpreter
                        else tb.test_cases_use_server(cases))
-        lang_setup = tb_lang.get_test_cases_setup(cases)
+        should_preload_parser = tb_lang.should_preload_parser(cases)
+        worker_init = tb_lang.preload_parser if should_preload_parser else None
         bootstrap_time_taken = 0
         tests_time_taken = 0
         result = None
@@ -929,9 +945,6 @@ class ParallelTextTestRunner:
                 tb.generate_jwk(jwk_file)
 
                 os.environ["EDGEDB_SERVER_JWS_KEY_FILE"] = str(jwk_file)
-
-        if lang_setup:
-            tb_lang.run_test_cases_setup(lang_setup, jobs=self.num_workers)
 
         try:
             if setup and not self.use_experimental_interpreter:
@@ -1067,12 +1080,14 @@ class ParallelTextTestRunner:
                     conn,
                     self.num_workers,
                     self.backend_dsn,
+                    worker_init,
                 )
             else:
                 suite = SequentialTestSuite(
                     self._sort_tests(cases),
                     conn,
                     self.backend_dsn,
+                    worker_init,
                 )
 
             result = ParallelTextTestResult(

@@ -146,3 +146,4 @@ class PGConnection:
 
 
 SETUP_TEMP_TABLE_SCRIPT: str
+SETUP_CONFIG_CACHE_SCRIPT: str

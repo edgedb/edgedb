@@ -55,6 +55,8 @@ if TYPE_CHECKING:
         ],
     ]
 
+EXT_MODULE = sn.UnqualName('ext')
+
 STD_MODULES = (
     sn.UnqualName('std'),
     sn.UnqualName('schema'),
@@ -65,7 +67,7 @@ STD_MODULES = (
     sn.UnqualName('pg'),
     sn.UnqualName('std::_test'),
     sn.UnqualName('fts'),
-    sn.UnqualName('ext'),
+    EXT_MODULE,
     sn.UnqualName('std::enc'),
 )
 
@@ -80,9 +82,9 @@ STD_SOURCES = (
     sn.UnqualName('ext'),
     sn.UnqualName('enc'),
     sn.UnqualName('pg'),
+    sn.UnqualName('fts'),
 )
 TESTMODE_SOURCES = (
-    sn.UnqualName('fts'),
     sn.UnqualName('_testmode'),
 )
 
@@ -1311,7 +1313,7 @@ class FlatSchema(Schema):
             sclass_name = self._id_to_type[obj_id]
         except KeyError:
             if default is so.NoDefault:
-                raise errors.InvalidReferenceError(
+                raise LookupError(
                     f'reference to a non-existent schema item {obj_id}'
                     f' in schema {self!r}'
                 ) from None
@@ -1320,7 +1322,7 @@ class FlatSchema(Schema):
         else:
             obj = so.Object.schema_restore((sclass_name, obj_id))
             if type is not None and not isinstance(obj, type):
-                raise errors.InvalidReferenceError(
+                raise TypeError(
                     f'schema object {obj_id!r} exists, but is a '
                     f'{obj.__class__.get_schema_class_displayname()!r}, '
                     f'not a {type.get_schema_class_displayname()!r}'

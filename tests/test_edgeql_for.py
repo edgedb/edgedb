@@ -1108,6 +1108,65 @@ class TestEdgeQLFor(tb.QueryTestCase):
         )
 
     async def test_edgeql_for_optional_01(self):
+        # Lol FOR OPTIONAL doesn't work for object-type iterators
+        # but it does work for 1-ary tuples
+        await self.assert_query_result(
+            r'''
+                for optional x in
+                    ((select User filter .name = 'George'),)
+                union x.0.deck_cost ?? 0;
+            ''',
+            [0],
+        )
+
+        await self.assert_query_result(
+            r'''
+                for optional x in
+                    ((select User filter .name = 'George'),)
+                union x.0
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+                for optional x in
+                    ((select User filter .name = 'George'),)
+                union x
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+                for optional x in
+                    ((select User filter .name = 'Alice'),)
+                union x.0.deck_cost ?? 0;
+            ''',
+            [11],
+        )
+
+        await self.assert_query_result(
+            r'''
+                for optional x in
+                    ((select User filter .name = 'George'),)
+                union (insert Award { name := "Participation" })
+            ''',
+            [{}],
+        )
+
+        await self.assert_query_result(
+            r'''
+                for optional x in (<bool>{})
+                union (insert Award { name := "Participation!" })
+            ''',
+            [{}],
+        )
+
+    @test.xerror('''
+        FOR OPTIONAL is disabled for object-type iterators
+    ''')
+    async def test_edgeql_for_optional_02(self):
         await self.assert_query_result(
             r'''
                 for optional x in
@@ -1117,10 +1176,20 @@ class TestEdgeQLFor(tb.QueryTestCase):
             [0],
         )
 
-    async def test_edgeql_for_order_by_01(self):
         await self.assert_query_result(
-            r"""
-                for x in User union x.name order by x.name desc
-            """,
-            ["Dave", "Carol", "Bob", "Alice"],
+            r'''
+                for optional x in
+                    (select User filter .name = 'Alice')
+                union x.deck_cost ?? 0;
+            ''',
+            [11],
+        )
+
+        await self.assert_query_result(
+            r'''
+                for optional x in
+                    (select User filter .name = 'George')
+                union (insert Award { name := "Participation" })
+            ''',
+            [{}],
         )

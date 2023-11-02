@@ -44,6 +44,7 @@ from . import schema as s_schema
 from . import sources
 from . import triggers
 from . import types as s_types
+from . import unknown_pointers
 from . import utils
 
 
@@ -471,6 +472,7 @@ def get_or_create_intersection_type(
 class ObjectTypeCommandContext(
     links.LinkSourceCommandContext[ObjectType],
     properties.PropertySourceContext[ObjectType],
+    unknown_pointers.UnknownPointerSourceContext[ObjectType],
     policies.AccessPolicySourceCommandContext[ObjectType],
     triggers.TriggerSourceCommandContext[ObjectType],
     sd.ObjectCommandContext[ObjectType],
@@ -600,7 +602,6 @@ class AlterObjectType(ObjectTypeCommand,
                 action=self.get_friendly_description(schema=schema),
                 include_ancestors=True,
                 filter=functions.Function,
-                metadata_only=False,
             )
 
         return schema

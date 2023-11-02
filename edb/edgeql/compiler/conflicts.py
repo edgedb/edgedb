@@ -198,7 +198,7 @@ def _compile_conflict_select_for_obj_type(
         anchor = qlutils.subject_paths_substitute(
             ptr_anchors[ptrname], ptr_anchors)
         ptr_val = qlast.Path(partial=True, steps=[
-            qlast.Ptr(ptr=qlast.ObjectRef(name=ptrname))
+            qlast.Ptr(name=ptrname)
         ])
         ptr, ptr_cnstrs = constrs[ptrname]
         ptr_card = ptr.get_cardinality(ctx.env.schema)
@@ -274,9 +274,7 @@ def _compile_conflict_select_for_obj_type(
     if fake_dml_set:
         anchor = qlutils.subject_paths_substitute(
             ptr_anchors['id'], ptr_anchors)
-        ptr_val = qlast.Path(partial=True, steps=[
-            qlast.Ptr(ptr=qlast.ObjectRef(name='id'))
-        ])
+        ptr_val = qlast.Path(partial=True, steps=[qlast.Ptr(name='id')])
         cond = qlast.BinOp(
             op='AND',
             left=cond,

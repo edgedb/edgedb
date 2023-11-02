@@ -953,3 +953,28 @@ class TestRewrites(tb.QueryTestCase):
             'select Person { first_name }',
             [{'first_name': 'updated'}],
         )
+
+    async def test_edgeql_rewrites_24(self):
+        await self.con.execute(
+            '''
+            create type X {
+                create property tup -> tuple<int64, str> {
+                    create rewrite insert, update using ((1, '2'));
+                };
+            };
+            insert X;
+            '''
+        )
+        await self.assert_query_result(
+            'select X { tup }',
+            [{'tup': (1, '2')}],
+        )
+        await self.con.execute(
+            '''
+            update X set {};
+            '''
+        )
+        await self.assert_query_result(
+            'select X { tup }',
+            [{'tup': (1, '2')}],
+        )

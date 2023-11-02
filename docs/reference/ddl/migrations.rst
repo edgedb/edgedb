@@ -342,7 +342,7 @@ Reset the database schema to its initial state.
 
 .. eql:synopsis::
 
-    reset schema to inital ;
+    reset schema to initial ;
 
 .. warning::
 

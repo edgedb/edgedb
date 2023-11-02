@@ -94,6 +94,7 @@ async def handle_request(
     operation_name = None
     variables = None
     globals = None
+    deprecated_globals = None
     query = None
 
     try:
@@ -106,7 +107,7 @@ async def handle_request(
                 query = body.get('query')
                 operation_name = body.get('operationName')
                 variables = body.get('variables')
-                globals = body.get('globals')
+                deprecated_globals = body.get('globals')
             elif request.content_type == 'application/graphql':
                 query = request.body.decode('utf-8')
             else:
@@ -134,10 +135,10 @@ async def handle_request(
                         raise TypeError(
                             '"variables" must be a JSON object')
 
-                globals = qs.get('globals')
-                if globals is not None:
+                deprecated_globals = qs.get('globals')
+                if deprecated_globals is not None:
                     try:
-                        globals = json.loads(globals[0])
+                        deprecated_globals = json.loads(deprecated_globals[0])
                     except Exception:
                         raise TypeError(
                             '"globals" must be a JSON object')
@@ -155,8 +156,31 @@ async def handle_request(
         if variables is not None and not isinstance(variables, dict):
             raise TypeError('"variables" must be a JSON object')
 
+        # There are 2 ways of sending globals:
+        # 1) as 'globals' field (deprecated)
+        # 2) as part of 'variables' in the '__globals__' element
+        #
+        # If both ways are present they must match.
+        if variables is not None:
+            globals = variables.get('__globals__')
+
         if globals is not None and not isinstance(globals, dict):
+            raise TypeError('"__globals__" must be a JSON object')
+        if (
+            deprecated_globals is not None and
+            not isinstance(deprecated_globals, dict)
+        ):
             raise TypeError('"globals" must be a JSON object')
+
+        # Globals are dicts if they are present, make sure they are the same.
+        if (
+            globals is not None and deprecated_globals is not None and
+            globals != deprecated_globals
+        ):
+            raise ValueError('invalid "__globals__" and "globals": '
+                             'values must match when both are present')
+
+        globals = globals or deprecated_globals
 
     except Exception as ex:
         if debug.flags.server:

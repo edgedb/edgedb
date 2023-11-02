@@ -550,15 +550,14 @@ cdef class DatabaseConnectionView:
         if self._in_tx:
             raise errors.InternalServerError(
                 'no need to serialize state while in transaction')
-        if self._config == DEFAULT_CONFIG:
-            return DEFAULT_STATE
 
+        dbver = self._db.dbver
         if self._session_state_db_cache is not None:
-            if self._session_state_db_cache[0] == self._config:
+            if self._session_state_db_cache[0] == (self._config, dbver):
                 return self._session_state_db_cache[1]
 
         state = []
-        if self._config:
+        if self._config and self._config != DEFAULT_CONFIG:
             settings = self.get_config_spec()
             for sval in self._config.values():
                 setting = settings[sval.name]
@@ -566,8 +565,13 @@ cdef class DatabaseConnectionView:
                 jval = config.value_to_json_value(setting, sval.value)
                 state.append({"name": sval.name, "value": jval, "type": kind})
 
+        # Include the database version in the state so that we are forced
+        # to clear the config cache on dbver changes.
+        state.append(
+            {"name": '__dbver__', "value": dbver, "type": 'C'})
+
         spec = json.dumps(state).encode('utf-8')
-        self._session_state_db_cache = (self._config, spec)
+        self._session_state_db_cache = ((self._config, dbver), spec)
         return spec
 
     cdef bint is_state_desc_changed(self):
@@ -947,7 +951,7 @@ cdef class DatabaseConnectionView:
 
         for op in ops:
             if op.scope is config.ConfigScope.INSTANCE:
-                await self._db._index.apply_system_config_op(conn, op, self)
+                await self._db._index.apply_system_config_op(conn, op)
             elif op.scope is config.ConfigScope.DATABASE:
                 self.set_database_config(
                     op.apply(settings, self.get_database_config()),
@@ -971,9 +975,23 @@ cdef class DatabaseConnectionView:
     async def parse(
         self,
         query_req: QueryRequestInfo,
+        cached_globally=False,
+        use_metrics=True,
     ) -> CompiledQuery:
         source = query_req.source
-        query_unit_group = self.lookup_compiled_query(query_req)
+        if cached_globally:
+            # WARNING: only set cached_globally to True when the query is
+            # strictly referring to only shared stable objects in user schema
+            # or anything from std schema, for example:
+            #     YES:  select ext::auth::UIConfig { ... }
+            #     NO:   select default::User { ... }
+            query_unit_group = (
+                self.server.system_compile_cache.get(query_req)
+                if self._query_cache_enabled
+                else None
+            )
+        else:
+            query_unit_group = self.lookup_compiled_query(query_req)
         cached = True
         if query_unit_group is None:
             # Cache miss; need to compile this query.
@@ -1016,12 +1034,17 @@ cdef class DatabaseConnectionView:
                 self.raise_in_tx_error()
 
         if not cached and query_unit_group.cacheable:
-            self.cache_compiled_query(query_req, query_unit_group)
+            if cached_globally:
+                self.server.system_compile_cache[query_req] = query_unit_group
+            else:
+                self.cache_compiled_query(query_req, query_unit_group)
 
-        metrics.edgeql_query_compilations.inc(
-            1.0,
-            'cache' if cached else 'compiler'
-        )
+        if use_metrics:
+            metrics.edgeql_query_compilations.inc(
+                1.0,
+                self.tenant.get_instance_name(),
+                'cache' if cached else 'compiler',
+            )
 
         return CompiledQuery(
             query_unit_group=query_unit_group,
@@ -1077,7 +1100,9 @@ cdef class DatabaseConnectionView:
                 )
         finally:
             metrics.edgeql_query_compilation_duration.observe(
-                time.monotonic() - started_at)
+                time.monotonic() - started_at,
+                self.tenant.get_instance_name(),
+            )
 
         unit_group, self._last_comp_state, self._last_comp_state_id = result
 
@@ -1090,13 +1115,6 @@ cdef class DatabaseConnectionView:
         error_constructor,
         reason,
     ):
-        if not self.tenant.is_online():
-            readiness_reason = self.tenant.get_readiness_reason()
-            msg = "the server is going offline"
-            if readiness_reason:
-                msg = f"{msg}: {readiness_reason}"
-            raise errors.ServerOfflineError(msg)
-
         if query_capabilities & ~self._capability_mask:
             # _capability_mask is currently only used for system database
             raise query_capabilities.make_error(
@@ -1176,6 +1194,10 @@ cdef class DatabaseIndex:
         return self._comp_sys_config
 
     def update_sys_config(self, sys_config):
+        cdef Database db
+        for db in self._dbs.values():
+            db.dbver = next_dbver()
+
         with self._default_sysconfig.mutate() as mm:
             mm.update(sys_config)
             sys_config = mm.finish()
@@ -1268,10 +1290,8 @@ cdef class DatabaseIndex:
             ).generate(block)
         await conn.sql_execute(block.to_string().encode())
 
-    async def apply_system_config_op(self, conn, op, dbv):
-        # XXX: Is it actually legit to have INSTANCE configs of
-        # database local extension configs?
-        spec = dbv.get_config_spec()
+    async def apply_system_config_op(self, conn, op):
+        spec = self._sys_config_spec
 
         op_value = op.get_setting(spec)
         if op.opcode is not None:

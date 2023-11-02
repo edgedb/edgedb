@@ -38,7 +38,8 @@ CREATE ABSTRACT INHERITABLE ANNOTATION cfg::affects_compilation;
 
 CREATE SCALAR TYPE cfg::memory EXTENDING std::anyscalar;
 CREATE SCALAR TYPE cfg::AllowBareDDL EXTENDING enum<AlwaysAllow, NeverAllow>;
-CREATE SCALAR TYPE cfg::ConnectionTransport EXTENDING enum<TCP, TCP_PG, HTTP>;
+CREATE SCALAR TYPE cfg::ConnectionTransport EXTENDING enum<
+    TCP, TCP_PG, HTTP, SIMPLE_HTTP>;
 
 CREATE ABSTRACT TYPE cfg::ConfigObject EXTENDING std::BaseObject;
 
@@ -59,6 +60,11 @@ CREATE TYPE cfg::SCRAM EXTENDING cfg::AuthMethod {
 CREATE TYPE cfg::JWT EXTENDING cfg::AuthMethod {
     ALTER PROPERTY transports {
         SET default := { cfg::ConnectionTransport.HTTP };
+    };
+};
+CREATE TYPE cfg::Password EXTENDING cfg::AuthMethod {
+    ALTER PROPERTY transports {
+        SET default := { cfg::ConnectionTransport.SIMPLE_HTTP };
     };
 };
 
@@ -118,11 +124,14 @@ ALTER TYPE cfg::AbstractConfig {
             'How long an individual query can run before being aborted.';
     };
 
-    CREATE REQUIRED PROPERTY listen_port -> std::int16 {
+    CREATE REQUIRED PROPERTY listen_port -> std::int32 {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION std::description :=
             'The TCP port the server listens on.';
         SET default := 5656;
+        # Really we want a uint16, but oh well
+        CREATE CONSTRAINT std::min_value(0);
+        CREATE CONSTRAINT std::max_value(65535);
     };
 
     CREATE MULTI PROPERTY listen_addresses -> std::str {
@@ -161,24 +170,6 @@ ALTER TYPE cfg::AbstractConfig {
         CREATE ANNOTATION cfg::affects_compilation := 'true';
         CREATE ANNOTATION std::description :=
             'Whether inserts are allowed to set the \'id\' property.';
-    };
-
-    # XXX: Remove these and move to extension config mechanism when ready
-    CREATE PROPERTY xxx_auth_signing_key -> std::str {
-        CREATE ANNOTATION std::description :=
-            'The signing key used for auth extension. Must be at \
-            least 32 characters long.';
-        SET default := '00000000000000000000000000000000';
-    };
-
-    CREATE PROPERTY xxx_github_client_secret -> std::str {
-        CREATE ANNOTATION std::description := 'Secret key provided by GitHub';
-        SET default := '00000000000000000000000000000000';
-    };
-
-    CREATE PROPERTY xxx_github_client_id -> std::str {
-        CREATE ANNOTATION std::description := 'ID provided by GitHub';
-        SET default := '00000000000000000000000000000000';
     };
 
     # Exposed backend settings follow.
@@ -263,7 +254,24 @@ cfg::get_config_json(
 {
     USING SQL $$
     SELECT
-        coalesce(jsonb_object_agg(cfg.name, cfg), '{}'::jsonb)
+        coalesce(
+            jsonb_object_agg(
+                cfg.name,
+                -- Redact config values from extension configs, since
+                -- they might contain secrets, and it isn't worth the
+                -- trouble right now to care about which ones actually do.
+                (CASE WHEN
+                     cfg.name LIKE '%::%'
+                     AND cfg.value != 'null'::jsonb
+                 THEN
+                     jsonb_set(to_jsonb(cfg), '{value}',
+                               '{"redacted": true}'::jsonb)
+                 ELSE
+                     to_jsonb(cfg)
+                 END)
+            ),
+            '{}'::jsonb
+        )
     FROM
         edgedb._read_sys_config(
             sources::edgedb._sys_config_source_t[],

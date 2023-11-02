@@ -38,8 +38,10 @@ class CompositeTypeSpecField:
     name: str
     type: type | CompositeTypeSpec
     _: dataclasses.KW_ONLY
-    unique: bool = True
+    unique: bool = False
     default: Any = MISSING
+    secret: bool = False
+    protected: bool = False
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -50,16 +52,44 @@ class CompositeTypeSpec:
     children: list[CompositeTypeSpec] = dataclasses.field(
         default_factory=list, hash=False, compare=False
     )
+    has_secret: bool = False
+
+    def __post_init__(self) -> None:
+        has_secret = any(
+            field.secret
+            or (
+                isinstance(field, CompositeTypeSpec)
+                # We look at children of pointer targets, and not
+                # children of the object itself, on the idea that for
+                # config objects, omitting individual top level
+                # objects with secrets should be fine.
+                and (
+                    field.has_secret
+                    or any(child.has_secret for child in field.children)
+                )
+            )
+            for field in self.fields.values()
+        )
+        object.__setattr__(self, 'has_secret', has_secret)
 
     @property
     def __name__(self) -> str:
         return self.name
 
+    def get_field_unique_site(self, name: str) -> Optional[CompositeTypeSpec]:
+        typ: Optional[CompositeTypeSpec] = self
+        site: Optional[CompositeTypeSpec] = None
+        while typ:
+            if name in typ.fields and typ.fields[name].unique:
+                site = typ
+            typ = typ.parent
+        return site
+
 
 class CompositeType:
     _tspec: CompositeTypeSpec
 
-    def to_json_value(self) -> dict[str, Any]:
+    def to_json_value(self, redacted: bool=False) -> dict[str, Any]:
         raise NotImplementedError
 
 
@@ -356,6 +386,15 @@ class Duration(ScalarType):
     def decode(cls, data: bytes) -> Duration:
         return cls(microseconds=cls._codec.unpack(data)[0])
 
+    def __hash__(self) -> int:
+        return hash(self._value)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Duration):
+            return self._value == other._value
+        else:
+            return False
+
 
 @functools.total_ordering
 class ConfigMemory(ScalarType):
@@ -455,3 +494,12 @@ class ConfigMemory(ScalarType):
 
     def __repr__(self) -> str:
         return f'<statypes.ConfigMemory {self.to_str()!r}>'
+
+    def __hash__(self) -> int:
+        return hash(self._value)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, ConfigMemory):
+            return self._value == other._value
+        else:
+            return False

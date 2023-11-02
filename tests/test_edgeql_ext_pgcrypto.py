@@ -103,3 +103,91 @@ class TestEdgeQLExtPgCrypto(tb.QueryTestCase):
                     },
                     json_only=True,
                 )
+
+    async def test_edgeql_ext_pgcrypto_gen_salt(self):
+        CASES = [
+            ("bf", 5),
+            ("xdes", 801),
+            ("md5", None),
+            ("des", None),
+        ]
+
+        await self.assert_query_result(
+            """
+                select {
+                    salt := ext::pgcrypto::gen_salt()
+                }
+            """,
+            [{}],
+            json_only=True,
+        )
+
+        for hash_type, iter_count in CASES:
+            with self.subTest(hash_type):
+                await self.assert_query_result(
+                    """
+                        select {
+                            salt := ext::pgcrypto::gen_salt(<str>$type)
+                        }
+                    """,
+                    [{}],
+                    variables={
+                        "type": hash_type,
+                    },
+                    json_only=True,
+                )
+
+                if iter_count is not None:
+                    await self.assert_query_result(
+                        """
+                            select {
+                                salt := ext::pgcrypto::gen_salt(
+                                    <str>$type,
+                                    <int64>$iter_count,
+                                )
+                            }
+                        """,
+                        [{}],
+                        variables={
+                            "type": hash_type,
+                            "iter_count": iter_count,
+                        },
+                        json_only=True,
+                    )
+
+    async def test_edgeql_ext_pgcrypto_crypt(self):
+        CASES = [
+            (
+                "bf",
+                "$2a$06$1qmwsi8lj0HKQnokkCkZSe",
+                "$2a$06$1qmwsi8lj0HKQnokkCkZSenubuHv5CGJ2ICxcOPjOr6xOKDBY..Eu",
+            ),
+            (
+                "md5",
+                "$1$ePFh8A9K",
+                "$1$ePFh8A9K$xN/KWq.qDWTW9HYvx8/VP/",
+            ),
+            (
+                "xdes",
+                "_J9..3OQ/",
+                "_J9..3OQ/ylnZ6cP2muw",
+            ),
+            (
+                "des",
+                "JU",
+                "JUJ5Ovy43JsfM",
+            ),
+        ]
+
+        for hash_type, salt, result in CASES:
+            with self.subTest(hash_type):
+                await self.assert_query_result(
+                    """
+                        select ext::pgcrypto::crypt("foo", <str>$salt)
+                    """,
+                    [result],
+                    variables={
+                        "salt": salt,
+                    },
+                    json_only=True,
+                )

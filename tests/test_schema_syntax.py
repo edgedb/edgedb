@@ -24,7 +24,7 @@ from edb import errors
 
 from edb.testbase import lang as tb
 from edb.edgeql import generate_source
-from edb.edgeql.parser import grammar as ql_grammar
+from edb.edgeql.parser import grammar as qlgrammar
 from edb.tools import test
 
 
@@ -35,8 +35,8 @@ class SchemaSyntaxTest(tb.BaseSyntaxTest):
     ast_to_source = functools.partial(generate_source, unsorted=True)
 
     @classmethod
-    def get_grammar(cls):
-        return ql_grammar.sdldocument
+    def get_grammar_token(cls):
+        return qlgrammar.tokens.T_STARTSDLDOCUMENT
 
 
 class TestEdgeSchemaParser(SchemaSyntaxTest):
@@ -265,8 +265,13 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Missing identifier",
-                  line=3, col=17)
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected keyword 'COMMIT'",
+                  details="This name is a reserved keyword and cannot be "
+                          "used as an identifier",
+                  hint="Use a different identifier or quote the name "
+                       "with backticks: `Commit`",
+                  line=3, col=18)
     def test_eschema_syntax_type_11(self):
         """
         module test {
@@ -748,7 +753,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing ':='", line=4, col=22)
+                  r"Expected 'ON', but got 'prop' instead", line=4, col=23)
     def test_eschema_syntax_index_03(self):
         """
         module test {
@@ -757,8 +762,6 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
             };
         };
         """
-        # XXX: error recovery quality regression
-        #      Expected 'ON', but got 'prop' instead
 
     def test_eschema_syntax_index_04(self):
         """

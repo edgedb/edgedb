@@ -69,6 +69,7 @@ from edb.common import uuidgen
 from edb.common import parsing
 from edb.common.typeutils import not_none
 
+from edb.ir import ast as irast
 from edb.ir import pathid as irpathid
 from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
@@ -76,6 +77,7 @@ from edb.ir import utils as irutils
 from edb.pgsql import common
 from edb.pgsql import dbops
 from edb.pgsql import params
+from edb.pgsql import deltafts
 
 from edb.server import defines as edbdef
 from edb.server import config
@@ -1180,6 +1182,7 @@ class FunctionCommand(MetaCommand):
             schema,
             context,
             body=body,
+            func_name=func.get_name(schema),
             params=func.get_params(schema),
             language=ql_ast.Language.EdgeQL,
             return_type=func.get_return_type(schema),
@@ -3044,6 +3047,34 @@ class CompositeMetaCommand(MetaCommand):
             if table_name is None:
                 self.table_name = tabname
 
+        # HACK: See issue #6304.
+        # There are a lot of opportunities for deadlocks between DDL
+        # (which can take a lot of full locks on things) and
+        # long-running queries.  One place this comes up is with views,
+        # since recreating a view requires a lock. When adding things to
+        # tables, our DDL must modify the table, then modify the view.
+        # This poses a deadlock risk with queries, which nearly always
+        # will access the view before accessing the table (since the table
+        # is how they get to the view).
+        #
+        # Put a hacky and hopefully temporary bandage around this particular
+        # deadlock case by injecting a no-op ALTER VIEW before the first
+        # ALTER of some table.  This ensures that DDL locks the inhview
+        # before the real table, making the lock order match the typical
+        # query lock order.
+        #
+        # By putting the hook to insert the ALTER VIEW here, we cover
+        # both the object and link cases and avoid doing it when the
+        # table is not actually modified (which is important, since
+        # doing that could induce the sort of deadlock we are trying
+        # to avoid).
+        if dbops.AlterTable not in self._multicommands:
+            mod, name = common.get_backend_name(
+                schema, self.scls, aspect='inhview', catenate=False)
+            self.pgops.add(dbops.Query(f'''\
+                ALTER VIEW IF EXISTS {mod}."{name}" SET SCHEMA {mod};
+            '''))
+
         return self._get_multicommand(
             context, dbops.AlterTable, tabname,
             force_new=force_new, manual=manual,
@@ -3162,8 +3193,12 @@ class CompositeMetaCommand(MetaCommand):
                     cols.append((col_name, alias, True))
                 elif ptrname == sn.UnqualName('source'):
                     cols.append(('NULL::uuid', alias, False))
+                elif ptrname == sn.UnqualName('__fts_document__'):
+                    # an addon column
+                    cols.append((ptrname.name, alias, True))
                 else:
                     return None
+
         else:
             cols.extend(
                 (str(ptrname), alias, True)
@@ -3237,6 +3272,9 @@ class CompositeMetaCommand(MetaCommand):
                         ptr_stor_info.column_name,
                         ptr_stor_info.column_type,
                     )
+
+            for name, type in obj.get_addon_columns(schema):
+                ptrs[sn.UnqualName(name)] = (name, type)
 
         else:
             # MULTI PROPERTY
@@ -3484,7 +3522,28 @@ class CompositeMetaCommand(MetaCommand):
 
 
 class IndexCommand(MetaCommand):
-    pass
+    @classmethod
+    def get_compile_options(
+        cls,
+        index: s_indexes.Index,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        schema_object_context: Type[so.Object_T],
+    ) -> qlcompiler.CompilerOptions:
+        subject = index.get_subject(schema)
+        assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
+
+        singletons = [subject]
+        path_prefix_anchor = ql_ast.Subject().name
+
+        return qlcompiler.CompilerOptions(
+            modaliases=context.modaliases,
+            schema_object_context=schema_object_context,
+            anchors={ql_ast.Subject().name: subject},
+            path_prefix_anchor=path_prefix_anchor,
+            singletons=singletons,
+            apply_query_rewrites=False,
+        )
 
 
 class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
@@ -3497,19 +3556,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
     ):
         from .compiler import astutils
 
-        subject = index.get_subject(schema)
-        assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
-
-        singletons = [subject]
-        path_prefix_anchor = ql_ast.Subject().name
-
-        options = qlcompiler.CompilerOptions(
-            modaliases=context.modaliases,
-            schema_object_context=cls.get_schema_metaclass(),
-            anchors={ql_ast.Subject().name: subject},
-            path_prefix_anchor=path_prefix_anchor,
-            singletons=singletons,
-            apply_query_rewrites=False,
+        options = cls.get_compile_options(
+            index, schema, context, cls.get_schema_metaclass()
         )
 
         index_sexpr: Optional[s_expr.Expression] = index.get_expr(schema)
@@ -3582,9 +3630,28 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         if root_code is None:
             raise AssertionError(f'index {root_name} is missing the code')
 
+        # FTS
+        if root_name == sn.QualName('fts', 'index'):
+            return deltafts.create_fts_index(
+                index,
+                ir.expr,
+                predicate_src,
+                sql_kwarg_exprs,
+                options,
+                schema,
+                context,
+            )
+
         sql_res = compiler.compile_ir_to_sql_tree(ir.expr, singleton_mode=True)
         exprs = astutils.maybe_unpack_row(sql_res.ast)
 
+        if len(exprs) == 0:
+            raise errors.SchemaDefinitionError(
+                f'cannot index empty tuples using {root_name}'
+            )
+
+        subject = index.get_subject(schema)
+        assert subject
         table_name = common.get_backend_name(schema, subject, catenate=False)
 
         module_name = index.get_name(schema).module
@@ -3592,7 +3659,6 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             index.id, module_name, catenate=False)
 
         sql_exprs = [codegen.generate_source(e) for e in exprs]
-
         pg_index = dbops.Index(
             name=index_name[1],
             table_name=table_name,  # type: ignore
@@ -3620,7 +3686,23 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             # Don't do anything for abstract indexes
             return schema
 
-        self.pgops.add(self.create_index(index, schema, context))
+        try:
+            self.pgops.add(self.create_index(index, schema, context))
+
+        except errors.EdgeDBError as e:
+            if not e.has_source_context():
+                e.set_source_context(self.source_context)
+            raise e
+
+        # FTS
+        if index.has_base_with_name(schema, sn.QualName('fts', 'index')):
+            # update inhviews
+
+            subject = index.get_subject(schema)
+            assert isinstance(subject, s_objtypes.ObjectType)
+            self.schedule_inhview_update(
+                schema, context, subject, s_objtypes.ObjectTypeCommandContext
+            )
 
         return schema
 
@@ -3687,7 +3769,43 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
         if not isinstance(source.op, sd.DeleteObject):
             # We should not drop indexes when the host is being dropped since
             # the indexes are dropped automatically in this case.
-            self.pgops.add(self.delete_index(index, orig_schema, context))
+            drop_index = self.delete_index(index, orig_schema, context)
+        else:
+            drop_index = dbops.NoOpCommand()
+
+        # FTS
+        if index.has_base_with_name(orig_schema, sn.QualName('fts', 'index')):
+
+            # compile commands for index drop
+            options = self.get_compile_options(
+                index, orig_schema, context, self.get_schema_metaclass()
+            )
+            drop_ops = deltafts.delete_fts_index(
+                index, drop_index, options, schema, orig_schema, context
+            )
+            drop_s_ops = cast(sd.Command, drop_ops)
+
+            if isinstance(drop_index, dbops.NoOpCommand):
+                # Even though the object type table is getting dropped, we have
+                # to drop the trigger and its function
+                self.pgops.add(drop_s_ops)
+            else:
+                # The object is not getting dropped, so we need to update the
+                # inh view *before* the __fts_document__ is dropped.
+
+                # schedule inh view update
+                subject = index.get_subject(orig_schema)
+                assert isinstance(subject, s_objtypes.ObjectType)
+                self.schedule_inhview_update(
+                    schema, context, subject, s_sources.SourceCommandContext
+                )
+
+                # schedule the index to be dropped after
+                self.schedule_post_inhview_update_command(
+                    schema, context, drop_s_ops, s_sources.SourceCommandContext
+                )
+        else:
+            self.pgops.add(drop_index)
 
         return schema
 
@@ -3749,7 +3867,7 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand,
         for sub in self.get_subcommands(type=s_pointers.DeletePointer):
             if has_table(sub.scls, orig_schema):
                 self.pgops.add(dbops.DropView(common.get_backend_name(
-                    eff_schema, sub.scls, catenate=False)))
+                    orig_schema, sub.scls, catenate=False)))
 
         if isinstance(self, sd.DeleteObject):
             self.pgops.add(dbops.DropView(common.get_backend_name(
@@ -3973,10 +4091,15 @@ class PointerMetaCommand(
         if ptr.is_pure_computable(schema):
             return None
 
+        # We only *need* to use postgres defaults for link properties
+        # and sequence values (since we always explicitly inject it in
+        # INSERTs anyway), but we *want* to use it whenever we can,
+        # since it is much faster than explicitly populating the
+        # column.
         default = ptr.get_default(schema)
         default_value = None
 
-        if default is not None and ptr.is_link_property(schema):
+        if default is not None:
             default_value = schemamech.ptr_default_to_col_default(
                 schema, ptr, default)
         elif self.is_sequence_ptr(ptr, schema):
@@ -4424,7 +4547,7 @@ class PointerMetaCommand(
                         partial=True,
                         steps=[
                             ql_ast.Ptr(
-                                ptr=ql_ast.ObjectRef(name=pname),
+                                name=pname,
                                 type='property' if is_lprop else None,
                             ),
                         ],
@@ -4566,11 +4689,10 @@ class PointerMetaCommand(
         if changing_col_type:
             # In case the column has a default, clear it out before
             # changing the type
-            if is_lprop or self.is_sequence_ptr(pointer, orig_schema):
-                alter_table.add_operation(
-                    dbops.AlterTableAlterColumnDefault(
-                        column_name=old_ptr_stor_info.column_name,
-                        default=None))
+            alter_table.add_operation(
+                dbops.AlterTableAlterColumnDefault(
+                    column_name=old_ptr_stor_info.column_name,
+                    default=None))
 
             alter_type = dbops.AlterTableAlterColumnType(
                 old_ptr_stor_info.column_name,
@@ -4631,7 +4753,6 @@ class PointerMetaCommand(
         - Result is SQL string that contain a single SELECT statement that
           has a single value column.
         """
-        from edb.ir import ast as irast
         old_ptr_stor_info = types.get_pointer_storage_info(
             pointer, schema=orig_schema)
         ptr_table = old_ptr_stor_info.table_type == 'link'
@@ -4771,7 +4892,7 @@ class PointerMetaCommand(
         root_uid = -1
         iter_uid = -2
         body_uid = -3
-        # scope tree wrapping is roughy equivalent to:
+        # scope tree wrapping is roughly equivalent to:
         # "(std::obj) uid:-1": {
         #   "BRANCH uid:-2",
         #   "FENCE uid:-3": { ... compiled scope children ... }
@@ -4783,7 +4904,9 @@ class PointerMetaCommand(
             unique_id=body_uid,
             fenced=True
         )
-        for child in ir.scope_tree.children:
+        # Need to make a copy of the children list because
+        # attach_child removes the node from the parent list.
+        for child in list(ir.scope_tree.children):
             scope_body.attach_child(child)
 
         scope_root = irast.ScopeTreeNode(
@@ -5145,8 +5268,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
         if link.get_shortname(schema).name == '__type__':
             return
 
-        old_table_name = common.get_backend_name(
-            schema, link, catenate=False)
+        old_table_name = self._get_table_name(link, schema)
 
         if (
             not link.generic(orig_schema)
@@ -5654,16 +5776,14 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
             self.alter_ancestor_inhviews(
                 orig_schema, context, source,
                 exclude_children=frozenset((source,)))
-            old_table_name = common.get_backend_name(
-                orig_schema, source, catenate=False)
+            old_table_name = self._get_table_name(source, orig_schema)
             self.pgops.add(dbops.DropTable(name=old_table_name))
 
         if has_table(prop, orig_schema):
             self.drop_inhview(orig_schema, context, prop)
             self.alter_ancestor_inhviews(
                 schema, context, prop, exclude_children={prop})
-            old_table_name = common.get_backend_name(
-                orig_schema, prop, catenate=False)
+            old_table_name = self._get_table_name(prop, orig_schema)
             self.pgops.add(dbops.DropTable(name=old_table_name))
             self.schedule_endpoint_delete_action_update(
                 prop, orig_schema, schema, context)
@@ -5819,7 +5939,10 @@ class AlterProperty(PropertyMetaCommand, adapts=s_props.AlterProperty):
         if self.metadata_only:
             return schema
 
-        if not is_comp:
+        if (
+            not is_comp
+            and (src and has_table(src.scls, schema))
+        ):
             orig_def_val = self.get_pointer_default(prop, orig_schema, context)
             def_val = self.get_pointer_default(prop, schema, context)
 
@@ -6563,7 +6686,13 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 target, scls_type=s_links.Link, field_name='target')
 
             # We need to look at all inbound links to all ancestors
-            for ancestor in target.get_ancestors(schema).objects(schema):
+            for ancestor in itertools.chain(
+                target.get_ancestors(schema).objects(schema),
+                schema.get_referrers(
+                    target, scls_type=s_objtypes.ObjectType,
+                    field_name='union_of'
+                ),
+            ):
                 inbound_links |= schema.get_referrers(
                     ancestor, scls_type=s_links.Link, field_name='target')
 
@@ -7092,6 +7221,7 @@ class CreateExtensionPackage(
                 'internal': self.scls.get_internal(schema),
                 'ext_module': ext_module and str(ext_module),
                 'sql_extensions': list(self.scls.get_sql_extensions(schema)),
+                'dependencies': list(self.scls.get_dependencies(schema)),
             }
         }
 

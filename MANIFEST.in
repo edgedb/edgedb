@@ -4,3 +4,4 @@ include LICENSE README.md logo.svg
 
 recursive-include edb/edgeql-parser *
 recursive-include edb/edgeql-parser/edgeql-parser-python *
+recursive-include edb/server/protocol/auth_ext/_static *

@@ -32,7 +32,6 @@ from edb.schema import name as sn
 
 from . import context
 from . import dispatch
-from . import inference
 from . import polyres
 from . import schemactx
 from . import setgen
@@ -87,7 +86,7 @@ def compile_orderby_clause(
                 # with either '>' or '<' based on the DESC or ASC sort
                 # order.
                 env = exprctx.env
-                sort_type = inference.infer_type(ir_sortexpr, env)
+                sort_type = setgen.get_set_type(ir_sortexpr, ctx=ctx)
                 # Postgres by default treats ASC as using '<' and DESC
                 # as using '>'. We should do the same.
                 if sortexpr.direction == qlast.SortDesc:

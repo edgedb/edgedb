@@ -23,8 +23,11 @@ from typing import *
 from collections import defaultdict
 import itertools
 
+from edb import errors
+
 from edb import edgeql
 from edb.common import uuidgen
+from edb.common import verutils
 from edb.edgeql import ast as qlast
 from edb.edgeql import declarative as s_decl
 from edb.server import defines
@@ -47,8 +50,6 @@ from . import version as s_ver
 
 if TYPE_CHECKING:
     import uuid
-
-    from edb.common import verutils
 
 
 def delta_schemas(
@@ -358,17 +359,17 @@ def delta_schemas(
     # instead of having s_ordering sort them, we just put all
     # CreateExtension commands first and all DeleteExtension commands
     # last.
-    create_exts = sd.CommandGroup()
-    delete_exts = sd.CommandGroup()
+    create_exts: list[s_ext.CreateExtension] = []
+    delete_exts = []
     for cmd in list(objects.get_subcommands()):
         if isinstance(cmd, s_ext.CreateExtension):
             cmd.canonical = False
             objects.discard(cmd)
-            create_exts.add(cmd)
+            create_exts.append(cmd)
         elif isinstance(cmd, s_ext.DeleteExtension):
             cmd.canonical = False
             objects.discard(cmd)
-            delete_exts.add(cmd)
+            delete_exts.append(cmd)
 
     if linearize_delta:
         objects = s_ordering.linearize_delta(
@@ -412,8 +413,14 @@ def delta_schemas(
 
                 result.add(dropped)
 
-    result.prepend(create_exts)
-    result.add(delete_exts)
+    create_exts_sorted = sd.sort_by_cross_refs_key(
+        schema_b, create_exts, key=lambda x: x.scls)
+    delete_exts_sorted = sd.sort_by_cross_refs_key(
+        schema_a, delete_exts, key=lambda x: x.scls)
+
+    for op in create_exts_sorted:
+        result.prepend(op)
+    result.update(delete_exts_sorted)
 
     return result
 
@@ -511,12 +518,52 @@ def apply_sdl(
             target_schema = delta.apply(target_schema, context)
             context.schema = target_schema
 
-    # Process all the extensions first, since sdl_to_ddl needs to be able
-    # to see their contents.
-    ddl_stmt: qlast.DDLCommand
-    for ddl_stmt in extensions.values():
+    # Process all the extensions first, since sdl_to_ddl needs to be
+    # able to see their contents.  While we do so, also collect any
+    # transitive dependency extensions and add those as well.  We this
+    # dependency resolution automatically as part of SDL processing
+    # instead of when doing CREATE EXTENSION because I didn't want
+    # *DROP EXTENSION* to automatically drop transitive dependencies,
+    # and so CREATE EXTENSION shouldn't either, symmetrically.
+    extensions_done = set()
+
+    def process_ext(ddl_stmt: qlast.CreateExtension) -> None:
+        name = ddl_stmt.name.name
+        pkg = s_ext.get_package(
+            sn.UnqualName(name),
+            (
+                verutils.parse_version(ddl_stmt.version.value)
+                if ddl_stmt.version else None
+            ),
+            base_schema,
+        )
+
+        pkg_ver = pkg.get_version(base_schema)
+        if (name, pkg_ver) in extensions_done:
+            return
+        extensions_done.add((name, pkg_ver))
+
+        if pkg:
+            for dep in pkg.get_dependencies(base_schema):
+                if '==' not in dep:
+                    raise errors.SchemaError(
+                        f'built-in extension {name} missing version for {dep}')
+                dep, dep_version = dep.split('==')
+
+                process_ext(
+                    qlast.CreateExtension(
+                        name=qlast.ObjectRef(name=dep),
+                        version=qlast.StringConstant(value=dep_version),
+                    )
+                )
+
         process(ddl_stmt)
 
+    ddl_stmt: qlast.DDLCommand
+    for ddl_stmt in extensions.values():
+        process_ext(ddl_stmt)
+
+    # Now, sort the main body of SDL and apply it.
     ddl_stmts = s_decl.sdl_to_ddl(target_schema, documents)
 
     chained = itertools.chain(futures.values(), ddl_stmts)

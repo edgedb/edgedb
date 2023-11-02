@@ -76,6 +76,20 @@ need to provide some kind of placeholder value for those cases. We
 type ``'change me'`` (although any other string would do, too). This is
 different from specifying a ``default`` value since it will be applied
 to *existing* objects, whereas the ``default`` applies to *new ones*.
+
+Unseen to us (unless we take a look at the automatically generated
+``.edgeql`` files inside our ``/dbschema`` folder), EdgeDB has created
+a migration script that includes the following command to make our
+schema change happen.
+
+.. code-block:: edgeql
+
+  ALTER TYPE default::User {
+      ALTER PROPERTY name {
+          SET REQUIRED USING (<std::str>'change me');
+      };
+  };
+
 We then run :ref:`ref_cli_edgedb_migrate` to apply the changes.
 
 Next we realize that we actually want to make names unique, perhaps to

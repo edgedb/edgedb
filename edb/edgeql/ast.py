@@ -182,6 +182,10 @@ class Anchor(Expr):
     name: str
 
 
+class IRAnchor(Anchor):
+    has_dml: bool = False
+
+
 class SpecialAnchor(Anchor):
     pass
 
@@ -346,7 +350,7 @@ class TypeIntersection(Base):
 
 
 class Ptr(Base):
-    ptr: ObjectRef
+    name: str
     direction: typing.Optional[str] = None
     type: typing.Optional[str] = None
 
@@ -385,10 +389,14 @@ class IfElse(Expr):
     condition: Expr
     if_expr: Expr
     else_expr: Expr
+    # Just affects pretty-printing
+    python_style: bool = False
 
 
 class TupleElement(Base):
-    name: ObjectRef
+    # This stores the name in another node instead of as a str just so
+    # that the name can have a separate source context.
+    name: Ptr
     val: Expr
 
 
@@ -595,19 +603,14 @@ class DeleteQuery(PipelinedQuery):
     subject: Expr
 
 
-class ForBinding(Base):
+class ForQuery(Query):
+    from_desugaring: bool = False
     optional: bool = False
     iterator: Expr
     iterator_alias: str
 
-
-class ForQuery(Query):
-    iterator_bindings: typing.List[ForBinding]
-
     result_alias: typing.Optional[str] = None
     result: Expr
-
-    orderby: typing.Optional[typing.List[SortExpr]] = None
 
 
 # Transactions
@@ -909,7 +912,11 @@ class ExtensionCommand(UnqualifiedObjectCommand):
 
 
 class CreateExtension(CreateObject, ExtensionCommand):
-    pass
+    # HACK: I think there is a bug in our plugin that made us not
+    # understand that this was overridden in ExtensionCommand.
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.EXTENSION
+    )
 
 
 class DropExtension(DropObject, ExtensionCommand):
@@ -1053,6 +1060,10 @@ class CreateConcretePointer(CreateObject):
 
 
 class CreateConcreteUnknownPointer(CreateConcretePointer):
+    pass
+
+
+class AlterConcreteUnknownPointer(AlterObject, PropertyCommand):
     pass
 
 
@@ -1327,6 +1338,7 @@ class CreateTrigger(CreateObject, TriggerCommand):
     kinds: typing.List[qltypes.TriggerKind]
     scope: qltypes.TriggerScope
     expr: Expr
+    condition: typing.Optional[Expr]
 
 
 class AlterTrigger(AlterObject, TriggerCommand):

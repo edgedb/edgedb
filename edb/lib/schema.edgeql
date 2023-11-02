@@ -423,6 +423,7 @@ ALTER TYPE std::BaseObject {
     # when operating on tables directly.
     CREATE REQUIRED LINK __type__ -> schema::ObjectType {
         SET readonly := True;
+        SET protected := True;
     };
 };
 
@@ -464,6 +465,7 @@ ALTER TYPE schema::Trigger {
   CREATE MULTI PROPERTY kinds -> schema::TriggerKind;
   CREATE REQUIRED PROPERTY scope -> schema::TriggerScope;
   CREATE PROPERTY expr -> std::str;
+  CREATE PROPERTY condition -> std::str;
 };
 
 ALTER TYPE schema::Rewrite {

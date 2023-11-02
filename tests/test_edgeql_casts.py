@@ -1496,14 +1496,14 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
     async def test_edgeql_casts_illegal_07(self):
         async with self.assertRaisesRegexTx(
-                edgedb.QueryError, r"cannot cast into generic.*anytype'"):
+                edgedb.QueryError, r"cannot cast into generic.*anytype"):
             await self.con.execute("""
                 SELECT <array<anytype>>[123];
             """)
 
     async def test_edgeql_casts_illegal_08(self):
         async with self.assertRaisesRegexTx(
-                edgedb.QueryError, r"cannot cast into generic.*'anytype'"):
+                edgedb.QueryError, r"cannot cast into generic.*anytype"):
             await self.con.execute("""
                 SELECT <tuple<int64, anytype>>(123, 123);
             """)

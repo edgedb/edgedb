@@ -78,6 +78,10 @@ def is_ql_empty_set(expr: qlast.Expr) -> bool:
     return isinstance(expr, qlast.Set) and len(expr.elements) == 0
 
 
+def is_ql_empty_array(expr: qlast.Expr) -> bool:
+    return isinstance(expr, qlast.Array) and len(expr.elements) == 0
+
+
 def is_ql_path(qlexpr: qlast.Expr) -> bool:
     if isinstance(qlexpr, qlast.Shape):
         if qlexpr.expr:
@@ -106,7 +110,7 @@ def is_nontrivial_shape_element(shape_el: qlast.ShapeElement) -> bool:
 
 
 def extend_path(expr: qlast.Expr, field: str) -> qlast.Path:
-    step = qlast.Ptr(ptr=qlast.ObjectRef(name=field))
+    step = qlast.Ptr(name=field)
 
     if isinstance(expr, qlast.Path):
         return qlast.Path(

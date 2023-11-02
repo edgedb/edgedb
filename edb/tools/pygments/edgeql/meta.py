@@ -205,10 +205,16 @@ class EdgeQL:
         "true",
     )
     type_builtins = (
+        "Base64Alphabet",
         "BaseObject",
+        "ElasticLanguage",
         "FreeObject",
         "JsonEmpty",
+        "Language",
+        "LuceneLanguage",
         "Object",
+        "PGLanguage",
+        "Weight",
         "anycontiguous",
         "anydiscrete",
         "anyenum",
@@ -225,6 +231,7 @@ class EdgeQL:
         "date_duration",
         "datetime",
         "decimal",
+        "document",
         "duration",
         "enum",
         "float32",
@@ -236,6 +243,7 @@ class EdgeQL:
         "local_date",
         "local_datetime",
         "local_time",
+        "multirange",
         "range",
         "relative_duration",
         "sequence",
@@ -246,6 +254,7 @@ class EdgeQL:
     module_builtins = (
         "cal",
         "cfg",
+        "enc",
         "ext",
         "fts",
         "math",
@@ -343,6 +352,7 @@ class EdgeQL:
         "re_replace",
         "re_test",
         "round",
+        "search",
         "sequence_next",
         "sequence_reset",
         "sqrt",
@@ -369,6 +379,7 @@ class EdgeQL:
         "sum",
         "time_get",
         "to_bigint",
+        "to_bytes",
         "to_date_duration",
         "to_datetime",
         "to_decimal",
@@ -388,6 +399,16 @@ class EdgeQL:
         "uuid_generate_v4",
         "var",
         "var_pop",
+        "with_options",
+    )
+    index_builtins = (
+        "brin",
+        "btree",
+        "gin",
+        "gist",
+        "hash",
+        "index",
+        "spgist",
     )
     operators = (
         "!=",

@@ -180,16 +180,8 @@ async def _init_cluster(
 def _init_parsers():
     # Initialize parsers that are used in the server process.
     from edb.edgeql import parser as ql_parser
-    from edb.edgeql.parser import grammar as ql_grammar
 
-    ql_parser.preload(
-        allow_rebuild=devmode.is_in_dev_mode(),
-        paralellize=True,
-        grammars=[
-            ql_grammar.block,
-            ql_grammar.fragment,
-        ]
-    )
+    ql_parser.preload_spec()
 
 
 async def _run_server(
@@ -547,6 +539,7 @@ async def run_server(
     try:
         pg_cluster_init_by_us = await cluster.ensure_initialized()
         cluster_status = await cluster.get_status()
+        logger.debug("postgres cluster status: %s", cluster_status)
 
         if isinstance(cluster, pgcluster.Cluster):
             is_local_cluster = True
@@ -570,6 +563,8 @@ async def run_server(
             is_local_cluster = False
             if cluster_status != "running":
                 abort('specified PostgreSQL instance is not running')
+
+        logger.info("postgres cluster is running")
 
         new_instance, compiler_state = await _init_cluster(cluster, args)
 

@@ -34,5 +34,17 @@ async def parse_execute_json(
     globals_: Optional[Mapping[str, Any]] = None,
     output_format: compiler.OutputFormat = compiler.OutputFormat.JSON,
     query_cache_enabled: Optional[bool] = None,
+    cached_globally: bool = False,
+    use_metrics: bool = True,
 ) -> bytes:
+    ...
+
+async def interpret_error(
+    exc: Exception,
+    db: dbview.Database,
+    *,
+    global_schema_pickle: object=None,
+    user_schema_pickle: object=None,
+    from_graphql: bool=False,
+) -> Exception:
     ...

@@ -712,7 +712,7 @@ class EQLFunctionDirective(BaseEQLDirective):
         if debug.flags.disable_docs_edgeql_validation:
             signode['eql-fullname'] = fullname = sig.split('(')[0]
             signode['eql-signature'] = sig
-            mod, name = fullname.split('::')
+            mod, name = fullname.rsplit('::', 1)
             signode['eql-module'] = mod
             signode['eql-name'] = name
 
@@ -725,8 +725,9 @@ class EQLFunctionDirective(BaseEQLDirective):
         from edb.edgeql import qltypes
 
         try:
+            edgeql_parser.preload_spec()
             astnode = edgeql_parser.parse(
-                edgeql_grammar.block,
+                edgeql_grammar.tokens.T_STARTBLOCK,
                 f'create function {sig} using SQL function "xxx";')[0]
         except Exception as ex:
             raise self.error(
@@ -799,9 +800,11 @@ class EQLConstraintDirective(BaseEQLDirective):
         from edb.edgeql import codegen as ql_gen
 
         try:
+            edgeql_parser.preload_spec()
             astnode = edgeql_parser.parse(
-                edgeql_grammar.block,
-                f'create abstract constraint {sig};')[0]
+                edgeql_grammar.tokens.T_STARTBLOCK,
+                f'create abstract constraint {sig};'
+            )[0]
         except Exception as ex:
             raise self.error(
                 f'could not parse constraint signature {sig!r}') from ex

@@ -97,7 +97,11 @@ def __sync__(client_id, pickled_schema, invalidation) -> None:
                 dbs = {
                     dbname: state.DatabaseState(
                         dbname,
-                        pickle.loads(pickled_state.user_schema),
+                        (
+                            None
+                            if pickled_state.user_schema is None
+                            else pickle.loads(pickled_state.user_schema)
+                        ),
                         pickle.loads(pickled_state.reflection_cache),
                         pickle.loads(pickled_state.database_config),
                     )

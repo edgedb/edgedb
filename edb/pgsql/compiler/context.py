@@ -420,6 +420,7 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.path_scope = collections.ChainMap()
                 self.rel_hierarchy = {}
                 self.scope_tree = prevlevel.scope_tree.root
+                self.volatility_ref = ()
 
                 self.disable_semi_join = frozenset()
                 self.force_optional = frozenset()
@@ -467,7 +468,8 @@ class CompilerContext(compiler.CompilerContext[CompilerContextLevel]):
 
 
 RewriteKey = Tuple[uuid.UUID, bool]
-FullRewriteKey = Tuple[uuid.UUID, bool, Optional['irast.MutatingLikeStmt']]
+FullRewriteKey = Tuple[
+    uuid.UUID, bool, Optional[frozenset['irast.MutatingLikeStmt']]]
 
 
 class Environment:

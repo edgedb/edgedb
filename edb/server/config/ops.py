@@ -41,6 +41,9 @@ from . import spec
 from . import types
 
 
+MAX_CONFIG_SET_SIZE = 128
+
+
 class OpCode(enum.StrEnum):
 
     CONFIG_ADD = 'ADD'
@@ -55,6 +58,9 @@ class SettingValue(NamedTuple):
     value: Any
     source: str
     scope: qltypes.ConfigScope
+    # We track this just so that we can redact secret values in our
+    # debug endpoints.
+    secret: bool = False
 
 
 if TYPE_CHECKING:
@@ -84,39 +90,59 @@ def coerce_single_value(setting: spec.Setting, value: Any) -> Any:
             f'invalid value type for the {setting.name!r} setting')
 
 
-def coerce_object_set(
-    spec: spec.Spec, setting: spec.Setting, values: Any
-) -> Any:
-    assert isinstance(setting.type, types.ConfigTypeSpec)
+def _check_object_set_uniqueness(
+    setting: spec.Setting,
+    objs: Iterable[types.CompositeConfigType]
+) -> frozenset[types.CompositeConfigType]:
+    """Check the unique constraints for an object set"""
+
     new_values = set()
-    for jv in values:
-        new_value = types.CompositeConfigType.from_pyvalue(
-            jv, spec=spec, tspec=setting.type,
-        )
+    exclusive_keys: dict[tuple[str, str], Any] = {}
+    for new_value in objs:
+        tspec = new_value._tspec
+        for name in tspec.fields:
+            if (val := getattr(new_value, name, None)) is None:
+                continue
+            if (site := tspec.get_field_unique_site(name)):
+                key = (site.name, name)
+                current = exclusive_keys.setdefault(key, set())
+                if val in current:
+                    raise errors.ConstraintViolationError(
+                        f'{setting.type.__name__}.{name} '
+                        f'violates exclusivity constraint'
+                    )
+                current.add(val)
 
         if new_value in new_values:
-            _report_constraint_error(setting)
+            raise errors.ConstraintViolationError(
+                f'{setting.type.__name__} has no unique values'
+            )
         new_values.add(new_value)
+
+    if len(new_values) > MAX_CONFIG_SET_SIZE:
+        raise errors.ConfigurationError(
+            f'invalid value for the '
+            f'{setting.name!r} setting: set is too large')
 
     return frozenset(new_values)
 
 
-def _report_constraint_error(setting: spec.Setting) -> NoReturn:
+def coerce_object_set(
+    spec: spec.Spec, setting: spec.Setting, values: Any
+) -> Any:
     assert isinstance(setting.type, types.ConfigTypeSpec)
+    if not setting.set_of and len(values) > 1:
+        raise errors.ConstraintViolationError(
+            f'cannot have multiple values for single setting {setting.name!r}'
+        )
 
-    props = []
-    for f in setting.type.fields.values():
-        if f.unique:
-            props.append(f.name)
-
-    if len(props) > 1:
-        props_s = f' ({", ".join(props)}) violate'
-    else:
-        props_s = f'.{props[0]} violates'
-
-    raise errors.ConstraintViolationError(
-        f'{setting.type.__name__}{props_s} '
-        f'exclusivity constraint'
+    return _check_object_set_uniqueness(
+        setting,
+        (
+            types.CompositeConfigType.from_pyvalue(
+                jv, spec=spec, tspec=setting.type)
+            for jv in values
+        ),
     )
 
 
@@ -138,7 +164,7 @@ class Operation(NamedTuple):
                      allow_missing: bool = False):
         if isinstance(setting.type, types.ConfigTypeSpec):
             try:
-                if setting.set_of and self.opcode is OpCode.CONFIG_SET:
+                if self.opcode is OpCode.CONFIG_SET:
                     return coerce_object_set(spec, setting, self.value)
                 else:
                     return types.CompositeConfigType.from_pyvalue(
@@ -156,9 +182,15 @@ class Operation(NamedTuple):
                     f'invalid value type for the '
                     f'{setting.name!r} setting')
             else:
-                return frozenset(
+                val = frozenset(
                     coerce_single_value(setting, v)
                     for v in self.value)  # type: ignore
+                if len(val) > MAX_CONFIG_SET_SIZE:
+                    raise errors.ConfigurationError(
+                        f'invalid value for the '
+                        f'{setting.name!r} setting: set is too large')
+                return val
+
         else:
             try:
                 return coerce_single_value(setting, self.value)
@@ -217,10 +249,8 @@ class Operation(NamedTuple):
             else:
                 exist_value = setting.default
 
-            if value in exist_value:
-                _report_constraint_error(setting)
-
-            new_value = exist_value | {value}
+            new_value = _check_object_set_uniqueness(
+                setting, list(exist_value) + [value])
             storage = self._set_value(storage, new_value)
 
         elif self.opcode is OpCode.CONFIG_REM:
@@ -324,7 +354,10 @@ def value_to_json_value(setting: spec.Setting, value: Any):
             return list(value)
     else:
         if isinstance(setting.type, types.ConfigTypeSpec):
-            return value.to_json_value()
+            # We always store objects as list at the top-level, even
+            # if they are single, because it simplifies things in the
+            # config handling SQL.
+            return [value.to_json_value()] if value is not None else []
         elif _issubclass(setting.type, statypes.Duration) and value is not None:
             return value.to_iso8601()
         elif (_issubclass(setting.type, statypes.ConfigMemory) and
@@ -347,8 +380,14 @@ def value_from_json_value(spec: spec.Spec, setting: spec.Setting, value: Any):
             return frozenset(value)
     else:
         if isinstance(setting.type, types.ConfigTypeSpec):
+            if not value:
+                return None
+            if len(value) > 1:
+                raise errors.ConfigurationError(
+                    f'multiple entries for single object {setting.name}'
+                )
             return types.CompositeConfigType.from_pyvalue(
-                value, spec=spec, tspec=setting.type,
+                value[0], spec=spec, tspec=setting.type,
             )
         elif _issubclass(setting.type, statypes.Duration):
             return statypes.Duration.from_iso8601(value)
@@ -414,6 +453,7 @@ def from_json(spec: spec.Spec, js: str | bytes) -> SettingsMap:
                 value=value_from_json_value(spec, setting, value['value']),
                 source=value['source'],
                 scope=qltypes.ConfigScope(value['scope']),
+                secret=setting.secret,
             )
 
     return mm.finish()
@@ -422,6 +462,7 @@ def from_json(spec: spec.Spec, js: str | bytes) -> SettingsMap:
 def to_edgeql(
     spec: spec.Spec,
     storage: Mapping[str, SettingValue],
+    with_secrets: bool,
 ) -> str:
     stmts = []
 
@@ -429,8 +470,17 @@ def to_edgeql(
         if name not in spec:
             continue
         setting = spec[name]
+        if setting.secret and not with_secrets:
+            continue
+        if setting.protected:
+            continue
         if isinstance(setting.type, types.ConfigTypeSpec):
-            for x in value.value:
+            values = value.value if setting.set_of else [value.value]
+            for x in values:
+                # We look at the specific type of the object because
+                # a subtype could have a secret that the parent doesn't.
+                if x._tspec.has_secret and not with_secrets:
+                    continue
                 val = value_to_edgeql_const(setting.type, x)
                 stmt = f'CONFIGURE {value.scope.to_edgeql()}\n{val};'
                 stmts.append(stmt)
@@ -450,7 +500,10 @@ def set_value(
     scope: qltypes.ConfigScope,
 ) -> SettingsMap:
 
+    secret = name in storage and storage[name].secret
+
     return storage.set(
         name,
-        SettingValue(name=name, value=value, source=source, scope=scope),
+        SettingValue(name=name, value=value, source=source, scope=scope,
+                     secret=secret),
     )

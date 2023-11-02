@@ -17,83 +17,118 @@
 #
 
 
-import asyncio
-import urllib.parse
+import json
 
-import httpx
+from typing import Any, Type
+from edb.server.protocol import execute
 
-
-from typing import Any
-
-from . import errors, util, data
-
-
-class HttpClient(httpx.AsyncClient):
-    def __init__(
-        self, *args, edgedb_test_url: str | None, base_url: str, **kwargs
-    ):
-        if edgedb_test_url:
-            self.edgedb_orig_base_url = urllib.parse.quote(base_url, safe='')
-            base_url = edgedb_test_url
-        super().__init__(*args, base_url=base_url, **kwargs)
-
-    async def post(self, path, *args, **kwargs):
-        if self.edgedb_orig_base_url:
-            path = f'{self.edgedb_orig_base_url}/{path}'
-        return await super().post(path, *args, **kwargs)
-
-    async def get(self, path, *args, **kwargs):
-        if self.edgedb_orig_base_url:
-            path = f'{self.edgedb_orig_base_url}/{path}'
-        return await super().get(path, *args, **kwargs)
+from . import github, google, azure, apple
+from . import errors, util, data, base, http_client
 
 
 class Client:
-    def __init__(self, db: Any, provider: str, base_url: str | None = None):
-        self.db = db
-        self.db_config = db.db_config
+    provider: base.BaseProvider
 
-        http_factory = lambda *args, **kwargs: HttpClient(
+    def __init__(
+        self, db: Any, provider_name: str, base_url: str | None = None
+    ):
+        self.db = db
+
+        http_factory = lambda *args, **kwargs: http_client.HttpClient(
             *args, edgedb_test_url=base_url, **kwargs
         )
 
-        match provider:
-            case "github":
-                from . import github
+        provider_config = self._get_provider_config(provider_name)
+        provider_args = (provider_config.client_id, provider_config.secret)
+        provider_kwargs = {
+            "http_factory": http_factory,
+            "additional_scope": provider_config.additional_scope,
+        }
 
-                self.provider = github.GitHubProvider(
-                    *self._get_client_credientials("github"),
-                    http_factory=http_factory,
-                )
+        provider_class: Type[base.BaseProvider]
+        match provider_name:
+            case "builtin::oauth_github":
+                provider_class = github.GitHubProvider
+            case "builtin::oauth_google":
+                provider_class = google.GoogleProvider
+            case "builtin::oauth_azure":
+                provider_class = azure.AzureProvider
+            case "builtin::oauth_apple":
+                provider_class = apple.AppleProvider
             case _:
-                raise errors.InvalidData("Invalid provider: {provider}")
+                raise errors.InvalidData(f"Invalid provider: {provider_name}")
 
-    def get_authorize_url(self, state: str, redirect_uri: str) -> str:
-        return self.provider.get_code_url(
-            state=state, redirect_uri=redirect_uri
+        self.provider = provider_class(
+            *provider_args, **provider_kwargs  # type: ignore
         )
 
-    async def handle_callback(self, code: str) -> None:
-        token = await self.provider.exchange_code(code)
+    async def get_authorize_url(self, state: str, redirect_uri: str) -> str:
+        return await self.provider.get_code_url(
+            state=state,
+            redirect_uri=redirect_uri,
+            additional_scope=self.provider.additional_scope or "",
+        )
 
-        async with asyncio.TaskGroup() as g:
-            user_info_t = g.create_task(self.provider.fetch_user_info(token))
-            emails_t = g.create_task(self.provider.fetch_emails(token))
-        user_info = user_info_t.result()
-        emails = emails_t.result()
+    async def handle_callback(
+        self, code: str, redirect_uri: str
+    ) -> tuple[data.Identity, bool, str | None, str | None]:
+        response = await self.provider.exchange_code(code, redirect_uri)
+        user_info = await self.provider.fetch_user_info(response)
+        auth_token = response.access_token
+        refresh_token = response.refresh_token
 
-        await self._handle_identity(user_info, emails)
+        return (
+            *(await self._handle_identity(user_info)),
+            auth_token,
+            refresh_token,
+        )
 
     async def _handle_identity(
-        self, user_info: data.UserInfo, emails: list[data.Email]
-    ) -> None:
-        ...
+        self, user_info: data.UserInfo
+    ) -> tuple[data.Identity, bool]:
+        """Update or create an identity"""
 
-    def _get_client_credientials(self, client_name: str) -> tuple[str, str]:
-        client_id = util.get_config(
-            self.db_config, f"xxx_{client_name}_client_id"
+        r = await execute.parse_execute_json(
+            db=self.db,
+            query="""\
+with
+  iss := <str>$issuer_url,
+  sub := <str>$subject,
+  identity := (
+    insert ext::auth::Identity {
+      issuer := iss,
+      subject := sub,
+    } unless conflict on ((.issuer, .subject))
+      else ext::auth::Identity
+  )
+select {
+  identity := (select identity {*}),
+  new := (identity not in ext::auth::Identity)
+};""",
+            variables={
+                "issuer_url": self.provider.issuer_url,
+                "subject": user_info.sub,
+            },
+            cached_globally=True,
         )
-        client_secret = util.get_config(
-            self.db_config, f"xxx_{client_name}_client_secret"
+        result_json = json.loads(r.decode())
+        assert len(result_json) == 1
+
+        return (
+            data.Identity(**result_json[0]['identity']),
+            result_json[0]['new']
         )
-        return client_id, client_secret
+
+    def _get_provider_config(self, provider_name: str):
+        provider_client_config = util.get_config(
+            self.db, "ext::auth::AuthConfig::providers", frozenset
+        )
+        for cfg in provider_client_config:
+            if cfg.name == provider_name:
+                return data.ProviderConfig(
+                    cfg.client_id, cfg.secret, cfg.additional_scope
+                )
+
+        raise errors.MissingConfiguration(
+            provider_name, "Provider is not configured"
+        )

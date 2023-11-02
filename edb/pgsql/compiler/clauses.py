@@ -82,19 +82,16 @@ def get_volatility_ref(
 
 def setup_iterator_volatility(
         iterator: Optional[Union[irast.Set, pgast.IteratorCTE]], *,
-        is_cte: bool=False,
         ctx: context.CompilerContextLevel) -> None:
     if iterator is None:
         return
-
-    old = () if is_cte else ctx.volatility_ref
 
     path_id = iterator.path_id
 
     # We use a callback scheme here to avoid inserting volatility ref
     # columns unless there is actually a volatile operation that
     # requires it.
-    ctx.volatility_ref = old + (
+    ctx.volatility_ref += (
         lambda stmt, xctx: get_volatility_ref(path_id, stmt, ctx=xctx),)
 
 
@@ -191,7 +188,7 @@ def compile_iterator_expr(
 
         # If the iterator value is nullable, add a null test. This
         # makes sure that we don't spuriously produce output when
-        # iterating over options pointers.
+        # iterating over optional pointers.
         is_optional = ctx.scope_tree.is_optional(iterator_expr.path_id)
         if not is_optional:
             if isinstance(iterator_query, pgast.SelectStmt):
@@ -216,6 +213,9 @@ def compile_iterator_expr(
         if not already_existed:
             relctx.ensure_bond_for_expr(
                 iterator_expr.expr.result, iterator_query, ctx=subctx)
+            if is_optional:
+                relctx.ensure_bond_for_expr(
+                    iterator_expr, iterator_query, ctx=subctx)
 
     return iterator_rvar
 
