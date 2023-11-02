@@ -6,15 +6,15 @@ Auth
 
 :edb-alt-title: Using EdgeDB Auth
 
-EdgeDB Auth is a free batteries-included authentication solution for your app
-built on EdgeDB. Here's how you can integrate it with your app.
+EdgeDB Auth is a batteries-included authentication solution for your app built
+into the EdgeDB server. Here's how you can integrate it with your app.
 
 
 Enable extension in your schema
 ===============================
 
-Auth is shipped as an EdgeDB extension, so to enable it, you will need
-to add the extension to your app’s schema:
+Auth is an EdgeDB extension. To enable it, you will need to add the extension to
+your app’s schema:
 
 .. code-block:: sdl
 
@@ -54,6 +54,37 @@ to allow rotation.
 
 This value controls the expiration time on the authentication token’s
 JSON Web Token. This is effectively the “session” time.
+
+
+``allowed_redirect_urls``
+-------------------------
+
+This value is a set of strings that we use to ensure we only redirect to domains
+that are under the control of the application using the Auth extension. We
+compare any ``redirect_to`` URLs against this list. A URL is considered a "match"
+if the URL is exactly the same as one on the list, or is a sub-path of a URL on
+the list.
+
+For example, if the set includes ``https://example.com/myapp``:
+
+Match
+- ``https://example.com/myapp``
+- ``https://example.com/myapp/auth``
+- ``https://example.com/myapp/auth/verify``
+- ``https://example.com/myapp/somewhere/else``
+
+No Match
+- ``http://example.com/myapp`` - Does not match the protocol
+- ``https://example.com:443/myapp`` - Does not match the port
+- ``https://auth.example.com/myapp`` - Does not match the subdomain
+- ``https://example.com/different/subpath`` - Does not match the pathname or
+extend it
+
+.. note::
+
+    💡 We always allow redirects to the auth extension itself, so you do not
+    need to add it explicitly if, for instance, you are always using the
+    built-in UI.
 
 
 Enabling authentication providers
@@ -190,18 +221,18 @@ Select your method for detailed configuration:
 Build your own UI
 -----------------
 
+oy
+
 Email and password
 ^^^^^^^^^^^^^^^^^^
 
-PKCE
-^^^^
+beep
+boop
 
 
 OAuth
 ^^^^^
-
-PKCE
-^^^^
+bop
 
 We secure authentication tokens and other sensitive data by using PKCE
 (Proof Key of Code Exchange).
