@@ -245,3 +245,4 @@ We secure authentication tokens and other sensitive data by using PKCE
          res.end();
       };
 
+:ref:`Back to the EdgeDB Auth guide <ref_guide_auth>`

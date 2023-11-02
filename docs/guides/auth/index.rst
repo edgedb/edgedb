@@ -5,7 +5,8 @@ Auth
 ====
 
 .. toctree::
-    :maxdepth: 1
+    :hidden:
+    :maxdepth: 3
 
     built_in_ui
     email_password
@@ -231,6 +232,7 @@ Select your method for detailed configuration:
 
     built_in_ui
     email_password
+    oauth
 
 
 Example usage
