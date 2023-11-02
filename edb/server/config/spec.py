@@ -59,6 +59,7 @@ class Setting:
     enum_values: Optional[Sequence[str]] = None
     required: bool = True
     secret: bool = False
+    protected: bool = False
 
     def __post_init__(self) -> None:
         if (self.type not in SETTING_TYPES and
@@ -305,6 +306,7 @@ def _load_spec_from_type(
             ),
             required=required,
             secret=p.get_secret(schema),
+            protected=p.get_protected(schema),
         )
 
         settings.append(setting)

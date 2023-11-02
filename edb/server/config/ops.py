@@ -472,6 +472,8 @@ def to_edgeql(
         setting = spec[name]
         if setting.secret and not with_secrets:
             continue
+        if setting.protected:
+            continue
         if isinstance(setting.type, types.ConfigTypeSpec):
             values = value.value if setting.set_of else [value.value]
             for x in values:

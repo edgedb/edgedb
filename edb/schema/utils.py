@@ -1207,7 +1207,8 @@ def const_ast_from_python(val: Any) -> qlast.Expr:
                     expr=qlast.Path(steps=[qlast.Ptr(name=ptr)]),
                     compexpr=const_ast_from_python(getattr(val, ptr)),
                 )
-                for ptr in val._tspec.fields
+                for ptr, typ in val._tspec.fields.items()
+                if not typ.secret and not typ.protected
             ],
         )
     elif isinstance(val, (set, frozenset)):
