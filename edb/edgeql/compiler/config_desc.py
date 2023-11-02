@@ -123,7 +123,11 @@ def _describe_config_inner(
         key=lambda x: x[0],
     ):
         pn = str(ptr_name)
-        if pn in ('id', '__type__') or p.get_computable(schema):
+        if (
+            pn == 'id'
+            or p.get_computable(schema)
+            or p.get_protected(schema)
+        ):
             continue
 
         is_internal = (

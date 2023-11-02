@@ -41,6 +41,7 @@ class CompositeTypeSpecField:
     unique: bool = False
     default: Any = MISSING
     secret: bool = False
+    protected: bool = False
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)

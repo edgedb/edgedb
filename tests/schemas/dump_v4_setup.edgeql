@@ -48,6 +48,51 @@ CONFIGURE CURRENT DATABASE INSERT ext::_conf::SecretObj {
     secret := '123456',
 };
 
+# Lots of ext::auth config
+CONFIGURE CURRENT DATABASE SET
+ext::auth::AuthConfig::auth_signing_key := 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+CONFIGURE CURRENT DATABASE SET
+ext::auth::AuthConfig::token_time_to_live := <duration>'24 hours';
+
+CONFIGURE CURRENT DATABASE SET
+ext::auth::SMTPConfig::sender := 'noreply@example.com';
+
+CONFIGURE CURRENT DATABASE SET
+ext::auth::AuthConfig::allowed_redirect_urls := {
+    'https://example.com'
+};
+
+CONFIGURE CURRENT DATABASE
+INSERT ext::auth::GitHubOAuthProvider {
+    secret := 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    client_id := '12f25e85-8659-41a5-87f5-9024e8b057d0',
+};
+
+CONFIGURE CURRENT DATABASE
+INSERT ext::auth::GoogleOAuthProvider {
+    secret := 'cccccccccccccccccccccccccccccccc',
+    client_id := '798dcc1b-ab29-4aa1-9d8c-dae9f01444f2',
+};
+
+CONFIGURE CURRENT DATABASE
+INSERT ext::auth::AzureOAuthProvider {
+    secret := 'cccccccccccccccccccccccccccccccc',
+    client_id := '1597b3fc-b67d-4d2b-b38f-acc256341dbc',
+    additional_scope := 'offline_access',
+};
+
+CONFIGURE CURRENT DATABASE
+INSERT ext::auth::AppleOAuthProvider {
+    secret := 'cccccccccccccccccccccccccccccccc',
+    client_id := 'aaf279c6-6c6e-4815-9849-d7a912d26e3b',
+};
+
+CONFIGURE CURRENT DATABASE
+INSERT ext::auth::EmailPasswordProviderConfig {
+    require_verification := false,
+};
+
 CONFIGURE CURRENT DATABASE INSERT ext::auth::UIConfig {
     redirect_to := 'http://example.edgedb.com'
 };
