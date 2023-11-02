@@ -9,6 +9,7 @@ Auth
 
     built_in_ui
     email_password
+    oauth
 
 :edb-alt-title: Using EdgeDB Auth
 
