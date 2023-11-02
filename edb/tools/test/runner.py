@@ -398,6 +398,9 @@ class ExperimentalInterpreterTestSuite(unittest.TestSuite):
         self.test_suites = test_suites
         self.sort_test_func = sort_test_func
         self.stop_requested = False
+        from edb.edgeql import parser as ql_parser
+
+        ql_parser.preload_spec()
 
     def run(self, result_):
         global result

@@ -36,7 +36,7 @@ class TestEdgeQLVector(tb.QueryTestCase):
                          'pgvector_setup.edgeql')
 
     @classmethod
-    def get_setup_script(cls):
+    def get_setup_script(cls, use_experimental_interpreter=False):
         res = super().get_setup_script()
 
         # HACK: As a debugging cycle hack, when RELOAD is true, we reload the

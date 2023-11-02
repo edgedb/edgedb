@@ -417,7 +417,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         cls.loop.run_until_complete(cls._wait_for_db_config())
 
     @classmethod
-    def get_setup_script(cls):
+    def get_setup_script(cls, use_experimental_interpreter=False):
         res = super().get_setup_script()
 
         import os.path

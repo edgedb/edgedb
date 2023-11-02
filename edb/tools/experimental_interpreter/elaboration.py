@@ -74,7 +74,7 @@ def elab_Path(p: qlast.Path) -> Expr:
                     result = FreeVarExpr(var=name)
                 else:
                     raise ValueError("Unexpected ObjectRef in Path")
-            case qlast.Ptr(ptr=qlast.ObjectRef(name=path_name),
+            case qlast.Ptr(name=path_name,
                            direction=PointerDirection.Outbound, type=ptr_type):
                 if result is None:
                     raise ValueError("should not be")
@@ -83,7 +83,7 @@ def elab_Path(p: qlast.Path) -> Expr:
                         result = LinkPropProjExpr(result, path_name)
                     else:
                         result = ObjectProjExpr(result, path_name)
-            case qlast.Ptr(ptr=qlast.ObjectRef(name=path_name),
+            case qlast.Ptr(name=path_name,
                            direction=PointerDirection.Inbound, type=None):
                 if result is None:
                     raise ValueError("should not be")
@@ -111,10 +111,10 @@ def elab_label(p: qlast.Path) -> Label:
     """ Elaborates a single name e.g. in the left hand side of a shape """
     match p:
         case qlast.Path(steps=[qlast.Ptr(
-                ptr=qlast.ObjectRef(name=pname),
+                name=pname,
                 direction=s_pointers.PointerDirection.Outbound)]):
             return StrLabel(pname)
-        case qlast.Path(steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=pname),
+        case qlast.Path(steps=[qlast.Ptr(name=pname,
                                          type='property')]):
             return LinkPropLabel(pname)
     return elab_not_implemented(p, "label")
@@ -509,8 +509,6 @@ def elab_UnnamedTuple(qle: qlast.Tuple) -> UnnamedTupleExpr:
 def elab_ForQuery(qle: qlast.ForQuery) -> ForExpr | OptionalForExpr:
     if qle.result_alias:
         raise elab_not_implemented(qle)
-    if len(qle.iterator_bindings) != 1:
-        raise elab_not_implemented(qle)
     return cast(
         (ForExpr | OptionalForExpr),
         elab_aliases(
@@ -518,11 +516,11 @@ def elab_ForQuery(qle: qlast.ForQuery) -> ForExpr | OptionalForExpr:
             cast(
                 Expr,
                 (OptionalForExpr
-                 if qle.iterator_bindings[0].optional else ForExpr)
-                (bound=elab(qle.iterator_bindings[0].iterator),
+                 if qle.optional else ForExpr)
+                (bound=elab(qle.iterator),
                  next=abstract_over_expr(
                      elab(qle.result),
-                     qle.iterator_bindings[0].iterator_alias)))))
+                     qle.iterator_alias)))))
 
 
 @elab.register
