@@ -99,8 +99,8 @@ We secure authentication tokens and other sensitive data by using PKCE
        * from other parts of the request.
        *
        * One reason we like to use `URL` objects here is to easily parse the
-       * `URLSearchParams` from the request, and rather than do more error prone
-       * string manipulation, we build a `URL`.
+       * `URLSearchParams` from the request, and rather than do more error
+       * prone string manipulation, we build a `URL`.
        *
        * @param {Request} req
        * @returns {URL}
