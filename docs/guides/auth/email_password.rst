@@ -54,7 +54,7 @@ We secure authentication tokens and other sensitive data by using PKCE
    it with SHA256, and then base64url encode the resulting string. This new
    string is called the ``challenge``.
 
-   .. lint-off
+.. lint-off
 
    .. code-block:: javascript
 
@@ -88,9 +88,13 @@ We secure authentication tokens and other sensitive data by using PKCE
          return { verifier, challenge };
       };
 
+.. lint-on
+
 
 2. Next, we implement routes that handle registering a new user and
    authenticating an existing user.
+
+.. lint-off
 
    .. code-block:: javascript
 
@@ -244,14 +248,13 @@ We secure authentication tokens and other sensitive data by using PKCE
         });
       };
 
-
-   .. lint-on
+.. lint-on
 
 3. When a new user signs up, by default we require them to verify their email
    address before allowing the application to get an authentication token. To
    handle the verification flow, we implement an endpoint:
 
-   .. lint-off
+.. lint-off
 
    .. code-block:: javascript
 
@@ -327,7 +330,7 @@ We secure authentication tokens and other sensitive data by using PKCE
         res.end();
       };
 
-   .. lint-on
+.. lint-on
 
 4. Once the request to ``auth/authenticate`` completes, the EdgeDB server
    response with a JSON body with a single property: ``code``.  You take that

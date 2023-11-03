@@ -92,7 +92,7 @@ We secure authentication tokens and other sensitive data by using PKCE
    redirect the end user's browser to the Identity Provider with the proper
    setup.
 
-   .. lint-off
+.. lint-off
 
    .. code-block:: javascript
 
@@ -152,7 +152,7 @@ We secure authentication tokens and other sensitive data by using PKCE
         res.end();
       };
 
-   .. lint-on
+.. lint-on
 
 3. At the very end of the flow, the EdgeDB server will redirect the user's
    browser to the ``redirect_to`` address with a single query parameter:
@@ -161,7 +161,7 @@ We secure authentication tokens and other sensitive data by using PKCE
    step 1, and make a request to the EdgeDB Auth extension to exchange these
    two pieces of data for an ``auth_token``.
 
-   .. lint-off
+.. lint-off
 
    .. code-block:: javascript
 
@@ -220,6 +220,6 @@ We secure authentication tokens and other sensitive data by using PKCE
          res.end();
       };
 
-   .. lint-on
+.. lint-on
 
 :ref:`Back to the EdgeDB Auth guide <ref_guide_auth>`
