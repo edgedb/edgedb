@@ -49,7 +49,7 @@ We secure authentication tokens and other sensitive data by using PKCE
 Start the PKCE flow
 -------------------
 
-Your application server creates a 32-byte base64 URL encoded string (which will
+Your application server creates a 32-byte Base64 URL-encoded string (which will
 be 43 bytes after encoding), called the ``verifier``. You need to store this
 value for the duration of the flow. One way to accomplish this bit of state is
 to use an HttpOnly cookie when the browser makes a request to the server for
