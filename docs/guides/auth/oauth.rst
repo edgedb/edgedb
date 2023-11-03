@@ -9,7 +9,7 @@ OAuth
 Along with using the ``Built-in UI <ref_guide_auth_built_in_ui>``, you can also
 create your own UI that calls to your own web application backend.
 
-UI Considerations
+UI considerations
 =================
 
 Similar to how the built-in UI works, you can query the database configuration
@@ -28,7 +28,7 @@ buttons. In later steps, you'll be providing this ``name`` as the ``provider``
 in various endpoints.
 
 
-Example Implementation
+Example implementation
 ======================
 
 We will demonstrate the various steps below by building a NodeJS HTTP server in
