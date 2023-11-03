@@ -54,8 +54,6 @@ We secure authentication tokens and other sensitive data by using PKCE
    it with SHA256, and then base64url encode the resulting string. This new
    string is called the ``challenge``.
 
-   .. lint-off
-
    .. code-block:: javascript
 
       import http from "node:http";
@@ -163,6 +161,8 @@ We secure authentication tokens and other sensitive data by using PKCE
    step 1, and make a request to the EdgeDB Auth extension to exchange these
    two pieces of data for an ``auth_token``.
 
+   .. lint-off
+
    .. code-block:: javascript
 
       /**
@@ -215,9 +215,11 @@ We secure authentication tokens and other sensitive data by using PKCE
 
          const { auth_token } = await codeExchangeResponse.json();
          res.writeHead(204, {
-            "Set-Cookie": `edgedb-auth-token=${auth_token}; Path=/; HttpOnly`,
+            "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
          });
          res.end();
       };
+
+   .. lint-on
 
 :ref:`Back to the EdgeDB Auth guide <ref_guide_auth>`
