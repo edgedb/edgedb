@@ -246,7 +246,7 @@ Here’s an example schema that we can use to show how you would use the
 ``auth_token`` you get back from EdgeDB to make queries against a
 protected resource, in this case being able to insert a ``Post``.
 
-.. code-block:: tsx
+.. code-block:: sdl
 
    using extension auth;
 
