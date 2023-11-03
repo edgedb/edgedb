@@ -1307,10 +1307,6 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                     using (
                         global current_player.clan.id ?= .id
                     );
-            }
-            create abstract type Principal;
-            create type Player extending Principal {
-                create required link clan: Clan;
             };
             global current_player_id: uuid;
             global current_player := (
