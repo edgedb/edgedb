@@ -921,6 +921,7 @@ class Tenant(ha_base.ClusterProtocol):
                 data = await syscon.sql_fetch_val(
                     self._server.get_sys_query("report_configs"),
                     use_prep_stmt=True,
+                    state=b'[]',  # clear _config_cache
                 )
 
                 for (
