@@ -1300,29 +1300,33 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
     async def test_edgeql_policies_alias(self):
         await self.con.execute(
             '''
+            create abstract type Principal;
+            create type Player extending Principal;
+
             create global current_player: uuid;
             create global current_player_object := (
                 select Player filter .id = global current_player
             );
 
-            create type Clan {
+            create type Clan;
+            alter type Player create required link clan: Clan;
+
+            alter type Clan {
                 create access policy allow_select_players
                     allow select
                     using (
                         global current_player_object.clan.id ?= .id
                     );
-            }
-            create abstract type Principal;
-            create type Player extending Principal {
-                create required link clan: Clan;
             };
-            '''
-        )
-        # This DDL is triggering access policies to be recompiled,
-        # which triggered a bug in #6404
-        await self.con.execute(
-            '''
             alter type Player extending std::Object;
-            drop type Player;
             '''
         )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+                r"cannot drop .+ because this affects expression of access"):
+            await self.con.execute(
+                '''
+                drop type Player;
+                '''
+            )
