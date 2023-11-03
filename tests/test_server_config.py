@@ -1511,6 +1511,17 @@ class TestSeparateCluster(tb.TestCase):
                 msg.error_code)
             self.assertEqual(errcls, errors.IdleSessionTimeoutError)
 
+            # Check new connections are fed with the new value
+            conn = await sd.connect()
+            try:
+                sysconfig = conn.get_settings()["system_config"]
+                self.assertEqual(
+                    sysconfig.session_idle_timeout,
+                    datetime.timedelta(milliseconds=10),
+                )
+            finally:
+                await conn.aclose()
+
     async def test_server_config_db_config(self):
         async with tb.start_edgedb_server(
             http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
@@ -1895,6 +1906,12 @@ class TestStaticServerConfig(tb.TestCase):
         ) as sd:
             conn = await sd.connect()
             try:
+                sysconfig = conn.get_settings()["system_config"]
+                self.assertEqual(
+                    sysconfig.session_idle_timeout,
+                    datetime.timedelta(minutes=2, seconds=18),
+                )
+
                 self.assertEqual(
                     await conn.query_single("""\
                         select assert_single(cfg::Config.session_idle_timeout)
@@ -1946,6 +1963,12 @@ class TestStaticServerConfig(tb.TestCase):
         async with tb.start_edgedb_server(env=env) as sd:
             conn = await sd.connect()
             try:
+                sysconfig = conn.get_settings()["system_config"]
+                self.assertEqual(
+                    sysconfig.session_idle_timeout,
+                    datetime.timedelta(minutes=1, seconds=22),
+                )
+
                 self.assertEqual(
                     await conn.query_single("""\
                         select assert_single(cfg::Config.session_idle_timeout)
