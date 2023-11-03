@@ -443,6 +443,7 @@ the user follows the link in their email. And, the final one is the endpoint
 that updates the password and logs in the user.
 
 .. code-block:: javascript
+
    /**
     * Request a password reset for an email.
     *
