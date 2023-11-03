@@ -15,8 +15,7 @@ Object types can contain *computed* properties and links. Computed properties
 and links are not persisted in the database. Instead, they are evaluated *on
 the fly* whenever that field is queried. Computed properties must be declared
 with the ``property`` keyword and computed links must be declared with the
-``link`` keyword. While these keywords are optional for non-computed fields
-in EdgeDB 3.0+, they are still required for computed fields.
+``link`` keyword in EdgeDB versions prior to 4.0.
 
 .. code-block:: sdl
     :version-lt: 3.0
@@ -27,10 +26,18 @@ in EdgeDB 3.0+, they are still required for computed fields.
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type Person {
       name: str;
       property all_caps_name := str_upper(__source__.name);
+    }
+
+.. code-block:: sdl
+
+    type Person {
+      name: str;
+      all_caps_name := str_upper(__source__.name);
     }
 
 Computed fields are associated with an EdgeQL expression. This expression
@@ -75,11 +82,20 @@ shorthand.
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type Person {
       first_name: str;
       last_name: str;
       property full_name := .first_name ++ ' ' ++ .last_name;
+    }
+
+.. code-block:: sdl
+
+    type Person {
+      first_name: str;
+      last_name: str;
+      full_name := .first_name ++ ' ' ++ .last_name;
     }
 
 Type and cardinality inference
@@ -103,12 +119,22 @@ next time you try to :ref:`create a migration <ref_intro_migrations>`.
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type Person {
       first_name: str;
 
       # this is invalid, because first_name is not a required property
       required property first_name_upper := str_upper(.first_name);
+    }
+
+.. code-block:: sdl
+
+    type Person {
+      first_name: str;
+
+      # this is invalid, because first_name is not a required property
+      required first_name_upper := str_upper(.first_name);
     }
 
 Common use cases
@@ -136,10 +162,25 @@ queries, consider defining a computed field that encapsulates the filter.
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type Club {
       multi members: Person;
       multi link active_members := (
+        select .members filter .is_active = true
+      )
+    }
+
+    type Person {
+      name: str;
+      is_active: bool;
+    }
+
+.. code-block:: sdl
+
+    type Club {
+      multi members: Person;
+      multi active_members := (
         select .members filter .is_active = true
       )
     }
@@ -172,6 +213,7 @@ to traverse a link in the *reverse* direction.
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type BlogPost {
       title: str;
@@ -181,6 +223,18 @@ to traverse a link in the *reverse* direction.
     type User {
       name: str;
       multi link blog_posts := .<author[is BlogPost]
+    }
+
+.. code-block:: sdl
+
+    type BlogPost {
+      title: str;
+      author: User;
+    }
+
+    type User {
+      name: str;
+      multi blog_posts := .<author[is BlogPost]
     }
 
 The ``User.blog_posts`` expression above uses the *backlink operator* ``.<`` in
@@ -201,6 +255,18 @@ database.
       property title -> str;
       link author -> User;
       required property created_at -> datetime {
+        readonly := true;
+        default := datetime_of_statement();
+      }
+    }
+
+.. code-block:: sdl
+    :version-lt: 4.0
+
+    type BlogPost {
+      title: str;
+      author: User;
+      required created_at: datetime {
         readonly := true;
         default := datetime_of_statement();
       }

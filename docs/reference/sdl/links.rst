@@ -40,7 +40,7 @@ Declare a *concrete* link "friends" within a "User" type:
         required name: str;
         address: str;
         # define a concrete link "friends"
-        multi link friends: User {
+        multi friends: User {
             extending friends_base;
         };
 
@@ -137,6 +137,50 @@ commands <ref_eql_ddl_links>`.
       "}" ]
 
 .. sdl:synopsis::
+    :version-lt: 4.0
+
+    # Concrete link form used inside type declaration:
+    [ overloaded ] [{required | optional}] [{single | multi}]
+      link <name>
+      [ extending <base> [, ...] ] -> <type>
+      [ "{"
+          [ default := <expression> ; ]
+          [ readonly := {true | false} ; ]
+          [ on target delete <action> ; ]
+          [ <annotation-declarations> ]
+          [ <property-declarations> ]
+          [ <constraint-declarations> ]
+          ...
+        "}" ]
+
+
+    # Computed link form used inside type declaration:
+    [{required | optional}] [{single | multi}]
+      link <name> := <expression>;
+
+    # Computed link form used inside type declaration (extended):
+    [ overloaded ] [{required | optional}] [{single | multi}]
+      link <name>
+      [ extending <base> [, ...] ] [-> <type>]
+      [ "{"
+          using (<expression>) ;
+          [ <annotation-declarations> ]
+          [ <constraint-declarations> ]
+          ...
+        "}" ]
+
+    # Abstract link form:
+    abstract link <name> [extending <base> [, ...]]
+    [ "{"
+        [ readonly := {true | false} ; ]
+        [ <annotation-declarations> ]
+        [ <property-declarations> ]
+        [ <constraint-declarations> ]
+        [ <index-declarations> ]
+        ...
+      "}" ]
+
+.. sdl:synopsis::
 
     # Concrete link form used inside type declaration:
     [ overloaded ] [{required | optional}] [{single | multi}]
@@ -155,7 +199,7 @@ commands <ref_eql_ddl_links>`.
 
     # Computed link form used inside type declaration:
     [{required | optional}] [{single | multi}]
-      link <name> := <expression>;
+      [ link ] <name> := <expression>;
 
     # Computed link form used inside type declaration (extended):
     [ overloaded ] [{required | optional}] [{single | multi}]

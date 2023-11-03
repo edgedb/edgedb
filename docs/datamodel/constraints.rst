@@ -180,10 +180,20 @@ Constraints can be defined on computed properties.
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type User {
       required username: str;
       required property clean_username := str_trim(str_lower(.username));
+
+      constraint exclusive on (.clean_username);
+    }
+
+.. code-block:: sdl
+
+    type User {
+      required username: str;
+      required clean_username := str_trim(str_lower(.username));
 
       constraint exclusive on (.clean_username);
     }
