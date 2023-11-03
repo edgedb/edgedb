@@ -76,6 +76,7 @@ demonstration purposes, the queries below assume the following schema:
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     module default {
       abstract type Person {
@@ -85,6 +86,29 @@ demonstration purposes, the queries below assume the following schema:
       type Hero extending Person {
         secret_identity: str;
         multi link villains := .<nemesis[is Villain];
+      }
+
+      type Villain extending Person {
+        nemesis: Hero;
+      }
+
+      type Movie {
+        required title: str { constraint exclusive };
+        required release_year: int64;
+        multi characters: Person;
+      }
+    }
+
+.. code-block:: sdl
+
+    module default {
+      abstract type Person {
+        required name: str { constraint exclusive };
+      }
+
+      type Hero extending Person {
+        secret_identity: str;
+        multi villains := .<nemesis[is Villain];
       }
 
       type Villain extending Person {
@@ -824,12 +848,22 @@ common to add them directly into your schema as computed links.
       }
 
 .. code-block:: sdl-diff
+    :version-lt: 4.0
 
       abstract type Person {
         required name: str {
           constraint exclusive;
         };
     +   multi link movies := .<characters[is Movie]
+      }
+
+.. code-block:: sdl-diff
+
+      abstract type Person {
+        required name: str {
+          constraint exclusive;
+        };
+    +   multi movies := .<characters[is Movie]
       }
 
 .. note::

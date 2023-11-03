@@ -76,12 +76,22 @@ define it as a computed link by using :ref:`backlink
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type Event {
       required name: str;
 
       prev: Event;
       link next := .<prev[is Event];
+    }
+
+.. code-block:: sdl
+
+    type Event {
+      required name: str;
+
+      prev: Event;
+      next := .<prev[is Event];
     }
 
 The migration is straightforward enough:
@@ -144,6 +154,7 @@ we're interested in building event chains, not trees.
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type Event {
       required name: str;
@@ -152,6 +163,17 @@ we're interested in building event chains, not trees.
         constraint exclusive;
       };
       link next := .<prev[is Event];
+    }
+
+.. code-block:: sdl
+
+    type Event {
+      required name: str;
+
+      prev: Event {
+        constraint exclusive;
+      };
+      next := .<prev[is Event];
     }
 
 Since the ``next`` link is computed, the migration should not need any

@@ -31,6 +31,7 @@ samples on this page assume the following schema:
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     module default {
       abstract type Person {
@@ -40,6 +41,29 @@ samples on this page assume the following schema:
       type Hero extending Person {
         secret_identity: str;
         multi link villains := .<nemesis[is Villain];
+      }
+
+      type Villain extending Person {
+        nemesis: Hero;
+      }
+
+      type Movie {
+        required title: str { constraint exclusive };
+        required release_year: int64;
+        multi characters: Person;
+      }
+    }
+
+.. code-block:: sdl
+
+    module default {
+      abstract type Person {
+        required name: str { constraint exclusive };
+      }
+
+      type Hero extending Person {
+        secret_identity: str;
+        multi villains := .<nemesis[is Villain];
       }
 
       type Villain extending Person {

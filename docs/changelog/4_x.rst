@@ -489,6 +489,9 @@ Bug fixes
 * Make ``id`` of schema objects stable.
   (:eql:gh:`#6058`)
 
+* Allow computed pointers on types to omit link/property kind specification.
+  (:eql:gh:`#6073`)
+
 * Support ``listen_ports`` greater than 32767.
   (:eql:gh:`#6194`)
 

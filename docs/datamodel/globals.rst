@@ -230,10 +230,18 @@ Unlike query parameters, globals can be referenced
 
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type User {
       name: str;
       property is_self := (.id = global current_user_id)
+    };
+
+.. code-block:: sdl
+
+    type User {
+      name: str;
+      is_self := (.id = global current_user_id)
     };
 
 This is particularly useful when declaring :ref:`access policies

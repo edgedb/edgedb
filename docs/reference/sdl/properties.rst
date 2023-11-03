@@ -40,7 +40,7 @@ Declare *concrete* properties "name" and "address" within a "User" type:
     type User {
         # define concrete properties
         required name: str;
-        property address: str {
+        address: str {
             extending address_base;
         };
 
@@ -126,6 +126,44 @@ commands <ref_eql_ddl_props>`.
       "}" ]
 
 .. sdl:synopsis::
+    :version-lt: 4.0
+
+    # Concrete property form used inside type declaration:
+    [ overloaded ] [{required | optional}] [{single | multi}]
+      property <name>
+      [ extending <base> [, ...] ] -> <type>
+      [ "{"
+          [ default := <expression> ; ]
+          [ readonly := {true | false} ; ]
+          [ <annotation-declarations> ]
+          [ <constraint-declarations> ]
+          ...
+        "}" ]
+
+    # Computed property form used inside type declaration:
+    [{required | optional}] [{single | multi}]
+      property <name> := <expression>;
+
+    # Computed property form used inside type declaration (extended):
+    [ overloaded ] [{required | optional}] [{single | multi}]
+      property <name>
+      [ extending <base> [, ...] ] [-> <type>]
+      [ "{"
+          using (<expression>) ;
+          [ <annotation-declarations> ]
+          [ <constraint-declarations> ]
+          ...
+        "}" ]
+
+    # Abstract property form:
+    abstract property [<module>::]<name> [extending <base> [, ...]]
+    [ "{"
+        [ readonly := {true | false} ; ]
+        [ <annotation-declarations> ]
+        ...
+      "}" ]
+
+.. sdl:synopsis::
 
     # Concrete property form used inside type declaration:
     [ overloaded ] [{required | optional}] [{single | multi}]
@@ -141,7 +179,7 @@ commands <ref_eql_ddl_props>`.
 
     # Computed property form used inside type declaration:
     [{required | optional}] [{single | multi}]
-      property <name> := <expression>;
+      [ property ] <name> := <expression>;
 
     # Computed property form used inside type declaration (extended):
     [ overloaded ] [{required | optional}] [{single | multi}]
