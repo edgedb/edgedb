@@ -26,8 +26,8 @@ EdgeDB UI. Set these configuration values:
    page design.
 
 
-Configuring
-===========
+Example Implementation
+======================
 
 We will demonstrate the various steps below by building a NodeJS HTTP server in
 a single file that we will use to simulate a typical web application.
@@ -59,20 +59,20 @@ We secure authentication tokens and other sensitive data by using PKCE
       import crypto from "node:crypto";
 
       /**
-      * You can get this value by running `edgedb instance credentials`.
-      * Value should be:
-      * `${protocol}://${host}:${port}/db/${database}/ext/auth/
-      */
+       * You can get this value by running `edgedb instance credentials`.
+       * Value should be:
+       * `${protocol}://${host}:${port}/db/${database}/ext/auth/
+       */
       const EDGEDB_AUTH_BASE_URL = process.env.EDGEDB_AUTH_BASE_URL;
       const SERVER_PORT = 3000;
 
       /**
-      * Generate a random Base64 url-encoded string, and derive a "challenge"
-      * string from that string to use as proof that the request for a token
-      * later is made from the same user agent that made the original request
-      *
-      * @returns {Object} The verifier and challenge strings
-      */
+       * Generate a random Base64 url-encoded string, and derive a "challenge"
+       * string from that string to use as proof that the request for a token
+       * later is made from the same user agent that made the original request
+       *
+       * @returns {Object} The verifier and challenge strings
+       */
       const generatePKCE = () => {
          const verifier = crypto.randomBytes(32).toString("base64url");
 
@@ -94,17 +94,17 @@ We secure authentication tokens and other sensitive data by using PKCE
    .. code-block:: javascript
 
       /**
-      * In Node, the `req.url` is only the `pathname` portion of a URL. In
-      * order to generate a full URL, we need to build the protocol and host
-      * from other parts of the request.
-      *
-      * One reason we like to use `URL` objects here is to easily parse the
-      * `URLSearchParams` from the request, and rather than do more error prone
-      * string manipulation, we build a `URL`.
-      *
-      * @param {Request} req
-      * @returns {URL}
-      */
+       * In Node, the `req.url` is only the `pathname` portion of a URL. In
+       * order to generate a full URL, we need to build the protocol and host
+       * from other parts of the request.
+       *
+       * One reason we like to use `URL` objects here is to easily parse the
+       * `URLSearchParams` from the request, and rather than do more error prone
+       * string manipulation, we build a `URL`.
+       *
+       * @param {Request} req
+       * @returns {URL}
+       */
       const getRequestUrl = (req) => {
          const protocol = req.connection.encrypted ? "https" : "http";
          return new URL(req.url, `${protocol}://${req.headers.host}`);
@@ -138,12 +138,12 @@ We secure authentication tokens and other sensitive data by using PKCE
       });
 
       /**
-      * Redirects browser requests to EdgeDB Auth UI sign in page with the
-      * PKCE challenge, and saves PKCE verifier in an HttpOnly cookie.
-      *
-      * @param {Request} req
-      * @param {Response} res
-      */
+       * Redirects browser requests to EdgeDB Auth UI sign in page with the
+       * PKCE challenge, and saves PKCE verifier in an HttpOnly cookie.
+       *
+       * @param {Request} req
+       * @param {Response} res
+       */
       const handleUiSignIn = async (req, res) => {
          const { verifier, challenge } = generatePKCE();
 
@@ -158,12 +158,12 @@ We secure authentication tokens and other sensitive data by using PKCE
       };
 
       /**
-      * Redirects browser requests to EdgeDB Auth UI sign up page with the
-      * PKCE challenge, and saves PKCE verifier in an HttpOnly cookie.
-      *
-      * @param {Request} req
-      * @param {Response} res
-      */
+       * Redirects browser requests to EdgeDB Auth UI sign up page with the
+       * PKCE challenge, and saves PKCE verifier in an HttpOnly cookie.
+       *
+       * @param {Request} req
+       * @param {Response} res
+       */
       const handleUiSignUp = async (req, res) => {
          const { verifier, challenge } = generatePKCE();
 
@@ -191,12 +191,12 @@ We secure authentication tokens and other sensitive data by using PKCE
    .. code-block:: javascript
 
       /**
-      * Handles the PKCE callback and exchanges the `code` and `verifier
-      * for an auth_token, setting the auth_token as an HttpOnly cookie.
-      *
-      * @param {Request} req
-      * @param {Response} res
-      */
+       * Handles the PKCE callback and exchanges the `code` and `verifier
+       * for an auth_token, setting the auth_token as an HttpOnly cookie.
+       *
+       * @param {Request} req
+       * @param {Response} res
+       */
       const handleCallback = async (req, res) => {
          const requestUrl = getRequestUrl(req);
 
@@ -213,7 +213,7 @@ We secure authentication tokens and other sensitive data by using PKCE
 
          const cookies = req.headers.cookie?.split("; ");
          const verifier = cookies
-            .find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
+            ?.find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
             ?.split("=")[1];
          if (!verifier) {
             res.status = 400;
