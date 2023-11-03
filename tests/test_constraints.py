@@ -1774,7 +1774,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
         ):
             await self.con.execute("insert X { y := -1 }")
 
-    async def test_constraints_abstract_object(self):
+    async def test_constraints_abstract_object_01(self):
         await self.con.execute(
             """
                 create abstract type ChatBase {
@@ -1795,4 +1795,63 @@ class TestConstraintsDDL(tb.DDLTestCase):
         ):
             await self.con.execute("""
                 update ChatBase set { messages += 'hello world' };
+            """)
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "messages violates exclusivity constraint"
+        ):
+            await self.con.execute("""
+                update ChatBase set { messages := 'hello world' };
+            """)
+
+    async def test_constraints_abstract_object_02(self):
+        await self.con.execute(
+            """
+                create abstract type ChatBase {
+                    create single property messages: str {
+                        create constraint exclusive;
+                    };
+                };
+
+                create type Dialog extending ChatBase;
+                create type Monolog extending ChatBase;
+                insert Dialog;
+                insert Monolog;
+            """
+        )
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "messages violates exclusivity constraint"
+        ):
+            await self.con.execute("""
+                update ChatBase set { messages := 'hello world' };
+            """)
+
+    async def test_constraints_abstract_object_03(self):
+        # Add one where the constraint comes from a different type
+        # than the update
+        await self.con.execute(
+            """
+                create abstract type ChatBase {
+                    create single property messages: str {
+                    };
+                };
+                create abstract type ChatBase2 {
+                    create single property messages: str {
+                        create constraint exclusive;
+                    };
+                };
+
+                create type Dialog extending ChatBase, ChatBase2;
+                create type Monolog extending ChatBase, ChatBase2;
+                insert Dialog;
+                insert Monolog;
+            """
+        )
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "messages violates exclusivity constraint"
+        ):
+            await self.con.execute("""
+                update ChatBase set { messages := 'hello world' };
             """)
