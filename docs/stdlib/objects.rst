@@ -30,6 +30,7 @@ type, which is a subtype of ``std::BaseObject``.
     Definition:
 
     .. code-block:: sdl
+        :version-lt: 3.0
 
         abstract type std::BaseObject {
             # Universally unique object identifier
@@ -41,6 +42,20 @@ type, which is a subtype of ``std::BaseObject``.
 
             # Object type in the information schema.
             required readonly link __type__ -> schema::ObjectType;
+        }
+
+    .. code-block:: sdl
+
+        abstract type std::BaseObject {
+            # Universally unique object identifier
+            required id: uuid {
+                default := (select std::uuid_generate_v1mc());
+                readonly := true;
+                constraint exclusive;
+            }
+
+            # Object type in the information schema.
+            required readonly __type__: schema::ObjectType;
         }
 
     Subtypes may override the ``id`` property, but only with a valid UUID
