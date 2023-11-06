@@ -49,14 +49,14 @@ We secure authentication tokens and other sensitive data by using PKCE
 Start the PKCE flow
 -------------------
 
-Your application server creates a 32-byte Base64 URL-encoded string (which
-will be 43 bytes after encoding), called the ``verifier``. You need to store
-this value for the duration of the flow. One way to accomplish this bit of
-state is to use an HttpOnly cookie when the browser makes a request to the
-server for this value, which you can then use to retrieve it from the cookie
-store at the end of the flow. Take this ``verifier`` string, and then hash
-it with SHA256, and then base64url encode the resulting string. This new
-string is called the ``challenge``.
+Your application server creates a 32-byte Base64 URL-encoded string (which will
+be 43 bytes after encoding), called the ``verifier``. You need to store this
+value for the duration of the flow. One way to accomplish this bit of state is
+to use an HttpOnly cookie when the browser makes a request to the server for
+this value, which you can then use to retrieve it from the cookie store at the
+end of the flow. Take this ``verifier`` string, hash it with SHA256, and then
+base64url encode the resulting string. This new string is called the
+``challenge``.
 
 .. code-block:: javascript
 
@@ -167,9 +167,9 @@ Retrieve ``auth_token``
 At the very end of the flow, the EdgeDB server will redirect the user's browser
 to the ``redirect_to`` address with a single query parameter: ``code``. This
 route should be a server route that has access to the ``verifier``. You then
-take that ``code`` and the ``verifier`` you stored in step 1, and make a
-request to the EdgeDB Auth extension to exchange these two pieces of data for
-an ``auth_token``.
+take that ``code`` and look up the ``verifier`` in the ``edgedb-pkce-verifier``
+cookie, and make a request to the EdgeDB Auth extension to exchange these two
+pieces of data for an ``auth_token``.
 
 .. lint-off
 

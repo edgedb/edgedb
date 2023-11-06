@@ -54,8 +54,8 @@ be 43 bytes after encoding), called the ``verifier``. You need to store this
 value for the duration of the flow. One way to accomplish this bit of state is
 to use an HttpOnly cookie when the browser makes a request to the server for
 this value, which you can then use to retrieve it from the cookie store at the
-end of the flow. Take this ``verifier`` string, and then hash it with SHA256,
-and then base64url encode the resulting string. This new string is called the
+end of the flow. Take this ``verifier`` string, hash it with SHA256, and then
+base64url encode the resulting string. This new string is called the
 ``challenge``.
 
 .. lint-off
@@ -373,8 +373,9 @@ Retrieve ``auth_token``
 
 Once the request to ``auth/authenticate`` completes, the EdgeDB server response
 with a JSON body with a single property: ``code``. You take that ``code`` and
-the ``verifier`` you stored in step 1, and make a request to the EdgeDB Auth
-extension to exchange these two pieces of data for an ``auth_token``.
+look up the ``verifier`` in the ``edgedb-pkce-verifier`` cookie, and make a
+request to the EdgeDB Auth extension to exchange these two pieces of data for
+an ``auth_token``.
 
 .. code-block:: javascript
 
