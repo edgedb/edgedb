@@ -1296,3 +1296,37 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             __typenames__=True,
         )
         self.assertEqual(obj, [])
+
+    async def test_edgeql_policies_global_01(self):
+        # GH issue #6404
+
+        clan_and_global = '''
+            type Clan {
+                access policy allow_select_players
+                    allow select
+                    using (
+                        global current_player.clan.id ?= .id
+                    );
+            };
+            global current_player_id: uuid;
+            global current_player := (
+                select Player filter .id = global current_player_id
+            );
+        '''
+
+        await self.migrate(
+            '''
+            type Principal;
+            type Player extending Principal {
+                required link clan: Clan;
+            }
+            ''' + clan_and_global
+        )
+
+        await self.migrate(
+            '''
+            type Player {
+                required link clan: Clan;
+            }
+            ''' + clan_and_global
+        )
