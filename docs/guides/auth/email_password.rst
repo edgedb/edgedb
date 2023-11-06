@@ -443,6 +443,8 @@ one sends the reset email. The second is the HTML form that is rendered when
 the user follows the link in their email. And, the final one is the endpoint
 that updates the password and logs in the user.
 
+.. lint-off
+
 .. code-block:: javascript
 
    /**
@@ -588,5 +590,7 @@ that updates the password and logs in the user.
        res.end();
      });
    };
+
+.. lint-on
 
 :ref:`Back to the EdgeDB Auth guide <ref_guide_auth>`
