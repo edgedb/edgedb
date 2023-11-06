@@ -11375,6 +11375,33 @@ type default::Foo {
                 'cannot drop.*dropint.*other objects'):
             await self.con.execute('DROP SCALAR TYPE dropint')
 
+    async def test_edgeql_ddl_drop_refuse_02(self):
+        await self.con.execute(
+            '''
+            create type Player;
+            create global current_player_id: uuid;
+            create global current_player := (
+                select Player filter .id = global current_player_id
+            );
+
+            create type Clan;
+            alter type Player {
+                create link clan: Clan;
+            };
+            alter type Clan {
+                create access policy allow_select_players
+                    allow select using (
+                        global current_player.clan.id ?= .id
+                    );
+            };
+            '''
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+                r"cannot drop .+ because this affects expression of access"):
+            await self.con.execute('drop type Player;')
+
     async def test_edgeql_ddl_unicode_01(self):
         await self.con.execute(r"""
             # setup delta
