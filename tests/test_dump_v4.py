@@ -118,4 +118,4 @@ class TestDumpV4Compat(
     dump_subdir='dumpv4',
     check_method=DumpTestCaseMixin.ensure_schema_data_integrity,
 ):
-    pass
+    BACKEND_SUPERUSER = True
