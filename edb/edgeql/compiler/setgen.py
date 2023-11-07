@@ -154,7 +154,6 @@ def new_set_from_set(
         context: Optional[parsing.ParserContext]=None,
         is_binding: Optional[irast.BindingKind]=None,
         is_materialized_ref: Optional[bool]=None,
-        is_computed_ref: Optional[bool]=None,
         is_visible_binding_ref: Optional[bool]=None,
         skip_subtypes: Optional[bool]=None,
         ignore_rewrites: Optional[bool]=None,
@@ -185,8 +184,6 @@ def new_set_from_set(
         is_binding = ir_set.is_binding
     if is_materialized_ref is None:
         is_materialized_ref = ir_set.is_materialized_ref
-    if is_computed_ref is None:
-        is_computed_ref = ir_set.is_computed_ref
     if is_visible_binding_ref is None:
         is_visible_binding_ref = ir_set.is_visible_binding_ref
     if skip_subtypes is None:
@@ -202,7 +199,6 @@ def new_set_from_set(
         context=context,
         is_binding=is_binding,
         is_materialized_ref=is_materialized_ref,
-        is_computed_ref=is_computed_ref,
         is_visible_binding_ref=is_visible_binding_ref,
         skip_subtypes=skip_subtypes,
         ignore_rewrites=ignore_rewrites,
@@ -1431,14 +1427,12 @@ def computable_ptr_set(
     ptrcls_to_shadow = None
 
     qlctx: Optional[context.ContextLevel]
-    irexpr: Optional[irast.Set | irast.Expr]
 
     try:
         comp_info = ctx.env.source_map[ptrcls]
         qlexpr = comp_info.qlexpr
         assert isinstance(comp_info.context, context.ContextLevel)
         qlctx = comp_info.context
-        irexpr = comp_info.irexpr
         inner_source_path_id = comp_info.path_id
         path_id_ns = comp_info.path_id_ns
     except KeyError:
@@ -1523,7 +1517,6 @@ def computable_ptr_set(
             )
         qlexpr = astutils.ensure_ql_query(schema_qlexpr)
         qlctx = None
-        irexpr = None
         path_id_ns = None
 
     newctx: Callable[[], ContextManager[context.ContextLevel]]
@@ -1537,17 +1530,15 @@ def computable_ptr_set(
             ctx=ctx)
 
     else:
-        # print("HEYYYY", irexpr)
-        pass
-        # newctx = _get_computable_ctx(
-        #     rptr=rptr,
-        #     source=source_set,
-        #     source_scls=source_scls,
-        #     inner_source_path_id=inner_source_path_id,
-        #     path_id_ns=path_id_ns,
-        #     same_scope=same_computable_scope,
-        #     qlctx=qlctx,
-        #     ctx=ctx)
+        newctx = _get_computable_ctx(
+            rptr=rptr,
+            source=source_set,
+            source_scls=source_scls,
+            inner_source_path_id=inner_source_path_id,
+            path_id_ns=path_id_ns,
+            same_scope=same_computable_scope,
+            qlctx=qlctx,
+            ctx=ctx)
 
     if ptrcls.is_link_property(ctx.env.schema):
         source_path_id = rptr.source.path_id.ptr_path()
@@ -1562,50 +1553,37 @@ def computable_ptr_set(
         ns=ctx.path_id_namespace,
         ctx=ctx,
     )
-    # print(result_path_id)
-    # if irexpr:
-    #     print(irexpr.path_id == result_path_id)
 
-    if irexpr:
-        irexpr = ensure_set(irexpr, ctx=ctx)
-        irstmt = ensure_stmt(irexpr, ctx=ctx)
-        comp_ir_set = new_set(
-            expr=irstmt, path_id=result_path_id, rptr=rptr, context=srcctx,
-            stype=get_set_type(irexpr, ctx=ctx),
-            is_computed_ref=True,
-            ctx=ctx)
+    result_stype = ptrcls.get_target(ctx.env.schema)
+    base_object = ctx.env.schema.get('std::BaseObject', type=s_types.Type)
+    with newctx() as subctx:
+        assert isinstance(source_scls, s_sources.Source)
+        assert isinstance(ptrcls, s_pointers.Pointer)
 
-    else:
-        result_stype = ptrcls.get_target(ctx.env.schema)
-        base_object = ctx.env.schema.get('std::BaseObject', type=s_types.Type)
-        with newctx() as subctx:
-            assert isinstance(source_scls, s_sources.Source)
-            assert isinstance(ptrcls, s_pointers.Pointer)
+        subctx.active_computeds = subctx.active_computeds.copy()
+        if ptrcls_to_shadow:
+            assert isinstance(ptrcls_to_shadow, s_pointers.Pointer)
+            subctx.active_computeds.add(ptrcls_to_shadow)
+        subctx.active_computeds.add(ptrcls)
+        if result_stype != base_object:
+            subctx.view_scls = result_stype
+        subctx.view_rptr = context.ViewRPtr(
+            source=source_scls, ptrcls=ptrcls)
+        subctx.anchors[qlast.Source().name] = source_set
+        subctx.empty_result_type_hint = ptrcls.get_target(ctx.env.schema)
+        subctx.partial_path_prefix = source_set
+        # On a mutation, make the expr_exposed. This corresponds with
+        # a similar check on is_mutation in _normalize_view_ptr_expr.
+        if (source_scls.get_expr_type(ctx.env.schema)
+                != s_types.ExprType.Select):
+            subctx.expr_exposed = context.Exposure.EXPOSED
 
-            subctx.active_computeds = subctx.active_computeds.copy()
-            if ptrcls_to_shadow:
-                assert isinstance(ptrcls_to_shadow, s_pointers.Pointer)
-                subctx.active_computeds.add(ptrcls_to_shadow)
-            subctx.active_computeds.add(ptrcls)
-            if result_stype != base_object:
-                subctx.view_scls = result_stype
-            subctx.view_rptr = context.ViewRPtr(
-                source=source_scls, ptrcls=ptrcls)
-            subctx.anchors[qlast.Source().name] = source_set
-            subctx.empty_result_type_hint = ptrcls.get_target(ctx.env.schema)
-            subctx.partial_path_prefix = source_set
-            # On a mutation, make the expr_exposed. This corresponds with
-            # a similar check on is_mutation in _normalize_view_ptr_expr.
-            if (source_scls.get_expr_type(ctx.env.schema)
-                    != s_types.ExprType.Select):
-                subctx.expr_exposed = context.Exposure.EXPOSED
+        comp_ir_set = dispatch.compile(qlexpr, ctx=subctx)
 
-            comp_ir_set = dispatch.compile(qlexpr, ctx=subctx)
-
-        comp_ir_set = new_set_from_set(
-            comp_ir_set, path_id=result_path_id, rptr=rptr, context=srcctx,
-            merge_current_ns=True,
-            ctx=ctx)
+    comp_ir_set = new_set_from_set(
+        comp_ir_set, path_id=result_path_id, rptr=rptr, context=srcctx,
+        merge_current_ns=True,
+        ctx=ctx)
 
     rptr.target = comp_ir_set
 
@@ -1750,8 +1728,7 @@ def _get_computable_ctx(
             subns = set()
             if path_id_ns is not None and same_scope:
                 subns.add(path_id_ns)
-            # XXX: hm.
-            # subns.add(ctx.aliases.get('ns'))
+            subns.add(ctx.aliases.get('ns'))
 
             # Include the namespace from the source in the namespace
             # we compile under. This helps make sure the remapping

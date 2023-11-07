@@ -532,8 +532,6 @@ class Set(Base):
     # flag instead of clearing expr because clearing expr can mess up
     # card/multi inference.
     is_visible_binding_ref: bool = False
-    # A *ref* to a computed, not its definition site
-    is_computed_ref: bool = False
 
     # Whether to force this to not select subtypes
     skip_subtypes: bool = False

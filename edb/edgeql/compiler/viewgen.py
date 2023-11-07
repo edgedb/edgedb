@@ -2136,8 +2136,6 @@ def _inline_type_computable(
             ptr = None
     except errors.InvalidReferenceError:
         ptr = None
-    print('inject', ir_set, ptr.get_name(ctx.env.schema) if ptr else None)
-    breakpoint()
 
     ptr_set = None
     if ptr is None:
@@ -2194,7 +2192,6 @@ def _inline_type_computable(
 
     view_shape = ctx.env.view_shapes[stype]
     view_shape_ptrs = {p for p, _ in view_shape}
-    print('done', ptr.get_name(ctx.env.schema))
     if ptr not in view_shape_ptrs:
         if ptr not in ctx.env.pointer_specified_info:
             ctx.env.pointer_specified_info[ptr] = (None, None, None)

@@ -1341,7 +1341,6 @@ def process_set_as_subquery(
     ir_source: Optional[irast.Set]
 
     source_set_rvar = None
-    source_set_rvar2 = None
     if ir_set.rptr is not None:
         ir_source = ir_set.rptr.source
 
@@ -1358,7 +1357,6 @@ def process_set_as_subquery(
             ir_source.path_id not in ctx.skippable_sources
         ):
             source_set_rvar = get_set_rvar(ir_source, ctx=ctx)
-            source_set_rvar2 = source_set_rvar
             # Force a source rvar so that trivial computed pointers
             # on erroneous objects (like a bad array deref) fail.
             # (Most sensible computables will end up requiring the
@@ -1420,28 +1418,11 @@ def process_set_as_subquery(
                 with newctx.subrel() as _, _.newscope() as subctx:
                     get_set_rvar(ir_source, ctx=subctx)
                     subrvar = relctx.rvar_for_rel(subctx.rel, ctx=subctx)
-                    source_set_rvar2 = subrvar
                     # Force a source rvar. See above.
                     ensure_source_rvar(ir_source, subctx.rel, ctx=subctx)
 
                 relctx.include_rvar(
                     stmt, subrvar, ir_source.path_id, ctx=newctx)
-
-        if ir_set.is_computed_ref and not ir_set.is_materialized_ref:
-            assert isinstance(expr, irast.Stmt)
-            # print(ir_set, ir_source, ir_set.expr.result.path_id)
-            # breakpoint()
-            # CAN WE JUST INCLUDE THE SOURCE RVAR AS THE SOURCE?
-            # NO, HAVE TO DO SOME REMAPPING?
-            # This will only work in really simple cases right?
-
-            assert expr.result
-            # XXX: what about if it is null also this is all totally broken
-            if source_set_rvar2:
-                relctx.include_rvar(
-                    stmt, source_set_rvar2,
-                    not_none(expr.result.path_id.src_path()),
-                    ctx=ctx)
 
         # If we are looking at a materialized computable, running
         # get_set_rvar on the source above may have made it show
