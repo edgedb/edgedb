@@ -523,17 +523,6 @@ def compile_GlobalExpr(
         # Wrap the reference in a subquery so that it does not get
         # factored out or go directly into the scope tree.
         qry = qlast.SelectQuery(result=qlast.Path(steps=[obj_ref]))
-
-        # HACK: 4.0-rc1 shipped with an ext::auth::ClientTokenIdentity
-        # that was multi instead of single.
-        # We don't have a good way to repair that yet... so we resort
-        # to our old trick of fixing it in the compiler.
-        if (
-            str(glob.get_name(ctx.env.schema))
-            == 'ext::auth::ClientTokenIdentity'
-        ):
-            qry.limit = qlast.IntegerConstant(value='1')
-
         return dispatch.compile(qry, ctx=ctx)
 
     default = glob.get_default(ctx.env.schema)
