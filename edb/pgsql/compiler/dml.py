@@ -431,6 +431,12 @@ def fini_dml_stmt(
             else:
                 stop_ref = base_typeref
 
+            # When the base type is abstract, there will be no CTE for it,
+            # so the overlays of children types have to apply to the whole
+            # ancestry tree.
+            if base_typeref.is_abstract:
+                stop_ref = None
+
             # The overlay for update is in two parts:
             # First, filter out objects that have been updated, then union them
             # back in. (If we just did union, we'd see the old values also.)

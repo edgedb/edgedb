@@ -800,6 +800,11 @@ def compile_inheritance_conflict_checks(
 
     conflicters = []
     for subject_stype, anc_type, ir in modified_ancestors:
+
+        # don't enforce any constraints for abstract object type
+        if subject_stype.get_abstract(schema=ctx.env.schema):
+            continue
+
         conflicters.extend(
             _compile_inheritance_conflict_selects(
                 stmt, ir, anc_type, subject_stype, ctx=ctx
