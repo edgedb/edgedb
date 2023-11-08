@@ -26,7 +26,7 @@ from edgedb import scram
 
 from edb import errors
 from edb.common import debug
-from edb.server import args as srvargs
+from edb.server import args as srvargs, metrics
 from edb.server.pgcon import errors as pgerror
 
 from . cimport auth_helpers
@@ -46,6 +46,7 @@ cdef class AbstractFrontendConnection:
 
 
 cdef class FrontendConnection(AbstractFrontendConnection):
+    interface = "frontend"
 
     def __init__(
         self,
@@ -55,6 +56,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         passive: bool,
         transport: srvargs.ServerConnTransport,
         external_auth: bool,
+        connection_made_at: float | None = None,
     ):
         self._id = server.on_binary_client_created()
         self.server = server
@@ -66,6 +68,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         self._pinned_pgcon_in_tx = False
         self._get_pgcon_cc = 0
 
+        self.connection_made_at = connection_made_at
         self._transport = None
         self._write_buf = None
         self._write_waiter = None
@@ -490,6 +493,13 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         #
         # 3. We can interrupt some operations like auth with a CancelledError.
         #    Again, those operations don't mutate global state.
+
+        if self.connection_made_at is not None:
+            metrics.client_connection_duration.observe(
+                time.monotonic() - self.connection_made_at,
+                self.get_tenant_label(),
+                self.interface,
+            )
 
         if (self._msg_take_waiter is not None and
             not self._msg_take_waiter.done()):

@@ -94,6 +94,13 @@ idle_client_connections = registry.new_labeled_counter(
     labels=('tenant',),
 )
 
+client_connection_duration = registry.new_labeled_histogram(
+    'client_connection_duration',
+    'Time a client connection is open.',
+    unit=prom.Unit.SECONDS,
+    labels=('tenant', 'interface'),
+)
+
 edgeql_query_compilations = registry.new_labeled_counter(
     'edgeql_query_compilations_total',
     'Number of compiled/cached queries or scripts.',

@@ -26,6 +26,7 @@ import http
 import http.cookies
 import re
 import ssl
+import time
 import urllib.parse
 
 import httptools
@@ -37,7 +38,7 @@ from edb.common import markup
 from edb.graphql import extension as graphql_ext
 
 from edb.server import args as srvargs
-from edb.server import config
+from edb.server import config, metrics as srv_metrics
 from edb.server.protocol cimport binary
 from edb.server.protocol import binary
 from edb.server.protocol import pg_ext
@@ -122,9 +123,19 @@ cdef class HttpProtocol:
         self.is_tls = False
 
     def connection_made(self, transport):
+        self.connection_made_at = time.monotonic()
         self.transport = transport
 
     def connection_lost(self, exc):
+        srv_metrics.client_connection_duration.observe(
+            time.monotonic() - self.connection_made_at,
+            (
+                "unknown"
+                if self.tenant is None
+                else self.tenant.get_instance_name()
+            ),
+            "http",
+        )
         self.transport = None
         self.unprocessed = None
 
@@ -192,6 +203,7 @@ cdef class HttpProtocol:
                     self.server,
                     self.sslctx_pgext,
                     self.binary_endpoint_security,
+                    connection_made_at=self.connection_made_at,
                 )
                 self.transport.set_protocol(pg_ext_conn)
                 pg_ext_conn.connection_made(self.transport)
@@ -352,6 +364,7 @@ cdef class HttpProtocol:
             self.server,
             self.tenant,
             external_auth=self.external_auth,
+            connection_made_at=self.connection_made_at,
         )
         self.transport.set_protocol(binproto)
         binproto.connection_made(self.transport)

@@ -341,6 +341,8 @@ cdef class ConnectionView:
 
 
 cdef class PgConnection(frontend.FrontendConnection):
+    interface = "sql"
+
     def __init__(self, server, sslctx, endpoint_security, **kwargs):
         super().__init__(server, None, **kwargs)
         self._dbview = ConnectionView()
@@ -1507,7 +1509,7 @@ cdef class PgConnection(frontend.FrontendConnection):
         return qu
 
 
-def new_pg_connection(server, sslctx, endpoint_security):
+def new_pg_connection(server, sslctx, endpoint_security, connection_made_at):
     return PgConnection(
         server,
         sslctx,
@@ -1515,4 +1517,5 @@ def new_pg_connection(server, sslctx, endpoint_security):
         passive=False,
         transport=srvargs.ServerConnTransport.TCP_PG,
         external_auth=False,
+        connection_made_at=connection_made_at,
     )

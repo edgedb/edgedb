@@ -120,6 +120,9 @@ Client connections
 ``client_connections_idle_total``
   **Counter.** Total number of forcefully closed idle client connections.
 
+``client_connection_duration``
+  **Histogram.** Time a client connection is open.
+
 Queries and compilation
 ^^^^^^^^^^^^^^^^^^^^^^^
 
