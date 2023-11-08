@@ -1590,3 +1590,18 @@ class TestIntrospection(tb.QueryTestCase):
             } LIMIT 0''',
             []
         )
+
+    async def test_edgeql_introspection_secret(self):
+        await self.con.execute(
+            '''
+            CREATE EXTENSION pgcrypto;
+            CREATE EXTENSION auth;
+            '''
+        )
+        await self.assert_query_result(
+            '''
+            SELECT schema::Property { name }
+            FILTER .secret AND .source.name = 'ext::auth::AuthConfig';
+            ''',
+            [{'name': 'auth_signing_key'}]
+        )
