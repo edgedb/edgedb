@@ -107,6 +107,12 @@ edgeql_query_compilation_duration = registry.new_labeled_histogram(
     labels=('tenant',),
 )
 
+graphql_query_compilations = registry.new_labeled_counter(
+    'graphql_query_compilations_total',
+    'Number of compiled/cached GraphQL queries.',
+    labels=('tenant', 'path')
+)
+
 background_errors = registry.new_labeled_counter(
     'background_errors_total',
     'Number of unhandled errors in background server routines.',

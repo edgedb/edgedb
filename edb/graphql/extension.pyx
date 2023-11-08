@@ -37,7 +37,7 @@ from edb import _graphql_rewrite
 from edb import errors
 from edb.graphql import errors as gql_errors
 from edb.server.dbview cimport dbview
-from edb.server import compiler
+from edb.server import compiler, metrics
 from edb.server import defines as edbdef
 from edb.server.pgcon import errors as pgerrors
 from edb.server.protocol import execute
@@ -348,11 +348,17 @@ async def _execute(db, tenant, query, operation_name, variables, globals):
             query_cache[cache_key2] = qug, gql_op
         else:
             query_cache[cache_key] = qug, gql_op
+        metrics.graphql_query_compilations.inc(
+            1.0, tenant.get_instance_name(), 'compiler'
+        )
     else:
         qug, gql_op = entry
         # This is at least the second time this query is used
         # and it's safe to cache.
         use_prep_stmt = True
+        metrics.graphql_query_compilations.inc(
+            1.0, tenant.get_instance_name(), 'cache'
+        )
 
     compiled = dbview.CompiledQuery(query_unit_group=qug)
 

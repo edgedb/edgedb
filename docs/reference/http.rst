@@ -120,8 +120,8 @@ Client connections
 ``client_connections_idle_total``
   **Counter.** Total number of forcefully closed idle client connections.
 
-Query compilation
-^^^^^^^^^^^^^^^^^
+Queries and compilation
+^^^^^^^^^^^^^^^^^^^^^^^
 
 ``edgeql_query_compilations_total``
   **Counter.** Number of compiled/cached queries or scripts since instance
@@ -129,11 +129,15 @@ Query compilation
   ``path="compiler"`` parameter. Subsequent uses of the same query only use
   the cache, thus only increasing the ``path="cache"`` parameter.
 
-
-
 ``edgeql_query_compilation_duration``
   **Histogram.** Time it takes to compile an EdgeQL query or script, in
   seconds.
+
+``graphql_query_compilations_total``
+  **Counter.** Number of compiled/cached GraphQL queries since instance
+  startup. A query is compiled and then cached on first use, increasing the
+  ``path="compiler"`` parameter. Subsequent uses of the same query only use
+  the cache, thus only increasing the ``path="cache"`` parameter.
 
 Errors
 ^^^^^^
