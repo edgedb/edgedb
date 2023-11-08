@@ -113,6 +113,13 @@ graphql_query_compilations = registry.new_labeled_counter(
     labels=('tenant', 'path')
 )
 
+query_compilation_duration = registry.new_labeled_histogram(
+    'query_compilation_duration',
+    'Time it takes to compile a query or script.',
+    unit=prom.Unit.SECONDS,
+    labels=('tenant', 'interface'),
+)
+
 sql_queries = registry.new_labeled_counter(
     'sql_queries_total',
     'Number of SQL queries.',

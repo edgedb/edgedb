@@ -29,6 +29,7 @@ import cython
 import http
 import json
 import logging
+import time
 import urllib.parse
 
 from graphql.language import lexer as gql_lexer
@@ -234,21 +235,28 @@ async def compile(
 ):
     server = tenant.server
     compiler_pool = server.get_compiler_pool()
-    return await compiler_pool.compile_graphql(
-        db.name,
-        db.user_schema_pickle,
-        tenant.get_global_schema_pickle(),
-        db.reflection_cache,
-        db.db_config,
-        db._index.get_compilation_system_config(),
-        query,
-        tokens,
-        substitutions,
-        operation_name,
-        variables,
-        client_id=tenant.client_id,
-    )
-
+    started_at = time.monotonic()
+    try:
+        return await compiler_pool.compile_graphql(
+            db.name,
+            db.user_schema_pickle,
+            tenant.get_global_schema_pickle(),
+            db.reflection_cache,
+            db.db_config,
+            db._index.get_compilation_system_config(),
+            query,
+            tokens,
+            substitutions,
+            operation_name,
+            variables,
+            client_id=tenant.client_id,
+        )
+    finally:
+        metrics.query_compilation_duration.observe(
+            time.monotonic() - started_at,
+            tenant.get_instance_name(),
+            "graphql",
+        )
 
 async def _execute(db, tenant, query, operation_name, variables, globals):
     dbver = db.dbver

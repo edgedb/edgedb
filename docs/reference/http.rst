@@ -130,6 +130,8 @@ Queries and compilation
   the cache, thus only increasing the ``path="cache"`` parameter.
 
 ``edgeql_query_compilation_duration``
+  Deprecated in favor of ``query_compilation_duration[interface="edgeql"]``.
+
   **Histogram.** Time it takes to compile an EdgeQL query or script, in
   seconds.
 
@@ -144,6 +146,9 @@ Queries and compilation
 
 ``sql_compilations_total``
   **Counter.** Number of SQL compilations since instance startup.
+
+``query_compilation_duration``
+  **Histogram.** Time it takes to compile a query or script, in seconds.
 
 Errors
 ^^^^^^

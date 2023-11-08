@@ -1192,6 +1192,11 @@ cdef class DatabaseConnectionView:
                 time.monotonic() - started_at,
                 self.tenant.get_instance_name(),
             )
+            metrics.query_compilation_duration.observe(
+                time.monotonic() - started_at,
+                self.tenant.get_instance_name(),
+                "edgeql",
+            )
 
         unit_group, self._last_comp_state, self._last_comp_state_id = result
 
