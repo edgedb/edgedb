@@ -171,7 +171,7 @@ class Registry:
         /,
         *,
         unit: Unit | None = None,
-        labels: tuple[str],
+        labels: tuple[str, ...],
     ) -> LabeledGauge:
         gauge = LabeledGauge(self, name, desc, unit, labels=labels)
         self._add_metric(gauge)
@@ -198,7 +198,7 @@ class Registry:
         *,
         unit: Unit | None = None,
         buckets: list[float] | None = None,
-        labels: tuple[str],
+        labels: tuple[str, ...],
     ) -> LabeledHistogram:
         hist = LabeledHistogram(
             self, name, desc, unit, buckets=buckets, labels=labels
