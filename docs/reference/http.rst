@@ -76,14 +76,17 @@ Retrieve instance metrics.
 All EdgeDB instances expose a Prometheus-compatible endpoint available via GET
 request. The following metrics are made available.
 
-Processes
-^^^^^^^^^
+System
+^^^^^^
 
 ``compiler_process_spawns_total``
   **Counter.** Total number of compiler processes spawned.
 
 ``compiler_processes_current``
   **Gauge.** Current number of active compiler processes.
+
+``branches_current``
+  **Gauge.** Current number of branches.
 
 Backend connections and performance
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -125,8 +128,8 @@ Query compilation
   startup. A query is compiled and then cached on first use, increasing the
   ``path="compiler"`` parameter. Subsequent uses of the same query only use
   the cache, thus only increasing the ``path="cache"`` parameter.
-  
-  
+
+
 
 ``edgeql_query_compilation_duration``
   **Histogram.** Time it takes to compile an EdgeQL query or script, in

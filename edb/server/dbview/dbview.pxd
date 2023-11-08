@@ -58,6 +58,7 @@ cdef class DatabaseIndex:
         object _cached_compiler_args
 
     cdef invalidate_caches(self)
+    cdef inline set_current_branches(self)
 
 
 cdef class Database:

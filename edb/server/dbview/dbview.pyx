@@ -1352,10 +1352,22 @@ cdef class DatabaseIndex:
                 ext_config_settings=ext_config_settings,
             )
             self._dbs[dbname] = db
+        self.set_current_branches()
         return db
 
     def unregister_db(self, dbname):
         self._dbs.pop(dbname)
+        self.set_current_branches()
+
+    cdef inline set_current_branches(self):
+        metrics.current_branches.set(
+            sum(
+                1
+                for dbname in self._dbs
+                if dbname != defines.EDGEDB_SYSTEM_DB
+            ),
+            self._tenant.get_instance_name(),
+        )
 
     def iter_dbs(self):
         return iter(self._dbs.values())
