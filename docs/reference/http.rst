@@ -121,7 +121,12 @@ Query compilation
 ^^^^^^^^^^^^^^^^^
 
 ``edgeql_query_compilations_total``
-  **Counter.** Number of compiled/cached queries or scripts.
+  **Counter.** Number of compiled/cached queries or scripts since instance
+  startup. A query is compiled and then cached on first use, increasing the
+  ``path="compiler"`` parameter. Subsequent uses of the same query only use
+  the cache, thus only increasing the ``path="cache"`` parameter.
+  
+  
 
 ``edgeql_query_compilation_duration``
   **Histogram.** Time it takes to compile an EdgeQL query or script, in
