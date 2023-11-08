@@ -37,7 +37,7 @@ from edb import errors
 from edb.common import debug
 from edb.pgsql.parser import exceptions as parser_errors
 from edb.server import args as srvargs
-from edb.server import defines
+from edb.server import defines, metrics
 from edb.server.compiler import dbstate
 from edb.server.pgcon import errors as pgerror
 from edb.server.pgcon.pgcon cimport PGAction, PGMessage
@@ -882,6 +882,9 @@ cdef class PgConnection(frontend.FrontendConnection):
         dbv = self._dbview
         query_units = await self.compile(query_str, dbv)
         already_in_implicit_tx = dbv._in_tx_implicit
+        metrics.sql_queries.inc(
+            len(query_units), self.tenant.get_instance_name()
+        )
 
         if not already_in_implicit_tx:
             actions.append(PGMessage(PGAction.START_IMPLICIT_TX))
@@ -1088,6 +1091,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 if self.debug:
                     self.debug_print("Execute", repr(portal_name), max_rows)
 
+                metrics.sql_queries.inc(1.0, self.tenant.get_instance_name())
                 with managed_error():
                     unit = dbv.find_portal(portal_name)
                     actions.append(
@@ -1448,6 +1452,9 @@ cdef class PgConnection(frontend.FrontendConnection):
             client_id=self.tenant.client_id,
         )
         self.database.cache_compiled_sql(key, result, schema_version)
+        metrics.sql_compilations.inc(
+            len(result), self.tenant.get_instance_name()
+        )
         if self.debug:
             self.debug_print("Compile result", result)
         return result

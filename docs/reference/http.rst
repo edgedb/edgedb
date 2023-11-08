@@ -139,6 +139,12 @@ Queries and compilation
   ``path="compiler"`` parameter. Subsequent uses of the same query only use
   the cache, thus only increasing the ``path="cache"`` parameter.
 
+``sql_queries_total``
+  **Counter.** Number of SQL queries since instance startup.
+
+``sql_compilations_total``
+  **Counter.** Number of SQL compilations since instance startup.
+
 Errors
 ^^^^^^
 

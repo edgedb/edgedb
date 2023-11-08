@@ -113,6 +113,18 @@ graphql_query_compilations = registry.new_labeled_counter(
     labels=('tenant', 'path')
 )
 
+sql_queries = registry.new_labeled_counter(
+    'sql_queries_total',
+    'Number of SQL queries.',
+    labels=('tenant',)
+)
+
+sql_compilations = registry.new_labeled_counter(
+    'sql_compilations_total',
+    'Number of SQL compilations.',
+    labels=('tenant',)
+)
+
 background_errors = registry.new_labeled_counter(
     'background_errors_total',
     'Number of unhandled errors in background server routines.',
