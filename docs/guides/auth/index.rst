@@ -28,6 +28,8 @@ to your app’s schema:
 
     using extension auth;
 
+Adding this to your schema will enable the extensions ``pgcrypto`` and
+``auth``, which may lead to two prompts from the CLI to confirm the changes.
 
 Extension configuration
 =======================
