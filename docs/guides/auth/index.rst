@@ -34,9 +34,9 @@ Adding this to your schema will enable the extensions ``pgcrypto`` and
 Extension configuration
 =======================
 
-The best and easiest way to configure the extension for your database is
-to use the built-in UI. To access it, run ``edgedb ui``. If you have the
-extension enabled in your schema as shown above, and if you have migrated that
+The easiest way to configure the extension for your database is to use the
+built-in UI. To access it, run ``edgedb ui``. If you have the extension
+enabled in your schema as shown above, and if you have migrated that
 schema change, you will see the "Auth Admin" icon in the left-hand toolbar.
 
 .. image:: images/ui-auth.png
@@ -58,22 +58,33 @@ the JWTs. At the moment, the JWTs are not considered “public” API, so there 
 no need to save this value for your own application use. It is exposed mainly
 to allow rotation.
 
+.. What does rotation mean exactly? Like generating a new key when the
+.. time_to_live has expired? Would rotation not work without it being exposed?
+
+A single click on this field is all that is needed to generate a new
+random key. Clicking ``Update`` after it is generated will hide the key.
+
+.. Is it hidden forever once update is clicked? (Seems so but confirming)
+.. If so then will rephrase the above for clarity that seeing it is a one-time
+.. thing only
 
 token_time_to_live
 ------------------
 
 This value controls the expiration time on the authentication token’s
-JSON Web Token. This is effectively the “session” time.
+JSON Web Token. This is effectively the “session” time. The default time
+is 1209600 seconds, or two weeks.
 
 
 allowed_redirect_urls
 ---------------------
 
 This value is a set of strings that we use to ensure we only redirect to
-domains that are under the control of the application using the Auth extension.
-We compare any ``redirect_to`` URLs against this list. A URL is considered a
-"match" if the URL is exactly the same as one on the list, or is a sub-path of
-a URL on the list.
+domains that are under the control of the application using the Auth
+extension. They can be set by clicking on the ``Enable UI`` button on the
+bottom of the screen. Any ``redirect_to`` URLs are compared against this
+list. A URL is considered a "match" if the URL is exactly the same as one
+on the list, or is a sub-path of a URL on the list.
 
 For example, if the set includes ``https://example.com/myapp``:
 
@@ -91,7 +102,7 @@ For example, if the set includes ``https://example.com/myapp``:
    * - ``https://example.com/myapp/somewhere/else``
      - ✅
    * - ``http://example.com/myapp``
-     - Does not match the protocol
+     - Does not match the protocol (starts with http, not https)
    * - ``https://example.com:443/myapp``
      - Does not match the port
    * - ``https://auth.example.com/myapp``
@@ -115,6 +126,76 @@ of the admin auth UI by clicking "Add Provider." This will add a form to the UI
 allowing for selection of the provider and configuration of the values
 described below.
 
+.. Moved this section up as it's the next section on the UI screen after clicking
+.. on Add Provider
+
+We currently support four different OAuth providers (more coming soon):
+
+.. lint-off
+
+-  `Apple <https://developer.apple.com/documentation/sign_in_with_apple/sign_in_with_apple_rest_api/authenticating_users_with_sign_in_with_apple>`__
+-  `Azure
+   (Microsoft) <https://learn.microsoft.com/en-us/entra/identity-platform/v2-protocols-oidc>`__
+-  `GitHub <https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app>`__
+-  `Google <https://developers.google.com/identity/protocols/oauth2>`__
+
+.. lint-on
+
+The instructions for creating an app for each provider can be found on
+each provider’s developer documentation website, which is linked above.
+The important things you’ll need to find and make note of for your
+configuration are the **client ID** and **secret**.
+
+.. Just curious, is there one of the four providers that is particularly easy
+.. to follow? Would be nice to recommend one as the default easiest one to
+.. use for tutorial purposes. (I took a look at all four and Google looked 
+.. easiest, wasn't all that painful)
+
+Once you select the OAuth provider in the configuration UI, you will need to
+provide those values and the ``additional_scope``:
+
+-  ``client_id`` This is assigned to you by the Identity Provider when
+   you create an app with them.
+-  ``secret`` This is created by the Identity Provider when you create
+   an app with them.
+-  ``additional_scope`` We request certain scope from the Identity
+   Provider to fulfill our minimal data needs. You can pass additional
+   scope here in a space-separated string and we will request that
+   additional scope when getting the authentication token from the
+   Identity Provider.
+
+.. Says that I will need to provide an additional scope but I was able to
+.. register the provider without it, and not sure what the additional
+.. scopes would be either. Maybe add an example of a space-separated string?
+   
+   **Note:** We return this authentication token with this scope from
+   the Identity Provider when we return our own authentication token.
+
+.. 
+
+You’ll also need to set a callback URL in each provider’s interface. To build
+this callback URL, you will need the hostname, port, and database name of your
+database. The database name is ``edgedb`` by default. The hostname and port can
+be found running this CLI command:
+
+.. code-block:: bash
+
+   $ edgedb instance credentials
+
+This will output a table that includes the hostnames and ports of your
+instance. Grab those from for use in your callback URL, which takes on
+this format:
+
+.. The command only gives a single instance so have reworded. (I don't recall
+.. a command that gives them all but there might be one so if so then can
+.. just change the command)
+
+.. code-block::
+
+    http[s]://{edgedb_host}[:port]/db/{db_name}/ext/auth/callback
+
+The Auth Admin in the EdgeDB UI automatically generates this url for you
+and displays it at the top of the screen.
 
 Email and password
 ------------------
@@ -160,58 +241,7 @@ great for testing in development:
     ext::auth::SMTPConfig::validate_certs := false;
 
 
-OAuth
------
 
-We currently support four different OAuth providers (with a few more
-coming soon):
-
-.. lint-off
-
--  `Apple <https://developer.apple.com/documentation/sign_in_with_apple/sign_in_with_apple_rest_api/authenticating_users_with_sign_in_with_apple>`__
--  `Azure
-   (Microsoft) <https://learn.microsoft.com/en-us/entra/identity-platform/v2-protocols-oidc>`__
--  `GitHub <https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app>`__
--  `Google <https://developers.google.com/identity/protocols/oauth2>`__
-
-.. lint-on
-
-The instructions for creating an app for each provider can be found on
-each provider’s developer documentation website, which is linked above.
-The important things you’ll need to find and make note of for your
-configuration are the **client ID** and **secret**.
-
-Once you select the OAuth provider in the configuration UI, you will need to
-provide those values and the ``additional_scope``:
-
--  ``client_id`` This is assigned to you by the Identity Provider when
-   you create an app with them.
--  ``secret`` This is created by the Identity Provider when you create
-   an app with them.
--  ``additional_scope`` We request certain scope from the Identity
-   Provider to fulfill our minimal data needs. You can pass additional
-   scope here in a space-separated string and we will request that
-   additional scope when getting the authentication token from the
-   Identity Provider. \********Note:\*******\* We return this
-   authentication token with this scope from the Identity Provider when
-   we return our own authentication token.
-
-You’ll also need to set a callback URL in each provider’s interface. To build
-this callback URL, you will need the hostname, port, and database name of your
-database. The database name is ``edgedb`` by default. The hostname and port can
-be found running this CLI command:
-
-.. code-block:: bash
-
-   $ edgedb instance credentials
-
-This will output a table that includes the hostnames and ports of all your
-instances. Grab those from the row corresponding to the correct instance for
-use in your callback URL, which takes on this format:
-
-.. code-block::
-
-    http[s]://{edgedb_host}[:port]/db/{db_name}/ext/auth/callback
 
 
 Integrating your application
