@@ -888,6 +888,7 @@ cdef class PgConnection(frontend.FrontendConnection):
         metrics.sql_queries.inc(
             len(query_units), self.tenant.get_instance_name()
         )
+        self._query_count += len(query_units)
 
         if not already_in_implicit_tx:
             actions.append(PGMessage(PGAction.START_IMPLICIT_TX))
@@ -1095,6 +1096,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                     self.debug_print("Execute", repr(portal_name), max_rows)
 
                 metrics.sql_queries.inc(1.0, self.tenant.get_instance_name())
+                self._query_count += 1
                 with managed_error():
                     unit = dbv.find_portal(portal_name)
                     actions.append(

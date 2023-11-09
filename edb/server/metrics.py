@@ -139,6 +139,12 @@ sql_compilations = registry.new_labeled_counter(
     labels=('tenant',)
 )
 
+queries_per_connection = registry.new_labeled_histogram(
+    'queries_per_connection',
+    'Number of queries per connection.',
+    labels=('tenant', 'interface'),
+)
+
 background_errors = registry.new_labeled_counter(
     'background_errors_total',
     'Number of unhandled errors in background server routines.',

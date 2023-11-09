@@ -906,6 +906,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     extra_blobs=query_req.source.extra_blobs(),
                 )
 
+        self._query_count += 1
+
         # Clear the _last_anon_compiled so that the next Execute - if
         # identical - will always lookup in the cache and honor the
         # `cacheable` flag to compile the query again.

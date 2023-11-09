@@ -69,6 +69,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         self._get_pgcon_cc = 0
 
         self.connection_made_at = connection_made_at
+        self._query_count = 0
         self._transport = None
         self._write_buf = None
         self._write_waiter = None
@@ -495,11 +496,16 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         #    Again, those operations don't mutate global state.
 
         if self.connection_made_at is not None:
+            tenant_label = self.get_tenant_label()
             metrics.client_connection_duration.observe(
                 time.monotonic() - self.connection_made_at,
-                self.get_tenant_label(),
+                tenant_label,
                 self.interface,
             )
+            if self.authed:
+                metrics.queries_per_connection.observe(
+                    self._query_count, tenant_label, self.interface
+                )
 
         if (self._msg_take_waiter is not None and
             not self._msg_take_waiter.done()):

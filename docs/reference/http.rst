@@ -153,6 +153,9 @@ Queries and compilation
 ``query_compilation_duration``
   **Histogram.** Time it takes to compile a query or script, in seconds.
 
+``queries_per_connection``
+  **Histogram.** Number of queries per connection.
+
 Errors
 ^^^^^^
 
