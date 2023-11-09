@@ -216,12 +216,12 @@ Email and password
 
 -  ``require_verification``: (Default: ``true``) If ``true``, your application
    will not be able to retrieve an authentication token until the user
-   has verified their email. If ``false``, your application can retrieve an
-   authentication token, but a verification email will still be sent.
-   Regardless of this setting, you can always decide to limit access or
-   specific features in your application by testing if
-   ``ext::auth::EmailPasswordFactor.verified_at`` is set to a date in
-   the past on the ``ext::auth::LocalIdentity``.
+   has verified their email. A verification email will still be sent if 
+   set to ``false``, but your application will be able to retrieve the
+   authentication token before verification. Regardless of this setting,
+   you can always decide to limit access or specific features in your
+   application by testing if ``ext::auth::EmailPasswordFactor.verified_at``
+   is set to a date in the past on the ``ext::auth::LocalIdentity``.
 
 If you use the Email and Password provider, in addition to the
 ``require_verification`` configuration, you’ll need to configure SMTP to allow
