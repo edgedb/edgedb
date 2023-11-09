@@ -221,7 +221,10 @@ Email and password
    authentication token before verification. Regardless of this setting,
    you can always decide to limit access or specific features in your
    application by testing if ``ext::auth::EmailPasswordFactor.verified_at``
-   is set to a date in the past on the ``ext::auth::LocalIdentity``.
+   is set to a date preceding that of the ``created_at`` property in the
+   ``ext::auth::LocalIdentity`` object it links to via its ``identity`` link.
+
+.. Trying a clarification here based on what I think I'm reading, is this right?
 
 If you use the Email and Password provider, in addition to the
 ``require_verification`` configuration, you’ll need to configure SMTP to allow
