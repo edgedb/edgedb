@@ -162,6 +162,9 @@ Errors
 ``background_errors_total``
   **Counter.** Number of unhandled errors in background server routines.
 
+``transaction_serialization_errors_total``
+  **Counter.** Number of transaction serialization errors.
+
 .. _ref_reference_http_querying:
 
 Querying

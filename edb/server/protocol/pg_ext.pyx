@@ -396,7 +396,10 @@ cdef class PgConnection(frontend.FrontendConnection):
         buf = WriteBuffer.new_message(b'E')
 
         if isinstance(exc, pgerror.BackendError):
-            pass
+            if exc.code_is(pgerror.ERROR_SERIALIZATION_FAILURE):
+                metrics.transaction_serialization_errors.inc(
+                    1.0, self.get_tenant_label()
+                )
         elif isinstance(exc, parser_errors.PSqlUnsupportedError):
             exc = pgerror.FeatureNotSupported(str(exc))
         elif isinstance(exc, parser_errors.PSqlParseError):
@@ -426,6 +429,10 @@ cdef class PgConnection(frontend.FrontendConnection):
                 str(exc),
                 **args,
             )
+            if isinstance(exc, errors.TransactionSerializationError):
+                metrics.transaction_serialization_errors.inc(
+                    1.0, self.get_tenant_label()
+                )
         else:
             exc = pgerror.new(
                 pgerror.ERROR_INTERNAL_ERROR,
