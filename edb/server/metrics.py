@@ -157,6 +157,12 @@ transaction_serialization_errors = registry.new_labeled_counter(
     labels=('tenant',)
 )
 
+connection_errors = registry.new_labeled_counter(
+    'connection_errors_total',
+    'Number of network connection errors.',
+    labels=('tenant',)
+)
+
 ha_events_total = registry.new_labeled_counter(
     "ha_events_total",
     "Number of each high-availability watch event.",

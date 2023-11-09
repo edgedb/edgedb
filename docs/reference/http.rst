@@ -165,6 +165,9 @@ Errors
 ``transaction_serialization_errors_total``
   **Counter.** Number of transaction serialization errors.
 
+``connection_errors_total``
+  **Counter.** Number of network connection errors.
+
 .. _ref_reference_http_querying:
 
 Querying

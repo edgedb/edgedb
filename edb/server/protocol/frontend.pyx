@@ -409,7 +409,12 @@ cdef class FrontendConnection(AbstractFrontendConnection):
             # in this situation we just silently exit.
             pass
 
-        except (ConnectionError, pgerror.BackendQueryCancelledError):
+        except ConnectionError:
+            metrics.connection_errors.inc(
+                1.0, self.get_tenant_label(),
+            )
+
+        except pgerror.BackendQueryCancelledError:
             pass
 
         except Exception as ex:
@@ -506,6 +511,8 @@ cdef class FrontendConnection(AbstractFrontendConnection):
                 metrics.queries_per_connection.observe(
                     self._query_count, tenant_label, self.interface
                 )
+            if isinstance(exc, ConnectionError):
+                metrics.connection_errors.inc(1.0, tenant_label)
 
         if (self._msg_take_waiter is not None and
             not self._msg_take_waiter.done()):
