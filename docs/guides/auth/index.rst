@@ -30,6 +30,14 @@ to your app’s schema:
 
 Adding this to your schema will enable the extensions ``pgcrypto`` and
 ``auth``, which may lead to two prompts from the CLI to confirm the changes.
+The source code for each of these extensions can be seen here:
+
+.. lint-off
+
+- `auth <https://github.com/edgedb/edgedb/blob/db4182d0be7f7433d584187af5739b632c79ca17/edb/lib/ext/auth.edgeql/>`__
+- `pgcrypto <https://github.com/edgedb/edgedb/blob/db4182d0be7f7433d584187af5739b632c79ca17/edb/lib/ext/pgcrypto.edgeql/>`__
+
+.. lint-on
 
 Extension configuration
 =======================
@@ -177,6 +185,12 @@ You’ll also need to set a callback URL in each provider’s interface. To buil
 this callback URL, you will need the hostname, port, and database name of your
 database. The database name is ``edgedb`` by default. The hostname and port can
 be found running this CLI command:
+
+.. "in each provider's interface": I read this as "you need to go back to
+.. the provider's website to enter this url" but maybe this is just what you
+.. use to set the redirect_to url? I don't see anything about callback urls
+.. in the Google auth page and have tentatively concluded that this section
+.. is just referring to how to set the redirect_to url.
 
 .. code-block:: bash
 
