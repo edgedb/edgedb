@@ -278,10 +278,21 @@ to an ``ext::auth::Identity``.
 You can then use the ``ext::auth::Identity`` (or custom ``User`` type)
 to define access policies and make authenticated queries.
 
-Select your method for detailed configuration:
+.. Looks like this is where the tutorial splits off à la Choose your own
+.. Adventure so I'm thinking make the TOC smaller (the sub-headings inside
+.. probably don't need to be shown here) and make it more of a clear mission:
+.. choose one method to get the ``auth_token`` and then return. If I am
+.. reading this right, of course
+
+At this point there are three methods to carry out this detailed
+configuration in order to obtain the authentication token. The ``Built-in UI``
+method is most straightforward and continues the setup via the EdgeDB UI
+page, while ``Email and password`` and ``OAuth`` are two other options
+to accomplish the same task. Please choose one of the three methods to obtain
+this token before proceeding to the last step.
 
 .. toctree::
-    :maxdepth: 3
+    :maxdepth: 1
 
     built_in_ui
     email_password
@@ -291,9 +302,10 @@ Select your method for detailed configuration:
 Example usage
 =============
 
-Here’s an example schema that we can use to show how you would use the
-``auth_token`` you get back from EdgeDB to make queries against a
-protected resource, in this case being able to insert a ``Post``.
+All done getting an ``auth_token`` back from EdgeDB? Now let's try out
+this example schema that we can use to show how you would use this
+``auth_token`` to make queries against a protected resource, in this
+case being able to insert a ``Post``.
 
 .. code-block:: sdl
 
