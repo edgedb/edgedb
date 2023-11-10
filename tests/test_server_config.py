@@ -1500,15 +1500,17 @@ class TestSeparateCluster(tb.TestCase):
             ''')
 
             # Check new connections are fed with the new value
-            con = await sd.connect()
-            try:
-                sysconfig = con.get_settings()["system_config"]
-                self.assertEqual(
-                    sysconfig.session_idle_timeout,
-                    datetime.timedelta(milliseconds=5010),
-                )
-            finally:
-                await con.aclose()
+            async for tr in self.try_until_succeeds(ignore=AssertionError):
+                async with tr:
+                    con = await sd.connect()
+                    try:
+                        sysconfig = con.get_settings()["system_config"]
+                        self.assertEqual(
+                            sysconfig.session_idle_timeout,
+                            datetime.timedelta(milliseconds=5010),
+                        )
+                    finally:
+                        await con.aclose()
 
             await conn.execute('''
                 configure system set session_idle_timeout := <duration>'10ms'
