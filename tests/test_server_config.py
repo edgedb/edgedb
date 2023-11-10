@@ -1496,6 +1496,21 @@ class TestSeparateCluster(tb.TestCase):
             conn = await sd.connect_test_protocol()
 
             await conn.execute('''
+                configure system set session_idle_timeout := <duration>'5010ms'
+            ''')
+
+            # Check new connections are fed with the new value
+            con = await sd.connect()
+            try:
+                sysconfig = con.get_settings()["system_config"]
+                self.assertEqual(
+                    sysconfig.session_idle_timeout,
+                    datetime.timedelta(milliseconds=5010),
+                )
+            finally:
+                await con.aclose()
+
+            await conn.execute('''
                 configure system set session_idle_timeout := <duration>'10ms'
             ''')
 
@@ -1510,17 +1525,6 @@ class TestSeparateCluster(tb.TestCase):
             errcls = errors.EdgeDBError.get_error_class_from_code(
                 msg.error_code)
             self.assertEqual(errcls, errors.IdleSessionTimeoutError)
-
-            # Check new connections are fed with the new value
-            conn = await sd.connect()
-            try:
-                sysconfig = conn.get_settings()["system_config"]
-                self.assertEqual(
-                    sysconfig.session_idle_timeout,
-                    datetime.timedelta(milliseconds=10),
-                )
-            finally:
-                await conn.aclose()
 
     async def test_server_config_db_config(self):
         async with tb.start_edgedb_server(
