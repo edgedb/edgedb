@@ -187,3 +187,9 @@ auth_ui_renders = registry.new_labeled_counter(
     "Number of UI pages rendered by the Auth extension.",
     labels=("tenant",),
 )
+
+auth_providers = registry.new_labeled_gauge(
+    'auth_providers',
+    'Number of Auth providers configured.',
+    labels=('tenant', 'branch'),
+)

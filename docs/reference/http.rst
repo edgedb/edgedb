@@ -171,6 +171,9 @@ Auth Extension
 ``auth_ui_renders_total``
   **Counter.** Number of UI pages rendered by the Auth extension.
 
+``auth_providers``
+  **Histogram.** Number of Auth providers configured.
+
 Errors
 ^^^^^^
 

@@ -138,6 +138,7 @@ cdef class Database:
         self.reflection_cache = reflection_cache
         self.backend_ids = backend_ids
         self.extensions = extensions
+        self._observe_auth_ext_config()
 
     @property
     def server(self):
@@ -176,7 +177,26 @@ cdef class Database:
             self.reflection_cache = reflection_cache
         if db_config is not None:
             self.db_config = db_config
+            self._observe_auth_ext_config()
         self._invalidate_caches()
+
+    cdef _observe_auth_ext_config(self):
+        key = "ext::auth::AuthConfig::providers"
+        if (
+            self.db_config is not None and
+            self.user_config_spec is not None and
+            key in self.user_config_spec
+        ):
+            providers = config.lookup(
+                key,
+                self.db_config,
+                spec=self.user_config_spec,
+            )
+            metrics.auth_providers.set(
+                len(providers),
+                self.tenant.get_instance_name(),
+                self.name,
+            )
 
     cdef _update_backend_ids(self, new_types):
         self.backend_ids.update(new_types)
