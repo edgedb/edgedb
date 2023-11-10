@@ -38,7 +38,7 @@ from edb import errors as edb_errors
 from edb.common import debug
 from edb.common import markup
 from edb.ir import statypes
-from edb.server import tenant as edbtenant
+from edb.server import tenant as edbtenant, metrics
 from edb.server.config.types import CompositeConfigType
 
 from . import (
@@ -1660,6 +1660,9 @@ class Router:
             claims=claims,
         )
         session_token.make_signed_token(signing_key)
+        metrics.auth_successful_logins.inc(
+            1.0, self.tenant.get_instance_name()
+        )
         return session_token.serialize()
 
     def _get_from_claims(self, state: str, key: str) -> str:

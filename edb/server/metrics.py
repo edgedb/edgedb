@@ -193,3 +193,9 @@ auth_providers = registry.new_labeled_gauge(
     'Number of Auth providers configured.',
     labels=('tenant', 'branch'),
 )
+
+auth_successful_logins = registry.new_labeled_counter(
+    "auth_successful_logins_total",
+    "Number of successful logins in the Auth extension.",
+    labels=("tenant",),
+)

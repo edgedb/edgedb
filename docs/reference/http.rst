@@ -174,6 +174,9 @@ Auth Extension
 ``auth_providers``
   **Histogram.** Number of Auth providers configured.
 
+``auth_successful_logins_total``
+  **Counter.** Number of successful logins in the Auth extension.
+
 Errors
 ^^^^^^
 
