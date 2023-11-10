@@ -145,6 +145,13 @@ queries_per_connection = registry.new_labeled_histogram(
     labels=('tenant', 'interface'),
 )
 
+query_size = registry.new_labeled_histogram(
+    'query_size',
+    'The size of a query.',
+    unit=prom.Unit.BYTES,
+    labels=('tenant', 'interface'),
+)
+
 background_errors = registry.new_labeled_counter(
     'background_errors_total',
     'Number of unhandled errors in background server routines.',

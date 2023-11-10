@@ -816,11 +816,16 @@ cdef class PgConnection(frontend.FrontendConnection):
 
         elif mtype == b'Q':  # Query
             try:
-                query_str = self.buffer.read_null_str().decode("utf8")
+                query = self.buffer.read_null_str()
+                metrics.query_size.observe(
+                    len(query), self.get_tenant_label(), 'sql'
+                )
+                query_str = query.decode("utf8")
                 self.buffer.finish_message()
                 if self.debug:
                     self.debug_print("Query", query_str)
                 actions = await self.simple_query(query_str)
+                del query_str, query
             except Exception as ex:
                 self.write_error(ex)
                 self.write(self.ready_for_query())
@@ -1005,6 +1010,9 @@ cdef class PgConnection(frontend.FrontendConnection):
                 data = self.buffer.consume_message()
                 if self.debug:
                     self.debug_print("Parse", repr(stmt_name), query_str, data)
+                metrics.query_size.observe(
+                    len(query_bytes), self.get_tenant_label(), 'sql'
+                )
 
                 with managed_error():
                     if (

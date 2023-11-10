@@ -791,6 +791,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if not query:
             raise errors.BinaryProtocolError('empty query')
 
+        metrics.query_size.observe(
+            len(query), self.get_tenant_label(), 'edgeql'
+        )
+
         _dbview = self.get_dbview()
         state_tid = self.buffer.read_bytes(16)
         state_data = self.buffer.read_len_prefixed_bytes()

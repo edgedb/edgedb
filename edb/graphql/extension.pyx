@@ -97,6 +97,7 @@ async def handle_request(
     globals = None
     deprecated_globals = None
     query = None
+    query_bytes_len = 0
 
     try:
         if request.method == b'POST':
@@ -106,10 +107,12 @@ async def handle_request(
                     raise TypeError(
                         'the body of the request must be a JSON object')
                 query = body.get('query')
+                query_bytes_len = len(query.encode('utf-8'))
                 operation_name = body.get('operationName')
                 variables = body.get('variables')
                 deprecated_globals = body.get('globals')
             elif request.content_type == 'application/graphql':
+                query_bytes_len = len(request.body)
                 query = request.body.decode('utf-8')
             else:
                 raise TypeError(
@@ -123,6 +126,7 @@ async def handle_request(
                 query = qs.get('query')
                 if query is not None:
                     query = query[0]
+                    query_bytes_len = len(query.encode('utf-8'))
 
                 operation_name = qs.get('operationName')
                 if operation_name is not None:
@@ -149,6 +153,9 @@ async def handle_request(
 
         if not query:
             raise TypeError('invalid GraphQL request: query is missing')
+        metrics.query_size.observe(
+            query_bytes_len, tenant.get_instance_name(), 'graphql'
+        )
 
         if (operation_name is not None and
                 not isinstance(operation_name, str)):

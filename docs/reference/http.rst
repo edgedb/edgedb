@@ -156,6 +156,12 @@ Queries and compilation
 ``queries_per_connection``
   **Histogram.** Number of queries per connection.
 
+``query_size``
+  **Histogram.** Number of bytes in a query, where the label
+  ``interface=edgeql`` means the size of an EdgeQL query, ``=graphql`` for a
+  GraphQL query, ``=sql`` for a readonly SQL query from the user, and
+  ``=compiled`` for a backend SQL query compiled and issued by the server.
+
 Errors
 ^^^^^^
 
