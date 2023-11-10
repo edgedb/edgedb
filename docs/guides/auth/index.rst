@@ -89,9 +89,8 @@ allowed_redirect_urls
 
 This value is a set of strings that we use to ensure we only redirect to
 domains that are under the control of the application using the Auth
-extension. They can be set by clicking on the ``Enable UI`` button on the
-bottom of the screen. Any ``redirect_to`` URLs are compared against this
-list. A URL is considered a "match" if the URL is exactly the same as one
+extension. Any ``redirect_to`` URLs are compared against this list. 
+A URL is considered a "match" if the URL is exactly the same as one
 on the list, or is a sub-path of a URL on the list.
 
 For example, if the set includes ``https://example.com/myapp``:
@@ -360,7 +359,8 @@ Let’s now insert a ``Post``.
 
 .. lint-on
 
-I can even delete it, since I have access through the global:
+Having access through the ``current_user`` global even makes it possible
+to delete it:
 
 .. code-block:: tsx
 
