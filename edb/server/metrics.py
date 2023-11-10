@@ -175,3 +175,15 @@ ha_events_total = registry.new_labeled_counter(
     "Number of each high-availability watch event.",
     labels=("dsn", "event"),
 )
+
+auth_api_calls = registry.new_labeled_counter(
+    "auth_api_calls_total",
+    "Number of API calls to the Auth extension.",
+    labels=("tenant",),
+)
+
+auth_ui_renders = registry.new_labeled_counter(
+    "auth_ui_renders_total",
+    "Number of UI pages rendered by the Auth extension.",
+    labels=("tenant",),
+)

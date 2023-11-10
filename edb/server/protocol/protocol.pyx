@@ -129,15 +129,17 @@ cdef class HttpProtocol:
     def connection_lost(self, exc):
         srv_metrics.client_connection_duration.observe(
             time.monotonic() - self.connection_made_at,
-            (
-                "unknown"
-                if self.tenant is None
-                else self.tenant.get_instance_name()
-            ),
+            self.get_tenant_label(),
             "http",
         )
         self.transport = None
         self.unprocessed = None
+
+    def get_tenant_label(self):
+        if self.tenant is None:
+            return "unknown"
+        else:
+            return self.tenant.get_instance_name()
 
     def pause_writing(self):
         pass
@@ -656,6 +658,15 @@ cdef class HttpProtocol:
                         tenant=self.tenant,
                     )
                     await handler.handle_request(request, response, args)
+                    if args:
+                        if args[0] == 'ui':
+                            srv_metrics.auth_ui_renders.inc(
+                                1.0, self.get_tenant_label()
+                            )
+                        else:
+                            srv_metrics.auth_api_calls.inc(
+                                1.0, self.get_tenant_label()
+                            )
 
         elif route == 'auth':
             if await self._handle_cors(

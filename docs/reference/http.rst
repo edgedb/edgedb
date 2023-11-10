@@ -162,6 +162,15 @@ Queries and compilation
   GraphQL query, ``=sql`` for a readonly SQL query from the user, and
   ``=compiled`` for a backend SQL query compiled and issued by the server.
 
+Auth Extension
+^^^^^^^^^^^^^^
+
+``auth_api_calls_total``
+  **Counter.** Number of API calls to the Auth extension.
+
+``auth_ui_renders_total``
+  **Counter.** Number of UI pages rendered by the Auth extension.
+
 Errors
 ^^^^^^
 
