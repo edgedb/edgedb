@@ -54,13 +54,19 @@ project init`` inside it. You'll see something like this:
   No `edgedb.toml` found in this repo or above.
   Do you want to initialize a new project? [Y/n]
   > Y
-  Specify the version of EdgeDB to use with this project [2.x]:
-  > # (left blank for default)
-  Specify the name of EdgeDB instance to use with this project:
+  Specify the name of EdgeDB instance to use with this project
+  [default: my_instance]:
   > my_instance
+  Checking EdgeDB versions...
+  Specify the version of EdgeDB to use with this project [default: 4.x]:
+  > # (left blank for default)
+  ...
+  Successfully installed 4.x+cc4f3b5
   Initializing EdgeDB instance...
-  Bootstrap complete. Server is up and running now.
-  Project initialialized.
+  Applying migrations...
+  Everything is up to date. Revision initial
+  Project initialized.
+  To connect to my_instance, run `edgedb`
 
 This command does a couple important things.
 
@@ -73,7 +79,7 @@ This command does a couple important things.
    .. code-block:: toml
 
      [edgedb]
-     server-version = "2.1"
+     server-version = "4.1"
 
 3. If no ``dbschema`` directory exists, it will be created, along with an
    empty ``default.esdl`` file which will contain your schema. If a
@@ -103,9 +109,9 @@ executed against the project-linked instance. For instance, you can simply run
 .. code-block:: bash
 
   $ edgedb
-  EdgeDB 2.x+88c1706 (repl 2.x+a7fc49b)
+  EdgeDB 4.x+cc4f3b5 (repl 4.x+da2788e)
   Type \help for help, \quit to quit.
-  edgedb> select "Hello world!";
+  my_instance:edgedb> select "Hello world!";
 
 By contrast, if you leave the project directory, the CLI will no longer know
 which instance to connect to. You can solve this by specifing an instance name
@@ -115,14 +121,13 @@ with the ``-I`` flag.
 
   $ cd ~
   $ edgedb
-  ClientNoCredentialsError: no `edgedb.toml` found and no
-  connection options are specified
-  Hint: Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments
-  to specify connection parameters. See `--help` for details
+  edgedb error: no `edgedb.toml` found and no connection options are specified
+    Hint: Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments to
+    specify connection parameters. See `--help` for details
   $ edgedb -I my_instance
-  EdgeDB 2.x+88c1706 (repl 2.x+a7fc49b)
+  EdgeDB 4.x+cc4f3b5 (repl 4.x+da2788e)
   Type \help for help, \quit to quit.
-  edgedb>
+  my_instance:edgedb>
 
 Similarly, client libraries will auto-connect to the project's
 linked instance without additional configuration.
@@ -140,13 +145,13 @@ instance using ``edgedb instance link``, like so:
 .. code-block:: bash
 
   $ edgedb instance link
-  Specify the host of the server [default: localhost]:
+  Specify server host [default: localhost]:
   > 192.168.4.2
-  Specify the port of the server [default: 5656]:
+  Specify server port [default: 5656]:
   > 10818
-  Specify the database user [default: edgedb]:
+  Specify database user [default: edgedb]:
   > edgedb
-  Specify the database name [default: edgedb]:
+  Specify database name [default: edgedb]:
   > edgedb
   Unknown server certificate: SHA1:c38a7a90429b033dfaf7a81e08112a9d58d97286.
   Trust? [y/N]
@@ -199,7 +204,7 @@ A standalone instance (not linked to a project) can be upgraded with the
 
   $ edgedb project upgrade --to-latest
   $ edgedb project upgrade --to-nightly
-  $ edgedb project upgrade --to-version 2.x
+  $ edgedb project upgrade --to-version 4.x
 
 
 See info
