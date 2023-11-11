@@ -51,7 +51,7 @@ Let's dig into each of these a bit more.
 
 **Instance name**
   All local instances (instances created on your local machine using the CLI)
-  are associated with a name. This name is that's needed to connect; under the
+  are associated with a name. This name is what's needed to connect; under the
   hood, the CLI stores the instance credentials (username, password, etc) on
   your file system in the EdgeDB :ref:`config directory
   <ref_cli_edgedb_paths>`. The CLI and client libraries look up these
@@ -224,7 +224,7 @@ connection fails.
 
 .. warning::
 
-   Within a given priority level, you cannot specify multiple instances
+   Within a given priority level, you cannot specify multiple instances of
    "instance selection parameters" simultaneously. For instance, specifying
    both ``EDGEDB_INSTANCE`` and ``EDGEDB_DSN`` environment variables will
    result in an error.
@@ -262,7 +262,7 @@ instance-level configuration object.
     - N/A
 
 **EDGEDB_DATABASE**
-  Each EdgeDB *instance* can contain multiple *databases*. When in instance is
+  Each EdgeDB *instance* can contain multiple *databases*. When an instance is
   created, a default database named ``edgedb`` is created. Unless otherwise
   specified, all incoming connections connect to the ``edgedb`` database.
 
