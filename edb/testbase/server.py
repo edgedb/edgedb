@@ -2039,6 +2039,7 @@ class _EdgeDBServer:
         tls_key_file: Optional[os.PathLike] = None,
         tls_cert_mode: edgedb_args.ServerTlsCertMode = (
             edgedb_args.ServerTlsCertMode.SelfSigned),
+        tls_client_ca_file: Optional[os.PathLike] = None,
         jws_key_file: Optional[os.PathLike] = None,
         jwt_sub_allowlist_file: Optional[os.PathLike] = None,
         jwt_revocation_list_file: Optional[os.PathLike] = None,
@@ -2072,6 +2073,7 @@ class _EdgeDBServer:
         self.tls_cert_file = tls_cert_file
         self.tls_key_file = tls_key_file
         self.tls_cert_mode = tls_cert_mode
+        self.tls_client_ca_file = tls_client_ca_file
         self.jws_key_file = jws_key_file
         self.jwt_sub_allowlist_file = jwt_sub_allowlist_file
         self.jwt_revocation_list_file = jwt_revocation_list_file
@@ -2230,6 +2232,9 @@ class _EdgeDBServer:
         if self.tls_key_file:
             cmd += ['--tls-key-file', self.tls_key_file]
 
+        if self.tls_client_ca_file:
+            cmd += ['--tls-client-ca-file', self.tls_client_ca_file]
+
         if self.readiness_state_file:
             cmd += ['--readiness-state-file', self.readiness_state_file]
 
@@ -2368,6 +2373,7 @@ def start_edgedb_server(
     tls_key_file: Optional[os.PathLike] = None,
     tls_cert_mode: edgedb_args.ServerTlsCertMode = (
         edgedb_args.ServerTlsCertMode.SelfSigned),
+    tls_client_ca_file: Optional[os.PathLike] = None,
     jws_key_file: Optional[os.PathLike] = None,
     jwt_sub_allowlist_file: Optional[os.PathLike] = None,
     jwt_revocation_list_file: Optional[os.PathLike] = None,
@@ -2434,6 +2440,7 @@ def start_edgedb_server(
         tls_cert_file=tls_cert_file,
         tls_key_file=tls_key_file,
         tls_cert_mode=tls_cert_mode,
+        tls_client_ca_file=tls_client_ca_file,
         jws_key_file=jws_key_file,
         jwt_sub_allowlist_file=jwt_sub_allowlist_file,
         jwt_revocation_list_file=jwt_revocation_list_file,
