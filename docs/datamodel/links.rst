@@ -404,8 +404,8 @@ constraint, each movie can be liked by multiple users. Thus this is a
       property seen_at: datetime;
     }
 
-  Be sure to use single links in the join table instead of a multi link 
-  otherwise there will be 4 tables in the database.
+  Be sure to use single links in the join table instead of a multi link
+  otherwise there will be four tables in the database.
 
 Filtering, ordering, and limiting links
 ---------------------------------------
