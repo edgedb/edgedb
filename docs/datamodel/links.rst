@@ -418,8 +418,8 @@ into the shape itself. Assuming the same schema in the previous paragraph:
 
 .. code-block:: edgeql
 
-    select User { 
-      likes order by .title desc limit 10 
+    select User {
+      likes order by .title desc limit 10
     };
 
 If properties are selected on that link, then place the clauses after
@@ -427,11 +427,11 @@ the link's shape:
 
 .. code-block:: edgeql
 
-    select User { 
-      likes: { 
-        id, 
-        title 
-      } order by .title desc limit 10 
+    select User {
+      likes: {
+        id,
+        title
+      } order by .title desc limit 10
     };
 
 
