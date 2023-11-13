@@ -359,22 +359,38 @@ constraint, each movie can be liked by multiple users. Thus this is a
   objects twice.
 
   .. code-block:: sdl
-    
+
     type User {
       required name: str;
       multi watch_history: Movie {
-        property seen_at: datetime;
+        seen_at: datetime;
       };
     }
     type Movie {
       required title: str;
     }
 
-  With this model it's not possible to watch the same movie twice.
-  Instead the watch history must be modeled more traditionally as its own type.
+  With this model it's not possible to watch the same movie twice. Instead, you
+  might change your ``seen_at`` link property to an array to store multiple
+  watch times.
 
   .. code-block:: sdl
-    
+
+    type User {
+      required name: str;
+      multi watch_history: Movie {
+        seen_at: array<datetime>;
+      };
+    }
+    type Movie {
+      required title: str;
+    }
+
+  Alternatively, the watch history could be modeled more traditionally as its
+  own type.
+
+  .. code-block:: sdl
+
     type User {
       required name: str;
       multi link watch_history := .<user[Is WatchHistory];
