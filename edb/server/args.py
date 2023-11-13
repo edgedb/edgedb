@@ -258,6 +258,7 @@ class ServerConfig(NamedTuple):
     tls_cert_file: pathlib.Path
     tls_key_file: pathlib.Path
     tls_cert_mode: ServerTlsCertMode
+    tls_client_ca_file: Optional[pathlib.Path]
 
     jws_key_file: pathlib.Path
     jose_key_mode: JOSEKeyMode
@@ -815,6 +816,19 @@ _server_options = [
              '"require_file" when the --security option is set to "strict", '
              'and "generate_self_signed" when the --security option is set to '
              '"insecure_dev_mode"'),
+    click.option(
+        '--tls-client-ca-file',
+        type=PathPath(),
+        envvar='EDGEDB_SERVER_TLS_CLIENT_CA_FILE',
+        help='Specifies a path to a file containing a TLS CA certificate to '
+             'verify client certificates if provided. Certain HTTP endpoints '
+             'require a successful client certificate verification, like '
+             '/metrics; other endpoints will not grant access just because of '
+             'a successful verification of client certificate.  '
+             'If --tls-client-ca-file is not specified, the server shall not '
+             'verify client certificates, thus /metrics will raise an error '
+             'unless --http-endpoint-security is not `tls`.',
+    ),
     click.option(
         '--generate-self-signed-cert', type=bool, default=False, is_flag=True,
         help='DEPRECATED.\n\n'

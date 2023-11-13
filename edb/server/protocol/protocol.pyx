@@ -669,6 +669,13 @@ cdef class HttpProtocol:
                 self.tenant,
             )
         elif path_parts == ['metrics'] and request.method == b'GET':
+            sslobj = self.transport.get_extra_info('ssl_object')
+            if sslobj is not None:
+                if not sslobj.getpeercert():  # None or empty dict
+                    return self._unauthorized(
+                        request, response, "Valid client certificate required."
+                    )
+
             # Quoting the Open Metrics spec:
             #    Implementers MUST expose metrics in the OpenMetrics
             #    text format in response to a simple HTTP GET request
@@ -779,6 +786,16 @@ cdef class HttpProtocol:
 
         return False
 
+    cdef _unauthorized(
+        self,
+        HttpRequest request,
+        HttpResponse response,
+        str message,
+    ):
+        response.body = message.encode("utf-8")
+        response.status = http.HTTPStatus.UNAUTHORIZED
+        response.close_connection = True
+
     async def _check_http_auth(
         self,
         HttpRequest request,
@@ -830,9 +847,7 @@ cdef class HttpProtocol:
             if debug.flags.server:
                 markup.dump(ex)
 
-            response.body = str(ex).encode()
-            response.status = http.HTTPStatus.UNAUTHORIZED
-            response.close_connection = True
+            self._unauthorized(request, response, str(ex))
 
             # If no scheme was specified, add a WWW-Authenticate header
             if scheme == '':
