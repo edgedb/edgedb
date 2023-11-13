@@ -166,7 +166,7 @@ setup. If neither the ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` variable or the
 will look for the presence of ``/edgedb-bootstrap.edgeql`` in the container
 (which can be placed in a derived image).
 
-Maps directly to the ``edgedb-server`` flag ``--default-auth-method``. The
+Maps directly to the ``edgedb-server`` flag ``--bootstrap-command``. The
 ``*_FILE`` and ``*_ENV`` variants are also supported.
 
 

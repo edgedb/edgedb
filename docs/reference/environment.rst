@@ -219,24 +219,34 @@ Set to ``enabled`` to enable the web-based admininstrative UI for the instance.
 Maps directly to the ``edgedb-server`` flag ``--admin-ui``.
 
 
-EDGEDB_SERVER_DEFAULT_AUTH_METHOD
-.................................
+EDGEDB_SERVER_ALLOW_INSECURE_BINARY_CLIENTS
+...........................................
 
 .. warning:: Deprecated
 
-    Use ``EDGEDB_SERVER_DEFAULT_AUTH_METHOD`` instead.
+    Use ``EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY`` instead.
 
-Optionally specifies the authentication method used by the server instance.
-Supported values are ``SCRAM`` (the default) and ``Trust``. When set to
-``Trust``, the database will allow complete unauthenticated access
-for all who have access to the database port.
+Specifies the security mode of the server's binary endpoint. When set to ``1``,
+non-TLS connections are allowed. Not set by default.
 
-This is often useful when setting an admin password on an instance that lacks
-one.
+.. warning::
 
-Use at your own risk and only for development and testing.
+    Disabling TLS is not recommended in production.
 
-The ``*_FILE`` and ``*_ENV`` variants are also supported.
+
+EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS
+.........................................
+
+.. warning:: Deprecated
+
+    Use ``EDGEDB_SERVER_HTTP_ENDPOINT_SECURITY`` instead.
+
+Specifies the security mode of the server's HTTP endpoint. When set to ``1``,
+non-TLS connections are allowed. Not set by default.
+
+.. warning::
+
+    Disabling TLS is not recommended in production.
 
 
 .. _ref_reference_docker_edgedb_server_backend_dsn:
@@ -296,7 +306,7 @@ Useful to fine-tune initial user creation and other initial setup.
     create databases and still run other EdgeQL statements to bootstrap your
     instance.
 
-Maps directly to the ``edgedb-server`` flag ``--default-auth-method``. The
+Maps directly to the ``edgedb-server`` flag ``--bootstrap-command``. The
 ``*_FILE`` and ``*_ENV`` variants are also supported.
 
 
@@ -337,7 +347,7 @@ The ``*_FILE`` and ``*_ENV`` variants are also supported.
 EDGEDB_SERVER_HTTP_ENDPOINT_SECURITY
 ....................................
 
-Specifies the security mode of server binary endpoint. When set to
+Specifies the security mode of the server's HTTP endpoint. When set to
 ``optional``, non-TLS connections are allowed. Default is ``tls``.
 
 .. warning::
