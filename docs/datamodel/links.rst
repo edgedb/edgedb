@@ -353,6 +353,60 @@ A user can like multiple movies. And in the absence of an ``exclusive``
 constraint, each movie can be liked by multiple users. Thus this is a
 *many-to-many* relationship.
 
+.. note::
+
+  Links are always distinct. That means it's not possible to link the same
+  objects twice.
+
+  .. code-block:: sdl
+
+    type User {
+      required name: str;
+      multi watch_history: Movie {
+        seen_at: datetime;
+      };
+    }
+    type Movie {
+      required title: str;
+    }
+
+  With this model it's not possible to watch the same movie twice. Instead, you
+  might change your ``seen_at`` link property to an array to store multiple
+  watch times.
+
+  .. code-block:: sdl
+
+    type User {
+      required name: str;
+      multi watch_history: Movie {
+        seen_at: array<datetime>;
+      };
+    }
+    type Movie {
+      required title: str;
+    }
+
+  Alternatively, the watch history could be modeled more traditionally as its
+  own type.
+
+  .. code-block:: sdl
+
+    type User {
+      required name: str;
+      multi link watch_history := .<user[Is WatchHistory];
+    }
+    type Movie {
+      required title: str;
+    }
+    type WatchHistory {
+      required link user: User;
+      required link movie: Movie;
+      property seen_at: datetime;
+    }
+
+  Be sure to use single links in the join table instead of a multi link
+  otherwise there will be four tables in the database.
+
 Filtering, ordering, and limiting links
 ---------------------------------------
 
@@ -364,8 +418,8 @@ into the shape itself. Assuming the same schema in the previous paragraph:
 
 .. code-block:: edgeql
 
-    select User { 
-      likes order by .title desc limit 10 
+    select User {
+      likes order by .title desc limit 10
     };
 
 If properties are selected on that link, then place the clauses after
@@ -373,11 +427,11 @@ the link's shape:
 
 .. code-block:: edgeql
 
-    select User { 
-      likes: { 
-        id, 
-        title 
-      } order by .title desc limit 10 
+    select User {
+      likes: {
+        id,
+        title
+      } order by .title desc limit 10
     };
 
 
