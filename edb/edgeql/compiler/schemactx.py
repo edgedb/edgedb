@@ -62,10 +62,8 @@ def get_schema_object(
             srcctx = ref.context
         module = ref.module
         lname = ref.name
-    elif isinstance(ref, qlast.AnyType):
-        return s_pseudo.PseudoType.get(ctx.env.schema, 'anytype')
-    elif isinstance(ref, qlast.AnyTuple):
-        return s_pseudo.PseudoType.get(ctx.env.schema, 'anytuple')
+    elif isinstance(ref, qlast.PseudoObjectRef):
+        return s_pseudo.PseudoType.get(ctx.env.schema, ref.name)
     else:
         raise AssertionError(f"Unhandled BaseObjectRef subclass: {ref!r}")
 
@@ -330,9 +328,6 @@ def derive_ptr(
     if derive_backlink:
         attrs = attrs.copy() if attrs else {}
         attrs['computed_backlink'] = ptr
-        ntarget = ptr.get_source(ctx.env.schema)
-        assert isinstance(ntarget, s_types.Type)
-        target = ntarget
         ptr = ctx.env.schema.get('std::link', type=s_pointers.Pointer)
 
     ctx.env.schema, derived = ptr.derive_ref(

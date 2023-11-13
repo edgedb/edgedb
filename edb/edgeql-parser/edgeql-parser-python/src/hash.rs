@@ -1,13 +1,11 @@
 use std::cell::RefCell;
 
-use cpython::{PyErr, PyString, PyResult, PyObject};
 use cpython::exc::RuntimeError;
+use cpython::{PyErr, PyObject, PyResult, PyString};
 
 use edgeql_parser::hash;
 
-use crate::errors::TokenizerError;
-use crate::pynormalize::py_pos;
-
+use crate::errors::SyntaxError;
 
 py_class!(pub class Hasher |py| {
     data _hasher: RefCell<Option<hash::Hasher>>;
@@ -26,7 +24,7 @@ py_class!(pub class Hasher |py| {
         hasher.add_source(&text)
             .map_err(|e| match e {
                 hash::Error::Tokenizer(msg, pos) => {
-                    TokenizerError::new(py, (msg, py_pos(py, &pos)))
+                    SyntaxError::new(py, (msg, (pos.offset, py.None()), py.None(), py.None()))
                 }
             })?;
         Ok(py.None())

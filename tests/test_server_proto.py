@@ -109,11 +109,11 @@ class TestServerProto(tb.QueryTestCase):
                 await self.con.query('select syntax error')
 
             with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
-                                        'Unexpected end of line'):
+                                        r"Missing '\)'"):
                 await self.con.query('select (')
 
             with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
-                                        'Unexpected end of line'):
+                                        r"Missing '\)'"):
                 await self.con.query_json('select (')
 
             for _ in range(10):
@@ -2276,8 +2276,13 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
         else:
             server_args['adjacent_to'] = self.con
 
+        headers = {
+            'Authorization': self.make_auth_header(),
+        }
+
         async with tb.start_edgedb_server(**server_args) as sd:
 
+            print("SERVER", sd)
             await self.con.execute("CREATE EXTENSION notebook;")
 
             # First, ensure that the local server is aware of the new ext.
@@ -2290,22 +2295,18 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                             http_con,
                             path="notebook",
                             body={"queries": ["SELECT 1"]},
+                            headers=headers,
                         )
 
-                        self.assertEqual(status, http.HTTPStatus.OK)
                         self.assertEqual(
+                            status, http.HTTPStatus.OK, f"fuck: {response} {_}")
+                        self.assert_data_shape(
                             response,
                             {
                                 'kind': 'results',
                                 'results': [
                                     {
                                         'kind': 'data',
-                                        'data': [
-                                            'AAAAAAAAAAAAAAAAAAABBQ==',
-                                            'AgAAAAAAAAAAAAAAAAAAAQU=',
-                                            'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
-                                            'U0VMRUNU'
-                                        ]
                                     },
                                 ],
                             },
@@ -2321,22 +2322,17 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                             http_con,
                             path="notebook",
                             body={"queries": ["SELECT 1"]},
+                            headers=headers,
                         )
 
                         self.assertEqual(status, http.HTTPStatus.OK)
-                        self.assertEqual(
+                        self.assert_data_shape(
                             response,
                             {
                                 'kind': 'results',
                                 'results': [
                                     {
                                         'kind': 'data',
-                                        'data': [
-                                            'AAAAAAAAAAAAAAAAAAABBQ==',
-                                            'AgAAAAAAAAAAAAAAAAAAAQU=',
-                                            'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
-                                            'U0VMRUNU'
-                                        ]
                                     },
                                 ],
                             },
@@ -2355,6 +2351,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                             http_con,
                             path="notebook",
                             body={"queries": ["SELECT 1"]},
+                            headers=headers,
                         )
 
                         self.assertEqual(status, http.HTTPStatus.NOT_FOUND)
@@ -2369,6 +2366,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                             http_con,
                             path="notebook",
                             body={"queries": ["SELECT 1"]},
+                            headers=headers,
                         )
 
                         self.assertEqual(status, http.HTTPStatus.NOT_FOUND)

@@ -33,6 +33,8 @@ cdef class HttpRequest:
         public bytes host
         public bytes authorization
         public object params
+        public object forwarded
+        public object cookies
 
 
 cdef class HttpResponse:
@@ -63,6 +65,7 @@ cdef class HttpProtocol:
         bint is_tls
         object binary_endpoint_security
         object http_endpoint_security
+        object tenant
 
         HttpRequest current_request
 
@@ -77,6 +80,8 @@ cdef class HttpProtocol:
 
     cdef write(self, HttpRequest request, HttpResponse response)
 
-    cdef unhandled_exception(self, ex)
+    cdef unhandled_exception(self, bytes status, ex)
     cdef resume(self)
     cdef close(self)
+    cdef inline _schedule_handle_request(self, request)
+    cdef inline _close_with_error(self, bytes status, bytes message)

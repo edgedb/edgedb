@@ -49,10 +49,11 @@ link.
     }
 
 On the other hand, backlinks work in reverse to find objects that link to the
-object, and thus assume  ``multi`` as a default. Use the ``single`` keyword 
-to declare a "to-one" backlink.
+object, and thus assume ``multi`` as a default. Use the ``single`` keyword to
+declare a "to-one" backlink.
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type Author {
       link posts := .<authors[is Article];
@@ -62,13 +63,24 @@ to declare a "to-one" backlink.
       single link company := .<employees[is Company];
     }
 
+.. code-block:: sdl
+
+    type Author {
+      posts := .<authors[is Article];
+    }
+
+    type CompanyEmployee {
+      single company := .<employees[is Company];
+    }
+
 Required links
 --------------
 
 All links are either ``optional`` or ``required``; the default is ``optional``.
 Use the ``required`` keyword to declare a required link. A required link must
-point to *at least one* target instance. In this scenario, every ``Person``
-must have a ``best_friend``:
+point to *at least one* target instance, and if the cardinality of the required
+link is ``single``, it must point to *exactly one* target instance. In this
+scenario, every ``Person`` must have *exactly one* ``best_friend``:
 
 .. code-block:: sdl
     :version-lt: 3.0
@@ -143,7 +155,8 @@ instances can link to the same target(s).
 
 In the ``GroupChat`` example, the ``GroupChat.members`` link is now
 ``exclusive``. Two ``GroupChat`` objects cannot link to the same ``Person``;
-put differently, no ``Person`` can be a ``member`` of multiple ``GroupChat``.
+put differently, no ``Person`` can be a ``member`` of multiple ``GroupChat``
+objects.
 
 .. _ref_guide_modeling_relations:
 
@@ -254,9 +267,9 @@ same "shirt owner" relationship is represented with a ``multi`` link.
 
 .. note::
 
-  Don't forget the exclusive constraint! This is required to ensure that each
-  ``Shirt`` corresponds to a single ``Person``. Without it, the relationship
-  will be many-to-many.
+    Don't forget the exclusive constraint! This is required to ensure that each
+    ``Shirt`` corresponds to a single ``Person``. Without it, the relationship
+    will be many-to-many.
 
 Under the hood, a ``multi`` link is stored in an intermediate `association
 table <https://en.wikipedia.org/wiki/Associative_entity>`_, whereas a
@@ -378,6 +391,34 @@ constraint, each movie can be liked by multiple users. Thus this is a
   Be sure to use single links in the join table instead of a multi link 
   otherwise there will be 4 tables in the database.
 
+Filtering, ordering, and limiting links
+---------------------------------------
+
+The clauses ``filter``, ``order by`` and ``limit`` can be used on links
+as well.
+
+If no properties of a link are selected, you can put the relevant clauses
+into the shape itself. Assuming the same schema in the previous paragraph:
+
+.. code-block:: edgeql
+
+    select User { 
+      likes order by .title desc limit 10 
+    };
+
+If properties are selected on that link, then place the clauses after
+the link's shape:
+
+.. code-block:: edgeql
+
+    select User { 
+      likes: { 
+        id, 
+        title 
+      } order by .title desc limit 10 
+    };
+
+
 Default values
 --------------
 
@@ -432,6 +473,41 @@ the *nature/strength* of the relationship.
       }
     }
 
+.. note::
+
+    The divide between "link" and "property" is important when it comes to
+    understanding what link properties can do. They are link **properties**,
+    not link **links**. This means link properties can contain only primitive
+    data — data of any of the :ref:`scalar types <ref_datamodel_scalars>` like
+    ``str``, ``int32``, or ``bool``, :ref:`enums <ref_datamodel_enums>`,
+    :ref:`arrays <ref_datamodel_arrays>`, and :ref:`tuples
+    <ref_datamodel_tuples>`. They cannot contain links to other objects.
+
+    That means this would not work:
+
+    .. code-block::
+        :version-lt: 3.0
+
+        type Person {
+          property name -> str;
+          multi link friends -> Person {
+            link introduced_by -> Person;
+          }
+        }
+
+    .. code-block::
+
+        type Person {
+          name: str;
+          multi friends: Person {
+            introduced_by: Person;
+          }
+        }
+
+.. note::
+
+    Link properties cannot be made required. They are always optional.
+
 Above, we model a family tree with a single ``Person`` type. The ``Person.
 family_members`` link is a many-to-many relation; each ``family_members`` link
 can contain a string ``relationship`` describing the relationship of the two
@@ -447,18 +523,151 @@ properties of the relationships and properties of the target objects. On the
 other hand, for one-to-one, one-to-many, and many-to-one relationships there's
 an exact correspondence between the link and one of the objects being linked.
 In these situations any property of the relationship can be equally expressed
-as the property of the target object (for one-to-many and one-to-one cases) or
-as the property of the source object (for many-to-one and one-to-one cases).
+as the property of the source object (for one-to-many and one-to-one cases) or
+as the property of the target object (for many-to-one and one-to-one cases).
 It is generally advisable to use object properties instead of link properties
 in these cases due to better ergonomics of selecting, updating, and even
 casting into :eql:type:`json` when keeping all data in the same place rather
 than spreading it across link and object properties.
 
+
+Inserting and updating link properties
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To add a link with a link property, add the link property to a shape on the
+linked object being added. Be sure to prepend the link property's name with
+``@``.
+
+.. code-block:: edgeql
+
+    insert Person {
+      name := "Bob",
+      family_members := (
+        select detached Person {
+          @relationship := "sister"
+        }
+        filter .name = "Alice"
+      )
+    };
+
+The shape could alternatively be included on an insert if the object being
+linked (the ``Person`` named "Alice" in this example) is being inserted as part
+of the query. If the outer person ("Bob" in the example) already exists and
+only the links need to be added, this can be done in an ``update`` query
+instead of an ``insert`` as shown in the example above.
+
+Updating a link's property is similar to adding a new one except that you no
+longer need to select from the object type being linked: you can instead select
+the existing link on the object being updated because the link has already been
+established. Here, we've discovered that Alice is actually Bob's *step*-sister,
+so we want to change the link property on the already-established link between
+the two:
+
+.. code-block:: edgeql
+
+    update Person
+    filter .name = "Bob"
+    set {
+      family_members := (
+        select .family_members {
+          @relationship := "step-sister"
+        }
+        filter .name = "Alice"
+      )
+    };
+
+Using ``select .family_members`` here with the shape including the link
+property allows us to modify the link property of the existing link.
+
+.. warning::
+
+    A link property cannot be referenced in a set union *except* in the case of
+    a :ref:`for loop <ref_eql_for>`. That means this will *not* work:
+
+    .. code-block:: edgeql
+
+        # 🚫
+        insert Movie {
+          title := 'The Incredible Hulk',
+          characters := {(
+              select Person {
+                @character_name := 'The Hulk'
+              } filter .name = 'Mark Ruffalo'
+            ),
+            (
+              select Person {
+                @character_name := 'Abomination'
+              } filter .name = 'Tim Roth'
+            )}
+        };
+
+    That query will produce an error: ``QueryError: invalid reference to link
+    property in top level shape``
+
+    You can use this workaround instead:
+
+    .. code-block:: edgeql
+
+        # ✅
+        insert Movie {
+          title := 'The Incredible Hulk',
+          characters := assert_distinct((
+            with actors := {
+              ('The Hulk', 'Mark Ruffalo'),
+              ('Abomination', 'Tim Roth')
+            },
+            for actor in actors union (
+              select Person {
+                @character_name := character.0
+              } filter .name = character.1
+            )
+          ))
+        };
+
+    Note that we are also required to wrap the ``actors`` query with
+    :eql:func:`assert_distinct` here to assure the compiler that the result set
+    is distinct.
+
+
+Querying link properties
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+To query a link property, add the link property's name prepended with ``@`` to
+a shape on the link.
+
+.. code-block:: edgeql-repl
+
+    db> select Person {
+    ...   name,
+    ...   family_members: {
+    ...     name,
+    ...     @relationship
+    ...   }
+    ... };
+    {
+      default::Person {name: 'Alice', family_members: {}},
+      default::Person {
+        name: 'Bob',
+        family_members: {
+          default::Person {name: 'Alice', @relationship: 'step-sister'}
+        }
+      },
+    }
+
 .. note::
 
-  For a full guide on modeling, inserting, updating, and querying link
-  properties, see the :ref:`Using Link Properties <ref_guide_linkprops>`
-  guide.
+    In the query results above, Alice appears to have no family members even
+    though we know that, if she is Bob's step-sister, he must be her
+    step-brother. We would need to update Alice manually before this is
+    reflected in the database. Since link properties cannot be required, not
+    setting one is always allowed and results in the value being the empty set
+    (``{}``).
+
+.. note::
+
+    For a full guide on modeling, inserting, updating, and querying link
+    properties, see the :ref:`Using Link Properties <ref_guide_linkprops>`
+    guide.
 
 .. _ref_datamodel_link_deletion:
 
@@ -590,23 +799,63 @@ deletion policy.
 
 .. note::
 
+    The ``if orphan`` qualifier does not apply globally across all links in the
+    database or across any other links even if they're from the same type.
     Deletion policies using ``if orphan`` will result in the target being
-    deleted *unless it is linked by another object via the same link the policy
-    is on*. This qualifier does not apply globally across all links in the
-    database or across different links even if they're on the same type. For
-    example, a ``Message`` might be linked from both a ``MessageThread`` and a
-    ``Channel``. If the ``MessageThread`` linking to it is deleted, the
-    deletion policy would still result in the ``Message`` being deleted as long
-    as no other ``MessageThread`` objects link to it on that same field. It is
-    orphaned with respect to the ``MessageThread`` type's ``link`` field, even
-    though it is not orphaned globally.
+    deleted unless
 
-    Similarly, if the ``MessageThread`` had two links both linking to messages
-    — maybe the existing ``messages`` link and another called ``related`` to
-    link other related ``Message`` objects that are not in the thread — ``if
-    orphan`` could result in linked messages being deleted even if they were
-    also linked from another ``MessageThread`` object's ``related`` link
-    because they were orphaned with respect to the ``messages`` link.
+    1. it is linked by another object via **the same link the policy is on**,
+       or
+    2. its deletion is restricted by another link's ``on target delete`` policy
+       (which defaults to ``restrict`` unless otherwise specified)
+
+    For example, a ``Message`` might be linked from both a ``MessageThread``
+    and a ``Channel``, which is defined like this:
+
+    .. code-block:: sdl
+
+        type Channel {
+          title: str;
+          multi messages: Message {
+            on target delete allow;
+          }
+        }
+
+    If the ``MessageThread`` linking to the ``Message`` is deleted, the source
+    deletion policy would still result in the ``Message`` being deleted as long
+    as no other ``MessageThread`` objects link to it on their ``messages`` link
+    and the deletion isn't otherwise restricted (e.g., the default policy of
+    ``on target delete restrict`` has been overridden, as in the schema above).
+    The object is deleted despite not being orphaned with respect to *all*
+    links because it *is* orphaned with respect to the ``MessageThread`` type's
+    ``messages`` field, which is the link governed by the deletion policy.
+
+    If the ``Channel`` type's ``messages`` link had the default policy, the
+    outcome would change.
+
+    .. code-block:: sdl-diff
+
+        type Channel {
+          title: str;
+          multi messages: Message {
+      -     on target delete allow;
+          }
+        }
+
+    With this schema change, the ``Message`` object would *not* be deleted, but
+    not because the message isn't globally orphaned. Deletion would be
+    prevented because of the default target deletion policy of ``restrict``
+    which would now be in force on the linking ``Channel`` object's
+    ``messages`` link.
+
+    The limited scope of ``if orphan`` holds true even when the two links to an
+    object are from the same type. If ``MessageThread`` had two different links
+    both linking to messages — maybe the existing ``messages`` link and another
+    called ``related`` used to link other related ``Message`` objects that are
+    not in the thread — ``if orphan`` on a deletion policy on ``message`` could
+    result in linked messages being deleted even if they were also linked from
+    another ``MessageThread`` object's ``related`` link because they were
+    orphaned with respect to the ``messages`` link.
 
 
 .. _ref_datamodel_link_polymorphic:

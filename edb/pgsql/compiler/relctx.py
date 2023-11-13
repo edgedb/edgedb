@@ -416,7 +416,6 @@ def new_empty_rvar(
     nullrel = pgast.NullRelation(
         path_id=ir_set.path_id, type_or_ptr_ref=ir_set.typeref)
     rvar = rvar_for_rel(nullrel, ctx=ctx)
-    pathctx.put_rvar_path_bond(rvar, ir_set.path_id)
     return rvar
 
 
@@ -493,7 +492,7 @@ def new_primitive_rvar(
         raise ValueError('cannot create root rvar for non-object path')
 
     typeref = ir_set.typeref
-    dml_source = irutils.get_nearest_dml_stmt(ir_set)
+    dml_source = irutils.get_dml_sources(ir_set)
     set_rvar = range_for_typeref(
         typeref, path_id, lateral=lateral, dml_source=dml_source,
         include_descendants=not ir_set.skip_subtypes,
@@ -611,7 +610,7 @@ def _new_mapped_pointer_rvar(
         ir_ptr: irast.Pointer, *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     ptrref = ir_ptr.ptrref
-    dml_source = irutils.get_nearest_dml_stmt(ir_ptr.source)
+    dml_source = irutils.get_dml_sources(ir_ptr.source)
     ptr_rvar = range_for_pointer(ir_ptr, dml_source=dml_source, ctx=ctx)
 
     src_col = 'source'
@@ -1320,7 +1319,7 @@ def _plain_join(
         larg = query.from_clause[0]
         rarg = right_rvar
 
-        query.from_clause[0] = pgast.JoinExpr(
+        query.from_clause[0] = pgast.JoinExpr.make_inplace(
             type=join_type, larg=larg, rarg=rarg, quals=condition)
 
 
@@ -1363,7 +1362,7 @@ def _lateral_union_join(
         larg = query.from_clause[0]
         rarg = right_rvar
 
-        query.from_clause[0] = pgast.JoinExpr(
+        query.from_clause[0] = pgast.JoinExpr.make_inplace(
             type='cross', larg=larg, rarg=rarg)
 
 
@@ -1376,7 +1375,7 @@ def range_for_material_objtype(
     include_overlays: bool=True,
     include_descendants: bool=True,
     ignore_rewrites: bool=False,
-    dml_source: Optional[irast.MutatingLikeStmt]=None,
+    dml_source: Sequence[irast.MutatingLikeStmt]=(),
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
 
@@ -1389,7 +1388,9 @@ def range_for_material_objtype(
 
     assert isinstance(typeref.name_hint, sn.QualName)
 
-    dml_source_key = dml_source if ctx.trigger_mode else None
+    dml_source_key = (
+        frozenset(dml_source) if ctx.trigger_mode and dml_source else None
+    )
     rw_key = (typeref.id, include_descendants)
     key = rw_key + (dml_source_key,)
     if (
@@ -1402,13 +1403,12 @@ def range_for_material_objtype(
         # when a type cte is used, because we bake the overlays into
         # the cte instead (and so including them normally could union
         # back in things that we have filtered out).
-        # We *don't* do this for __old__ and __new__; __old__ because
-        # we don't want overlays at all and __new__ because we want the
-        # overlays to apply after policies.
-        trigger_mode = (
-            ctx.trigger_mode
-            and not isinstance(dml_source, irast.TriggerAnchor)
-        )
+        #
+        # We *don't* do this if we actually have DML sources; if it is
+        # __old__, because we don't want overlays at all and for
+        # __new__ and for actual DML because we want the overlays to
+        # apply after policies.
+        trigger_mode = ctx.trigger_mode and not dml_source
         if trigger_mode:
             include_overlays = False
 
@@ -1417,7 +1417,6 @@ def range_for_material_objtype(
             with ctx.newrel() as sctx:
                 sctx.pending_type_ctes.add(rw_key)
                 sctx.pending_query = sctx.rel
-                sctx.volatility_ref = ()
                 # Normally we want to compile type rewrites without
                 # polluting them with any sort of overlays, but when
                 # compiling triggers, we recompile all of the type
@@ -1602,7 +1601,7 @@ def range_for_typeref(
     for_mutation: bool=False,
     include_descendants: bool=True,
     ignore_rewrites: bool=False,
-    dml_source: Optional[irast.MutatingLikeStmt]=None,
+    dml_source: Sequence[irast.MutatingLikeStmt]=(),
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
 
@@ -1628,6 +1627,7 @@ def range_for_typeref(
                 include_descendants=not typeref.union_is_concrete,
                 for_mutation=for_mutation,
                 dml_source=dml_source,
+                lateral=lateral,
                 ctx=ctx,
             )
 
@@ -1826,7 +1826,7 @@ def table_from_ptrref(
 
 def range_for_ptrref(
     ptrref: irast.BasePointerRef, *,
-    dml_source: Optional[irast.MutatingLikeStmt]=None,
+    dml_source: Sequence[irast.MutatingLikeStmt]=(),
     for_mutation: bool=False,
     only_self: bool=False,
     path_id: Optional[irast.PathId]=None,
@@ -1994,7 +1994,7 @@ def range_for_ptrref(
 def range_for_pointer(
     pointer: irast.Pointer,
     *,
-    dml_source: Optional[irast.MutatingLikeStmt] = None,
+    dml_source: Sequence[irast.MutatingLikeStmt]=(),
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
 
@@ -2018,8 +2018,12 @@ def rvar_for_rel(
     typeref: Optional[irast.TypeRef] = None,
     lateral: bool = False,
     colnames: Optional[List[str]] = None,
-    ctx: context.CompilerContextLevel,
+    ctx: Optional[context.CompilerContextLevel] = None,
+    env: Optional[context.Environment] = None,
 ) -> pgast.PathRangeVar:
+    if ctx:
+        env = ctx.env
+    assert env
 
     rvar: pgast.PathRangeVar
 
@@ -2027,7 +2031,7 @@ def rvar_for_rel(
         colnames = []
 
     if isinstance(rel, pgast.Query):
-        alias = alias or ctx.env.aliases.get(rel.name or 'q')
+        alias = alias or env.aliases.get(rel.name or 'q')
 
         rvar = pgast.RangeSubselect(
             subquery=rel,
@@ -2036,7 +2040,7 @@ def rvar_for_rel(
             typeref=typeref,
         )
     else:
-        alias = alias or ctx.env.aliases.get(rel.name or '')
+        alias = alias or env.aliases.get(rel.name or '')
 
         rvar = pgast.RelRangeVar(
             relation=rel,
@@ -2096,16 +2100,19 @@ def add_type_rel_overlay(
 def get_type_rel_overlays(
     typeref: irast.TypeRef,
     *,
-    dml_source: Optional[irast.MutatingLikeStmt]=None,
+    dml_source: Sequence[irast.MutatingLikeStmt]=(),
     ctx: context.CompilerContextLevel,
 ) -> tuple[context.OverlayEntry, ...]:
     if typeref.material_type is not None:
         typeref = typeref.material_type
 
-    if dml_source not in ctx.rel_overlays.type:
-        return ()
-    else:
-        return ctx.rel_overlays.type[dml_source].get(typeref.id, ())
+    xdml_source = dml_source or (None,)
+    return tuple(
+        entry
+        for src in xdml_source
+        if src in ctx.rel_overlays.type
+        for entry in ctx.rel_overlays.type[src].get(typeref.id, ())
+    )
 
 
 def reuse_type_rel_overlays(
@@ -2182,12 +2189,15 @@ def add_ptr_rel_overlay(
 
 def get_ptr_rel_overlays(
     ptrref: irast.PointerRef, *,
-    dml_source: Optional[irast.MutatingLikeStmt]=None,
+    dml_source: Sequence[irast.MutatingLikeStmt]=(),
     ctx: context.CompilerContextLevel,
 ) -> tuple[context.OverlayEntry, ...]:
     typeref = ptrref.out_source.real_material_type
-    if dml_source not in ctx.rel_overlays.ptr:
-        return ()
-    else:
-        key = typeref.id, ptrref.shortname.name
-        return ctx.rel_overlays.ptr[dml_source].get(key, ())
+    key = typeref.id, ptrref.shortname.name
+    xdml_source = dml_source or (None,)
+    return tuple(
+        entry
+        for src in xdml_source
+        if src in ctx.rel_overlays.ptr
+        for entry in ctx.rel_overlays.ptr[src].get(key, ())
+    )

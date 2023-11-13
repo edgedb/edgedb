@@ -20,24 +20,19 @@
 from __future__ import annotations
 from typing import *  # NoQA
 
-import functools
+import json
 import logging
 import os
 import sys
 import types
-import re
 
 import parsing
 
-from edb.common.exceptions import add_context, get_context
-from edb.common import context as pctx
-from edb._edgeql_parser import TokenizerError
-from edb.errors import EdgeQLSyntaxError
+from edb.common import context as pctx, debug
 
 ParserContext = pctx.ParserContext
 
 logger = logging.getLogger('edb.common.parsing')
-TRAILING_WS_IN_CONTINUATION = re.compile(r'\\ \s+\n')
 
 
 class ParserSpecIncompatibleError(Exception):
@@ -55,7 +50,7 @@ class TokenMeta(type):
         if precedence_class is not None:
             result._precedence_class = precedence_class
 
-        if name == 'Token':
+        if name == 'Token' or name == 'GrammarToken':
             return result
 
         if token is None:
@@ -104,7 +99,7 @@ class TokenMeta(type):
 
 
 class Token(parsing.Token, metaclass=TokenMeta):
-    def __init__(self, parser, val, clean_value, context=None):
+    def __init__(self, val, clean_value, context=None):
         super().__init__()
         self.val = val
         self.clean_value = clean_value
@@ -112,6 +107,19 @@ class Token(parsing.Token, metaclass=TokenMeta):
 
     def __repr__(self):
         return '<Token %s "%s">' % (self.__class__._token, self.val)
+
+
+def inline(argument_index: int):
+    """
+    When added to grammar productions, it makes the method equivalent to:
+
+    self.val = kids[argument_index].val
+    """
+
+    def decorator(func: Any):
+        func.inline_index = argument_index
+        return func
+    return decorator
 
 
 class NontermMeta(type):
@@ -127,6 +135,8 @@ class NontermMeta(type):
         for name, attr in result.__dict__.items():
             if (name.startswith('reduce_') and
                     isinstance(attr, types.FunctionType)):
+                inline_index = getattr(attr, 'inline_index', None)
+
                 if attr.__doc__ is None:
                     tokens = name.split('_')
                     if name == 'reduce_empty':
@@ -142,7 +152,9 @@ class NontermMeta(type):
                     attr.__doc__ = doc
 
                 a = pctx.has_context(attr)
+
                 a.__doc__ = attr.__doc__
+                a.inline_index = inline_index
                 setattr(result, name, a)
 
         return result
@@ -270,194 +282,122 @@ class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
     pass
 
 
-class ParserError(Exception):
-    def __init__(
-            self, msg=None, *, hint=None, details=None, token=None, line=None,
-            col=None, expr=None, context=None):
-        if msg is None:
-            msg = 'syntax error at or near "%s"' % token
-        super().__init__(msg, hint=hint, details=details)
-
-        self.token = token
-        if line is not None:
-            self.line = line
-        if col is not None:
-            self.col = col
-        self.expr = expr
-        if context:
-            add_context(self, context)
-            if line is None and col is None:
-                self.line = context.start.line
-                self.col = context.start.column
-
-    @property
-    def context(self):
-        try:
-            return get_context(self, pctx.ParserContext)
-        except LookupError:
-            return None
+def load_parser_spec(
+    mod: types.ModuleType
+) -> parsing.Spec:
+    return parsing.Spec(
+        mod,
+        skinny=not debug.flags.edgeql_parser,
+        logFile=_localpath(mod, "log"),
+        verbose=bool(debug.flags.edgeql_parser),
+    )
 
 
-def _derive_hint(
-    input: str,
-    message: str,
-    position: Tuple[int, int, int],
-) -> Optional[str]:
-    _, _, off = position
-    if message == r"invalid string literal: invalid escape sequence '\ '":
-        if TRAILING_WS_IN_CONTINUATION.search(input[off:]):
-            return "consider removing trailing whitespace"
-    return None
+def _localpath(mod, type):
+    return os.path.join(
+        os.path.dirname(mod.__file__),
+        mod.__name__.rpartition('.')[2] + '.' + type)
 
 
-class Parser:
-    parser_spec: ClassVar[parsing.Spec | None]
+def load_spec_productions(
+    production_names: List[Tuple[str, str]],
+    mod: types.ModuleType
+) -> List[Tuple[Type, Callable]]:
+    productions: List[Tuple[Any, Callable]] = []
+    for class_name, method_name in production_names:
+        cls = mod.__dict__.get(class_name, None)
+        if not cls:
+            # for NontermStart
+            productions.append((parsing.Nonterm(), lambda *args: None))
+            continue
 
-    def __init__(self, **parser_data):
-        self.lexer = None
-        self.parser = None
-        self.parser_data = parser_data
+        method = cls.__dict__[method_name]
+        productions.append((cls, method))
+    return productions
 
-    def cleanup(self):
-        self.__class__.parser_spec = None
-        self.__class__.lexer_spec = None
-        self.lexer = None
-        self.parser = None
 
-    def get_debug(self):
-        return False
+def spec_to_json(spec: parsing.Spec) -> str:
+    # Converts a ParserSpec into JSON. Called from edgeql-parser Rust crate.
+    assert spec.pureLR
 
-    def get_exception(self, native_err, context, token=None):
-        if not isinstance(native_err, ParserError):
-            return ParserError(native_err.args[0],
-                               context=context, token=token)
-        else:
-            return native_err
+    token_map: Dict[str, str] = {
+        v._token: c for (_, c), v in TokenMeta.token_map.items()
+    }
 
-    def get_parser_spec_module(self) -> types.ModuleType:
-        raise NotImplementedError
+    # productions
+    productions_all: Set[Any] = set()
+    for st_actions in spec.actions():
+        for _, acts in st_actions.items():
+            act = cast(Any, acts[0])
+            if 'ReduceAction' in str(type(act)):
+                prod = act.production
+                productions_all.add(prod)
+    productions, production_id = sort_productions(productions_all)
 
-    def get_parser_spec(self, allow_rebuild: bool = True) -> None:
-        cls = self.__class__
+    # actions
+    actions = []
+    for st_actions in spec.actions():
+        out_st_actions = []
+        for tok, acts in st_actions.items():
+            act = cast(Any, acts[0])
 
-        try:
-            spec = cls.__dict__['parser_spec']
-        except KeyError:
-            pass
-        else:
-            if spec is not None:
-                return spec
-
-        mod = self.get_parser_spec_module()
-        spec = parsing.Spec(
-            mod,
-            pickleFile=self.localpath(mod, "pickle"),
-            skinny=not self.get_debug(),
-            logFile=self.localpath(mod, "log"),
-            verbose=self.get_debug(),
-            unpickleHook=functools.partial(
-                self.on_spec_unpickle, mod, allow_rebuild)
-        )
-
-        self.__class__.parser_spec = spec
-        return spec
-
-    def on_spec_unpickle(
-        self,
-        mod: types.ModuleType,
-        allow_rebuild: bool,
-        spec: parsing.Spec,
-        compatibility: str,
-    ) -> None:
-        if compatibility != "compatible":
-            if allow_rebuild:
-                logger.info(f'rebuilding grammar for {mod.__name__}...')
+            str_tok = token_map.get(str(tok), str(tok))
+            if 'ShiftAction' in str(type(act)):
+                action_obj: Any = {
+                    'Shift': int(act.nextState)
+                }
             else:
-                raise ParserSpecIncompatibleError(
-                    f'parser tables for {mod.__name__} are missing or '
-                    f'incompatible with parser source'
-                )
+                prod = act.production
+                action_obj = {
+                    'Reduce': {
+                        'production_id': production_id[prod],
+                        'non_term': str(prod.lhs),
+                        'cnt': len(prod.rhs),
+                    }
+                }
 
-    def localpath(self, mod, type):
-        return os.path.join(
-            os.path.dirname(mod.__file__),
-            mod.__name__.rpartition('.')[2] + '.' + type)
+            out_st_actions.append((str_tok, action_obj))
 
-    def get_lexer(self):
-        """Return an initialized lexer.
+        out_st_actions.sort(key=lambda item: item[0])
+        actions.append(out_st_actions)
 
-        The lexer must implement 'setinputstr' and 'token' methods.
-        A lexer derived from edb.common.lexer.Lexer will satisfy these
-        criteria.
-        """
-        raise NotImplementedError
+    # goto
+    goto = []
+    for st_goto in spec.goto():
+        out_goto = []
+        for nterm, action in st_goto.items():
+            out_goto.append((str(nterm), action))
 
-    def reset_parser(self, input, filename=None):
-        if not self.parser:
-            self.lexer = self.get_lexer()
-            self.parser = parsing.Lr(self.get_parser_spec())
-            self.parser.parser_data = self.parser_data
-            self.parser.verbose = self.get_debug()
+        goto.append(out_goto)
 
-        self.parser.reset()
-        self.lexer.setinputstr(input, filename=filename)
+    # inlines
+    inlines = []
+    for prod in productions:
+        id = production_id[prod]
+        inline = getattr(prod.method, 'inline_index', None)
+        if inline is not None:
+            assert isinstance(inline, int)
+            inlines.append((id, inline))
 
-    def process_lex_token(self, mod, tok):
-        return mod.TokenMeta.for_lex_token(tok.kind())(
-            self.parser, tok.text(), tok.value(), self.context(tok))
-
-    def parse(self, input, filename=None):
-        try:
-            self.reset_parser(input, filename=filename)
-            mod = self.get_parser_spec_module()
-
-            tok = self.lexer.token()
-
-            while tok:
-                token = self.process_lex_token(mod, tok)
-                if token is not None:
-                    self.parser.token(token)
-
-                tok = self.lexer.token()
-
-            self.parser.eoi()
-
-        except TokenizerError as e:
-            message, position = e.args
-            hint = _derive_hint(input, message, position)
-            raise EdgeQLSyntaxError(
-                message, context=self.context(pos=position), hint=hint) from e
-
-        except parsing.UnexpectedToken as e:
-            raise self.get_exception(
-                e, context=self.context(tok), token=tok) from e
-
-        except ParserError as e:
-            raise self.get_exception(e, context=e.context) from e
-
-        return self.parser.start[0].val
-
-    def context(self, tok=None, pos: Optional[Tuple[int, int, int]] = None):
-        lex = self.lexer
-        name = lex.filename if lex.filename else '<string>'
-
-        if tok is None:
-            if pos is None:
-                pos = lex.end_of_input
-            context = pctx.ParserContext(
-                name=name, buffer=lex.inputstr,
-                start=pos[2], end=pos[2])
-        else:
-            context = pctx.ParserContext(
-                name=name, buffer=lex.inputstr,
-                start=tok.start()[2],
-                end=tok.end()[2])
-
-        return context
+    res = {
+        'actions': actions,
+        'goto': goto,
+        'start': str(spec.start_sym()),
+        'inlines': inlines,
+        'production_names': list(map(production_name, productions)),
+    }
+    return json.dumps(res)
 
 
-def line_col_from_char_offset(source, position):
-    line = source[:position].count('\n') + 1
-    col = source.rfind('\n', 0, position)
-    col = position if col == -1 else position - col
-    return line, col
+def sort_productions(
+    productions_all: Set[Any]
+) -> Tuple[List[Any], Dict[Any, int]]:
+    productions = list(productions_all)
+    productions.sort(key=production_name)
+
+    productions_id = {prod: id for id, prod in enumerate(productions)}
+    return (productions, productions_id)
+
+
+def production_name(prod: Any) -> Tuple[str, ...]:
+    return tuple(prod.qualified.split('.')[-2:])

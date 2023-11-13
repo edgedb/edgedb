@@ -12,6 +12,10 @@ Links can contain **properties**. These are distinct from links themselves
 link. Due to how they're persisted under the hood, link properties have a few
 additional constraints: they're always *single* and *optional*.
 
+In thinking about how to use link properties, keep in mind that they are link
+**properties**, not link **links**. This means they can contain only primitive
+data (scalars, enums, arrays, or tuples).
+
 .. note::
 
   In practice, link properties are best used with many-to-many relationships
@@ -183,6 +187,7 @@ Querying
 .. code-block:: edgeql-repl
 
   edgedb> select Person {
+  .......   name,
   .......   friends: {
   .......     name,
   .......     @strength
@@ -197,6 +202,55 @@ Querying
       }
     },
   }
+
+.. warning::
+
+    A link property cannot be referenced in a set union *except* in the case of
+    a :ref:`for loop <ref_eql_for>`. That means this will *not* work:
+
+    .. code-block:: edgeql
+
+        # 🚫
+        insert Movie {
+          title := 'The Incredible Hulk',
+          actors := {(
+              select Person {
+                @character_name := 'The Hulk'
+              } filter .name = 'Mark Ruffalo'
+            ),
+            (
+              select Person {
+                @character_name := 'Abomination'
+              } filter .name = 'Tim Roth'
+            )}
+        };
+
+    That query will produce an error: ``QueryError: invalid reference to link
+    property in top level shape``
+
+    You can use this workaround instead:
+
+    .. code-block:: edgeql
+
+        # ✅
+        insert Movie {
+          title := 'The Incredible Hulk',
+          actors := assert_distinct((
+            with characters := {
+              ('The Hulk', 'Mark Ruffalo'),
+              ('Abomination', 'Tim Roth')
+            },
+            for character in characters union (
+              select Person {
+                @character_name := character.0
+              } filter .name = character.1
+            )
+          ))
+        };
+
+    Note that we are also required to wrap the ``actors`` query with
+    :eql:func:`assert_distinct` here to assure the compiler that the result set
+    is distinct.
 
 .. note::
 

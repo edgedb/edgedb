@@ -23,6 +23,8 @@ from typing import *
 
 import collections
 
+from edb import errors
+
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
@@ -42,6 +44,7 @@ from . import schema as s_schema
 from . import sources
 from . import triggers
 from . import types as s_types
+from . import unknown_pointers
 from . import utils
 
 
@@ -352,6 +355,13 @@ class ObjectType(
         else:
             return None
 
+    def _test_polymorphic(
+        self, schema: s_schema.Schema, other: s_types.Type
+    ) -> bool:
+        if other.is_anyobject(schema):
+            return True
+        return False
+
 
 def get_or_create_union_type(
     schema: s_schema.Schema,
@@ -462,6 +472,7 @@ def get_or_create_intersection_type(
 class ObjectTypeCommandContext(
     links.LinkSourceCommandContext[ObjectType],
     properties.PropertySourceContext[ObjectType],
+    unknown_pointers.UnknownPointerSourceContext[ObjectType],
     policies.AccessPolicySourceCommandContext[ObjectType],
     triggers.TriggerSourceCommandContext[ObjectType],
     sd.ObjectCommandContext[ObjectType],
@@ -478,6 +489,27 @@ class ObjectTypeCommand(
     links.LinkSourceCommand[ObjectType],
     context_class=ObjectTypeCommandContext,
 ):
+    def validate_object(
+        self, schema: s_schema.Schema, context: sd.CommandContext
+    ) -> None:
+        if (
+            not context.stdmode
+            and not context.testmode
+            and self.scls.is_material_object_type(schema)
+        ):
+            for base in self.scls.get_bases(schema).objects(schema):
+                name = base.get_name(schema)
+                if (
+                    sn.UnqualName(name.module) in s_schema.STD_MODULES
+                    and name not in (
+                        sn.QualName('std', 'BaseObject'),
+                        sn.QualName('std', 'Object'),
+                    )
+                ):
+                    raise errors.SchemaDefinitionError(
+                        f"cannot extend system type '{name}'",
+                        context=self.source_context,
+                    )
 
     def get_dummy_expr_field_value(
         self,
@@ -570,7 +602,6 @@ class AlterObjectType(ObjectTypeCommand,
                 action=self.get_friendly_description(schema=schema),
                 include_ancestors=True,
                 filter=functions.Function,
-                metadata_only=False,
             )
 
         return schema

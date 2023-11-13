@@ -50,31 +50,39 @@ class ExprStmt(Nonterm):
         self.val = kids[1].val
         self.val.aliases = kids[0].val.aliases
 
+    @parsing.inline(0)
     def reduce_ExprStmtCore(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 class ExprStmtCore(Nonterm):
+    @parsing.inline(0)
     def reduce_SimpleFor(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_SimpleSelect(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_SimpleGroup(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_InternalGroup(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_SimpleInsert(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_SimpleUpdate(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_SimpleDelete(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 class AliasedExpr(Nonterm):
@@ -109,7 +117,7 @@ class GroupingIdent(Nonterm):
     def reduce_DOT_Identifier(self, *kids):
         self.val = qlast.Path(
             partial=True,
-            steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=kids[1].val))],
+            steps=[qlast.Ptr(name=kids[1].val)],
         )
 
 
@@ -119,8 +127,9 @@ class GroupingIdentList(ListNonterm, element=GroupingIdent,
 
 
 class GroupingAtom(Nonterm):
+    @parsing.inline(0)
     def reduce_GroupingIdent(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_LPAREN_GroupingIdentList_RPAREN(self, *kids):
         self.val = qlast.GroupingIdentList(elements=kids[1].val)
@@ -150,14 +159,23 @@ class GroupingElementList(
     pass
 
 
+class OptionalOptional(Nonterm):
+    def reduce_OPTIONAL(self, *kids):
+        self.val = True
+
+    def reduce_empty(self, *kids):
+        self.val = False
+
+
 class SimpleFor(Nonterm):
     def reduce_For(self, *kids):
-        r"%reduce FOR Identifier IN AtomicExpr \
+        r"%reduce FOR OptionalOptional Identifier IN AtomicExpr \
                   UNION Expr"
         self.val = qlast.ForQuery(
-            iterator_alias=kids[1].val,
-            iterator=kids[3].val,
-            result=kids[5].val,
+            optional=kids[1].val,
+            iterator_alias=kids[2].val,
+            iterator=kids[4].val,
+            result=kids[6].val,
         )
 
 
@@ -192,21 +210,25 @@ class SimpleSelect(Nonterm):
 
 
 class ByClause(Nonterm):
+    @parsing.inline(1)
     def reduce_BY_GroupingElementList(self, *kids):
-        self.val = kids[1].val
+        pass
 
 
 class UsingClause(Nonterm):
+    @parsing.inline(1)
     def reduce_USING_AliasedExprList(self, *kids):
-        self.val = kids[1].val
+        pass
 
+    @parsing.inline(1)
     def reduce_USING_AliasedExprList_COMMA(self, *kids):
-        self.val = kids[1].val
+        pass
 
 
 class OptUsingClause(Nonterm):
+    @parsing.inline(0)
     def reduce_UsingClause(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_empty(self, *kids):
         self.val = None
@@ -226,8 +248,9 @@ class SimpleGroup(Nonterm):
 
 
 class OptGroupingAlias(Nonterm):
+    @parsing.inline(1)
     def reduce_COMMA_Identifier(self, *kids):
-        self.val = kids[1].val
+        pass
 
     def reduce_empty(self, *kids):
         self.val = None
@@ -279,9 +302,29 @@ class SimpleInsert(Nonterm):
                 len(subj_path.steps) == 1 and  \
                 isinstance(subj_path.steps[0], qlast.ObjectRef):
             objtype = subj_path.steps[0]
+        elif isinstance(subj_path, qlast.IfElse):
+            # Insert attempted on something that looks like a conditional
+            # expression. Aside from it being an error, it also seems that
+            # the intent was to insert something conditionally.
+            raise errors.EdgeQLSyntaxError(
+                f"INSERT only works with object types, not conditional "
+                f"expressions",
+                hint=(
+                    f"To resolve this try surrounding the INSERT branch of "
+                    f"the conditional expression with parentheses. This way "
+                    f"the INSERT will be triggered conditionally in one of "
+                    f"the branches."
+                ),
+                context=subj_path.context)
         else:
             raise errors.EdgeQLSyntaxError(
-                "insert expression must be an object type reference",
+                f"INSERT only works with object types, not arbitrary "
+                f"expressions",
+                hint=(
+                    f"To resolve this try to surround the entire INSERT "
+                    f"statement with parentheses in order to separate it "
+                    f"from the rest of the expression."
+                ),
                 context=subj_path.context)
 
         self.val = qlast.InsertQuery(
@@ -342,13 +385,15 @@ class AliasDecl(Nonterm):
             alias=kids[0].val,
             module='::'.join(kids[3].val))
 
+    @parsing.inline(0)
     def reduce_AliasedExpr(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 class WithDecl(Nonterm):
+    @parsing.inline(0)
     def reduce_AliasDecl(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 class WithDeclList(ListNonterm, element=WithDecl,
@@ -360,16 +405,19 @@ class Shape(Nonterm):
     def reduce_LBRACE_RBRACE(self, *kids):
         self.val = []
 
+    @parsing.inline(1)
     def reduce_LBRACE_ShapeElementList_RBRACE(self, *kids):
-        self.val = kids[1].val
+        pass
 
+    @parsing.inline(1)
     def reduce_LBRACE_ShapeElementList_COMMA_RBRACE(self, *kids):
-        self.val = kids[1].val
+        pass
 
 
 class OptShape(Nonterm):
+    @parsing.inline(0)
     def reduce_Shape(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_empty(self, *kids):
         self.val = []
@@ -398,18 +446,9 @@ class FreeShape(Nonterm):
 
 
 class OptAnySubShape(Nonterm):
-    def reduce_COLON_Shape(self, *kids):
-        self.val = kids[1].val
-
-    def reduce_LBRACE(self, *kids):
-        raise errors.EdgeQLSyntaxError(
-            f"Missing ':' before '{{' in a sub-shape",
-            context=kids[0].context)
-
-    def reduce_Shape(self, *kids):
-        raise errors.EdgeQLSyntaxError(
-            f"Missing ':' before '{{' in a sub-shape",
-            context=kids[0].context)
+    @parsing.inline(1)
+    def reduce_COLON_Shape(self, *_):
+        pass
 
     def reduce_empty(self, *kids):
         self.val = []
@@ -427,8 +466,9 @@ class ShapeElement(Nonterm):
         self.val.offset = kids[4].val[0]
         self.val.limit = kids[4].val[1]
 
+    @parsing.inline(0)
     def reduce_ComputableShapePointer(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 class ShapeElementList(ListNonterm, element=ShapeElement,
@@ -443,8 +483,9 @@ class SimpleShapePath(Nonterm):
 
         steps = [
             qlast.Ptr(
-                ptr=kids[0].val,
-                direction=s_pointers.PointerDirection.Outbound
+                name=kids[0].val.name,
+                direction=s_pointers.PointerDirection.Outbound,
+                context=kids[0].val.context,
             ),
         ]
 
@@ -454,8 +495,9 @@ class SimpleShapePath(Nonterm):
         self.val = qlast.Path(
             steps=[
                 qlast.Ptr(
-                    ptr=kids[1].val,
-                    type='property'
+                    name=kids[1].val.name,
+                    type='property',
+                    context=kids[1].val.context,
                 )
             ]
         )
@@ -481,8 +523,9 @@ class FreeSimpleShapePointer(Nonterm):
 
         steps = [
             qlast.Ptr(
-                ptr=kids[0].val,
-                direction=s_pointers.PointerDirection.Outbound
+                name=kids[0].val.name,
+                direction=s_pointers.PointerDirection.Outbound,
+                context=kids[0].val.context,
             ),
         ]
 
@@ -507,8 +550,9 @@ class ShapePath(Nonterm):
 
         steps = [
             qlast.Ptr(
-                ptr=kids[0].val,
-                direction=s_pointers.PointerDirection.Outbound
+                name=kids[0].val.name,
+                direction=s_pointers.PointerDirection.Outbound,
+                context=kids[0].val.context,
             ),
         ]
 
@@ -517,15 +561,17 @@ class ShapePath(Nonterm):
 
         self.val = qlast.Path(steps=steps)
 
+    @parsing.inline(0)
     def reduce_Splat(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_AT_PathNodeName(self, *kids):
         self.val = qlast.Path(
             steps=[
                 qlast.Ptr(
-                    ptr=kids[1].val,
-                    type='property'
+                    name=kids[1].val.name,
+                    type='property',
+                    context=kids[1].val.context,
                 )
             ]
         )
@@ -537,8 +583,9 @@ class ShapePath(Nonterm):
         steps = [
             kids[0].val,
             qlast.Ptr(
-                ptr=kids[2].val,
-                direction=s_pointers.PointerDirection.Outbound
+                name=kids[2].val.name,
+                direction=s_pointers.PointerDirection.Outbound,
+                context=kids[2].val.context,
             ),
         ]
 
@@ -744,8 +791,9 @@ class OptPtrQuals(Nonterm):
     def reduce_empty(self, *kids):
         self.val = PtrQualsSpec()
 
+    @parsing.inline(0)
     def reduce_PtrQuals(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 # We have to inline the OptPtrQuals here because the parser generator
@@ -961,39 +1009,45 @@ class UnlessConflictSpecifier(Nonterm):
 
 
 class UnlessConflictCause(Nonterm):
+    @parsing.inline(2)
     def reduce_UNLESS_CONFLICT_UnlessConflictSpecifier(self, *kids):
-        self.val = kids[2].val
+        pass
 
 
 class OptUnlessConflictClause(Nonterm):
+    @parsing.inline(0)
     def reduce_UnlessConflictCause(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_empty(self, *kids):
         self.val = None
 
 
 class FilterClause(Nonterm):
+    @parsing.inline(1)
     def reduce_FILTER_Expr(self, *kids):
-        self.val = kids[1].val
+        pass
 
 
 class OptFilterClause(Nonterm):
+    @parsing.inline(0)
     def reduce_FilterClause(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_empty(self, *kids):
         self.val = None
 
 
 class SortClause(Nonterm):
+    @parsing.inline(1)
     def reduce_ORDERBY_OrderbyList(self, *kids):
-        self.val = kids[1].val
+        pass
 
 
 class OptSortClause(Nonterm):
+    @parsing.inline(0)
     def reduce_SortClause(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_empty(self, *kids):
         self.val = []
@@ -1012,8 +1066,9 @@ class OrderbyList(ListNonterm, element=OrderbyExpr,
 
 
 class OptSelectLimit(Nonterm):
+    @parsing.inline(0)
     def reduce_SelectLimit(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_empty(self, *kids):
         self.val = (None, None)
@@ -1031,13 +1086,15 @@ class SelectLimit(Nonterm):
 
 
 class OffsetClause(Nonterm):
+    @parsing.inline(1)
     def reduce_OFFSET_Expr(self, *kids):
-        self.val = kids[1].val
+        pass
 
 
 class LimitClause(Nonterm):
+    @parsing.inline(1)
     def reduce_LIMIT_Expr(self, *kids):
-        self.val = kids[1].val
+        pass
 
 
 class OptDirection(Nonterm):
@@ -1077,11 +1134,13 @@ class IndirectionEl(Nonterm):
 
 
 class ParenExpr(Nonterm):
+    @parsing.inline(1)
     def reduce_LPAREN_Expr_RPAREN(self, *kids):
-        self.val = kids[1].val
+        pass
 
+    @parsing.inline(1)
     def reduce_LPAREN_ExprStmt_RPAREN(self, *kids):
-        self.val = kids[1].val
+        pass
 
 
 class BaseAtomicExpr(Nonterm):
@@ -1091,11 +1150,13 @@ class BaseAtomicExpr(Nonterm):
     # | '__new__' | '__old__' | '__specified__'
     # | NodeName | PathStep
 
+    @parsing.inline(0)
     def reduce_FreeShape(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_Constant(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_DUNDERSOURCE(self, *kids):
         self.val = qlast.Path(steps=[qlast.Source()])
@@ -1115,23 +1176,29 @@ class BaseAtomicExpr(Nonterm):
         )
 
     @parsing.precedence(precedence.P_UMINUS)
+    @parsing.inline(0)
     def reduce_ParenExpr(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_FuncExpr(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_Tuple(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_Collection(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_Set(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_NamedTuple(self, *kids):
-        self.val = kids[0].val
+        pass
 
     @parsing.precedence(precedence.P_DOT)
     def reduce_NodeName(self, *kids):
@@ -1180,11 +1247,13 @@ class Expr(Nonterm):
     # | GLOBAL Name
     # | EXISTS Expr
 
+    @parsing.inline(0)
     def reduce_BaseAtomicExpr(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_Path(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_Expr_Shape(self, *kids):
         self.val = qlast.Shape(expr=kids[0].val, elements=kids[1].val)
@@ -1257,25 +1326,13 @@ class Expr(Nonterm):
         self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
                                right=kids[2].val)
 
-    def reduce_Expr_LANGBRACKET_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
-                               right=kids[2].val)
-
-    def reduce_Expr_RANGBRACKET_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
-                               right=kids[2].val)
-
     @parsing.precedence(precedence.P_DOUBLEQMARK_OP)
     def reduce_Expr_DOUBLEQMARK_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
                                right=kids[2].val)
 
-    def reduce_Expr_EQUALS_Expr(self, *kids):
-        self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
-                               right=kids[2].val)
-
-    @parsing.precedence(precedence.P_OP)
-    def reduce_Expr_OP_Expr(self, *kids):
+    @parsing.precedence(precedence.P_COMPARE_OP)
+    def reduce_Expr_CompareOp_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op=kids[1].val,
                                right=kids[2].val)
 
@@ -1357,8 +1414,17 @@ class Expr(Nonterm):
         )
 
     def reduce_Expr_IF_Expr_ELSE_Expr(self, *kids):
+        if_expr, _, condition, _, else_expr = kids
         self.val = qlast.IfElse(
-            if_expr=kids[0].val, condition=kids[2].val, else_expr=kids[4].val)
+            if_expr=if_expr.val,
+            condition=condition.val,
+            else_expr=else_expr.val,
+            python_style=True,
+        )
+
+    @parsing.inline(0)
+    def reduce_IfThenElseExpr(self, _):
+        pass
 
     def reduce_Expr_UNION_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op='UNION',
@@ -1371,6 +1437,58 @@ class Expr(Nonterm):
     def reduce_Expr_INTERSECT_Expr(self, *kids):
         self.val = qlast.BinOp(left=kids[0].val, op='INTERSECT',
                                right=kids[2].val)
+
+
+class IfThenElseExpr(Nonterm):
+    def reduce_IF_Expr_THEN_Expr_ELSE_Expr(self, *kids):
+        _, condition, _, if_expr, _, else_expr = kids
+        self.val = qlast.IfElse(
+            condition=condition.val,
+            if_expr=if_expr.val,
+            else_expr=else_expr.val,
+        )
+
+
+class CompareOp(Nonterm):
+    @parsing.inline(0)
+    @parsing.precedence(precedence.P_COMPARE_OP)
+    def reduce_DISTINCTFROM(self, *_):
+        pass
+
+    @parsing.inline(0)
+    @parsing.precedence(precedence.P_COMPARE_OP)
+    def reduce_GREATEREQ(self, *_):
+        pass
+
+    @parsing.inline(0)
+    @parsing.precedence(precedence.P_COMPARE_OP)
+    def reduce_LESSEQ(self, *_):
+        pass
+
+    @parsing.inline(0)
+    @parsing.precedence(precedence.P_COMPARE_OP)
+    def reduce_NOTDISTINCTFROM(self, *_):
+        pass
+
+    @parsing.inline(0)
+    @parsing.precedence(precedence.P_COMPARE_OP)
+    def reduce_NOTEQ(self, *_):
+        pass
+
+    @parsing.inline(0)
+    @parsing.precedence(precedence.P_COMPARE_OP)
+    def reduce_LANGBRACKET(self, *_):
+        pass
+
+    @parsing.inline(0)
+    @parsing.precedence(precedence.P_COMPARE_OP)
+    def reduce_RANGBRACKET(self, *_):
+        pass
+
+    @parsing.inline(0)
+    @parsing.precedence(precedence.P_COMPARE_OP)
+    def reduce_EQUALS(self, *_):
+        pass
 
 
 class Tuple(Nonterm):
@@ -1392,7 +1510,7 @@ class NamedTuple(Nonterm):
 class NamedTupleElement(Nonterm):
     def reduce_ShortNodeName_ASSIGN_Expr(self, *kids):
         self.val = qlast.TupleElement(
-            name=kids[0].val,
+            name=qlast.Ptr(name=kids[0].val.name, context=kids[0].val.context),
             val=kids[2].val
         )
 
@@ -1414,11 +1532,13 @@ class Collection(Nonterm):
 
 
 class OptExprList(Nonterm):
+    @parsing.inline(0)
     def reduce_ExprList_COMMA(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_ExprList(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_empty(self, *kids):
         self.val = []
@@ -1429,26 +1549,43 @@ class ExprList(ListNonterm, element=Expr, separator=tokens.T_COMMA):
 
 
 class Constant(Nonterm):
-    # ARGUMENT
+    # PARAMETER
     # | BaseNumberConstant
     # | BaseStringConstant
     # | BaseBooleanConstant
     # | BaseBytesConstant
 
-    def reduce_ARGUMENT(self, *kids):
-        self.val = qlast.Parameter(name=kids[0].val[1:])
+    def reduce_PARAMETER(self, param):
+        self.val = qlast.Parameter(name=param.val[1:])
 
+    def reduce_PARAMETERANDTYPE(self, param):
+        assert param.val.startswith('<lit ')
+        type_name, param_name = param.val.removeprefix('<lit ').split('>$')
+        self.val = qlast.TypeCast(
+            type=qlast.TypeName(
+                maintype=qlast.ObjectRef(
+                    name=type_name,
+                    module='__std__'
+                )
+            ),
+            expr=qlast.Parameter(name=param_name),
+        )
+
+    @parsing.inline(0)
     def reduce_BaseNumberConstant(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_BaseStringConstant(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_BaseBooleanConstant(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_BaseBytesConstant(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 class BaseNumberConstant(Nonterm):
@@ -1504,18 +1641,12 @@ def _float_to_path(self, token, context):
     # context for the AST is established manually here
     return [
         qlast.Ptr(
-            ptr=qlast.ObjectRef(
-                name=parts[0],
-                context=token.context,
-            ),
+            name=parts[0],
             direction=s_pointers.PointerDirection.Outbound,
             context=context,
         ),
         qlast.Ptr(
-            ptr=qlast.ObjectRef(
-                name=parts[1],
-                context=token.context,
-            ),
+            name=parts[1],
             direction=s_pointers.PointerDirection.Outbound,
             context=token.context,
         )
@@ -1539,11 +1670,13 @@ class Path(Nonterm):
 
 
 class AtomicExpr(Nonterm):
+    @parsing.inline(0)
     def reduce_BaseAtomicExpr(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_AtomicPath(self, *kids):
-        self.val = kids[0].val
+        pass
 
     @parsing.precedence(precedence.P_TYPECAST)
     def reduce_LANGBRACKET_FullTypeExpr_RANGBRACKET_AtomicExpr(
@@ -1577,7 +1710,7 @@ class PathStep(Nonterm):
         from edb.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
-            ptr=kids[1].val,
+            name=kids[1].val.name,
             direction=s_pointers.PointerDirection.Outbound
         )
 
@@ -1586,7 +1719,7 @@ class PathStep(Nonterm):
         from edb.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
-            ptr=qlast.ObjectRef(name=kids[1].val),
+            name=kids[1].val,
             direction=s_pointers.PointerDirection.Outbound
         )
 
@@ -1594,7 +1727,7 @@ class PathStep(Nonterm):
         from edb.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
-            ptr=kids[1].val,
+            name=kids[1].val.name,
             direction=s_pointers.PointerDirection.Inbound
         )
 
@@ -1602,13 +1735,14 @@ class PathStep(Nonterm):
         from edb.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
-            ptr=kids[1].val,
+            name=kids[1].val.name,
             direction=s_pointers.PointerDirection.Outbound,
             type='property'
         )
 
+    @parsing.inline(0)
     def reduce_TypeIntersection(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 class TypeIntersection(Nonterm):
@@ -1619,8 +1753,9 @@ class TypeIntersection(Nonterm):
 
 
 class OptTypeIntersection(Nonterm):
+    @parsing.inline(0)
     def reduce_TypeIntersection(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_empty(self):
         self.val = None
@@ -1628,8 +1763,9 @@ class OptTypeIntersection(Nonterm):
 
 # Used in free shapes
 class FreeStepName(Nonterm):
+    @parsing.inline(0)
     def reduce_ShortNodeName(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_DUNDERTYPE(self, *kids):
         self.val = qlast.ObjectRef(name=kids[0].val)
@@ -1637,8 +1773,9 @@ class FreeStepName(Nonterm):
 
 # Used in shapes, paths and in PROPERTY/LINK definitions.
 class PathStepName(Nonterm):
+    @parsing.inline(0)
     def reduce_PathNodeName(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_DUNDERTYPE(self, *kids):
         self.val = qlast.ObjectRef(name=kids[0].val)
@@ -1675,8 +1812,9 @@ class FuncApplication(Nonterm):
 
 
 class FuncExpr(Nonterm):
+    @parsing.inline(0)
     def reduce_FuncApplication(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 class FuncCallArgExpr(Nonterm):
@@ -1694,14 +1832,14 @@ class FuncCallArgExpr(Nonterm):
             kids[2].val,
         )
 
-    def reduce_ARGUMENT_ASSIGN_Expr(self, *kids):
+    def reduce_PARAMETER_ASSIGN_Expr(self, *kids):
         if kids[0].val[1].isdigit():
             raise errors.EdgeQLSyntaxError(
-                f"numeric named arguments are not supported",
+                f"numeric named parameters are not supported",
                 context=kids[0].context)
         else:
             raise errors.EdgeQLSyntaxError(
-                f"named arguments do not need a '$' prefix, "
+                f"named parameters do not need a '$' prefix, "
                 f"rewrite as '{kids[0].val[1:]} := ...'",
                 context=kids[0].context)
 
@@ -1725,11 +1863,13 @@ class FuncArgList(ListNonterm, element=FuncCallArg, separator=tokens.T_COMMA):
 
 
 class OptFuncArgList(Nonterm):
+    @parsing.inline(0)
     def reduce_FuncArgList_COMMA(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_FuncArgList(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_empty(self, *kids):
         self.val = []
@@ -1753,32 +1893,37 @@ class PosCallArgList(ListNonterm, element=PosCallArg,
 
 
 class OptPosCallArgList(Nonterm):
+    @parsing.inline(0)
     def reduce_PosCallArgList(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_empty(self, *kids):
         self.val = []
 
 
 class Identifier(Nonterm):
-    def reduce_IDENT(self, *kids):
-        self.val = kids[0].clean_value
+    def reduce_IDENT(self, ident):
+        self.val = ident.clean_value
 
-    def reduce_UnreservedKeyword(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_UnreservedKeyword(self, *_):
+        pass
 
 
 class PtrIdentifier(Nonterm):
-    def reduce_Identifier(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_Identifier(self, *_):
+        pass
 
-    def reduce_PartialReservedKeyword(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_PartialReservedKeyword(self, *_):
+        pass
 
 
 class AnyIdentifier(Nonterm):
+    @parsing.inline(0)
     def reduce_PtrIdentifier(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_ReservedKeyword(self, *kids):
         name = kids[0].val
@@ -1816,11 +1961,14 @@ class ColonedIdents(
 
 
 class QualifiedName(Nonterm):
-    def reduce_Identifier_DOUBLECOLON_ColonedIdents(self, *kids):
-        self.val = [kids[0].val, *kids[2].val]
+    def reduce_Identifier_DOUBLECOLON_ColonedIdents(self, ident, _, idents):
+        assert ident.val
+        assert idents.val
+        self.val = [ident.val, *idents.val]
 
-    def reduce_DUNDERSTD_DOUBLECOLON_ColonedIdents(self, *kids):
-        self.val = ['__std__', *kids[2].val]
+    def reduce_DUNDERSTD_DOUBLECOLON_ColonedIdents(self, _s, _c, idents):
+        assert idents.val
+        self.val = ['__std__', *idents.val]
 
 
 # this can appear anywhere
@@ -1828,17 +1976,20 @@ class BaseName(Nonterm):
     def reduce_Identifier(self, *kids):
         self.val = [kids[0].val]
 
+    @parsing.inline(0)
     def reduce_QualifiedName(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 # this can appear in link/property definitions
 class PtrName(Nonterm):
-    def reduce_PtrIdentifier(self, *kids):
-        self.val = [kids[0].val]
+    def reduce_PtrIdentifier(self, ptr_identifier):
+        assert ptr_identifier.val
+        self.val = [ptr_identifier.val]
 
-    def reduce_QualifiedName(self, *kids):
-        self.val = kids[0].val
+    @parsing.inline(0)
+    def reduce_QualifiedName(self, *_):
+        pass
 
 
 # Non-collection type.
@@ -1847,10 +1998,19 @@ class SimpleTypeName(Nonterm):
         self.val = qlast.TypeName(maintype=kids[0].val)
 
     def reduce_ANYTYPE(self, *kids):
-        self.val = qlast.TypeName(maintype=qlast.AnyType())
+        self.val = qlast.TypeName(
+            maintype=qlast.PseudoObjectRef(name='anytype')
+        )
 
     def reduce_ANYTUPLE(self, *kids):
-        self.val = qlast.TypeName(maintype=qlast.AnyTuple())
+        self.val = qlast.TypeName(
+            maintype=qlast.PseudoObjectRef(name='anytuple')
+        )
+
+    def reduce_ANYOBJECT(self, *kids):
+        self.val = qlast.TypeName(
+            maintype=qlast.PseudoObjectRef(name='anyobject')
+        )
 
 
 class SimpleTypeNameList(ListNonterm, element=SimpleTypeName,
@@ -1908,11 +2068,13 @@ class CollectionTypeName(Nonterm):
 
 
 class TypeName(Nonterm):
+    @parsing.inline(0)
     def reduce_SimpleTypeName(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_CollectionTypeName(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 class TypeNameList(ListNonterm, element=TypeName,
@@ -1925,8 +2087,9 @@ class NontrivialTypeExpr(Nonterm):
     def reduce_TYPEOF_Expr(self, *kids):
         self.val = qlast.TypeOf(expr=kids[1].val)
 
+    @parsing.inline(1)
     def reduce_LPAREN_FullTypeExpr_RPAREN(self, *kids):
-        self.val = kids[1].val
+        pass
 
     def reduce_TypeExpr_PIPE_TypeExpr(self, *kids):
         self.val = qlast.TypeOp(left=kids[0].val, op='|',
@@ -1941,31 +2104,36 @@ class NontrivialTypeExpr(Nonterm):
 # can be used without parentheses in a context where the
 # angle bracket has a different meaning.
 class TypeExpr(Nonterm):
+    @parsing.inline(0)
     def reduce_SimpleTypeName(self, *kids):
-        self.val = kids[0].val
+        pass
 
+    @parsing.inline(0)
     def reduce_NontrivialTypeExpr(self, *kids):
-        self.val = kids[0].val
+        pass
 
 
 # A type expression enclosed in parentheses
 class ParenTypeExpr(Nonterm):
+    @parsing.inline(1)
     def reduce_LPAREN_FullTypeExpr_RPAREN(self, *kids):
-        self.val = kids[1].val
+        pass
 
 
 # This is a type expression which includes collection types,
 # so it can only be directly used in a context where the
 # angle bracket is unambiguous.
 class FullTypeExpr(Nonterm):
+    @parsing.inline(0)
     def reduce_TypeName(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_TYPEOF_Expr(self, *kids):
         self.val = qlast.TypeOf(expr=kids[1].val)
 
+    @parsing.inline(1)
     def reduce_LPAREN_FullTypeExpr_RPAREN(self, *kids):
-        self.val = kids[1].val
+        pass
 
     def reduce_FullTypeExpr_PIPE_FullTypeExpr(self, *kids):
         self.val = qlast.TypeOp(left=kids[0].val, op='|',
@@ -1977,8 +2145,9 @@ class FullTypeExpr(Nonterm):
 
 
 class Subtype(Nonterm):
+    @parsing.inline(0)
     def reduce_FullTypeExpr(self, *kids):
-        self.val = kids[0].val
+        pass
 
     def reduce_Identifier_COLON_FullTypeExpr(self, *kids):
         self.val = kids[2].val
@@ -2005,10 +2174,10 @@ class NodeName(Nonterm):
     #
     # This name is safe to be used anywhere as it starts with IDENT only.
 
-    def reduce_BaseName(self, *kids):
+    def reduce_BaseName(self, base_name):
         self.val = qlast.ObjectRef(
-            module='::'.join(kids[0].val[:-1]) or None,
-            name=kids[0].val[-1])
+            module='::'.join(base_name.val[:-1]) or None,
+            name=base_name.val[-1])
 
 
 class NodeNameList(ListNonterm, element=NodeName, separator=tokens.T_COMMA):
@@ -2020,10 +2189,10 @@ class PtrNodeName(Nonterm):
     #
     # This name is safe to be used in most DDL and SDL definitions.
 
-    def reduce_PtrName(self, *kids):
+    def reduce_PtrName(self, ptr_name):
         self.val = qlast.ObjectRef(
-            module='::'.join(kids[0].val[:-1]) or None,
-            name=kids[0].val[-1])
+            module='::'.join(ptr_name.val[:-1]) or None,
+            name=ptr_name.val[-1])
 
 
 class PtrQualifiedNodeName(Nonterm):

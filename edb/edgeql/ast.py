@@ -173,20 +173,17 @@ class ObjectRef(BaseObjectRef):
 
 
 class PseudoObjectRef(BaseObjectRef):
-    __abstract_node__ = True
-
-
-class AnyType(PseudoObjectRef):
-    pass
-
-
-class AnyTuple(PseudoObjectRef):
-    pass
+    # anytype, anytuple or anyobject
+    name: str
 
 
 class Anchor(Expr):
     __abstract_node__ = True
     name: str
+
+
+class IRAnchor(Anchor):
+    has_dml: bool = False
 
 
 class SpecialAnchor(Anchor):
@@ -353,7 +350,7 @@ class TypeIntersection(Base):
 
 
 class Ptr(Base):
-    ptr: ObjectRef
+    name: str
     direction: typing.Optional[str] = None
     type: typing.Optional[str] = None
 
@@ -392,10 +389,14 @@ class IfElse(Expr):
     condition: Expr
     if_expr: Expr
     else_expr: Expr
+    # Just affects pretty-printing
+    python_style: bool = False
 
 
 class TupleElement(Base):
-    name: ObjectRef
+    # This stores the name in another node instead of as a str just so
+    # that the name can have a separate source context.
+    name: Ptr
     val: Expr
 
 
@@ -452,6 +453,12 @@ SessionCommand = (
     | SessionResetAliasDecl
     | SessionResetModule
     | SessionResetAllAliases
+)
+SessionCommand_tuple = (
+    SessionSetAliasDecl,
+    SessionResetAliasDecl,
+    SessionResetModule,
+    SessionResetAllAliases
 )
 
 
@@ -597,6 +604,8 @@ class DeleteQuery(PipelinedQuery):
 
 
 class ForQuery(Query):
+    from_desugaring: bool = False
+    optional: bool = False
     iterator: Expr
     iterator_alias: str
 
@@ -903,7 +912,11 @@ class ExtensionCommand(UnqualifiedObjectCommand):
 
 
 class CreateExtension(CreateObject, ExtensionCommand):
-    pass
+    # HACK: I think there is a bug in our plugin that made us not
+    # understand that this was overridden in ExtensionCommand.
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.EXTENSION
+    )
 
 
 class DropExtension(DropObject, ExtensionCommand):
@@ -1047,6 +1060,10 @@ class CreateConcretePointer(CreateObject):
 
 
 class CreateConcreteUnknownPointer(CreateConcretePointer):
+    pass
+
+
+class AlterConcreteUnknownPointer(AlterObject, PropertyCommand):
     pass
 
 
@@ -1321,6 +1338,7 @@ class CreateTrigger(CreateObject, TriggerCommand):
     kinds: typing.List[qltypes.TriggerKind]
     scope: qltypes.TriggerScope
     expr: Expr
+    condition: typing.Optional[Expr]
 
 
 class AlterTrigger(AlterObject, TriggerCommand):
@@ -1473,7 +1491,7 @@ class _Optional(Expr):
 #
 
 
-class ConfigOp(Expr):
+class ConfigOp(Base):
     __abstract_node__ = True
     name: ObjectRef
     scope: qltypes.ConfigScope

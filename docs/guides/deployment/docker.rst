@@ -141,7 +141,7 @@ and some Docker-specific environment variables, documented below.
 
 .. note::
 
-   Seme variables support ``_ENV`` and ``_FILE`` :ref:`variants
+   Some variables support ``_ENV`` and ``_FILE`` :ref:`variants
    <ref_reference_envvar_variants>` to support more advanced configurations.
 
 .. _ref_guides_deployment_docker_initial_setup:

@@ -3,7 +3,7 @@ use std::fmt::{self, Write};
 use std::error::Error;
 use std::char;
 
-use crate::tokenizer::is_keyword;
+use crate::keywords;
 
 /// Error returned from `unquote_string` function
 ///
@@ -23,7 +23,7 @@ pub struct UnquoteError(String);
 pub fn quote_name(s: &str) -> Cow<str> {
     if s.chars().all(|c| c.is_alphanumeric() || c == '_') {
         let lower = s.to_ascii_lowercase();
-        if !is_keyword(&lower) {
+        if keywords::lookup(&lower).is_none() {
             return s.into();
         }
     }

@@ -31,6 +31,8 @@ import dataclasses
 import functools
 import itertools
 
+from edb.common.typeutils import downcast
+
 from edb import errors
 
 from edb.edgeql import ast as qlast
@@ -45,7 +47,6 @@ from edb.ir import utils as irutils
 
 from . import cardinality
 from . import context as inf_ctx
-from . import types as inf_types
 from . import utils as inf_utils
 
 
@@ -226,6 +227,11 @@ def _infer_set(
     result = _infer_set_inner(
         ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx
     )
+    if ir.card_inference_override:
+        result = _infer_set_inner(
+            ir.card_inference_override, is_mutation=is_mutation,
+            scope_tree=scope_tree, ctx=ctx)
+
     ctx.inferred_multiplicity[ir, scope_tree, ctx.distinct_iterator] = result
 
     # The shape doesn't affect multiplicity, but requires validation.
@@ -358,6 +364,7 @@ def __infer_oper_call(
     scope_tree: irast.ScopeTreeNode,
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
+    card = cardinality.infer_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
     mult: List[inf_ctx.MultiplicityInfo] = []
     cards: List[qltypes.Cardinality] = []
     for arg in ir.args:
@@ -381,10 +388,10 @@ def __infer_oper_call(
         # proven to be disjoint (e.g. a UNION of INSERTs).
         result = EMPTY
 
-        arg_type = inf_types.infer_type(ir.args[0].expr, env=ctx.env)
+        arg_type = ctx.env.set_types[ir.args[0].expr]
         if isinstance(arg_type, s_objtypes.ObjectType):
             types: List[s_objtypes.ObjectType] = [
-                inf_types.infer_type(arg.expr, env=ctx.env)  # type: ignore
+                downcast(s_objtypes.ObjectType, ctx.env.set_types[arg.expr])
                 for arg in ir.args
             ]
 
@@ -432,7 +439,7 @@ def __infer_oper_call(
         else:
             return UNIQUE
     elif op_name == 'std::IF':
-        # If the cardinality of the condition is more than UNIQUE, then
+        # If the cardinality of the condition is more than ONE, then
         # the multiplicity cannot be inferred.
         if cards[1].is_single():
             # Now it's just a matter of the multiplicity of the
@@ -442,11 +449,13 @@ def __infer_oper_call(
             return DUPLICATE
     elif op_name == 'std::??':
         return _max_multiplicity((mult[0], mult[1]))
-    else:
-        # The rest of the operators (other than UNION, DISTINCT, or
-        # IF..ELSE). We can ignore the SET OF args because the results
-        # are actually proportional to the element-wise args in our
-        # operators.
+    elif card.is_single():
+        return UNIQUE
+    elif op_name in ('std::++', 'std::+'):
+        # Operators known to be injective.
+        # Basically just done to avoid breaking backward compatability
+        # more than was necessary, because we used to *always* use this
+        # path, which was wrong.
         result = _max_multiplicity(mult)
         if result.is_duplicate():
             return result
@@ -460,6 +469,9 @@ def __infer_oper_call(
             return DUPLICATE
         else:
             return result
+    else:
+        # Everything else.
+        return DUPLICATE
 
 
 @_infer_multiplicity.register
@@ -489,7 +501,16 @@ def __infer_const_set(
     scope_tree: irast.ScopeTreeNode,
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
-    if len(ir.elements) == len({el.value for el in ir.elements}):
+    # Is it worth doing this? It won't trigger in the common case of having
+    # performed constant extraction.
+    els = set()
+    for el in ir.elements:
+        if isinstance(el, irast.BaseConstant):
+            els.add(el.value)
+        else:
+            return DUPLICATE
+
+    if len(ir.elements) == len(els):
         return UNIQUE
     else:
         return DUPLICATE
@@ -532,7 +553,7 @@ def _infer_stmt_multiplicity(
     scope_tree: irast.ScopeTreeNode,
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
-    # WITH block bindings need to be validated, they don't have to
+    # WITH block bindings need to be validated; they don't have to
     # have multiplicity UNIQUE, but their sub-expressions must be valid.
     for part in (ir.bindings or []):
         infer_multiplicity(part, scope_tree=scope_tree, ctx=ctx)
@@ -628,6 +649,11 @@ def __infer_insert_stmt(
     scope_tree: irast.ScopeTreeNode,
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
+    # WITH block bindings need to be validated, they don't have to
+    # have multiplicity UNIQUE, but their sub-expressions must be valid.
+    for part in (ir.bindings or []):
+        infer_multiplicity(part, scope_tree=scope_tree, ctx=ctx)
+
     # INSERT will always return a proper set, but we still want to
     # process the sub-expressions.
     infer_multiplicity(
@@ -866,6 +892,18 @@ def __infer_trigger_anchor(
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
     return UNIQUE
+
+
+@_infer_multiplicity.register
+def __infer_searchable_string(
+    ir: irast.FTSDocument,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
+    return _common_multiplicity(
+        (ir.text, ir.language), scope_tree=scope_tree, ctx=ctx
+    )
 
 
 def infer_multiplicity(

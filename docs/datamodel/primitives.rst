@@ -81,10 +81,10 @@ Arrays cannot contain object types or other arrays.
       json_array: array<json>;
 
       # INVALID: arrays of object types not allowed
-      # property friends -> array<Person>
+      # friends: array<Person>
 
       # INVALID: arrays cannot be nested
-      # property nested_array -> array<array<str>>
+      # nested_array: array<array<str>>
     }
 
 For a full reference on array types, see the :ref:`Array docs <ref_std_array>`.

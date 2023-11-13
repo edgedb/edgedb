@@ -1496,14 +1496,14 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
     async def test_edgeql_casts_illegal_07(self):
         async with self.assertRaisesRegexTx(
-                edgedb.QueryError, r"cannot cast into generic.*anytype'"):
+                edgedb.QueryError, r"cannot cast into generic.*anytype"):
             await self.con.execute("""
                 SELECT <array<anytype>>[123];
             """)
 
     async def test_edgeql_casts_illegal_08(self):
         async with self.assertRaisesRegexTx(
-                edgedb.QueryError, r"cannot cast into generic.*'anytype'"):
+                edgedb.QueryError, r"cannot cast into generic.*anytype"):
             await self.con.execute("""
                 SELECT <tuple<int64, anytype>>(123, 123);
             """)
@@ -2439,6 +2439,17 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             [[]],
         )
 
+    async def test_edgeql_casts_json_15(self):
+        # At one point, a cast from an object inside a binary
+        # operation triggered an infinite loop in staeval if the
+        # object had a self link.
+        await self.con.execute('''
+            create type Z { create link z -> Z; };
+        ''')
+        await self.con.query('''
+            select <json>Z union <json>Z;
+        ''')
+
     async def test_edgeql_casts_assignment_01(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""
@@ -2883,6 +2894,43 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             variables=(None, 11111),
         )
 
+    async def test_edgeql_casts_tuple_params_09(self):
+        await self.con.query('''
+            WITH
+              p := <tuple<test: str>>$0
+            insert Test { p_tup := p };
+        ''', ('foo',))
+
+        await self.assert_query_result(
+            '''
+            select Test { p_tup } filter exists .p_tup
+            ''',
+            [{'p_tup': {'test': 'foo'}}],
+        )
+        await self.assert_query_result(
+            '''
+            WITH
+              p := <tuple<test: str>>$0
+            select p
+            ''',
+            [{'test': 'foo'}],
+            variables=(('foo',),),
+        )
+        await self.assert_query_result(
+            '''
+            select <tuple<test: str>>$0
+            ''',
+            [{'test': 'foo'}],
+            variables=(('foo',),),
+        )
+        await self.assert_query_result(
+            '''
+            select <array<tuple<test: str>>>$0
+            ''',
+            [[{'test': 'foo'}, {'test': 'bar'}]],
+            variables=([('foo',), ('bar',)],),
+        )
+
     async def test_edgeql_cast_empty_set_to_array_01(self):
         await self.assert_query_result(
             r'''
@@ -2909,17 +2957,24 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         )
 
     async def test_edgeql_casts_all_null(self):
-        # For *every* concrete cast, try casting a value we know
+        # For *every* cast, try casting a value we know
         # will be represented as NULL.
-
-        # Grab all concrete casts
         casts = await self.con.query('''
             select schema::Cast { from_type: {name}, to_type: {name} }
-            filter .from_type.name not like '%any%'
-            and .to_type.name not like '%any%'
-            and not .from_type IS schema::ObjectType
+            filter not .from_type is schema::ObjectType
         ''')
-        from_types = {cast.from_type.name for cast in casts}
+
+        def _t(s):
+            # Instantiate polymorphic types
+            return (
+                s
+                .replace('anytype', 'str')
+                .replace('anytuple', 'tuple<str, int64>')
+                .replace('std::anyenum', 'schema::Cardinality')
+                .replace('std::anypoint', 'int64')
+            )
+
+        from_types = {_t(cast.from_type.name) for cast in casts}
         type_keys = {
             name: f'x{i}' for i, name in enumerate(sorted(from_types))
         }
@@ -2928,7 +2983,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         setup = f'''
             CREATE TYPE Null {{
                 {sep.join(
-                    f'CREATE PROPERTY {n} -> {t};'
+                    f'CREATE PROPERTY {n} -> {_t(t)};'
                     for t, n in type_keys.items()
                  )}
             }};
@@ -2938,20 +2993,29 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         # Do each cast
         for cast in casts:
-            prop = type_keys[cast.from_type.name]
-            # FIXME: date_duration not supported yet in the bindings
-            json_only = cast.to_type.name == 'cal::date_duration'
+            prop = type_keys[_t(cast.from_type.name)]
 
             await self.assert_query_result(
                 f'''
                 SELECT Null {{
-                    res := <{cast.to_type.name}>.{prop}
+                    res := <{_t(cast.to_type.name)}>.{prop}
                 }}
                 ''',
                 [{"res": None}],
                 msg=f'{cast.from_type.name} to {cast.to_type.name}',
-                json_only=json_only,
             )
+
+            # For casts from JSON, also do the related operation of
+            # casting from a JSON null, which should produce an empty
+            # set.
+            if cast.from_type.name == 'std::json':
+                await self.assert_query_result(
+                    f'''
+                    SELECT <{_t(cast.to_type.name)}>to_json('null')
+                    ''',
+                    [],
+                    msg=f'json null cast to {cast.to_type.name}',
+                )
 
     async def test_edgeql_casts_uuid_to_object(self):
         persons = await self.con.query('select Person { id }')

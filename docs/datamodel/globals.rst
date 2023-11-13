@@ -44,7 +44,9 @@ which client library you're using.
 
     import createClient from 'edgedb';
 
-    const baseClient = createClient()
+    const baseClient = createClient();
+    // returns a new Client instance that stores the provided 
+    // globals and sends them along with all future queries:
     const clientWithGlobals = baseClient.withGlobals({
       current_user_id: '2141a5b4-5634-4ccc-b835-437863534c51',
     });
@@ -100,13 +102,32 @@ which client library you're using.
       fmt.Println(result)
     }
 
+  .. code-tab:: rust
+
+    use uuid::Uuid;
+
+    let client = edgedb_tokio::create_client().await.expect("Client init");
+
+    let client_with_globals = client.with_globals_fn(|c| {
+        c.set(
+            "current_user_id",
+            Value::Uuid(
+                Uuid::parse_str("2141a5b4-5634-4ccc-b835-437863534c51")
+                    .expect("Uuid should have parsed"),
+            ),
+        )
+    });
+    let val: Uuid = client_with_globals
+        .query_required_single("select global current_user_id;", &())
+        .await
+        .expect("Returning value");
+    println!("Result: {val}");
+
   .. code-tab:: edgeql
 
-    set global current_user_id := <uuid>'2141a5b4-5634-4ccc-b835-437863534c51';
+    set global current_user_id := 
+      <uuid>'2141a5b4-5634-4ccc-b835-437863534c51';
 
-
-The ``.withGlobals/.with_globals`` method returns a new ``Client`` instance
-that stores the provided globals and sends them along with all future queries.
 
 Cardinality
 -----------
@@ -209,10 +230,18 @@ Unlike query parameters, globals can be referenced
 
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type User {
       name: str;
       property is_self := (.id = global current_user_id)
+    };
+
+.. code-block:: sdl
+
+    type User {
+      name: str;
+      is_self := (.id = global current_user_id)
     };
 
 This is particularly useful when declaring :ref:`access policies

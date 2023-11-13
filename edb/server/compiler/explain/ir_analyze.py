@@ -79,12 +79,12 @@ class VisitShapes(ast.NodeVisitor):
     skip_hidden = True
     extra_skips = frozenset(('shape', 'source', 'target'))
 
-    def __init__(self, ir_node_to_alias: dict[irast.Set, str], **kwargs):
+    def __init__(self, ir_node_to_alias: dict[irast.Set, str], **kwargs: Any):
         self.ir_node_to_alias = ir_node_to_alias
         self.current_shape = ShapeInfo(aliases=set(), pointers={})
         super().__init__(**kwargs)
 
-    def visit_Set(self, node: irast.Set):
+    def visit_Set(self, node: irast.Set) -> Any:
         alias = self.ir_node_to_alias.get(node)
         if not alias:
             return self.generic_visit(node)
@@ -200,8 +200,7 @@ def analyze_queries(
 
             for node in ns:
                 ir_node_to_alias[node] = alias
-                # TODO(Tailhook) is it okay to add all nodes, or just first
-                # like we do for context?
+                break
 
             # Find the enclosing
             sources = reverse_path_rvar_map.get(rvar, ())

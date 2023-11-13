@@ -8,7 +8,8 @@ Access Policies
 
 Object types can contain security policies that restrict the set of objects
 that can be selected, inserted, updated, or deleted by a particular query.
-This is known as *object-level security*.
+This is known as *object-level security* and it is similar in function to SQL's
+row-level security.
 
 Let's start with a simple schema without any access policies.
 
@@ -145,6 +146,27 @@ queries. The exact API depends on which client library you're using:
       fmt.Println(result)
     }
 
+  .. code-tab:: rust
+
+    use uuid::Uuid;
+
+    let client = edgedb_tokio::create_client()
+        .await
+        .expect("Client should init")
+        .with_globals_fn(|c| {
+            c.set(
+                "current_user",
+                Value::Uuid(
+                    Uuid::parse_str("2141a5b4-5634-4ccc-b835-437863534c51")
+                        .expect("Uuid should have parsed"),
+                ),
+            )
+        });
+    client
+        .query_required_single::<Uuid, _>("select global current_user;", &())
+        .await
+        .expect("Returning value");
+
 
 Defining a policy
 ^^^^^^^^^^^^^^^^^
@@ -261,8 +283,8 @@ For the most part, the policy types correspond to EdgeQL's *statement types*:
 - ``delete``: Applies to delete queries.
 - ``update``: Applies to update queries.
 
-Additionally, the ``update`` operation can broken down into two sub-policies:
-``update read`` and ``update write``.
+Additionally, the ``update`` operation can be broken down into two
+sub-policies: ``update read`` and ``update write``.
 
 - ``update read``: This policy restricts *which* objects can be updated. It
   runs *pre-update*; that is, this policy is executed before the updates have
@@ -382,8 +404,8 @@ making the current user able to see their own ``User`` record.
     This change is being made to simplify reasoning about access policies and
     to allow certain patterns to be express efficiently. Since those who have
     access to modifying the schema can remove unwanted access policies, no
-    additional security is provided by applying access policies to each other's
-    expressions.
+    additional security is provided by applying access policies to each 
+    other's expressions.
 
     It is possible (and recommended) to enable this :ref:`future
     <ref_eql_sdl_future>` behavior in EdgeDB 2.6 and later by adding the
@@ -404,12 +426,12 @@ policy, you will get a generic error message.
 
 .. note::
 
-    When attempting a ``select`` queries, you simply won't get the data that is
-    being restricted by the access policy.
+    When attempting a ``select`` queries, you simply won't get the data that 
+    is being restricted by the access policy.
 
 If you have multiple access policies, it can be useful to know which policy is
-restricting your query and provide a friendly error message. You can do this by
-adding a custom error message to your policy.
+restricting your query and provide a friendly error message. You can do this 
+by adding a custom error message to your policy.
 
 .. code-block:: sdl-diff
 
@@ -684,10 +706,30 @@ Here's a policy that limits the number of blog posts a ``User`` can post.
       }
 
 .. code-block:: sdl-diff
+    :version-lt: 4.0
 
       type User {
         required email: str { constraint exclusive; };
     +   multi link posts := .<author[is BlogPost]
+      }
+
+      type BlogPost {
+        required title: str;
+        required author: User;
+
+        access policy author_has_full_access
+          allow all
+          using (global current_user ?= .author.id);
+    +   access policy max_posts_limit
+    +     deny insert
+    +     using (count(.author.posts) > 500);
+      }
+
+.. code-block:: sdl-diff
+
+      type User {
+        required email: str { constraint exclusive; };
+    +   multi posts := .<author[is BlogPost]
       }
 
       type BlogPost {

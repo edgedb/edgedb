@@ -24,7 +24,7 @@ from edb import errors
 
 from edb.testbase import lang as tb
 from edb.edgeql import generate_source
-from edb.edgeql.parser import parser as eql_parser
+from edb.edgeql.parser import grammar as qlgrammar
 from edb.tools import test
 
 
@@ -35,8 +35,8 @@ class SchemaSyntaxTest(tb.BaseSyntaxTest):
     ast_to_source = functools.partial(generate_source, unsorted=True)
 
     @classmethod
-    def get_parser(cls):
-        return eql_parser.EdgeSDLParser()
+    def get_grammar_token(cls):
+        return qlgrammar.tokens.T_STARTSDLDOCUMENT
 
 
 class TestEdgeSchemaParser(SchemaSyntaxTest):
@@ -265,7 +265,12 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected keyword 'Commit'",
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected keyword 'COMMIT'",
+                  details="This name is a reserved keyword and cannot be "
+                          "used as an identifier",
+                  hint="Use a different identifier or quote the name "
+                       "with backticks: `Commit`",
                   line=3, col=18)
     def test_eschema_syntax_type_11(self):
         """
@@ -876,8 +881,8 @@ type LogEntry extending    OwnedObject,    Text {
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected 'scalar'",
-                  line=4, col=9)
+                  r"Missing ';'",
+                  line=2, col=55)
     def test_eschema_syntax_ws_03(self):
         """
         scalar type test::newScalarType0 extending str#:
@@ -966,7 +971,7 @@ type LogEntry extending    OwnedObject,    Text {
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected 'final'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected keyword 'FINAL'",
                   line=3, col=13)
     def test_eschema_syntax_scalar_07(self):
         """
@@ -1043,7 +1048,7 @@ type LogEntry extending    OwnedObject,    Text {
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected 'delegated'",
+                  r"Unexpected keyword 'DELEGATED'",
                   line=3, col=13)
     def test_eschema_syntax_constraint_02(self):
         """
@@ -1112,7 +1117,7 @@ type LogEntry extending    OwnedObject,    Text {
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected 'constraint'",
+                  r"Unexpected keyword 'CONSTRAINT'",
                   line=4, col=26)
     def test_eschema_syntax_constraint_07(self):
         """
@@ -1135,7 +1140,7 @@ type LogEntry extending    OwnedObject,    Text {
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected 'constraint'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected keyword 'CONSTRAINT'",
                   line=3, col=13)
     def test_eschema_syntax_constraint_09(self):
         """
@@ -1198,7 +1203,7 @@ abstract property test::foo {
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected 'property'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected keyword 'PROPERTY'",
                   line=3, col=13)
     def test_eschema_syntax_property_05(self):
         """
@@ -1410,7 +1415,7 @@ abstract property test::foo {
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected 'link'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected keyword 'LINK'",
                   line=3, col=13)
     def test_eschema_syntax_link_11(self):
         """
@@ -1626,7 +1631,7 @@ abstract property test::foo {
     def test_eschema_syntax_function_12(self):
         """
         module test {
-            function some_func($`(`: str = ) ) -> std::str {
+            function some_func($`(`: str = () ) -> std::str {
                 using edgeql function 'some_other_func';
             }
         };
@@ -1770,10 +1775,8 @@ abstract property test::foo {
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Unexpected token:.+b',
-                  hint=r"It appears that a ',' is missing in a list of "
-                       r"arguments before 'b'",
-                  line=3, col=34)
+                  r"Missing ','",
+                  line=3, col=33)
     def test_eschema_syntax_function_21(self):
         """
         module test {
@@ -1834,10 +1837,8 @@ abstract property test::foo {
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Unexpected token:.+baz',
-                  hint=r"It appears that a ',' is missing in a shape "
-                       r"before 'baz'",
-                  line=5, col=17)
+                  r"Missing ','",
+                  line=4, col=25)
     def test_eschema_syntax_alias_04(self):
         """
         module test {
@@ -1850,10 +1851,8 @@ abstract property test::foo {
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Unexpected token:.+2',
-                  hint=r"It appears that a ',' is missing in a tuple "
-                       r"before '2'",
-                  line=3, col=32)
+                  r"Missing ','",
+                  line=3, col=31)
     def test_eschema_syntax_alias_05(self):
         """
         module test {
@@ -1862,10 +1861,8 @@ abstract property test::foo {
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Unexpected token:.+2',
-                  hint=r"It appears that a ',' is missing in an array "
-                       r"before '2'",
-                  line=3, col=32)
+                  r"Missing ','",
+                  line=3, col=31)
     def test_eschema_syntax_alias_06(self):
         """
         module test {
@@ -1948,7 +1945,7 @@ abstract property test::foo {
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected keyword 'extending'", line=3, col=46)
+                  r"Unexpected keyword 'EXTENDING'", line=3, col=46)
     def test_eschema_syntax_annotation_14(self):
         """
         module test {
@@ -1956,7 +1953,7 @@ abstract property test::foo {
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected 'annotation'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Missing keyword 'ABSTRACT'",
                   line=2, col=1)
     def test_eschema_syntax_annotation_15(self):
         """

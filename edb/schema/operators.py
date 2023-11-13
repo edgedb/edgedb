@@ -214,7 +214,8 @@ class CreateOperator(
             ptype = param.get_type(schema)
             all_arrays = all_arrays and ptype.is_array()
             all_tuples = all_tuples and ptype.is_tuple(schema)
-            all_ranges = all_ranges and ptype.is_range()
+            all_ranges = all_ranges and (ptype.is_range()
+                                         or ptype.is_multirange())
 
         # It's illegal to declare an operator as recursive unless all
         # of its operands are the same basic type of collection.
@@ -265,7 +266,9 @@ class CreateOperator(
                         oper_all_tuples
                         and ptype.is_tuple(schema)
                     )
-                    oper_all_ranges = oper_all_ranges and ptype.is_range()
+                    oper_all_ranges = oper_all_ranges and (
+                        ptype.is_range() or ptype.is_multirange()
+                    )
 
                 if (all_arrays == oper_all_arrays and
                         all_tuples == oper_all_tuples and

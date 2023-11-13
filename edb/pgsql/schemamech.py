@@ -106,6 +106,16 @@ class ExprDataSources:
     plain_chunks: Sequence[str]
 
 
+def _to_source(sql_expr: pg_ast.Base) -> str:
+    src = codegen.generate_source(sql_expr)
+    # ColumnRefs are the most common thing, and they should be safe to
+    # skip parenthesizing, for deuglification purposes. anything else
+    # we put parens around, to be sure.
+    if not isinstance(sql_expr, pg_ast.ColumnRef):
+        src = f'({src})'
+    return src
+
+
 def _edgeql_tree_to_expr_data(
     sql_expr: pg_ast.Base, refs: Optional[Set[pg_ast.ColumnRef]] = None
 ) -> ExprDataSources:
@@ -113,13 +123,13 @@ def _edgeql_tree_to_expr_data(
         refs = set(ast.find_children(
             sql_expr, pg_ast.ColumnRef, lambda n: len(n.name) == 1))
 
-    plain_expr = codegen.SQLSourceGenerator.to_source(sql_expr)
+    plain_expr = _to_source(sql_expr)
 
     if isinstance(sql_expr, (pg_ast.RowExpr, pg_ast.ImplicitRowExpr)):
         chunks = []
 
         for elem in sql_expr.args:
-            chunks.append(codegen.SQLSourceGenerator.to_source(elem))
+            chunks.append(_to_source(elem))
     else:
         chunks = [plain_expr]
 
@@ -129,12 +139,12 @@ def _edgeql_tree_to_expr_data(
     for ref in refs:
         assert isinstance(ref.name, List)
         ref.name.insert(0, 'NEW')
-    new_expr = codegen.SQLSourceGenerator.to_source(sql_expr)
+    new_expr = _to_source(sql_expr)
 
     for ref in refs:
         assert isinstance(ref.name, List)
         ref.name[0] = 'OLD'
-    old_expr = codegen.SQLSourceGenerator.to_source(sql_expr)
+    old_expr = _to_source(sql_expr)
 
     return ExprDataSources(
         plain=plain_expr, new=new_expr, old=old_expr, plain_chunks=chunks
@@ -142,21 +152,21 @@ def _edgeql_tree_to_expr_data(
 
 
 def _edgeql_ref_to_pg_constr(
-    subject: s_types.Type,
+    subject: s_constraints.ConsistencySubject,
     origin_subject: s_types.Type | s_pointers.Pointer | None,
     tree: irast.Base,
 ) -> ExprData:
-    sql_tree, _, _ = compiler.compile_ir_to_sql_tree(tree, singleton_mode=True)
+    sql_res = compiler.compile_ir_to_sql_tree(tree, singleton_mode=True)
 
     sql_expr: pg_ast.Base
-    if isinstance(sql_tree, pg_ast.SelectStmt):
+    if isinstance(sql_res.ast, pg_ast.SelectStmt):
         # XXX: use ast pattern matcher for this
-        from_clause = sql_tree.from_clause[0]
+        from_clause = sql_res.ast.from_clause[0]
         assert isinstance(from_clause, pg_ast.RelRangeVar)
         assert isinstance(from_clause.relation, pg_ast.CommonTableExpr)
         sql_expr = from_clause.relation.query.target_list[0].val
     else:
-        sql_expr = sql_tree
+        sql_expr = sql_res.ast
 
     if isinstance(tree, irast.Statement):
         tree = tree.expr
@@ -211,13 +221,16 @@ def _edgeql_ref_to_pg_constr(
 
 
 def compile_constraint(
-    subject: s_types.Type,
+    subject: s_constraints.ConsistencySubject,
     constraint: s_constraints.Constraint,
     schema: s_schema.Schema,
     source_context: Optional[parsing.ParserContext],
 ) -> SchemaDomainConstraint | SchemaTableConstraint:
     assert constraint.get_subject(schema) is not None
     TypeOrPointer = s_types.Type | s_pointers.Pointer
+    assert isinstance(
+        subject, (s_types.Type, s_pointers.Pointer, s_scalars.ScalarType)
+    )
 
     constraint_origins = constraint.get_constraint_origins(schema)
     first_subject = constraint_origins[0].get_subject(schema)
@@ -260,10 +273,10 @@ def compile_constraint(
             schema,
             options=options,
         )
-        except_sql, _, _ = compiler.compile_ir_to_sql_tree(
+        except_sql = compiler.compile_ir_to_sql_tree(
             except_ir, singleton_mode=True
         )
-        except_data = _edgeql_tree_to_expr_data(except_sql)
+        except_data = _edgeql_tree_to_expr_data(except_sql.ast)
 
     terminal_refs = ir_utils.get_longest_paths(ir.expr.expr.result)
     ref_tables = get_ref_storage_info(ir.schema, terminal_refs)
@@ -286,6 +299,7 @@ def compile_constraint(
         else:
             subject_table = subject
 
+        assert subject_table
         subject_db_name = common.get_backend_name(
             schema, subject_table, catenate=False
         )
@@ -334,8 +348,9 @@ def compile_constraint(
             options=origin_options,
         )
 
+        assert origin_ir.expr.expr
         origin_terminal_refs = ir_utils.get_longest_paths(
-            origin_ir.expr.expr.result
+            origin_ir.expr.expr
         )
         origin_ref_tables = get_ref_storage_info(
             origin_ir.schema, origin_terminal_refs
@@ -357,9 +372,9 @@ def compile_constraint(
                 schema,
                 options=origin_options,
             )
-            except_sql, _, _ = compiler.compile_ir_to_sql_tree(
+            except_sql = compiler.compile_ir_to_sql_tree(
                 except_ir, singleton_mode=True)
-            origin_except_data = _edgeql_tree_to_expr_data(except_sql)
+            origin_except_data = _edgeql_tree_to_expr_data(except_sql.ast)
 
         origin_exclusive_expr_refs = _get_exclusive_refs(origin_ir)
         per_origin_parts.append(
@@ -447,7 +462,7 @@ def compile_constraint(
 
 @dataclasses.dataclass(kw_only=True, repr=False, eq=False, slots=True)
 class SchemaDomainConstraint:
-    subject: s_types.Type
+    subject: s_constraints.ConsistencySubject
     constraint: s_constraints.Constraint
     pg_constr_data: PGConstrData
     schema: s_schema.Schema
@@ -495,7 +510,7 @@ class SchemaDomainConstraint:
 
 @dataclasses.dataclass(kw_only=True, repr=False, eq=False, slots=True)
 class SchemaTableConstraint:
-    subject: s_types.Type
+    subject: s_constraints.ConsistencySubject
     constraint: s_constraints.Constraint
     pg_constr_data: PGConstrData
     schema: s_schema.Schema
@@ -559,7 +574,7 @@ class SchemaTableConstraint:
 
         return ops
 
-    def enforce_ops(self):
+    def enforce_ops(self) -> dbops.CommandGroup:
         ops = dbops.CommandGroup()
 
         tabconstr = self._table_constraint(self)
@@ -576,6 +591,7 @@ class SchemaTableConstraint:
             old_expr = origin_exprdata.old
             new_expr = exprdata.new
 
+            assert origin_expr.origin_subject_db_name
             schemaname, tablename = origin_expr.origin_subject_db_name
             real_tablename = tabconstr.get_subject_name(quote=False)
 
@@ -597,6 +613,7 @@ class SchemaTableConstraint:
             origin_except_data = origin_expr.origin_except_data
 
             if except_data:
+                assert origin_except_data
                 except_part = f'''
                     AND ({origin_except_data.old} is not true)
                     AND ({except_data.new} is not true)
@@ -646,7 +663,7 @@ def ptr_default_to_col_default(schema, ptr, expr):
             )
         )
         ir = qlcompiler.compile_ast_to_ir(eql, schema)
-    except errors.SchemaError:
+    except (errors.SchemaError, errors.QueryError):
         # Reference errors mean that is is a non-constant default
         # referring to a not-yet-existing objects.
         return None
@@ -655,12 +672,10 @@ def ptr_default_to_col_default(schema, ptr, expr):
         return None
 
     try:
-        sql_expr, _, _ = compiler.compile_ir_to_sql_tree(
-            ir, singleton_mode=True
-        )
+        sql_res = compiler.compile_ir_to_sql_tree(ir, singleton_mode=True)
     except errors.UnsupportedFeatureError:
         return None
-    sql_text = codegen.SQLSourceGenerator.to_source(sql_expr)
+    sql_text = _to_source(sql_res.ast)
 
     return sql_text
 

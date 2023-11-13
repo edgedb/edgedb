@@ -24,7 +24,6 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import tracer
 from edb.edgeql.compiler import normalization
 from edb.edgeql.compiler.inference import cardinality
-from edb.edgeql.compiler.inference import types
 from edb.edgeql.compiler.inference import volatility
 from edb.ir import ast as irast
 from edb.server.compiler import status
@@ -77,22 +76,6 @@ class TestTracer(unittest.TestCase):
                 if dispatcher.dispatch(astcls) is not_implemented:
                     self.fail(
                         f'_infer_cardinality for {name} is not implemented')
-
-    def test_infer_type_dispatch(self):
-        dispatcher = types._infer_type
-        not_implemented = dispatcher.registry[object]
-
-        for name, astcls in inspect.getmembers(irast, inspect.isclass):
-            # Expr and Stmt need type inference.
-            if (issubclass(astcls, (irast.Expr, irast.Stmt,
-                                    # ConfigInsert is the only config
-                                    # command needing type inference.
-                                    irast.ConfigInsert))
-                    and not astcls.__abstract_node__):
-
-                if dispatcher.dispatch(astcls) is not_implemented:
-                    self.fail(
-                        f'_infer_type for {name} is not implemented')
 
     def test_infer_volatility_dispatch(self):
         dispatcher = volatility._infer_volatility_inner

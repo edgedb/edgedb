@@ -1,0 +1,5 @@
+# Ignore Cython debug files
+*.html
+
+# Grammar spec file encoded as BitCode
+*.bc

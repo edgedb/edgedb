@@ -18,6 +18,11 @@ Description
 ``edgedb instance logs`` is a terminal command for displaying the logs
 for a given EdgeDB instance.
 
+.. note::
+
+    The ``edgedb instance logs`` command is not intended for use with
+    self-hosted instances.
+
 
 Options
 =======

@@ -1437,6 +1437,28 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         self.assertTrue('id' not in data)
 
+    async def test_edgeql_json_cast_object_to_json_07(self):
+        await self.con.execute('''
+            create function _get(idx: int64) -> set of json {
+                using (
+                    select <json> (
+                        select JSONTest {
+                            number, edb_string
+                        } filter .number = idx
+                    )
+                )
+            };
+        ''')
+        await self.assert_query_result(
+            r"""
+                SELECT _get(0)
+            """,
+            [
+                {'number': 0, 'edb_string': 'jumps'},
+            ],
+            json_only=True,
+        )
+
     async def test_edgeql_json_cast_tuple_to_json_01(self):
         res = await self.con.query("""
             WITH MODULE schema

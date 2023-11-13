@@ -164,6 +164,14 @@ CREATE TYPE schema::Range EXTENDING schema::CollectionType {
 CREATE TYPE schema::RangeExprAlias EXTENDING schema::Range;
 
 
+CREATE TYPE schema::MultiRange EXTENDING schema::CollectionType {
+    CREATE REQUIRED LINK element_type -> schema::Type;
+};
+
+
+CREATE TYPE schema::MultiRangeExprAlias EXTENDING schema::MultiRange;
+
+
 CREATE TYPE schema::Delta EXTENDING schema::Object {
     CREATE MULTI LINK parents -> schema::Delta;
 };
@@ -284,6 +292,7 @@ CREATE ABSTRACT TYPE schema::Pointer
     CREATE PROPERTY readonly -> std::bool;
     CREATE PROPERTY default -> std::str;
     CREATE PROPERTY expr -> std::str;
+    CREATE PROPERTY secret -> std::bool;
 };
 
 
@@ -415,6 +424,7 @@ ALTER TYPE std::BaseObject {
     # when operating on tables directly.
     CREATE REQUIRED LINK __type__ -> schema::ObjectType {
         SET readonly := True;
+        SET protected := True;
     };
 };
 
@@ -456,6 +466,7 @@ ALTER TYPE schema::Trigger {
   CREATE MULTI PROPERTY kinds -> schema::TriggerKind;
   CREATE REQUIRED PROPERTY scope -> schema::TriggerScope;
   CREATE PROPERTY expr -> std::str;
+  CREATE PROPERTY condition -> std::str;
 };
 
 ALTER TYPE schema::Rewrite {

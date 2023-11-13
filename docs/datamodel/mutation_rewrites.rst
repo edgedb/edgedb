@@ -6,6 +6,8 @@
 Mutation rewrites
 =================
 
+.. edb:youtube-embed:: ImgMfb_jCJQ?end=41
+
 Mutation rewrites allow you to intercept database mutations (i.e.,
 :ref:`inserts <ref_eql_insert>` and/or :ref:`updates <ref_eql_update>`) and set
 the value of a property or link to the result of an expression you define. They
@@ -280,7 +282,7 @@ demonstrated with the ``byline`` property in this schema:
 
 The ``byline`` property will be updated on each insert or update, but the value
 will not need to be calculated at read time like a proper :ref:`computed
-propety <ref_datamodel_computed>`.
+property <ref_datamodel_computed>`.
 
 
 .. list-table::

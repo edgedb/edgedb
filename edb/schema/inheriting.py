@@ -80,6 +80,15 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
     ) -> s_schema.Schema:
         from . import referencing as s_referencing
 
+        # HACK: Don't inherit fields if the command comes from
+        # expression change propagation. It shouldn't be necessary,
+        # and can cause a knock-on bug: when aliases directly refer to
+        # another alias, they *incorrectly* have 'expr' marked as an
+        # inherited_field, which causes trouble here.
+        # Fixing this in 3.x/4.x would require a schema repair, though.
+        if self.from_expr_propagation:
+            return schema
+
         mcls = self.get_schema_metaclass()
         scls = self.scls
 
@@ -223,11 +232,21 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                 rev_refs = {v: k for k, v in base_refs.items()}
                 base_refs = {
                     rev_refs[v]: v
-                    for v in reversed(
-                        sd.sort_by_cross_refs(schema, base_refs.values()))
+                    for v in sd.sort_by_cross_refs(schema, base_refs.values())
                 }
 
-            for k, v in base_refs.items():
+                # HACK: Because of issue #5661, we previously did not always
+                # properly discover dependencies on __type__ in computeds.
+                # This was fixed, but it may persist in existing databases.
+                # Currently, expr refs are not compared when diffing schemas,
+                # so a schema repair can't fix this. Thus, in addition to
+                # actually fixing the bug, we hack around it by forcing
+                # __type__ to sort to the front.
+                # TODO: Drop this after cherry-picking.
+                if (tname := sn.UnqualName('__type__')) in base_refs:
+                    base_refs[tname] = base_refs.pop(tname)
+
+            for k, v in reversed(base_refs.items()):
                 if not v.should_propagate(schema):
                     continue
                 if base == self.scls and not v.get_owned(schema):
@@ -1074,6 +1093,8 @@ class RebaseInheritingObject(
     removed_bases = struct.Field(tuple)  # type: ignore
     added_bases = struct.Field(tuple)  # type: ignore
 
+    EXTRA_INHERITED_FIELDS: set[str] = set()
+
     def __repr__(self) -> str:
         return '<%s.%s "%s">' % (self.__class__.__module__,
                                  self.__class__.__name__,
@@ -1111,6 +1132,39 @@ class RebaseInheritingObject(
                     self.add_caused(d_root_cmd)
 
         return schema
+
+    def compute_inherited_fields(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> Dict[str, bool]:
+        result = super().compute_inherited_fields(schema, context)
+
+        # When things like indexes and constraints that use
+        # ddl_identity to define their identity are inherited, the
+        # child should inherit all of those fields, even if the object
+        # is owned in the child.
+        # Make this happen when rebasing.
+        mcls = self.get_schema_metaclass()
+        new_bases = self.get_attribute_value('bases').objects(schema)
+
+        inherit = new_bases and not new_bases[0].get_abstract(schema)
+
+        fields = {
+            field.name for field in mcls.get_fields().values()
+            if field.ddl_identity and field.inheritable
+        }
+        fields.update(self.EXTRA_INHERITED_FIELDS)
+
+        for field in fields:
+            if field not in result:
+                result[field] = (
+                    inherit
+                    and bool(new_bases[0].get_explicit_field_value(
+                        schema, field, None))
+                )
+
+        return result
 
     def canonicalize_attributes(
         self,

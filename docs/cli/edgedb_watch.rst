@@ -5,9 +5,6 @@
 edgedb watch
 ============
 
-.. TODO: 3.0 release
-.. Remove this note
-
 .. note::
 
     This CLI feature is compatible with EdgeDB server 3.0 and above.
@@ -28,3 +25,8 @@ real time.
 
 To learn about our recommended development migration workflow using ``edgedb
 watch``, read our :ref:`intro to migrations <ref_intro_migrations>`.
+
+Demo
+====
+
+.. edb:youtube-embed:: _IUSPBm2xEA

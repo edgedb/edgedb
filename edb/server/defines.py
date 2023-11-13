@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import *
 
 from edb import buildmeta
 from edb.schema import defines as s_def
@@ -36,7 +37,7 @@ EDGEDB_VISIBLE_METADATA_PREFIX = r'EdgeDB metadata follows, do not modify.\n'
 EDGEDB_SPECIAL_DBS = s_def.EDGEDB_SPECIAL_DBS
 
 EDGEDB_CATALOG_VERSION = buildmeta.EDGEDB_CATALOG_VERSION
-MIN_POSTGRES_VERSION = (13, 0)
+MIN_POSTGRES_VERSION = (14, 0)
 
 # Resource limit on open FDs for the server process.
 # By default, at least on macOS, the max number of open FDs
@@ -73,11 +74,10 @@ HTTP_PORT_QUERY_CACHE_SIZE = 1000
 # to the system database after the connection was broken during runtime.
 SYSTEM_DB_RECONNECT_INTERVAL = 1
 
-MIN_PROTOCOL = (1, 0)
-CURRENT_PROTOCOL = (1, 0)
+ProtocolVersion: TypeAlias = tuple[int, int]
 
-MIN_LEGACY_PROTOCOL = (0, 13)
-MAX_LEGACY_PROTOCOL = (0, 14)
+MIN_PROTOCOL: ProtocolVersion = (1, 0)
+CURRENT_PROTOCOL: ProtocolVersion = (2, 0)
 
 MIN_SUGGESTED_CLIENT_POOL_SIZE = 10
 MAX_SUGGESTED_CLIENT_POOL_SIZE = 100

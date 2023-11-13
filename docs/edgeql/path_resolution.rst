@@ -185,5 +185,7 @@ outer query. This is because clauses like :ref:`filter
 <ref_eql_select_filter>` and :ref:`order by <ref_eql_select_order>` need to
 be applied to each value in the result.
 
-The :ref:`limit <ref_eql_select_pagination>` clause is not nested in the scope
-because it needs to be applied globally to the entire result set of your query.
+The :ref:`offset <ref_eql_select_pagination>` and
+:ref:`limit <ref_eql_select_pagination>` clauses are not nested in the scope
+because they need to be applied globally to the entire result set of your
+query.

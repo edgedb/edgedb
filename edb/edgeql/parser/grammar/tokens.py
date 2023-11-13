@@ -42,6 +42,36 @@ class Token(parsing.Token, metaclass=TokenMeta,
     pass
 
 
+class GrammarToken(Token):
+    """
+    Instead of having different grammars, we prefix each query with a special
+    grammar token which directs the parser to appropriate grammar.
+
+    This greatly reduces the combined size of grammar specifications, since the
+    overlap between grammars is substantial.
+    """
+
+
+class T_STARTBLOCK(GrammarToken):
+    pass
+
+
+class T_STARTEXTENSION(GrammarToken):
+    pass
+
+
+class T_STARTFRAGMENT(GrammarToken):
+    pass
+
+
+class T_STARTMIGRATION(GrammarToken):
+    pass
+
+
+class T_STARTSDLDOCUMENT(GrammarToken):
+    pass
+
+
 class T_DOT(Token, lextoken='.'):
     pass
 
@@ -134,23 +164,28 @@ class T_AT(Token, lextoken='@'):
     pass
 
 
-class T_ARGUMENT(Token):
+class T_PARAMETER(Token):
     pass
 
 
-class T_ASSIGN(Token):
+class T_PARAMETERANDTYPE(Token):
+    # A special token produced by normalization
     pass
 
 
-class T_ADDASSIGN(Token):
+class T_ASSIGN(Token, lextoken=':='):
     pass
 
 
-class T_REMASSIGN(Token):
+class T_ADDASSIGN(Token, lextoken='+='):
     pass
 
 
-class T_ARROW(Token):
+class T_REMASSIGN(Token, lextoken='-='):
+    pass
+
+
+class T_ARROW(Token, lextoken='->'):
     pass
 
 
@@ -174,23 +209,23 @@ class T_PIPE(Token, lextoken='|'):
     pass
 
 
-class T_NAMEDONLY(Token):
+class T_NAMEDONLY(Token, lextoken='named only'):
     pass
 
 
-class T_SETANNOTATION(Token):
+class T_SETANNOTATION(Token, lextoken='set annotation'):
     pass
 
 
-class T_SETTYPE(Token):
+class T_SETTYPE(Token, lextoken='set type'):
     pass
 
 
-class T_EXTENSIONPACKAGE(Token):
+class T_EXTENSIONPACKAGE(Token, lextoken='extension package'):
     pass
 
 
-class T_ORDERBY(Token):
+class T_ORDERBY(Token, lextoken='order by'):
     pass
 
 
@@ -222,11 +257,27 @@ class T_RSCONST(Token):
     pass
 
 
-class T_IDENT(Token):
+class T_DISTINCTFROM(Token, lextoken="?!="):
     pass
 
 
-class T_OP(Token):
+class T_GREATEREQ(Token, lextoken=">="):
+    pass
+
+
+class T_LESSEQ(Token, lextoken="<="):
+    pass
+
+
+class T_NOTDISTINCTFROM(Token, lextoken="?="):
+    pass
+
+
+class T_NOTEQ(Token, lextoken="!="):
+    pass
+
+
+class T_IDENT(Token):
     pass
 
 

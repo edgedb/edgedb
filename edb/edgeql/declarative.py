@@ -101,6 +101,7 @@ class TraceContextBase:
     def get_local_name(
         self,
         ref: qlast.ObjectRef,
+        declaration: bool=False,
     ) -> s_name.QualName:
         return qltracer.resolve_name(
             ref,
@@ -109,19 +110,19 @@ class TraceContextBase:
             objects=self.objects,
             modaliases=None,
             local_modules=self.local_modules,
+            declaration=declaration,
         )
 
     def get_ref_name(self, ref: qlast.BaseObjectRef) -> s_name.QualName:
         if isinstance(ref, qlast.ObjectRef):
             return self.get_local_name(ref)
-        elif isinstance(ref, qlast.AnyType):
+        elif isinstance(ref, qlast.PseudoObjectRef):
             # We pretend `anytype` has a fully-qualified name here, because
             # the tracing machinery really wants to work with fully-qualified
             # names and wants to distinguish between objects from the standard
-            # library and the user-defines ones.  Ditto for `anytuple` below.
-            return s_name.QualName('std', 'anytype')
-        elif isinstance(ref, qlast.AnyTuple):
-            return s_name.QualName('std', 'anytuple')
+            # library and the user-defines ones.
+            # Ditto for `anytuple` and `anyobject`.
+            return s_name.QualName('std', ref.name)
         else:
             raise TypeError(
                 "ObjectRef expected "
@@ -131,6 +132,7 @@ class TraceContextBase:
     def get_fq_name(
         self,
         decl: qlast.DDLOperation,
+        declaration: bool=False,
     ) -> Tuple[str, s_name.QualName]:
         # Get the basic name form.
         if isinstance(decl, qlast.CreateConcretePointer):
@@ -140,7 +142,7 @@ class TraceContextBase:
             name = decl.name
             parent_expected = True
         elif isinstance(decl, qlast.ObjectDDL):
-            fq_name = self.get_local_name(decl.name)
+            fq_name = self.get_local_name(decl.name, declaration=declaration)
             name = str(fq_name)
             parent_expected = False
         else:
@@ -201,42 +203,15 @@ class TraceContextBase:
         return name, fq_name
 
 
-def ensure_pointer_kind(
-    node: qlast.CreateConcretePointer,
-    ctx: DepTraceContext | LayoutTraceContext,
-) -> qlast.CreateConcretePointer:
-
-    # If the link/property specifier was left off the SDL, fill it
-    # in here.
-    if isinstance(node, qlast.CreateConcreteUnknownPointer):
-        # I /think/ the parser shouldn't let through anything that
-        # violates this but...
-        if not isinstance(node.target, qlast.TypeExpr):
-            raise errors.SchemaError(
-                "declarations without link/property specify must have "
-                "an explicitly specified target type",
-                context=node.context,
-            )
-
-        typ = _resolve_type_expr(node.target, ctx=ctx)
-        cls = (
-            qlast.CreateConcreteLink
-            if typ.is_object_type() else qlast.CreateConcreteProperty
-        )
-        node = node.replace(__class__=cls)
-
-    return node
-
-
 def get_verbosename_from_fqname(
     fq_name: s_name.QualName,
-    ctx: DepTraceContext,
+    ctx: DepTraceContext | LayoutTraceContext,
 ) -> str:
     traceobj = ctx.objects[fq_name]
     assert traceobj is not None
 
     name = str(fq_name)
-    clsname = traceobj.__class__.__name__.lower()
+    clsname = traceobj.get_schema_class_displayname()
     ofobj = ''
 
     if isinstance(traceobj, qltracer.Alias):
@@ -246,13 +221,15 @@ def get_verbosename_from_fqname(
     elif isinstance(traceobj, qltracer.ScalarType):
         clsname = 'scalar'
     elif isinstance(traceobj, qltracer.Function):
-        node = ctx.ddlgraph[fq_name].item
-        assert isinstance(node, qlast.FunctionCommand)
-        params = ','.join(
-            qlcodegen.generate_source(param, sdlmode=True)
-            for param in node.params
-        )
-        name = f"{str(fq_name).split('@@', 1)[0]}({params})"
+        name = str(fq_name).split('@@', 1)[0]
+        if isinstance(ctx, DepTraceContext):
+            node = ctx.ddlgraph[fq_name].item
+            assert isinstance(node, qlast.FunctionCommand)
+            params = ','.join(
+                qlcodegen.generate_source(param, sdlmode=True)
+                for param in node.params
+            )
+            name = f"{name}({params})"
     elif isinstance(traceobj, qltracer.Pointer):
         ofobj, name = str(fq_name).split('@', 1)
         ofobj = f" of object type '{ofobj}'"
@@ -273,6 +250,11 @@ def get_verbosename_from_fqname(
         if name == str(s_indexes.DEFAULT_INDEX):
             name = ''
         ofobj = f" of object type '{ofobj}'"
+    elif isinstance(traceobj, qltracer.Field):
+        clsname = 'field'
+        obj, name = fq_name.name.rsplit('@', 1)
+        ofobj = ' of ' + get_verbosename_from_fqname(
+            s_name.QualName(fq_name.module, obj), ctx)
 
     if name:
         return f"{clsname} '{name}'{ofobj}"
@@ -384,12 +366,14 @@ def sdl_to_ddl(
         schema.get_global(s_pseudo.PseudoType, 'anytype'))
     ctx.objects[s_name.QualName('std', 'anytuple')] = (
         schema.get_global(s_pseudo.PseudoType, 'anytuple'))
+    ctx.objects[s_name.QualName('std', 'anyobject')] = (
+        schema.get_global(s_pseudo.PseudoType, 'anyobject'))
 
     for module_name, declarations in documents.items():
         ctx.set_module(module_name)
         for decl_ast in declarations:
             if isinstance(decl_ast, qlast.CreateObject):
-                _, fq_name = ctx.get_fq_name(decl_ast)
+                _, fq_name = ctx.get_fq_name(decl_ast, declaration=True)
 
                 if isinstance(decl_ast, qlast.CreateObjectType):
                     ctx.objects[fq_name] = qltracer.ObjectType(fq_name)
@@ -655,15 +639,6 @@ def _trace_item_layout(
         if isinstance(decl, qlast.CreateConcretePointer):
             assert isinstance(obj, qltracer.Source)
 
-            # do not allow link property on properties
-            if isinstance(node, qlast.CreateConcreteProperty):
-                raise errors.InvalidDefinitionError(
-                    f'cannot create a link property on a property',
-                    context=decl.context,
-                    hint='Link properties can only be created on links, whose '
-                         'target types are object types.',
-                )
-
             target: Optional[qltracer.TypeLike]
             target_expr: Optional[qlast.Expr]
             if isinstance(decl.target, qlast.TypeExpr):
@@ -673,14 +648,14 @@ def _trace_item_layout(
                 target = None
                 target_expr = decl.target
 
-            decl = ensure_pointer_kind(decl, ctx=ctx)
-
             pn = s_utils.ast_ref_to_unqualname(decl.name)
 
             PointerType = (
                 qltracer.Property
                 if isinstance(decl, qlast.CreateConcreteProperty) else
                 qltracer.Link
+                if isinstance(decl, qlast.CreateConcreteProperty) else
+                qltracer.UnknownPointer
             )
             ptr = PointerType(
                 s_name.QualName('__', pn.name),
@@ -748,6 +723,22 @@ def _trace_item_layout(
                 name=f'{fq_name.name}@{idx_fq_name}',
             )
             ctx.objects[idx_name] = qltracer.ConcreteIndex(idx_name)
+
+        elif isinstance(decl, qlast.SetField):
+            field_name = s_name.QualName(
+                module=fq_name.module,
+                name=f'{fq_name.name}@{decl.name}',
+            )
+
+            # Trivial fields don't get added to the ddlgraph, which is
+            # where duplication checks are normally done, so do the
+            # check here instead.
+            if field_name in ctx.objects:
+                vn = get_verbosename_from_fqname(field_name, ctx)
+                msg = f'{vn} was already declared'
+                raise errors.InvalidDefinitionError(msg, context=decl.context)
+
+            ctx.objects[field_name] = qltracer.Field(field_name)
 
 
 RECURSION_GUARD: Set[s_name.QualName] = set()
@@ -916,14 +907,14 @@ def trace_Rewrite(
 ) -> None:
     exprs = [ExprDependency(expr=node.expr)]
 
-    obj = ctx.depstack[-1][1]
+    obj = ctx.depstack[-2][1]
     _register_item(
         node,
         deps=set(),
         hard_dep_exprs=exprs,
         source=obj,
         subject=obj,
-        anchors={'__specified__': obj},
+        anchors={'__old__': obj},
         ctx=ctx,
     )
 
@@ -963,7 +954,6 @@ def trace_ConcretePointer(
         raise AssertionError(
             f'unexpected CreateConcretePointer.target: {node.target!r}')
 
-    node = ensure_pointer_kind(node, ctx=ctx)
     _register_item(
         node,
         hard_dep_exprs=deps,
@@ -996,12 +986,14 @@ def trace_Global(
     *,
     ctx: DepTraceContext,
 ) -> None:
-    hard_dep_exprs = []
+    deps: List[Dependency] = []
 
-    if isinstance(node.target, qlast.Expr):
-        hard_dep_exprs.append(ExprDependency(expr=node.target))
+    if isinstance(node.target, qlast.TypeExpr):
+        deps.append(TypeDependency(texpr=node.target))
+    elif isinstance(node.target, qlast.Expr):
+        deps.append(ExprDependency(expr=node.target))
 
-    _register_item(node, hard_dep_exprs=hard_dep_exprs, ctx=ctx)
+    _register_item(node, hard_dep_exprs=deps, ctx=ctx)
 
 
 @trace_dependencies.register
@@ -1079,9 +1071,7 @@ def _register_item(
     if fq_name in ctx.ddlgraph:
         vn = get_verbosename_from_fqname(fq_name, ctx)
         msg = f'{vn} was already declared'
-
-        raise errors.InvalidDefinitionError(
-            msg, context=decl.context)
+        raise errors.InvalidDefinitionError(msg, context=decl.context)
 
     if deps:
         deps = set(deps)
@@ -1328,8 +1318,11 @@ def _get_pointer_deps(
     # is is important for properly doing cardinality inference
     # on expressions involving it.
     # PERF: We should avoid actually searching all the objects.
-    for propname in ctx.objects:
-        if str(propname).startswith(str(pointer) + '@'):
+    for propname, prop in ctx.objects.items():
+        if (
+            str(propname).startswith(str(pointer) + '@')
+            and not isinstance(prop, qltracer.Field)
+        ):
             result.add(propname)
 
     return result
@@ -1543,6 +1536,8 @@ def _get_tracer_type(
     elif isinstance(decl, (qlast.CreateAnnotation,
                            qlast.CreateAnnotationValue)):
         tracer_type = qltracer.Annotation
+    elif isinstance(decl, qlast.CreateConcreteUnknownPointer):
+        tracer_type = qltracer.Pointer
     elif isinstance(decl, (qlast.CreateProperty,
                            qlast.CreateConcreteProperty)):
         tracer_type = qltracer.Property

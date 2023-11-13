@@ -201,7 +201,8 @@ def _lookup_in_table(
 def _lookup_table(tab_name: str, ctx: Context) -> context.Table:
     matched_tables: List[context.Table] = []
     for t in ctx.scope.tables:
-        if t.name == tab_name or t.alias == tab_name:
+        t_name = t.alias or t.name
+        if t_name == tab_name:
             matched_tables.append(t)
 
     if not matched_tables:

@@ -77,8 +77,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
     cdef inline dbview.DatabaseConnectionView get_dbview(self)
 
-    cdef interpret_backend_error(self, exc)
-
     cdef dbview.QueryRequestInfo parse_execute_request(self)
     cdef parse_output_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
@@ -102,6 +100,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     cdef dict parse_headers(self)
 
     cdef write_status(self, bytes name, bytes value)
+    cdef write_edgedb_error(self, exc)
 
     cdef write_log(self, EdgeSeverity severity, uint32_t code, str message)
 
@@ -111,6 +110,3 @@ cdef class VirtualTransport:
     cdef:
         WriteBuffer buf
         bint closed
-
-
-include "binary_v0.pxd"

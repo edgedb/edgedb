@@ -20,8 +20,9 @@ from __future__ import annotations
 from typing import *
 
 import pathlib
+import uuid
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from jwcrypto import jwk, jwt
 
@@ -93,3 +94,71 @@ def load_secret_key(key_file: pathlib.Path) -> jwk.JWK:
             f"contain a valid RSA or EC public key")
 
     return jws_key
+
+
+def generate_tls_cert(
+    tls_cert_file: pathlib.Path,
+    tls_key_file: pathlib.Path,
+    listen_hosts: Iterable[str]
+) -> None:
+    from cryptography import x509
+    from cryptography.hazmat import backends
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509 import oid
+
+    backend = backends.default_backend()
+    private_key = rsa.generate_private_key(
+        public_exponent=65537, key_size=2048, backend=backend
+    )
+    subject = x509.Name(
+        [x509.NameAttribute(oid.NameOID.COMMON_NAME, "EdgeDB Server")]
+    )
+    certificate = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .public_key(private_key.public_key())
+        .serial_number(int(uuid.uuid4()))
+        .issuer_name(subject)
+        .not_valid_before(
+            datetime.today() - timedelta(days=1)
+        )
+        .not_valid_after(
+            datetime.today() + timedelta(weeks=1000)
+        )
+        .add_extension(
+            x509.SubjectAlternativeName(
+                [
+                    x509.DNSName(name) for name in listen_hosts
+                    if name not in {'0.0.0.0', '::'}
+                ]
+            ),
+            critical=False,
+        )
+        .sign(
+            private_key=private_key,
+            algorithm=hashes.SHA256(),
+            backend=backend,
+        )
+    )
+    with tls_cert_file.open("wb") as f:
+        f.write(certificate.public_bytes(encoding=serialization.Encoding.PEM))
+    tls_cert_file.chmod(0o644)
+    with tls_key_file.open("wb") as f:
+        f.write(
+            private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+        )
+    tls_key_file.chmod(0o600)
+
+
+def generate_jwk(keys_file: pathlib.Path) -> None:
+    key = jwk.JWK(generate='EC')
+    with keys_file.open("wb") as f:
+        f.write(key.export_to_pem(private_key=True, password=None))
+
+    keys_file.chmod(0o600)

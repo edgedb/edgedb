@@ -18,6 +18,11 @@ Description
 ``edgedb instance reset-password`` is a terminal command for resetting
 or updating the password for a user of an EdgeDB instance.
 
+.. note::
+
+    The ``edgedb instance reset-password`` command is not intended for use with
+    self-hosted instances.
+
 
 Options
 =======
