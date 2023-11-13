@@ -151,30 +151,36 @@ def get_pg_version() -> BackendVersion:
     if _bundled_pg_version is not None:
         return _bundled_pg_version
 
-    pg_config = subprocess.run(
-        [get_pg_config_path()],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+    version = os.environ.get('_EDGEDB_BUILDMETA_PG_VERSION')
 
-    for line in pg_config.stdout.splitlines():
-        k, eq, v = line.partition('=')
-        if eq and k.strip().lower() == 'version':
-            v = v.strip()
-            parsed_ver = parse_pg_version(v)
-            _bundled_pg_version = BackendVersion(
-                major=parsed_ver.major,
-                minor=parsed_ver.minor,
-                micro=parsed_ver.micro,
-                releaselevel=parsed_ver.releaselevel,
-                serial=parsed_ver.serial,
-                string=v,
-            )
-            return _bundled_pg_version
-    else:
+    if version is None:
+        pg_config = subprocess.run(
+            [get_pg_config_path()],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        for line in pg_config.stdout.splitlines():
+            k, eq, v = line.partition('=')
+            if eq and k.strip().lower() == 'version':
+                version = v.strip()
+                break
+
+    if version is None:
         raise MetadataError(
             "could not find version information in pg_config output")
+
+    parsed_ver = parse_pg_version(version)
+    _bundled_pg_version = BackendVersion(
+        major=parsed_ver.major,
+        minor=parsed_ver.minor,
+        micro=parsed_ver.micro,
+        releaselevel=parsed_ver.releaselevel,
+        serial=parsed_ver.serial,
+        string=version,
+    )
+    return _bundled_pg_version
 
 
 def get_runstate_path(data_dir: pathlib.Path) -> pathlib.Path:
