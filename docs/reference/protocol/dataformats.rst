@@ -234,7 +234,6 @@ Multi ranges are represented as the following structure:
     };
 
 
-
 .. _ref_protocol_fmt_uuid:
 
 std::uuid
