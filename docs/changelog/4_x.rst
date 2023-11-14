@@ -527,10 +527,10 @@ Bug fixes
 * Fix dump and restore of auth config 
   (:eql:gh:`#6414`)
 
-* Clear _config_cache in sys_pgcon before reloading reported config 
+* Clear ``_config_cache`` in ``sys_pgcon`` before reloading reported config 
   (:eql:gh:`#6427`)
 
-* Fix access policy type rewrites of std::Object 
+* Fix access policy type rewrites of ``std::Object``
   (:eql:gh:`#6420`)
 
 * Fix an error message of affected refs 
