@@ -39,7 +39,6 @@ will show the following:
       }
    }
 
-
 Example implementation
 ======================
 

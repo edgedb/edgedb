@@ -27,6 +27,17 @@ providers also have a ``display_name`` that you can use as a label for links or
 buttons. In later steps, you'll be providing this ``name`` as the ``provider``
 in various endpoints.
 
+For example, if Google has been configured as a provider, the above query
+will show the following:
+
+.. code-block::
+
+   {
+      ext::auth::GoogleOAuthProvider {
+         name: 'builtin::oauth_google', 
+         display_name: 'Google'
+      }
+   }
 
 Example implementation
 ======================
