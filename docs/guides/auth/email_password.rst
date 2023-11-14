@@ -39,6 +39,9 @@ will show the following:
       }
    }
 
+And inside the various endpoints the url would thus have a parameter
+``provider=builtin::oauth_google``.
+
 Example implementation
 ======================
 
