@@ -242,52 +242,6 @@ conjunction with a *type filter* ``[is BlogPost]`` to fetch all the
 ``BlogPosts`` associated with a given ``User``. For details on this syntax, see
 the EdgeQL docs for :ref:`Backlinks <ref_eql_paths_backlinks>`.
 
-Created Timestamp
-^^^^^^^^^^^^^^^^^
-
-Using a computed property, you can timestamp when an object was created in your
-database.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type BlogPost {
-      property title -> str;
-      link author -> User;
-      required property created_at -> datetime {
-        readonly := true;
-        default := datetime_of_statement();
-      }
-    }
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    type BlogPost {
-      title: str;
-      author: User;
-      required created_at: datetime {
-        readonly := true;
-        default := datetime_of_statement();
-      }
-    }
-
-.. code-block:: sdl
-
-    type BlogPost {
-      title: str;
-      author: User;
-      required created_at: datetime {
-        readonly := true;
-        default := datetime_of_statement();
-      }
-    }
-
-When a ``BlogPost`` is created, :eql:func:`datetime_of_statement` will be
-called to supply it with a timestamp as the ``created_at`` property. You might
-also consider :eql:func:`datetime_of_transaction` if that's better suited to
-your use case.
-
 
 .. list-table::
   :class: seealso
