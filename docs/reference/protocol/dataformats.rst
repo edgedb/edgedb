@@ -208,6 +208,33 @@ The ranges are represented as the following structure:
     };
 
 
+.. _ref_protocol_fmt_multirange:
+
+MultiRanges
+====================================
+
+Multi ranges are represented as the following structure:
+
+.. code-block:: c
+
+    struct MultiRange {
+        // Number of elements
+        int32       nelems;
+
+        // Element data.
+        Element     elements[nelems];
+    };
+
+    struct Element {
+        // Encoded element data length in bytes.
+        int32       length;
+
+        // Element data.
+        uint8       data[length];
+    };
+
+
+
 .. _ref_protocol_fmt_uuid:
 
 std::uuid
