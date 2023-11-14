@@ -148,7 +148,7 @@ class RewriteCommand(
                 source_context = self.get_attribute_source_context('expr')
                 raise errors.UnsupportedFeatureError(
                     'rewrites on link properties are not supported',
-                    context=source_context
+                    context=source_context,
                 )
             else:
                 raise NotImplementedError('unsupported rewrite source')
@@ -231,8 +231,6 @@ class RewriteCommand(
         context: sd.CommandContext,
     ) -> None:
         from . import pointers as s_pointers
-        from . import links as s_links
-        from . import objtypes as s_objtypes
 
         expr: s_expr.Expression = self.scls.get_expr(schema)
 
