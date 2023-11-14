@@ -146,7 +146,7 @@ class RewriteCommand(
                 assert subject
 
                 source_context = self.get_attribute_source_context('expr')
-                raise errors.UnsupportedFeatureError(
+                raise errors.SchemaDefinitionError(
                     'rewrites on link properties are not supported',
                     context=source_context,
                 )
