@@ -130,13 +130,29 @@ class RewriteCommand(
     ) -> s_expr.CompiledExpression:
         if field.name == 'expr':
             from edb.ir import pathid
-            from . import pointers
+            from . import pointers as s_pointers
+            from . import objtypes as s_objtypes
+            from . import links as s_links
 
             parent_ctx = self.get_referrer_context_or_die(context)
             pointer = parent_ctx.op.get_object(schema, context)
-            assert isinstance(pointer, pointers.Pointer)
+            assert isinstance(pointer, s_pointers.Pointer)
+
             source = pointer.get_source(schema)
-            assert isinstance(source, s_types.Type)
+            if isinstance(source, s_objtypes.ObjectType):
+                subject = source
+            elif isinstance(source, s_links.Link):
+                subject = source.get_target(schema)
+                assert subject
+
+                source_context = self.get_attribute_source_context('expr')
+                raise errors.UnsupportedFeatureError(
+                    'rewrites on link properties are not supported',
+                    context=source_context
+                )
+            else:
+                raise NotImplementedError('unsupported rewrite source')
+
             # XXX: in_ddl_context_name is disabled for now because
             # it causes the compiler to reject DML; we might actually
             # want it for something, though, so we might need to
@@ -147,12 +163,12 @@ class RewriteCommand(
 
             kind = self._get_kind(schema)
 
-            anchors = {}
+            anchors: dict[str, s_types.Type | pathid.PathId] = {}
 
             # __subject__
             anchors["__subject__"] = pathid.PathId.from_type(
                 schema,
-                source,
+                subject,
                 typename=sn.QualName(module="__derived__", name="__subject__"),
             )
             # __specified__
@@ -162,7 +178,7 @@ class RewriteCommand(
                 named=True,
                 element_types={
                     pn.name: bool_type
-                    for pn in source.get_pointers(schema).keys(schema)
+                    for pn in subject.get_pointers(schema).keys(schema)
                 },
             )
             anchors['__specified__'] = specified_type
@@ -171,13 +187,11 @@ class RewriteCommand(
             if qltypes.RewriteKind.Update == kind:
                 anchors['__old__'] = pathid.PathId.from_type(
                     schema,
-                    source,
+                    subject,
                     typename=sn.QualName(module='__derived__', name='__old__'),
                 )
 
             singletons = frozenset(anchors.values())
-
-            assert isinstance(source, s_types.Type)
 
             return type(value).compiled(
                 value,
@@ -216,11 +230,9 @@ class RewriteCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> None:
-        # XXX: verify we don't have the same bug as access policies
-        # where linkprop defaults are broken.
-        # (I think we won't need to, since we'll operate after
-        # the *real* operations)
-        from . import pointers
+        from . import pointers as s_pointers
+        from . import links as s_links
+        from . import objtypes as s_objtypes
 
         expr: s_expr.Expression = self.scls.get_expr(schema)
 
@@ -250,9 +262,9 @@ class RewriteCommand(
                 context=source_context,
             )
 
-        subject = self.scls.get_subject(compiled_schema)
-        assert isinstance(subject, pointers.Pointer)
-        ptr_target = subject.get_target(compiled_schema)
+        pointer = self.scls.get_subject(compiled_schema)
+        assert isinstance(pointer, s_pointers.Pointer)
+        ptr_target = pointer.get_target(compiled_schema)
         assert ptr_target
         if not typ.assignment_castable_to(ptr_target, compiled_schema):
             source_context = self.get_attribute_source_context('expr')
