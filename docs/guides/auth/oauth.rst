@@ -6,8 +6,8 @@ OAuth
 
 :edb-alt-title: Integrating EdgeDB Auth's OAuth provider
 
-Along with using the :ref:`Built-in UI <ref_guide_auth_built_in_ui>`, you can also
-create your own UI that calls to your own web application backend.
+Along with using the :ref:`Built-in UI <ref_guide_auth_built_in_ui>`, you can
+also create your own UI that calls to your own web application backend.
 
 UI considerations
 =================
@@ -26,6 +26,18 @@ The ``name`` is a unique string that identifies the Identity Provider. OAuth
 providers also have a ``display_name`` that you can use as a label for links or
 buttons. In later steps, you'll be providing this ``name`` as the ``provider``
 in various endpoints.
+
+For example, if Google has been configured as a provider, the above query
+will show the following:
+
+.. code-block::
+
+   {
+      ext::auth::GoogleOAuthProvider {
+         name: 'builtin::oauth_google', 
+         display_name: 'Google'
+      }
+   }
 
 
 Example implementation
