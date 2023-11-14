@@ -6,8 +6,8 @@ Email and password
 
 :edb-alt-title: Integrating EdgeDB Auth's email and password provider
 
-Along with using the :ref:`Built-in UI <ref_guide_auth_built_in_ui>`, you can also
-create your own UI that calls to your own web application backend.
+Along with using the :ref:`Built-in UI <ref_guide_auth_built_in_ui>`, you can
+also create your own UI that calls to your own web application backend.
 
 UI considerations
 =================
@@ -371,11 +371,11 @@ handle the verification flow, we implement an endpoint:
 Retrieve ``auth_token``
 -----------------------
 
-Once the request to ``auth/authenticate`` completes, the EdgeDB server response
-with a JSON body with a single property: ``code``. You take that ``code`` and
-look up the ``verifier`` in the ``edgedb-pkce-verifier`` cookie, and make a
-request to the EdgeDB Auth extension to exchange these two pieces of data for
-an ``auth_token``.
+Once the request to ``auth/authenticate`` completes, the EdgeDB server
+responds with a JSON body with a single property: ``code``. We take that
+``code`` and look up the ``verifier`` in the ``edgedb-pkce-verifier`` cookie,
+and make a request to the EdgeDB Auth extension to exchange these two pieces
+of data for an ``auth_token``.
 
 .. code-block:: javascript
 
