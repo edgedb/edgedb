@@ -14329,6 +14329,32 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             }
         ''')
 
+    async def test_edgeql_ddl_adjust_computed_12(self):
+        # GH Issue #6459
+        await self.con.execute(r'''
+            CREATE TYPE default::Foo {
+                CREATE PROPERTY foo := 'hello';
+            };
+            ALTER TYPE default::Foo {
+                ALTER PROPERTY foo {
+                    RESET EXPRESSION;
+                    RESET OPTIONALITY;
+                    SET TYPE std::str;
+                }
+            };
+        ''')
+
+        await self.con.execute(r'''
+            START MIGRATION TO {
+                TYPE default::Foo {
+                    PROPERTY foo: std::str;
+                };
+                ALIAS default::FooAlias := default::Foo;
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        ''')
+
     async def test_edgeql_ddl_captured_as_migration_01(self):
 
         await self.con.execute(r"""

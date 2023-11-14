@@ -1220,12 +1220,12 @@ def get_effective_fts_index(
 
     else:
         # there are no fts indexes defined on the subject
-        # the inhereted indexes take effect
+        # the inherited indexes take effect
 
         if len(fts_indexes) > 1:
             subject_name = subject.get_displayname(schema)
             raise errors.SchemaDefinitionError(
-                f'multiple {fts_name} indexes inhereted for {subject_name}'
+                f'multiple {fts_name} indexes inherited for {subject_name}'
             )
 
         effective = fts_indexes[0]
