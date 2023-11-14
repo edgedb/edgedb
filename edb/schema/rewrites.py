@@ -220,7 +220,48 @@ class RewriteCommand(
         # where linkprop defaults are broken.
         # (I think we won't need to, since we'll operate after
         # the *real* operations)
-        pass
+        from . import pointers
+
+        expr: s_expr.Expression = self.scls.get_expr(schema)
+
+        if not expr.irast:
+            expr = self.compile_expr_field(
+                schema, context, Rewrite.get_field('expr'), expr
+            )
+            assert expr.irast
+
+        ir = expr.irast
+        compiled_schema = ir.schema
+        typ: s_types.Type = ir.stype
+
+        if (
+            typ.is_view(compiled_schema)
+            # Using an alias/global always creates a new subtype view,
+            # but we want to allow those here, so check whether there
+            # is a shape more directly.
+            and not (
+                len(shape := ir.view_shapes.get(typ, [])) == 1
+                and shape[0].is_id_pointer(compiled_schema)
+            )
+        ):
+            source_context = self.get_attribute_source_context('expr')
+            raise errors.SchemaDefinitionError(
+                f'rewrite expression may not include a shape',
+                context=source_context,
+            )
+
+        subject = self.scls.get_subject(compiled_schema)
+        assert isinstance(subject, pointers.Pointer)
+        ptr_target = subject.get_target(compiled_schema)
+        assert ptr_target
+        if not typ.assignment_castable_to(ptr_target, compiled_schema):
+            source_context = self.get_attribute_source_context('expr')
+            raise errors.SchemaDefinitionError(
+                f'rewrite expression is of invalid type: '
+                f'{typ.get_displayname(compiled_schema)}, '
+                f'expected {ptr_target.get_displayname(compiled_schema)}',
+                context=source_context,
+            )
 
     @classmethod
     def _cmd_tree_from_ast(
