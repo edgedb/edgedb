@@ -355,6 +355,39 @@ Range Type Descriptor
 Ranges are encoded on the wire as :ref:`ranges <ref_protocol_fmt_range>`.
 
 
+MultiRange Type Descriptor
+==========================
+
+.. code-block:: c
+
+    struct MultiRangeTypeDescriptor {
+      // Indicates that this is a
+      // Multi Range Type descriptor.
+      uint8   tag = 12;
+
+      // Schema type ID.
+      uuid    id;
+
+      // Schema type name.
+      string  name;
+
+      // Whether the type is defined in the schema
+      // or is ephemeral.
+      bool    schema_defined;
+
+      // Number of ancestor scalar types.
+      uint16  ancestors_count;
+
+      // Indexes of ancestor scalar type descriptors
+      // in ancestor resolution order (C3).
+      uint16  ancestors[ancestors_count];
+
+      // Multi Range type descriptor index.
+      // The type of ranges inside multi range.
+      uint16  type;
+    };
+
+
 Object Type Descriptor
 ======================
 
