@@ -1012,7 +1012,7 @@ class TestRewrites(tb.QueryTestCase):
 
     async def test_edgeql_rewrites_26(self):
         async with self.assertRaisesRegexTx(
-            edgedb.UnsupportedFeatureError,
+            edgedb.SchemaDefinitionError,
             r"rewrites on link properties are not supported",
         ):
             await self.con.execute(
