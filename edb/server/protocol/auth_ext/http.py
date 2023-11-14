@@ -803,6 +803,7 @@ class Router:
                 base_path=self.base_path,
                 providers=providers,
                 redirect_to=ui_config.redirect_to,
+                redirect_to_on_signup=ui_config.redirect_to_on_signup,
                 error_message=_maybe_get_search_param(query, 'error'),
                 email=_maybe_get_search_param(query, 'email'),
                 challenge=maybe_challenge,
@@ -848,9 +849,8 @@ class Router:
             response.body = ui.render_signup_page(
                 base_path=self.base_path,
                 providers=providers,
-                redirect_to=(
-                    ui_config.redirect_to_on_signup or ui_config.redirect_to
-                ),
+                redirect_to=ui_config.redirect_to,
+                redirect_to_on_signup=ui_config.redirect_to_on_signup,
                 error_message=_maybe_get_search_param(query, 'error'),
                 email=_maybe_get_search_param(query, 'email'),
                 challenge=maybe_challenge,

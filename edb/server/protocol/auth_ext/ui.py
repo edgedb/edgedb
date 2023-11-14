@@ -176,6 +176,7 @@ def render_signup_page(
     challenge: str,
     # config
     redirect_to: str,
+    redirect_to_on_signup: Optional[str] = None,
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
@@ -194,8 +195,10 @@ def render_signup_page(
     oauth_params = {
         'redirect_to': redirect_to,
         'challenge': challenge,
-        'redirect_to_on_signup': redirect_to,
     }
+
+    if redirect_to_on_signup:
+        oauth_params['redirect_to_on_signup'] = redirect_to_on_signup
 
     oauth_label = "Sign up with" if password_provider else "Continue with"
     oauth_buttons = '\n'.join(
@@ -246,7 +249,8 @@ def render_signup_page(
       <input type="hidden" name="provider" value="{password_provider.name}" />
       <input type="hidden" name="redirect_on_failure" value="{
         base_path}/ui/signup" />
-      <input type="hidden" name="redirect_to" value="{redirect_to}" />
+      <input type="hidden" name="redirect_to" value="{
+          redirect_to_on_signup or redirect_to}" />
       <input type="hidden" name="challenge" value="{challenge}" />
       <input type="hidden" name="verify_url" value="{base_path}/ui/verify" />
 
