@@ -1967,7 +1967,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
-            self.assertEquals(status, 400)
+            self.assertEqual(status, 400)
 
     async def test_http_auth_ext_local_password_register_json_02(self):
         with self.http_con() as http_con:
@@ -2611,7 +2611,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 body=form_data_encoded,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
-            self.assertEquals(status, 400)
+            self.assertEqual(status, 400)
 
     async def test_http_auth_ext_local_password_reset_form_01(self):
         with self.http_con() as http_con:

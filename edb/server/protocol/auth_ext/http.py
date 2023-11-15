@@ -280,7 +280,7 @@ class Router:
                 params["error_description"] = error_description
             response.custom_headers[
                 "Location"
-            ] = f"{redirect_to}?{urllib.parse.urlencode(params)}"
+            ] = _join_url_params(redirect_to, params)
             response.status = http.HTTPStatus.FOUND
             return
 
@@ -330,16 +330,11 @@ class Router:
                 auth_token=auth_token,
                 refresh_token=refresh_token,
             )
-        parsed_url = urllib.parse.urlparse(
+        new_url = _join_url_params(
             (redirect_to_on_signup or redirect_to)
-            if new_identity
-            else redirect_to
+            if new_identity else redirect_to,
+            {"code": pkce_code}
         )
-        query_params = urllib.parse.parse_qs(parsed_url.query)
-        query_params["code"] = [pkce_code]
-        new_query = urllib.parse.urlencode(query_params, doseq=True)
-        new_url = parsed_url._replace(query=new_query).geturl()
-
         session_token = self._make_session_token(identity.id)
         response.status = http.HTTPStatus.FOUND
         response.custom_headers["Location"] = new_url
@@ -438,13 +433,14 @@ class Router:
             ).isoformat()
             if maybe_redirect_to is not None:
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = urllib.parse.urlencode(
+                redirect_params = (
                     {"verification_email_sent_at": now_iso8601}
                     if require_verification
-                    else {"code": pkce_code}
+                    else {"code": cast(str, pkce_code)}
                 )
-                redirect_url = f"{maybe_redirect_to}?{redirect_params}"
-                response.custom_headers["Location"] = redirect_url
+                response.custom_headers["Location"] = _join_url_params(
+                    maybe_redirect_to, redirect_params
+                )
             else:
                 response.status = http.HTTPStatus.CREATED
                 response.content_type = b"application/json"
@@ -462,11 +458,13 @@ class Router:
             )
             if redirect_on_failure is not None:
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = urllib.parse.urlencode(
-                    {"error": str(ex), "email": data.get('email', '')}
+                redirect_params = {
+                    "error": str(ex),
+                    "email": data.get('email', '')
+                }
+                response.custom_headers["Location"] = _join_url_params(
+                    redirect_on_failure, redirect_params
                 )
-                redirect_url = f"{redirect_on_failure}?{redirect_params}"
-                response.custom_headers["Location"] = redirect_url
             else:
                 raise ex
 
@@ -508,13 +506,12 @@ class Router:
             _set_cookie(response, "edgedb-session", session_token)
             if maybe_redirect_to:
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = urllib.parse.urlencode(
-                    {
-                        "code": pkce_code,
-                    }
+                redirect_params = {
+                    "code": pkce_code,
+                }
+                response.custom_headers["Location"] = _join_url_params(
+                    maybe_redirect_to, redirect_params
                 )
-                redirect_url = f"{maybe_redirect_to}?{redirect_params}"
-                response.custom_headers["Location"] = redirect_url
             else:
                 response.status = http.HTTPStatus.OK
                 response.content_type = b"application/json"
@@ -533,14 +530,13 @@ class Router:
                         "Redirect URL does not match any allowed URLs.",
                     )
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = urllib.parse.urlencode(
-                    {
-                        "error": str(ex),
-                        "email": data.get('email', ''),
-                    }
+                redirect_params = {
+                    "error": str(ex),
+                    "email": data.get('email', ''),
+                }
+                response.custom_headers["Location"] = _join_url_params(
+                    redirect_on_failure, redirect_params
                 )
-                redirect_url = f"{redirect_on_failure}?{redirect_params}"
-                response.custom_headers["Location"] = redirect_url
             else:
                 raise ex
 
@@ -631,7 +627,7 @@ class Router:
     async def handle_send_reset_email(self, request: Any, response: Any):
         data = self._get_data_from_request(request)
 
-        _check_keyset(data, {"provider", "reset_url", "challenge"})
+        _check_keyset(data, {"provider", "email", "reset_url", "challenge"})
         local_client = local.Client(db=self.db, provider_name=data["provider"])
         if not self._is_url_allowed(data["reset_url"]):
             raise errors.InvalidData(
@@ -654,10 +650,10 @@ class Router:
                     identity.id, secret, {"challenge": data["challenge"]}
                 )
 
-                reset_token_params = urllib.parse.urlencode(
-                    {"reset_token": new_reset_token}
+                reset_token_params = {"reset_token": new_reset_token}
+                reset_url = _join_url_params(
+                    data['reset_url'], reset_token_params
                 )
-                reset_url = f"{data['reset_url']}?{reset_token_params}"
 
                 await auth_emails.send_password_reset_email(
                     db=self.db,
@@ -670,14 +666,14 @@ class Router:
                 await auth_emails.send_fake_email(self.tenant)
 
             return_data = {
-                "email_sent": data.get('email'),
+                "email_sent": data['email'],
             }
 
             if maybe_redirect_to:
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = urllib.parse.urlencode(return_data)
-                redirect_url = f"{maybe_redirect_to}?{redirect_params}"
-                response.custom_headers["Location"] = redirect_url
+                response.custom_headers["Location"] = _join_url_params(
+                    maybe_redirect_to, return_data
+                )
             else:
                 response.status = http.HTTPStatus.OK
                 response.content_type = b"application/json"
@@ -699,14 +695,13 @@ class Router:
                         "Redirect URL does not match any allowed URLs.",
                     )
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = urllib.parse.urlencode(
-                    {
-                        "error": str(ex),
-                        "email": data.get('email', ''),
-                    }
+                redirect_params = {
+                    "error": str(ex),
+                    "email": data.get('email', ''),
+                }
+                response.custom_headers["Location"] = _join_url_params(
+                    redirect_on_failure, redirect_params
                 )
-                redirect_url = f"{redirect_on_failure}?{redirect_params}"
-                response.custom_headers["Location"] = redirect_url
             else:
                 raise ex
 
@@ -737,9 +732,9 @@ class Router:
 
             if maybe_redirect_to:
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = urllib.parse.urlencode({"code": code})
-                redirect_url = f"{maybe_redirect_to}?{redirect_params}"
-                response.custom_headers["Location"] = redirect_url
+                response.custom_headers["Location"] = _join_url_params(
+                    maybe_redirect_to, {"code": code}
+                )
             else:
                 response.status = http.HTTPStatus.OK
                 response.content_type = b"application/json"
@@ -754,14 +749,13 @@ class Router:
                         "Redirect URL does not match any allowed URLs.",
                     )
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = urllib.parse.urlencode(
-                    {
-                        "error": str(ex),
-                        "reset_token": data.get('reset_token', ''),
-                    }
+                redirect_params = {
+                    "error": str(ex),
+                    "reset_token": data.get('reset_token', ''),
+                }
+                response.custom_headers["Location"] = _join_url_params(
+                    redirect_on_failure, redirect_params
                 )
-                redirect_url = f"{redirect_on_failure}?{redirect_params}"
-                response.custom_headers["Location"] = redirect_url
             else:
                 raise ex
 
@@ -1492,3 +1486,13 @@ def _check_keyset(candidate: dict[str, Any], keyset: set[str]):
         raise errors.InvalidData(
             "Missing required fields: " ", ".join(missing_fields)
         )
+
+
+def _join_url_params(url: str, params: dict[str, str]):
+    parsed_url = urllib.parse.urlparse(url)
+    query_params = {
+        **urllib.parse.parse_qs(parsed_url.query),
+        **{key: [val] for key, val in params.items()}
+    }
+    new_query_params = urllib.parse.urlencode(query_params, doseq=True)
+    return parsed_url._replace(query=new_query_params).geturl()
