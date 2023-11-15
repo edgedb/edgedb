@@ -177,6 +177,8 @@ def repl(*, init_sdl_file=None,
     # if init_sdl_file is not None and read_sqlite_file is not None:
     #     raise ValueError("Init SDL file and Read SQLite file cannot"
     #                      " be specified at the same time")
+    from edb.edgeql import parser as ql_parser
+    ql_parser.preload_spec()
 
     dbschema: DBSchema
     db: EdgeDatabaseInterface
