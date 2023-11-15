@@ -647,8 +647,14 @@ def compile_FunctionCall(
         expr: irast.FunctionCall, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
-    if sfunc := relgen._SIMPLE_SPECIAL_FUNCTIONS.get(str(expr.func_shortname)):
+    fname = str(expr.func_shortname)
+    if sfunc := relgen._SIMPLE_SPECIAL_FUNCTIONS.get(fname):
         return sfunc(expr, ctx=ctx)
+
+    if expr.func_sql_expr:
+        raise errors.UnsupportedFeatureError(
+            f'unimplemented function for singleton mode: {fname}'
+        )
 
     if expr.typemod is ql_ft.TypeModifier.SetOfType:
         raise errors.UnsupportedFeatureError(
