@@ -15,7 +15,7 @@ To play with the new features, install the CLI using `our installation guide
 
 .. code-block:: bash
 
-  $ edgedb project init --server-version 4.0-beta.1
+  $ edgedb project init
 
 
 Upgrading
@@ -29,13 +29,16 @@ directory.
 
 .. code-block:: bash
 
-  $ edgedb project upgrade --to-testing
+  $ edgedb project upgrade
 
 Alternatively, specify an instance name if you aren't using a project.
 
 .. code-block:: bash
 
-  $ edgedb instance upgrade --to-testing -I my_instance
+  $ edgedb instance upgrade -I my_instance
+
+The CLI will first check to see if your schema will migrate cleanly to EdgeDB
+4.0. If the upgrade check finds any problems, it will report them back to you.
 
 **Hosted instances**
 
@@ -47,8 +50,7 @@ dump-and-restore process.
    13 or below, you should upgrade Postgres first.
 
 2. Spin up an empty 4.0 instance. You can use one of our :ref:`deployment
-   guides <ref_guide_deployment>`, but you will need to modify some of the
-   commands to use our testing channel and the beta release.
+   guides <ref_guide_deployment>`.
 
    Under Debian/Ubuntu, when adding the EdgeDB package repository, use this
    command instead:
@@ -64,18 +66,18 @@ dump-and-restore process.
 
    .. code-block:: bash
 
-       $ sudo apt-get update && sudo apt-get install edgedb-4-beta1
+       $ sudo apt-get update && sudo apt-get install edgedb-4
 
    Under CentOS/RHEL, use this installation command:
 
    .. code-block:: bash
 
-       $ sudo yum install edgedb-3
+       $ sudo yum install edgedb-4
 
    In any required ``systemctl`` commands, replace ``edgedb-server-3`` with
    ``edgedb-server-4``.
 
-   Under any Docker setups, supply the ``4.0-beta.1`` tag.
+   Under any Docker setups, supply the ``4.0`` tag.
 
 3. Take your application offline, then dump your v3.x database with the CLI
 
@@ -487,6 +489,9 @@ Bug fixes
 * Make ``id`` of schema objects stable.
   (:eql:gh:`#6058`)
 
+* Allow computed pointers on types to omit link/property kind specification.
+  (:eql:gh:`#6073`)
+
 * Support ``listen_ports`` greater than 32767.
   (:eql:gh:`#6194`)
 
@@ -516,3 +521,20 @@ Bug fixes
 
 * Cap the size of sets in ``multi`` configuration values to ``128``
   (:eql:gh:`#6402`)
+
+4.1
+===
+* Fix dump and restore of auth config 
+  (:eql:gh:`#6414`)
+
+* Clear ``_config_cache`` in ``sys_pgcon`` before reloading reported config 
+  (:eql:gh:`#6427`)
+
+* Fix access policy type rewrites of ``std::Object``
+  (:eql:gh:`#6420`)
+
+* Fix an error message of affected refs 
+  (:eql:gh:`#6425`)
+
+* Fix DML with constraints on abstract types 
+  (:eql:gh:`#6421`)

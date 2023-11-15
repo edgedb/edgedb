@@ -362,17 +362,20 @@ def try_type_rewrite(
         ]
 
     # If we have multiple sets, union them together
+    rewritten_set: Optional[irast.Set]
     if len(sets) > 1:
         with ctx.new() as subctx:
             subctx.expr_exposed = context.Exposure.UNEXPOSED
             subctx.anchors = subctx.anchors.copy()
             parts: List[qlast.Expr] = [subctx.create_anchor(x) for x in sets]
-            filtered_set = dispatch.compile(
+            rewritten_set = dispatch.compile(
                 qlast.Set(elements=parts), ctx=subctx)
+    elif len(sets) > 0:
+        rewritten_set = sets[0]
     else:
-        filtered_set = sets[0]
+        rewritten_set = None
 
-    type_rewrites[rw_key] = filtered_set
+    type_rewrites[rw_key] = rewritten_set
 
 
 def compile_dml_write_policies(

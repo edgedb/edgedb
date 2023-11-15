@@ -2231,7 +2231,8 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                         cmd.set_attribute_value(key, value)
                     self.add(delta)
             except errors.QueryError as e:
-                desc = self.get_friendly_description(schema=schema)
+                orig_schema = context.current().original_schema
+                desc = self.get_friendly_description(schema=orig_schema)
                 raise errors.SchemaDefinitionError(
                     f'cannot {desc} because this affects'
                     f' {" and ".join(refdesc)}',

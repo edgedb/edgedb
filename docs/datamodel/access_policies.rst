@@ -706,10 +706,30 @@ Here's a policy that limits the number of blog posts a ``User`` can post.
       }
 
 .. code-block:: sdl-diff
+    :version-lt: 4.0
 
       type User {
         required email: str { constraint exclusive; };
     +   multi link posts := .<author[is BlogPost]
+      }
+
+      type BlogPost {
+        required title: str;
+        required author: User;
+
+        access policy author_has_full_access
+          allow all
+          using (global current_user ?= .author.id);
+    +   access policy max_posts_limit
+    +     deny insert
+    +     using (count(.author.posts) > 500);
+      }
+
+.. code-block:: sdl-diff
+
+      type User {
+        required email: str { constraint exclusive; };
+    +   multi posts := .<author[is BlogPost]
       }
 
       type BlogPost {

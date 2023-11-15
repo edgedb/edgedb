@@ -72,9 +72,9 @@ To list all instances on your machine:
   ┌────────┬──────────────────┬──────────┬────────────────┬──────────┐
   │ Kind   │ Name             │ Port     │ Version        │ Status   │
   ├────────┼──────────────────┼──────────┼────────────────┼──────────┤
-  │ local  │ my_instance      │ 10700    │ 2.x+8421216    │ active   │
-  │ local  │ my_instance_2    │ 10701    │ 2.x+8421216    │ active   │
-  │ local  │ my_instance_3    │ 10702    │ 2.x+8421216    │ active   │
+  │ local  │ my_instance      │ 10700    │ 4.x+cc4f3b5    │ active   │
+  │ local  │ my_instance_2    │ 10701    │ 4.x+cc4f3b5    │ active   │
+  │ local  │ my_instance_3    │ 10702    │ 4.x+cc4f3b5    │ active   │
   └────────┴──────────────────┴──────────┴────────────────┴──────────┘
 
 Further reference
@@ -87,5 +87,3 @@ viewing logs, etc.), refer to the :ref:`edgedb instance
 .. code-block:: bash
 
   $ edgedb instance --help
-
-

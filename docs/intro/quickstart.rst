@@ -75,22 +75,23 @@ up your first EdgeDB instance. You should see something like this:
   No `edgedb.toml` found in `/path/to/quickstart` or above
   Do you want to initialize a new project? [Y/n]
   > Y
-  Specify the name of EdgeDB instance to use with this project [quickstart]:
+  Specify the name of EdgeDB instance to use with this project
+  [default: quickstart]:
   > quickstart
   Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [default: 2.x]:
-  > 2.x
+  Specify the version of EdgeDB to use with this project [default: 4.x]:
+  > 4.x
   ┌─────────────────────┬───────────────────────────────────────────────┐
   │ Project directory   │ ~/path/to/quickstart                          │
   │ Project config      │ ~/path/to/quickstart/edgedb.toml              │
   │ Schema dir (empty)  │ ~/path/to/quickstart/dbschema                 │
   │ Installation method │ portable package                              │
-  │ Version             │ 2.x+c21decd                                   │
+  │ Version             │ 4.x+cc4f3b5                                   │
   │ Instance name       │ quickstart                                    │
   └─────────────────────┴───────────────────────────────────────────────┘
   Downloading package...
-  00:00:01 [====================] 32.98MiB/32.98MiB 32.89MiB/s | ETA: 0s
-  Successfully installed 2.x+c21decd
+  00:00:01 [====================] 41.40 MiB/41.40 MiB 32.89MiB/s | ETA: 0s
+  Successfully installed 4.x+cc4f3b5
   Initializing EdgeDB instance...
   Applying migrations...
   Everything is up to date. Revision initial
@@ -304,12 +305,13 @@ Enter ``y`` to confirm the change.
   > y
   Please specify an expression to populate existing objects in
   order to make property 'title' of object type 'default::Movie' required:
-  fill_expr>
+  fill_expr> <std::str>{}
 
 Hm, now we're seeing another prompt. Because ``title`` is changing from
 *optional* to *required*, EdgeDB is asking us what to do for all the ``Movie``
 objects that don't currently have a value for ``title`` defined. We'll just
-specify a placeholder value: ``"Untitled"``.
+specify a placeholder value of "Untitled". Replace the ``<std::str>{}`` value
+with ``"Untitled"`` and press Enter.
 
 .. code-block::
 
@@ -324,7 +326,7 @@ lines:
 
   ALTER TYPE default::Movie {
     ALTER PROPERTY title {
-      SET REQUIRED USING ("Untitled");
+      SET REQUIRED USING ('Untitled');
     };
   };
 
@@ -366,14 +368,16 @@ default. Click the ``edgedb`` card.
 .. image:: images/ui_db.jpg
   :width: 100%
 
-Then click ``Open REPL`` so we can start writing some queries. We'll start
-simple: ``select "Hello world!"``. Click ``RUN`` to execute the query.
+Then click ``Open Editor`` so we can start writing some queries. We'll start
+simple: ``select "Hello world!";``. Click ``RUN`` to execute the query.
 
 .. image:: images/ui_hello.jpg
     :width: 100%
 
-The query should appear in the "query notebook" on the right, along with the
-result of the query.
+The result of the query will appear on the right.
+
+The query will also be added to your history of previous queries, which can be
+accessed via the "HISTORY" tab located on the lower left side of the editor.
 
 Now let's actually ``insert`` an object into our database. Copy the following
 query into the query textarea and hit ``Run``.
@@ -409,7 +413,8 @@ Finally, we can run a ``select`` query to fetch all the data we just inserted.
     }
   };
 
-Click ``COPY AS JSON`` to copy the result of this query to your clipboard. It
+Click the outermost ``COPY`` button in the top right of the query result area
+to copy the result of this query to your clipboard as JSON. The copied text
 will look something like this:
 
 .. code-block:: json
@@ -418,8 +423,12 @@ will look something like this:
     {
       "title": "Dune",
       "actors": [
-        { "name": "Timothee Chalamet" },
-        { "name": "Zendaya" }
+        {
+          "name": "Timothee Chalamet"
+        },
+        {
+          "name": "Zendaya"
+        }
       ]
     }
   ]

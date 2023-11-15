@@ -2826,3 +2826,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             self.assertEqual(status, 200)
+
+    async def test_edgeql_introspection_secret(self):
+        await self.assert_query_result(
+            '''
+            SELECT schema::Property { name }
+            FILTER .secret AND .source.name = 'ext::auth::AuthConfig';
+            ''',
+            [{'name': 'auth_signing_key'}]
+        )

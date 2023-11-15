@@ -2800,12 +2800,12 @@ def process_set_as_std_min_max(
     return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
 
 
-@_special_case('std::range', only_as_fallback=True)
+@simple_special_case('std::range')
 def process_set_as_std_range(
-    ir_set: irast.Set,
+    expr: irast.FunctionCall,
     *,
     ctx: context.CompilerContextLevel,
-) -> SetRVars:
+) -> pgast.BaseExpr:
     # Generic range constructor implementation
     #
     #   std::range(
@@ -2828,8 +2828,6 @@ def process_set_as_std_range(
     #         [inc_lower::int + 1][inc_upper::int + 1]
     #     )
     #   end
-    expr = ir_set.expr
-    assert isinstance(expr, irast.FunctionCall)
 
     # N.B: kwargs go first and are sorted by name
     empty = dispatch.compile(expr.args[0].expr, ctx=ctx)
@@ -2915,9 +2913,7 @@ def process_set_as_std_range(
         defresult=non_empty_range,
     )
 
-    pathctx.put_path_value_var(ctx.rel, ir_set.path_id, set_expr)
-
-    return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
+    return set_expr
 
 
 @_special_case('std::multirange', only_as_fallback=True)

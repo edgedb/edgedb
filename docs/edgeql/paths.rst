@@ -42,8 +42,8 @@ Consider the following schema:
     }
 
     type Comment {
-      required property text: str;
-      required link author: User;
+      required text: str;
+      required author: User;
     }
 
 A few simple inserts will allow some experimentation with paths.
@@ -221,6 +221,7 @@ that the type name (in this case ``User``) doesn't need to be specified.
       }
 
 .. code-block:: sdl-diff
+    :version-lt: 4.0
 
       type User {
         required email: str;
@@ -228,6 +229,25 @@ that the type name (in this case ``User``) doesn't need to be specified.
     +   link all_links := .<author;
     +   link blog_links := .<author[is BlogPost];
     +   link comment_links := .<author[is Comment];
+      }
+
+      type BlogPost {
+        required title: str;
+        required author: User;
+      }
+      type Comment {
+        required text: str;
+        required author: User;
+      }
+
+.. code-block:: sdl-diff
+
+      type User {
+        required email: str;
+        multi friends: User;
+    +   all_links := .<author;
+    +   blog_links := .<author[is BlogPost];
+    +   comment_links := .<author[is Comment];
       }
 
       type BlogPost {

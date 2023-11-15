@@ -1386,6 +1386,17 @@ class Router:
         allowed_urls = cast(FrozenSet[str], allowed_urls).union(
             {self.base_path}
         )
+
+        ui_config = self._get_ui_config()
+        if ui_config:
+            allowed_urls = allowed_urls.union(
+                {ui_config.redirect_to}
+            )
+            if ui_config.redirect_to_on_signup:
+                allowed_urls = allowed_urls.union(
+                    {ui_config.redirect_to_on_signup}
+                )
+
         lower_url = url.lower()
 
         for allowed_url in allowed_urls:

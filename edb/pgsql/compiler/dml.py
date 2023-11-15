@@ -431,6 +431,12 @@ def fini_dml_stmt(
             else:
                 stop_ref = base_typeref
 
+            # When the base type is abstract, there will be no CTE for it,
+            # so the overlays of children types have to apply to the whole
+            # ancestry tree.
+            if base_typeref.is_abstract:
+                stop_ref = None
+
             # The overlay for update is in two parts:
             # First, filter out objects that have been updated, then union them
             # back in. (If we just did union, we'd see the old values also.)
@@ -1817,6 +1823,9 @@ def process_update_rewrites(
     old_path_id = ir_stmt.rewrites.old_path_id
     assert old_path_id
 
+    table_rel = table_relation.relation
+    assert isinstance(table_rel, pgast.Relation)
+
     # Need to set up an iterator for any internal DML.
     iterator = pgast.IteratorCTE(
         path_id=subject_path_id,
@@ -1859,6 +1868,9 @@ def process_update_rewrites(
         ] = contents_select.path_rvar_map[(object_path_id, "value")]
 
         # pull in table_relation for __old__
+        table_rel.path_outputs[
+            (old_path_id, "value")
+        ] = table_rel.path_outputs[(object_path_id, "value")]
         relctx.include_rvar(
             rewrites_stmt, table_relation, old_path_id, ctx=ctx
         )
@@ -1878,8 +1890,6 @@ def process_update_rewrites(
         relctx.pull_path_namespace(
             target=rewrites_stmt, source=table_relation, ctx=ctx
         )
-        table_rel = table_relation.relation
-        assert isinstance(table_rel, pgast.Relation)
         table_rel.path_outputs[
             (subject_path_id, "value")
         ] = table_rel.path_outputs[(object_path_id, "value")]

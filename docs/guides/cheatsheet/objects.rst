@@ -131,6 +131,7 @@ the other properties:
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type Person extending HasImage {
         required first_name: str {
@@ -141,6 +142,33 @@ the other properties:
         }
         required last_name: str;
         property full_name :=
+            (
+                (
+                    (.first_name ++ ' ')
+                    if .first_name != '' else
+                    ''
+                ) ++
+                (
+                    (.middle_name ++ ' ')
+                    if .middle_name != '' else
+                    ''
+                ) ++
+                .last_name
+            );
+        bio: str;
+    }
+
+.. code-block:: sdl
+
+    type Person extending HasImage {
+        required first_name: str {
+            default := '';
+        }
+        required middle_name: str {
+            default := '';
+        }
+        required last_name: str;
+        full_name :=
             (
                 (
                     (.first_name ++ ' ')
@@ -224,6 +252,7 @@ aggregates values from another linked type:
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type Movie extending HasImage {
         required title: str;
@@ -245,6 +274,30 @@ aggregates values from another linked type:
         };
 
         property avg_rating := math::mean(.<movie[is Review].rating);
+    }
+
+.. code-block:: sdl
+
+    type Movie extending HasImage {
+        required title: str;
+        required year: int64;
+
+        # Add an index for accessing movies by title and year,
+        # separately and in combination.
+        index on (.title);
+        index on (.year);
+        index on ((.title, .year));
+
+        description: str;
+
+        multi directors: Person {
+            extending crew;
+        };
+        multi actors: Person {
+            extending crew
+        };
+
+        avg_rating := math::mean(.<movie[is Review].rating);
     }
 
 
