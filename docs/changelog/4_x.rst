@@ -521,3 +521,20 @@ Bug fixes
 
 * Cap the size of sets in ``multi`` configuration values to ``128``
   (:eql:gh:`#6402`)
+
+4.1
+===
+* Fix dump and restore of auth config 
+  (:eql:gh:`#6414`)
+
+* Clear ``_config_cache`` in ``sys_pgcon`` before reloading reported config 
+  (:eql:gh:`#6427`)
+
+* Fix access policy type rewrites of ``std::Object``
+  (:eql:gh:`#6420`)
+
+* Fix an error message of affected refs 
+  (:eql:gh:`#6425`)
+
+* Fix DML with constraints on abstract types 
+  (:eql:gh:`#6421`)
