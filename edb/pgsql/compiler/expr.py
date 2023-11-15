@@ -652,7 +652,7 @@ def compile_FunctionCall(
         return sfunc(expr, ctx=ctx)
 
     if expr.func_sql_expr:
-        raise errors.InternalServerError(
+        raise errors.UnsupportedFeatureError(
             f'unimplemented function for singleton mode: {fname}'
         )
 
