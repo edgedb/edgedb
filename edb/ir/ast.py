@@ -890,7 +890,8 @@ class Call(ImmutableExpr):
     force_return_cast: bool
 
     # Bound arguments.
-    # Named arguments will come first, followed by positional arguments.
+    # Named arguments will come first, sorted by name,
+    # followed by positional arguments, in order of declaration.
     args: typing.List[CallArg]
 
     # Typemods of parameters.  This list corresponds to ".args"
