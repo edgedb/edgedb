@@ -31,12 +31,12 @@ def reverse_elab_label(lbl: Label) -> qlast.Path:
         case StrLabel(l):
             return qlast.Path(
                 steps=[qlast.Ptr(
-                    ptr=qlast.ObjectRef(name=l),
+                    name=l,
                     direction=PointerDirection.Outbound)])
         case LinkPropLabel(l):
             return qlast.Path(
                 steps=[qlast.Ptr(
-                    ptr=qlast.ObjectRef(name=l),
+                    name=l,
                     type='property')])
         case _:
             raise ValueError(lbl)
@@ -130,8 +130,9 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
         #                            object_to_shape(ir_expr)))
         case InsertExpr(name=tname, new=arg):
             return qlast.InsertQuery(subject=qlast.ObjectRef(name=tname),
-                                     shape=reverse_elab_shape(arg)
-                                     )
+                                     shape=reverse_elab_shape(
+                                         e.ShapeExpr(shape={StrLabel(k):
+                                                            abstract_over_expr(v) for (k,v) in arg.items()})))
         case FilterOrderExpr(subject=subject, filter=filter, order=order):
             result_name = filter.var
             return qlast.SelectQuery(
@@ -176,20 +177,20 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
             return qlast.Path(steps=[qlast.ObjectRef(name="std::FreeObject")])
         case ObjectProjExpr(subject=subject, label=label):
             label_path_component = qlast.Ptr(
-                ptr=qlast.ObjectRef(name=label),
+                name=label,
                 direction=PointerDirection.Outbound, type=None)
             return append_path_element(
                 reverse_elab(subject),
                 label_path_component)
         case BackLinkExpr(subject=subject, label=label):
-            label_path_component = qlast.Ptr(ptr=qlast.ObjectRef(
-                name=label), direction=PointerDirection.Inbound, type=None)
+            label_path_component = qlast.Ptr(
+                name=label, direction=PointerDirection.Inbound, type=None)
             return append_path_element(
                 reverse_elab(subject),
                 label_path_component)
         case LinkPropProjExpr(subject=subject, linkprop=label):
             label_path_component = qlast.Ptr(
-                ptr=qlast.ObjectRef(name=label),
+                name=label,
                 direction=PointerDirection.Outbound, type="property")
             return append_path_element(
                 reverse_elab(subject),
@@ -209,7 +210,7 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
         case NamedTupleExpr(val=tuples):
             return qlast.NamedTuple(
                 elements=[qlast.TupleElement(
-                    name=qlast.ObjectRef(name=k),
+                    name=qlast.Ptr(name=k),
                     val=reverse_elab(v))
                     for (k, v) in tuples.items()])
         case UnionExpr(left=l, right=r):
@@ -250,19 +251,17 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
             bound_v = reverse_elab(bound)
             body = reverse_elab(instantiate_expr(FreeVarExpr(name), next))
             return qlast.ForQuery(
-                iterator_bindings=[qlast.ForBinding(
-                    iterator=bound_v,
-                    iterator_alias=name)],
+                iterator=bound_v,
+                iterator_alias=name,
                 result=body)
         case OptionalForExpr(bound=bound, next=next):
             name = next.var
             bound_v = reverse_elab(bound)
             body = reverse_elab(instantiate_expr(FreeVarExpr(name), next))
             return qlast.ForQuery(
-                iterator_bindings=[qlast.ForBinding(
-                    iterator=bound_v,
-                    iterator_alias=name,
-                    optional=True)],
+                iterator=bound_v,
+                iterator_alias=name,
+                optional=True,
                 result=body)
         case DetachedExpr(expr=expr):
             return qlast.DetachedExpr(expr=reverse_elab(expr))

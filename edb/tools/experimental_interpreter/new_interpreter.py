@@ -9,7 +9,7 @@ from typing import Tuple
 from edb.common import debug
 from edb.edgeql import ast as qlast
 
-from . import typechecking as tc
+from .type_checking_tools import typechecking as tc
 from .back_to_ql import reverse_elab
 from .basis.built_ins import all_builtin_funcs
 from .data import data_ops as e

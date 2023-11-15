@@ -133,7 +133,8 @@ def show_expr(expr: e.Expr) -> str:
             return ("(" + show_expr(subject) + " offset " + show_expr(offset) +
                     " limit " + show_expr(limit) + ")")
         case e.InsertExpr(name=name, new=new):
-            return ("insert " + name + " " + show_expr(new))
+            return ("insert " + name + " {" + 
+                    ", ".join([k + " := " + show_expr(n) for (k,n) in new.items()]) + "}")
         case e.UpdateExpr(subject=subject, shape=shape):
             return ("update " + show_expr(subject) + " " + show_expr(shape))
         case e.DeleteExpr(subject=subject):

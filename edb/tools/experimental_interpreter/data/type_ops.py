@@ -213,6 +213,18 @@ def get_runtime_tp(tp: e.Tp) -> e.Tp:
     return eops.map_tp(map_func, tp)
 
 
+def get_storage_tp(fmt : e.ObjectTp) -> e.ObjectTp:
+    """
+    Returns the storage type of a given type. 
+    In particular, computable attributes should be removed.
+
+    """
+    return e.ObjectTp({
+        k: tp 
+        for (k, tp) in fmt.val.items()
+        if not isinstance(tp.tp, e.ComputableTp)
+    })
+
 def tp_is_primitive(tp: e.Tp) -> bool:
     match tp:
         case (e.IntTp()

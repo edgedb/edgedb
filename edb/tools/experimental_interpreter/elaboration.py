@@ -24,6 +24,7 @@ from .data.data_ops import (
     next_name)
 from .data.expr_ops import (abstract_over_expr, instantiate_expr, is_path,
                             subst_expr_for_expr)
+from .data import expr_ops as eops
 # from .shape_ops import shape_to_expr
 
 DEFAULT_HEAD_NAME = "__no_clash_head_subject__"
@@ -198,11 +199,17 @@ def elab_InsertQuery(expr: qlast.InsertQuery) -> InsertExpr:
     subject_type = expr.subject.name
     object_shape = elab_Shape(expr.shape)
     # object_expr = shape_to_expr(object_shape)
+    unshaped = {}
+    for (k,v) in object_shape.shape.items():
+        assert isinstance(k, StrLabel), "Expecting Plain Labels"
+        assert eops.binding_is_unnamed(v), "Not expecting leading dot notaiton in Shapes"
+        unshaped[k.label] = v.body
+    
     return cast(
         InsertExpr,
         elab_aliases(
             expr.aliases,
-            InsertExpr(name=subject_type, new=object_shape)))
+            InsertExpr(name=subject_type, new=unshaped)))
 
 
 @elab.register(qlast.StringConstant)

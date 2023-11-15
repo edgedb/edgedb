@@ -196,22 +196,21 @@ def limit_vals(val: Sequence[Val],
         case _:
             raise ValueError("offset must be an int")
 
-def object_tp_default_initial_step_with_insert(
-        tp: e.ObjectTp,
-        insert_shape: e.ShapeExpr,
-        initial_var: e.VarExpr
-        ) -> e.Expr:
-    # initial = tops.object_tp_default_initial(tp)
-    step = tops.object_tp_default_step(tp)
-    result: e.Expr = initial_var
-    for _ in range(len(tp.val.keys())):
-        result = eops.ShapedExprExpr(expr=result, shape=step)
-    post_step = tops.object_tp_default_post_step(tp, insert_shape)
-    result = e.ShapedExprExpr(expr=result, shape=insert_shape)
-    for _ in range(len(tp.val.keys())):
-        result = eops.ShapedExprExpr(expr=result, shape=post_step)
-    result = e.ShapedExprExpr(expr=result, shape=insert_shape)
-    return result
+# def object_tp_default_initial_step_with_insert(
+#         tp: e.ObjectTp,
+#         insert_shape: e.ShapeExpr,
+#         initial_var: e.VarExpr
+#         ) -> e.Expr:
+#     step = tops.object_tp_default_step(tp)
+#     result: e.Expr = initial_var
+#     for _ in range(len(tp.val.keys())):
+#         result = eops.ShapedExprExpr(expr=result, shape=step)
+#     post_step = tops.object_tp_default_post_step(tp, insert_shape)
+#     result = e.ShapedExprExpr(expr=result, shape=insert_shape)
+#     for _ in range(len(tp.val.keys())):
+#         result = eops.ShapedExprExpr(expr=result, shape=post_step)
+#     result = e.ShapedExprExpr(expr=result, shape=insert_shape)
+#     return result
 
 
 
@@ -278,24 +277,10 @@ def eval_expr(ctx: EvalEnv,
         #     return  MultiSetVal([FreeVal(ObjectVal(result))])
         case InsertExpr(tname, arg):
             id = db.insert(tname, {})
-            var_name = "insert_bnd_" + tname + "_" + str(next_id())
-            expr_with_default_bnd = abstract_over_expr(
-                object_tp_default_initial_step_with_insert(
-                    db.get_schema().val[tname], arg, e.FreeVarExpr(var_name)), var_name)
-            new_ctx, expr_with_default = ctx_extend(ctx, expr_with_default_bnd, MultiSetVal([RefVal(id, ObjectVal({}))]))
-            raw_object = eval_expr(
-                        new_ctx,
-                        db,
-                        expr_with_default)
-            assert len(raw_object.vals) == 1, (
-                "Insert shape should return one object"
-            )
-            assert raw_object.vals[0].refid == id, (
-                "Insert should not change id"
-            )
-
+            argv = {k : eval_expr(ctx, db, v) for (k,v) in arg.items()}
+            arg_object = ObjectVal({StrLabel(k): (e.Visible(), v) for (k,v) in argv.items()})
             new_object = coerce_to_storage(
-                get_object_val(raw_object.vals[0]), db.get_schema().val[tname])
+                arg_object, tops.get_storage_tp(db.get_schema().val[tname]))
             db.update(id, {k : v  for k, v in new_object.items() })
             # inserts return empty dict
             return MultiSetVal([RefVal(id, ObjectVal({}))])

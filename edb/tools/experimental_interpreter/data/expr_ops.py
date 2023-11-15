@@ -150,7 +150,7 @@ def map_expr(
             case WithExpr(bound=bound, next=next):
                 return WithExpr(bound=recur(bound), next=recur(next))
             case InsertExpr(name=name, new=new):
-                return InsertExpr(name=name, new=recur(new))
+                return InsertExpr(name=name, new={k: recur(v) for (k,v) in new.items()})
             case e.FreeObjectExpr():
                 return e.FreeObjectExpr()
             case e.ConditionalDedupExpr(expr=sub):
@@ -476,6 +476,7 @@ def make_storage_atomic(val: Val, tp: Tp) -> Val:
             raise ValueError("Coercion Not Implemented for", tp)
 
 
+# we require fmt to be a storage tp -- No Computable Types should be present
 def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> Dict[str, MultiSetVal]:
     # ensure no redundant keys
     extra_keys = [k for k in val.val.keys()
@@ -484,6 +485,12 @@ def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> Dict[str, MultiSetVal]:
         raise ValueError(
             "Coercion failed, object contains redundant keys:", extra_keys,
             "when coercing ", val, " to ", fmt)
+    left_out_keys = [k for k in fmt.val.keys()
+                  if StrLabel(k) not in val.val.keys()]
+    if left_out_keys:
+        raise ValueError(
+            "Coercion failed, object missing keys:", left_out_keys,
+            "when coercing ", val, " to ", fmt)
     return {
         k: (MultiSetVal(
                         [make_storage_atomic(v, tp[0])
@@ -491,7 +498,7 @@ def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> Dict[str, MultiSetVal]:
                        if StrLabel(k) in val.val.keys()
                        else MultiSetVal([]))
         for (k, tp) in fmt.val.items()
-        if not isinstance(tp.tp, e.ComputableTp)
+        # if not isinstance(tp.tp, e.ComputableTp)
     }
 
 
@@ -581,6 +588,38 @@ def is_path(e: Expr) -> bool:
             return is_path(subject)
         case _:
             return False
+
+def get_path_head(e: Expr) -> e.FreeVarExpr:
+    match e:
+        case FreeVarExpr(_):
+            return e
+        case LinkPropProjExpr(subject=subject, linkprop=_):
+            return get_path_head(subject)
+        case ObjectProjExpr(subject=subject, label=_):
+            return get_path_head(subject)
+        case BackLinkExpr(subject=subject, label=_):
+            return get_path_head(subject)
+        case TpIntersectExpr(subject=BackLinkExpr(subject=subject, label=_), tp=_):
+            return get_path_head(subject)
+        case _:
+            raise ValueError("not a path")
+
+
+def get_first_path_component(e: Expr) -> e.Optional[e.Expr]:
+    match e:
+        case FreeVarExpr(_):
+            return None
+        case LinkPropProjExpr(subject=FreeVarExpr(_), linkprop=_):
+            return e
+        case ObjectProjExpr(subject=FreeVarExpr(_), label=_):
+            return e
+        case BackLinkExpr(subject=FreeVarExpr(_), label=_):
+            return e
+        case TpIntersectExpr(subject=BackLinkExpr(subject=FreeVarExpr(_), label=_), tp=_):
+            return e
+        case _:
+            raise ValueError("not a path")
+
 
 
 def tcctx_add_binding(ctx: e.TcCtx,

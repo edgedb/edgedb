@@ -9,7 +9,7 @@ from .data.data_ops import (CMMode, DBSchema,  ObjectTp,
 from .elaboration import elab_single_type_expr, elab_expr_with_default_head
 from .helper_funcs import parse_sdl
 from .data import data_ops as e
-from . import typechecking  as tck
+from .type_checking_tools import typechecking  as tck
 
 def elab_schema_error(obj: Any) -> Any:
     raise ValueError(obj)

@@ -153,7 +153,8 @@ def map_query(f: Callable[[Expr, QueryLevel],
                     condition=recur(condition),
                     else_branch=sub_recur(else_branch))
             case InsertExpr(name=name, new=new):
-                return InsertExpr(name=name, new=sub_recur(new))
+                return InsertExpr(name=name, new=
+                    {k: sub_recur(e) for (k, e) in new.items()})
             # case ObjectExpr(val=val):
             #     return ObjectExpr(
             #         val={label: sub_recur(item)

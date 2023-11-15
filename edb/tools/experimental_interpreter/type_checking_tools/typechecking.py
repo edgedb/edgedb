@@ -3,12 +3,12 @@ from functools import reduce
 import operator
 from typing import Tuple, Dict, Sequence, Optional, List
 
-from .data import data_ops as e
-from .data import expr_ops as eops
-from .data import type_ops as tops
+from ..data import data_ops as e
+from ..data import expr_ops as eops
+from ..data import type_ops as tops
 from edb.common import debug
-from .data import path_factor as path_factor
-
+from ..data import path_factor as path_factor
+from .dml_checking import *
 # def enforce_singular(expr: e.Expr, card: e.CMMode) -> e.Expr:
 #     """ returns the singular expression of the upper bound
 #     of the cardinality is one"""
@@ -527,25 +527,16 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     # e.min_cardinal(result_card.multiplicity, e.Fin(lim_num))
                     )
         case e.InsertExpr(name=tname, new=arg):
-            tname_tp = tops.get_runtime_tp(
-                e.NominalLinkTp(subject=ctx.schema.val[tname],
-                                name=tname,
-                                linkprop=e.ObjectTp({}))
-            )
-            arg_shape_tp, arg_ck = check_shape_transform(
-                ctx, arg, tname_tp, is_insert_shape=True)
-            # assert arg_tp.mode == e.CardOne, (
-            #         "Expecting single object in inserts"
-            #     )
-            # assert isinstance(arg, e.ObjectExpr), (
-            #     "Expecting object expr in inserts")
-            assert all(isinstance(k, e.StrLabel) for k in arg.shape.keys()), (
-                        "Expecting object expr in inserts")
-            # assert isinstance(arg_shape_tp, e.ObjectTp), (
-            #     "Expecting inserts to be of object tp")
-            tops.assert_insert_subtype(ctx, arg_shape_tp, tname_tp)
-            result_expr = e.InsertExpr(tname, arg_ck)
-            result_tp = tname_tp
+            result_expr = insert_checking(ctx, expr)
+            # tname_tp = tops.get_runtime_tp(
+            #     e.NominalLinkTp(subject=ctx.schema.val[tname],
+            #                     name=tname,
+            #                     linkprop=e.ObjectTp({}))
+            # )
+            # arg_shape_tp, arg_ck = check_shap_transform(
+            #     ctx, arg, tname_tp, is_insert_shape=True)
+            # tops.assert_insert_subtype(ctx, arg_shape_tp, tname_tp)
+            result_tp = e.NamedNominalLinkTp(name=tname, linkprop=e.ObjectTp({}))
             result_card = e.CardOne
         case e.UpdateExpr(subject=subject, shape=shape_expr):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
