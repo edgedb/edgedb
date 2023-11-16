@@ -1201,11 +1201,10 @@ def trace_For(
     ctx: TracerContext
 ) -> Optional[ObjectLike]:
     with alias_context(ctx, node.aliases) as ctx:
-        for binding in node.iterator_bindings:
-            obj = trace(binding.iterator, ctx=ctx)
-            if obj is None:
-                obj = SentinelObject
-            ctx.objects[sn.QualName('__alias__', binding.iterator_alias)] = obj
+        obj = trace(node.iterator, ctx=ctx)
+        if obj is None:
+            obj = SentinelObject
+        ctx.objects[sn.QualName('__alias__', node.iterator_alias)] = obj
         tip = trace(node.result, ctx=ctx)
 
         return tip
