@@ -28,8 +28,6 @@ Reference
     protocol/index
     bindings/index
     admin/index
-    edgeqlspec/index
-    edgeqlspec/index2
 
 
 This section contains comprehensive reference documentation on the internals of
