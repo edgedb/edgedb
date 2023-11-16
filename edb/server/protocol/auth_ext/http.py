@@ -554,6 +554,7 @@ class Router:
         (
             identity_id,
             issued_at,
+            _,
             maybe_challenge,
             maybe_redirect_to,
         ) = self._get_data_from_verification_token(data["verification_token"])
@@ -610,6 +611,7 @@ class Router:
         (
             identity_id,
             _,
+            verify_url,
             maybe_challenge,
             maybe_redirect_to,
         ) = self._get_data_from_verification_token(data["verification_token"])
@@ -623,7 +625,7 @@ class Router:
                 provider=data["provider"],
                 identity_id=identity_id,
                 to_addr=email,
-                verify_url=f"{self.base_path}/verify",
+                verify_url=verify_url,
                 maybe_challenge=maybe_challenge,
                 maybe_redirect_to=maybe_redirect_to,
             )
@@ -986,6 +988,7 @@ class Router:
                 (
                     identity_id,
                     issued_at,
+                    _,
                     maybe_challenge,
                     maybe_redirect_to,
                 ) = self._get_data_from_verification_token(
@@ -1076,6 +1079,7 @@ class Router:
             verification_token = query["verification_token"][0]
             (
                 identity_id,
+                _,
                 _,
                 maybe_challenge,
                 maybe_redirect_to,
@@ -1240,7 +1244,7 @@ class Router:
 
     def _get_data_from_verification_token(
         self, token: str
-    ) -> Tuple[str, float, Optional[str], Optional[str]]:
+    ) -> Tuple[str, float, str, Optional[str], Optional[str]]:
         try:
             claims = self._verify_and_extract_claims(token)
         except Exception:
@@ -1251,6 +1255,12 @@ class Router:
         if maybe_challenge is not None and not isinstance(maybe_challenge, str):
             raise errors.InvalidData(
                 "Invalid 'challenge' in 'verification_token'"
+            )
+
+        verify_url = claims.get("verify_url")
+        if not isinstance(verify_url, str):
+            raise errors.InvalidData(
+                "Invalid 'verify_url' in 'verification_token'"
             )
 
         maybe_redirect_to = claims.get("redirect_to")
@@ -1265,16 +1275,21 @@ class Router:
         if maybe_issued_at is None:
             raise errors.InvalidData("Missing 'iat' in 'verification_token'")
 
-        return_value: Tuple[str, float, Optional[str], Optional[str]]
+        return_value: Tuple[str, float, str, Optional[str], Optional[str]]
         match (
             identity_id,
             maybe_issued_at,
+            verify_url,
             maybe_challenge,
             maybe_redirect_to,
         ):
-            case (str(id), float(issued_at), challenge, redirect_to):
-                return_value = (id, issued_at, challenge, redirect_to)
-            case (_, _, _, _):
+            case (
+                str(id), float(issued_at), verify_url, challenge, redirect_to
+            ):
+                return_value = (
+                    id, issued_at, verify_url, challenge, redirect_to
+                )
+            case (_, _, _, _, _):
                 raise errors.InvalidData(
                     "Invalid claims in 'verification_token'"
                 )
@@ -1335,6 +1350,11 @@ class Router:
         maybe_challenge: str | None,
         maybe_redirect_to: str | None,
     ):
+        if not self._is_url_allowed(verify_url):
+            raise errors.InvalidData(
+                "Verify URL does not match any allowed URLs.",
+            )
+
         # Generate verification token
         issued_at = datetime.datetime.now(datetime.timezone.utc).timestamp()
         verification_token = self._make_secret_token(
@@ -1344,6 +1364,7 @@ class Router:
                 "iat": issued_at,
                 "challenge": maybe_challenge,
                 "redirect_to": maybe_redirect_to,
+                "verify_url": verify_url
             },
             expires_in=datetime.timedelta(seconds=0),
         )
