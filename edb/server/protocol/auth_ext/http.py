@@ -333,7 +333,7 @@ class Router:
         new_url = _join_url_params(
             (redirect_to_on_signup or redirect_to)
             if new_identity else redirect_to,
-            {"code": pkce_code}
+            {"code": pkce_code, "provider": provider_name}
         )
         session_token = self._make_session_token(identity.id)
         response.status = http.HTTPStatus.FOUND
@@ -436,7 +436,10 @@ class Router:
                 redirect_params = (
                     {"verification_email_sent_at": now_iso8601}
                     if require_verification
-                    else {"code": cast(str, pkce_code)}
+                    else {
+                        "code": cast(str, pkce_code),
+                        "provider": register_provider_name
+                    }
                 )
                 response.custom_headers["Location"] = _join_url_params(
                     maybe_redirect_to, redirect_params
@@ -451,7 +454,10 @@ class Router:
                 else:
                     if pkce_code is None:
                         raise errors.PKCECreationFailed
-                    response.body = json.dumps({"code": pkce_code}).encode()
+                    response.body = json.dumps({
+                        "code": pkce_code,
+                        "provider": register_provider_name
+                    }).encode()
         except Exception as ex:
             redirect_on_failure = data.get(
                 "redirect_on_failure", maybe_redirect_to
