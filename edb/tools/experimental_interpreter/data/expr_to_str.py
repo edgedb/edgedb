@@ -176,3 +176,37 @@ def show_tcctx(tcctx: e.TcCtx) -> str:
     return (show_schema(tcctx.schema) + "\n" +
             ("\n".join(name + " := " + show_result_tp(r_tp)
                        for name, r_tp in tcctx.varctx.items())))
+
+def show_visibility_marker(maker: e.Marker) -> str:
+    match maker:
+        case e.Visible():
+            return "v"
+        case e.Invisible():
+            return "i"
+        case _:
+            raise ValueError('Unimplemented', maker)
+
+def show_val(val: e.Val | e.ObjectVal | e.MultiSetVal) -> str:
+    match val:
+        case e.IntVal(val=v):
+            return str(v)
+        case e.BoolVal(val=v):
+            return str(v)
+        case e.StrVal(val=v):
+            return v
+        case e.ObjectVal(val=elems):
+            return "{" + ", ".join(f'{show_label(lbl)} ({show_visibility_marker(m)}): {show_val(el)}'
+                                   for (lbl, (m, el)) in elems.items()) + "}"
+        case e.RefVal(refid=id, val=v):
+            return f"ref({id})" + show_val(v)
+        case e.UnnamedTupleVal(val=elems):
+            return "(" + ", ".join(show_val(el) for el in elems) + ")"
+        case e.NamedTupleVal(val=elems):
+            return "(" + ", ".join(f'{lbl} := {show_val(el)}'
+                                   for lbl, el in elems.items()) + ")"
+        case e.ArrVal(val=arr):
+            return "[" + ", ".join(show_val(el) for el in arr) + "]"
+        case e.MultiSetVal(vals=arr):
+            return "{" + ", ".join(show_val(el) for el in arr) + "}"
+        case _:
+            raise ValueError('Unimplemented', val)

@@ -219,8 +219,30 @@ def get_storage_tp(fmt : e.ObjectTp) -> e.ObjectTp:
     In particular, computable attributes should be removed.
 
     """
+
+    def drop_computable(t : e.ObjectTp):
+        return e.ObjectTp({
+            k: tp
+            for (k, tp) in t.val.items()
+            if not isinstance(tp.tp, e.ComputableTp)
+        })
+
+    def get_lp_storage(t : e.ResultTp):
+        match t.tp:
+            case e.NamedNominalLinkTp(name=n, linkprop=lp):
+                return e.ResultTp(
+                    e.NamedNominalLinkTp(name=n, linkprop=drop_computable(lp)),
+                    t.mode)
+            case e.DefaultTp(tp=tp, expr=_):
+                return get_lp_storage(e.ResultTp(tp, t.mode))
+            case _:
+                if tp_is_primitive(t.tp):
+                    return t
+                else:
+                    raise ValueError("Cannot get lp storage", t.tp)
+
     return e.ObjectTp({
-        k: tp 
+        k: get_lp_storage(tp)
         for (k, tp) in fmt.val.items()
         if not isinstance(tp.tp, e.ComputableTp)
     })

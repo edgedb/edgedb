@@ -25,6 +25,85 @@ def get_key_dependency(tp : e.DefaultTp) -> List[str]:
                     continue # this is fine
     return deps
                 
+def type_elaborate_default_tp(ctx: e.TcCtx, default_expr: e.Expr) -> e.Expr:
+    from .typechecking import synthesize_type, check_type
+    elabed =  synthesize_type(ctx, default_expr)[1]
+    return elabed
+
+def insert_proprerty_checking(ctx: e.TcCtx, attr_expr : e.Expr, attr_tp : e.ResultTp) -> e.Expr:
+    # for breaking circular dependency
+    from .typechecking import synthesize_type, check_type
+    target_tp = attr_tp.tp
+    target_mode = attr_tp.mode
+    if tops.tp_is_primitive(target_tp):
+        return check_type(ctx, attr_expr, attr_tp)
+    else:
+        match target_tp:
+            case e.DefaultTp(expr=_, tp=tp): 
+                # since we're inserting an actual value, default is overridden
+                return insert_proprerty_checking(ctx, attr_expr, e.ResultTp(tp, target_mode))
+            case e.NamedNominalLinkTp(name=target_name, linkprop=lp):
+                (synthesized_tp, expr_ck) = synthesize_type(ctx, attr_expr)
+                tops.assert_cardinal_subtype(synthesized_tp.mode, target_mode)
+                ck_lp = lp.val
+
+                # get the synthesized link props
+                match synthesized_tp.tp:
+                    case e.NamedNominalLinkTp(name=synth_name, linkprop=lp2):
+                        if target_name != synth_name:
+                            raise ValueError("Unmatched target and synth name", target_name, synth_name)
+                        synth_lp = lp2.val
+                    case e.NominalLinkTp(subject=_, name=synth_name, linkprop=lp2):
+                        if target_name != synth_name:
+                            raise ValueError("Unmatched target and synth name", target_name, synth_name)
+                        synth_lp = lp2.val
+                    case _:
+                        raise ValueError("Unrecognized synthesized type", synthesized_tp)
+                
+                # we do not support heterogenous link targets
+                for k in synth_lp.keys():
+                    if k not in ck_lp.keys():
+                        raise ValueError("Link prop not in type", k, ck_lp.keys())
+                    elif isinstance(synth_lp[k].tp, e.ComputableTp):
+                        raise ValueError("Cannot define computable tp")
+                    elif isinstance(ck_lp[k].tp, e.DefaultTp):
+                        tops.assert_real_subtype(ctx, synth_lp[k].tp, ck_lp[k].tp.tp)
+                    else:
+                        tops.assert_real_subtype(ctx, synth_lp[k].tp, ck_lp[k].tp)
+
+                additional_lps : Dict[str, e.Expr] = {}
+
+                for k in ck_lp.keys():
+                    if k in synth_lp.keys():
+                        continue
+                    elif isinstance(ck_lp[k].tp, e.ComputableTp):
+                        continue
+                    elif isinstance(ck_lp[k].tp, e.DefaultTp):
+                        default_expr = ck_lp[k].expr
+                        if eops.binding_is_unnamed():
+                            additional_lps[k] = type_elaborate_default_tp(
+                                ctx, eops.instantiate_expr(e.FreeVarExpr("LP_DEFAULT_SHOULD_NOT_OCCUR"), default_expr))
+                        else:
+                            raise ValueError("Default Tp is not unnamed", ck_lp[k].expr)
+                    elif tops.mode_is_optional(ck_lp[k].mode):
+                        additional_lps[k] = e.MultiSetExpr(expr=[])
+                    else:
+                        raise ValueError("Missing link prop", k, "synthesized keys", synth_lp.keys(), "required keys", ck_lp.keys())
+                        
+                if len(additional_lps.keys()) == 0:
+                    return expr_ck
+                else:
+                    return e.ShapedExprExpr(expr_ck, 
+                        e.ShapeExpr(
+                            shape={
+                                e.LinkPropLabel(k): eops.abstract_over_expr(v)
+                                for (k,v) in additional_lps.items()
+                            }
+                        ))
+            case _:
+                raise ValueError("Unrecognized Attribute Target Type", target_tp)
+        
+
 
 def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
     # for breaking circular dependency
@@ -38,22 +117,23 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
         target_tp = schema_tp.val[k]
         if isinstance(target_tp, e.ComputableTp):
             raise ValueError(f"Key {k} is computable in {expr.name}, modification of computable types prohibited")
-        vv = check_type(ctx, v, e.ResultTp(tops.get_runtime_tp(schema_tp.val[k].tp),
-                                           schema_tp.val[k].mode))
+        vv = insert_proprerty_checking(ctx, v, schema_tp.val[k])
         new_v = {**new_v, k: vv}
 
     # add optional fields that do not have a default
     for (k, target_tp) in schema_tp.val.items():
         if (tops.mode_is_optional(target_tp.mode)
-            and not isinstance(target_tp, e.DefaultTp)):
+            and not isinstance(target_tp.tp, e.DefaultTp)
+            and not isinstance(target_tp.tp, e.ComputableTp)
+            and k not in new_v):
             new_v = {**new_v, k: e.MultiSetExpr(expr=[])}
 
     # check non-optional fields
     missing_keys = []
     for (k, target_tp) in schema_tp.val.items():
-        if isinstance(target_tp, e.ComputableTp):
+        if isinstance(target_tp.tp, e.ComputableTp):
             continue
-        if isinstance(target_tp, e.DefaultTp):
+        if isinstance(target_tp.tp, e.DefaultTp):
             continue
         if k not in new_v:
             missing_keys.append(k)
@@ -80,7 +160,7 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
             deps = get_key_dependency(target_tp)
             if len(deps) == 0:
                 actual_v = eops.instantiate_expr(target_tp.expr, e.FreeVarExpr("INSERT_SHOULD_NOT_OCCUR"))
-                new_v = {**new_v, k: actual_v}
+                new_v = {**new_v, k: type_elaborate_default_tp(actual_v)}
             else:
                 # add to dependent_keys those in new_v
                 add_deps_from_new_v(deps)
@@ -89,7 +169,7 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
                     actual_v = e.WithExpr(
                         get_shaped_from_deps(deps),
                         target_tp.expr)
-                    new_v = {**new_v, k: actual_v}
+                    new_v = {**new_v, k: actual_v} #TODO THIS NEEDS ELABORATION
                 else:
                     assert k not in pending_default, "only iterating over schema once, no duplicate keys"
                     pending_default[k] = deps
@@ -105,7 +185,7 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
                 actual_v = e.WithExpr(
                     get_shaped_from_deps(deps),
                     target_tp.expr)
-                new_v = {**new_v, k: actual_v}
+                new_v = {**new_v, k: actual_v} #TODO THIS NEEDS ELABORATION, we need to get the type and add it in the context then perform elaboration
                 del pending_default[k]
                 break
         else:
@@ -124,3 +204,23 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
             eops.abstract_over_expr(result_expr, binder_name)
         )
     return result_expr
+
+
+def update_checking(ctx: e.TcCtx, update_shape: e.ShapeExpr, subject_tp: e.Tp) -> e.ShapeExpr:
+    # for breaking circular dependency
+    from . import typechecking as tc
+    assert isinstance(subject_tp, e.NamedNominalLinkTp) or isinstance(subject_tp, e.NominalLinkTp), "Expecting link type"
+    tp_name = subject_tp.name
+    full_tp = ctx.schema.val[tp_name]
+    assert all(isinstance(k, e.StrLabel) for k in update_shape.shape.keys()), "Expecting string labels"
+    cut_tp = {k : v for (k,v) in full_tp.val.items() 
+              if e.StrLabel(k) in update_shape.shape.keys()}
+    shape_ck : Dict[e.Label, e.BindingExpr] = {}
+    for (k, v) in cut_tp.items():
+        ctx_new, shape_body, bnd_var = eops.tcctx_add_binding(
+            ctx, update_shape.shape[e.StrLabel(k)], 
+            e.ResultTp(subject_tp, e.CardOne))
+        shape_body_ck = insert_proprerty_checking(ctx_new, shape_body, v)
+        shape_ck[e.StrLabel(k)] = eops.abstract_over_expr(shape_body_ck, bnd_var)
+
+    return e.ShapeExpr(shape=shape_ck)

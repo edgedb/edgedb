@@ -15,6 +15,7 @@ from .data_ops import (ArrExpr, ArrVal, BackLinkExpr, BindingExpr, BoolVal,
                        UpdateExpr, Val, VarExpr, Visible, WithExpr, next_id,
                        next_name)
 from . import data_ops as e
+from  . import expr_to_str as pp
 
 
 def map_tp(
@@ -484,7 +485,9 @@ def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> Dict[str, MultiSetVal]:
     if extra_keys:
         raise ValueError(
             "Coercion failed, object contains redundant keys:", extra_keys,
-            "when coercing ", val, " to ", fmt)
+            "val_keys are", val.val.keys(),
+            "fmt_keys are", fmt.val.keys(),
+            "when coercing ", pp.show_val(val), " to ", pp.show_tp(fmt))
     left_out_keys = [k for k in fmt.val.keys()
                   if StrLabel(k) not in val.val.keys()]
     if left_out_keys:

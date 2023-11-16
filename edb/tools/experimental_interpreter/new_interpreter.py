@@ -87,6 +87,8 @@ def run_statement(db: EdgeDatabaseInterface,
 
     if should_print:
         debug.print(show_result_tp(tp))
+        reverse_elabed = reverse_elab(type_checked)
+        debug.dump_edgeql(reverse_elabed)
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Running")
 
     result = eval_expr_toplevel(db, type_checked, logs=logs)

@@ -541,13 +541,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_card = e.CardOne
         case e.UpdateExpr(subject=subject, shape=shape_expr):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
-            assert eops.is_effect_free(shape_expr), (
-                "Expecting shape expr to be effect-free")
-            assert eops.is_effect_free(subject), (
-                "Expecting subject expr to be effect-free")
-            (after_tp, shape_ck) = check_shape_transform(
-                ctx, shape_expr, subject_tp.tp, is_insert_shape=True)
-            tops.assert_insert_subtype(ctx, after_tp, subject_tp.tp)
+            (shape_ck) = update_checking(ctx, shape_expr, subject_tp.tp)
             result_expr = e.UpdateExpr(subject_ck, shape_ck)
             result_tp, result_card = subject_tp
         case e.DeleteExpr(subject=subject):
