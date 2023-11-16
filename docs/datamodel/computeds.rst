@@ -11,9 +11,11 @@ Computeds
   This section assumes a basic understanding of EdgeQL. If you aren't familiar
   with it, feel free to skip this page for now.
 
-Object types can contain *computed* links and properties. Computed properties
+Object types can contain *computed* properties and links. Computed properties
 and links are not persisted in the database. Instead, they are evaluated *on
-the fly* whenever that field is queried.
+the fly* whenever that field is queried. Computed properties must be declared
+with the ``property`` keyword and computed links must be declared with the
+``link`` keyword in EdgeDB versions prior to 4.0.
 
 .. code-block:: sdl
     :version-lt: 3.0
@@ -24,10 +26,18 @@ the fly* whenever that field is queried.
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type Person {
       name: str;
       property all_caps_name := str_upper(__source__.name);
+    }
+
+.. code-block:: sdl
+
+    type Person {
+      name: str;
+      all_caps_name := str_upper(__source__.name);
     }
 
 Computed fields are associated with an EdgeQL expression. This expression
@@ -72,11 +82,20 @@ shorthand.
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type Person {
       first_name: str;
       last_name: str;
       property full_name := .first_name ++ ' ' ++ .last_name;
+    }
+
+.. code-block:: sdl
+
+    type Person {
+      first_name: str;
+      last_name: str;
+      full_name := .first_name ++ ' ' ++ .last_name;
     }
 
 Type and cardinality inference
@@ -100,12 +119,22 @@ next time you try to :ref:`create a migration <ref_intro_migrations>`.
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type Person {
       first_name: str;
 
       # this is invalid, because first_name is not a required property
       required property first_name_upper := str_upper(.first_name);
+    }
+
+.. code-block:: sdl
+
+    type Person {
+      first_name: str;
+
+      # this is invalid, because first_name is not a required property
+      required first_name_upper := str_upper(.first_name);
     }
 
 Common use cases
@@ -133,10 +162,25 @@ queries, consider defining a computed field that encapsulates the filter.
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type Club {
       multi members: Person;
       multi link active_members := (
+        select .members filter .is_active = true
+      )
+    }
+
+    type Person {
+      name: str;
+      is_active: bool;
+    }
+
+.. code-block:: sdl
+
+    type Club {
+      multi members: Person;
+      multi active_members := (
         select .members filter .is_active = true
       )
     }
@@ -169,6 +213,7 @@ to traverse a link in the *reverse* direction.
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type BlogPost {
       title: str;
@@ -180,44 +225,22 @@ to traverse a link in the *reverse* direction.
       multi link blog_posts := .<author[is BlogPost]
     }
 
-The ``User.blog_posts`` expression above uses the *backlink operator* ``.<`` in
-conjunction with a *type filter* ``[is BlogPost]`` to fetch all the
-``BlogPosts`` associated with a given ``User``. For details on this syntax, see
-the EdgeQL docs for :ref:`Backlinks <ref_eql_paths_backlinks>`.
-
-Created Timestamp
-^^^^^^^^^^^^^^^^^
-
-Using a computed property, you can timestamp when an object was created in your
-database.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type BlogPost {
-      property title -> str;
-      link author -> User;
-      required property created_at -> datetime {
-        readonly := true;
-        default := datetime_of_statement();
-      }
-    }
-
 .. code-block:: sdl
 
     type BlogPost {
       title: str;
       author: User;
-      required created_at: datetime {
-        readonly := true;
-        default := datetime_of_statement();
-      }
     }
 
-When a ``BlogPost`` is created, :eql:func:`datetime_of_statement` will be
-called to supply it with a timestamp as the ``created_at`` property. You might
-also consider :eql:func:`datetime_of_transaction` if that's better suited to
-your use case.
+    type User {
+      name: str;
+      multi blog_posts := .<author[is BlogPost]
+    }
+
+The ``User.blog_posts`` expression above uses the *backlink operator* ``.<`` in
+conjunction with a *type filter* ``[is BlogPost]`` to fetch all the
+``BlogPosts`` associated with a given ``User``. For details on this syntax, see
+the EdgeQL docs for :ref:`Backlinks <ref_eql_paths_backlinks>`.
 
 
 .. list-table::

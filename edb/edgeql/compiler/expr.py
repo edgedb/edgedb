@@ -27,6 +27,7 @@ from typing import *
 from edb import errors
 
 from edb.common import context as ctx_utils
+from edb.common import parsing
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
@@ -38,16 +39,18 @@ from edb.schema import globals as s_globals
 from edb.schema import indexes as s_indexes
 from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
+from edb.schema import pseudo as s_pseudo
+from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import utils
 
 from . import astutils
 from . import casts
 from . import context
 from . import dispatch
-from . import inference
 from . import pathctx
 from . import setgen
 from . import stmt
@@ -125,6 +128,9 @@ def compile_BinOp(
                 expr.context
             )
             return dispatch.compile(balanced, ctx=ctx)
+
+    if expr.op == '??' and utils.contains_dml(expr.right):
+        return _compile_dml_coalesce(expr, ctx=ctx)
 
     op_node = func.compile_operator(
         expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=ctx)
@@ -298,7 +304,7 @@ def compile_Array(
     ]
     # check that none of the elements are themselves arrays
     for el, expr_el in zip(elements, expr.elements):
-        if isinstance(inference.infer_type(el, ctx.env), s_abc.Array):
+        if isinstance(setgen.get_set_type(el, ctx=ctx), s_abc.Array):
             raise errors.QueryError(
                 f'nested arrays are not supported',
                 context=expr_el.context)
@@ -306,13 +312,193 @@ def compile_Array(
     return setgen.new_array_set(elements, ctx=ctx, srcctx=expr.context)
 
 
+def _compile_dml_coalesce(
+        expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
+    """Transform a coalesce that contains DML into FOR loops
+
+    The basic approach is to extract the pieces from the ?? and
+    rewrite them into:
+        for optional x in (LHS,) union (
+          {
+            x.0,
+            (for _ in (select () filter not exists x) union (RHS)),
+          }
+        )
+
+    Optional for is needed because the LHS needs to be bound in a for
+    in order to get put in a CTE and only executed once, but the RHS
+    needs to be dependent on the LHS being empty.
+
+    We hackily wrap the LHS in a 1-ary tuple and then project it back
+    out because the OPTIONAL FOR implementation doesn't properly
+    handle object-type iterators. OPTIONAL FOR relies on having a
+    non-NULL identity ref but objects use their actual id, which
+    will be NULL.
+    """
+    with ctx.newscope(fenced=False) as subctx:
+        # We have to compile it under a factoring fence to prevent
+        # correlation with outside things. We can't just rely on the
+        # factoring fences inserted when compiling the FORs, since we
+        # are going to need to explicitly exempt the iterator
+        # expression from that.
+        subctx.path_scope.factoring_fence = True
+        subctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
+
+        ir = func.compile_operator(
+            expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=subctx)
+
+        # Extract the IR parts from the ??
+        # Note that lhs_ir will be unfenced while rhs_ir
+        # will have been compiled under fences.
+        match ir.expr:
+            case irast.OperatorCall(args=[
+                irast.CallArg(expr=lhs_ir),
+                irast.CallArg(expr=rhs_ir),
+            ]):
+                pass
+            case _:
+                raise AssertionError('malformed DML ??')
+
+        subctx.anchors = subctx.anchors.copy()
+
+        alias = ctx.aliases.get('b')
+        cond_path = qlast.Path(
+            steps=[qlast.ObjectRef(name=alias)],
+        )
+
+        rhs_b = qlast.ForQuery(
+            iterator_alias='__',
+            iterator=qlast.SelectQuery(
+                result=qlast.Tuple(elements=[]),
+                where=qlast.UnaryOp(
+                    op='NOT',
+                    operand=qlast.UnaryOp(op='EXISTS', operand=cond_path),
+                ),
+            ),
+            result=subctx.create_anchor(rhs_ir, check_dml=True),
+        )
+
+        full = qlast.ForQuery(
+            iterator_alias=alias,
+            iterator=qlast.Tuple(elements=[subctx.create_anchor(lhs_ir, 'b')]),
+            result=qlast.Set(elements=[
+                qlast.Path(steps=[cond_path, qlast.Ptr(name='0')]),
+                rhs_b
+            ]),
+            optional=True,
+            from_desugaring=True,
+        )
+
+        subctx.iterator_path_ids |= {lhs_ir.path_id}
+        res = dispatch.compile(full, ctx=subctx)
+        # Indicate that the original ?? code should determine the
+        # cardinality/multiplicity.
+        res.card_inference_override = ir
+
+        return res
+
+
+def _compile_dml_ifelse(
+        expr: qlast.IfElse, *, ctx: context.ContextLevel) -> irast.Set:
+    """Transform an IF/ELSE that contains DML into FOR loops
+
+    The basic approach is to extract the pieces from the if/then/else and
+    rewrite them into:
+        for b in COND union (
+          {
+            (for _ in (select () filter b) union (IF_BRANCH)),
+            (for _ in (select () filter not b) union (ELSE_BRANCH)),
+          }
+        )
+    """
+
+    with ctx.newscope(fenced=False) as subctx:
+        # We have to compile it under a factoring fence to prevent
+        # correlation with outside things. We can't just rely on the
+        # factoring fences inserted when compiling the FORs, since we
+        # are going to need to explicitly exempt the iterator
+        # expression from that.
+        subctx.path_scope.factoring_fence = True
+        subctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
+
+        ir = func.compile_operator(
+            expr, op_name='std::IF',
+            qlargs=[expr.if_expr, expr.condition, expr.else_expr], ctx=subctx)
+
+        # Extract the IR parts from the IF/THEN/ELSE
+        # Note that cond_ir will be unfenced while if_ir and else_ir
+        # will have been compiled under fences.
+        match ir.expr:
+            case irast.OperatorCall(args=[
+                irast.CallArg(expr=if_ir),
+                irast.CallArg(expr=cond_ir),
+                irast.CallArg(expr=else_ir),
+            ]):
+                pass
+            case _:
+                raise AssertionError('malformed DML IF/ELSE')
+
+        subctx.anchors = subctx.anchors.copy()
+
+        alias = ctx.aliases.get('b')
+        cond_path = qlast.Path(
+            steps=[qlast.ObjectRef(name=alias)],
+        )
+
+        els: list[qlast.Expr] = []
+
+        if not isinstance(irutils.unwrap_set(if_ir), irast.EmptySet):
+            if_b = qlast.ForQuery(
+                iterator_alias='__',
+                iterator=qlast.SelectQuery(
+                    result=qlast.Tuple(elements=[]),
+                    where=cond_path,
+                ),
+                result=subctx.create_anchor(if_ir, check_dml=True),
+            )
+            els.append(if_b)
+
+        if not isinstance(irutils.unwrap_set(else_ir), irast.EmptySet):
+            else_b = qlast.ForQuery(
+                iterator_alias='__',
+                iterator=qlast.SelectQuery(
+                    result=qlast.Tuple(elements=[]),
+                    where=qlast.UnaryOp(op='NOT', operand=cond_path),
+                ),
+                result=subctx.create_anchor(else_ir, check_dml=True),
+            )
+            els.append(else_b)
+
+        full = qlast.ForQuery(
+            iterator_alias=alias,
+            iterator=subctx.create_anchor(cond_ir, 'b'),
+            result=qlast.Set(elements=els) if len(els) != 1 else els[0],
+        )
+
+        subctx.iterator_path_ids |= {cond_ir.path_id}
+        res = dispatch.compile(full, ctx=subctx)
+        # Indicate that the original IF/ELSE code should determine the
+        # cardinality/multiplicity.
+        res.card_inference_override = ir
+
+        return res
+
+
 @dispatch.compile.register(qlast.IfElse)
 def compile_IfElse(
         expr: qlast.IfElse, *, ctx: context.ContextLevel) -> irast.Set:
 
-    return func.compile_operator(
+    if (
+        utils.contains_dml(expr.if_expr)
+        or utils.contains_dml(expr.else_expr)
+    ):
+        return _compile_dml_ifelse(expr, ctx=ctx)
+
+    res = func.compile_operator(
         expr, op_name='std::IF',
         qlargs=[expr.if_expr, expr.condition, expr.else_expr], ctx=ctx)
+
+    return res
 
 
 @dispatch.compile.register(qlast.UnaryOp)
@@ -401,7 +587,6 @@ def compile_GlobalExpr(
 def compile_TypeCast(
         expr: qlast.TypeCast, *, ctx: context.ContextLevel) -> irast.Set:
     target_stype = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
-    target_typeref = typegen.type_to_typeref(target_stype, env=ctx.env)
     ir_expr: Union[irast.Set, irast.Expr]
 
     if isinstance(expr.expr, qlast.Parameter):
@@ -492,14 +677,7 @@ def compile_TypeCast(
             subctx.implicit_tid_in_shapes = False
             subctx.implicit_tname_in_shapes = False
 
-        if (
-            isinstance(expr.expr, qlast.Array)
-            and not expr.expr.elements
-            and irtyputils.is_array(target_typeref)
-        ):
-            ir_expr = irast.Array(elements=[], typeref=target_typeref)
-        else:
-            ir_expr = dispatch.compile(expr.expr, ctx=subctx)
+        ir_expr = dispatch.compile(expr.expr, ctx=subctx)
 
         res = casts.compile_cast(
             ir_expr,
@@ -510,6 +688,34 @@ def compile_TypeCast(
         )
 
     return stmt.maybe_add_view(res, ctx=ctx)
+
+
+def _infer_type_introspection(
+    typeref: irast.TypeRef,
+    env: context.Environment,
+    srcctx: Optional[parsing.ParserContext]=None,
+) -> s_types.Type:
+    if irtyputils.is_scalar(typeref):
+        return cast(s_objtypes.ObjectType,
+                    env.schema.get('schema::ScalarType'))
+    elif irtyputils.is_object(typeref):
+        return cast(s_objtypes.ObjectType,
+                    env.schema.get('schema::ObjectType'))
+    elif irtyputils.is_array(typeref):
+        return cast(s_objtypes.ObjectType,
+                    env.schema.get('schema::Array'))
+    elif irtyputils.is_tuple(typeref):
+        return cast(s_objtypes.ObjectType,
+                    env.schema.get('schema::Tuple'))
+    elif irtyputils.is_range(typeref):
+        return cast(s_objtypes.ObjectType,
+                    env.schema.get('schema::Range'))
+    elif irtyputils.is_multirange(typeref):
+        return cast(s_objtypes.ObjectType,
+                    env.schema.get('schema::MultiRange'))
+    else:
+        raise errors.QueryError(
+            'unexpected type in INTROSPECT', context=srcctx)
 
 
 @dispatch.compile.register(qlast.Introspect)
@@ -541,8 +747,137 @@ def compile_Introspect(
             f'cannot introspect generic types',
             context=expr.type.context)
 
-    ir = setgen.ensure_set(irast.TypeIntrospection(typeref=typeref), ctx=ctx)
+    result_typeref = typegen.type_to_typeref(
+        _infer_type_introspection(typeref, ctx.env, expr.context), env=ctx.env
+    )
+    ir = setgen.ensure_set(
+        irast.TypeIntrospection(output_typeref=typeref, typeref=result_typeref),
+        ctx=ctx,
+    )
     return stmt.maybe_add_view(ir, ctx=ctx)
+
+
+def _infer_index_type(
+    expr: irast.Set | irast.Expr,
+    index: irast.Set,
+    *, ctx: context.ContextLevel,
+) -> s_types.Type:
+    env = ctx.env
+    node_type = setgen.get_expr_type(expr, ctx=ctx)
+    index_type = setgen.get_set_type(index, ctx=ctx)
+
+    str_t = env.schema.get('std::str', type=s_scalars.ScalarType)
+    bytes_t = env.schema.get('std::bytes', type=s_scalars.ScalarType)
+    int_t = env.schema.get('std::int64', type=s_scalars.ScalarType)
+    json_t = env.schema.get('std::json', type=s_scalars.ScalarType)
+
+    result: s_types.Type
+
+    if node_type.issubclass(env.schema, str_t):
+
+        if not index_type.implicitly_castable_to(int_t, env.schema):
+            raise errors.QueryError(
+                f'cannot index string by '
+                f'{index_type.get_displayname(env.schema)}, '
+                f'{int_t.get_displayname(env.schema)} was expected',
+                context=index.context)
+
+        result = str_t
+
+    elif node_type.issubclass(env.schema, bytes_t):
+
+        if not index_type.implicitly_castable_to(int_t, env.schema):
+            raise errors.QueryError(
+                f'cannot index bytes by '
+                f'{index_type.get_displayname(env.schema)}, '
+                f'{int_t.get_displayname(env.schema)} was expected',
+                context=index.context)
+
+        result = bytes_t
+
+    elif node_type.issubclass(env.schema, json_t):
+
+        if not (index_type.implicitly_castable_to(int_t, env.schema) or
+                index_type.implicitly_castable_to(str_t, env.schema)):
+
+            raise errors.QueryError(
+                f'cannot index json by '
+                f'{index_type.get_displayname(env.schema)}, '
+                f'{int_t.get_displayname(env.schema)} or '
+                f'{str_t.get_displayname(env.schema)} was expected',
+                context=index.context)
+
+        result = json_t
+
+    elif isinstance(node_type, s_types.Array):
+
+        if not index_type.implicitly_castable_to(int_t, env.schema):
+            raise errors.QueryError(
+                f'cannot index array by '
+                f'{index_type.get_displayname(env.schema)}, '
+                f'{int_t.get_displayname(env.schema)} was expected',
+                context=index.context)
+
+        result = node_type.get_subtypes(env.schema)[0]
+
+    elif (node_type.is_any(env.schema) or
+            (node_type.is_scalar() and
+                str(node_type.get_name(env.schema)) == 'std::anyscalar') and
+            (index_type.implicitly_castable_to(int_t, env.schema) or
+                index_type.implicitly_castable_to(str_t, env.schema))):
+        result = s_pseudo.PseudoType.get(env.schema, 'anytype')
+
+    else:
+        raise errors.QueryError(
+            f'index indirection cannot be applied to '
+            f'{node_type.get_verbosename(env.schema)}',
+            context=expr.context)
+
+    return result
+
+
+def _infer_slice_type(
+    expr: irast.Set,
+    start: Optional[irast.Set],
+    stop: Optional[irast.Set],
+    *, ctx: context.ContextLevel,
+) -> s_types.Type:
+    env = ctx.env
+    node_type = setgen.get_set_type(expr, ctx=ctx)
+
+    str_t = env.schema.get('std::str', type=s_scalars.ScalarType)
+    int_t = env.schema.get('std::int64', type=s_scalars.ScalarType)
+    json_t = env.schema.get('std::json', type=s_scalars.ScalarType)
+    bytes_t = env.schema.get('std::bytes', type=s_scalars.ScalarType)
+
+    if node_type.issubclass(env.schema, str_t):
+        base_name = 'string'
+    elif node_type.issubclass(env.schema, json_t):
+        base_name = 'JSON array'
+    elif node_type.issubclass(env.schema, bytes_t):
+        base_name = 'bytes'
+    elif isinstance(node_type, s_abc.Array):
+        base_name = 'array'
+    elif node_type.is_any(env.schema):
+        base_name = 'anytype'
+    else:
+        # the base type is not valid
+        raise errors.QueryError(
+            f'{node_type.get_verbosename(env.schema)} cannot be sliced',
+            context=expr.context)
+
+    for index in [start, stop]:
+        if index is not None:
+            index_type = setgen.get_set_type(index, ctx=ctx)
+
+            if not index_type.implicitly_castable_to(int_t, env.schema):
+                raise errors.QueryError(
+                    f'cannot slice {base_name} by '
+                    f'{index_type.get_displayname(env.schema)}, '
+                    f'{int_t.get_displayname(env.schema)} was expected',
+                    context=index.context)
+
+    return node_type
 
 
 @dispatch.compile.register(qlast.Indirection)
@@ -554,10 +889,13 @@ def compile_Indirection(
         if isinstance(indirection_el, qlast.Index):
             idx = dispatch.compile(indirection_el.index, ctx=ctx)
             idx.context = indirection_el.index.context
-            node = irast.IndexIndirection(
-                expr=node, index=idx, context=expr.context
+            typeref = typegen.type_to_typeref(
+                _infer_index_type(node, idx, ctx=ctx), env=ctx.env
             )
 
+            node = irast.IndexIndirection(
+                expr=node, index=idx, typeref=typeref, context=expr.context
+            )
         elif isinstance(indirection_el, qlast.Slice):
             start: Optional[irast.Base]
             stop: Optional[irast.Base]
@@ -573,8 +911,11 @@ def compile_Indirection(
                 stop = None
 
             node_set = setgen.ensure_set(node, ctx=ctx)
+            typeref = typegen.type_to_typeref(
+                _infer_slice_type(node_set, start, stop, ctx=ctx), env=ctx.env
+            )
             node = irast.SliceIndirection(
-                expr=node_set, start=start, stop=stop
+                expr=node_set, start=start, stop=stop, typeref=typeref,
             )
         else:
             raise ValueError(
@@ -610,8 +951,14 @@ def compile_type_check_op(
         )
         result = ltype.issubclass(ctx.env.schema, test_type)
 
+    output_typeref = typegen.type_to_typeref(
+        ctx.env.schema.get('std::bool', type=s_types.Type),
+        env=ctx.env,
+    )
+
     return irast.TypeCheckOp(
-        left=left, right=typeref, op=expr.op, result=result)
+        left=left, right=typeref, op=expr.op, result=result,
+        typeref=output_typeref)
 
 
 def flatten_set(expr: qlast.Set) -> List[qlast.Expr]:

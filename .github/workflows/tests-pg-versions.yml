@@ -317,25 +317,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        postgres-version: [ 14 ]
+        postgres-version: [ 16 ]
         single-mode:
          - ''
          - 'NOCREATEDB NOCREATEROLE'
          - 'CREATEDB NOCREATEROLE'
         multi-tenant-mode: [ '' ]
         include:
-          - postgres-version: 13
+          - postgres-version: 14
             single-mode: ''
             multi-tenant-mode: ''
-          - postgres-version: 14
-            single-mode: ''
-            multi-tenant-mode: 'remote-compiler'
-          - postgres-version: 14
-            single-mode: ''
-            multi-tenant-mode: 'multi-tenant'
           - postgres-version: 15
             single-mode: ''
             multi-tenant-mode: ''
+          - postgres-version: 16
+            single-mode: ''
+            multi-tenant-mode: 'remote-compiler'
+          - postgres-version: 16
+            single-mode: ''
+            multi-tenant-mode: 'multi-tenant'
     services:
       postgres:
         image: fantix/pgvector:${{ matrix.postgres-version }}
@@ -522,3 +522,23 @@ jobs:
         else
           edb test -j2 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
         fi
+
+
+  workflow-notifications:
+    if: failure() && github.event_name != 'pull_request'
+    name: Notify in Slack on failures
+    needs:
+      - build
+      - test
+    runs-on: ubuntu-latest
+    permissions:
+      actions: 'read'
+    steps:
+      - name: Slack Workflow Notification
+        uses: Gamesight/slack-workflow-status@26a36836c887f260477432e4314ec3490a84f309
+        with:
+          repo_token: ${{secrets.GITHUB_TOKEN}}
+          slack_webhook_url: ${{secrets.ACTIONS_SLACK_WEBHOOK_URL}}
+          name: 'Workflow notifications'
+          icon_emoji: ':hammer:'
+          include_jobs: 'on-failure'

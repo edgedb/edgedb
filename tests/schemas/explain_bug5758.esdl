@@ -17,23 +17,37 @@
 #
 
 
-from __future__ import annotations
+# Schema for bug #5758
+type User {
+    required name: str;
+};
 
-from edb.common import parsing
+type Album extending TimeTrackedEntity {
+    required name: str;
 
-from .expressions import Nonterm
-from .expressions import *  # NOQA
-from .precedence import *  # NOQA
-from .tokens import *  # NOQA
+    multi link tracks: Track {
+        position: int16;
+    };
+};
 
+type Track extending TimeTrackedEntity {
+    required name: str;
+    multi link artists: Artist;
+    multi link liked_by: User;
+};
 
-class ExpressionFragment(Nonterm):
-    "%start"
+type Artist extending TimeTrackedEntity {
+    required name: str;
+    required stream_count: int64;
+    required follower_count: int64;
+};
 
-    @parsing.inline(0)
-    def reduce_ExprStmt_EOF(self, *kids):
-        pass
+abstract type TimeTrackedEntity {
+    created: datetime {
+        rewrite insert using (datetime_of_statement())
+    };
 
-    @parsing.inline(0)
-    def reduce_Expr_EOF(self, *kids):
-        pass
+    modified: datetime {
+        rewrite update using (datetime_of_statement())
+    };
+};

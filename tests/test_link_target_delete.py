@@ -284,6 +284,29 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
         self.assertTrue(success)
 
+    async def test_link_on_target_delete_restrict_08(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                INSERT Target1 {
+                    name := 'Target1.1'
+                };
+
+                INSERT Source1 {
+                    name := 'Source1.1',
+                    tgt_union_restrict := (
+                        SELECT Target1
+                        FILTER .name = 'Target1.1'
+                    )
+                };
+            """)
+
+            with self.assertRaisesRegex(
+                    edgedb.ConstraintViolationError,
+                    'deletion of default::Target1.* is prohibited by link'):
+                await self.con.execute("""
+                    DELETE (SELECT Target1 FILTER .name = 'Target1.1');
+                """)
+
     async def test_link_on_target_delete_deferred_restrict_01(self):
         exception_is_deferred = False
 
@@ -996,6 +1019,36 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 r'''
                     SELECT
                         ChildSource1
+                    FILTER
+                        .name = 'Source1.1';
+                ''',
+                []
+            )
+
+    async def test_link_on_target_delete_delete_source_06(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                INSERT Target1 {
+                    name := 'Target1.1'
+                };
+
+                INSERT Source1 {
+                    name := 'Source1.1',
+                    tgt_union_m2m_del_source := (
+                        SELECT Target1
+                        FILTER .name = 'Target1.1'
+                    )
+                };
+            """)
+
+            await self.con.execute("""
+                DELETE (SELECT Target1 FILTER .name = 'Target1.1');
+            """)
+
+            await self.assert_query_result(
+                r'''
+                    SELECT
+                        Source1
                     FILTER
                         .name = 'Source1.1';
                 ''',

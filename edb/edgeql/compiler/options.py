@@ -69,6 +69,9 @@ class GlobalCompilerOptions:
     #: this contains the type of the schema object.
     schema_object_context: Optional[Type[s_obj.Object]] = None
 
+    #: When compiling a function body, the function name.
+    func_name: Optional[s_name.QualName] = None
+
     #: When compiling a function body, specifies function parameter
     #: definitions.
     func_params: Optional[s_func.ParameterLikeList] = None
@@ -85,9 +88,6 @@ class GlobalCompilerOptions:
     #: Whether to just treat all globals as empty instead of compiling them
     make_globals_empty: bool = False
 
-    #: Is this a dev instance of the compiler
-    devmode: bool = False
-
     #: Is the compiler running in testmode
     testmode: bool = False
 
@@ -96,6 +96,9 @@ class GlobalCompilerOptions:
 
     # are we invoking the compiler from inside a CONFIGURE?
     in_server_config_op: bool = False
+
+    # This this restoring a dump?
+    dump_restore_mode: bool = False
 
 
 @dataclass

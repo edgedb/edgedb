@@ -20,6 +20,7 @@
 import json
 import os
 import uuid
+import urllib
 
 import edgedb
 
@@ -33,6 +34,9 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
 
     SCHEMA_OTHER = os.path.join(os.path.dirname(__file__), 'schemas',
                                 'graphql_other.esdl')
+
+    SCHEMA_OTHER_DEEP = os.path.join(os.path.dirname(__file__), 'schemas',
+                                     'graphql_schema_other_deep.esdl')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'graphql_setup.edgeql')
@@ -52,7 +56,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                         }
                     '''
                 }
-                data, headers, status = self.http_con_request(con, req1_data)
+                data, headers, status = self.http_con_request(
+                    con, req1_data,
+                    headers={
+                        'Authorization': self.make_auth_header(),
+                    },
+                )
                 self.assertEqual(status, 200)
                 self.assertNotIn('connection', headers)
                 self.assertEqual(
@@ -72,7 +81,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                         }
                     '''
                 }
-                data, headers, status = self.http_con_request(con, req2_data)
+                data, headers, status = self.http_con_request(
+                    con, req2_data,
+                    headers={
+                        'Authorization': self.make_auth_header(),
+                    },
+                )
                 self.assertEqual(status, 200)
                 self.assertNotIn('connection', headers)
                 self.assertEqual(
@@ -85,7 +99,11 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_http_errors_01(self):
         with self.http_con() as con:
             data, headers, status = self.http_con_request(
-                con, {}, path='non-existant')
+                con, {}, path='non-existant',
+                headers={
+                    'Authorization': self.make_auth_header(),
+                },
+            )
 
             self.assertEqual(status, 404)
             self.assertEqual(headers['connection'], 'close')
@@ -96,7 +114,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
 
     def test_graphql_http_errors_02(self):
         with self.http_con() as con:
-            data, headers, status = self.http_con_request(con, {})
+            data, headers, status = self.http_con_request(
+                con, {},
+                headers={
+                    'Authorization': self.make_auth_header(),
+                },
+            )
 
             self.assertEqual(status, 400)
             self.assertEqual(headers['connection'], 'close')
@@ -108,7 +131,11 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_http_errors_03(self):
         with self.http_con() as con:
             data, headers, status = self.http_con_request(
-                con, {'query': 'blah', 'variables': 'bazz'})
+                con, {'query': 'blah', 'variables': 'bazz'},
+                headers={
+                    'Authorization': self.make_auth_header(),
+                },
+            )
 
             self.assertEqual(status, 400)
             self.assertEqual(headers['connection'], 'close')
@@ -121,7 +148,11 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         with self.http_con() as con:
             con.send(b'blah\r\n\r\n\r\n\r\n')
             data, headers, status = self.http_con_request(
-                con, {'query': 'blah', 'variables': 'bazz'})
+                con, {'query': 'blah', 'variables': 'bazz'},
+                headers={
+                    'Authorization': self.make_auth_header(),
+                },
+            )
 
             self.assertEqual(status, 400)
             self.assertEqual(headers['connection'], 'close')
@@ -613,6 +644,42 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                         'score': 3.14,
                     },
                 ]
+            }],
+        })
+
+    def test_graphql_functional_query_22(self):
+        # get an object that has a bunch of readonly properties
+        self.assert_graphql_query_result(r"""
+            query {
+                NotEditable {
+                    __typename
+                    id
+                    computed
+                    once
+                }
+            }
+        """, {
+            'NotEditable': [{
+                '__typename': 'NotEditable_Type',
+                'id': uuid.UUID,
+                'computed': 'a computed value',
+                'once': 'init',
+            }],
+        })
+
+    def test_graphql_functional_query_23(self):
+        # get an object from a deeply nested module
+        self.assert_graphql_query_result(r"""
+            query {
+                other__deep__NestedMod {
+                    __typename
+                    val
+                }
+            }
+        """, {
+            'other__deep__NestedMod': [{
+                '__typename': 'other__deep__NestedMod_Type',
+                'val': 'in nested module',
             }],
         })
 
@@ -1759,7 +1826,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_fragment_type_01(self):
+    def test_graphql_functional_fragment_06(self):
         self.assert_graphql_query_result(r"""
             fragment userFrag on User {
                 id,
@@ -1778,7 +1845,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_fragment_type_02(self):
+    def test_graphql_functional_fragment_07(self):
         self.assert_graphql_query_result(r"""
             fragment namedFrag on NamedObject {
                 id,
@@ -1797,7 +1864,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_fragment_type_03(self):
+    def test_graphql_functional_fragment_08(self):
         self.assert_graphql_query_result(r"""
             fragment namedFrag on NamedObject {
                 id,
@@ -1822,7 +1889,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_fragment_type_04(self):
+    def test_graphql_functional_fragment_09(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"Fragment 'userFrag' cannot be spread here "
@@ -1841,7 +1908,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    def test_graphql_functional_fragment_type_05(self):
+    def test_graphql_functional_fragment_10(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"Fragment 'userFrag' cannot be spread here "
@@ -1867,7 +1934,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    def test_graphql_functional_fragment_type_06(self):
+    def test_graphql_functional_fragment_11(self):
         self.assert_graphql_query_result(r"""
             fragment userFrag on User {
                 age
@@ -1901,7 +1968,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         }, sort=lambda x: x['name'])
 
-    def test_graphql_functional_fragment_type_07(self):
+    def test_graphql_functional_fragment_12(self):
         self.assert_graphql_query_result(r"""
             fragment frag on NamedObject {
                 id,
@@ -1934,7 +2001,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         }, sort=lambda x: x['name'])
 
-    def test_graphql_functional_fragment_type_08(self):
+    def test_graphql_functional_fragment_13(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 "Cannot query field 'age' on type 'NamedObject'",
@@ -1953,7 +2020,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    def test_graphql_functional_fragment_type_09(self):
+    def test_graphql_functional_fragment_14(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 "Cannot query field 'age' on type 'NamedObject'",
@@ -1970,7 +2037,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    def test_graphql_functional_fragment_type_10(self):
+    def test_graphql_functional_fragment_15(self):
         self.assert_graphql_query_result(r"""
             fragment namedFrag on NamedObject {
                 id,
@@ -2008,7 +2075,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         }, sort=lambda x: x['name'])
 
-    def test_graphql_functional_fragment_type_11(self):
+    def test_graphql_functional_fragment_16(self):
         self.assert_graphql_query_result(r"""
             fragment namedFrag on NamedObject {
                 id,
@@ -2038,7 +2105,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )
-    def test_graphql_functional_fragment_type_12(self):
+    def test_graphql_functional_fragment_17(self):
         self.assert_graphql_query_result(r"""
             query {
                 NamedObject(order: {name: {dir: ASC}}) {
@@ -2068,7 +2135,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    def test_graphql_functional_fragment_type_13(self):
+    def test_graphql_functional_fragment_18(self):
         # ISSUE #1800
         #
         # After using a typed inline fragment the nested fields or
@@ -2096,7 +2163,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_fragment_type_14(self):
+    def test_graphql_functional_fragment_19(self):
         # ISSUE #1800
         #
         # After using a typed inline fragment the nested fields or
@@ -2126,7 +2193,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_fragment_type_15(self):
+    def test_graphql_functional_fragment_20(self):
         # ISSUE #1800
         #
         # After using a typed inline fragment the nested fields or
@@ -2174,7 +2241,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_fragment_type_16(self):
+    def test_graphql_functional_fragment_21(self):
         # ISSUE #1800
         #
         # After using a typed inline fragment the nested fields or
@@ -2226,7 +2293,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_fragment_type_17(self):
+    def test_graphql_functional_fragment_22(self):
         # ISSUE #1800
         #
         # After using a typed inline fragment the nested fields or
@@ -2256,7 +2323,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_fragment_type_18(self):
+    def test_graphql_functional_fragment_23(self):
         # ISSUE #3514
         #
         # Fragment on the actual type should also work.
@@ -2279,6 +2346,82 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 'profile': {
                     'value': 'special',
                 }
+            }],
+        })
+
+    def test_graphql_functional_fragment_24(self):
+        # ISSUE #5985
+        #
+        # Types from non-default module should be recognized in fragments.
+        self.assert_graphql_query_result(r"""
+            fragment myFrag on other__Foo {
+                id,
+                color,
+            }
+
+            query {
+                other__Foo(filter: {color: {eq: RED}}) {
+                    ... myFrag
+                }
+            }
+        """, {
+            'other__Foo': [{
+                'id': uuid.UUID,
+                'color': 'RED',
+            }],
+        })
+
+        self.assert_graphql_query_result(r"""
+            fragment myFrag on other__Foo_Type {
+                id,
+                color,
+            }
+
+            query {
+                other__Foo(filter: {color: {eq: RED}}) {
+                    ... myFrag
+                }
+            }
+        """, {
+            'other__Foo': [{
+                'id': uuid.UUID,
+                'color': 'RED',
+            }],
+        })
+
+    def test_graphql_functional_fragment_25(self):
+        # ISSUE #5985
+        #
+        # Types from non-default module should be recognized in fragments.
+        self.assert_graphql_query_result(r"""
+            query {
+                other__Foo(filter: {color: {eq: RED}}) {
+                    ... on other__Foo {
+                        id,
+                        color,
+                    }
+                }
+            }
+        """, {
+            'other__Foo': [{
+                'id': uuid.UUID,
+                'color': 'RED',
+            }],
+        })
+
+        self.assert_graphql_query_result(r"""
+            query {
+                other__Foo(filter: {color: {eq: RED}}) {
+                    ... on other__Foo_Type {
+                        id,
+                        color,
+                    }
+                }
+            }
+        """, {
+            'other__Foo': [{
+                'id': uuid.UUID,
+                'color': 'RED',
             }],
         })
 
@@ -2519,6 +2662,22 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 {"bar": "Person_Type", "name": "Bob"},
                 {"bar": "User_Type", "name": "Jane"},
                 {"bar": "User_Type", "name": "John"},
+            ]
+        })
+
+    def test_graphql_functional_typename_04(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                other__Foo(order: {color: {dir: ASC}}) {
+                    __typename
+                    color
+                }
+            }
+        """, {
+            "other__Foo": [
+                {"__typename": "other__Foo_Type", "color": "RED"},
+                {"__typename": "other__Foo_Type", "color": "GREEN"},
+                {"__typename": "other__Foo_Type", "color": "BLUE"},
             ]
         })
 
@@ -4292,6 +4451,50 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                     }],
                 },
                 use_http_post=use_http_post,
+                deprecated_globals={
+                    'default::test_global_str': "WOO",
+                    'default::test_global_id': (
+                        '84ed3d8b-5eb2-4d31-9e1e-efb66180445c'),
+                    'default::test_global_def': None,
+                    'default::test_global_def2': None,
+                    'default::test_global_array': ['x', 'y', 'z'],
+                },
+            )
+
+            self.assert_graphql_query_result(
+                Q,
+                {'GlobalTest': [{'gdef': 'x', 'gdef2': 'x'}]},
+                use_http_post=use_http_post,
+                deprecated_globals={
+                    'default::test_global_def': 'x',
+                    'default::test_global_def2': 'x',
+                },
+            )
+
+            self.assert_graphql_query_result(
+                Q,
+                {'GlobalTest': [
+                    {'gstr': None, 'garray': None, 'gid': None,
+                     'gdef': '', 'gdef2': ''}
+                ]},
+                use_http_post=use_http_post,
+            )
+
+    def test_graphql_globals_02(self):
+        Q = r'''query { GlobalTest { gstr, garray, gid, gdef, gdef2 } }'''
+
+        for use_http_post in [True, False]:
+            self.assert_graphql_query_result(
+                Q,
+                {
+                    "GlobalTest": [{
+                        'gstr': 'WOO',
+                        'gid': '84ed3d8b-5eb2-4d31-9e1e-efb66180445c',
+                        'gdef': '',
+                        'gdef2': None, 'garray': ['x', 'y', 'z']
+                    }],
+                },
+                use_http_post=use_http_post,
                 globals={
                     'default::test_global_str': "WOO",
                     'default::test_global_id': (
@@ -4320,6 +4523,83 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 ]},
                 use_http_post=use_http_post,
             )
+
+    def test_graphql_globals_03(self):
+        Q = r'''query { GlobalTest { gstr, garray, gid, gdef, gdef2 } }'''
+
+        # Test that globals work fine if both the deprecated way and the new
+        # way are used and the values match.
+        for use_http_post in [True, False]:
+            self.assert_graphql_query_result(
+                Q,
+                {'GlobalTest': [{'gdef': 'x', 'gdef2': 'x'}]},
+                use_http_post=use_http_post,
+                globals={
+                    'default::test_global_def': 'x',
+                    'default::test_global_def2': 'x',
+                },
+                deprecated_globals={
+                    'default::test_global_def': 'x',
+                    'default::test_global_def2': 'x',
+                },
+            )
+
+    def test_graphql_globals_04(self):
+        Q = r'''query { GlobalTest { gstr, garray, gid, gdef, gdef2 } }'''
+
+        # Test that globals must match if two ways are used to specify them.
+        for use_http_post in [True, False]:
+            with self.assertRaises(
+                urllib.error.HTTPError,
+            ):
+                self.assert_graphql_query_result(
+                    Q,
+                    {'GlobalTest': [{'gdef': 'x', 'gdef2': 'x'}]},
+                    use_http_post=use_http_post,
+                    globals={
+                        'default::test_global_def': 'x',
+                        'default::test_global_def2': 'x',
+                    },
+                    deprecated_globals={
+                        'default::test_global_def': 'not x',
+                        'default::test_global_def2': 'not x',
+                    },
+                )
+
+    def test_graphql_globals_05(self):
+        Q = r'''query { GlobalTest { gstr, garray, gid, gdef, gdef2 } }'''
+
+        # Test that globals must match if two ways are used to specify them,
+        # even if one of these is an empty dict.
+        for use_http_post in [True, False]:
+            with self.assertRaises(
+                urllib.error.HTTPError,
+            ):
+                self.assert_graphql_query_result(
+                    Q,
+                    {'GlobalTest': [{'gdef': 'x', 'gdef2': 'x'}]},
+                    use_http_post=use_http_post,
+                    globals={
+                        'default::test_global_def': 'x',
+                        'default::test_global_def2': 'x',
+                    },
+                    deprecated_globals={},
+                )
+
+        for use_http_post in [True, False]:
+            with self.assertRaises(
+                urllib.error.HTTPError,
+            ):
+                self.assert_graphql_query_result(
+                    Q,
+                    {'GlobalTest': [{'gdef': 'x', 'gdef2': 'x'}]},
+                    use_http_post=use_http_post,
+                    globals={},
+                    deprecated_globals={
+                        'default::test_global_def': 'x',
+                        'default::test_global_def2': 'x',
+                    },
+                )
 
     def test_graphql_func_01(self):
         Q = r'''query { FuncTest { fstr } }'''

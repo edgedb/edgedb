@@ -104,9 +104,7 @@ def compile_and_apply_ddl_stmt(
                             qlast.ObjectRef(
                                 name='MigrationGeneratedBy', module='schema'
                             ),
-                            qlast.Ptr(
-                                ptr=qlast.ObjectRef(name='DDLStatement')
-                            ),
+                            qlast.Ptr(name='DDLStatement'),
                         ]
                     ),
                 )
@@ -689,6 +687,8 @@ def _describe_current_migration(
             else:
                 proposed_desc = None
 
+        extra = {}
+
         complete = False
         if proposed_desc is None:
             diff = s_ddl.delta_schemas(schema, mstate.target_schema)
@@ -696,6 +696,8 @@ def _describe_current_migration(
             if debug.flags.delta_plan and not complete:
                 debug.header('DESCRIBE CURRENT MIGRATION AS JSON mismatch')
                 debug.dump(diff)
+            if not complete:
+                extra['debug_diff'] = debug.dumps(diff)
 
         desc = (
             json.dumps(
@@ -708,6 +710,7 @@ def _describe_current_migration(
                     'complete': complete,
                     'confirmed': confirmed,
                     'proposed': proposed_desc,
+                    **extra,
                 }
             )
             .encode('unicode_escape')

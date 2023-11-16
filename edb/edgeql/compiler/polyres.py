@@ -262,6 +262,18 @@ def try_bind_call_args(
                 # refine our resolved_poly_base_type to be that as the
                 # more general case.
                 resolved_poly_base_type = ct
+            else:
+                # Try resolving a polymorphic argument type against the
+                # resolved base type. This lets us handle cases like
+                #  - if b then x else {}
+                #  - if b then [1] else []
+                # Though it is still unfortunately not smart enough
+                # to handle the reverse case.
+                if resolved.is_polymorphic(schema):
+                    ct = resolved.resolve_polymorphic(
+                        schema, resolved_poly_base_type)
+
+            if ct is not None:
                 return s_types.MAX_TYPE_DISTANCE if is_abstract else 0
             else:
                 return -1
@@ -566,7 +578,6 @@ def compile_arg(
     arg_ql: qlast.Expr,
     typemod: ft.TypeModifier,
     *,
-    in_conditional: bool=False,
     prefer_subquery_args: bool=False,
     ctx: context.ContextLevel,
 ) -> irast.Set:
@@ -583,9 +594,6 @@ def compile_arg(
 
     new = ctx.newscope(fenced=False) if branched else ctx.new()
     with new as argctx:
-        if in_conditional:
-            argctx.disallow_dml = "inside conditional expressions"
-
         if optional:
             argctx.path_scope.mark_as_optional()
 

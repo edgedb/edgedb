@@ -37,14 +37,9 @@ bag = assert_data_shape.bag
 
 
 class BaseHttpExtensionTest(server.QueryTestCase):
-
-    @classmethod
-    def get_extension_name(cls):
-        raise NotImplementedError
-
     @classmethod
     def get_extension_path(cls):
-        return cls.get_extension_name()
+        raise NotImplementedError
 
     @classmethod
     def get_api_prefix(cls):
@@ -53,28 +48,18 @@ class BaseHttpExtensionTest(server.QueryTestCase):
         return f'/db/{dbname}/{extpath}'
 
     @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-
-        extname = cls.get_extension_name()
-        cls.loop.run_until_complete(
-            cls.con.execute(f'CREATE EXTENSION {extname};')
-        )
-
-    @classmethod
     def tearDownClass(cls):
-        extname = cls.get_extension_name()
-        cls.loop.run_until_complete(
-            cls.con.execute(f'DROP EXTENSION {extname};')
-        )
+        # This isn't really necessary but helps test extension dropping
+        for extname in reversed(cls.EXTENSIONS):
+            cls.loop.run_until_complete(
+                cls.con.execute(f'DROP EXTENSION {extname};')
+            )
         super().tearDownClass()
 
 
 class ExtAuthTestCase(BaseHttpExtensionTest):
 
-    @classmethod
-    def get_extension_name(cls):
-        return 'auth'
+    EXTENSIONS = ['pgcrypto', 'auth']
 
     @classmethod
     def get_extension_path(cls):
@@ -83,9 +68,7 @@ class ExtAuthTestCase(BaseHttpExtensionTest):
 
 class EdgeQLTestCase(BaseHttpExtensionTest):
 
-    @classmethod
-    def get_extension_name(cls):
-        return 'edgeql_http'
+    EXTENSIONS = ['edgeql_http']
 
     @classmethod
     def get_extension_path(cls):
@@ -104,6 +87,7 @@ class EdgeQLTestCase(BaseHttpExtensionTest):
                 req_data['globals'] = globals
             req = urllib.request.Request(self.http_addr, method='POST')
             req.add_header('Content-Type', 'application/json')
+            req.add_header('Authorization', self.make_auth_header())
             response = urllib.request.urlopen(
                 req, json.dumps(req_data).encode(), context=self.tls_context
             )
@@ -113,8 +97,12 @@ class EdgeQLTestCase(BaseHttpExtensionTest):
                 req_data['variables'] = json.dumps(variables)
             if globals is not None:
                 req_data['globals'] = json.dumps(globals)
-            response = urllib.request.urlopen(
+            req = urllib.request.Request(
                 f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}',
+            )
+            req.add_header('Authorization', self.make_auth_header())
+            response = urllib.request.urlopen(
+                req,
                 context=self.tls_context,
             )
             resp_data = json.loads(response.read())
@@ -153,14 +141,17 @@ class EdgeQLTestCase(BaseHttpExtensionTest):
 
 class GraphQLTestCase(BaseHttpExtensionTest):
 
+    EXTENSIONS = ['graphql']
+
     @classmethod
-    def get_extension_name(cls):
+    def get_extension_path(cls):
         return 'graphql'
 
     def graphql_query(self, query, *, operation_name=None,
                       use_http_post=True,
                       variables=None,
-                      globals=None):
+                      globals=None,
+                      deprecated_globals=None):
         req_data = {
             'query': query
         }
@@ -172,20 +163,36 @@ class GraphQLTestCase(BaseHttpExtensionTest):
             if variables is not None:
                 req_data['variables'] = variables
             if globals is not None:
-                req_data['globals'] = globals
+                if variables is None:
+                    req_data['variables'] = dict()
+                req_data['variables']['__globals__'] = globals
+            # Support testing the old way of sending globals.
+            if deprecated_globals is not None:
+                req_data['globals'] = deprecated_globals
+
             req = urllib.request.Request(self.http_addr, method='POST')
             req.add_header('Content-Type', 'application/json')
+            req.add_header('Authorization', self.make_auth_header())
             response = urllib.request.urlopen(
                 req, json.dumps(req_data).encode(), context=self.tls_context
             )
             resp_data = json.loads(response.read())
         else:
+            if globals is not None:
+                if variables is None:
+                    variables = dict()
+                variables['__globals__'] = globals
+            # Support testing the old way of sending globals.
+            if deprecated_globals is not None:
+                req_data['globals'] = json.dumps(deprecated_globals)
             if variables is not None:
                 req_data['variables'] = json.dumps(variables)
-            if globals is not None:
-                req_data['globals'] = json.dumps(globals)
-            response = urllib.request.urlopen(
+            req = urllib.request.Request(
                 f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}',
+            )
+            req.add_header('Authorization', self.make_auth_header())
+            response = urllib.request.urlopen(
+                req,
                 context=self.tls_context,
             )
             resp_data = json.loads(response.read())
@@ -221,13 +228,15 @@ class GraphQLTestCase(BaseHttpExtensionTest):
                                     operation_name=None,
                                     use_http_post=True,
                                     variables=None,
-                                    globals=None):
+                                    globals=None,
+                                    deprecated_globals=None):
         res = self.graphql_query(
             query,
             operation_name=operation_name,
             use_http_post=use_http_post,
             variables=variables,
-            globals=globals)
+            globals=globals,
+            deprecated_globals=deprecated_globals)
 
         if sort is not None:
             # GQL will always have a single object returned. The data is

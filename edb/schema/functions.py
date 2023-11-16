@@ -56,6 +56,9 @@ if TYPE_CHECKING:
     ParameterLike_T = TypeVar("ParameterLike_T", bound="ParameterLike")
 
 
+FUNC_NAMESPACE = uuidgen.UUID('80cd3b19-bb51-4659-952d-6bb03e3347d7')
+
+
 def param_as_str(
     schema: s_schema.Schema,
     param: Union[ParameterDesc, Parameter],
@@ -524,7 +527,7 @@ class ParameterCommand(
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,
                     schema_object_context=self.get_schema_metaclass(),
-                    apply_query_rewrites=not context.stdmode,
+                    apply_query_rewrites=not context.stable_ids,
                     track_schema_ref_exprs=track_schema_ref_exprs,
                 ),
             )
@@ -1210,8 +1213,8 @@ class Function(
 ):
 
     used_globals = so.SchemaField(
-        so.ObjectList[s_globals.Global],
-        coerce=True, compcoef=0.0, default=so.DEFAULT_CONSTRUCTOR,
+        so.ObjectSet[s_globals.Global],
+        coerce=True, default=so.DEFAULT_CONSTRUCTOR,
         inheritable=False)
 
     # A backend_name that is shared between all overloads of the same
@@ -1311,18 +1314,9 @@ class Function(
         """Return a minimal function body that satisfies its return type."""
         rt = self.get_return_type(schema)
 
-        if rt.is_scalar():
-            # scalars and enums can be cast from a string
-            text = f'SELECT <{rt.get_displayname(schema)}>""'
-        elif rt.is_object_type():
-            # just grab an object of the appropriate type
-            text = f'SELECT {rt.get_displayname(schema)} LIMIT 1'
-        else:
-            # Can't easily create a valid cast, so just cast empty set
-            # into the given type. Technically this potentially breaks
-            # cardinality requirement, but since this is a dummy
-            # expression it doesn't matter at the moment.
-            text = f'SELECT <{rt.get_displayname(schema)}>{{}}'
+        text = f'''
+            SELECT assert_exists(<{rt.get_displayname(schema)}>{{}}) LIMIT 1
+        '''
 
         return s_expr.Expression(text=text)
 
@@ -1622,6 +1616,7 @@ class FunctionCommand(
             schema,
             context,
             body=body,
+            func_name=self.classname,
             params=params,
             language=language,
             return_type=return_type,
@@ -1668,8 +1663,8 @@ class FunctionCommand(
                     context=body.qlast.context,
                 )
 
-        globs = [schema.get(glob.global_name, type=s_globals.Global)
-                 for glob in ir.globals]
+        globs = {schema.get(glob.global_name, type=s_globals.Global)
+                 for glob in ir.globals}
         self.set_attribute_value('used_globals', globs)
 
         return expr
@@ -1721,6 +1716,8 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
             elif others := schema.get_functions(
                     sn.QualName(fullname.module, shortname.name), ()):
                 backend_name = others[0].get_backend_name(schema)
+            elif context.stdmode:
+                backend_name = uuidgen.uuid5(FUNC_NAMESPACE, str(fullname))
             else:
                 backend_name = uuidgen.uuid1mc()
             if not self.has_attribute_value('backend_name'):
@@ -2167,7 +2164,7 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
 
         vn = scls.get_verbosename(schema, with_parent=True)
         schema = self._propagate_if_expr_refs(
-            schema, context, metadata_only=False, extra_refs=extra_refs,
+            schema, context, extra_refs=extra_refs,
             action=f'alter the definition of {vn}')
 
         return schema
@@ -2365,6 +2362,7 @@ def compile_function(
     context: sd.CommandContext,
     *,
     body: s_expr.Expression,
+    func_name: sn.QualName,
     params: FuncParameterList,
     language: qlast.Language,
     return_type: s_types.Type,
@@ -2385,6 +2383,7 @@ def compile_function(
         schema,
         options=qlcompiler.CompilerOptions(
             anchors=param_anchors,
+            func_name=func_name,
             func_params=params,
             apply_query_rewrites=not context.stdmode,
             track_schema_ref_exprs=track_schema_ref_exprs,

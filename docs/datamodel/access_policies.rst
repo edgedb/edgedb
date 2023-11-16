@@ -8,7 +8,8 @@ Access Policies
 
 Object types can contain security policies that restrict the set of objects
 that can be selected, inserted, updated, or deleted by a particular query.
-This is known as *object-level security*.
+This is known as *object-level security* and it is similar in function to SQL's
+row-level security.
 
 Let's start with a simple schema without any access policies.
 
@@ -282,8 +283,8 @@ For the most part, the policy types correspond to EdgeQL's *statement types*:
 - ``delete``: Applies to delete queries.
 - ``update``: Applies to update queries.
 
-Additionally, the ``update`` operation can broken down into two sub-policies:
-``update read`` and ``update write``.
+Additionally, the ``update`` operation can be broken down into two
+sub-policies: ``update read`` and ``update write``.
 
 - ``update read``: This policy restricts *which* objects can be updated. It
   runs *pre-update*; that is, this policy is executed before the updates have
@@ -705,10 +706,30 @@ Here's a policy that limits the number of blog posts a ``User`` can post.
       }
 
 .. code-block:: sdl-diff
+    :version-lt: 4.0
 
       type User {
         required email: str { constraint exclusive; };
     +   multi link posts := .<author[is BlogPost]
+      }
+
+      type BlogPost {
+        required title: str;
+        required author: User;
+
+        access policy author_has_full_access
+          allow all
+          using (global current_user ?= .author.id);
+    +   access policy max_posts_limit
+    +     deny insert
+    +     using (count(.author.posts) > 500);
+      }
+
+.. code-block:: sdl-diff
+
+      type User {
+        required email: str { constraint exclusive; };
+    +   multi posts := .<author[is BlogPost]
       }
 
       type BlogPost {

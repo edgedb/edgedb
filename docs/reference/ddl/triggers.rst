@@ -25,6 +25,7 @@ Create trigger
         after
         {insert | update | delete} [, ...]
         for {each | all}
+        [ when (<condition>) ]
         do <expr>
     "}"
 

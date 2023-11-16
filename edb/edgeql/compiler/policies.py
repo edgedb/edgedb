@@ -70,6 +70,9 @@ def get_access_policies(
     stype: s_objtypes.ObjectType, *, ctx: context.ContextLevel,
 ) -> Tuple[s_policies.AccessPolicy, ...]:
     schema = ctx.env.schema
+    if not ctx.env.options.apply_query_rewrites:
+        return ()
+
     # The apply_access_policies config flag disables user-specified
     # access polices, but not stdlib ones
     if (
@@ -224,8 +227,7 @@ def get_rewrite_filter(
     if mode == qltypes.AccessKind.Select:
         bogus_check = qlast.BinOp(
             op='?=',
-            left=qlast.Path(partial=True, steps=[qlast.Ptr(
-                ptr=qlast.ObjectRef(name='id'))]),
+            left=qlast.Path(partial=True, steps=[qlast.Ptr(name='id')]),
             right=qlast.TypeCast(
                 type=qlast.TypeName(maintype=qlast.ObjectRef(
                     module='__std__', name='uuid')),
@@ -360,17 +362,20 @@ def try_type_rewrite(
         ]
 
     # If we have multiple sets, union them together
+    rewritten_set: Optional[irast.Set]
     if len(sets) > 1:
         with ctx.new() as subctx:
             subctx.expr_exposed = context.Exposure.UNEXPOSED
             subctx.anchors = subctx.anchors.copy()
             parts: List[qlast.Expr] = [subctx.create_anchor(x) for x in sets]
-            filtered_set = dispatch.compile(
+            rewritten_set = dispatch.compile(
                 qlast.Set(elements=parts), ctx=subctx)
+    elif len(sets) > 0:
+        rewritten_set = sets[0]
     else:
-        filtered_set = sets[0]
+        rewritten_set = None
 
-    type_rewrites[rw_key] = filtered_set
+    type_rewrites[rw_key] = rewritten_set
 
 
 def compile_dml_write_policies(
@@ -380,7 +385,8 @@ def compile_dml_write_policies(
     ctx: context.ContextLevel,
 ) -> Optional[irast.WritePolicies]:
     """Compile policy filters and wrap them into irast.WritePolicies"""
-    if not ctx.env.type_rewrites.get((stype, False)):
+    pols = get_access_policies(stype, ctx=ctx)
+    if not pols:
         return None
 
     with ctx.detached() as _, _.newscope(fenced=True) as subctx:
@@ -390,10 +396,6 @@ def compile_dml_write_policies(
 
         schema = subctx.env.schema
         subctx.anchors = subctx.anchors.copy()
-
-        pols = get_access_policies(stype, ctx=ctx)
-        if not pols:
-            return None
 
         policies = []
         for pol in pols:
@@ -425,7 +427,7 @@ def compile_dml_read_policies(
     ctx: context.ContextLevel,
 ) -> Optional[irast.ReadPolicyExpr]:
     """Compile a policy filter for a DML statement at a particular type"""
-    if not ctx.env.type_rewrites.get((stype, False)):
+    if not get_access_policies(stype, ctx=ctx):
         return None
 
     with ctx.detached() as _, _.newscope(fenced=True) as subctx:
@@ -450,6 +452,8 @@ def _prepare_dml_policy_context(
     *,
     ctx: context.ContextLevel,
 ) -> None:
+    # It doesn't matter whether we skip subtypes here, so don't skip
+    # subtypes if it has already been compiled that way, otherwise do.
     skip_subtypes = (stype, False) not in ctx.env.type_rewrites
     result = setgen.class_set(
         stype, path_id=result.path_id, skip_subtypes=skip_subtypes, ctx=ctx

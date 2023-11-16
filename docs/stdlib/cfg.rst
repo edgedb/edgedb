@@ -18,6 +18,8 @@ EdgeDB.
       define the set of configuruation settings supported by EdgeDB.
   * - :eql:type:`cfg::Auth`
     - An object type representing an authentication profile.
+  * - :eql:type:`cfg::ConnectionTransport`
+    - An enum type representing the different protocols that EdgeDB speaks.
   * - :eql:type:`cfg::AuthMethod`
     - An abstract object type representing a method of authentication
   * - :eql:type:`cfg::Trust`
@@ -25,6 +27,11 @@ EdgeDB.
       authentication).
   * - :eql:type:`cfg::SCRAM`
     - A subclass of ``AuthMethod`` indicating password-based authentication.
+  * - :eql:type:`cfg::Password`
+    - A subclass of ``AuthMethod`` indicating basic password-based
+      authentication.
+  * - :eql:type:`cfg::JWT`
+    - A subclass of ``AuthMethod`` indicating token-based authentication.
   * - :eql:type:`cfg::memory`
     - A scalar type for storing a quantity of memory storage.
 
@@ -116,15 +123,26 @@ Client connections
 :eql:synopsis:`allow_user_specified_id -> bool`
   Makes it possible to set the ``.id`` property when inserting new objects.
 
-  Enabling this feature introduces some security vulnerabilities:
+  .. warning::
 
-  1. An unprivileged user can discover ids that already exist in the database
-     by trying to insert new values and noting when there is a constraint
-     violation on ``.id`` even if the user doesn't have access to the relevant
-     table.
+      Enabling this feature introduces some security vulnerabilities:
 
-  2. It allows re-using object ids for a different object type, which the
-     application might not expect.
+      1. An unprivileged user can discover ids that already exist in the
+         database by trying to insert new values and noting when there is a
+         constraint violation on ``.id`` even if the user doesn't have access
+         to the relevant table.
+
+      2. It allows re-using object ids for a different object type, which the
+         application might not expect.
+
+      Additionally, enabling can have serious performance implications as, on
+      an ``insert``, every object type must be checked for collisions.
+
+      As a result, we don't recommend enabling this. If you need to preserve
+      UUIDs from an external source on your objects, it's best to create a new
+      property to store these UUIDs. If you will need to filter on this
+      external UUID property, you may add an :ref:`index
+      <ref_datamodel_indexes>` on it.
 
 :eql:synopsis:`session_idle_timeout -> std::duration`
   Sets the timeout for how long client connections can stay inactive
@@ -200,6 +218,30 @@ Client connections
   :eql:synopsis:`comment -> optional str`
     An optional comment for the authentication rule.
 
+---------
+
+.. eql:type:: cfg::ConnectionTransport
+
+  An enum listing the various protocols that EdgeDB can speak.
+
+  Possible values are:
+
+.. list-table::
+  :class: funcoptable
+
+  * - **Value**
+    - **Description**
+  * - ``cfg::ConnectionTransport.TCP``
+    - EdgeDB binary protocol
+  * - ``cfg::ConnectionTransport.TCP_PG``
+    - Postgres protocol for the
+      :ref:`SQL query mode <ref_sql_support>`
+  * - ``cfg::ConnectionTransport.HTTP``
+    - EdgeDB binary protocol
+      :ref:`tunneled over HTTP <ref_http_tunnelling>`
+  * - ``cfg::ConnectionTransport.SIMPLE_HTTP``
+    - :ref:`EdgeQL over HTTP <ref_edgeql_http>`
+      and :ref:`GraphQL <ref_graphql_index>` endpoints
 
 ---------
 
@@ -207,9 +249,14 @@ Client connections
 
   An abstract object class that represents an authentication method.
 
-  It currently has two concrete subclasses, each of which represent an
-  available authentication method: :eql:type:`cfg::Trust` and
-  :eql:type:`cfg::SCRAM`.
+  It currently has four concrete subclasses, each of which represent an
+  available authentication method: :eql:type:`cfg::SCRAM`,
+  :eql:type:`cfg::JWT`, :eql:type:`cfg::Password`, and
+  :eql:type:`cfg::Trust`.
+
+  :eql:synopsis:`transports -> multi cfg::ConnectionTransport`
+    Which connection transports this method applies to.
+    The subclasses have their own defaults for this.
 
 -------
 
@@ -229,15 +276,42 @@ Client connections
 
 .. eql:type:: cfg::SCRAM
 
-  The ``cfg::SCRAM`` indicates password-based authentication.
+  ``cfg::SCRAM`` indicates password-based authentication.
 
-  This policy is implemented via ``SCRAM-SHA-256``.
+  It uses a challenge-response scheme to avoid transmitting the
+  password directly.  This policy is implemented via ``SCRAM-SHA-256``
+
+  It is available for the ``TCP``, ``TCP_PG``, and ``HTTP`` transports
+  and is the default for ``TCP`` and ``TCP_PG``.
 
   .. code-block:: edgeql-repl
 
     edgedb> configure instance insert
     .......   Auth {priority := 0, method := (insert SCRAM)};
     OK: CONFIGURE INSTANCE
+
+-------
+
+.. eql:type:: cfg::JWT
+
+  ``cfg::JWT`` uses a JWT signed by the server to authenticate.
+
+  It is available for the ``TCP``, ``HTTP``, and ``HTTP_SIMPLE`` transports
+  and is the default for ``HTTP``.
+
+
+-------
+
+.. eql:type:: cfg::Password
+
+  ``cfg::Password`` indicates simple password-based authentication.
+
+  Unlike :eql:type:`cfg::SCRAM`, this policy transmits the password
+  over the (encrypted) channel.  It is implemened using HTTP Basic
+  Authentication over TLS.
+
+  This policy is available only for the ``SIMPLE_HTTP`` transport, where it is
+  the default.
 
 
 -------

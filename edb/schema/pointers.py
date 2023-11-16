@@ -448,6 +448,18 @@ class Pointer(referencing.NamedReferencedInheritingObject,
         merge_fn=merge_readonly,
     )
 
+    secret = so.SchemaField(
+        bool,
+        default=False,
+        compcoef=0.909,
+    )
+
+    protected = so.SchemaField(
+        bool,
+        default=False,
+        compcoef=0.909,
+    )
+
     # For non-derived pointers this is strongly correlated with
     # "expr" below.  Derived pointers might have "computable" set,
     # but expr=None.
@@ -553,6 +565,10 @@ class Pointer(referencing.NamedReferencedInheritingObject,
 
     def is_generated(self, schema: s_schema.Schema) -> bool:
         return bool(self.get_from_alias(schema))
+
+    def get_subject(self, schema: s_schema.Schema) -> Optional[so.Object]:
+        # Required by ReferencedObject
+        return self.get_source(schema)
 
     @classmethod
     def get_displayname_static(cls, name: sn.Name) -> str:
@@ -744,10 +760,6 @@ class Pointer(referencing.NamedReferencedInheritingObject,
     def is_link_property(self, schema: s_schema.Schema) -> bool:
         raise NotImplementedError
 
-    def is_protected_pointer(self, schema: s_schema.Schema) -> bool:
-        sn = self.get_shortname(schema).name
-        return sn == '__type__'
-
     def is_dumpable(self, schema: s_schema.Schema) -> bool:
         return (
             not self.is_pure_computable(schema)
@@ -774,6 +786,7 @@ class Pointer(referencing.NamedReferencedInheritingObject,
             if (
                 constr.issubclass(schema, exclusive)
                 and not constr.get_subjectexpr(schema)
+                and not constr.get_delegated(schema)
             ):
                 assert not constr.get_except_expr(schema)
                 constrs.append(constr)
@@ -1766,13 +1779,23 @@ class PointerCommand(
                     schema, context, default_expr.irast.expr)
 
             source_context = self.get_attribute_source_context('default')
-            default_schema = default_expr.irast.schema
-            default_type = default_expr.irast.stype
+            ir = default_expr.irast
+            default_schema = ir.schema
+            default_type = ir.stype
             assert default_type is not None
             ptr_target = scls.get_target(schema)
             assert ptr_target is not None
 
-            if default_type.is_view(default_schema):
+            if (
+                default_type.is_view(default_schema)
+                # Using an alias/global always creates a new subtype view,
+                # but we want to allow those here, so check whether there
+                # is a shape more directly.
+                and not (
+                    len(shape := ir.view_shapes.get(default_type, [])) == 1
+                    and shape[0].is_id_pointer(default_schema)
+                )
+            ):
                 raise errors.SchemaDefinitionError(
                     f'default expression may not include a shape',
                     context=source_context,
@@ -2084,7 +2107,7 @@ class AlterPointer(
     ) -> s_schema.Schema:
         schema = super()._alter_begin(schema, context)
 
-        if (
+        if not context.canonical and (
             self.get_attribute_value('expr') is not None
             or bool(self.get_subcommands(type=constraints.ConstraintCommand))
             or (
@@ -2162,7 +2185,7 @@ class AlterPointer(
                 # that means that `RESET EXPRESSION` was executed
                 # and this is no longer a computable.
 
-                self.set_attribute_value('computable', False)
+                self.set_attribute_value('computable', None)
                 computed_fields = pointer.get_computed_fields(schema)
                 if (
                     'required' in computed_fields

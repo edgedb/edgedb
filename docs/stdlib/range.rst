@@ -33,9 +33,9 @@ For example:
 .. code-block:: edgeql-repl
 
     db> select range(1, 10);
-    {range(1, 10, inc_lower := true, inc_upper := false)}
+    {range(1, 10)}
     db> select range(2.2, 3.3);
-    {range(2.2, 3.3, inc_lower := true, inc_upper := false)}
+    {range(2.2, 3.3)}
 
 Broadly there are two kinds of ranges: :eql:type:`discrete <anydiscrete>` and
 :eql:type:`contiguous <anycontiguous>`. The discrete ranges are
@@ -64,7 +64,7 @@ not *inclusive* (which is the default for all range constructors):
 .. code-block:: edgeql-repl
 
     db> select range(1, 1);
-    {range({}, empty := true)}
+    {range({}, inc_lower := false, empty := true)}
 
 Alternatively, it's possible to specify ``{}`` as a boundary and also provide
 the ``empty := true`` named-only argument. If the empty set is provided as a
@@ -74,7 +74,7 @@ is being constructed:
 .. code-block:: edgeql-repl
 
     db> select range(<int64>{}, empty := true);
-    {range({}, empty := true)}
+    {range({}, inc_lower := false, empty := true)}
 
 Since empty ranges contain no values, they are all considered to be equal to
 each other (as long as the types are compatible):
@@ -119,7 +119,7 @@ specific range type:
     ...   "upper": 10,
     ...   "inc_upper": false
     ... }');
-    {range(1, 10, inc_lower := true, inc_upper := false)}
+    {range(1, 10)}
 
 Empty ranges have a shorthand :eql:type:`json` representation:
 
@@ -134,7 +134,7 @@ omitted, but if they are present, they must be consistent with an empty range:
 .. code-block:: edgeql-repl
 
     db> select <range<int64>>to_json('{"empty": true}');
-    {range({}, empty := true)}
+    {range({}, inc_lower := false, empty := true)}
 
     db> select <range<int64>>to_json('{
     ...   "lower": 1,
@@ -142,7 +142,7 @@ omitted, but if they are present, they must be consistent with an empty range:
     ...   "upper": 1,
     ...   "inc_upper": false
     ... }');
-    {range({}, empty := true)}
+    {range({}, inc_lower := false, empty := true)}
 
     db> select <range<int64>>to_json('{
     ...   "lower": 1,
@@ -151,7 +151,7 @@ omitted, but if they are present, they must be consistent with an empty range:
     ...   "inc_upper": false,
     ...   "empty": true
     ... }');
-    {range({}, empty := true)}
+    {range({}, inc_lower := false, empty := true)}
 
     db> select <range<int64>>to_json('{
     ...   "lower": 1,
@@ -172,6 +172,45 @@ omitted, but if they are present, they must be consistent with an empty range:
   range boundaries are included by default can vary based on system or context
   and being explicit avoids subtle errors. The only exception to this are
   empty ranges that can have just the ``"empty": true`` field.
+
+
+.. _ref_std_multirange:
+
+Multiranges
+^^^^^^^^^^^
+
+.. versionadded:: 4.0
+
+Intermittent availability or ranges with gaps can be naturally represented by
+a set of ranges. However, using a :eql:func:`multirange` for this purpose is
+even better. At its core a multirange is a set of ranges packaged together
+so that it's easy to perform range operations on the whole set:
+
+.. code-block:: edgeql-repl
+
+    db> select multirange([range(1, 5), range(8,10)]);
+    {[range(1, 5), range(8, 10)]}
+    db> select contains(multirange([range(1, 5), range(8,10)]), 9);
+    true
+
+Another advantage of a multirange is that its components are always
+automatically ordered and normalized to be non-overlapping, even if it's
+constructed from an array of ranges that don't satisfy either of these
+conditions:
+
+.. code-block:: edgeql-repl
+
+    db> select multirange([range(8, 10), range(1, 4), range(2, 5)]);
+    {[range(1, 5), range(8, 10)]}
+
+Multiranges are compatible with ranges for the purpose of most operations,
+making it more conveninet to manipulate them whenever you have more than one
+range to work with:
+
+.. code-block:: edgeql-repl
+
+    db> select multirange([range(8, 10)]) + range(1, 5) - range(3, 4);
+    {[range(1, 3), range(4, 5), range(8, 10)]}
 
 
 Functions and operators
@@ -212,6 +251,20 @@ Functions and operators
       - Check if an element or a range is within another range.
     * - :eql:func:`overlaps`
       - :eql:func-desc:`overlaps`
+    * - :eql:func:`adjacent`
+      - :eql:func-desc:`adjacent`
+    * - :eql:func:`strictly_above`
+      - :eql:func-desc:`strictly_above`
+    * - :eql:func:`strictly_below`
+      - :eql:func-desc:`strictly_below`
+    * - :eql:func:`bounded_above`
+      - :eql:func-desc:`bounded_above`
+    * - :eql:func:`bounded_below`
+      - :eql:func-desc:`bounded_below`
+    * - :eql:func:`multirange`
+      - :eql:func-desc:`multirange`
+    * - :eql:func:`multirange_unpack`
+      - :eql:func-desc:`multirange_unpack`
 
 
 
@@ -219,14 +272,16 @@ Reference
 ^^^^^^^^^
 
 .. eql:operator:: rangelt: range<anypoint> < range<anypoint> -> bool
+                  multirange<anypoint> < multirange<anypoint> -> bool
 
-    One range is before the other.
+    One range or multirange is before the other.
 
-    Returns ``true`` if the lower bound of the first range is smaller than the
-    lower bound of the second range. The unspecified lower bound is considered
-    to be smaller than any specified lower bound. If the lower bounds are
-    equal then the upper bounds are compared. Unspecified upper bound is
-    considered to be greater than any specified upper bound.
+    Returns ``true`` if the lower bound of the first range or multirange is
+    smaller than the lower bound of the second range or multirange. The
+    unspecified lower bound is considered to be smaller than any specified
+    lower bound. If the lower bounds are equal then the upper bounds are
+    compared. Unspecified upper bound is considered to be greater than any
+    specified upper bound.
 
     .. code-block:: edgeql-repl
 
@@ -239,6 +294,10 @@ Reference
         db> select range(1, 10) < range(<int64>{}, 10);
         {false}
 
+        db> select multirange([range(2, 4), range(5, 7)]) <
+        ...   multirange([range(7, 10), range(20)]);
+        {true}
+
     An empty range is considered to come before any non-empty range.
 
     .. code-block:: edgeql-repl
@@ -248,6 +307,10 @@ Reference
         db> select range(1, 10) < range(<int64>{}, empty := true);
         {false}
 
+        db> select multirange(<array<range<int64>>>[]) <
+        ...   multirange([range(7, 10), range(20)]);
+        {true}
+
     This is also how the ``order by`` clauses compares ranges.
 
 
@@ -255,14 +318,16 @@ Reference
 
 
 .. eql:operator:: rangegt: range<anypoint> > range<anypoint> -> bool
+                  multirange<anypoint> > multirange<anypoint> -> bool
 
-    One range is after the other.
+    One range or multirange is after the other.
 
-    Returns ``true`` if the lower bound of the first range is greater than the
-    lower bound of the second range. The unspecified lower bound is considered
-    to be smaller than any specified lower bound. If the lower bounds are
-    equal then the upper bounds are compared. Unspecified upper bound is
-    considered to be greater than any specified upper bound.
+    Returns ``true`` if the lower bound of the first range  or multirange is
+    greater than the lower bound of the second range or multirange. The
+    unspecified lower bound is considered to be smaller than any specified
+    lower bound. If the lower bounds are equal then the upper bounds are
+    compared. Unspecified upper bound is considered to be greater than any
+    specified upper bound.
 
     .. code-block:: edgeql-repl
 
@@ -275,6 +340,10 @@ Reference
         db> select range(1, 10) > range(<int64>{}, 10);
         {true}
 
+        db> select multirange([range(2, 4), range(5, 7)]) >
+        ...   multirange([range(7, 10), range(20)]);
+        {false}
+
     An empty range is considered to come before any non-empty range.
 
     .. code-block:: edgeql-repl
@@ -284,6 +353,10 @@ Reference
         db> select range(1, 10) > range(<int64>{}, empty := true);
         {true}
 
+        db> select multirange(<array<range<int64>>>[]) >
+        ...   multirange([range(7, 10), range(20)]);
+        {false}
+
     This is also how the ``order by`` clauses compares ranges.
 
 
@@ -291,14 +364,15 @@ Reference
 
 
 .. eql:operator:: rangelteq: range<anypoint> <= range<anypoint> -> bool
+                  multirange<anypoint> <= multirange<anypoint> -> bool
 
-    One range is before or same as the other.
+    One range or multirange is before or same as the other.
 
-    Returns ``true`` if the ranges are identical or if the lower bound of the
-    first range is smaller than the lower bound of the second range. The
-    unspecified lower bound is considered to be smaller than any specified
-    lower bound. If the lower bounds are equal then the upper bounds are
-    compared. Unspecified upper bound is considered to be greater than any
+    Returns ``true`` if the ranges or multiranges are identical or if the
+    lower bound of the first one is smaller than the lower bound of the second
+    one. The unspecified lower bound is considered to be smaller than any
+    specified lower bound. If the lower bounds are equal then the upper bounds
+    are compared. Unspecified upper bound is considered to be greater than any
     specified upper bound.
 
     .. code-block:: edgeql-repl
@@ -314,6 +388,13 @@ Reference
         db> select range(1, 10) <= range(<int64>{}, 10);
         {false}
 
+        db> select multirange([range(2, 4), range(5, 7)]) <=
+        ...   multirange([range(7, 10), range(20)]);
+        {true}
+        db> select multirange([range(2, 4), range(5, 7)]) <=
+        ...   multirange([range(5, 7), range(2, 4)]);
+        {true}
+
     An empty range is considered to come before any non-empty range.
 
     .. code-block:: edgeql-repl
@@ -325,6 +406,10 @@ Reference
         db> select range(1, 10) <= range(<int64>{}, empty := true);
         {false}
 
+        db> select multirange(<array<range<int64>>>[]) <=
+        ...   multirange([range(7, 10), range(20)]);
+        {true}
+
     This is also how the ``order by`` clauses compares ranges.
 
 
@@ -332,14 +417,15 @@ Reference
 
 
 .. eql:operator:: rangegteq: range<anypoint> >= range<anypoint> -> bool
+                  multirange<anypoint> >= multirange<anypoint> -> bool
 
-    One range is after or same as the other.
+    One range or multirange is after or same as the other.
 
-    Returns ``true`` if the ranges are identical or if the lower bound of the
-    first range is greater than the lower bound of the second range. The
-    unspecified lower bound is considered to be smaller than any specified
-    lower bound. If the lower bounds are equal then the upper bounds are
-    compared. Unspecified upper bound is considered to be greater than any
+    Returns ``true`` if the ranges or multiranges are identical or if the
+    lower bound of the first one is greater than the lower bound of the second
+    one. The unspecified lower bound is considered to be smaller than any
+    specified lower bound. If the lower bounds are equal then the upper bounds
+    are compared. Unspecified upper bound is considered to be greater than any
     specified upper bound.
 
     .. code-block:: edgeql-repl
@@ -355,6 +441,13 @@ Reference
         db> select range(1, 10) >= range(<int64>{}, 10);
         {true}
 
+        db> select multirange([range(2, 4), range(5, 7)]) >=
+        ...   multirange([range(7, 10), range(20)]);
+        {false}
+        db> select multirange([range(2, 4), range(5, 7)]) >=
+        ...   multirange([range(5, 7), range(2, 4)]);
+        {true}
+
     An empty range is considered to come before any non-empty range.
 
     .. code-block:: edgeql-repl
@@ -366,15 +459,21 @@ Reference
         db> select range(1, 10) >= range(<int64>{}, empty := true);
         {true}
 
+        db> select multirange(<array<range<int64>>>[]) >=
+        ...   multirange([range(7, 10), range(20)]);
+        {false}
+
     This is also how the ``order by`` clauses compares ranges.
 
 
 .. eql:operator:: rangeplus: range<anypoint> + range<anypoint> \
                     -> range<anypoint>
+                  multirange<anypoint> + multirange<anypoint> \
+                    -> multirange<anypoint>
 
     :index: plus add
 
-    Range union.
+    Range or multirange union.
 
     Find the union of two ranges as long as the result is a single range
     without any discontinuities inside.
@@ -382,9 +481,22 @@ Reference
     .. code-block:: edgeql-repl
 
         db> select range(1, 10) + range(5, 15);
-        {range(1, 15, inc_lower := true, inc_upper := false)}
+        {range(1, 15)}
         db> select range(1, 10) + range(5);
-        {range(1, {}, inc_lower := true, inc_upper := false)}
+        {range(1, {})}
+
+    If one of the arguments is a multirange, find the union and normalize the
+    result as a multirange.
+
+    .. code-block:: edgeql-repl
+
+        db> select range(1, 3) + multirange([
+        ...   range(7, 10), range(20),
+        ... ]);
+        {[range(1, 3), range(7, 10), range(20, {})]}
+        db> select multirange([range(2, 4), range(5, 8)]) +
+        ...   multirange([range(6, 10), range(20)]);
+        {[range(2, 4), range(5, 10), range(20, {})]}
 
 
 ----------
@@ -392,10 +504,12 @@ Reference
 
 .. eql:operator:: rangeminus: range<anypoint> - range<anypoint> \
                     -> range<anypoint>
+                  multirange<anypoint> - multirange<anypoint> \
+                    -> multirange<anypoint>
 
     :index: minus subtract
 
-    Range subtraction.
+    Range or multirange subtraction.
 
     Subtract one range from another. This is only valid if the resulting range
     does not have any discontinuities inside.
@@ -403,11 +517,26 @@ Reference
     .. code-block:: edgeql-repl
 
         db> select range(1, 10) - range(5, 15);
-        {range(1, 5, inc_lower := true, inc_upper := false)}
+        {range(1, 5)}
         db> select range(1, 10) - range(<int64>{}, 5);
-        {range(5, 10, inc_lower := true, inc_upper := false)}
+        {range(5, 10)}
         db> select range(1, 10) - range(0, 15);
-        {range({}, empty := true)}
+        {range({}, inc_lower := false, empty := true)}
+
+    If one of the arguments is a multirange, treat both arguments as
+    multiranges and perform the multirange subtraction.
+
+    .. code-block:: edgeql-repl
+
+        db> select multirange([range(1, 10)]) -
+        ...   range(4, 6);
+        {[range(1, 4), range(6, 10)]}
+        db> select multirange([range(1, 10)]) -
+        ...   multirange([range(2, 3), range(5, 6), range(9)]);
+        {[range(1, 2), range(3, 5), range(6, 9)]}
+        db> select multirange([range(2, 3), range(5, 6), range(9, 10)]) -
+        ...   multirange([range(-10, 0), range(4, 8)]);
+        {[range(2, 3), range(9, 10)]}
 
 
 ----------
@@ -415,34 +544,43 @@ Reference
 
 .. eql:operator:: rangemult: range<anypoint> * range<anypoint> \
                     -> range<anypoint>
+                  multirange<anypoint> * multirange<anypoint> \
+                    -> multirange<anypoint>
 
     :index: intersect intersection
 
-    Range intersection.
+    Range or multirnage intersection.
 
-    Find the intersection of two ranges.
+    Find the intersection of two ranges or multiranges.
 
     .. code-block:: edgeql-repl
 
         db> select range(1, 10) * range(5, 15);
-        {range(5, 10, inc_lower := true, inc_upper := false)}
+        {range(5, 10)}
         db> select range(1, 10) * range(-15, 15);
-        {range(1, 10, inc_lower := true, inc_upper := false)}
+        {range(1, 10)}
         db> select range(1) * range(-15, 15);
-        {range(1, 15, inc_lower := true, inc_upper := false)}
+        {range(1, 15)}
         db> select range(10) * range(<int64>{}, 1);
-        {range({}, empty := true)}
+        {range({}, inc_lower := false, empty := true)}
+
+        db> select multirange([range(1, 10)]) *
+        ...   multirange([range(0, 3), range(5, 6), range(9)]);
+        {[range(1, 3), range(5, 6), range(9, 10)]}
+        db> select multirange([range(2, 3), range(5, 6), range(9, 10)]) *
+        ...   multirange([range(-10, 0), range(4, 8)]);
+        {[range(5, 6)]}
 
 
 ----------
 
 
-.. eql:function:: std::range(lower: optional std::anypoint = {}, \
-                             upper: optional std::anypoint = {}, \
+.. eql:function:: std::range(lower: optional anypoint = {}, \
+                             upper: optional anypoint = {}, \
                              named only inc_lower: bool = true, \
                              named only inc_upper: bool = false, \
                              named only empty: bool = false) \
-                    -> range<std::anypoint>
+                    -> range<anypoint>
 
     Construct a range.
 
@@ -456,9 +594,9 @@ Reference
     .. code-block:: edgeql-repl
 
         db> select range(1, 10);
-        {range(1, 10, inc_lower := true, inc_upper := false)}
+        {range(1, 10)}
         db> select range(1.5, 7.5, inc_lower := false);
-        {range(1.5, 7.5, inc_lower := false, inc_upper := false)}
+        {range(1.5, 7.5, inc_lower := false)}
 
     Finally, an empty range can be created by using the *empty* named-only
     flag. The first argument still needs to be passed as an ``{}`` so that the
@@ -467,7 +605,7 @@ Reference
     .. code-block:: edgeql-repl
 
         db> select range(<int64>{}, empty := true);
-        {range({}, empty := true)}
+        {range({}, inc_lower := false, empty := true)}
 
 
 ----------
@@ -475,10 +613,12 @@ Reference
 
 .. eql:function:: std::range_get_lower(r: range<anypoint>) \
                     -> optional anypoint
+                  std::range_get_lower(r: multirange<anypoint>) \
+                    -> optional anypoint
 
     Return lower bound value.
 
-    Return the lower bound of the specified range.
+    Return the lower bound of the specified range or multirange.
 
     .. code-block:: edgeql-repl
 
@@ -486,13 +626,18 @@ Reference
         {1}
         db> select range_get_lower(range(1.5, 7.5));
         {1.5}
+        db> select range_get_lower(
+        ...   multirange([range(5, 10), range(2, 3)]));
+        {2}
 
 
 ----------
 
 
 .. eql:function:: std::range_is_inclusive_lower(r: range<anypoint>) \
-                    -> std::bool
+                    -> bool
+                  std::range_is_inclusive_lower(r: multirange<anypoint>) \
+                    -> bool
 
     Check whether lower bound is inclusive.
 
@@ -508,6 +653,13 @@ Reference
         {false}
         db> select range_is_inclusive_lower(range(<int64>{}, 10));
         {false}
+        db> select range_is_inclusive_lower(
+        ...   multirange([
+        ...     range(2, 3),
+        ...     range(5, 10),
+        ...   ])
+        ... );
+        {true}
 
 
 ----------
@@ -515,10 +667,12 @@ Reference
 
 .. eql:function:: std::range_get_upper(r: range<anypoint>) \
                     -> optional anypoint
+                  std::range_get_upper(r: multirange<anypoint>) \
+                    -> optional anypoint
 
     Return upper bound value.
 
-    Return the upper bound of the specified range.
+    Return the upper bound of the specified range or multirange.
 
     .. code-block:: edgeql-repl
 
@@ -526,13 +680,18 @@ Reference
         {10}
         db> select range_get_upper(range(1.5, 7.5));
         {7.5}
+        db> select range_get_upper(
+        ...   multirange([range(5, 10), range(2, 3)]));
+        {10}
 
 
 ----------
 
 
 .. eql:function:: std::range_is_inclusive_upper(r: range<anypoint>) \
-                    -> std::bool
+                    -> bool
+                  std::range_is_inclusive_upper(r: multirange<anypoint>) \
+                    -> bool
 
     Check whether upper bound is inclusive.
 
@@ -548,6 +707,13 @@ Reference
         {true}
         db> select range_is_inclusive_upper(range(1));
         {false}
+        db> select range_is_inclusive_upper(
+        ...   multirange([
+        ...     range(2.0, 3.0),
+        ...     range(5.0, 10.0, inc_upper := true),
+        ...   ])
+        ... );
+        {true}
 
 
 ----------
@@ -555,10 +721,13 @@ Reference
 
 .. eql:function:: std::range_is_empty(val: range<anypoint>) \
                     -> bool
+                  std::range_is_empty(val: multirange<anypoint>) \
+                    -> bool
 
     Check whether a range is empty.
 
-    Return ``true`` if the range contains no values and ``false`` otherwise.
+    Return ``true`` if the range or multirange contains no values and
+    ``false`` otherwise.
 
     .. code-block:: edgeql-repl
 
@@ -568,6 +737,10 @@ Reference
         {true}
         db> select range_is_empty(range(<int64>{}, empty := true));
         {true}
+        db> select range_is_empty(multirange(<array<range<int64>>>[]));
+        {true}
+        db> select range_is_empty(multirange([range(1, 10)]));
+        {false}
 
 
 ----------
@@ -632,12 +805,15 @@ Reference
 
 
 .. eql:function:: std::overlaps(l: range<anypoint>, r: range<anypoint>) \
-                    -> std::bool
+                    -> bool
+                  std::overlaps(l: multirange<anypoint>, \
+                                r: multirange<anypoint>, \
+                  ) -> bool
 
-    Check whether ranges overlap.
+    Check whether ranges or multiranges overlap.
 
-    Return ``true`` if the ranges have any elements in common and ``false``
-    otherwise.
+    Return ``true`` if the ranges or multiranges have any elements in common
+    and ``false`` otherwise.
 
     .. code-block:: edgeql-repl
 
@@ -645,3 +821,335 @@ Reference
         {true}
         db> select overlaps(range(1, 10), range(10));
         {false}
+
+        db> select overlaps(
+        ...   multirange([
+        ...     range(1, 4), range(7),
+        ...   ]),
+        ...   multirange([
+        ...     range(-1, 2), range(8, 10),
+        ...   ]),
+        ... );
+        {true}
+        db> select overlaps(
+        ...   multirange([
+        ...     range(1, 4), range(7),
+        ...   ]),
+        ...   multirange([
+        ...     range(-1, 1), range(5, 6),
+        ...   ]),
+        ... );
+        {false}
+
+
+----------
+
+
+.. eql:function:: std::adjacent( \
+                    l: range<anypoint>, \
+                    r: range<anypoint>, \
+                  ) -> bool
+                  std::adjacent( \
+                    l: multirange<anypoint>, \
+                    r: multirange<anypoint>, \
+                  ) -> bool
+
+    .. versionadded:: 4.0
+
+    Check whether ranges or multiranges share a boundary without overlapping.
+
+    .. code-block:: edgeql-repl
+
+        db> select adjacent(range(1, 3), range(3, 4));
+        {true}
+        db> select adjacent(range(1.0, 3.0), range(3.0, 4.0));
+        {true}
+        db> select adjacent(
+        ...   range(1.0, 3.0, inc_upper := true), range(3.0, 4.0));
+        {false}
+
+        db> select adjacent(
+        ...   multirange([
+        ...     range(2, 4), range(5, 7),
+        ...   ]),
+        ...   multirange([
+        ...     range(7, 10), range(20),
+        ...   ]),
+        ... );
+        {true}
+
+    Since range values can be implicitly cast into multiranges, you can mix
+    the two types:
+
+    .. code-block:: edgeql-repl
+
+        db> select adjacent(
+        ...   range(7),
+        ...   multirange([
+        ...     range(1, 2), range(3, 7),
+        ...   ]),
+        ... );
+        {true}
+
+
+----------
+
+
+.. eql:function:: std::strictly_above( \
+                    l: range<anypoint>, \
+                    r: range<anypoint>, \
+                  ) -> bool
+                  std::strictly_above( \
+                    l: multirange<anypoint>, \
+                    r: multirange<anypoint>, \
+                  ) -> bool
+
+    .. versionadded:: 4.0
+
+    All values of the first range or multirange appear after the second.
+
+    .. code-block:: edgeql-repl
+
+        db> select strictly_above(
+        ...   range(7), range(1, 5)
+        ... );
+        {true}
+        db> select strictly_above(
+        ...   range(3, 7), range(1, 5)
+        ... );
+        {false}
+
+        db> select strictly_above(
+        ...   multirange([
+        ...     range(2, 4), range(5, 7),
+        ...   ]),
+        ...   multirange([
+        ...     range(-5, -2), range(-1, 1),
+        ...   ]),
+        ... );
+        {true}
+
+    Since range values can be implicitly cast into multiranges, you can mix
+    the two types:
+
+    .. code-block:: edgeql-repl
+
+        db> select strictly_above(
+        ...   range(8),
+        ...   multirange([
+        ...     range(1, 2), range(3, 7),
+        ...   ]),
+        ... );
+        {true}
+
+
+----------
+
+
+.. eql:function:: std::strictly_below( \
+                    l: range<anypoint>, \
+                    r: range<anypoint>, \
+                  ) -> bool
+                  std::strictly_below( \
+                    l: multirange<anypoint>, \
+                    r: multirange<anypoint>, \
+                  ) -> bool
+
+    .. versionadded:: 4.0
+
+    All values of the first range or multirange appear before the second.
+
+    .. code-block:: edgeql-repl
+
+        db> select strictly_below(
+        ...   range(1, 3), range(7)
+        ... );
+        {true}
+        db> select strictly_below(
+        ...   range(1, 7), range(3)
+        ... );
+        {false}
+
+        db> select strictly_below(
+        ...   multirange([
+        ...     range(-1, 0), range(-5, -3),
+        ...   ]),
+        ...   multirange([
+        ...     range(1, 4), range(7),
+        ...   ]),
+        ... );
+        {true}
+
+    Since range values can be implicitly cast into multiranges, you can mix
+    the two types:
+
+    .. code-block:: edgeql-repl
+
+        db> select strictly_below(
+        ...   range(-1, 0),
+        ...   multirange([
+        ...     range(1, 4), range(7),
+        ...   ]),
+        ... );
+        {true}
+
+
+----------
+
+
+.. eql:function:: std::bounded_above( \
+                    l: range<anypoint>, \
+                    r: range<anypoint>, \
+                  ) -> bool
+                  std::bounded_above( \
+                    l: multirange<anypoint>, \
+                    r: multirange<anypoint>, \
+                  ) -> bool
+
+    .. versionadded:: 4.0
+
+    The first argument is bounded above by the upper bound of the second.
+
+    .. code-block:: edgeql-repl
+
+        db> select bounded_above(
+        ...   range(1, 7), range(3, 7)
+        ... );
+        {true}
+        db> select bounded_above(
+        ...   range(1, 7), range(3, 6)
+        ... );
+        {false}
+        db> select bounded_above(
+        ...   range(1, 7), range(3)
+        ... );
+        {true}
+
+        db> select bounded_above(
+        ...   multirange([
+        ...     range(-1, 0), range(5, 7),
+        ...   ]),
+        ...   multirange([
+        ...     range(1, 2), range(3, 7),
+        ...   ]),
+        ... );
+        {true}
+
+    Since range values can be implicitly cast into multiranges, you can mix
+    the two types:
+
+    .. code-block:: edgeql-repl
+
+        db> select bounded_above(
+        ...   range(-1, 10),
+        ...   multirange([
+        ...     range(1, 4), range(7),
+        ...   ]),
+        ... );
+        {true}
+
+
+----------
+
+
+.. eql:function:: std::bounded_below( \
+                    l: range<anypoint>, \
+                    r: range<anypoint>, \
+                  ) -> bool
+                  std::bounded_below( \
+                    l: multirange<anypoint>, \
+                    r: multirange<anypoint>, \
+                  ) -> bool
+
+    .. versionadded:: 4.0
+
+    The first argument is bounded below by the lower bound of the second.
+
+    .. code-block:: edgeql-repl
+
+        db> select bounded_below(
+        ...   range(1, 7), range(3, 6)
+        ... );
+        {false}
+        db> select bounded_below(
+        ...   range(1, 7), range(0, 6)
+        ... );
+        {true}
+
+        db> select bounded_below(
+        ...   multirange([
+        ...     range(-1, 0), range(5, 7),
+        ...   ]),
+        ...   multirange([
+        ...     range(1, 2), range(3, 7),
+        ...   ]),
+        ... );
+        {false}
+
+    Since range values can be implicitly cast into multiranges, you can mix
+    the two types:
+
+    .. code-block:: edgeql-repl
+
+        db> select bounded_below(
+        ...   range(5, 7),
+        ...   multirange([
+        ...     range(1, 2), range(3, 7),
+        ...   ]),
+        ... );
+        {true}
+
+
+----------
+
+
+.. eql:function:: std::multirange(ranges: array<range<anypoint>>) \
+                    -> multirange<anypoint>
+
+    .. versionadded:: 4.0
+
+    Construct a multirange.
+
+    Construct a multirange from the *ranges* array. Normalize the sub-ranges
+    so that they become ordered and non-overlapping.
+
+    .. code-block:: edgeql-repl
+
+        db> select multirange([range(8, 10), range(1, 4), range(2, 5)]);
+        {[range(1, 5), range(8, 10)]}
+
+    If either an empty array or an empty range is used to construct a
+    multirange, the resulting multirange will be empty. An empty multirange is
+    semantically similar to an empty range.
+
+    .. code-block:: edgeql-repl
+
+        db> with
+        ...   a := multirange(<array<range<int64>>>[]),
+        ...   b := multirange([range(<int64>{}, empty := true)]),
+        ...   c := range(<int64>{}, empty := true),
+        ... select (a = b, b = c);
+        {(true, true)}
+
+
+----------
+
+
+.. eql:function:: std::multirange_unpack(val: multirange<anypoint>) \
+                    -> set of range<anypoint>
+
+    .. versionadded:: 4.0
+
+    Returns the sub-ranges of a multirange as a set or ranges.
+
+    .. code-block:: edgeql-repl
+
+        db> select multirange_unpack(
+        ...   multirange([
+        ...     range(1, 4), range(7), range(3, 5)
+        ...   ]),
+        ... );
+        {range(1, 5), range(7, {})}
+        db> select multirange_unpack(
+        ...   multirange(<array<range<int64>>>[]));
+        {}

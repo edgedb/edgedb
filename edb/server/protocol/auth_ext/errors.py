@@ -74,3 +74,160 @@ class InvalidData(AuthExtError):
 
     def __str__(self) -> str:
         return self.description
+
+
+class MisconfiguredProvider(AuthExtError):
+    """Data received from the auth provider is invalid."""
+
+    def __init__(self, description: str):
+        self.description = description
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"description={self.description!r}"
+            ")"
+        )
+
+    def __str__(self) -> str:
+        return self.description
+
+
+class NoIdentityFound(AuthExtError):
+    """Could not find a matching identity."""
+
+    def __init__(
+        self,
+        description: str = (
+            "Could not find an Identity matching the provided credentials"
+        ),
+    ):
+        self.description = description
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"description={self.description!r}"
+            ")"
+        )
+
+    def __str__(self) -> str:
+        return self.description
+
+
+class UserAlreadyRegistered(AuthExtError):
+    """Attempt to register an already registered handle."""
+
+    def __init__(
+        self,
+        description: str = ("This user has already been registered"),
+    ):
+        self.description = description
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"description={self.description!r}"
+            ")"
+        )
+
+    def __str__(self) -> str:
+        return self.description
+
+
+class OAuthProviderFailure(AuthExtError):
+    """OAuth Provider returned a non-success for some part of the flow"""
+
+    def __init__(
+        self,
+        description: str,
+    ):
+        self.description = description
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"description={self.description!r}"
+            ")"
+        )
+
+    def __str__(self) -> str:
+        return self.description
+
+
+class VerificationTokenExpired(AuthExtError):
+    """Email verification token has expired"""
+
+    def __init__(
+        self,
+        description: str = "Email verification token has expired",
+    ):
+        self.description = description
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"description={self.description!r}"
+            ")"
+        )
+
+    def __str__(self) -> str:
+        return self.description
+
+
+class VerificationRequired(AuthExtError):
+    """Email verification is required"""
+
+    def __init__(
+        self,
+        description: str = "Email verification is required",
+    ):
+        self.description = description
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"description={self.description!r}"
+            ")"
+        )
+
+    def __str__(self) -> str:
+        return self.description
+
+
+class PKCECreationFailed(AuthExtError):
+    """Failed to create a valid PKCEChallenge object"""
+
+    def __init__(
+        self, description: str = "Failed to create a valid PKCEChallenge object"
+    ):
+        self.description = description
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"description={self.description!r}"
+            ")"
+        )
+
+    def __str__(self) -> str:
+        return self.description
+
+
+class PKCEVerificationFailed(AuthExtError):
+    """Verifier and challenge do not match"""
+
+    def __init__(
+        self, description: str = "Verifier and challenge do not match"
+    ):
+        self.description = description
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"description={self.description!r}"
+            ")"
+        )
+
+    def __str__(self) -> str:
+        return self.description

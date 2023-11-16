@@ -82,19 +82,16 @@ def get_volatility_ref(
 
 def setup_iterator_volatility(
         iterator: Optional[Union[irast.Set, pgast.IteratorCTE]], *,
-        is_cte: bool=False,
         ctx: context.CompilerContextLevel) -> None:
     if iterator is None:
         return
-
-    old = () if is_cte else ctx.volatility_ref
 
     path_id = iterator.path_id
 
     # We use a callback scheme here to avoid inserting volatility ref
     # columns unless there is actually a volatile operation that
     # requires it.
-    ctx.volatility_ref = old + (
+    ctx.volatility_ref += (
         lambda stmt, xctx: get_volatility_ref(path_id, stmt, ctx=xctx),)
 
 
@@ -191,19 +188,21 @@ def compile_iterator_expr(
 
         # If the iterator value is nullable, add a null test. This
         # makes sure that we don't spuriously produce output when
-        # iterating over options pointers.
-        if isinstance(iterator_query, pgast.SelectStmt):
-            iterator_var = pathctx.get_path_value_var(
-                iterator_query, path_id=iterator_expr.path_id, env=ctx.env)
-            if iterator_var.nullable:
-                iterator_query.where_clause = astutils.extend_binop(
-                    iterator_query.where_clause,
-                    pgast.NullTest(arg=iterator_var, negated=True))
-        elif isinstance(iterator_query, pgast.Relation):
-            # will never be null
-            pass
-        else:
-            raise NotImplementedError()
+        # iterating over optional pointers.
+        is_optional = ctx.scope_tree.is_optional(iterator_expr.path_id)
+        if not is_optional:
+            if isinstance(iterator_query, pgast.SelectStmt):
+                iterator_var = pathctx.get_path_value_var(
+                    iterator_query, path_id=iterator_expr.path_id, env=ctx.env)
+                if iterator_var.nullable:
+                    iterator_query.where_clause = astutils.extend_binop(
+                        iterator_query.where_clause,
+                        pgast.NullTest(arg=iterator_var, negated=True))
+            elif isinstance(iterator_query, pgast.Relation):
+                # will never be null
+                pass
+            else:
+                raise NotImplementedError()
 
         # Regardless of result type, we use transient identity,
         # for path identity of the iterator expression.  This is
@@ -214,6 +213,9 @@ def compile_iterator_expr(
         if not already_existed:
             relctx.ensure_bond_for_expr(
                 iterator_expr.expr.result, iterator_query, ctx=subctx)
+            if is_optional:
+                relctx.ensure_bond_for_expr(
+                    iterator_expr, iterator_query, ctx=subctx)
 
     return iterator_rvar
 

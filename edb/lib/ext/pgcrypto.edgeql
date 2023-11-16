@@ -56,4 +56,33 @@ create extension package pgcrypto version '1.3' {
         set volatility := 'Immutable';
         using sql function 'edgedb.hmac';
     };
+
+    create function ext::pgcrypto::gen_salt(
+    ) -> std::str {
+        set volatility := 'Volatile';
+        using sql "SELECT edgedb.gen_salt('bf')";
+    };
+
+    create function ext::pgcrypto::gen_salt(
+        type: std::str,
+    ) -> std::str {
+        set volatility := 'Volatile';
+        using sql 'SELECT edgedb.gen_salt("type")';
+    };
+
+    create function ext::pgcrypto::gen_salt(
+        type: std::str,
+        iter_count: std::int64,
+    ) -> std::str {
+        set volatility := 'Volatile';
+        using sql 'SELECT edgedb.gen_salt("type", "iter_count"::integer)';
+    };
+
+    create function ext::pgcrypto::crypt(
+        password: std::str,
+        salt: std::str,
+    ) -> std::str {
+        set volatility := 'Immutable';
+        using sql function 'edgedb.crypt';
+    };
 };

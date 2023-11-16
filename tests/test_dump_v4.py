@@ -54,6 +54,17 @@ class DumpTestCaseMixin:
             ]
         )
 
+        # We put pgvector dump tests in v4 dump even though they
+        # shipped in 3.0-rc3 (shipping pgvector was a wild ride). It
+        # doesn't seem worth adding a second v4 dump test for (both
+        # ergonomically and because it would be slower), so just quit
+        # early in that case.
+        if (
+            self._testMethodName
+            == 'test_dumpv4_restore_compatibility_3_0'
+        ):
+            return
+
         await self.assert_query_result(
             '''
                 select cfg::Config {
@@ -72,13 +83,22 @@ class DumpTestCaseMixin:
                     dict(name='2', value='bar', tname='ext::_conf::Obj'),
                     dict(name='3', value='baz', extra=42,
                          tname='ext::_conf::SubObj'),
+                    # No SecretObj
                 ],
             ))]
         )
 
+        # Secret shouldn't make it
+        await self.assert_query_result(
+            '''
+            select ext::_conf::get_top_secret()
+            ''',
+            [],
+        )
+
 
 class TestDumpV4(tb.StableDumpTestCase, DumpTestCaseMixin):
-    EXTENSIONS = ["pgvector", "_conf"]
+    EXTENSIONS = ["pgvector", "_conf", "pgcrypto", "auth"]
     BACKEND_SUPERUSER = True
 
     SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
@@ -98,4 +118,4 @@ class TestDumpV4Compat(
     dump_subdir='dumpv4',
     check_method=DumpTestCaseMixin.ensure_schema_data_integrity,
 ):
-    pass
+    BACKEND_SUPERUSER = True

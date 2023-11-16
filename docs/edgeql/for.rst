@@ -68,6 +68,58 @@ parameter for bulk inserts. This value is then "unpacked" into a set of
 
 A similar approach can be used for bulk updates.
 
+
+.. _ref_eql_for_conditional_dml:
+
+Conditional DML
+---------------
+
+DML (i.e., :ref:`insert <ref_eql_insert>`, :ref:`update <ref_eql_update>`,
+:ref:`delete <ref_eql_delete>`) is not supported in :eql:op:`if..else`. If you
+need to do one of these conditionally, you can use a ``for`` loop as a
+workaround. For example, you might want to write this conditional:
+
+.. code-block::
+
+    # 🚫
+    with admin := (select User filter .role = 'admin')
+    select admin if exists admin
+      else (insert User {role := 'admin'});
+
+Because of the lack of support for DML in a conditional, this query will fail.
+Here's how you can accomplish the same thing using the workaround:
+
+.. code-block:: edgeql
+
+    # ✅
+    with
+      admin := (select User filter .role = 'admin'),
+      new := (for _ in (select () filter not exists admin) union (
+        insert User {role := 'admin'}
+      )),
+    select {admin, new};
+
+The ``admin`` alias represents the condition we want to test for. In this case,
+"do we have a ``User`` object with a value of ``admin`` for the ``role``
+property?" In the ``new`` alias, we write a ``for`` loop with a ``select``
+query that will produce a set with a single value if that object we queried for
+does *not* exist. (You can use ``exists`` instead of ``not exists`` in the
+nested ``select`` inside the ``for`` loop if you don't want to invert the
+condition.)
+
+A set with a single value results in a single iteration of the ``for`` loop.
+Inside that loop, we run our conditional DML — in this case to insert an admin
+user. Then we ``select`` both aliases to execute both of their queries. The
+query will return the ``User`` object. This in effect gives us a query that
+will insert a ``User`` object with a ``role`` of ``admin`` if none exists or
+return that object if it *does* exist.
+
+.. note::
+
+    If you're trying to conditionally run DML in response to a violation of an
+    exclusivity constraint, you don't need this workaround. You should use
+    :ref:`unless conflict <ref_eql_insert_conflicts>` instead.
+
 .. list-table::
   :class: seealso
 

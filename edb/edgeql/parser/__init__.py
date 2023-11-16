@@ -16,23 +16,27 @@
 # limitations under the License.
 #
 
-
 from __future__ import annotations
 from typing import *
-
-import importlib
-import multiprocessing
-import types
+import pathlib
 
 from edb import errors
 from edb.common import parsing
 
 import edb._edgeql_parser as rust_parser
 
-from . import grammar as qlgrammar
+from .grammar import tokens
 
 from .. import ast as qlast
 from .. import tokenizer as qltokenizer
+
+
+ParserError = Tuple[
+    str,
+    Tuple[int, Optional[int]],
+    Optional[str],
+    Optional[str]
+]
 
 
 def append_module_aliases(tree, aliases):
@@ -53,7 +57,7 @@ def parse_fragment(
     source: Union[qltokenizer.Source, str],
     filename: Optional[str] = None,
 ) -> qlast.Expr:
-    res = parse(qlgrammar.fragment, source, filename=filename)
+    res = parse(tokens.T_STARTFRAGMENT, source, filename=filename)
     assert isinstance(res, qlast.Expr)
     return res
 
@@ -78,23 +82,15 @@ def parse_query(
     return tree
 
 
-def parse_command(
-    source: Union[qltokenizer.Source, str],
+def parse_block(
+    source: qltokenizer.Source | str,
     module_aliases: Optional[Mapping[Optional[str], str]] = None,
-) -> qlast.Command:
-    """Parse some EdgeQL command potentially adding some module aliases."""
-
-    tree = parse(qlgrammar.single, source)
-    assert isinstance(tree, qlast.Command)
-
+) -> list[qlast.Base]:
+    trees = parse(tokens.T_STARTBLOCK, source)
     if module_aliases:
-        append_module_aliases(tree, module_aliases)
-
-    return tree
-
-
-def parse_block(source: qltokenizer.Source | str) -> list[qlast.Base]:
-    return parse(qlgrammar.block, source)
+        for tree in trees:
+            append_module_aliases(tree, module_aliases)
+    return trees
 
 
 def parse_migration_body_block(
@@ -105,7 +101,7 @@ def parse_migration_body_block(
     # (without braces)", so we just hack around this by adding braces.
     # This is only really workable because we only use this in a place
     # where the source contexts don't matter anyway.
-    return parse(qlgrammar.migration_body, f"{{{source}}}")
+    return parse(tokens.T_STARTMIGRATION, f"{{{source}}}")
 
 
 def parse_extension_package_body_block(
@@ -116,35 +112,44 @@ def parse_extension_package_body_block(
     # (without braces)", so we just hack around this by adding braces.
     # This is only really workable because we only use this in a place
     # where the source contexts don't matter anyway.
-    return parse(qlgrammar.extension_package_body, f"{{{source}}}")
+    return parse(tokens.T_STARTEXTENSION, f"{{{source}}}")
 
 
 def parse_sdl(expr: str):
-    return parse(qlgrammar.sdldocument, expr)
+    return parse(tokens.T_STARTSDLDOCUMENT, expr)
 
 
 def parse(
-    grammar: types.ModuleType,
+    start_token: Type[tokens.Token],
     source: Union[str, qltokenizer.Source],
     filename: Optional[str] = None,
 ):
     if isinstance(source, str):
         source = qltokenizer.Source.from_string(source)
 
-    result, productions = rust_parser.parse(grammar.__name__, source.tokens())
+    start_name = start_token.__name__[2:]
+    result, productions = rust_parser.parse(start_name, source.tokens())
 
     if len(result.errors()) > 0:
         # TODO: emit multiple errors
 
         # Heuristic to pick the error:
+        # - the only Unexpected, if it is a keyword
         # - first encountered,
         # - Unexpected before Missing,
         # - original order.
-        errs: List[Tuple[str, Tuple[int, Optional[int]]]] = result.errors()
-        errs.sort(key=lambda e: (e[1][0], -ord(e[0][1])))
-        error = errs[0]
+        errs: List[ParserError] = result.errors()
+        unexpected = [e for e in errs if e[0].startswith('Unexpected')]
+        if (
+            len(unexpected) == 1
+            and unexpected[0][0].startswith('Unexpected keyword')
+        ):
+            error = unexpected[0]
+        else:
+            errs.sort(key=lambda e: (e[1][0], -ord(e[0][1])))
+            error = errs[0]
 
-        message, span = error
+        message, span, hint, details = error
         position = qltokenizer.inflate_position(source.text(), span)
 
         pcontext = parsing.ParserContext(
@@ -155,7 +160,12 @@ def parse(
             context_lines=10,
         )
         raise errors.EdgeQLSyntaxError(
-            message, position=position, context=pcontext)
+            message,
+            position=position,
+            hint=hint,
+            details=details,
+            context=pcontext
+        )
 
     return _cst_to_ast(
         result.out(),
@@ -227,9 +237,9 @@ def _cst_to_ast(
             production_id = node.id()
             production = productions[production_id]
 
-            sym = production.lhs.nontermType()
-            assert len(args) == len(production.rhs)
-            production.method(sym, *args)
+            non_term_type, method = production
+            sym = non_term_type()
+            method(sym, *args)
 
             # push into result stack
             result.append(sym)
@@ -237,56 +247,13 @@ def _cst_to_ast(
     return result.pop()
 
 
-def _load_parser(grammar: str) -> None:
-    specmod = importlib.import_module(grammar)
-    parsing.load_parser_spec(specmod, allow_rebuild=True)
+def preload_spec() -> None:
+    path = get_spec_filepath()
+    rust_parser.preload_spec(path)
 
 
-def preload(
-    allow_rebuild: bool = True,
-    paralellize: bool = False,
-    grammars: Optional[list[types.ModuleType]] = None,
-) -> None:
-    if grammars is None:
-        grammars = [
-            qlgrammar.block,
-            qlgrammar.fragment,
-            qlgrammar.sdldocument,
-            qlgrammar.extension_package_body,
-            qlgrammar.migration_body,
-        ]
+def get_spec_filepath():
+    "Returns an absolute path to the serialized grammar spec file"
 
-    if not paralellize:
-        try:
-            for grammar in grammars:
-                spec = parsing.load_parser_spec(
-                    grammar, allow_rebuild=allow_rebuild)
-                rust_parser.cache_spec(grammar.__name__, spec)
-        except parsing.ParserSpecIncompatibleError as e:
-            raise errors.InternalServerError(e.args[0]) from None
-    else:
-        parsers_to_rebuild = []
-
-        for grammar in grammars:
-            try:
-                spec = parsing.load_parser_spec(grammar, allow_rebuild=False)
-                rust_parser.cache_spec(grammar.__name__, spec)
-            except parsing.ParserSpecIncompatibleError:
-                parsers_to_rebuild.append(grammar)
-
-        if len(parsers_to_rebuild) == 0:
-            pass
-        elif len(parsers_to_rebuild) == 1:
-            spec = parsing.load_parser_spec(
-                parsers_to_rebuild[0], allow_rebuild=True)
-            rust_parser.cache_spec(parsers_to_rebuild[0].__name__, spec)
-        else:
-            with multiprocessing.Pool(len(parsers_to_rebuild)) as pool:
-                pool.map(
-                    _load_parser,
-                    [mod.__name__ for mod in parsers_to_rebuild],
-                )
-
-            for grammar in parsers_to_rebuild:
-                spec = parsing.load_parser_spec(grammar, allow_rebuild=False)
-                rust_parser.cache_spec(grammar.__name__, spec)
+    edgeql_dir = pathlib.Path(__file__).parent.parent
+    return str(edgeql_dir / 'grammar.bc')

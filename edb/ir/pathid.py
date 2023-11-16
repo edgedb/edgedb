@@ -22,6 +22,8 @@ from typing import *
 
 from . import typeutils
 
+from edb.common import uuidgen
+
 from edb.schema import name as s_name
 from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
@@ -256,6 +258,12 @@ class PathId:
         pid._norm_path = (typename,)
         pid._namespace = frozenset(namespace)
         return pid
+
+    @classmethod
+    def new_dummy(cls, name: str) -> PathId:
+        name_hint = s_name.QualName(module='__derived__', name=name)
+        typeref = irast.TypeRef(id=uuidgen.uuid1mc(), name_hint=name_hint)
+        return irast.PathId.from_typeref(typeref=typeref)
 
     def __hash__(self) -> int:
         if self._hash == -1:

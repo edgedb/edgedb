@@ -39,7 +39,7 @@ def cli(args: tuple[str, ...]):
         '--wait-until-available' not in args_list and
         not any('--wait-until-available=' in a for a in args_list)
     ):
-        args_list += ['--wait-until-available', '5s']
+        args_list += ['--wait-until-available', '60s']
 
     sys.exit(rustcli.rustcli(args=[sys.argv[0], *args_list]))
 

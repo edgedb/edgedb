@@ -663,7 +663,7 @@ def ptr_default_to_col_default(schema, ptr, expr):
             )
         )
         ir = qlcompiler.compile_ast_to_ir(eql, schema)
-    except errors.SchemaError:
+    except (errors.SchemaError, errors.QueryError):
         # Reference errors mean that is is a non-constant default
         # referring to a not-yet-existing objects.
         return None

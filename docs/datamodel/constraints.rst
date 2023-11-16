@@ -180,10 +180,20 @@ Constraints can be defined on computed properties.
     }
 
 .. code-block:: sdl
+    :version-lt: 4.0
 
     type User {
       required username: str;
       required property clean_username := str_trim(str_lower(.username));
+
+      constraint exclusive on (.clean_username);
+    }
+
+.. code-block:: sdl
+
+    type User {
+      required username: str;
+      required clean_username := str_trim(str_lower(.username));
 
       constraint exclusive on (.clean_username);
     }
@@ -260,7 +270,7 @@ Constraints on links
 --------------------
 
 When defining a constraint on a link, ``__subject__`` refers to the *link
-itself*. This is commonly used add constraints to :ref:`link properties
+itself*. This is commonly used to add constraints to :ref:`link properties
 <ref_datamodel_link_properties>`.
 
 .. code-block:: sdl
@@ -281,7 +291,7 @@ itself*. This is commonly used add constraints to :ref:`link properties
     type User {
       name: str;
       multi friends: User {
-        single strength: float64;
+        strength: float64;
         constraint expression on (
           __subject__@strength >= 0
         );

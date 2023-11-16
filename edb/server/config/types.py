@@ -212,16 +212,18 @@ class CompositeConfigType(ConfigType, statypes.CompositeType):
     def from_json_value(cls, s, *, tspec: statypes.CompositeTypeSpec, spec):
         return cls.from_pyvalue(s, tspec=tspec, spec=spec)
 
-    def to_json_value(self):
+    def to_json_value(self, redacted: bool=False):
         dct = {}
         dct['_tname'] = self._tspec.name
 
         for f in self._tspec.fields.values():
             f_type = f.type
             value = getattr(self, f.name)
-            if (isinstance(f_type, statypes.CompositeTypeSpec)
+            if redacted and f.secret and value is not None:
+                value = {'redacted': True}
+            elif (isinstance(f_type, statypes.CompositeTypeSpec)
                     and value is not None):
-                value = value.to_json_value()
+                value = value.to_json_value(redacted=redacted)
             elif typing_inspect.is_generic_type(f_type):
                 value = list(value) if value is not None else []
 

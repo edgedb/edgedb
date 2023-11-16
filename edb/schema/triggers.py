@@ -75,6 +75,14 @@ class Trigger(
         special_ddl_syntax=True,
     )
 
+    condition = so.SchemaField(
+        s_expr.Expression,
+        default=None,
+        coerce=True,
+        compcoef=0.909,
+        special_ddl_syntax=True,
+    )
+
     subject = so.SchemaField(
         so.InheritingObject,
         compcoef=None,
@@ -120,16 +128,42 @@ class TriggerCommand(
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = super().canonicalize_attributes(schema, context)
+        parent_ctx = self.get_referrer_context_or_die(context)
+        source = parent_ctx.op.scls
+        trig_name = self.get_verbosename(parent=source.get_verbosename(schema))
 
-        for field in ('expr',):
+        for field in ('expr', 'condition'):
             if (expr := self.get_local_attribute_value(field)) is None:
                 continue
 
-            self.compile_expr_field(
+            vname = 'when' if field == 'condition' else 'using'
+
+            expression = self.compile_expr_field(
                 schema, context,
                 field=Trigger.get_field(field),
                 value=expr,
             )
+
+            if field == 'condition':
+                target = schema.get(
+                    sn.QualName('std', 'bool'), type=s_types.Type)
+                expr_type = expression.irast.stype
+                if not expr_type.issubclass(expression.irast.schema, target):
+                    srcctx = self.get_attribute_source_context(field)
+                    raise errors.SchemaDefinitionError(
+                        f'{vname} expression for {trig_name} is of invalid '
+                        f'type: '
+                        f'{expr_type.get_displayname(schema)}, '
+                        f'expected {target.get_displayname(schema)}',
+                        context=srcctx,
+                    )
+
+                if expression.irast.dml_exprs:
+                    raise errors.SchemaDefinitionError(
+                        'data-modifying statements are not allowed in trigger '
+                        'when clauses',
+                        context=expression.irast.dml_exprs[0].context,
+                    )
 
         return schema
 
@@ -153,7 +187,7 @@ class TriggerCommand(
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
     ) -> s_expr.CompiledExpression:
-        if field.name == 'expr':
+        if field.name in {'expr', 'condition'}:
             from edb.ir import pathid
 
             parent_ctx = self.get_referrer_context_or_die(context)
@@ -221,7 +255,7 @@ class TriggerCommand(
         field: so.Field[Any],
         value: Any,
     ) -> Optional[s_expr.Expression]:
-        if field.name == 'expr':
+        if field.name in {'expr', 'condition'}:
             return s_expr.Expression(text='false')
         else:
             raise NotImplementedError(f'unhandled field {field.name!r}')
@@ -250,7 +284,7 @@ class CreateTrigger(
         astnode: Type[qlast.DDLOperation],
     ) -> Optional[str]:
         if (
-            field in ('timing', 'kinds', 'scope', 'expr')
+            field in ('timing', 'condition', 'kinds', 'scope', 'expr')
             and issubclass(astnode, qlast.CreateTrigger)
         ):
             return field
@@ -277,6 +311,15 @@ class CreateTrigger(
                     context.localnames,
                 ),
                 source_context=astnode.expr.context,
+            )
+        if astnode.condition is not None:
+            cmd.set_attribute_value(
+                'condition',
+                s_expr.Expression.from_ast(
+                    astnode.condition, schema, context.modaliases,
+                    context.localnames,
+                ),
+                source_context=astnode.condition.context,
             )
 
         cmd.set_attribute_value('timing', astnode.timing)

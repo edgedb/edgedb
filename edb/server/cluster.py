@@ -34,7 +34,6 @@ from jwcrypto import jwk
 
 from edb import buildmeta
 from edb.common import devmode
-from edb.common import secretkey
 from edb.edgeql import quote
 
 from edb.server import args as edgedb_args
@@ -424,26 +423,6 @@ class Cluster(BaseCluster):
     def get_data_dir(self) -> pathlib.Path:
         return self._data_dir
 
-    def get_runstate_dir(self) -> pathlib.Path:
-        return self._runstate_dir
-
-    def get_jws_key(self) -> jwk.JWK:
-        if self._jws_key is None:
-            self._jws_key = self._load_jws_key()
-        return self._jws_key
-
-    def _load_jws_key(self) -> jwk.JWK:
-        try:
-            return secretkey.load_secret_key(self._get_jws_key_path())
-        except secretkey.SecretKeyReadError as e:
-            raise ClusterError(e.args[0]) from e
-
-    def _get_jws_key_path(self) -> pathlib.Path:
-        if path := os.environ.get("EDGEDB_SERVER_JWS_KEY_FILE"):
-            return pathlib.Path(path)
-        else:
-            return self.get_runstate_dir() / edgedb_args.JWS_KEY_FILE_NAME
-
     async def init(
         self,
         *,
@@ -501,12 +480,6 @@ class TempCluster(Cluster):
 class RunningCluster(BaseCluster):
     def __init__(self, **conn_args: Any) -> None:
         self.conn_args = conn_args
-        if path := os.environ.get("EDGEDB_SERVER_JWS_KEY_FILE"):
-            try:
-                jws_key = secretkey.load_secret_key(pathlib.Path(path))
-            except secretkey.SecretKeyReadError as e:
-                raise ClusterError(e.args[0]) from e
-            self.get_jws_key = lambda: jws_key
 
     def is_managed(self) -> bool:
         return False

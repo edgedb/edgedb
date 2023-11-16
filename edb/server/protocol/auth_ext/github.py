@@ -20,14 +20,13 @@
 import urllib.parse
 import functools
 
-from . import base
-from . import data
+from . import base, data, errors
 
 
 class GitHubProvider(base.BaseProvider):
     def __init__(self, *args, **kwargs):
-        super().__init__("github", *args, **kwargs)
-        self.auth_domain = "https://github.com"
+        super().__init__("github", "https://github.com", *args, **kwargs)
+        self.auth_domain = self.issuer_url
         self.api_domain = "https://api.github.com"
         self.auth_client = functools.partial(
             self.http_factory, base_url=self.auth_domain
@@ -36,46 +35,59 @@ class GitHubProvider(base.BaseProvider):
             self.http_factory, base_url=self.api_domain
         )
 
-    def get_code_url(self, state: str, redirect_uri: str) -> str:
+    async def get_code_url(
+        self, state: str, redirect_uri: str, additional_scope: str
+    ) -> str:
         params = {
             "client_id": self.client_id,
-            "scope": "read:user user:email",
+            "scope": f"read:user user:email {additional_scope}",
             "state": state,
             "redirect_uri": redirect_uri,
         }
         encoded = urllib.parse.urlencode(params)
         return f"{self.auth_domain}/login/oauth/authorize?{encoded}"
 
-    async def exchange_code(self, code: str) -> str:
-        data = {
-            "grant_type": "authorization_code",
-            "code": code,
-            "client_id": self.client_id,
-            "client_secret": self.client_secret,
-        }
-
+    async def exchange_code(
+        self, code: str, redirect_uri: str
+    ) -> data.OAuthAccessTokenResponse:
         async with self.auth_client() as client:
             resp = await client.post(
                 "/login/oauth/access_token",
-                json=data,
+                json={
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
+                    "redirect_uri": redirect_uri,
+                },
+                headers={
+                    "accept": "application/json",
+                },
             )
-            token = resp.json()["access_token"]
+            if resp.status_code >= 400:
+                raise errors.OAuthProviderFailure(
+                    f"Failed to exchange code: {resp.text}"
+                )
+            json = resp.json()
 
-            return token
+            return data.OAuthAccessTokenResponse(**json)
 
-    async def fetch_user_info(self, token: str) -> data.UserInfo:
+    async def fetch_user_info(
+        self, token_response: data.OAuthAccessTokenResponse
+    ) -> data.UserInfo:
         async with self.api_client() as client:
             resp = await client.get(
                 "/user",
                 headers={
-                    "Authorization": f"Bearer {token}",
+                    "Authorization": f"Bearer {token_response.access_token}",
                     "Accept": "application/vnd.github+json",
                     "X-GitHub-Api-Version": "2022-11-28",
+                    "Cache-Control": "no-store",
                 },
             )
             payload = resp.json()
             return data.UserInfo(
-                sub=payload["id"],
+                sub=str(payload["id"]),
                 preferred_username=payload.get("login"),
                 name=payload.get("name"),
                 email=payload.get("email"),
@@ -84,24 +96,3 @@ class GitHubProvider(base.BaseProvider):
                     payload.get("updated_at")
                 ),
             )
-
-    async def fetch_emails(self, token: str) -> list[data.Email]:
-        async with self.api_client() as client:
-            resp = await client.get(
-                "/user/emails",
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Accept": "application/vnd.github+json",
-                    "X-GitHub-Api-Version": "2022-11-28",
-                },
-            )
-            payload = resp.json()
-
-            return [
-                data.Email(
-                    address=d["email"],
-                    is_verified=d["verified"],
-                    is_primary=d["primary"],
-                )
-                for d in payload
-            ]

@@ -248,30 +248,35 @@ class TestIndexes(tb.DDLTestCase):
     async def test_index_07(self):
         with self.assertRaisesRegex(
             edgedb.SchemaError,
-            r"index.+fts::textsearch\(language:='english'\)"
-            r".+of object type 'default::Foo' already exists"
+            r"index.+fts::index"
+            r".+of object type 'default::Foo' already exists",
         ):
-            await self.con.execute(r"""
+            await self.con.execute(
+                r"""
                 create type Foo{
                     create property val -> str;
-                    create index fts::textsearch(language := 'english')
-                        on (.val);
-                    create index fts::textsearch(language := 'spanish')
-                        on (.val);
-                    create index fts::textsearch(language := 'english')
-                        on (.val);
+                    create index fts::index on (
+                        fts::with_options(.val, language := fts::Language.eng));
+                    create index fts::index on (
+                        fts::with_options(.val, language := fts::Language.eng));
+                    create index fts::index on (
+                        fts::with_options(.val, language := fts::Language.eng));
                 };
-            """)
+                """
+            )
 
     async def test_index_08(self):
-        await self.con.execute(r"""
+        await self.con.execute(
+            r"""
             # setup delta
             create type ObjIndex3 {
                 create property name -> str;
-                create index fts::textsearch(language := 'english')
-                    on (.name);
+                create index fts::index on (
+                    fts::with_options(.name, language := fts::Language.eng)
+                );
             };
-        """)
+            """
+        )
 
         await self.assert_query_result(
             r"""
@@ -286,27 +291,37 @@ class TestIndexes(tb.DDLTestCase):
                     }
                 filter .name = 'default::ObjIndex3';
             """,
-            [{
-                'indexes': [{
-                    'name': 'fts::textsearch',
-                    'kwargs': [{'name': 'language', 'expr': '\'english\''}],
-                    'expr': '.name',
-                    'abstract': False,
-                }]
-            }],
+            [
+                {
+                    'indexes': [
+                        {
+                            'name': 'fts::index',
+                            'kwargs': [],
+                            'expr': (
+                                'fts::with_options(.name, '
+                                'language := fts::Language.eng)'
+                            ),
+                            'abstract': False,
+                        }
+                    ]
+                }
+            ],
         )
 
     async def test_index_09(self):
-        await self.con.execute(r"""
+        await self.con.execute(
+            r"""
             # setup delta
-            create abstract index MyIndex(language := 'english')
-                extending fts::textsearch;
+            create abstract index MyIndex extending fts::index;
 
             create type ObjIndex4 {
                 create property name -> str;
-                create index MyIndex on (.name);
+                create index MyIndex on (
+                    fts::with_options(.name, language := fts::Language.eng)
+                );
             };
-        """)
+            """
+        )
 
         await self.assert_query_result(
             r"""
@@ -321,14 +336,21 @@ class TestIndexes(tb.DDLTestCase):
                     }
                 filter .name = 'default::ObjIndex4';
             """,
-            [{
-                'indexes': [{
-                    'name': 'default::MyIndex',
-                    'kwargs': [],
-                    'expr': '.name',
-                    'abstract': False,
-                }]
-            }],
+            [
+                {
+                    'indexes': [
+                        {
+                            'name': 'default::MyIndex',
+                            'kwargs': [],
+                            'expr': (
+                                'fts::with_options(.name, '
+                                'language := fts::Language.eng)'
+                            ),
+                            'abstract': False,
+                        }
+                    ]
+                }
+            ],
         )
 
         await self.assert_query_result(
@@ -350,20 +372,20 @@ class TestIndexes(tb.DDLTestCase):
                     }
                 filter .name = 'default::MyIndex' and .abstract = true;
             """,
-            [{
-                'name': 'default::MyIndex',
-                'kwargs': [{'name': 'language', 'expr': '\'english\''}],
-                'abstract': True,
-                'ancestors': [{
-                    'name': 'fts::textsearch',
-                    'params': [{
-                        'name': 'language',
-                        'type_name': 'std::str',
-                        'default': None,
-                    }],
+            [
+                {
+                    'name': 'default::MyIndex',
+                    'kwargs': [],
                     'abstract': True,
-                }],
-            }],
+                    'ancestors': [
+                        {
+                            'name': 'fts::index',
+                            'params': [],
+                            'abstract': True,
+                        }
+                    ],
+                }
+            ],
         )
 
     async def test_index_10(self):

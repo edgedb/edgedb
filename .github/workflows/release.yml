@@ -19,8 +19,6 @@ jobs:
         echo branch="${branch}" >> $GITHUB_OUTPUT
       id: whichver
 
-
-
   build-debian-buster-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
@@ -35,15 +33,12 @@ jobs:
         PKG_PLATFORM_VERSION: "buster"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster
-
 
   build-debian-buster-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -59,15 +54,12 @@ jobs:
         PKG_PLATFORM_VERSION: "buster"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster
-
 
   build-debian-bullseye-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
@@ -83,15 +75,12 @@ jobs:
         PKG_PLATFORM_VERSION: "bullseye"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye
-
 
   build-debian-bullseye-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -107,15 +96,12 @@ jobs:
         PKG_PLATFORM_VERSION: "bullseye"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye
-
 
   build-debian-bookworm-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
@@ -131,15 +117,12 @@ jobs:
         PKG_PLATFORM_VERSION: "bookworm"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-debian-bookworm-x86_64
         path: artifacts/debian-bookworm
-
 
   build-debian-bookworm-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -155,15 +138,12 @@ jobs:
         PKG_PLATFORM_VERSION: "bookworm"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-debian-bookworm-aarch64
         path: artifacts/debian-bookworm
-
 
   build-ubuntu-bionic-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
@@ -179,15 +159,12 @@ jobs:
         PKG_PLATFORM_VERSION: "bionic"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic
-
 
   build-ubuntu-bionic-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -203,15 +180,12 @@ jobs:
         PKG_PLATFORM_VERSION: "bionic"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic
-
 
   build-ubuntu-focal-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
@@ -227,15 +201,12 @@ jobs:
         PKG_PLATFORM_VERSION: "focal"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal
-
 
   build-ubuntu-focal-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -251,15 +222,12 @@ jobs:
         PKG_PLATFORM_VERSION: "focal"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal
-
 
   build-ubuntu-jammy-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
@@ -275,15 +243,12 @@ jobs:
         PKG_PLATFORM_VERSION: "jammy"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy
-
 
   build-ubuntu-jammy-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -299,15 +264,12 @@ jobs:
         PKG_PLATFORM_VERSION: "jammy"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy
-
 
   build-centos-7-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
@@ -323,15 +285,12 @@ jobs:
         PKG_PLATFORM_VERSION: "7"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-centos-7-x86_64
         path: artifacts/centos-7
-
 
   build-centos-8-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
@@ -347,15 +306,12 @@ jobs:
         PKG_PLATFORM_VERSION: "8"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8
-
 
   build-centos-8-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -371,15 +327,12 @@ jobs:
         PKG_PLATFORM_VERSION: "8"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8
-
 
   build-rockylinux-9-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
@@ -395,15 +348,12 @@ jobs:
         PKG_PLATFORM_VERSION: "9"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-rockylinux-9-x86_64
         path: artifacts/rockylinux-9
-
 
   build-rockylinux-9-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -419,15 +369,12 @@ jobs:
         PKG_PLATFORM_VERSION: "9"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-rockylinux-9-aarch64
         path: artifacts/rockylinux-9
-
 
   build-linux-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
@@ -443,17 +390,13 @@ jobs:
         PKG_PLATFORM_VERSION: "x86_64"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
         BUILD_GENERIC: true
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-linux-x86_64
         path: artifacts/linux-x86_64
-
 
   build-linux-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -469,17 +412,13 @@ jobs:
         PKG_PLATFORM_VERSION: "aarch64"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
         BUILD_GENERIC: true
-
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-linux-aarch64
         path: artifacts/linux-aarch64
-
 
   build-linuxmusl-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
@@ -495,19 +434,14 @@ jobs:
         PKG_PLATFORM_VERSION: "x86_64"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
         BUILD_GENERIC: true
-
-
         PKG_PLATFORM_LIBC: "musl"
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-linuxmusl-x86_64
         path: artifacts/linuxmusl-x86_64
-
 
   build-linuxmusl-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -523,20 +457,14 @@ jobs:
         PKG_PLATFORM_VERSION: "aarch64"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
-
         BUILD_GENERIC: true
-
-
         PKG_PLATFORM_LIBC: "musl"
-
         METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
         name: builds-linuxmusl-aarch64
         path: artifacts/linuxmusl-aarch64
-
-
 
   build-macos-x86_64:
     runs-on: ['self-hosted', 'macOS', 'X64']
@@ -572,9 +500,7 @@ jobs:
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_ARCH: "x86_64"
         METAPKG_GIT_CACHE: disabled
-
         BUILD_GENERIC: true
-
       run: |
         edgedb-pkg/integration/macos/build.sh
 
@@ -582,7 +508,6 @@ jobs:
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
-
 
   build-macos-aarch64:
     runs-on: ['self-hosted', 'macOS', 'ARM64']
@@ -618,9 +543,7 @@ jobs:
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_PLATFORM_ARCH: ""
         METAPKG_GIT_CACHE: disabled
-
         BUILD_GENERIC: true
-
       run: |
         edgedb-pkg/integration/macos/build.sh
 
@@ -628,8 +551,6 @@ jobs:
       with:
         name: builds-macos-aarch64
         path: artifacts/macos-aarch64
-
-
 
   test-debian-buster-x86_64:
     needs: [build-debian-buster-x86_64]
@@ -651,8 +572,6 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
 
-
-
   test-debian-buster-aarch64:
     needs: [build-debian-buster-aarch64]
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -672,8 +591,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-
-
 
   test-debian-bullseye-x86_64:
     needs: [build-debian-bullseye-x86_64]
@@ -695,8 +612,6 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
 
-
-
   test-debian-bullseye-aarch64:
     needs: [build-debian-bullseye-aarch64]
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -716,8 +631,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-
-
 
   test-debian-bookworm-x86_64:
     needs: [build-debian-bookworm-x86_64]
@@ -739,8 +652,6 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
 
-
-
   test-debian-bookworm-aarch64:
     needs: [build-debian-bookworm-aarch64]
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -760,8 +671,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-
-
 
   test-ubuntu-bionic-x86_64:
     needs: [build-ubuntu-bionic-x86_64]
@@ -783,8 +692,6 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
 
-
-
   test-ubuntu-bionic-aarch64:
     needs: [build-ubuntu-bionic-aarch64]
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -804,8 +711,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-
-
 
   test-ubuntu-focal-x86_64:
     needs: [build-ubuntu-focal-x86_64]
@@ -827,8 +732,6 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
 
-
-
   test-ubuntu-focal-aarch64:
     needs: [build-ubuntu-focal-aarch64]
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -848,8 +751,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-
-
 
   test-ubuntu-jammy-x86_64:
     needs: [build-ubuntu-jammy-x86_64]
@@ -871,8 +772,6 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
 
-
-
   test-ubuntu-jammy-aarch64:
     needs: [build-ubuntu-jammy-aarch64]
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -892,8 +791,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-
-
 
   test-centos-7-x86_64:
     needs: [build-centos-7-x86_64]
@@ -915,8 +812,6 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
 
-
-
   test-centos-8-x86_64:
     needs: [build-centos-8-x86_64]
     runs-on: ['self-hosted', 'linux', 'x64']
@@ -936,8 +831,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-
-
 
   test-centos-8-aarch64:
     needs: [build-centos-8-aarch64]
@@ -959,8 +852,6 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
 
-
-
   test-rockylinux-9-x86_64:
     needs: [build-rockylinux-9-x86_64]
     runs-on: ['self-hosted', 'linux', 'x64']
@@ -980,8 +871,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-
-
 
   test-rockylinux-9-aarch64:
     needs: [build-rockylinux-9-aarch64]
@@ -1003,8 +892,6 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
 
-
-
   test-linux-x86_64:
     needs: [build-linux-x86_64]
     runs-on: ['self-hosted', 'linux', 'x64']
@@ -1024,8 +911,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-
-
 
   test-linux-aarch64:
     needs: [build-linux-aarch64]
@@ -1047,8 +932,6 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
 
-
-
   test-linuxmusl-x86_64:
     needs: [build-linuxmusl-x86_64]
     runs-on: ['self-hosted', 'linux', 'x64']
@@ -1069,8 +952,6 @@ jobs:
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
 
-
-
   test-linuxmusl-aarch64:
     needs: [build-linuxmusl-aarch64]
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -1090,9 +971,6 @@ jobs:
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
-
-
-
 
   test-macos-x86_64:
     needs: [build-macos-x86_64]
@@ -1117,7 +995,6 @@ jobs:
       run: |
         edgedb-pkg/integration/macos/test.sh
 
-
   test-macos-aarch64:
     needs: [build-macos-aarch64]
     runs-on: ['self-hosted', 'macOS', 'ARM64']
@@ -1140,8 +1017,6 @@ jobs:
         PKG_PLATFORM_VERSION: "aarch64"
       run: |
         edgedb-pkg/integration/macos/test.sh
-
-
   collect:
     needs:
     - test-debian-buster-x86_64
@@ -1171,9 +1046,6 @@ jobs:
     steps:
       - run: echo 'All build+tests passed, ready to publish now!'
 
-
-
-
   publish-debian-buster-x86_64:
     needs: [collect]
     runs-on: ubuntu-latest
@@ -1187,7 +1059,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_PLATFORM_LIBC: ""
@@ -1213,7 +1085,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-buster@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1223,9 +1095,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-debian-buster-aarch64:
     needs: [collect]
@@ -1240,7 +1109,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_PLATFORM_LIBC: ""
@@ -1266,7 +1135,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-buster@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1276,9 +1145,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-debian-bullseye-x86_64:
     needs: [collect]
@@ -1293,7 +1159,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_PLATFORM_LIBC: ""
@@ -1319,7 +1185,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1329,9 +1195,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-debian-bullseye-aarch64:
     needs: [collect]
@@ -1346,7 +1209,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_PLATFORM_LIBC: ""
@@ -1372,7 +1235,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1382,9 +1245,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-debian-bookworm-x86_64:
     needs: [collect]
@@ -1399,7 +1259,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_PLATFORM_LIBC: ""
@@ -1425,7 +1285,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bookworm@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1435,9 +1295,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-debian-bookworm-aarch64:
     needs: [collect]
@@ -1452,7 +1309,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_PLATFORM_LIBC: ""
@@ -1478,7 +1335,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bookworm@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1488,9 +1345,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-ubuntu-bionic-x86_64:
     needs: [collect]
@@ -1505,7 +1359,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_PLATFORM_LIBC: ""
@@ -1531,7 +1385,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1541,9 +1395,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-ubuntu-bionic-aarch64:
     needs: [collect]
@@ -1558,7 +1409,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_PLATFORM_LIBC: ""
@@ -1584,7 +1435,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1594,9 +1445,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-ubuntu-focal-x86_64:
     needs: [collect]
@@ -1611,7 +1459,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_PLATFORM_LIBC: ""
@@ -1637,7 +1485,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1647,9 +1495,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-ubuntu-focal-aarch64:
     needs: [collect]
@@ -1664,7 +1509,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_PLATFORM_LIBC: ""
@@ -1690,7 +1535,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1700,9 +1545,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-ubuntu-jammy-x86_64:
     needs: [collect]
@@ -1717,7 +1559,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_PLATFORM_LIBC: ""
@@ -1743,7 +1585,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1753,9 +1595,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-ubuntu-jammy-aarch64:
     needs: [collect]
@@ -1770,7 +1609,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_PLATFORM_LIBC: ""
@@ -1796,7 +1635,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1806,9 +1645,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-centos-7-x86_64:
     needs: [collect]
@@ -1823,7 +1659,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
         PKG_PLATFORM_LIBC: ""
@@ -1849,7 +1685,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-7@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1859,9 +1695,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-centos-8-x86_64:
     needs: [collect]
@@ -1876,7 +1709,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_PLATFORM_LIBC: ""
@@ -1902,7 +1735,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-8@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1912,9 +1745,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-centos-8-aarch64:
     needs: [collect]
@@ -1929,7 +1759,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_PLATFORM_LIBC: ""
@@ -1955,7 +1785,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-8@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -1965,9 +1795,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-rockylinux-9-x86_64:
     needs: [collect]
@@ -1982,7 +1809,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_PLATFORM_LIBC: ""
@@ -2008,7 +1835,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/rockylinux-9@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2018,9 +1845,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-rockylinux-9-aarch64:
     needs: [collect]
@@ -2035,7 +1859,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_PLATFORM_LIBC: ""
@@ -2061,7 +1885,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/rockylinux-9@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2071,9 +1895,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-linux-x86_64:
     needs: [collect]
@@ -2088,7 +1909,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_LIBC: ""
@@ -2114,7 +1935,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-x86_64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2124,9 +1945,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-linux-aarch64:
     needs: [collect]
@@ -2141,7 +1959,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_PLATFORM_LIBC: ""
@@ -2167,7 +1985,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-aarch64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2177,9 +1995,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-linuxmusl-x86_64:
     needs: [collect]
@@ -2194,7 +2009,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_LIBC: "musl"
@@ -2220,7 +2035,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-x86_64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2230,9 +2045,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-linuxmusl-aarch64:
     needs: [collect]
@@ -2247,7 +2059,7 @@ jobs:
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_PLATFORM_LIBC: "musl"
@@ -2273,7 +2085,7 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-aarch64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PACKAGE_SERVER: sftp://uploader@upload-packages.edgedb.com:2222/
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
@@ -2283,9 +2095,6 @@ jobs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
       version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-
-
 
   publish-macos-x86_64:
     needs: [collect]
@@ -2316,7 +2125,6 @@ jobs:
         PKG_PLATFORM_VERSION: "x86_64"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-
   publish-macos-aarch64:
     needs: [collect]
     runs-on: ubuntu-latest
@@ -2346,16 +2154,10 @@ jobs:
         PKG_PLATFORM_VERSION: "aarch64"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-
-
-
   publish-docker:
     needs:
-      
       - check-published-debian-buster-x86_64
-      
       - check-published-debian-buster-aarch64
-      
     runs-on: ubuntu-latest
 
     steps:
@@ -2434,3 +2236,113 @@ jobs:
         buildargs: version=${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-buster-x86_64.outputs.version-core }}
         platforms: linux/amd64,linux/arm64
 
+  workflow-notifications:
+    if: failure() && github.event_name != 'pull_request'
+    name: Notify in Slack on failures
+
+    needs:
+      - prep
+      - collect
+      - build-debian-buster-x86_64
+      - test-debian-buster-x86_64
+      - publish-debian-buster-x86_64
+      - check-published-debian-buster-x86_64
+      - build-debian-buster-aarch64
+      - test-debian-buster-aarch64
+      - publish-debian-buster-aarch64
+      - check-published-debian-buster-aarch64
+      - build-debian-bullseye-x86_64
+      - test-debian-bullseye-x86_64
+      - publish-debian-bullseye-x86_64
+      - check-published-debian-bullseye-x86_64
+      - build-debian-bullseye-aarch64
+      - test-debian-bullseye-aarch64
+      - publish-debian-bullseye-aarch64
+      - check-published-debian-bullseye-aarch64
+      - build-debian-bookworm-x86_64
+      - test-debian-bookworm-x86_64
+      - publish-debian-bookworm-x86_64
+      - check-published-debian-bookworm-x86_64
+      - build-debian-bookworm-aarch64
+      - test-debian-bookworm-aarch64
+      - publish-debian-bookworm-aarch64
+      - check-published-debian-bookworm-aarch64
+      - build-ubuntu-bionic-x86_64
+      - test-ubuntu-bionic-x86_64
+      - publish-ubuntu-bionic-x86_64
+      - check-published-ubuntu-bionic-x86_64
+      - build-ubuntu-bionic-aarch64
+      - test-ubuntu-bionic-aarch64
+      - publish-ubuntu-bionic-aarch64
+      - check-published-ubuntu-bionic-aarch64
+      - build-ubuntu-focal-x86_64
+      - test-ubuntu-focal-x86_64
+      - publish-ubuntu-focal-x86_64
+      - check-published-ubuntu-focal-x86_64
+      - build-ubuntu-focal-aarch64
+      - test-ubuntu-focal-aarch64
+      - publish-ubuntu-focal-aarch64
+      - check-published-ubuntu-focal-aarch64
+      - build-ubuntu-jammy-x86_64
+      - test-ubuntu-jammy-x86_64
+      - publish-ubuntu-jammy-x86_64
+      - check-published-ubuntu-jammy-x86_64
+      - build-ubuntu-jammy-aarch64
+      - test-ubuntu-jammy-aarch64
+      - publish-ubuntu-jammy-aarch64
+      - check-published-ubuntu-jammy-aarch64
+      - build-centos-7-x86_64
+      - test-centos-7-x86_64
+      - publish-centos-7-x86_64
+      - check-published-centos-7-x86_64
+      - build-centos-8-x86_64
+      - test-centos-8-x86_64
+      - publish-centos-8-x86_64
+      - check-published-centos-8-x86_64
+      - build-centos-8-aarch64
+      - test-centos-8-aarch64
+      - publish-centos-8-aarch64
+      - check-published-centos-8-aarch64
+      - build-rockylinux-9-x86_64
+      - test-rockylinux-9-x86_64
+      - publish-rockylinux-9-x86_64
+      - check-published-rockylinux-9-x86_64
+      - build-rockylinux-9-aarch64
+      - test-rockylinux-9-aarch64
+      - publish-rockylinux-9-aarch64
+      - check-published-rockylinux-9-aarch64
+      - build-linux-x86_64
+      - test-linux-x86_64
+      - publish-linux-x86_64
+      - check-published-linux-x86_64
+      - build-linux-aarch64
+      - test-linux-aarch64
+      - publish-linux-aarch64
+      - check-published-linux-aarch64
+      - build-linuxmusl-x86_64
+      - test-linuxmusl-x86_64
+      - publish-linuxmusl-x86_64
+      - check-published-linuxmusl-x86_64
+      - build-linuxmusl-aarch64
+      - test-linuxmusl-aarch64
+      - publish-linuxmusl-aarch64
+      - check-published-linuxmusl-aarch64
+      - build-macos-x86_64
+      - test-macos-x86_64
+      - publish-macos-x86_64
+      - build-macos-aarch64
+      - test-macos-aarch64
+      - publish-macos-aarch64
+      - publish-docker
+    runs-on: ubuntu-latest
+    permissions:
+      actions: 'read'
+    steps:
+      - name: Slack Workflow Notification
+        uses: Gamesight/slack-workflow-status@26a36836c887f260477432e4314ec3490a84f309
+        with:
+          repo_token: ${{secrets.GITHUB_TOKEN}}
+          slack_webhook_url: ${{secrets.ACTIONS_SLACK_WEBHOOK_URL}}
+          name: 'Workflow notifications'
+          icon_emoji: ':hammer:'
+          include_jobs: 'on-failure'

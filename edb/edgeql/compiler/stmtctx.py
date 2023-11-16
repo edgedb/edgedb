@@ -229,7 +229,7 @@ def fini_expression(
         return ir.expr
 
     volatility = inference.infer_volatility(ir, env=ctx.env)
-    expr_type = inference.infer_type(ir, ctx.env)
+    expr_type = setgen.get_set_type(ir, ctx=ctx)
 
     in_polymorphic_func = (
         ctx.env.options.func_params is not None and
@@ -747,6 +747,7 @@ def _declare_view_from_schema(
     # subcontext to compile in, but it should avoid depending on the
     # context, because of the cache.
     with ctx.detached() as subctx:
+        subctx.current_schema_views += (viewcls,)
         subctx.expr_exposed = context.Exposure.UNEXPOSED
         view_expr = viewcls.get_expr(ctx.env.schema)
         assert view_expr is not None

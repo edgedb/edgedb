@@ -24,7 +24,8 @@ from edb import errors
 
 from edb.testbase import lang as tb
 from edb.edgeql import generate_source as edgeql_to_source
-from edb.edgeql.parser import grammar as edgeql_grammar
+from edb.edgeql import tokenizer
+from edb.edgeql.parser import grammar as qlgrammar
 from edb.tools import test
 
 
@@ -35,8 +36,8 @@ class EdgeQLSyntaxTest(tb.BaseSyntaxTest):
     ast_to_source = edgeql_to_source
 
     @classmethod
-    def get_grammar(cls):
-        return edgeql_grammar.block
+    def get_grammar_token(cls):
+        return qlgrammar.tokens.T_STARTBLOCK
 
 
 class TestEdgeQLParser(EdgeQLSyntaxTest):
@@ -812,6 +813,72 @@ aa';
         SELECT (User IS (Named, Text));
         """
 
+    def test_edgeql_syntax_ops_27(self):
+        """
+        WITH x := {'b', 'a', 't'}
+        SELECT
+            IF x = 'a' THEN 1 ELSE
+            IF x = 'b' THEN 10 ELSE
+            IF x = 'c' THEN 100 ELSE
+            0;
+
+% OK %
+
+        WITH x := {'b', 'a', 't'}
+        SELECT
+            (IF (x = 'a') THEN 1 ELSE
+            (IF (x = 'b') THEN 10 ELSE
+            (IF (x = 'c') THEN 100 ELSE
+            0)));
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '<'", line=2, col=22)
+    def test_edgeql_syntax_ops_28(self):
+        """
+        SELECT a < b < c;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '>'", line=2, col=22)
+    def test_edgeql_syntax_ops_29(self):
+        """
+        SELECT a < b > c;
+        """
+
+    def test_edgeql_syntax_ops_30(self):
+        """
+        SELECT (a < b) > c;
+% OK %
+        SELECT ((a < b) > c);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '>='", line=2, col=23)
+    def test_edgeql_syntax_ops_31(self):
+        """
+        SELECT a <= b >= c;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '!='", line=2, col=23)
+    def test_edgeql_syntax_ops_32(self):
+        """
+        SELECT a != b != c;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '='", line=2, col=22)
+    def test_edgeql_syntax_ops_33(self):
+        """
+        SELECT a = b = c;
+        """
+
+    def test_edgeql_toplevel_if(self):
+        """
+        IF true THEN (SELECT Foo) ELSE (INSERT Foo);
+        """
+
     def test_edgeql_syntax_required_01(self):
         """
         SELECT REQUIRED (User.groups.description);
@@ -933,7 +1000,7 @@ aa';
         SELECT event;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=17)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=19)
     def test_edgeql_syntax_name_08(self):
         """
         SELECT (event::if);
@@ -1497,17 +1564,16 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '}'", line=4, col=9)
+                  r"Missing ':'", line=3, col=16)
     def test_edgeql_syntax_shape_45(self):
         """
         SELECT Foo {
             foo {}
         };
         """
-        # XXX: error recovery quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing ':' before '{'", line=4, col=17)
+                  r"Missing ':'", line=3, col=16)
     def test_edgeql_syntax_shape_46(self):
         """
         SELECT Foo {
@@ -1582,7 +1648,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing '\{'", line=3, col=17)
+                  r"Unexpected 'Bar'", line=3, col=18)
     def test_edgeql_syntax_shape_53(self):
         """
         INSERT Foo {
@@ -1862,7 +1928,6 @@ aa';
             bar := 3
         );
         """
-        # XXX: error recovery quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected ':'",
                   line=3, col=16)
@@ -1910,7 +1975,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected keyword 'IF'", line=4, col=13)
+                  r"Missing '\('", line=4, col=15)
     def test_edgeql_syntax_struct_08(self):
         """
         SELECT (
@@ -1921,15 +1986,16 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected ':='", line=4, col=20)
+                  "Unexpected ':='",
+                  line=4, col=20)
     def test_edgeql_syntax_struct_09(self):
         """
         SELECT (
             # reserved keywords
-            select := 2
+            seLEct := 2
         );
         """
-        # XXX: error recovery quality regression
+        # TODO: parser error quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "Missing ','", line=2, col=21)
@@ -2148,13 +2214,12 @@ aa';
         SELECT TUP.0.2e2;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Missing '\.'",
-                  line=2, col=15)
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected keyword '__TYPE__'",
+                  line=2, col=16)
     def test_edgeql_syntax_path_23(self):
         """
         SELECT __type__;
         """
-        # XXX: error recovery quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected keyword '__TYPE__'",
                   line=2, col=24)
@@ -2515,7 +2580,9 @@ aa';
         COMMIT;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=15)
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected keyword 'DATABASE'",
+                  line=3, col=16)
     def test_edgeql_syntax_with_03(self):
         """
         WITH MODULE welp
@@ -2755,6 +2822,13 @@ aa';
         SELECT (
             SELECT Foo bar
         );
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Missing keyword 'SELECT'", line=2, col=9)
+    def test_edgeql_syntax_select_13(self):
+        """
+        default::Movie.name;
         """
 
     def test_edgeql_syntax_group_01(self):
@@ -3005,7 +3079,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'insert expression must be an object type reference',
+                  'INSERT only works with object types, not arbitrary '
+                  'expressions',
                   line=2, col=16)
     def test_edgeql_syntax_insert_05(self):
         """
@@ -3330,49 +3405,49 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unexpected keyword \'.*\'',
+                  'Missing parentheses around complex expression in a '
+                  'FOR iterator clause',
                   hint=None, line=2, col=18)
     def test_edgeql_syntax_selectfor_06(self):
         """
         FOR x in DETACHED foo UNION x;
         """
-        # XXX: error recovery quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Missing keyword \'.*\'',
-                  hint=None, line=2, col=21)
+                  'Missing parentheses around complex expression in a '
+                  'FOR iterator clause',
+                  hint=None, line=2, col=18)
     def test_edgeql_syntax_selectfor_08(self):
         """
         FOR x in foo + bar UNION x;
         """
-        # XXX: error recovery quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Missing keyword \'.*\'',
-                  hint=None, line=2, col=25)
+                  'Missing parentheses around complex expression in a '
+                  'FOR iterator clause',
+                  hint=None, line=2, col=18)
     def test_edgeql_syntax_selectfor_09(self):
         """
         FOR x in foo.bar + bar UNION x;
         """
-        # XXX: error recovery quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Missing keyword \'.*\'',
-                  hint=None, line=2, col=21)
+                  'Missing parentheses around complex expression in a '
+                  'FOR iterator clause',
+                  hint=None, line=2, col=18)
     def test_edgeql_syntax_selectfor_10(self):
         """
         FOR x in foo { x } UNION x;
         """
-        # XXX: error recovery quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Unexpected keyword \'.*\'',
+                  'Missing parentheses around complex expression in a '
+                  'FOR iterator clause',
                   hint=None, line=2, col=18)
     def test_edgeql_syntax_selectfor_11(self):
         """
         FOR x in SELECT 1 UNION x;
         """
-        # XXX: error recovery quality regression
 
     def test_edgeql_syntax_selectfor_12(self):
         """
@@ -3415,13 +3490,13 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing keyword 'UNION'",
-                  hint=None, line=2, col=50)
+                  'Missing parentheses around complex expression in a '
+                  'FOR iterator clause',
+                  hint=None, line=2, col=18)
     def test_edgeql_syntax_selectfor_20(self):
         """
         FOR x in <datetime>'1999-03-31T15:17:00Z'++'' UNION x;
         """
-        # XXX: error recovery quality regression
 
     def test_edgeql_syntax_deletefor_01(self):
         """
@@ -3526,7 +3601,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"named arguments do not need a '\$' prefix, "
+                  r"named parameters do not need a '\$' prefix, "
                   r"rewrite as 'a := \.\.\.'",
                   line=2, col=25)
     def test_edgeql_syntax_function_08(self):
@@ -3566,78 +3641,68 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing ':='",
-                  line=2, col=28)
+                  "Missing parentheses around statement used as an expression",
+                  line=2, col=22)
     def test_edgeql_syntax_function_12(self):
         """
         SELECT count(SELECT 1);
         """
-        # XXX: error recovery quality regression
-        #  hint=r"Missing parentheses around statement used "
-        #       r"as an expression",
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing ':='",
-                  line=2, col=28)
+                  "Missing parentheses around statement used as an expression",
+                  line=2, col=22)
     def test_edgeql_syntax_function_13(self):
         """
         SELECT count(INSERT Foo);
         """
-        # XXX: error recovery quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing ':='",
-                  line=2, col=28)
+                  "Missing parentheses around statement used as an expression",
+                  line=2, col=22)
     def test_edgeql_syntax_function_14(self):
         """
         SELECT count(UPDATE Foo SET {bar := 1});
         """
-        # XXX: error recovery quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing ':='",
-                  line=2, col=28)
+                  "Missing parentheses around statement used as an expression",
+                  line=2, col=22)
     def test_edgeql_syntax_function_15(self):
         """
         SELECT count(DELETE Foo);
         """
-        # XXX: error recovery quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing ':='",
-                  line=2, col=25)
+                  "Missing parentheses around statement used as an expression",
+                  line=2, col=22)
     def test_edgeql_syntax_function_16(self):
         """
         SELECT count(FOR X IN {Foo} UNION X);
         """
-        # XXX: error recovery quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected 'X'",
-                  line=2, col=27)
+                  "Missing parentheses around statement used as an expression",
+                  line=2, col=22)
     def test_edgeql_syntax_function_17(self):
         """
         SELECT count(WITH X := 1 SELECT Foo FILTER .bar = X);
         """
-        # XXX: error recovery quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Missing ':='",
-                  line=2, col=29)
+                  "Missing parentheses around statement used as an expression",
+                  line=2, col=23)
     def test_edgeql_syntax_function_18(self):
         """
         SELECT (count(SELECT 1) 1);
         """
-        # XXX: error recovery quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Missing ':='",
-                  line=2, col=32)
+                  "Missing parentheses around statement used as an expression",
+                  line=2, col=26)
     def test_edgeql_syntax_function_19(self):
         """
         SELECT ((((count(SELECT 1)))));
         """
-        # XXX: error recovery quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r"Missing '\('",
@@ -3881,14 +3946,12 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing '\('",
-                  line=2, col=39)
+                  r"Unexpected '>'",
+                  line=2, col=38)
     def test_edgeql_syntax_introspect_05(self):
         """
         SELECT INTROSPECT tuple<int64>;
         """
-        # XXX: error recovery quality regression
-        #      parsed as `select ((INTROSPECT tuple < int64) > {})`
 
     # DDL
     #
@@ -4692,7 +4755,12 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Missing identifier", line=2, col=42)
+                  "Unexpected keyword 'SET'",
+                  details="This name is a reserved keyword and cannot be "
+                          "used as an identifier",
+                  hint="Use a different identifier or quote the name "
+                       "with backticks: `SET`",
+                  line=2, col=43)
     def test_edgeql_syntax_ddl_function_31(self):
         # parameter name is missing
         """
@@ -4700,10 +4768,10 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Missing identifier", line=2, col=42)
+                  "Unexpected '::'", line=2, col=37)
     def test_edgeql_syntax_ddl_function_32(self):
         """
-        CREATE FUNCTION std::foo(VARIADIC SET OF std::str) -> std::int64;
+        CREATE FUNCTION std::foo(std::str) -> std::int64;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -5086,7 +5154,9 @@ aa';
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=42)
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Unexpected 'std'",
+                  line=2, col=43)
     def test_edgeql_syntax_ddl_property_03(self):
         """
         CREATE ABSTRACT PROPERTY PROPERTY std::property {
@@ -5094,7 +5164,7 @@ aa';
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=33)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=34)
     def test_edgeql_syntax_ddl_property_04(self):
         """
         CREATE ABSTRACT PROPERTY __type__ {
@@ -6181,3 +6251,43 @@ aa';
 % OK %
         DESCRIBE INSTANCE CONFIG AS DDL;
         """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Missing keyword 'TYPE'",
+                  line=2, col=15)
+    def test_edgeql_syntax_create_01(self):
+        """
+        crEAte something;
+        """
+
+
+class TestEdgeQLNormalization(EdgeQLSyntaxTest):
+
+    def _run_test(self, *, source, spec=None, expected=None):
+        super()._run_test(
+            source=tokenizer.NormalizedSource.from_string(source),
+            spec=spec,
+            expected=expected
+        )
+
+    def assert_equal(
+        self,
+        expected,
+        result,
+        *,
+        re_filter: str | None = None,
+        message: str | None = None
+    ) -> None:
+        pass
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=25)
+    def test_edgeql_normalization_01(self):
+        '''
+        select count(foo 1);
+        '''
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=22)
+    def test_edgeql_normalization_02(self):
+        '''
+        select count 1;
+        '''

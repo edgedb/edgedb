@@ -73,12 +73,12 @@ as **object types** containing **properties** connected by **links**.
 
 ```elm
 type Person {
-  required property name -> str;
+  required name: str;
 }
 
 type Movie {
-  required property title -> str;
-  multi link actors -> Person;
+  required title: str;
+  multi actors: Person;
 }
 ```
 
@@ -176,6 +176,8 @@ To start learning about EdgeDB, check out the following resources:
 - **[The quickstart](https://www.edgedb.com/docs/guides/quickstart)**. If
   you're just starting out, the 10-minute quickstart guide is the fastest way
   to get up and running.
+- **[EdgeDB Cloud 🌤️](https://www.edgedb.com/cloud)**. The best
+  most effortless way to host your EdgeDB database in the cloud.
 - **[The interactive tutorial](https://www.edgedb.com/tutorial)**. For a
   structured deep-dive into the EdgeQL query language, try the web-based
   tutorial— no need to install anything.

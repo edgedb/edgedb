@@ -23,6 +23,7 @@ include "./consts.pxi"
 import asyncio
 import collections
 import http
+import http.cookies
 import re
 import ssl
 import urllib.parse
@@ -36,15 +37,18 @@ from edb.common import markup
 from edb.graphql import extension as graphql_ext
 
 from edb.server import args as srvargs
+from edb.server import config
 from edb.server.protocol cimport binary
 from edb.server.protocol import binary
 from edb.server.protocol import pg_ext
 from edb.server import defines as edbdef
+from edb.server.dbview cimport dbview
 # Without an explicit cimport of `pgproto.debug`, we
 # can't cimport `protocol.binary` for some reason.
 from edb.server.pgproto.debug cimport PG_DEBUG
 
 from . import auth
+from . cimport auth_helpers
 from . import edgeql_ext
 from . import metrics
 from . import server_info
@@ -71,6 +75,8 @@ cdef class HttpRequest:
         self.body = b''
         self.authorization = b''
         self.content_type = b''
+        self.forwarded = {}
+        self.cookies = http.cookies.SimpleCookie()
 
 
 cdef class HttpResponse:
@@ -225,6 +231,13 @@ cdef class HttpProtocol:
                 self.current_request.params = {}
             param = name[len(b'x-edgedb-'):]
             self.current_request.params[param] = value
+        elif name.startswith(b'x-forwarded-'):
+            if self.current_request.forwarded is None:
+                self.current_request.forwarded = {}
+            forwarded_key = name[len(b'x-forwarded-'):]
+            self.current_request.forwarded[forwarded_key] = value
+        elif name == b'cookie':
+            self.current_request.cookies.load(value.decode('ascii'))
 
     def on_body(self, body: bytes):
         self.current_request.body += body
@@ -450,7 +463,7 @@ cdef class HttpProtocol:
 
         try:
             await self.handle_request(request, response)
-        except errors.UnknownTenantError as ex:
+        except errors.AvailabilityError as ex:
             self._close_with_error(
                 b"503 Service Unavailable",
                 f'{type(ex).__name__}: {ex}'.encode(),
@@ -468,8 +481,23 @@ cdef class HttpProtocol:
         else:
             self.resume()
 
+    def check_readiness(self):
+        if self.tenant.is_blocked():
+            readiness_reason = self.tenant.get_readiness_reason()
+            msg = "the server is not accepting requests"
+            if readiness_reason:
+                msg = f"{msg}: {readiness_reason}"
+            raise errors.ServerBlockedError(msg)
+        elif not self.tenant.is_online():
+            readiness_reason = self.tenant.get_readiness_reason()
+            msg = "the server is going offline"
+            if readiness_reason:
+                msg = f"{msg}: {readiness_reason}"
+            raise errors.ServerOfflineError(msg)
+
     async def handle_request(self, HttpRequest request, HttpResponse response):
-        path = urllib.parse.unquote(request.url.path.decode('ascii'))
+        request_url = get_request_url(request, self.is_tls)
+        path = urllib.parse.unquote(request_url.path.decode('ascii'))
         path = path.strip('/')
         path_parts = path.split('/')
         path_parts_len = len(path_parts)
@@ -477,6 +505,7 @@ cdef class HttpProtocol:
 
         if self.tenant is None and route in ['db', 'auth']:
             self.tenant = self.server.get_default_tenant()
+            self.check_readiness()
             if self.tenant.is_accepting_connections():
                 return await self.tenant.create_task(
                     self.handle_request(request, response),
@@ -493,10 +522,6 @@ cdef class HttpProtocol:
                 return self._not_found(request, response)
 
             dbname = path_parts[1]
-            db = self.tenant.maybe_get_db(dbname=dbname)
-            if db is None:
-                return self._not_found(request, response)
-
             extname = path_parts[2] if path_parts_len > 2 else None
 
             # Binary proto tunnelled through HTTP
@@ -566,6 +591,16 @@ cdef class HttpProtocol:
                 else:
                     args = path_parts[3:]
 
+                if extname != 'auth':
+                    if not await self._check_http_auth(
+                        request, response, dbname
+                    ):
+                        return
+
+                db = self.tenant.maybe_get_db(dbname=dbname)
+                if db is None:
+                    return self._not_found(request, response)
+
                 if extname not in db.extensions:
                     return self._not_found(request, response)
 
@@ -583,16 +618,16 @@ cdef class HttpProtocol:
                     )
                 elif extname == 'auth':
                     netloc = (
-                        f"{request.url.host.decode()}:{request.url.port}"
-                            if request.url.port
-                            else request.url.host.decode()
+                        f"{request_url.host.decode()}:{request_url.port}"
+                            if request_url.port
+                            else request_url.host.decode()
                     )
-                    extension_base_path = f"{request.url.schema.decode()}://" \
+                    extension_base_path = f"{request_url.schema.decode()}://" \
                                           f"{netloc}/db/{dbname}/ext/auth"
                     handler = auth_ext.http.Router(
                         db=db,
                         base_path=extension_base_path,
-                        test_mode=self.server.in_test_mode(),
+                        tenant=self.tenant,
                     )
                     await handler.handle_request(request, response, args)
 
@@ -679,3 +714,89 @@ cdef class HttpProtocol:
         response.body = message.encode("utf-8")
         response.status = http.HTTPStatus.BAD_REQUEST
         response.close_connection = True
+
+    async def _check_http_auth(
+        self,
+        HttpRequest request,
+        HttpResponse response,
+        str dbname,
+    ):
+        dbindex: dbview.DatabaseIndex = self.tenant._dbindex
+
+        scheme = None
+        try:
+            # Extract the username from the relevant request headers
+            scheme, auth_payload = auth_helpers.extract_token_from_auth_data(
+                request.authorization)
+            username, opt_password = auth_helpers.extract_http_user(
+                scheme, auth_payload, request.params)
+
+            # Fetch the configured auth method
+            authmethod = await self.tenant.get_auth_method(
+                username, srvargs.ServerConnTransport.SIMPLE_HTTP)
+            authmethod_name = authmethod._tspec.name.split('::')[1]
+
+            # If the auth method and the provided auth information match,
+            # try to resolve the authentication.
+            if authmethod_name == 'JWT' and scheme == 'bearer':
+                if not self.is_tls:
+                    raise errors.AuthenticationError(
+                        'JWT HTTP auth must use HTTPS')
+
+                auth_helpers.auth_jwt(
+                    self.tenant, auth_payload, username, dbname)
+            elif authmethod_name == 'Password' and scheme == 'basic':
+                if not self.is_tls:
+                    raise errors.AuthenticationError(
+                        'Basic HTTP auth must use HTTPS')
+
+                auth_helpers.auth_basic(self.tenant, username, opt_password)
+            elif authmethod_name == 'Trust':
+                pass
+            elif authmethod_name == 'SCRAM':
+                raise errors.AuthenticationError(
+                    'authentication failed: '
+                    'SCRAM authentication required but not supported for HTTP'
+                )
+            else:
+                raise errors.AuthenticationError(
+                    'authentication failed: wrong method used')
+
+        except Exception as ex:
+            if debug.flags.server:
+                markup.dump(ex)
+
+            response.body = str(ex).encode()
+            response.status = http.HTTPStatus.UNAUTHORIZED
+            response.close_connection = True
+
+            # If no scheme was specified, add a WWW-Authenticate header
+            if scheme == '':
+                response.custom_headers['WWW-Authenticate'] = (
+                    'Basic realm="edgedb", Bearer'
+                )
+
+            return False
+
+        return True
+
+
+def get_request_url(request, is_tls):
+    request_url = request.url
+    default_schema = b"https" if is_tls else b"http"
+    if all(
+        getattr(request_url, attr) is None
+        for attr in ('schema', 'host', 'port')
+    ):
+        forwarded = request.forwarded if hasattr(request, 'forwarded') else {}
+        schema = forwarded.get(b'proto', default_schema).decode()
+        host_header = forwarded.get(b'host', request.host).decode()
+
+        host, _, port = host_header.partition(':')
+        path = request_url.path.decode()
+        new_url = f"{schema}://"\
+                  f"{host}{port and ':' + port}"\
+                  f"{path}"
+        request_url = httptools.parse_url(new_url.encode())
+
+    return request_url

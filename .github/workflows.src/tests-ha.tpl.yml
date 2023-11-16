@@ -16,6 +16,19 @@ jobs:
 
     steps:
     <%- call build() -%>
+    # Our HA tests currently only work on Postgres 14 (see #6332),
+    # so check it out before we compute our build cache keys.
+    - name: Switch back to Postgres 14
+      shell: bash
+      run: |
+        set -e
+        cd postgres
+        # Fetch postgres 14, since the clone was shallow
+        git fetch origin REL_14_8 --depth=1
+        # For whatever reason the tag doesn't get fetched, so find it
+        # at FETCH_HEAD
+        git checkout FETCH_HEAD
+
     - name: Compute cache keys
       env:
         GIST_TOKEN: ${{ secrets.CI_BOT_GIST_TOKEN }}
@@ -42,3 +55,23 @@ jobs:
         EDGEDB_TEST_STOLON_KEEPER: build/stolon/bin/stolon-keeper
       run: |
         edb test -j1 -v -k test_ha_
+
+
+  workflow-notifications:
+    if: failure() && github.event_name != 'pull_request'
+    name: Notify in Slack on failures
+    needs:
+      - build
+      - ha-test
+    runs-on: ubuntu-latest
+    permissions:
+      actions: 'read'
+    steps:
+      - name: Slack Workflow Notification
+        uses: Gamesight/slack-workflow-status@26a36836c887f260477432e4314ec3490a84f309
+        with:
+          repo_token: ${{secrets.GITHUB_TOKEN}}
+          slack_webhook_url: ${{secrets.ACTIONS_SLACK_WEBHOOK_URL}}
+          name: 'Workflow notifications'
+          icon_emoji: ':hammer:'
+          include_jobs: 'on-failure'

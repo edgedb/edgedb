@@ -58,6 +58,8 @@ class Setting:
     affects_compilation: bool = False
     enum_values: Optional[Sequence[str]] = None
     required: bool = True
+    secret: bool = False
+    protected: bool = False
 
     def __post_init__(self) -> None:
         if (self.type not in SETTING_TYPES and
@@ -140,8 +142,7 @@ class FlatSpec(Spec):
     def _register_type(self, t: types.ConfigTypeSpec) -> None:
         self._types_by_name[t.name] = t
         for subclass in t.children:
-            self._types_by_name[subclass.name] = downcast(
-                types.ConfigTypeSpec, subclass)
+            self._register_type(downcast(types.ConfigTypeSpec, subclass))
 
         for field in t.fields.values():
             f_type = field.type
@@ -304,6 +305,8 @@ def _load_spec_from_type(
                 else None
             ),
             required=required,
+            secret=p.get_secret(schema),
+            protected=p.get_protected(schema),
         )
 
         settings.append(setting)

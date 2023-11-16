@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import functools
 import dataclasses
+import uuid
 from typing import *
 from typing import overload
 
@@ -143,6 +144,93 @@ base_type_name_map_r = {
     'memory_t': sn.QualName('cfg', 'memory'),
 }
 
+pg_tsvector_typeref = irast.TypeRef(
+    id=uuid.UUID('44d73839-8882-419f-80e5-84f7a3402919'),
+    name_hint=sn.QualName('pg_catalog', 'tsvector'),
+    is_scalar=True,
+    sql_type='pg_catalog.tsvector',
+)
+
+pg_oid_typeref = irast.TypeRef(
+    id=uuid.UUID('44d73839-8882-419f-80e5-84f7a3402920'),
+    name_hint=sn.QualName('pg_catalog', 'oid'),
+    is_scalar=True,
+    sql_type='pg_catalog.oid',
+)
+
+pg_langs = {
+    'simple',
+    'arabic',
+    'armenian',
+    'basque',
+    'catalan',
+    'danish',
+    'dutch',
+    'english',
+    'finnish',
+    'french',
+    'german',
+    'greek',
+    'hindi',
+    'hungarian',
+    'indonesian',
+    'irish',
+    'italian',
+    'lithuanian',
+    'nepali',
+    'norwegian',
+    'portuguese',
+    'romanian',
+    'russian',
+    'serbian',
+    'spanish',
+    'swedish',
+    'tamil',
+    'turkish',
+    'yiddish',
+}
+
+
+pg_langs_by_iso_639_3 = {
+    'ara': 'arabic',
+    'hye': 'armenian',
+    'eus': 'basque',
+    'cat': 'catalan',
+    'dan': 'danish',
+    'nld': 'dutch',
+    'eng': 'english',
+    'fin': 'finnish',
+    'fra': 'french',
+    'deu': 'german',
+    'ell': 'greek',
+    'hin': 'hindi',
+    'hun': 'hungarian',
+    'ind': 'indonesian',
+    'gle': 'irish',
+    'ita': 'italian',
+    'lit': 'lithuanian',
+    'npi': 'nepali',
+    'nor': 'norwegian',
+    'por': 'portuguese',
+    'ron': 'romanian',
+    'rus': 'russian',
+    'srp': 'serbian',
+    'spa': 'spanish',
+    'swe': 'swedish',
+    'tam': 'tamil',
+    'tur': 'turkish',
+    'yid': 'yiddish',
+}
+
+
+def to_regconfig(language: str) -> str:
+    "Analogous to edgedb.fts_to_regconfig function in metaschema"
+    language = language.lower()
+    if language.startswith('xxx_'):
+        return language[4:]
+    else:
+        return pg_langs_by_iso_639_3.get(language, language)
+
 
 def is_builtin_scalar(
     schema: s_schema.Schema, scalar: s_scalars.ScalarType
@@ -158,8 +246,7 @@ def type_has_stable_oid(typ: s_types.Type) -> bool:
 def get_scalar_base(
     schema: s_schema.Schema, scalar: s_scalars.ScalarType
 ) -> Tuple[str, ...]:
-    base = base_type_name_map.get(scalar.id)
-    if base is not None:
+    if base := base_type_name_map.get(scalar.id):
         return base
 
     for ancestor in scalar.get_ancestors(schema).objects(schema):
@@ -568,7 +655,9 @@ def _get_ptrref_storage_info(
 
     target = ptrref.out_target
 
-    if isinstance(ptrref, irast.TupleIndirectionPointerRef):
+    if isinstance(
+        ptrref, (irast.TupleIndirectionPointerRef, irast.SpecialPointerRef)
+    ):
         table = None
         table_type = 'ObjectType'
         col_name = ptrref.shortname.name

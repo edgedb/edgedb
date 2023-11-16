@@ -42,6 +42,7 @@ from edb import buildmeta
 from edb import errors
 
 from edb.common import devmode
+from edb.common import lru
 from edb.common import secretkey
 from edb.common import taskgroup
 from edb.common import windowedsum
@@ -59,6 +60,8 @@ from edb.server import protocol
 from edb.server import tenant as edbtenant
 from edb.server.protocol import binary  # type: ignore
 from edb.server.protocol import pg_ext  # type: ignore
+from edb.server.protocol import ui_ext  # type: ignore
+from edb.server.protocol.auth_ext import pkce
 from edb.server import metrics
 from edb.server import pgcon
 
@@ -114,6 +117,7 @@ class BaseServer:
 
     _compiler_pool: compiler_pool.AbstractPool | None
     _http_request_logger: asyncio.Task | None
+    _auth_gc: asyncio.Task | None
 
     def __init__(
         self,
@@ -166,6 +170,9 @@ class BaseServer:
         self._compiler_pool_size = compiler_pool_size
         self._compiler_pool_mode = compiler_pool_mode
         self._compiler_pool_addr = compiler_pool_addr
+        self._system_compile_cache = lru.LRUMapping(
+            maxsize=defines._MAX_QUERIES_CACHE
+        )
 
         self._listen_sockets = listen_sockets
         if listen_sockets:
@@ -200,6 +207,7 @@ class BaseServer:
 
         self._http_last_minute_requests = windowedsum.WindowedSum()
         self._http_request_logger = None
+        self._auth_gc = None
 
         self._stop_evt = asyncio.Event()
         self._tls_cert_file: str | Any = None
@@ -269,11 +277,15 @@ class BaseServer:
 
     def on_binary_client_connected(self, conn):
         self._binary_conns[conn] = True
-        metrics.current_client_connections.inc()
+        metrics.current_client_connections.inc(
+            1.0, conn.get_tenant_label()
+        )
 
     def on_binary_client_authed(self, conn):
         self._report_connections(event='opened')
-        metrics.total_client_connections.inc()
+        metrics.total_client_connections.inc(
+            1.0, conn.get_tenant_label()
+        )
 
     def on_binary_client_after_idling(self, conn):
         try:
@@ -282,12 +294,16 @@ class BaseServer:
             # Shouldn't happen, but just in case some weird async twist
             # gets us here we don't want to crash the connection with
             # this error.
-            metrics.background_errors.inc(1.0, 'client_after_idling')
+            metrics.background_errors.inc(
+                1.0, conn.get_tenant_label(), 'client_after_idling'
+            )
 
     def on_binary_client_disconnected(self, conn):
         self._binary_conns.pop(conn, None)
         self._report_connections(event="closed")
-        metrics.current_client_connections.dec()
+        metrics.current_client_connections.dec(
+            1.0, conn.get_tenant_label()
+        )
         self.maybe_auto_shutdown()
 
     def maybe_auto_shutdown(self):
@@ -337,7 +353,14 @@ class BaseServer:
     ) -> Any:
         return config.lookup(name, *configs, spec=self._config_settings)
 
+    @property
+    def config_settings(self) -> config.Spec:
+        return self._config_settings
+
     async def init(self):
+        if self.is_admin_ui_enabled():
+            ui_ext.cache_assets()
+
         sys_config = self._get_sys_config()
         if not self._listen_hosts:
             self._listen_hosts = (
@@ -381,6 +404,10 @@ class BaseServer:
     def stmt_cache_size(self) -> int | None:
         return self._stmt_cache_size
 
+    @property
+    def system_compile_cache(self):
+        return self._system_compile_cache
+
     def _idle_gc_collector(self):
         try:
             self._idle_gc_handler = None
@@ -394,7 +421,9 @@ class BaseServer:
             for conn in self._binary_conns:
                 try:
                     if conn.is_idle(expiry_time):
-                        metrics.idle_client_connections.inc()
+                        metrics.idle_client_connections.inc(
+                            1.0, conn.get_tenant_label()
+                        )
                         conn.close_for_idling()
                     elif conn.is_alive():
                         # We are sorting connections in
@@ -405,10 +434,14 @@ class BaseServer:
                         # connections.
                         break
                 except Exception:
-                    metrics.background_errors.inc(1.0, 'close_for_idling')
+                    metrics.background_errors.inc(
+                        1.0, conn.get_tenant_label(), 'close_for_idling'
+                    )
                     conn.abort()
         except Exception:
-            metrics.background_errors.inc(1.0, 'idle_clients_collector')
+            metrics.background_errors.inc(
+                1.0, 'system', 'idle_clients_collector'
+            )
             raise
 
     def _get_backend_runtime_params(self) -> pgparams.BackendRuntimeParams:
@@ -876,6 +909,7 @@ class BaseServer:
             pidfile.acquire()
 
         await self._after_start_servers()
+        self._auth_gc = self.__loop.create_task(pkce.gc(self))
 
         if self._echo_runtime_info:
             ri = {
@@ -925,6 +959,8 @@ class BaseServer:
 
         if self._http_request_logger is not None:
             self._http_request_logger.cancel()
+        if self._auth_gc is not None:
+            self._auth_gc.cancel()
 
         for handle in self._file_watch_handles:
             handle.cancel()
@@ -953,9 +989,6 @@ class BaseServer:
         Some tests depend on the exact layout of the returned structure.
         """
 
-        def serialize_config(cfg):
-            return {name: value.value for name, value in cfg.items()}
-
         return dict(
             params=dict(
                 dev_mode=self._devmode,
@@ -964,13 +997,13 @@ class BaseServer:
                 listen_hosts=self._listen_hosts,
                 listen_port=self._listen_port,
             ),
-            instance_config=serialize_config(self._get_sys_config()),
-            compiler_pool=dict(
-                worker_pids=list(
-                    self._compiler_pool._workers.keys()  # type: ignore
-                ),
-                template_pid=self._compiler_pool.get_template_pid(),
-            ) if self._compiler_pool else None,
+            instance_config=config.debug_serialize_config(
+                self._get_sys_config()),
+            compiler_pool=(
+                self._compiler_pool.get_debug_info()
+                if self._compiler_pool
+                else None
+            ),
         )
 
     def get_report_config_typedesc(
@@ -1002,6 +1035,9 @@ class BaseServer:
         #
         # The caller must be ready to handle errors raised in this method, and
         # provide a decent error.
+        raise NotImplementedError
+
+    def iter_tenants(self) -> Iterator[edbtenant.Tenant]:
         raise NotImplementedError
 
     async def maybe_generate_pki(
@@ -1058,6 +1094,7 @@ class Server(BaseServer):
         return self._tenant.get_sys_config()
 
     async def init(self) -> None:
+        logger.debug("starting server init")
         await self._tenant.init_sys_pgcon()
         await self._load_instance_data()
         await self._maybe_patch()
@@ -1066,6 +1103,9 @@ class Server(BaseServer):
 
     def get_default_tenant(self) -> edbtenant.Tenant:
         return self._tenant
+
+    def iter_tenants(self) -> Iterator[edbtenant.Tenant]:
+        yield self._tenant
 
     async def _get_patch_log(
         self, conn: pgcon.PGConnection, idx: int
@@ -1105,26 +1145,31 @@ class Server(BaseServer):
 
             idx = num_patches + num
             if not (entry := await self._get_patch_log(conn, idx)):
+                patch_info = await bootstrap.gather_patch_info(
+                    num, kind, patch, conn
+                )
+
                 entry = bootstrap.prepare_patch(
                     num, kind, patch, self._std_schema, self._refl_schema,
                     self._schema_class_layout,
-                    self._tenant.get_backend_runtime_params())
+                    self._tenant.get_backend_runtime_params(),
+                    patch_info=patch_info,
+                )
 
                 await bootstrap._store_static_bin_cache_conn(
                     conn, f'patch_log_{idx}', pickle.dumps(entry))
 
             patches[num] = entry
             _, _, updates, _ = entry
-            if 'stdschema' in updates:
-                self._std_schema = updates['stdschema']
+            if 'std_and_reflection_schema' in updates:
+                self._std_schema, self._refl_schema = updates[
+                    'std_and_reflection_schema']
                 # +config patches might modify config_spec, which requires
                 # a reload of it from the schema.
                 if '+config' in kind:
                     config_spec = config.load_spec_from_schema(self._std_schema)
                     self._config_settings = config_spec
 
-            if 'reflschema' in updates:
-                self._refl_schema = updates['reflschema']
             if 'local_intro_query' in updates:
                 self._local_intro_query = updates['local_intro_query']
             if 'global_intro_query' in updates:
@@ -1150,12 +1195,35 @@ class Server(BaseServer):
     ) -> None:
         """Apply any un-applied patches to the database."""
         num_patches = await self.get_patch_count(conn)
-        for num, (sql_b, syssql, _, repair) in patches.items():
+        for num, (sql_b, syssql, keys, repair) in patches.items():
             if num_patches <= num:
                 if sys:
                     sql_b += syssql
                 logger.info("applying patch %d to database '%s'", num, dbname)
                 sql = tuple(x.encode('utf-8') for x in sql_b)
+
+                # If we are doing a user_ext update, we need to
+                # actually run that against each user database.
+                if keys.get('is_user_ext_update'):
+                    from . import bootstrap
+                    global_schema = await self.introspect_global_schema(conn)
+                    user_schema = await self._introspect_user_schema(
+                        conn, global_schema)
+
+                    kind, patch = pg_patches.PATCHES[num]
+                    patch_info = await bootstrap.gather_patch_info(
+                        num, kind, patch, conn
+                    )
+                    entry = bootstrap.prepare_patch(
+                        num, kind, patch, self._std_schema, self._refl_schema,
+                        self._schema_class_layout,
+                        self._tenant.get_backend_runtime_params(),
+                        patch_info=patch_info,
+                        user_schema=user_schema,
+                        global_schema=global_schema,
+                    )
+
+                    sql += tuple(x.encode('utf-8') for x in entry[0])
 
                 # Only do repairs when they are the *last* pending
                 # repair in the patch queue. We make sure that every
@@ -1260,6 +1328,7 @@ class Server(BaseServer):
         return res
 
     async def _load_instance_data(self):
+        logger.info("loading instance data")
         async with self._tenant.use_sys_pgcon() as syscon:
             patch_count = await self.get_patch_count(syscon)
             version_key = pg_patches.get_version_key(patch_count)
@@ -1409,7 +1478,9 @@ class Server(BaseServer):
 
             self._tenant.schedule_reported_config_if_needed(setting_name)
         except Exception:
-            metrics.background_errors.inc(1.0, 'on_system_config_set')
+            metrics.background_errors.inc(
+                1.0, self._tenant.get_instance_name(), 'on_system_config_set'
+            )
             raise
 
     async def _on_system_config_reset(self, setting_name):
@@ -1438,7 +1509,9 @@ class Server(BaseServer):
 
             self._tenant.schedule_reported_config_if_needed(setting_name)
         except Exception:
-            metrics.background_errors.inc(1.0, 'on_system_config_reset')
+            metrics.background_errors.inc(
+                1.0, self._tenant.get_instance_name(), 'on_system_config_reset'
+            )
             raise
 
     async def _after_system_config_add(self, setting_name, value):
@@ -1446,7 +1519,11 @@ class Server(BaseServer):
             if setting_name == 'auth':
                 self._tenant.populate_sys_auth()
         except Exception:
-            metrics.background_errors.inc(1.0, 'after_system_config_add')
+            metrics.background_errors.inc(
+                1.0,
+                self._tenant.get_instance_name(),
+                'after_system_config_add',
+            )
             raise
 
     async def _after_system_config_rem(self, setting_name, value):
@@ -1454,7 +1531,11 @@ class Server(BaseServer):
             if setting_name == 'auth':
                 self._tenant.populate_sys_auth()
         except Exception:
-            metrics.background_errors.inc(1.0, 'after_system_config_rem')
+            metrics.background_errors.inc(
+                1.0,
+                self._tenant.get_instance_name(),
+                'after_system_config_rem',
+            )
             raise
 
     async def run_startup_script_and_exit(self):

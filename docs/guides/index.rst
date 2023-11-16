@@ -18,6 +18,7 @@ guide!
     :maxdepth: 1
 
     cloud
+    auth/index
     tutorials/index
     deployment/index
     migrations/index

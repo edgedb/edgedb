@@ -651,6 +651,9 @@ class AbstractPool:
         finally:
             self._release_worker(worker)
 
+    def get_debug_info(self):
+        return {}
+
 
 class BaseLocalPool(
     AbstractPool, amsg.ServerProtocol, asyncio.SubprocessProtocol
@@ -844,6 +847,12 @@ class BaseLocalPool(
         if worker.get_pid() in self._workers:
             self._workers_queue.release(worker, put_in_front=put_in_front)
 
+    def get_debug_info(self):
+        return dict(
+            worker_pids=list(self._workers.keys()),
+            template_pid=self.get_template_pid(),
+        )
+
 
 @srvargs.CompilerPoolMode.Fixed.assign_implementation
 class FixedPool(BaseLocalPool):
@@ -930,7 +939,6 @@ class SimpleAdaptivePool(BaseLocalPool):
         super().__init__(pool_size=1, **kwargs)
         self._worker_transports = {}
         self._expected_num_workers = 0
-        self._scale_up_handle = None
         self._scale_down_handle = None
         self._max_num_workers = pool_size
 
@@ -949,9 +957,9 @@ class SimpleAdaptivePool(BaseLocalPool):
     async def _acquire_worker(
         self, *, condition=None, weighter=None, **compiler_args
     ):
+        scale_up_handle = None
         if (
-            self._running and
-            self._scale_up_handle is None
+            self._running
             and self._workers_queue.qsize() == 0
             and (
                 len(self._workers)
@@ -959,17 +967,19 @@ class SimpleAdaptivePool(BaseLocalPool):
                 < self._max_num_workers
             )
         ):
-            self._scale_up_handle = self._loop.call_later(
-                ADAPTIVE_SCALE_UP_WAIT_TIME,
-                self._maybe_scale_up,
-                self._workers_queue.count_waiters() + 1,
+            scale_up_handle = self._loop.call_later(
+                ADAPTIVE_SCALE_UP_WAIT_TIME, self._maybe_scale_up
             )
         if self._scale_down_handle is not None:
             self._scale_down_handle.cancel()
             self._scale_down_handle = None
-        return await super()._acquire_worker(
-            condition=condition, weighter=weighter, **compiler_args
-        )
+        try:
+            return await super()._acquire_worker(
+                condition=condition, weighter=weighter, **compiler_args
+            )
+        finally:
+            if scale_up_handle is not None:
+                scale_up_handle.cancel()
 
     def _release_worker(self, worker, *, put_in_front: bool = True):
         if self._scale_down_handle is not None:
@@ -1016,26 +1026,20 @@ class SimpleAdaptivePool(BaseLocalPool):
                     self._worker_transports.pop(pid, None)
 
     async def _create_worker(self):
-        try:
-            # Creates a single compiler worker process.
-            transport = await self._create_compiler_process()
-            self._worker_transports[transport.get_pid()] = transport
-            self._expected_num_workers += 1
-        finally:
-            self._scale_up_handle = None
+        # Creates a single compiler worker process.
+        transport = await self._create_compiler_process()
+        self._worker_transports[transport.get_pid()] = transport
+        self._expected_num_workers += 1
 
-    def _maybe_scale_up(self, starting_num_waiters):
+    def _maybe_scale_up(self):
         if not self._running:
             return
-        if self._workers_queue.count_waiters() > starting_num_waiters:
-            logger.info(
-                "Compile requests are queuing up in the past %d seconds, "
-                "spawn a new compiler worker process now.",
-                ADAPTIVE_SCALE_UP_WAIT_TIME,
-            )
-            self._loop.create_task(self._create_worker())
-        else:
-            self._scale_up_handle = None
+        logger.info(
+            "A compile request has waited for more than %d seconds, "
+            "spawn a new compiler worker process now.",
+            ADAPTIVE_SCALE_UP_WAIT_TIME,
+        )
+        self._loop.create_task(self._create_worker())
 
     def _scale_down(self):
         self._scale_down_handle = None
@@ -1221,6 +1225,13 @@ class RemotePool(AbstractPool):
             if not callback:
                 self._sync_lock.release()
         return preargs, callback
+
+    def get_debug_info(self):
+        return dict(
+            address="{}:{}".format(*self._pool_addr),
+            size=self._semaphore._bound_value,  # type: ignore
+            free=self._semaphore._value,  # type: ignore
+        )
 
 
 @dataclasses.dataclass

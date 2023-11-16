@@ -74,7 +74,14 @@ def compile_cast(
             ctx=ctx,
             srcctx=ir_expr.context)
 
-    if irutils.is_untyped_empty_array_expr(ir_expr):
+    if isinstance(new_stype, s_types.Array) and (
+        irutils.is_untyped_empty_array_expr(ir_expr)
+        or (
+            isinstance(ir_expr, irast.Set)
+            and irutils.is_untyped_empty_array_expr(
+                irutils.unwrap_set(ir_expr).expr)
+        )
+    ):
         # Ditto for empty arrays.
         new_typeref = typegen.type_to_typeref(new_stype, ctx.env)
         return setgen.ensure_set(
@@ -82,6 +89,12 @@ def compile_cast(
 
     ir_set = setgen.ensure_set(ir_expr, ctx=ctx)
     orig_stype = setgen.get_set_type(ir_set, ctx=ctx)
+
+    if new_stype.is_polymorphic(ctx.env.schema):
+        raise errors.QueryError(
+            f'cannot cast into generic type '
+            f'{new_stype.get_displayname(ctx.env.schema)!r}',
+            context=srcctx)
 
     if (orig_stype == new_stype and
             cardinality_mod is not qlast.CardinalityModifier.Required):
@@ -96,6 +109,17 @@ def compile_cast(
             f'to {new_stype.get_displayname(ctx.env.schema)!r}, use '
             f'`...[IS {new_stype.get_displayname(ctx.env.schema)}]` instead',
             context=srcctx)
+
+    # The only valid object type cast other than <uuid> is from anytype,
+    # and thus it must be an empty set.
+    if (
+        orig_stype.is_any(ctx.env.schema)
+        and new_stype.is_object_type()
+    ):
+        return setgen.new_empty_set(
+            stype=new_stype,
+            ctx=ctx,
+            srcctx=ir_expr.context)
 
     uuid_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'uuid'))
     if (
@@ -1228,11 +1252,7 @@ def _find_object_by_id(
             result=qlast.DetachedExpr(expr=qlast.Path(steps=[object_name])),
             where=qlast.BinOp(
                 left=qlast.Path(
-                    steps=[
-                        qlast.Ptr(
-                            ptr=qlast.ObjectRef(name='id'), direction='>'
-                        )
-                    ],
+                    steps=[qlast.Ptr(name='id', direction='>')],
                     partial=True,
                 ),
                 op='=',

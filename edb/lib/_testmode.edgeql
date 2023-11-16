@@ -122,6 +122,19 @@ create extension package _conf VERSION '1.0' {
     set sql_extensions := [];
     create module ext::_conf;
 
+    create type ext::_conf::SingleObj extending cfg::ConfigObject {
+        create required property name -> std::str {
+            set readonly := true;
+        };
+        create required property value -> std::str {
+            set readonly := true;
+        };
+        create required property fixed -> std::str {
+            set default := "fixed!";
+            set readonly := true;
+            set protected := true;
+        };
+    };
     create type ext::_conf::Obj extending cfg::ConfigObject {
         create required property name -> std::str {
             set readonly := true;
@@ -129,6 +142,8 @@ create extension package _conf VERSION '1.0' {
         };
         create required property value -> std::str {
             set readonly := true;
+            create delegated constraint std::exclusive;
+            create constraint expression on (__subject__[:5] != 'asdf_');
         };
         create property opt_value -> std::str {
             set readonly := true;
@@ -139,17 +154,42 @@ create extension package _conf VERSION '1.0' {
             set readonly := true;
         };
     };
+    create type ext::_conf::SecretObj extending ext::_conf::Obj {
+        create property secret -> std::str {
+            set readonly := true;
+            set secret := true;
+        };
+    };
+
+    create type ext::_conf::Obj2 extending cfg::ConfigObject {
+        create required property name -> std::str {
+            set readonly := true;
+            create constraint std::exclusive;
+        };
+    };
 
     create type ext::_conf::Config extending cfg::ExtensionConfig {
         create multi link objs -> ext::_conf::Obj;
+        create link obj -> ext::_conf::SingleObj;
+        create multi link objs2 -> ext::_conf::Obj2;
 
         create property config_name -> std::str {
             set default := "";
         };
         create property opt_value -> std::str;
+        create property secret -> std::str {
+            set secret := true;
+        };
     };
-};
 
+    create function ext::_conf::get_secret(c: ext::_conf::SecretObj)
+        -> optional std::str using (c.secret);
+    create function ext::_conf::get_top_secret()
+        -> set of std::str using (
+          cfg::Config.extensions[is ext::_conf::Config].secret);
+    create alias ext::_conf::OK := (
+        cfg::Config.extensions[is ext::_conf::Config].secret ?= 'foobaz');
+};
 
 # std::_gen_series
 

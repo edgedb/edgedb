@@ -24,6 +24,7 @@ from typing import *
 
 import asyncio
 import atexit
+import base64
 import contextlib
 import dataclasses
 import functools
@@ -102,7 +103,29 @@ generate_jwk = secretkey.generate_jwk
 generate_tls_cert = secretkey.generate_tls_cert
 
 
-class StubbornHttpConnection(http.client.HTTPSConnection):
+class CustomSNI_HTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, *args, server_hostname=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.server_hostname = server_hostname
+
+    def connect(self):
+        super(http.client.HTTPSConnection, self).connect()
+
+        if self._tunnel_host:
+            server_hostname = self._tunnel_host
+        elif self.server_hostname is not None:
+            server_hostname = self.server_hostname
+        else:
+            server_hostname = self.host
+
+        self.sock = self._context.wrap_socket(self.sock,
+                                              server_hostname=server_hostname)
+
+    def true_close(self):
+        self.close()
+
+
+class StubbornHttpConnection(CustomSNI_HTTPSConnection):
 
     def close(self):
         # Don't actually close the connection.  This allows us to
@@ -341,8 +364,9 @@ class BaseHTTPTestCase(TestCase):
     def get_api_prefix(cls):
         return ''
 
+    @classmethod
     @contextlib.contextmanager
-    def http_con(self, server, keep_alive=True):
+    def http_con(cls, server, keep_alive=True, server_hostname=None):
         conn_args = server.get_connect_args()
         tls_context = ssl.create_default_context(
             ssl.Purpose.SERVER_AUTH,
@@ -352,11 +376,12 @@ class BaseHTTPTestCase(TestCase):
         if keep_alive:
             ConCls = StubbornHttpConnection
         else:
-            ConCls = http.client.HTTPSConnection
+            ConCls = CustomSNI_HTTPSConnection
 
         con = ConCls(
             conn_args["host"],
             conn_args["port"],
+            server_hostname=server_hostname,
             context=tls_context,
         )
         con.connect()
@@ -365,8 +390,9 @@ class BaseHTTPTestCase(TestCase):
         finally:
             con.true_close()
 
+    @classmethod
     def http_con_send_request(
-        self,
+        cls,
         http_con: http.client.HTTPConnection,
         params: Optional[dict[str, str]] = None,
         *,
@@ -378,7 +404,7 @@ class BaseHTTPTestCase(TestCase):
     ):
         url = f'https://{http_con.host}:{http_con.port}'
         if prefix is None:
-            prefix = self.get_api_prefix()
+            prefix = cls.get_api_prefix()
         if prefix:
             url = f'{url}{prefix}'
         if path:
@@ -389,8 +415,9 @@ class BaseHTTPTestCase(TestCase):
             headers = {}
         http_con.request(method, url, body=body, headers=headers)
 
+    @classmethod
     def http_con_read_response(
-        self,
+        cls,
         http_con: http.client.HTTPConnection,
     ) -> tuple[bytes, dict[str, str], int]:
         resp = http_con.getresponse()
@@ -398,8 +425,9 @@ class BaseHTTPTestCase(TestCase):
         resp_headers = {k.lower(): v for k, v in resp.getheaders()}
         return resp_body, resp_headers, resp.status
 
+    @classmethod
     def http_con_request(
-        self,
+        cls,
         http_con: http.client.HTTPConnection,
         params: Optional[dict[str, str]] = None,
         *,
@@ -409,7 +437,7 @@ class BaseHTTPTestCase(TestCase):
         body: bytes = b"",
         path: str = "",
     ) -> tuple[bytes, dict[str, str], int]:
-        self.http_con_send_request(
+        cls.http_con_send_request(
             http_con,
             params,
             prefix=prefix,
@@ -418,24 +446,29 @@ class BaseHTTPTestCase(TestCase):
             body=body,
             path=path,
         )
-        return self.http_con_read_response(http_con)
+        return cls.http_con_read_response(http_con)
 
+    @classmethod
     def http_con_json_request(
-        self,
+        cls,
         http_con: http.client.HTTPConnection,
         params: Optional[dict[str, str]] = None,
         *,
         prefix: Optional[str] = None,
+        headers: Optional[dict[str, str]] = None,
         body: Any,
         path: str = "",
     ):
-        response, headers, status = self.http_con_request(
+        response, headers, status = cls.http_con_request(
             http_con,
             params,
             method="POST",
             body=json.dumps(body).encode(),
             prefix=prefix,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                **(headers or {}),
+            },
             path=path,
         )
 
@@ -491,6 +524,7 @@ async def init_cluster(
         destroy = True
     else:
         cluster = edgedb_cluster.Cluster(
+            testmode=True,
             data_dir=data_dir,
             log_level=log_level,
             security=security,
@@ -505,6 +539,7 @@ async def init_cluster(
 
     await cluster.start(port=0)
     await cluster.set_test_config()
+    # await cluster.trust_http_connections()
     await cluster.set_superuser_password('test')
 
     if cleanup_atexit:
@@ -606,7 +641,7 @@ async def drop_db(conn, dbname):
     # with a retry loop. Without this, tests would flake
     # a lot.
     async for tr in TestCase.try_until_succeeds(
-        ignore=edgedb.ExecutionError,
+        ignore=(edgedb.ExecutionError, edgedb.ClientConnectionError),
         timeout=30
     ):
         async with tr:
@@ -666,16 +701,7 @@ class ClusterTestCase(BaseHTTPTestCase):
 
     @classmethod
     async def tearDownSingleDB(cls):
-        await cls.con.execute(
-            'START MIGRATION TO {};\n'
-            'POPULATE MIGRATION;\n'
-            'COMMIT MIGRATION;'
-        )
-        while m := await cls.con.query_single(
-            "SELECT schema::Migration { name } "
-            "FILTER NOT EXISTS .<parents LIMIT 1"
-        ):
-            await cls.con.execute(f"DROP MIGRATION {m.name}")
+        await cls.con.execute("RESET SCHEMA TO initial;")
 
     @classmethod
     def fetch_metrics(cls) -> str:
@@ -704,6 +730,20 @@ class ClusterTestCase(BaseHTTPTestCase):
                             database=database,
                             secret_key=secret_key))
         return conargs
+
+    @classmethod
+    def make_auth_header(
+        cls, user=edgedb_defines.EDGEDB_SUPERUSER, password=None
+    ):
+        # urllib *does* have actual support for basic auth but it is so much
+        # more annoying than just doing it yourself...
+        conargs = cls.get_connect_args(user=user, password=password)
+        username = conargs.get('user')
+        password = conargs.get('password')
+        key = f'{username}:{password}'.encode('ascii')
+        basic_header = f'Basic {base64.b64encode(key).decode("ascii")}'
+
+        return basic_header
 
     @classmethod
     def get_parallelism_granularity(cls):
@@ -753,11 +793,16 @@ class ClusterTestCase(BaseHTTPTestCase):
             finally:
                 await tx.rollback()
 
+    @classmethod
     @contextlib.contextmanager
-    def http_con(self, server=None):
+    def http_con(cls, server=None, keep_alive=True, server_hostname=None):
         if server is None:
-            server = self
-        with super().http_con(server) as http_con:
+            server = cls
+        with super().http_con(
+            server,
+            keep_alive=keep_alive,
+            server_hostname=server_hostname,
+        ) as http_con:
             yield http_con
 
     @property
@@ -974,6 +1019,26 @@ class ConnectedTestCase(ClusterTestCase):
                 self.add_fail_notes(msg=msg)
             raise
 
+    async def assert_index_use(self, query, *args, index_type):
+        def look(obj):
+            if isinstance(obj, dict) and obj.get('plan_type') == "IndexScan":
+                return any(
+                    prop['title'] == 'index_name'
+                    and index_type in prop['value']
+                    for prop in obj.get('properties', [])
+                )
+
+            if isinstance(obj, dict):
+                return any([look(v) for v in obj.values()])
+            elif isinstance(obj, list):
+                return any(look(v) for v in obj)
+            else:
+                return False
+
+        plan = await self.con.query_json(f'analyze {query}', *args)
+        if not look(json.loads(plan)):
+            raise AssertionError(f"query did not use the {index_type!r} index")
+
 
 class DatabaseTestCase(ConnectedTestCase):
 
@@ -1134,7 +1199,7 @@ class DatabaseTestCase(ConnectedTestCase):
             if m:
                 module_name = (
                     (m.group(1) or cls.DEFAULT_MODULE)
-                    .lower().replace('__', '.')
+                    .lower().replace('_', '::')
                 )
 
                 schema_fn = getattr(cls, name)
@@ -1473,7 +1538,6 @@ class StablePGDumpTestCase(BaseQueryTestCase):
 
     BASE_TEST_CLASS = True
     ISOLATED_METHODS = False
-    STABLE_DUMP = True
     TRANSACTION_ISOLATION = False
 
     def run_pg_dump(self, *args, input: Optional[str] = None) -> None:

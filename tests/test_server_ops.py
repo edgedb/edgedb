@@ -34,6 +34,7 @@ import sys
 import tempfile
 import time
 import unittest
+import uuid
 
 import edgedb
 from edgedb import errors
@@ -991,6 +992,55 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 rf.close()
                 os.unlink(rf_name)
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "covered in test_server_ops_multi_tenant",
+    )
+    async def test_server_ops_blocked(self):
+        rf_no, rf_name = tempfile.mkstemp(text=True)
+        rf = open(rf_no, "wt")
+
+        try:
+            print("default", file=rf, flush=True)
+
+            async with tb.start_edgedb_server(
+                readiness_state_file=rf_name,
+            ) as sd:
+                conn = await sd.connect()
+                await conn.execute("select 1")
+
+                # Go blocked
+                rf.seek(0)
+                print("blocked:quota exceeded", file=rf, flush=True)
+                await asyncio.sleep(0.01)
+
+                with self.assertRaisesRegex(
+                    edgedb.AvailabilityError,
+                    "quota exceeded"
+                ):
+                    await conn.execute("select 1")
+
+                await asyncio.sleep(0.01)
+                self.assertTrue(conn.is_closed())
+
+                # Clear read-only by removing the file
+                rf.close()
+                os.unlink(rf_name)
+                await asyncio.sleep(0.05)
+                async for tr in self.try_until_succeeds(
+                    ignore=(
+                        edgedb.AvailabilityError,
+                    ),
+                ):
+                    async with tr:
+                        await conn.execute("select 1")
+
+                await conn.aclose()
+        finally:
+            if os.path.exists(rf_name):
+                rf.close()
+                os.unlink(rf_name)
+
     async def test_server_ops_restore_with_schema_signal(self):
         async def test(pgdata_path):
             backend_dsn = f'postgres:///?user=postgres&host={pgdata_path}'
@@ -1136,12 +1186,8 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     mtargs = MultiTenantArgs(
                         srv, sd, conf_file, conf, args1, args2, rd1, rd2
                     )
-                    for name in [
-                        "_test_server_ops_multi_tenant_1",
-                        "_test_server_ops_multi_tenant_2",
-                        "_test_server_ops_multi_tenant_3",
-                        "_test_server_ops_multi_tenant_4",
-                    ]:
+                    for i in range(1, 7):
+                        name = f"_test_server_ops_multi_tenant_{i}"
                         with self.subTest(name):
                             await getattr(self, name)(mtargs)
             finally:
@@ -1216,6 +1262,86 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
         await self._test_server_ops_multi_tenant_1(mtargs)
         await self._test_server_ops_multi_tenant_2(mtargs)
+
+    async def _test_server_ops_multi_tenant_5(self, mtargs: MultiTenantArgs):
+        mtargs.rd1.file.seek(0)
+        mtargs.rd1.file.truncate(0)
+        mtargs.rd1.file.write("blocked:test")
+        mtargs.rd1.file.flush()
+
+        async for tr in self.try_until_fails(
+            wait_for=errors.AvailabilityError
+        ):
+            async with tr:
+                await self._test_server_ops_multi_tenant_1(
+                    mtargs,
+                    timeout=1,
+                    wait_until_available=0,
+                )
+
+        await self._test_server_ops_multi_tenant_2(mtargs)
+
+        mtargs.rd1.file.seek(0)
+        mtargs.rd1.file.truncate(0)
+        mtargs.rd1.file.write("default:ok")
+        mtargs.rd1.file.flush()
+
+        await self._test_server_ops_multi_tenant_1(mtargs)
+        await self._test_server_ops_multi_tenant_2(mtargs)
+
+    async def _test_server_ops_global_compile_cache(
+        self, mtargs: MultiTenantArgs, ddl, **kwargs
+    ):
+        conn = await mtargs.sd.connect(**kwargs)
+        try:
+            await conn.execute(ddl)
+            await conn.execute('create extension pgcrypto')
+            await conn.execute('create extension auth')
+            await conn.execute(f'''
+                configure current database set
+                ext::auth::AuthConfig::auth_signing_key := '{"a" * 32}';
+
+                configure current database
+                insert ext::auth::EmailPasswordProviderConfig {{
+                    require_verification := false,
+                }};
+
+                configure current database set
+                ext::auth::SMTPConfig::sender := 'noreply@example.com';
+            ''')
+        finally:
+            await conn.aclose()
+
+        with self.http_con(
+            mtargs.sd, server_hostname=kwargs['server_hostname']
+        ) as http_con:
+            async for tr in self.try_until_succeeds(ignore=AssertionError):
+                async with tr:
+                    response, _, status = self.http_con_json_request(
+                        http_con,
+                        path=f"/db/{conn.dbname}/ext/auth/register",
+                        body={
+                            "provider": "builtin::local_emailpassword",
+                            "challenge": str(uuid.uuid4()),
+                            "email": "cache@example.com",
+                            "password": "secret",
+                        },
+                    )
+                    self.assertEqual(status, 201)
+
+    async def _test_server_ops_multi_tenant_6(self, mtargs: MultiTenantArgs):
+        # The 2 tenants has different user schema, make sure the auth queries
+        # work fine: the first run caches the queries and the second uses them
+        await self._test_server_ops_global_compile_cache(
+            mtargs,
+            "create type GlobalCache1 { create property name: str }",
+            **mtargs.args1,
+        )
+        await self._test_server_ops_global_compile_cache(
+            mtargs,
+            "create type GlobalCache2 { create property active: bool }",
+            **mtargs.args2,
+        )
 
 
 class MultiTenantArgs(NamedTuple):

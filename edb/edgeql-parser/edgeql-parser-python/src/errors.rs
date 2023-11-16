@@ -86,7 +86,12 @@ py_class!(pub class ParserResult |py| {
 });
 
 pub fn parser_error_into_tuple(py: Python, error: Error) -> PyObject {
-    (error.message, (error.span.start, error.span.end))
+    (
+        error.message,
+        (error.span.start, error.span.end),
+        error.hint,
+        error.details,
+    )
         .into_py_object(py)
         .into_object()
 }

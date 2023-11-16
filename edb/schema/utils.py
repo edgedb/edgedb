@@ -1204,12 +1204,11 @@ def const_ast_from_python(val: Any) -> qlast.Expr:
             subject=name_to_ast_ref(sn.name_from_string(val._tspec.name)),
             shape=[
                 qlast.ShapeElement(
-                    expr=qlast.Path(steps=[qlast.Ptr(ptr=qlast.ObjectRef(
-                        name=ptr
-                    ))]),
+                    expr=qlast.Path(steps=[qlast.Ptr(name=ptr)]),
                     compexpr=const_ast_from_python(getattr(val, ptr)),
                 )
-                for ptr in val._tspec.fields
+                for ptr, typ in val._tspec.fields.items()
+                if not typ.secret and not typ.protected
             ],
         )
     elif isinstance(val, (set, frozenset)):
@@ -1229,7 +1228,7 @@ def get_config_type_shape(
     shape = []
     seen: Set[str] = set()
 
-    stypes = [stype] + list(stype.descendants(schema))
+    stypes = [stype] + list(stype.ordered_descendants(schema))
 
     for t in stypes:
         t_name = t.get_name(schema)
@@ -1253,7 +1252,7 @@ def get_config_type_shape(
                     ),
                 )
 
-            elem_path.append(qlast.Ptr(ptr=qlast.ObjectRef(name=pn)))
+            elem_path.append(qlast.Ptr(name=pn))
 
             ptype = p.get_target(schema)
             assert ptype is not None
@@ -1265,19 +1264,11 @@ def get_config_type_shape(
                     schema, ptype, path + elem_path)
                 subshape.append(
                     qlast.ShapeElement(
-                        expr=qlast.Path(
-                            steps=[
-                                qlast.Ptr(
-                                    ptr=qlast.ObjectRef(name='_tname'),
-                                ),
-                            ],
-                        ),
+                        expr=qlast.Path(steps=[qlast.Ptr(name='_tname')],),
                         compexpr=qlast.Path(
                             steps=path + elem_path + [
-                                qlast.Ptr(
-                                    ptr=qlast.ObjectRef(name='__type__')),
-                                qlast.Ptr(
-                                    ptr=qlast.ObjectRef(name='name')),
+                                qlast.Ptr(name='__type__'),
+                                qlast.Ptr(name='name'),
                             ],
                         ),
                     ),

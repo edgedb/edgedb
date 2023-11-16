@@ -128,10 +128,15 @@ class MultiTenantServer(server.BaseServer):
     def retrieve_tenant(self, sslobj) -> edbtenant.Tenant | None:
         return self._tenants_by_sslobj.pop(sslobj, None)
 
+    def iter_tenants(self) -> Iterator[edbtenant.Tenant]:
+        return iter(self._tenants.values())
+
     async def _before_start_servers(self) -> None:
         assert self._task_group is not None
         await self._task_group.__aenter__()
-        await asyncio.wait(self.reload_tenants())
+        fs = self.reload_tenants()
+        if fs:
+            await asyncio.wait(fs)
 
     def _get_status(self) -> dict[str, Any]:
         status = super()._get_status()

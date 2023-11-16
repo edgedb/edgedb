@@ -48,8 +48,7 @@ def make_free_object(els: Dict[str, qlast.Expr]) -> qlast.Shape:
         expr=None,
         elements=[
             qlast.ShapeElement(
-                expr=qlast.Path(
-                    steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=name))]),
+                expr=qlast.Path(steps=[qlast.Ptr(name=name)]),
                 compexpr=expr
             )
             for name, expr in els.items()
@@ -100,7 +99,7 @@ def desugar_group(
             return el
         elif isinstance(el, qlast.Path):
             assert isinstance(el.steps[0], qlast.Ptr)
-            ptrname = el.steps[0].ptr.name
+            ptrname = el.steps[0].name
             if ptrname not in alias_map:
                 alias = aliases.get(ptrname)
                 alias_map[ptrname] = (alias, el)

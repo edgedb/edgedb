@@ -37,7 +37,6 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
                          UINT32_MAX
 
 import immutables
-from jwcrypto import jwt
 
 from edb import buildmeta
 from edb import edgeql
@@ -66,6 +65,8 @@ from edb.server import defines as edbdef
 from edb.server.compiler import errormech
 from edb.server.compiler import enums
 from edb.server.compiler import sertypes
+
+from edb.server.protocol cimport auth_helpers
 from edb.server.protocol import execute
 from edb.server.protocol cimport frontend
 from edb.server.pgcon cimport pgcon
@@ -110,6 +111,8 @@ DEF QUERY_HEADER_IMPLICIT_TYPENAMES = 0xFF02
 DEF QUERY_HEADER_IMPLICIT_TYPEIDS = 0xFF03
 DEF QUERY_HEADER_ALLOW_CAPABILITIES = 0xFF04
 DEF QUERY_HEADER_EXPLICIT_OBJECTIDS = 0xFF05
+
+DEF QUERY_HEADER_DUMP_SECRETS = 0xFF10
 
 DEF SERVER_HEADER_CAPABILITIES = 0x1001
 
@@ -224,7 +227,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
     def close_for_idling(self):
         try:
-            self.write_error(
+            self.write_edgedb_error(
                 errors.IdleSessionTimeoutError(
                     'closing the connection due to idling')
             )
@@ -402,127 +405,21 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.tenant.remove_dbview(self._dbview)
             self._dbview = None
 
-    def _extract_token_from_auth_data(self, auth_data):
-        header_value = auth_data.decode("ascii")
-        scheme, _, prefixed_token = header_value.partition(" ")
-        if scheme.lower() != "bearer":
-            raise errors.AuthenticationError(
-                'authentication failed: unrecognized authentication scheme')
-
-        return prefixed_token.strip()
-
     def _auth_jwt(self, user, database, params):
         # token in the HTTP header has higher priority than
         # the ClientHandshake message, under the scenario of
         # binary protocol over HTTP
         if self._auth_data:
-            prefixed_token = self._extract_token_from_auth_data(
-                self._auth_data
-            )
+            scheme, prefixed_token = auth_helpers.extract_token_from_auth_data(
+                self._auth_data)
+            if scheme != 'bearer':
+                raise errors.AuthenticationError(
+                    'authentication failed: unrecognized authentication scheme')
         else:
             prefixed_token = params.get('secret_key')
 
-        if not prefixed_token:
-            raise errors.AuthenticationError(
-                'authentication failed: no authorization data provided')
-
-        token_version = 0
-        for prefix in ["nbwt1_", "nbwt_", "edbt1_", "edbt_"]:
-            encoded_token = prefixed_token.removeprefix(prefix)
-            if encoded_token != prefixed_token:
-                if prefix == "nbwt1_" or prefix == "edbt1_":
-                    token_version = 1
-                break
-        else:
-            raise errors.AuthenticationError(
-                'authentication failed: malformed JWT')
-
-        role = self.tenant.get_roles().get(user)
-        if role is None:
-            raise errors.AuthenticationError('authentication failed')
-
-        skey = self.server.get_jws_key()
-
-        try:
-            token = jwt.JWT(
-                key=skey,
-                algs=["RS256", "ES256"],
-                jwt=encoded_token,
-            )
-        except jwt.JWException as e:
-            logger.debug('authentication failure', exc_info=True)
-            raise errors.AuthenticationError(
-                f'authentication failed: {e.args[0]}'
-            ) from None
-        except Exception as e:
-            logger.debug('authentication failure', exc_info=True)
-            raise errors.AuthenticationError(
-                f'authentication failed: cannot decode JWT'
-            ) from None
-
-        try:
-            claims = json.loads(token.claims)
-        except Exception as e:
-            raise errors.AuthenticationError(
-                f'authentication failed: malformed claims section in JWT'
-            ) from None
-
-        self._check_jwt_authz(claims, token_version, user, database)
-
-    def _check_jwt_authz(self, claims, token_version, user, dbname):
-        # Check general key validity (e.g. whether it's a revoked key)
-        self.tenant.check_jwt(claims)
-
-        token_instances = None
-        token_roles = None
-        token_databases = None
-
-        if token_version == 1:
-            token_roles = self._get_jwt_edb_scope(claims, "edb.r")
-            token_instances = self._get_jwt_edb_scope(claims, "edb.i")
-            token_databases = self._get_jwt_edb_scope(claims, "edb.d")
-        else:
-            namespace = "edgedb.server"
-            if not claims.get(f"{namespace}.any_role"):
-                token_roles = claims.get(f"{namespace}.roles")
-                if not isinstance(token_roles, list):
-                    raise errors.AuthenticationError(
-                        f'authentication failed: malformed claims section in'
-                        f' JWT: expected a list in "{namespace}.roles"'
-                    )
-
-        if (
-            token_instances is not None
-            and self.tenant.get_instance_name() not in token_instances
-        ):
-            raise errors.AuthenticationError(
-                'authentication failed: secret key does not authorize '
-                f'access to this instance')
-
-        if (
-            token_databases is not None
-            and dbname not in token_databases
-        ):
-            raise errors.AuthenticationError(
-                'authentication failed: secret key does not authorize '
-                f'access to database "{dbname}"')
-
-        if token_roles is not None and user not in token_roles:
-            raise errors.AuthenticationError(
-                'authentication failed: secret key does not authorize '
-                f'access in role "{user}"')
-
-    def _get_jwt_edb_scope(self, claims, claim):
-        if not claims.get(f"{claim}.all"):
-            scope = claims.get(claim, [])
-            if not isinstance(scope, list):
-                raise errors.AuthenticationError(
-                    f'authentication failed: malformed claims section in'
-                    f' JWT: expected a list in "{claim}"'
-                )
-            return frozenset(scope)
-        else:
-            return None
+        return auth_helpers.auth_jwt(
+            self.tenant, prefixed_token, user, database)
 
     cdef WriteBuffer _make_authentication_sasl_initial(self, list methods):
         cdef WriteBuffer msg_buf
@@ -606,15 +503,30 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         self,
         dbview.QueryRequestInfo query_req,
     ) -> dbview.CompiledQuery:
+        cdef dbview.DatabaseConnectionView dbv
+        dbv = self.get_dbview()
         if self.debug:
             source = query_req.source
             text = source.text()
             self.debug_print('PARSE', text)
-            self.debug_print('Cache key', source.cache_key())
+            self.debug_print(
+                'Cache key',
+                source.cache_key(),
+                f"protocol_version={query_req.protocol_version}",
+                f"output_format={query_req.output_format}",
+                f"expect_one={query_req.expect_one}",
+                f"implicit_limit={query_req.implicit_limit}",
+                f"inline_typeids={query_req.inline_typeids}",
+                f"inline_typenames={query_req.inline_typenames}",
+                f"inline_objectids={query_req.inline_objectids}",
+                f"allow_capabilities={query_req.allow_capabilities}",
+                f"modaliazes={dbv.get_modaliases()}",
+                f"session_config={dbv.get_session_config()}",
+            )
             self.debug_print('Extra variables', source.variables(),
                              'after', source.first_extra())
 
-        return await self.get_dbview().parse(query_req)
+        return await dbv.parse(query_req)
 
     cdef parse_cardinality(self, bytes card):
         if card[0] == CARD_MANY.value:
@@ -656,14 +568,14 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         cdef:
             dict attrs
             uint16_t num_fields
-            str key
-            str value
+            uint16_t key
+            bytes value
 
         attrs = {}
         num_fields = <uint16_t>self.buffer.read_int16()
         while num_fields:
-            key = self.buffer.read_len_prefixed_utf8()
-            value = self.buffer.read_len_prefixed_utf8()
+            key = <uint16_t>self.buffer.read_int16()
+            value = self.buffer.read_len_prefixed_bytes()
             attrs[key] = value
             num_fields -= 1
         return attrs
@@ -674,8 +586,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         num_fields = <uint16_t>self.buffer.read_int16()
         while num_fields:
-            self.buffer.read_len_prefixed_utf8()
-            self.buffer.read_len_prefixed_utf8()
+            self.buffer.read_int16()
+            self.buffer.read_len_prefixed_bytes()
             num_fields -= 1
 
     #############
@@ -943,6 +855,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 if self._cancelled:
                     raise ConnectionAbortedError
             else:
+                metrics.edgeql_query_compilations.inc(
+                    1.0, self.get_tenant_label(), 'cache'
+                )
                 compiled = dbview.CompiledQuery(
                     query_unit_group=query_unit_group,
                     first_extra=query_req.source.first_extra(),
@@ -977,7 +892,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if self.debug:
             self.debug_print('EXECUTE', query_req.source.text())
 
-        metrics.edgeql_query_compilations.inc(1.0, 'cache')
         force_script = any(x.needs_readback for x in query_unit_group)
         if (
             _dbview.in_tx_error()
@@ -1017,13 +931,30 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.flush()
 
+    def check_readiness(self):
+        if self.tenant.is_blocked():
+            readiness_reason = self.tenant.get_readiness_reason()
+            msg = "the server is not accepting requests"
+            if readiness_reason:
+                msg = f"{msg}: {readiness_reason}"
+            raise errors.ServerBlockedError(msg)
+        elif not self.tenant.is_online():
+            readiness_reason = self.tenant.get_readiness_reason()
+            msg = "the server is going offline"
+            if readiness_reason:
+                msg = f"{msg}: {readiness_reason}"
+            raise errors.ServerOfflineError(msg)
+
     async def authenticate(self):
+        self.check_readiness()
         params = await self.do_handshake()
         await self.auth(params)
         self.server.on_binary_client_authed(self)
 
     async def main_step(self, char mtype):
         try:
+            self.check_readiness()
+
             if mtype == b'O':
                 await self.execute()
 
@@ -1093,14 +1024,20 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
             ex = await self.interpret_error(ex)
 
-            self.write_error(ex)
-            self.flush()
+            self.write_edgedb_error(ex)
 
-            if isinstance(ex, errors.ServerOfflineError):
-                # This server is going into "offline" mode,
+            if isinstance(
+                ex,
+                (errors.ServerOfflineError, errors.ServerBlockedError),
+            ):
+                # This server is going into "offline" or "blocked" mode,
                 # close the connection.
+                self.write(self.sync_status())
+                self.flush()
                 self.close()
                 return
+
+            self.flush()
 
             # The connection was aborted while we were
             # interpreting the error (via compiler/errmech.py).
@@ -1134,15 +1071,12 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 self.buffer.discard_message()
 
     cdef write_error(self, exc):
+        self.write_edgedb_error(execute.interpret_simple_error(exc))
+
+    cdef write_edgedb_error(self, exc):
         cdef:
             WriteBuffer buf
             int16_t fields_len
-
-        exc_type = type(exc)
-        # Not all calls to write_error went through interpret_error, so we
-        # do this check here also.
-        if not issubclass(exc_type, errors.EdgeDBError):
-            exc_type = errors.InternalServerError
 
         if self.debug and not isinstance(exc, errors.BackendUnavailableError):
             self.debug_print('EXCEPTION', type(exc).__name__, exc)
@@ -1161,21 +1095,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 'transport': self._transport,
         })
 
-        exc_code = None
-
         fields = {}
         if isinstance(exc, errors.EdgeDBError):
             fields.update(exc._attrs)
-
-        exc_code = exc_type.get_code()
-        if (exc_type is errors.InternalServerError
-                and not fields.get(base_errors.FIELD_HINT)):
-            fields[base_errors.FIELD_HINT] = (
-                f'This is most likely a bug in EdgeDB. '
-                f'Please consider opening an issue ticket '
-                f'at https://github.com/edgedb/edgedb/issues/new'
-                f'?template=bug_report.md'
-            )
 
         try:
             formatted_error = exc.__formatted_error__
@@ -1192,7 +1114,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         buf = WriteBuffer.new_message(b'E')
         buf.write_byte(<char><uint8_t>EdgeSeverity.EDGE_SEVERITY_ERROR)
-        buf.write_int32(<int32_t><uint32_t>exc_code)
+        buf.write_int32(<int32_t><uint32_t>exc.get_code())
         buf.write_len_prefixed_utf8(str(exc))
         buf.write_int16(len(fields))
         for k, v in fields.items():
@@ -1300,7 +1222,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             WriteBuffer msg_buf
             dbview.DatabaseConnectionView _dbview
 
-        self.reject_headers()
+        headers = self.parse_headers()
+        include_secrets = headers.get(QUERY_HEADER_DUMP_SECRETS) == b'\x01'
+
         self.buffer.finish_message()
 
         _dbview = self.get_dbview()
@@ -1357,6 +1281,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     global_schema_json,
                     db_config_json,
                     dump_protocol,
+                    include_secrets,
                 )
             )
 

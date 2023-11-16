@@ -141,7 +141,7 @@ and some Docker-specific environment variables, documented below.
 
 .. note::
 
-   Seme variables support ``_ENV`` and ``_FILE`` :ref:`variants
+   Some variables support ``_ENV`` and ``_FILE`` :ref:`variants
    <ref_reference_envvar_variants>` to support more advanced configurations.
 
 .. _ref_guides_deployment_docker_initial_setup:
@@ -166,7 +166,7 @@ setup. If neither the ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` variable or the
 will look for the presence of ``/edgedb-bootstrap.edgeql`` in the container
 (which can be placed in a derived image).
 
-Maps directly to the ``edgedb-server`` flag ``--default-auth-method``. The
+Maps directly to the ``edgedb-server`` flag ``--bootstrap-command``. The
 ``*_FILE`` and ``*_ENV`` variants are also supported.
 
 

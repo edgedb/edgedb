@@ -282,7 +282,7 @@ demonstrated with the ``byline`` property in this schema:
 
 The ``byline`` property will be updated on each insert or update, but the value
 will not need to be calculated at read time like a proper :ref:`computed
-propety <ref_datamodel_computed>`.
+property <ref_datamodel_computed>`.
 
 
 .. list-table::

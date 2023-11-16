@@ -142,7 +142,7 @@ pub fn parse_value(token: &Token) -> Result<Option<Value>, String> {
     use Kind::*;
     let text = &token.text;
     let string_value = match token.kind {
-        Argument => {
+        Parameter => {
             if text[1..].starts_with('`') {
                 text[2..text.len() - 1].replace("``", "`")
             } else {

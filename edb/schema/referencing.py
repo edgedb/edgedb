@@ -483,8 +483,6 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
                             astnode: qlast.NamedDDL,
                             context: sd.CommandContext
                             ) -> sn.QualName:
-        name = super()._classname_from_ast(schema, astnode, context)
-
         parent_ctx = cls.get_referrer_context(context)
         if parent_ctx is not None:
             assert isinstance(parent_ctx.op, sd.QualifiedObjectCommand)
@@ -492,6 +490,8 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
             name = cls._classname_from_ast_and_referrer(
                 schema, referrer_name, astnode, context
             )
+        else:
+            name = super()._classname_from_ast(schema, astnode, context)
 
         assert isinstance(name, sn.QualName)
         return name
@@ -1386,6 +1386,14 @@ class RenameReferencedInheritingObject(
             sd.RenameObject, type(scls))
 
         def _ref_rename(alter_cmd: sd.Command, refname: sn.Name) -> None:
+            # FIXME: If the descendant has the same subject, we can't
+            # propagate to it. This is because computed pointers that
+            # directly alias another are considered children. See
+            # #6292.
+            assert isinstance(alter_cmd, AlterReferencedInheritingObject)
+            if alter_cmd.scls.get_subject(schema) == scls.get_subject(schema):
+                return
+
             astnode = rename_cmdcls.astnode(  # type: ignore
                 new_name=utils.name_to_ast_ref(refname),
             )
@@ -1528,11 +1536,7 @@ class DeleteReferencedInheritingObject(
             cmd.add(rebase_cmd)
         else:
             # The ref in child should no longer exist.
-            # HACK: Pass if_exists to work around some mismatches in
-            # how canonicalization works when deleting a module as
-            # part of DeleteExtension. It should be harmless though.
-            cmd = child_ref.init_delta_command(
-                schema, sd.DeleteObject, if_exists=True)
+            cmd = child_ref.init_delta_command(schema, sd.DeleteObject)
 
         return cmd
 

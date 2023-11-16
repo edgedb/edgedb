@@ -120,6 +120,7 @@ class CompileContext:
     bootstrap_mode: bool = False
     internal_schema_mode: bool = False
     log_ddl_as_migrations: bool = True
+    dump_restore_mode: bool = False
     notebook: bool = False
 
     def _assert_not_in_migration_block(
@@ -233,11 +234,12 @@ def new_compiler(
 async def new_compiler_from_pg(con: metaschema.PGConnection) -> Compiler:
     num_patches = await get_patch_count(con)
 
+    std_schema, reflection_schema = await load_std_and_reflection_schema(
+        con, num_patches)
+
     return new_compiler(
-        std_schema=await load_cached_schema(con, num_patches, 'stdschema'),
-        reflection_schema=await load_cached_schema(
-            con, num_patches, 'reflschema'
-        ),
+        std_schema=std_schema,
+        reflection_schema=reflection_schema,
         schema_class_layout=await load_schema_class_layout(
             con, num_patches
         ),
@@ -307,13 +309,14 @@ async def get_patch_count(backend_conn: metaschema.PGConnection) -> int:
     return res
 
 
-async def load_cached_schema(
+async def load_std_and_reflection_schema(
     backend_conn: metaschema.PGConnection,
     patches: int,
-    key: str,
-) -> s_schema.Schema:
+) -> tuple[s_schema.Schema, s_schema.Schema]:
     vkey = pg_patches.get_version_key(patches)
-    key += vkey
+
+    # stdschema and reflschema are combined in one pickle to preserve sharing.
+    key = f"std_and_reflection_schema{vkey}"
     data = await backend_conn.sql_fetch_val(
         b"""
         SELECT bin FROM edgedbinstdata.instdata
@@ -322,20 +325,16 @@ async def load_cached_schema(
         args=[key.encode("utf-8")],
     )
     try:
-        res: s_schema.FlatSchema = pickle.loads(data)
+        std_schema: s_schema.FlatSchema
+        refl_schema: s_schema.FlatSchema
+        std_schema, refl_schema = pickle.loads(data)
         if vkey != pg_patches.get_version_key(len(pg_patches.PATCHES)):
-            res = s_schema.upgrade_schema(res)
-        return res
+            std_schema = s_schema.upgrade_schema(std_schema)
+            refl_schema = s_schema.upgrade_schema(refl_schema)
+        return (std_schema, refl_schema)
     except Exception as e:
         raise RuntimeError(
             'could not load std schema pickle') from e
-
-
-async def load_std_schema(
-    backend_conn: metaschema.PGConnection,
-    patches: int,
-) -> s_schema.Schema:
-    return await load_cached_schema(backend_conn, patches, 'stdschema')
 
 
 async def load_schema_intro_query(
@@ -1026,6 +1025,7 @@ class Compiler:
         global_schema_json: bytes,
         db_config_json: bytes,
         protocol_version: defines.ProtocolVersion,
+        with_secrets: bool,
     ) -> DumpDescriptor:
         global_schema = self.parse_json_schema(global_schema_json, None)
         user_schema = self.parse_json_schema(user_schema_json, global_schema)
@@ -1037,7 +1037,7 @@ class Compiler:
         )
 
         sys_config_ddl = config.to_edgeql(
-            self.state.config_spec, database_config
+            self.state.config_spec, database_config, with_secrets=with_secrets,
         )
         # We need to put extension DDL configs *after* we have
         # reloaded the schema
@@ -1045,6 +1045,7 @@ class Compiler:
             config.load_ext_spec_from_schema(
                 user_schema, self.state.std_schema),
             database_config,
+            with_secrets=with_secrets,
         )
 
         schema_ddl = s_ddl.ddl_text_from_schema(
@@ -1147,6 +1148,7 @@ class Compiler:
             schema_object_ids=schema_object_ids,
             log_ddl_as_migrations=False,
             protocol_version=protocol_version,
+            dump_restore_mode=True,
         )
 
         ctx.state.start_tx()
@@ -1370,7 +1372,7 @@ def compile_schema_storage_in_delta(
         context.renames.clear()
         context.early_renames.clear()
 
-    s_refl.write_meta(
+    s_refl.generate_metadata_write_edgeql(
         delta,
         classlayout=ctx.compiler_state.schema_class_layout,
         schema=schema,
@@ -1538,8 +1540,7 @@ def _get_compile_options(
             and not ctx.schema_reflection_mode
         ) or is_explain,
         testmode=_get_config_val(ctx, '__internal_testmode'),
-        devmode=_is_dev_instance(ctx),
-        schema_reflection_mode=ctx.schema_reflection_mode
+        schema_reflection_mode=ctx.schema_reflection_mode,
     )
 
 
@@ -1648,7 +1649,7 @@ def _compile_ql_administer(
     script_info: Optional[irast.ScriptInfo] = None,
 ) -> dbstate.BaseQuery:
     if ql.expr.func == 'statistics_update':
-        if not _is_dev_instance(ctx):
+        if not _get_config_val(ctx, '__internal_testmode'):
             raise errors.QueryError(
                 'statistics_update() can only be executed in test mode',
                 context=ql.context)
@@ -1975,6 +1976,88 @@ def _get_config_spec(
     return config_spec
 
 
+def _inject_config_cache_clear(sql_ast: pgast.Base) -> pgast.Base:
+    """Inject a call to clear the config cache into a config op.
+
+    The trickiness here is that we can't just do the delete in a
+    statement before the config op, since RESET config ops query the
+    views and so might populate the cache, and we can't do it in a
+    statement directly after (unless we rework the server), since then
+    the query won't return anything.
+
+    So we instead fiddle around with the query to inject a call.
+    """
+    assert isinstance(sql_ast, pgast.Query)
+    ctes = sql_ast.ctes or []
+    sql_ast.ctes = None
+
+    ctes.append(pgast.CommonTableExpr(
+        name="_conv_rel",
+        query=sql_ast,
+    ))
+    clear_qry = pgast.SelectStmt(
+        target_list=[
+            pgast.ResTarget(
+                name="_dummy",
+                val=pgast.FuncCall(
+                    name=('edgedb', '_clear_sys_config_cache'),
+                    args=[],
+                ),
+            ),
+        ],
+    )
+    ctes.append(pgast.CommonTableExpr(
+        name="_clear_cache",
+        query=clear_qry,
+        materialized=True,
+    ))
+    force_qry = pgast.UpdateStmt(
+        targets=[pgast.UpdateTarget(
+            name='flag', val=pgast.BooleanConstant(val=True)
+        )],
+        relation=pgast.RelRangeVar(relation=pgast.Relation(
+            schemaname='edgedb', name='_dml_dummy')),
+        where_clause=pgast.Expr(
+            name="=",
+            lexpr=pgast.ColumnRef(name=["id"]),
+            rexpr=pgast.SelectStmt(
+                from_clause=[pgast.RelRangeVar(relation=ctes[-1])],
+                target_list=[
+                    pgast.ResTarget(
+                        val=pgast.FuncCall(
+                            name=('count',), args=[pgast.Star()]),
+                    )
+                ],
+            ),
+        )
+    )
+
+    if (
+        not isinstance(sql_ast, pgast.DMLQuery)
+        or sql_ast.returning_list
+    ):
+        ctes.append(pgast.CommonTableExpr(
+            name="_force_clear",
+            query=force_qry,
+            materialized=True,
+        ))
+        sql_ast = pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(val=pgast.ColumnRef(
+                    name=["_conv_rel", pgast.Star()])),
+            ],
+            ctes=ctes,
+            from_clause=[
+                pgast.RelRangeVar(relation=ctes[-3]),
+            ],
+        )
+    else:
+        sql_ast = force_qry
+        force_qry.ctes = ctes
+
+    return sql_ast
+
+
 def _compile_ql_config_op(
     ctx: CompileContext, ql: qlast.ConfigOp
 ) -> dbstate.SessionStateQuery:
@@ -2001,7 +2084,8 @@ def _compile_ql_config_op(
         schema=schema,
         options=qlcompiler.CompilerOptions(
             modaliases=modaliases,
-            in_server_config_op=True
+            in_server_config_op=True,
+            dump_restore_mode=ctx.dump_restore_mode,
         ),
     )
 
@@ -2025,16 +2109,26 @@ def _compile_ql_config_op(
         ir,
         backend_runtime_params=ctx.backend_runtime_params,
     )
+
+    sql_ast = sql_res.ast
+    if not ctx.bootstrap_mode and ql.scope in (
+        qltypes.ConfigScope.DATABASE,
+        qltypes.ConfigScope.SESSION,
+    ):
+        sql_ast = _inject_config_cache_clear(sql_ast)
+
     pretty = bool(
         debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_text)
     sql_text = pg_codegen.generate_source(
-        sql_res.ast,
+        sql_ast,
         pretty=pretty,
     )
     if pretty:
         debug.dump_code(sql_text, lexer='sql')
 
-    sql = (sql_text.encode(),)
+    sql: tuple[bytes, ...] = (
+        sql_text.encode(),
+    )
 
     in_type_args, in_type_data, in_type_id = describe_params(
         ctx, ir, sql_res.argmap, None
@@ -2329,18 +2423,19 @@ def _try_compile(
             unit.drop_db = comp.drop_db
             unit.create_db_template = comp.create_db_template
             unit.ddl_stmt_id = comp.ddl_stmt_id
-            if comp.user_schema is not None:
-                final_user_schema = comp.user_schema
-                unit.user_schema = pickle.dumps(comp.user_schema, -1)
-                unit.extensions, unit.ext_config_settings = (
-                    _extract_extensions(ctx, comp.user_schema)
-                )
-            if comp.cached_reflection is not None:
-                unit.cached_reflection = \
-                    pickle.dumps(comp.cached_reflection, -1)
-            if comp.global_schema is not None:
-                unit.global_schema = pickle.dumps(comp.global_schema, -1)
-                unit.roles = _extract_roles(comp.global_schema)
+            if not ctx.dump_restore_mode:
+                if comp.user_schema is not None:
+                    final_user_schema = comp.user_schema
+                    unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                    unit.extensions, unit.ext_config_settings = (
+                        _extract_extensions(ctx, comp.user_schema)
+                    )
+                if comp.cached_reflection is not None:
+                    unit.cached_reflection = \
+                        pickle.dumps(comp.cached_reflection, -1)
+                if comp.global_schema is not None:
+                    unit.global_schema = pickle.dumps(comp.global_schema, -1)
+                    unit.roles = _extract_roles(comp.global_schema)
 
             unit.config_ops.extend(comp.config_ops)
 
@@ -2352,18 +2447,20 @@ def _try_compile(
                 )
             unit.sql = comp.sql
             unit.cacheable = comp.cacheable
-            if comp.user_schema is not None:
-                final_user_schema = comp.user_schema
-                unit.user_schema = pickle.dumps(comp.user_schema, -1)
-                unit.extensions, unit.ext_config_settings = (
-                    _extract_extensions(ctx, comp.user_schema)
-                )
-            if comp.cached_reflection is not None:
-                unit.cached_reflection = \
-                    pickle.dumps(comp.cached_reflection, -1)
-            if comp.global_schema is not None:
-                unit.global_schema = pickle.dumps(comp.global_schema, -1)
-                unit.roles = _extract_roles(comp.global_schema)
+
+            if not ctx.dump_restore_mode:
+                if comp.user_schema is not None:
+                    final_user_schema = comp.user_schema
+                    unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                    unit.extensions, unit.ext_config_settings = (
+                        _extract_extensions(ctx, comp.user_schema)
+                    )
+                if comp.cached_reflection is not None:
+                    unit.cached_reflection = \
+                        pickle.dumps(comp.cached_reflection, -1)
+                if comp.global_schema is not None:
+                    unit.global_schema = pickle.dumps(comp.global_schema, -1)
+                    unit.roles = _extract_roles(comp.global_schema)
 
             if comp.modaliases is not None:
                 unit.modaliases = comp.modaliases
@@ -2388,15 +2485,17 @@ def _try_compile(
         elif isinstance(comp, dbstate.MigrationControlQuery):
             unit.sql = comp.sql
             unit.cacheable = comp.cacheable
-            if comp.user_schema is not None:
-                final_user_schema = comp.user_schema
-                unit.user_schema = pickle.dumps(comp.user_schema, -1)
-                unit.extensions, unit.ext_config_settings = (
-                    _extract_extensions(ctx, comp.user_schema)
-                )
-            if comp.cached_reflection is not None:
-                unit.cached_reflection = \
-                    pickle.dumps(comp.cached_reflection, -1)
+
+            if not ctx.dump_restore_mode:
+                if comp.user_schema is not None:
+                    final_user_schema = comp.user_schema
+                    unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                    unit.extensions, unit.ext_config_settings = (
+                        _extract_extensions(ctx, comp.user_schema)
+                    )
+                if comp.cached_reflection is not None:
+                    unit.cached_reflection = \
+                        pickle.dumps(comp.cached_reflection, -1)
             unit.ddl_stmt_id = comp.ddl_stmt_id
 
             if comp.modaliases is not None:
@@ -2850,13 +2949,6 @@ def _check_force_database_error(
             "invalid 'force_database_error' value'")
 
     raise errval
-
-
-def _is_dev_instance(ctx: CompileContext) -> bool:
-    # Determine whether we are on a dev instance by the presence
-    # of a test schema element.
-    std_schema = ctx.compiler_state.std_schema
-    return bool(std_schema.get('cfg::TestSessionConfig', None))
 
 
 def _get_config_val(

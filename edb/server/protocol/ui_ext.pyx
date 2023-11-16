@@ -36,19 +36,20 @@ STATIC_FILES_DIR = str(buildmeta.get_shared_data_dir_path() / 'ui')
 
 static_files = dict()
 
-for dirpath, _, filenames in os.walk(STATIC_FILES_DIR):
-    for filename in filenames:
-        fullpath = os.path.join(dirpath, filename)
+def cache_assets():
+    for dirpath, _, filenames in os.walk(STATIC_FILES_DIR):
+        for filename in filenames:
+            fullpath = os.path.join(dirpath, filename)
 
-        mimetype = mimetypes.guess_type(filename)[0]
-        if mimetype is None:
-            mimetype = 'application/octet-stream'
+            mimetype = mimetypes.guess_type(filename)[0]
+            if mimetype is None:
+                mimetype = 'application/octet-stream'
 
-        with open(fullpath, 'rb') as f:
-            static_files[os.path.relpath(fullpath, STATIC_FILES_DIR)] = (
-                f.read(),
-                mimetype.encode()
-            )
+            with open(fullpath, 'rb') as f:
+                static_files[os.path.relpath(fullpath, STATIC_FILES_DIR)] = (
+                    f.read(),
+                    mimetype.encode()
+                )
 
 async def handle_request(
     request,
