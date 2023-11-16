@@ -593,8 +593,7 @@ def _infer_for_multiplicity(
     scope_tree: irast.ScopeTreeNode,
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
-    # XXX: This is wrong.
-    itset = ir.iterator_stmt[0]
+    itset = ir.iterator_stmt
     assert itset is not None
     itexpr = itset.expr
     assert itexpr is not None
@@ -625,7 +624,7 @@ def __infer_select_stmt(
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
 
-    if ir.iterator_stmt:
+    if ir.iterator_stmt is not None:
         return _infer_for_multiplicity(ir, scope_tree=scope_tree, ctx=ctx)
     else:
         stmt_mult = _infer_stmt_multiplicity(

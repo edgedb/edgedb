@@ -72,7 +72,8 @@ def compile_shape(
             #
             # the path scope when processing the shape of Bar.foo
             # should be {'Bar.foo', 'x'}.
-            for iterator in ir_set.expr.iterator_stmt:
+            iterator = ir_set.expr.iterator_stmt
+            if iterator:
                 shapectx.path_scope[iterator.path_id] = ctx.rel
 
         for el, op in shape:

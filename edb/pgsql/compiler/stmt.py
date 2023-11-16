@@ -59,11 +59,10 @@ def compile_SelectStmt(
         # Process materialized sets
         clauses.compile_materialized_exprs(query, stmt, ctx=ctx)
 
-        contains_dml = (
-            irutils.contains_dml(stmt) if stmt.iterator_stmt else False)
+        iterator_set = stmt.iterator_stmt
         last_iterator: Optional[irast.Set] = None
-        for iterator_set in stmt.iterator_stmt:
-            if contains_dml:
+        if iterator_set:
+            if irutils.contains_dml(stmt):
                 # If we have iterators and we contain nested DML
                 # statements, we need to hoist the iterators into CTEs and
                 # then explicitly join them back into the query.
@@ -72,7 +71,7 @@ def compile_SelectStmt(
                 dml.merge_iterator(iterator, ctx.rel, ctx=ctx)
 
                 ctx.enclosing_cte_iterator = iterator
-                last_iterator = iterator_set
+                last_iterator = stmt.iterator_stmt
 
             else:
                 # Process FOR clause.
