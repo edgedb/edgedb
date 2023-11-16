@@ -9,6 +9,7 @@ from ..data import type_ops as tops
 from edb.common import debug
 from ..data import path_factor as path_factor
 from .dml_checking import *
+from ..data import expr_to_str as pp
 # def enforce_singular(expr: e.Expr, card: e.CMMode) -> e.Expr:
 #     """ returns the singular expression of the upper bound
 #     of the cardinality is one"""
