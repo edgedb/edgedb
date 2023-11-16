@@ -25,15 +25,12 @@ details about how the project should be setup.
 EdgeDB Cloud
 ------------
 
-.. TODO: Cloud release
-.. Update this after Cloud has released
-
 .. note::
 
     Creating a Cloud instance requires CLI version 3.0 or later.
 
-Users with access to the EdgeDB Cloud beta may use this command to create a
-Cloud instance after logging in using :ref:`ref_cli_edgedb_cloud_login`.
+EdgeDB Cloud users may use this command to create a Cloud instance after
+logging in using :ref:`ref_cli_edgedb_cloud_login`.
 
 To create a Cloud instance, your instance name should be in the format
 ``<github-username>/<instance-name>``. Cloud instance names may contain
