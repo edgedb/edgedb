@@ -260,6 +260,11 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
             except BaseException as e:
                 if isinstance(e, exception):
                     for attr_name, expected_val in kwargs.items():
+                        if not hasattr(e, attr_name):
+                            raise self.failureException(
+                                f'{exception.__name__} context attribute '
+                                f'does not have {attr_name!r} (expected '
+                                f'{expected_val!r})') from e
                         val = getattr(e, attr_name)
                         if val != expected_val:
                             raise self.failureException(
