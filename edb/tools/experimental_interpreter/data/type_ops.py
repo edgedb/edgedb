@@ -304,13 +304,6 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
 
     def post_process_result_base_tp(result_base_tp: e.Tp, 
                                     result_mode: e.CMMode) -> e.ResultTp:
-        if not tp_is_primitive(result_base_tp):
-            result_mode = e.CMMode(
-                e.min_cardinal(e.CardNumOne, result_mode.lower),
-                result_mode.upper
-                # e.min_cardinal(e.Fin(1),
-                #                result_mode.multiplicity)
-                               )
         return e.ResultTp(result_base_tp, result_mode)
     if isinstance(tp.tp, e.VarTp):
         target_tp = dereference_var_tp(ctx.schema, tp.tp)

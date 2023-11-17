@@ -150,12 +150,12 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
                         ctx, comp, e.ResultTp(tp, e.CardOne))
                     result_tp = s_tp.val[s_lbl]
                     body_tp_synth, body_ck = synthesize_type(new_ctx, body)
-                    if is_insert_shape:
-                        tops.assert_insert_subtype(
-                            ctx, body_tp_synth.tp, result_tp.tp)
-                    else:
-                        tops.assert_shape_subtype(
-                            ctx, body_tp_synth.tp, result_tp.tp)
+                    # if is_insert_shape:
+                    #     tops.assert_insert_subtype(
+                    #         ctx, body_tp_synth.tp, result_tp.tp)
+                    # else:
+                    #     tops.assert_shape_subtype(
+                    #         ctx, body_tp_synth.tp, result_tp.tp)
                     tops.assert_cardinal_subtype(
                         body_tp_synth.mode, result_tp.mode)
                     result_s_tp = e.ObjectTp({**result_s_tp.val,
@@ -396,14 +396,30 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         #     result_expr = e.ObjectExpr(dic_ck)
         case e.ObjectProjExpr(subject=subject, label=label):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
-            result_expr = e.ObjectProjExpr(subject_ck, label)
             result_tp, result_card = tops.tp_project(
                 ctx, subject_tp, e.StrLabel(label))
+            if isinstance(result_tp, e.ComputableTp):
+                comp_expr = e.WithExpr(
+                    subject_ck,
+                    result_tp.expr
+                )
+                result_expr = check_type(ctx, comp_expr, e.ResultTp(result_tp.tp, result_card))
+                result_tp = result_tp.tp
+            else:
+                result_expr = e.ObjectProjExpr(subject_ck, label)
         case e.LinkPropProjExpr(subject=subject, linkprop=lp):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
-            result_expr = e.LinkPropProjExpr(subject_ck, lp)
             result_tp, result_card = tops.tp_project(
                 ctx, subject_tp, e.LinkPropLabel(lp))
+            if isinstance(result_tp, e.ComputableTp):
+                comp_expr = e.WithExpr(
+                    subject_ck,
+                    result_tp.expr
+                )
+                result_expr = check_type(ctx, comp_expr, e.ResultTp(result_tp.tp, result_card))
+                result_tp = result_tp.tp
+            else:
+                result_expr = e.LinkPropProjExpr(subject_ck, lp)
         case e.BackLinkExpr(subject=subject, label=label):
             (_, subject_ck) = synthesize_type(ctx, subject)
             candidates: List[e.NamedNominalLinkTp] = []

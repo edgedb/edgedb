@@ -127,22 +127,22 @@ def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: 
                 return objVal.val[label][1]
             elif isinstance(label, StrLabel):
                 label_str = label.label
-                if db.is_projectable(id, label_str):
-                    return db.project(id, label_str)
-                else:
-                    t_name = db.get_type_for_an_id(id)
-                    t_def = db.get_schema().val[t_name]
-                    if label_str in t_def.val.keys():
-                        target_tp = t_def.val[label_str].tp
-                        match target_tp:
-                            case e.ComputableTp(expr=comp_expr, tp=_):
-                                new_ctx, comp_expr_body = ctx_extend(ctx, comp_expr, MultiSetVal([subject]))
-                                return eval_expr(new_ctx, db, comp_expr_body)
-                            case _:
-                                raise ValueError("Label found, but not computable",
-                                                label)
-                    else:
-                        raise ValueError("Label not found", label)
+                # if db.is_projectable(id, label_str):
+                return db.project(id, label_str)
+                # else:
+                #     t_name = db.get_type_for_an_id(id)
+                #     t_def = db.get_schema().val[t_name]
+                #     if label_str in t_def.val.keys():
+                #         target_tp = t_def.val[label_str].tp
+                #         match target_tp:
+                #             case e.ComputableTp(expr=comp_expr, tp=_):
+                #                 new_ctx, comp_expr_body = ctx_extend(ctx, comp_expr, MultiSetVal([subject]))
+                #                 return eval_expr(new_ctx, db, comp_expr_body)
+                #             case _:
+                #                 raise ValueError("Label found, but not computable",
+                #                                 label)
+                #     else:
+                #         raise ValueError("Label not found", label)
             else:
                 raise ValueError("Label not found", label)
         case NamedTupleVal(val=dic):
