@@ -26,7 +26,7 @@ from .evaluation import RTExpr, eval_expr_toplevel
 from .helper_funcs import parse_ql
 from .logs import write_logs_to_file
 from .sqlite import sqlite_adapter
-
+from .data import expr_to_str as pp
 from .db_interface import *
 
 # CODE REVIEW: !!! CHECK IF THIS WILL BE SET ON EVERY RUN!!!
@@ -80,7 +80,7 @@ def run_statement(db: EdgeDatabaseInterface,
             print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Done ")
         return (result, ResultTp(VarTp("NOT AVAILABLE"), CardAny))
 
-    else:
+    elif should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Type Checking")
 
     tp, type_checked = tc.synthesize_type(e.TcCtx(dbschema, {}), factored)
@@ -94,7 +94,7 @@ def run_statement(db: EdgeDatabaseInterface,
     result = eval_expr_toplevel(db, type_checked, logs=logs)
     if should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")
-        debug.print(result)
+        debug.print(pp.show_val(result))
         # print(typed_multi_set_val_to_json_like(
         #     tp, eops.assume_link_target(result), dbschema))
         print(typed_multi_set_val_to_json_like(tp, result, dbschema))
