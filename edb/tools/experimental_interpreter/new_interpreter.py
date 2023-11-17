@@ -171,6 +171,7 @@ def run_single_str_get_json(
 
 def repl(*, init_sdl_file=None,
          init_ql_file=None,
+         library_ddl_files=None,
          debug_print=False,
          trace_to_file_path=None,
          sqlite_file=None,

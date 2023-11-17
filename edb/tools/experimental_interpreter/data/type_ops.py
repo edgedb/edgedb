@@ -380,32 +380,32 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
 #     return e.ShapeExpr(val=result)
 
 
-def object_tp_default_step(tp: e.ObjectTp) -> e.ShapeExpr:
-    result: Dict[e.Label, e.BindingExpr] = {}
-    for lbl, tp_comp in tp.val.items():
-        match tp_comp.tp:
-            case e.ComputableTp(_):
-                continue
-            case e.DefaultTp(tp=_,
-                             expr=binding_expr):
-                result[e.StrLabel(lbl)] = binding_expr
-            case _:
-                result[e.StrLabel(lbl)] = eops.abstract_over_expr(
-                    e.MultiSetExpr([]))
-    return e.ShapeExpr(result)
+# def object_tp_default_step(tp: e.ObjectTp) -> e.ShapeExpr:
+#     result: Dict[e.Label, e.BindingExpr] = {}
+#     for lbl, tp_comp in tp.val.items():
+#         match tp_comp.tp:
+#             case e.ComputableTp(_):
+#                 continue
+#             case e.DefaultTp(tp=_,
+#                              expr=binding_expr):
+#                 result[e.StrLabel(lbl)] = binding_expr
+#             case _:
+#                 result[e.StrLabel(lbl)] = eops.abstract_over_expr(
+#                     e.MultiSetExpr([]))
+#     return e.ShapeExpr(result)
 
 
-def object_tp_default_post_step(tp: e.ObjectTp,
-                                shape: e.ShapeExpr) -> e.ShapeExpr:
-    result: Dict[e.Label, e.BindingExpr] = {}
-    for lbl, tp_comp in tp.val.items():
-        if e.StrLabel(lbl) in shape.shape.keys():
-            continue
-        match tp_comp.tp:
-            case e.DefaultTp(tp=_,
-                             expr=binding_expr):
-                result[e.StrLabel(lbl)] = binding_expr
-            case _:
-                continue
-    return e.ShapeExpr(result)
+# def object_tp_default_post_step(tp: e.ObjectTp,
+#                                 shape: e.ShapeExpr) -> e.ShapeExpr:
+#     result: Dict[e.Label, e.BindingExpr] = {}
+#     for lbl, tp_comp in tp.val.items():
+#         if e.StrLabel(lbl) in shape.shape.keys():
+#             continue
+#         match tp_comp.tp:
+#             case e.DefaultTp(tp=_,
+#                              expr=binding_expr):
+#                 result[e.StrLabel(lbl)] = binding_expr
+#             case _:
+#                 continue
+#     return e.ShapeExpr(result)
 
