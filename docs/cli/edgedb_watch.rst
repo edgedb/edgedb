@@ -11,7 +11,7 @@ edgedb watch
 
 Start a long-running process that watches for changes in schema files in your
 project's ``dbschema`` directory and applies those changes to your database in
-real time.
+real time. Starting it is as simple as running this command:
 
 .. cli:synopsis::
 
