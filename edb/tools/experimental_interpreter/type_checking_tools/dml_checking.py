@@ -62,29 +62,31 @@ def insert_proprerty_checking(ctx: e.TcCtx, attr_expr : e.Expr, attr_tp : e.Resu
                 
                 # we do not support heterogenous link targets
                 for k in synth_lp.keys():
+                    this_tp = ck_lp[k].tp
                     if k not in ck_lp.keys():
                         raise ValueError("Link prop not in type", k, ck_lp.keys())
                     elif isinstance(synth_lp[k].tp, e.ComputableTp):
                         raise ValueError("Cannot define computable tp")
-                    elif isinstance(ck_lp[k].tp, e.DefaultTp):
-                        tops.assert_real_subtype(ctx, synth_lp[k].tp, ck_lp[k].tp.tp)
+                    elif isinstance(this_tp, e.DefaultTp):
+                        tops.assert_real_subtype(ctx, synth_lp[k].tp, this_tp.tp)
                     else:
                         tops.assert_real_subtype(ctx, synth_lp[k].tp, ck_lp[k].tp)
 
                 additional_lps : Dict[str, e.Expr] = {}
 
                 for k in ck_lp.keys():
+                    this_tp = ck_lp[k].tp
                     if k in synth_lp.keys():
                         continue
                     elif isinstance(ck_lp[k].tp, e.ComputableTp):
                         continue
-                    elif isinstance(ck_lp[k].tp, e.DefaultTp):
-                        default_expr = ck_lp[k].expr
-                        if eops.binding_is_unnamed():
+                    elif isinstance(this_tp, e.DefaultTp):
+                        default_expr = this_tp.expr
+                        if eops.binding_is_unnamed(default_expr):
                             additional_lps[k] = type_elaborate_default_tp(
                                 ctx, eops.instantiate_expr(e.FreeVarExpr("LP_DEFAULT_SHOULD_NOT_OCCUR"), default_expr))
                         else:
-                            raise ValueError("Default Tp is not unnamed", ck_lp[k].expr)
+                            raise ValueError("Default Tp is not unnamed", this_tp.expr)
                     elif tops.mode_is_optional(ck_lp[k].mode):
                         additional_lps[k] = e.MultiSetExpr(expr=[])
                     else:

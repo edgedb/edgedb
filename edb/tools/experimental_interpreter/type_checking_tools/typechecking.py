@@ -28,8 +28,7 @@ def synthesize_type_for_val(val: e.Val) -> e.Tp:
 
 
 def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
-                          tp: e.Tp,
-                          is_insert_shape: bool = False
+                          tp: e.Tp
                           ) -> Tuple[e.Tp, e.ShapeExpr]:
     s_tp: e.ObjectTp
     l_tp: e.ObjectTp
@@ -97,14 +96,14 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
                         ctx, comp, e.ResultTp(tp, e.CardOne))
                     result_tp = l_tp.val[l_lbl]
                     body_synth_tp, body_ck = synthesize_type(new_ctx, body)
-                    if is_insert_shape:
-                        tops.assert_insert_subtype(
-                            ctx, body_synth_tp.tp, result_tp.tp)
-                    else:
-                        tops.assert_shape_subtype(
-                            ctx, body_synth_tp.tp, result_tp.tp)
-                    tops.assert_cardinal_subtype(
-                        body_synth_tp.mode, result_tp.mode)
+                    # if is_insert_shape:
+                    #     tops.assert_insert_subtype(
+                    #         ctx, body_synth_tp.tp, result_tp.tp)
+                    # else:
+                    #     tops.assert_shape_subtype(
+                    #         ctx, body_synth_tp.tp, result_tp.tp)
+                    # tops.assert_cardinal_subtype(
+                    #     body_synth_tp.mode, result_tp.mode)
                     result_l_tp = e.ObjectTp({**result_l_tp.val,
                                               l_lbl: body_synth_tp})
                     result_expr = e.ShapeExpr(
