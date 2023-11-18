@@ -3,7 +3,7 @@ from .data_ops import DBSchema
 from .expr_to_str import show_tp
 from . import data_ops as e
 from . import expr_ops as eops
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Callable
 
 
 def construct_tp_intersection(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
@@ -190,11 +190,19 @@ def assert_real_subtype(
                 raise ValueError("Not implemented", tp1, tp2,
                                  subtyping_mode)
 
-def check_is_subtype(
+def type_equality_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
         ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
         ) -> bool:
+    """
+    Walks the type equality tree. 
+    Subtrees are checked for equality using the recurse function, to account for possible unifications.
+    """
     if tp_is_primitive(tp1) and tp_is_primitive(tp2):
-        return tp1 == tp2
+        match tp1, tp2:
+            case e.IntTp(), e.IntInfTp():
+                return True
+            case _:
+                return tp1 == tp2 
     else:
         match tp1, tp2:
             case _, e.AnyTp():
@@ -203,41 +211,42 @@ def check_is_subtype(
                 if set(tp1_val.keys()) != set(tp2_val.keys()):
                     return False
                 for k in tp1_val.keys():
-                    if not check_is_subtype(ctx, tp1_val[k].tp, tp2_val[k].tp):
+                    if not recurse(ctx, tp1_val[k].tp, tp2_val[k].tp):
                         return False
                     if not is_cardinal_subtype(tp1_val[k].mode, tp2_val[k].mode):
                         return False
+                return True
             case (e.NominalLinkTp(name=n_1, subject=s_1, linkprop=lp_1),
                     e.NominalLinkTp(name=n_2, subject=s_2, linkprop=lp_2)):
                 if n_1 != n_2:
                     return False
                 else:
-                    return (check_is_subtype(ctx, s_1, s_2) and 
-                        check_is_subtype(ctx, lp_1, lp_2))
+                    return (recurse(ctx, s_1, s_2) and 
+                        recurse(ctx, lp_1, lp_2))
             case (e.NamedNominalLinkTp(name=n_1, linkprop=lp_1),
                     e.NamedNominalLinkTp(name=n_2, linkprop=lp_2)):
                 if n_1 != n_2:
                     return False
                 else:
-                    return check_is_subtype(ctx, lp_1, lp_2)
+                    return recurse(ctx, lp_1, lp_2)
             case (_, e.NamedNominalLinkTp(name=n_2, linkprop=lp_2)):
-                return check_is_subtype(ctx, tp1, 
+                return recurse(ctx, tp1, 
                     e.NominalLinkTp(subject=ctx.schema.val[n_2],
                                     name=n_2,
                                     linkprop=lp_2))
             case (e.NamedNominalLinkTp(name=n_1, linkprop=lp_1), _):
-                return check_is_subtype(ctx, 
+                return recurse(ctx, 
                     e.NominalLinkTp(subject=ctx.schema.val[n_1],
                                     name=n_1,
                                     linkprop=lp_1), tp2)
 
             # Union and intersections
             case (e.UnionTp(left=tp1_left, right=tp1_right), _):
-                return check_is_subtype(ctx, tp1_left, tp2) and check_is_subtype(ctx, tp1_right, tp2)
+                return recurse(ctx, tp1_left, tp2) and recurse(ctx, tp1_right, tp2)
 
             # Other structural typing
             case (e.ArrTp(tp=tp1_val), e.ArrTp(tp=tp2_val)):
-                return check_is_subtype(ctx, tp1_val, tp2_val)
+                return recurse(ctx, tp1_val, tp2_val)
 
             # For debugging Purposes
             # case ((e.ArrTp(_), e.StrTp())
@@ -250,6 +259,46 @@ def check_is_subtype(
                 return False
         raise ValueError("should not be reachable, check if returns are missing?", tp1, tp2)
 
+def check_is_subtype(
+        ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
+        ) -> bool:
+    return type_equality_walk(check_is_subtype, ctx, tp1, tp2)
+
+def check_is_subtype_with_instantiation(
+        ctx: e.TcCtx, syn_tp: e.Tp, ck_tp: e.Tp, some_tp_mapping: Dict[int, e.Tp]
+        ) -> bool:
+    """
+    Here, tp2 may be a some type (parametric morphism, and need to be instantiated)
+    """
+    if isinstance(ck_tp, e.SomeTp):
+        if ck_tp.index in some_tp_mapping:
+            real_ck_tp = some_tp_mapping[ck_tp.index]
+            return check_is_subtype_with_instantiation(ctx, syn_tp, real_ck_tp, some_tp_mapping)
+        else:
+            some_tp_mapping[ck_tp.index] = syn_tp
+            return True
+    else:
+        def recurse(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp) -> bool:
+            return check_is_subtype_with_instantiation(ctx, tp1, tp2, some_tp_mapping)
+        return type_equality_walk(recurse, ctx, syn_tp, ck_tp)
+        
+
+def recursive_instantiate_tp(
+        tp: e.Tp, some_tp_mapping: Dict[int, e.Tp]
+        ) -> e.Tp:
+    """
+    Instantiate all Some(i) sub term in a type.
+    Used to compute parametric function's return type.
+    """
+    def inst_func(tp: e.Tp) -> Optional[e.Tp]:
+        if isinstance(tp, e.SomeTp):
+            if tp.index in some_tp_mapping:
+                return some_tp_mapping[tp.index]
+            else:
+                raise ValueError("some tp not found")
+        else:
+            return None
+    return eops.map_tp(inst_func, tp)
 
 
 

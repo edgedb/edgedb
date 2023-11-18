@@ -11,67 +11,6 @@ from ..data import path_factor as path_factor
 from .dml_checking import *
 from ..data import expr_to_str as pp
 from .function_checking import *
-# def enforce_singular(expr: e.Expr, card: e.CMMode) -> e.Expr:
-#     """ returns the singular expression of the upper bound
-#     of the cardinality is one"""
-#     if (isinstance(card.upper, e.FiniteCardinal)
-#             and card.upper.value == 1
-#             and not isinstance(expr, e.SingularExpr)):
-#         return e.SingularExpr(expr=expr)
-#     else:
-#         return expr
-
-
-# def synthesize_type_for_val_seq(
-#                                 val_seq: Sequence[e.Val]) -> e.Tp:
-#     first_type = synthesize_type_for_val(val_seq[0])
-#     [check_type(e.TcCtx(ctx, {}), v,
-#                 e.ResultTp(first_type, e.CardOne))
-#         for v in val_seq[1:]]
-#     return first_type
-
-
-# def synthesize_type_for_multiset_val(
-#         ctx: e.RTData,
-#         val: e.MultiSetVal) -> e.ResultTp:
-#     if len(val.vals) == 0:
-#         raise ValueError("Cannot synthesize type for empty list")
-#     else:
-#         card = len(val.vals)
-#         return e.ResultTp(
-#             synthesize_type_for_val_seq(ctx, val.vals),
-#             e.CMMode(e.FiniteCardinal(card), e.FiniteCardinal(card)))
-
-
-# def synthesize_type_for_object_val(
-#         ctx: e.RTData,
-#         val: e.ObjectVal) -> e.Tp:
-#     obj_tp: Dict[str, e.ResultTp] = {}
-#     linkprop_tp: Dict[str, e.ResultTp] = {}
-
-#     for lbl, v in val.val.items():
-#         match lbl:
-#             case e.StrLabel(label=s_lbl):
-#                 if s_lbl in obj_tp.keys():
-#                     raise ValueError("duplicate keys in object val")
-#                 else:
-#                     obj_tp = {
-#                         **obj_tp,
-#                         s_lbl: synthesize_type_for_multiset_val(ctx, v[1])}
-#             case e.LinkPropLabel(label=l_lbl):
-#                 if l_lbl in linkprop_tp.keys():
-#                     raise ValueError("duplicate keys in object val")
-#                 else:
-#                     linkprop_tp = {
-#                         **linkprop_tp,
-#                         l_lbl: synthesize_type_for_multiset_val(ctx, v[1])}
-
-#     if len(linkprop_tp.keys()) == 0:
-#         return e.ObjectTp(obj_tp)
-#     else:
-#         return e.LinkPropTp(
-#             e.ObjectTp(obj_tp),
-#             e.ObjectTp(linkprop_tp))
 
 
 def synthesize_type_for_val(val: e.Val) -> e.Tp:
@@ -84,28 +23,6 @@ def synthesize_type_for_val(val: e.Val) -> e.Tp:
             return e.IntInfTp()
         case e.BoolVal(_):
             return e.BoolTp()
-        # case e.RefVal(refid=id, val=obj):
-        #     # ref_tp = ctx.schema.val[ctx.cur_db.dbdata[id].tp]
-        #     ref_obj = ctx.cur_db.dbdata[id].data
-        #     combined = eops.combine_object_val(ref_obj, obj)
-        #     return synthesize_type_for_object_val(ctx, combined)
-        # case e.FreeVal(val=obj):
-        #     return synthesize_type_for_object_val(ctx, obj)
-        # case e.ArrVal(val=arr):
-        #     return e.ArrTp(
-        #         synthesize_type_for_val_seq(ctx, arr))
-        # case e.UnnamedTupleVal(val=arr):
-        #     return e.UnnamedTupleTp(
-        #         [synthesize_type_for_val(ctx, e) for e in arr])
-        # case e.NamedTupleVal(val=obj):
-        #     return e.NamedTupleTp(
-        #        {n: synthesize_type_for_val(ctx, e) for n, e in obj.items()})
-        # case e.LinkPropVal(refid=id, linkprop=linkprop):
-        #     obj_tp: e.Tp = ctx.schema.val[ctx.cur_db.dbdata[id].tp.name]
-        #     obj_tp = tops.get_runtime_tp(obj_tp)
-        #     linkprop_tp = synthesize_type_for_object_val(ctx, linkprop)
-        #     assert isinstance(linkprop_tp, e.ObjectTp)
-        #     return e.LinkPropTp(obj_tp, linkprop_tp)
         case _:
             raise ValueError("Not implemented", val)
 
@@ -260,9 +177,13 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                                  list(ctx.varctx.keys())
                                  + list(ctx.schema.val.keys()))
         case e.TypeCastExpr(tp=tp, arg=arg):
-            (arg_tp, arg_v) = synthesize_type(ctx, arg)
-            (result_tp, result_card) = type_cast_tp(arg_tp, tp)
-            result_expr = e.TypeCastExpr(tp, arg_v)
+            if expr_tp_is_not_synthesizable(arg):
+                result_card, result_expr = check_type_no_card(ctx, arg, tp)
+                result_tp = tp
+            else:
+                (arg_tp, arg_v) = synthesize_type(ctx, arg)
+                (result_tp, result_card) = type_cast_tp(arg_tp, tp)
+                result_expr = e.TypeCastExpr(tp, arg_v)
         case e.ShapedExprExpr(expr=subject, shape=shape):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_tp, shape_ck = check_shape_transform(
@@ -279,95 +200,10 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_card = l_tp.mode + r_tp.mode
             result_expr = e.UnionExpr(l_ck, r_ck)
         case e.FunAppExpr(fun=fname, args=args, overloading_index=idx):
-            assert idx is None, ("Overloading should be empty "
-                                 "before type checking")
             (e_result_tp, e_ck) = func_call_checking(ctx, expr)
             result_tp = e_result_tp.tp
             result_card = e_result_tp.mode
             result_expr = e_ck
-            # fun_tp = ctx.schema.fun_defs[fname].tp
-            # # if fun_tp.effect_free:
-            # #     assert all(eops.is_effect_free(arg) for arg in args), (
-            # #         "Expect effectful arguments to effect-free functions")
-            
-            # assert len(args) == len(fun_tp.args_mod), "argument count mismatch"
-
-            # # if len(fun_tp.args_ret_types) > 1:
-            # #     raise ValueError("Overloading not implemented")
-            # # assert len(fun_tp.args_ret_types) == 1, "TODO: overloading"
-
-
-            # def try_args_ret_type(args_ret_type: e.FunArgRetType) -> Tuple[
-            #         e.Tp, e.CMMode, e.Expr]:
-
-            #     some_tp_mapping: Dict[int, e.UnifiableTp] = {}
-
-            #     def instantiate_some_tp(tp: e.Tp) -> Optional[e.Tp]:
-            #         nonlocal some_tp_mapping
-            #         if isinstance(tp, e.SomeTp):
-            #             if tp.index in some_tp_mapping.keys():
-            #                 return some_tp_mapping[tp.index]
-            #             else:
-            #                 new_tp = e.UnifiableTp(id=e.next_id(),
-            #                                        resolution=None)
-            #                 some_tp_mapping[tp.index] = new_tp
-            #                 return new_tp
-            #         else:
-            #             return None
-
-            #     args_ret_type = e.FunArgRetType(
-            #         args_tp=[eops.map_tp(instantiate_some_tp, t)
-            #                  for t in args_ret_type.args_tp],
-            #         ret_tp=e.ResultTp(eops.map_tp(instantiate_some_tp,
-            #                                       args_ret_type.ret_tp.tp),
-            #                           args_ret_type.ret_tp.mode))
-
-            #     arg_cards, arg_cks = zip(*[check_type_no_card(
-            #             ctx, arg, args_ret_type.args_tp[i])
-            #             for i, arg in enumerate(args)])
-
-            #     # special processing of cardinality inference for certain functions
-            #     match fname:
-            #         case "??":
-            #             assert len(arg_cards) == 2
-            #             result_card = e.CMMode(
-            #                 e.min_cardinal(arg_cards[0].lower,
-            #                                arg_cards[1].lower),
-            #                 e.max_cardinal(arg_cards[0].upper,
-            #                                arg_cards[1].upper),
-            #                 # e.max_cardinal(arg_cards[0].multiplicity,
-            #                 #                arg_cards[1].multiplicity)
-            #             )
-            #         case _:
-            #             # take the product of argument cardinalities
-            #             arg_card_product = reduce(
-            #                 operator.mul,
-            #                 (tops.match_param_modifier(param_mod, arg_card)
-            #                  for param_mod, arg_card
-            #                  in zip(fun_tp.args_mod, arg_cards, strict=True)))
-            #             result_card = (arg_card_product
-            #                            * args_ret_type.ret_tp.mode)
-                
-            #     result_tp = args_ret_type.ret_tp.tp
-            #     result_expr = e.FunAppExpr(fun=fname, args=arg_cks,
-            #                                overloading_index=idx)
-            #     return result_tp, result_card, result_expr
-
-            # if idx is not None:
-            #     args_ret_type = fun_tp.args_ret_types[idx]
-            #     result_tp, result_card, result_expr = try_args_ret_type(
-            #         args_ret_type)
-            # else:
-            #     for i, args_ret_type in enumerate(fun_tp.args_ret_types):
-            #         try:
-            #             result_tp, result_card, result_expr = \
-            #                 try_args_ret_type(args_ret_type)
-            #             break
-            #         except ValueError:
-            #             if i == len(fun_tp.args_ret_types) - 1:
-            #                 raise
-            #             else:
-            #                 continue
         case e.FreeObjectExpr():
             result_tp = e.NominalLinkTp(subject=e.ObjectTp({}),
                                         name="std::FreeObject",
@@ -530,14 +366,6 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     )
         case e.InsertExpr(name=tname, new=arg):
             result_expr = insert_checking(ctx, expr)
-            # tname_tp = tops.get_runtime_tp(
-            #     e.NominalLinkTp(subject=ctx.schema.val[tname],
-            #                     name=tname,
-            #                     linkprop=e.ObjectTp({}))
-            # )
-            # arg_shape_tp, arg_ck = check_shap_transform(
-            #     ctx, arg, tname_tp, is_insert_shape=True)
-            # tops.assert_insert_subtype(ctx, arg_shape_tp, tname_tp)
             result_tp = e.NamedNominalLinkTp(name=tname, linkprop=e.ObjectTp({}))
             result_card = e.CardOne
         case e.UpdateExpr(subject=subject, shape=shape_expr):
@@ -624,11 +452,11 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_card = reduce(operator.mul, rest_card,
                                  first_tp.mode)  # type: ignore[arg-type]
         case e.MultiSetExpr(expr=arr):
-            if len(arr) == 0:
-                return (e.ResultTp(e.UnifiableTp(e.next_id()),
-                                   e.CardAtMostOne), expr)  # this is a hack
-            # assert len(arr) > 0, ("Empty multiset does not"
-            #                       " support type synthesis")
+            # if len(arr) == 0:
+                # return (e.ResultTp(e.UnifiableTp(e.next_id()),
+                #                    e.CardAtMostOne), expr)  # this is a hack
+            assert len(arr) > 0, ("Empty multiset does not"
+                                  " support type synthesis")
             (first_tp, first_ck) = synthesize_type(ctx, arr[0])
             if len(arr[1:]) == 0:
                 result_expr = e.MultiSetExpr([first_ck])
@@ -654,10 +482,19 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
 
     return (e.ResultTp(result_tp, result_card), result_expr)
 
+def expr_tp_is_not_synthesizable(expr: e.Expr) -> bool:
+    match expr:
+        case e.MultiSetExpr(expr=[]):
+            return True
+        case _:
+            return False
+
 
 def check_type_no_card(ctx: e.TcCtx, expr: e.Expr,
                        tp: e.Tp) -> Tuple[e.CMMode, e.Expr]:
     match expr:
+        case e.MultiSetExpr(expr=[]):
+            return (e.CardAtMostOne, expr)
         case _:
             expr_tp, expr_ck = synthesize_type(ctx, expr)
             tops.assert_real_subtype(ctx, expr_tp.tp, tp)

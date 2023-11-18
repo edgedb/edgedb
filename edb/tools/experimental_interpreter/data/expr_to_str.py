@@ -69,6 +69,9 @@ def show_tp(tp: e.Tp) -> str:
         case _:
             raise ValueError('Unimplemented', tp)
 
+def show_func_tps(tp: e.FunArgRetType) -> str:
+    return (", ".join(show_tp(arg_tp) for arg_tp in tp.args_tp) +
+            " -> " + show_result_tp(tp.ret_tp))
 
 def show_result_tp(tp: e.ResultTp) -> str:
     return show_tp(tp.tp) + show_cmmode(tp.mode)

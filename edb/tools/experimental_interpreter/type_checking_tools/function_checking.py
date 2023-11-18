@@ -3,6 +3,7 @@ from ..data import data_ops as e
 from ..data import expr_ops as eops
 from ..data import type_ops as tops
 from ..data import path_factor as pops
+from ..data import expr_to_str as pp
 from typing import List, Tuple, Dict, Optional
 # from itertools import *
 from functools import reduce
@@ -23,26 +24,18 @@ def check_args_ret_type_match(ctx : e.TcCtx, tps_syn: List[e.Tp], tps_ck: e.FunA
         return None
     
     for i, (syn_tp, ck_tp) in enumerate(zip(tps_syn, args_ck_tps)):
-        real_ck_tp : e.Tp 
-        if isinstance(ck_tp, e.SomeTp):
-            if ck_tp.index in some_tp_mapping:
-                real_ck_tp = some_tp_mapping[ck_tp.index]
-            else:
-                some_tp_mapping[ck_tp.index] = syn_tp
-                real_ck_tp = syn_tp
-        else:
-            real_ck_tp = ck_tp
-        assert real_ck_tp is not None
-        if not tops.check_is_subtype(ctx, syn_tp, real_ck_tp):
+        if not tops.check_is_subtype_with_instantiation(ctx, syn_tp, ck_tp, some_tp_mapping):
             return None
 
-    if isinstance(ret_tp, e.SomeTp):
-        if ret_tp.index in some_tp_mapping:
-            return some_tp_mapping[ret_tp.index]
-        else:
-            raise ValueError("Function's return type has to be grounded by input types.")
-    else:
-        return ret_tp
+    final_ret_tp = tops.recursive_instantiate_tp(ret_tp, some_tp_mapping)
+    return final_ret_tp
+    # if isinstance(ret_tp, e.SomeTp):
+    #     if ret_tp.index in some_tp_mapping:
+    #         return some_tp_mapping[ret_tp.index]
+    #     else:
+    #         raise ValueError("Function's return type has to be grounded by input types.")
+    # else:
+    #     return ret_tp
 
 
 def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp, e.FunAppExpr]:
@@ -51,8 +44,6 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
 
     match fun_call:
         case e.FunAppExpr(fun=fname, args=args, overloading_index=idx):
-            assert idx is None, ("Overloading should be empty "
-                                 "before type checking")
             fun_tp = ctx.schema.fun_defs[fname].tp
             assert len(args) == len(fun_tp.args_mod), "argument count mismatch"
             [res_tps, args_cks] = zip(*[tc.synthesize_type(ctx, v) for v in args])
@@ -78,30 +69,31 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                     if result_tp is not None:
                         ok_candidates.append((i, result_tp))
                 if len(ok_candidates) == 0:
-                    raise ValueError("No overloading matches", fun_call)
+                    raise ValueError("No overloading matches", fname, 
+                                     "args type", [pp.show_tp(tp) for tp in tps],
+                                     "candidates", [pp.show_func_tps(args_ret_type) for args_ret_type in fun_tp.args_ret_types],
+                                     pp.show_expr(fun_call))
                 elif len(ok_candidates) == 1:
                     idx, result_tp = ok_candidates[0]
                 else:
                     raise ValueError("Ambiguous overloading", fun_call)
-            result_card = (arg_card_product
-                            * fun_tp.args_ret_types[idx].ret_tp.mode)
+            # special processing of cardinality inference for certain functions
+            match fname:
+                case "??":
+                    assert len(arg_cards) == 2
+                    result_card = e.CMMode(
+                        e.min_cardinal(arg_cards[0].lower,
+                                        arg_cards[1].lower),
+                        e.max_cardinal(arg_cards[0].upper,
+                                        arg_cards[1].upper),
+                    )
+                case _:
+                    result_card = (arg_card_product
+                                    * fun_tp.args_ret_types[idx].ret_tp.mode)
             result_expr = e.FunAppExpr(fun=fname, args=args_cks, overloading_index=idx)
             return (e.ResultTp(result_tp, result_card), result_expr)
         case _:
             raise ValueError("impossible", fun_call)
-  # special processing of cardinality inference for certain functions
-    # match fname:
-    #     case "??":
-    #         assert len(arg_cards) == 2
-    #         result_card = e.CMMode(
-    #             e.min_cardinal(arg_cards[0].lower,
-    #                             arg_cards[1].lower),
-    #             e.max_cardinal(arg_cards[0].upper,
-    #                             arg_cards[1].upper),
-    #             # e.max_cardinal(arg_cards[0].multiplicity,
-    #             #                arg_cards[1].multiplicity)
-    #         )
-    #     case _:
             
     
     # result_tp = args_ret_type.ret_tp.tp
