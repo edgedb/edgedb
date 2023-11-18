@@ -170,9 +170,16 @@ def show_expr(expr: e.Expr) -> str:
             raise ValueError('Unimplemented', expr)
 
 
-def show_schema(dbschema: e.DBSchema) -> str:
+def show_module(dbschema: e.DBModule) -> str:
     return ("\n".join(name + " := " + show_tp(tp) for name, tp in
-                      dbschema.val.items()))
+                      dbschema.type_defs.items()))
+
+
+def show_schema(dbschema: e.DBSchema) -> str:
+    return ("\n".join(name + " := " + show_module(module) 
+                      for name, module in dbschema.modules.items())
+            + "\n".join(name + " := " + show_module(module)
+                        for name, module in dbschema.unchecked_modules.items()))
 
 
 def show_tcctx(tcctx: e.TcCtx) -> str:

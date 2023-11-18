@@ -43,7 +43,7 @@ def construct_final_schema_target_tp(base : Tp, linkprops: Dict[str, ResultTp]) 
             else:
                 return base
 
-def elab_schema(sdef: qlast.Schema) -> DBSchema:
+def elab_schema(sdef: qlast.Schema) -> Tuple[str,e.DBModule]:
     if (len(sdef.declarations) != 1
             or sdef.declarations[0].name.name != "default"):
         raise ValueError(
@@ -204,18 +204,23 @@ def elab_schema(sdef: qlast.Schema) -> DBSchema:
             case _:
                 print("WARNING: not implemented t_decl", t_decl)
 
-    return DBSchema(type_defs, all_builtin_funcs)
+    return ("default", e.DBModule(type_defs, all_builtin_funcs))
 
 
-def schema_from_sdl_defs(schema_defs: str,
-                         ) -> DBSchema:
-    raw_schema = elab_schema(parse_sdl(schema_defs))
-    checked_schema = tck.check_schmea_validity(raw_schema)
+def add_module_from_sdl_defs(
+        schema: e.DBSchema,
+        module_defs: str,
+                         ) -> e.DBSchema:
+    name, unchecked_module = elab_schema(parse_sdl(module_defs))
+    schema.unchecked_modules[name] = unchecked_module
+    checked_schema = tck.check_module_validity(schema, name)
     return checked_schema
 
 
 
-def schema_from_sdl_file(init_sdl_file_path: str,
-                         ) -> DBSchema:
+def add_module_from_sdl_file(
+        schema: e.DBSchema,
+        init_sdl_file_path: str,
+                         ) -> e.DBSchema:
     with open(init_sdl_file_path) as f:
-        return schema_from_sdl_defs(f.read())
+        return add_module_from_sdl_defs(schema, f.read())

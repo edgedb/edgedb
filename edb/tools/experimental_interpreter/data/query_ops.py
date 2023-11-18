@@ -14,7 +14,7 @@ from .data_ops import (ArrExpr, BackLinkExpr, BindingExpr, BoolVal,
                        StrVal, SubqueryExpr, TpIntersectExpr, TypeCastExpr,
                        UnionExpr, UnnamedTupleExpr, UpdateExpr, WithExpr)
 
-
+from . import module_ops as mops
 class QueryLevel(Enum):
     TOP_LEVEL = 1
     SEMI_SUBQUERY = 2
@@ -37,7 +37,7 @@ def enter_sub_query(level: QueryLevel) -> QueryLevel:
 
 def map_query(f: Callable[[Expr, QueryLevel],
                           Optional[Expr]],
-              expr: Expr, schema: DBSchema,
+              expr: Expr, schema: e.TcCtx,
               level: QueryLevel = QueryLevel.TOP_LEVEL) -> Expr:
     """ maps a function over free variables and bound variables,
     and does not modify other nodes
@@ -90,12 +90,13 @@ def map_query(f: Callable[[Expr, QueryLevel],
                 return TpIntersectExpr(subject=recur(subject), tp=tp_name)
             case FunAppExpr(fun=fname, args=args, overloading_index=idx):
                 mapped_args: Sequence[Expr] = []
-                args_mods = [schema.fun_defs[fname].tp.args_ret_types[i].args_mod 
-                             for i in range(len(schema.fun_defs[fname].tp.args_ret_types))]
+                resolved_fun_def = mops.resolve_func_name(schema, fname)
+                args_mods = [resolved_fun_def.tp.args_ret_types[i].args_mod 
+                             for i in range(len(resolved_fun_def.tp.args_ret_types))]
                 assert len(args_mods) > 0, "Expecting fun_defs"
                 assert all([args_mods[0] == args_mod for args_mod in args_mods]), \
                     "Expecting all args_mods to be the same"
-                params = schema.fun_defs[fname].tp.args_ret_types[0].args_mod
+                params = resolved_fun_def.tp.args_ret_types[0].args_mod
                 for i in range(len(args)):
                     match params[i]:
                         case ParamSingleton():
@@ -181,7 +182,7 @@ def map_query(f: Callable[[Expr, QueryLevel],
 def map_sub_and_semisub_queries(
         f: Callable[[Expr],
                     Optional[Expr]],
-        expr: Expr, schema: DBSchema) -> Expr:
+        expr: Expr, schema: e.TcCtx) -> Expr:
     def map_fun(sub: Expr, level: QueryLevel) -> Optional[Expr]:
         if level == QueryLevel.SEMI_SUBQUERY or level == QueryLevel.SUBQUERY:
             return f(sub)

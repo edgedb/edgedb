@@ -20,7 +20,7 @@ from .data.expr_to_str import show_expr, show_result_tp, show_schema
 from .data.path_factor import select_hoist
 from .data.val_to_json import (json_like, multi_set_val_to_json_like,
                                typed_multi_set_val_to_json_like)
-from .elab_schema import schema_from_sdl_defs, schema_from_sdl_file
+from .elab_schema import add_module_from_sdl_defs, add_module_from_sdl_file
 from .elaboration import elab
 from .evaluation import RTExpr, eval_expr_toplevel
 from .helper_funcs import parse_ql
@@ -28,7 +28,7 @@ from .logs import write_logs_to_file
 from .sqlite import sqlite_adapter
 from .data import expr_to_str as pp
 from .db_interface import *
-
+from .schema.library_discovery import *
 # CODE REVIEW: !!! CHECK IF THIS WILL BE SET ON EVERY RUN!!!
 # sys.setrecursionlimit(10000)
 
@@ -36,9 +36,12 @@ from .db_interface import *
 def empty_db(schema : DBSchema) -> EdgeDatabaseInterface:
     return InMemoryEdgeDatabase(schema)
 
-
 def empty_dbschema() -> DBSchema:
-    return DBSchema({}, all_builtin_funcs)
+    return DBSchema({}, {})
+
+def default_dbschema() -> DBSchema:
+    return DBSchema({"std": DBModule({}, all_builtin_funcs)},{})
+
 
 
 
@@ -183,9 +186,17 @@ def repl(*, init_sdl_file=None,
     from edb.edgeql import parser as ql_parser
     ql_parser.preload_spec()
 
-    dbschema: DBSchema
+    dbschema: DBSchema 
     db: EdgeDatabaseInterface
     logs: List[Any] = []  # type: ignore[var]
+
+    if library_ddl_files:
+        dbschema = empty_dbschema()
+        dbschema = add_ddl_library(dbschema, library_ddl_files)
+    else:
+        dbschema = default_dbschema()
+
+
 
     if sqlite_file is not None:
         if init_sdl_file is not None:
@@ -196,7 +207,7 @@ def repl(*, init_sdl_file=None,
         (dbschema, db) = sqlite_adapter.schema_and_db_from_sqlite(init_sdl_file_content, sqlite_file)
     else:
         if init_sdl_file is not None:
-            dbschema = schema_from_sdl_file(init_sdl_file_path=init_sdl_file)
+            dbschema = add_module_from_sdl_file(init_sdl_file_path=init_sdl_file)
         else:
             dbschema = empty_dbschema()
         db = empty_db(dbschema)
@@ -232,7 +243,7 @@ def dbschema_and_db_with_initial_schema_and_queries(
     if sqlite_file_name is not None:
         dbschema, db = sqlite_adapter.schema_and_db_from_sqlite(initial_schema_defs, sqlite_file_name)
     else:
-        dbschema = schema_from_sdl_defs(initial_schema_defs)
+        dbschema = add_module_from_sdl_defs(initial_schema_defs)
         db = empty_db(dbschema)
     run_str(db, dbschema, initial_queries,
                       print_asts=debug_print, logs=logs)

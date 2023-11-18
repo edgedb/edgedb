@@ -3,6 +3,7 @@ from ..data import data_ops as e
 from ..data import expr_ops as eops
 from ..data import type_ops as tops
 from ..data import path_factor as pops
+from ..data import module_ops as mops
 from typing import List, Tuple, Dict
 
 
@@ -162,7 +163,7 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
             deps = get_key_dependency(target_tp)
             if len(deps) == 0:
                 actual_v = eops.instantiate_expr(target_tp.expr, e.FreeVarExpr("INSERT_SHOULD_NOT_OCCUR"))
-                new_v = {**new_v, k: type_elaborate_default_tp(actual_v)}
+                new_v = {**new_v, k: type_elaborate_default_tp(ctx, actual_v)}
             else:
                 # add to dependent_keys those in new_v
                 add_deps_from_new_v(deps)
@@ -219,7 +220,7 @@ def update_checking(ctx: e.TcCtx, update_shape: e.ShapeExpr, subject_tp: e.Tp) -
     from . import typechecking as tc
     assert isinstance(subject_tp, e.NamedNominalLinkTp) or isinstance(subject_tp, e.NominalLinkTp), "Expecting link type"
     tp_name = subject_tp.name
-    full_tp = ctx.schema.val[tp_name]
+    full_tp = mops.resolve_type_name(ctx, tp_name)
     assert all(isinstance(k, e.StrLabel) for k in update_shape.shape.keys()), "Expecting string labels"
     cut_tp = {k : v for (k,v) in full_tp.val.items() 
               if e.StrLabel(k) in update_shape.shape.keys()}

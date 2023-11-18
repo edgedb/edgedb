@@ -648,11 +648,18 @@ class BuiltinFuncDef():
     tp: FunType
     impl: Callable[[Sequence[Sequence[Val]]], Sequence[Val]]
 
+FuncDef = BuiltinFuncDef
 
 @dataclass(frozen=True)
+class DBModule:
+    type_defs: Dict[str, ObjectTp]
+    fun_defs: Dict[str, FuncDef]
+
+@dataclass(frozen=True)
+# @dataclass
 class DBSchema:
-    val: Dict[str, ObjectTp]
-    fun_defs: Dict[str, BuiltinFuncDef]
+    modules : Dict[str, DBModule]
+    unchecked_modules : Dict[str, DBModule] # modules that are currently under type checking
 
 # RT Stands for Run Time
 
@@ -678,7 +685,9 @@ class RTVal(NamedTuple):
 @dataclass
 class TcCtx:
     schema: DBSchema
+    current_module: str # current module name, TODO: nested modules
     varctx: Dict[str, ResultTp]
+
 
 
 class SubtypingMode(Enum):

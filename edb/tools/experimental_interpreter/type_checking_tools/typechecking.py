@@ -165,8 +165,9 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.FreeVarExpr(var=var):
             if var in ctx.varctx.keys():
                 result_tp, result_card = ctx.varctx[var]
-            elif var in ctx.schema.val.keys():
-                result_tp = e.NominalLinkTp(subject=ctx.schema.val[var], 
+            possible_resolved_tp = mops.try_resolve_type_name(ctx, var)
+            if possible_resolved_tp is not None:
+                result_tp = e.NominalLinkTp(subject=possible_resolved_tp,
                                             name=var, 
                                             linkprop=e.ObjectTp({}))
                 result_card = e.CardAny
@@ -174,7 +175,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 raise ValueError("Unknown variable", var,
                                  "list of known vars",
                                  list(ctx.varctx.keys())
-                                 + list(ctx.schema.val.keys()))
+                                 + list(ctx.schema))
         case e.TypeCastExpr(tp=tp, arg=arg):
             if expr_tp_is_not_synthesizable(arg):
                 result_card, result_expr = check_type_no_card(ctx, arg, tp)
@@ -514,15 +515,18 @@ def check_type(ctx: e.TcCtx, expr: e.Expr, tp: e.ResultTp) -> e.Expr:
 
 def check_object_tp_comp_validity(
         dbschema: e.DBSchema,
+        current_module_name: str,
         subject_tp: e.Tp,
         tp_comp: e.Tp,
         tp_comp_card: e.CMMode) -> e.Tp:
+    root_ctx = eops.emtpy_tcctx_from_dbschema(dbschema, current_module_name)
     match tp_comp:
         case e.NamedNominalLinkTp(name=name, linkprop=l_prop):
             return e.NamedNominalLinkTp(
                     name=name,
                     linkprop=check_object_tp_validity(
                         dbschema=dbschema,
+                        current_module_name=current_module_name,
                         subject_tp=tops.get_runtime_tp(tp_comp),
                         obj_tp=l_prop))
         case e.NominalLinkTp(subject=l_sub, name=name, linkprop=l_prop):
@@ -531,6 +535,7 @@ def check_object_tp_comp_validity(
                     name=name,
                     linkprop=check_object_tp_validity(
                         dbschema=dbschema,
+                        current_module_name=current_module_name,
                         subject_tp=tops.get_runtime_tp(tp_comp),
                         obj_tp=l_prop))
         case e.UncheckedComputableTp(expr=c_expr):
@@ -538,7 +543,7 @@ def check_object_tp_comp_validity(
                 raise ValueError(
                     "Computable type must be a binding expression")
             new_ctx, c_body, bnd_var = eops.tcctx_add_binding(
-                eops.emtpy_tcctx_from_dbschema(dbschema),
+                root_ctx,
                 c_expr,  # type: ignore
                 e.ResultTp(subject_tp, e.CardOne)
             )
@@ -553,7 +558,7 @@ def check_object_tp_comp_validity(
                 raise ValueError(
                     "Computable type must be a binding expression")
             new_ctx, c_body, bnd_var = eops.tcctx_add_binding(
-                eops.emtpy_tcctx_from_dbschema(dbschema),
+                root_ctx,
                 c_expr,  # type: ignore
                 e.ResultTp(subject_tp, e.CardOne)
             )
@@ -571,7 +576,7 @@ def check_object_tp_comp_validity(
                 raise ValueError(
                     "Computable type must be a binding expression")
             new_ctx, c_body, bnd_var = eops.tcctx_add_binding(
-                eops.emtpy_tcctx_from_dbschema(dbschema),
+                root_ctx,
                 c_expr,  # type: ignore
                 e.ResultTp(subject_tp, e.CardOne)
             )
@@ -592,6 +597,7 @@ def check_object_tp_comp_validity(
 
 
 def check_object_tp_validity(dbschema: e.DBSchema,
+                             current_module_name: str,
                              subject_tp: e.Tp,
                              obj_tp: e.ObjectTp) -> e.ObjectTp:
     result_vals: Dict[str, e.ResultTp] = {}
@@ -599,19 +605,29 @@ def check_object_tp_validity(dbschema: e.DBSchema,
         result_vals[lbl] = e.ResultTp(
             check_object_tp_comp_validity(
                 dbschema=dbschema,
+                current_module_name=current_module_name,
                 subject_tp=subject_tp,
                 tp_comp=t_comp_tp,
                 tp_comp_card=t_comp_card), t_comp_card)
     return e.ObjectTp(result_vals)
 
 
-def check_schmea_validity(dbschema: e.DBSchema) -> e.DBSchema:
+def check_module_validity(dbschema: e.DBSchema, module_name : str) -> e.DBSchema:
+    """
+    Checks the validity of an unchecked module in dbschema. 
+    Modifies the db schema after checking
+    """
     result_vals: Dict[str, e.ObjectTp] = {}
-    for t_name, obj_tp in dbschema.val.items():
+    dbmodule = dbschema.unchecked_modules[module_name]
+    for t_name, obj_tp in dbmodule.type_defs.items():
         result_vals = {**result_vals, t_name:
-                       check_object_tp_validity(
-                            dbschema, e.VarTp(t_name),
+                       check_object_tp_validity(dbschema, module_name,
+                            e.NamedNominalLinkTp(name=t_name, linkprop=e.ObjectTp({})),
                             obj_tp)}
-    return e.DBSchema(val=result_vals, fun_defs=dbschema.fun_defs)
+    result_dbmodule = e.DBModule(type_defs=result_vals, fun_defs=dbmodule.fun_defs)
+    dbschema.modules[module_name] = result_dbmodule
+    del dbschema.unchecked_modules[module_name]
+    return dbschema
+
 
 

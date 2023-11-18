@@ -9,7 +9,7 @@ from ..data.data_ops import *
 from typing import *
 from ..basis.built_ins import all_builtin_funcs
 from ..db_interface import EdgeDatabaseInterface
-from ..elab_schema import schema_from_sdl_file, schema_from_sdl_defs
+from ..elab_schema import add_module_from_sdl_file, add_module_from_sdl_defs
 
 import copy
 
@@ -458,7 +458,7 @@ def schema_and_db_from_sqlite(sdl_file_content, sqlite_file_name):
 
         # Read and store the content into sdl_schema table
         c.execute("INSERT INTO sdl_schema (content) VALUES (?)", (content,))
-        dbschema = schema_from_sdl_defs(content)
+        dbschema = add_module_from_sdl_defs(content)
 
         # Commit the changes
         conn.commit()
@@ -472,7 +472,7 @@ def schema_and_db_from_sqlite(sdl_file_content, sqlite_file_name):
         if db_sdl != sdl_content:
             raise ValueError("Passed in SDL file differs from SQLite Schema.", sdl_content, db_sdl)
 
-        dbschema = schema_from_sdl_defs(db_sdl)
+        dbschema = add_module_from_sdl_defs(db_sdl)
 
     # Unpickle the objects
     # dbschema_val = pickle.loads(dbschema_bytes)

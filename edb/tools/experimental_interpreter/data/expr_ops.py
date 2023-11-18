@@ -630,14 +630,15 @@ def tcctx_add_binding(ctx: e.TcCtx,
                       binder_tp: e.ResultTp) -> Tuple[e.TcCtx, Expr, str]:
     bnd_e = ensure_no_capture(list(get_free_vars(bnd_e))
                               + list(ctx.varctx.keys()), bnd_e)
-    new_ctx = e.TcCtx(ctx.schema, {**ctx.varctx, bnd_e.var: binder_tp})
+    new_ctx = e.TcCtx(ctx.schema, ctx.current_module, {**ctx.varctx, bnd_e.var: binder_tp})
     after_e = instantiate_expr(e.FreeVarExpr(bnd_e.var), bnd_e)
     return new_ctx, after_e, bnd_e.var
 
 
-def emtpy_tcctx_from_dbschema(dbschema: e.DBSchema) -> e.TcCtx:
+def emtpy_tcctx_from_dbschema(dbschema: e.DBSchema, current_module_name: str) -> e.TcCtx:
     return e.TcCtx(
         schema=dbschema,
+        current_module=current_module_name,
         varctx={})
 
 

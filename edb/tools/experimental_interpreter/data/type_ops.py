@@ -4,7 +4,7 @@ from .expr_to_str import show_tp
 from . import data_ops as e
 from . import expr_ops as eops
 from typing import List, Dict, Tuple, Optional, Callable
-
+from . import module_ops as mops
 
 def construct_tp_intersection(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
     # TODO: optimize so that if tp1 is a subtype of tp2, we return tp2
@@ -113,13 +113,15 @@ def type_equality_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
                 else:
                     return recurse(ctx, lp_1, lp_2)
             case (_, e.NamedNominalLinkTp(name=n_2, linkprop=lp_2)):
+                resolved_type_def = mops.resolve_type_name(ctx, n_2)
                 return recurse(ctx, tp1, 
-                    e.NominalLinkTp(subject=ctx.schema.val[n_2],
+                    e.NominalLinkTp(subject=resolved_type_def,
                                     name=n_2,
                                     linkprop=lp_2))
             case (e.NamedNominalLinkTp(name=n_1, linkprop=lp_1), _):
+                resolved_type_def = mops.resolve_type_name(ctx, n_1)
                 return recurse(ctx, 
-                    e.NominalLinkTp(subject=ctx.schema.val[n_1],
+                    e.NominalLinkTp(subject=resolved_type_def,
                                     name=n_1,
                                     linkprop=lp_1), tp2)
 
