@@ -9,8 +9,8 @@ from ..data.data_ops import (
     ParamSingleton, RefVal, SomeTp, StrVal, CardAny, ArrVal, StrTp, ArrTp)
 from .errors import FunCallErr
 
-add_tp = FunType(args_mod=[ParamSingleton(), ParamSingleton()],
-                 args_ret_types=[FunArgRetType(
+add_tp = FunType(args_ret_types=[FunArgRetType(
+                    args_mod=[ParamSingleton(), ParamSingleton()],
                     args_tp=[IntTp(), IntTp()],
                     ret_tp=e.ResultTp(IntTp(), CardOne))]
                  )
@@ -23,9 +23,11 @@ def add_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 
-subtract_tp = FunType(args_mod=[ParamSingleton(), ParamSingleton()],
-                      args_ret_types=[FunArgRetType(args_tp=[IntTp(), IntTp()],
-                                                    ret_tp=e.ResultTp(IntTp(), CardOne))]
+subtract_tp = FunType(
+    args_ret_types=[FunArgRetType(
+        args_tp=[IntTp(), IntTp()],
+        args_mod=[ParamSingleton(), ParamSingleton()],
+        ret_tp=e.ResultTp(IntTp(), CardOne))]
                       )
 
 
@@ -35,9 +37,11 @@ def subtract_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
             return [IntVal(v1 - v2)]
     raise FunCallErr()
 
-multiply_tp = FunType(args_mod=[ParamSingleton(), ParamSingleton()],
-                      args_ret_types=[FunArgRetType(args_tp=[IntTp(), IntTp()],
-                                                    ret_tp=e.ResultTp(IntTp(), CardOne))]
+multiply_tp = FunType(
+    args_ret_types=[FunArgRetType(
+        args_mod=[ParamSingleton(), ParamSingleton()],
+        args_tp=[IntTp(), IntTp()],
+        ret_tp=e.ResultTp(IntTp(), CardOne))]
                       )
 
 
@@ -48,10 +52,11 @@ def multiply_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 
-mod_tp = FunType(args_mod=[ParamSingleton(), ParamSingleton()],
-                 args_ret_types=[FunArgRetType(
-                    args_tp=[IntTp(), IntTp()],
-                    ret_tp=e.ResultTp(IntTp(), CardOne))]
+mod_tp = FunType(
+    args_ret_types=[FunArgRetType(
+        args_mod=[ParamSingleton(), ParamSingleton()],
+        args_tp=[IntTp(), IntTp()],
+        ret_tp=e.ResultTp(IntTp(), CardOne))]
                  )
 
 
@@ -62,9 +67,11 @@ def mod_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 
-eq_tp = FunType(args_mod=[ParamSingleton(), ParamSingleton()], args_ret_types=[
-                FunArgRetType(args_tp=[SomeTp(0), SomeTp(0)],
-                              ret_tp=e.ResultTp(BoolTp(), CardOne))])
+eq_tp = FunType(
+    args_ret_types=[FunArgRetType(
+        args_tp=[SomeTp(0), SomeTp(0)],
+        args_mod=[ParamSingleton(), ParamSingleton()], 
+        ret_tp=e.ResultTp(BoolTp(), CardOne))])
 
 
 def eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -78,10 +85,11 @@ def eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr(arg)
 
 
-not_eq_tp = FunType(args_mod=[ParamSingleton(), ParamSingleton()],
-                    args_ret_types=[
-                    FunArgRetType(args_tp=[SomeTp(0), SomeTp(0)],
-                                  ret_tp=e.ResultTp(BoolTp(), CardOne))])
+not_eq_tp = FunType(
+    args_ret_types=[FunArgRetType(
+        args_mod=[ParamSingleton(), ParamSingleton()],
+        args_tp=[SomeTp(0), SomeTp(0)],
+        ret_tp=e.ResultTp(BoolTp(), CardOne))])
 
 
 def not_eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -95,10 +103,11 @@ def not_eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr(arg)
 
 
-opt_eq_tp = FunType(args_mod=[ParamOptional(), ParamOptional()],
-                    args_ret_types=[
-                    FunArgRetType(args_tp=[SomeTp(0), SomeTp(0)],
-                                  ret_tp=e.ResultTp(BoolTp(), CardOne))])
+opt_eq_tp = FunType(
+    args_ret_types=[FunArgRetType(
+        args_mod=[ParamOptional(), ParamOptional()],
+        args_tp=[SomeTp(0), SomeTp(0)],
+        ret_tp=e.ResultTp(BoolTp(), CardOne))])
 
 
 def opt_eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -113,10 +122,11 @@ def opt_eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 
-opt_not_eq_tp = FunType(args_mod=[ParamOptional(), ParamOptional()],
-                        args_ret_types=[
-                        FunArgRetType(args_tp=[SomeTp(0), SomeTp(0)],
-                                      ret_tp=e.ResultTp(BoolTp(), CardOne))])
+opt_not_eq_tp = FunType(
+    args_ret_types=[FunArgRetType(
+        args_mod=[ParamOptional(), ParamOptional()],
+        args_tp=[SomeTp(0), SomeTp(0)],
+        ret_tp=e.ResultTp(BoolTp(), CardOne))])
 
 
 def opt_not_eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -131,10 +141,11 @@ def opt_not_eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 
-gt_tp = FunType(args_mod=[ParamSingleton(), ParamSingleton()],
-                args_ret_types=[
-                FunArgRetType(args_tp=[SomeTp(0), SomeTp(0)],
-                              ret_tp=e.ResultTp(BoolTp(), CardOne))])
+gt_tp = FunType(
+    args_ret_types=[FunArgRetType(
+        args_mod=[ParamSingleton(), ParamSingleton()],
+        args_tp=[SomeTp(0), SomeTp(0)],
+        ret_tp=e.ResultTp(BoolTp(), CardOne))])
 
 
 def gt_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -145,14 +156,16 @@ def gt_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 
 concatenate_tp = FunType(
-    args_mod=[ParamSingleton(),
-              ParamSingleton()],
     args_ret_types=[
         FunArgRetType(
+            args_mod=[ParamSingleton(),
+                    ParamSingleton()],
             args_tp=[StrTp(),
                      StrTp()],
             ret_tp=e.ResultTp(StrTp(), CardOne)),
         FunArgRetType(
+            args_mod=[ParamSingleton(),
+                    ParamSingleton()],
             args_tp=[ArrTp(SomeTp(0)),
                      ArrTp(SomeTp(0))],
             ret_tp=e.ResultTp(ArrTp(SomeTp(0)), CardOne))])
@@ -167,10 +180,11 @@ def concatenate_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 
-coalescing_tp = FunType(args_mod=[ParamOptional(), ParamSetOf()],
-                        args_ret_types=[
-                        FunArgRetType(args_tp=[SomeTp(0), SomeTp(0)],
-                                      ret_tp=e.ResultTp(SomeTp(0), CardAny))])
+coalescing_tp = FunType(
+    args_ret_types=[FunArgRetType(
+        args_mod=[ParamOptional(), ParamSetOf()],
+        args_tp=[SomeTp(0), SomeTp(0)],
+        ret_tp=e.ResultTp(SomeTp(0), CardAny))])
 
 
 def coalescing_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -182,10 +196,11 @@ def coalescing_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 
-in_tp = FunType(args_mod=[ParamSingleton(), ParamSetOf()],
-                args_ret_types=[
-                FunArgRetType(args_tp=[SomeTp(0), SomeTp(0)],
-                              ret_tp=e.ResultTp(BoolTp(), CardOne))])
+in_tp = FunType(
+    args_ret_types=[FunArgRetType(
+        args_mod=[ParamSingleton(), ParamSetOf()],
+        args_tp=[SomeTp(0), SomeTp(0)],
+        ret_tp=e.ResultTp(BoolTp(), CardOne))])
 
 
 def in_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -195,9 +210,11 @@ def in_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 
-exists_tp = FunType(args_mod=[ParamSetOf()], args_ret_types=[
-                    FunArgRetType(args_tp=[AnyTp()],
-                                  ret_tp=e.ResultTp(BoolTp(), CardOne))])
+exists_tp = FunType(
+    args_ret_types=[FunArgRetType(
+        args_mod=[ParamSetOf()], 
+        args_tp=[AnyTp()],
+        ret_tp=e.ResultTp(BoolTp(), CardOne))])
 
 
 def exists_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -209,10 +226,11 @@ def exists_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 
-or_tp = FunType(args_mod=[ParamSingleton(), ParamSingleton()],
-                args_ret_types=[
-                    FunArgRetType(args_tp=[BoolTp(), BoolTp()],
-                                  ret_tp=e.ResultTp(BoolTp(), CardOne))])
+or_tp = FunType(
+    args_ret_types=[FunArgRetType(
+        args_mod=[ParamSingleton(), ParamSingleton()],
+        args_tp=[BoolTp(), BoolTp()],
+        ret_tp=e.ResultTp(BoolTp(), CardOne))])
 
 
 def or_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:

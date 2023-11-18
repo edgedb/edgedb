@@ -312,15 +312,14 @@ ParamModifier = ParamSingleton | ParamOptional | ParamSetOf
 @dataclass(frozen=True)
 class FunArgRetType:
     args_tp: Sequence[Tp]
+    args_mod: Sequence[ParamModifier]
     ret_tp: ResultTp
 
 
 @dataclass(frozen=True)
 class FunType:
-    # all (overloaded) args need to have the same modifier
-    args_mod: Sequence[ParamModifier]
     args_ret_types: Sequence[FunArgRetType]
-    effect_free: bool = False
+    # effect_free: bool = False
 
 # DEFINE PRIM VALUES
 

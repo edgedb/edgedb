@@ -45,17 +45,11 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
     match fun_call:
         case e.FunAppExpr(fun=fname, args=args, overloading_index=idx):
             fun_tp = ctx.schema.fun_defs[fname].tp
-            assert len(args) == len(fun_tp.args_mod), "argument count mismatch"
+            # assert len(args) == len(fun_tp.args_mod), "argument count mismatch"
             [res_tps, args_cks] = zip(*[tc.synthesize_type(ctx, v) for v in args])
             [tps, arg_cards] = zip(*res_tps)
 
 
-            # take the product of argument cardinalities
-            arg_card_product = reduce(
-                operator.mul,
-                (tops.match_param_modifier(param_mod, arg_card)
-                    for param_mod, arg_card
-                    in zip(fun_tp.args_mod, arg_cards, strict=True)))
 
             if idx is not None:
                 args_ret_type = fun_tp.args_ret_types[idx]
@@ -77,6 +71,13 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                     idx, result_tp = ok_candidates[0]
                 else:
                     raise ValueError("Ambiguous overloading", fun_call)
+
+            # take the product of argument cardinalities
+            arg_card_product = reduce(
+                operator.mul,
+                (tops.match_param_modifier(param_mod, arg_card)
+                    for param_mod, arg_card
+                    in zip(fun_tp.args_ret_types[idx].args_mod, arg_cards, strict=True)))
             # special processing of cardinality inference for certain functions
             match fname:
                 case "??":

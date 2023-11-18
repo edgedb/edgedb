@@ -20,9 +20,11 @@ def val_is_true(v: Val) -> bool:
             raise ValueError("not a boolean")
 
 
-std_all_tp = FunType(args_mod=[ParamSetOf()], args_ret_types=[
-                     FunArgRetType(args_tp=[BoolTp()],
-                                   ret_tp=e.ResultTp(BoolTp(), CardOne))])
+std_all_tp = FunType(
+    args_ret_types=[FunArgRetType(
+        args_mod=[ParamSetOf()], 
+        args_tp=[BoolTp()],
+        ret_tp=e.ResultTp(BoolTp(), CardOne))])
 
 
 def std_all_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -32,9 +34,11 @@ def std_all_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 
-std_any_tp = FunType(args_mod=[ParamSetOf()], args_ret_types=[
-                     FunArgRetType(args_tp=[BoolTp()],
-                                   ret_tp=e.ResultTp(BoolTp(), CardOne))])
+std_any_tp = FunType(
+    args_ret_types=[FunArgRetType(
+        args_mod=[ParamSetOf()], 
+        args_tp=[BoolTp()],
+        ret_tp=e.ResultTp(BoolTp(), CardOne))])
 
 
 def std_any_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -46,12 +50,10 @@ def std_any_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 
 std_array_agg_tp = FunType(
-    args_mod=[ParamSetOf()],
-    args_ret_types=[
-        FunArgRetType(
-            args_tp=[SomeTp(0)],
-            ret_tp=e.ResultTp(ArrTp(SomeTp(0)),
-                              CardOne))])
+    args_ret_types=[FunArgRetType(
+        args_mod=[ParamSetOf()],
+        args_tp=[SomeTp(0)],
+        ret_tp=e.ResultTp(ArrTp(SomeTp(0)), CardOne))])
 
 
 def std_array_agg_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -62,12 +64,10 @@ def std_array_agg_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 
 std_array_unpack_tp = FunType(
-    args_mod=[ParamSingleton()],
-    args_ret_types=[
-        FunArgRetType(
-            args_tp=[ArrTp(SomeTp(0))],
-            ret_tp=e.ResultTp(SomeTp(0),
-                              CardAny))])
+    args_ret_types=[FunArgRetType(
+        args_mod=[ParamSingleton()],
+        args_tp=[ArrTp(SomeTp(0))],
+        ret_tp=e.ResultTp(SomeTp(0), CardAny))])
 
 
 def std_array_unpack_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -77,9 +77,11 @@ def std_array_unpack_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 
-std_count_tp = FunType(args_mod=[ParamSetOf()], args_ret_types=[
-                       FunArgRetType(args_tp=[AnyTp()],
-                                     ret_tp=e.ResultTp(IntTp(), CardOne))])
+std_count_tp = FunType(
+    args_ret_types=[FunArgRetType(
+        args_mod=[ParamSetOf()], 
+        args_tp=[AnyTp()],
+        ret_tp=e.ResultTp(IntTp(), CardOne))])
 
 
 def std_count_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -90,11 +92,10 @@ def std_count_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 
 std_enumerate_tp = FunType(
-    args_mod=[ParamSetOf()],
-    args_ret_types=[
-        FunArgRetType(
-            args_tp=[SomeTp(0)],
-            ret_tp=e.ResultTp(UnnamedTupleTp(
+    args_ret_types=[FunArgRetType(
+        args_mod=[ParamSetOf()],
+        args_tp=[SomeTp(0)],
+        ret_tp=e.ResultTp(UnnamedTupleTp(
                 val=[IntTp(),
                      SomeTp(0)]),
                     CardAny))])
@@ -108,10 +109,16 @@ def std_enumerate_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 
-std_len_tp = FunType(args_mod=[ParamSingleton()],
+std_len_tp = FunType(
                      args_ret_types=[
-    FunArgRetType(args_tp=[StrTp()], ret_tp=e.ResultTp(IntTp(), CardOne)),
-    FunArgRetType(args_tp=[ArrTp(AnyTp())], ret_tp=e.ResultTp(IntTp(), CardOne)),
+    FunArgRetType(
+        args_mod=[ParamSingleton()],
+        args_tp=[StrTp()], 
+        ret_tp=e.ResultTp(IntTp(), CardOne)),
+    FunArgRetType(
+        args_mod=[ParamSingleton()],
+        args_tp=[ArrTp(AnyTp())], 
+        ret_tp=e.ResultTp(IntTp(), CardOne)),
 ])
 
 
@@ -124,9 +131,11 @@ def std_len_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 
-std_sum_tp = FunType(args_mod=[ParamSetOf()],
-                     args_ret_types=[
-    FunArgRetType(args_tp=[IntTp()], ret_tp=e.ResultTp(IntTp(), CardOne)),
+std_sum_tp = FunType(args_ret_types=[
+    FunArgRetType(
+        args_mod=[ParamSetOf()],
+        args_tp=[IntTp()], 
+        ret_tp=e.ResultTp(IntTp(), CardOne)),
 ])
 
 

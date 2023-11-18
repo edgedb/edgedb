@@ -90,7 +90,12 @@ def map_query(f: Callable[[Expr, QueryLevel],
                 return TpIntersectExpr(subject=recur(subject), tp=tp_name)
             case FunAppExpr(fun=fname, args=args, overloading_index=idx):
                 mapped_args: Sequence[Expr] = []
-                params = schema.fun_defs[fname].tp.args_mod
+                args_mods = [schema.fun_defs[fname].tp.args_ret_types[i].args_mod 
+                             for i in range(len(schema.fun_defs[fname].tp.args_ret_types))]
+                assert len(args_mods) > 0, "Expecting fun_defs"
+                assert all([args_mods[0] == args_mod for args_mod in args_mods]), \
+                    "Expecting all args_mods to be the same"
+                params = schema.fun_defs[fname].tp.args_ret_types[0].args_mod
                 for i in range(len(args)):
                     match params[i]:
                         case ParamSingleton():

@@ -253,11 +253,12 @@ def eval_expr(ctx: EvalEnv,
                     RefVal(id, ObjectVal({}))
                     for id in db.query_ids_for_a_type(name)]
                 return MultiSetVal(all_ids)
-        case FunAppExpr(fun=fname, args=args, overloading_index=_):
+        case FunAppExpr(fun=fname, args=args, overloading_index=idx):
+            assert idx is not None, "overloading index must be set in type checking"
             argsv = eval_expr_list(ctx, db, args)
             # argsv = map_assume_link_target(argsv)
             looked_up_fun = db.get_schema().fun_defs[fname]
-            f_modifier = looked_up_fun.tp.args_mod
+            f_modifier = looked_up_fun.tp.args_ret_types[idx].args_mod
             assert len(f_modifier) == len(argsv)
             argv_final: Sequence[Sequence[Sequence[Val]]] = [[]]
             for i in range(len(f_modifier)):

@@ -10,14 +10,16 @@ from ..data.data_ops import (ArrTp, ArrVal, BoolTp, BoolVal, BuiltinFuncDef,
 from .errors import FunCallErr
 
 indirection_index_tp = FunType(
-    args_mod=[ParamSingleton(),
-              ParamSingleton()],
     args_ret_types=[
         FunArgRetType(
+            args_mod=[ParamSingleton(),
+                    ParamSingleton()],
             args_tp=[StrTp(),
                      IntTp()],
             ret_tp=e.ResultTp(StrTp(), CardOne)),
         FunArgRetType(
+            args_mod=[ParamSingleton(),
+                    ParamSingleton()],
             args_tp=[
                 ArrTp(
                     SomeTp(0)),
@@ -38,11 +40,12 @@ def indirection_index_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 
 indirection_slice_tp = FunType(
-    args_mod=[ParamSingleton(), ParamSingleton(), ParamSingleton()],
     args_ret_types=[
-        FunArgRetType(args_tp=[StrTp(), IntTp(), IntInfTp()],
+        FunArgRetType(args_mod=[ParamSingleton(), ParamSingleton(), ParamSingleton()],
+                      args_tp=[StrTp(), IntTp(), IntInfTp()],
                       ret_tp=e.ResultTp(StrTp(), CardOne)),
-        FunArgRetType(args_tp=[ArrTp(SomeTp(0)), IntTp(), IntInfTp()],
+        FunArgRetType(args_mod=[ParamSingleton(), ParamSingleton(), ParamSingleton()],
+                      args_tp=[ArrTp(SomeTp(0)), IntTp(), IntInfTp()],
                       ret_tp=e.ResultTp(ArrTp(SomeTp(0)), CardOne))])
 
 
