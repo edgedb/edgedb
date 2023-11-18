@@ -26,10 +26,6 @@ from .data.expr_ops import (
 from .data.type_ops import is_nominal_subtype_in_schema
 from .db_interface import *
 
-# def make_eval_only(data: RTData) -> RTData:
-#     return RTData(data.cur_db, data.read_snapshots, data.schema, True)
-
-
 def eval_error(expr: Val | Expr | Sequence[Val], msg: str = "") -> Any:
     raise ValueError("Eval Error", msg, expr)
 
@@ -88,16 +84,10 @@ def apply_shape(ctx: EvalEnv, db : EdgeDatabaseInterface, shape: ShapeExpr, valu
 
         return ObjectVal(result)
 
-    # [value] = assume_link_target([value])
     match value:
-        # case FreeVal(val=dictval):
-        #     return FreeVal(val=apply_shape_to_prodval(shape, dictval))
         case RefVal(refid=id, val=dictval):
             return RefVal(
                 refid=id, val=apply_shape_to_prodval(shape, dictval))
-        # case LinkPropVal(refid=id, linkprop=_):
-        #     return RefVal(
-        #         refid=id, val=apply_shape_to_prodval(shape, ObjectVal({})))
         case _:
             return eval_error(value, "Cannot apply shape to value")
 
@@ -113,36 +103,14 @@ def eval_expr_list(ctx: EvalEnv,
 
 # not sure why the semantics says to produce empty set when label not present
 
-
 def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: Label) -> MultiSetVal:
     match subject:
-        # case FreeVal(val=objVal):
-        #     if label in objVal.val.keys():
-        #         return objVal.val[label][1]
-        #     else:
-        #         raise ValueError("Label not found", label)
         case RefVal(refid=id, val=objVal):
-            # entry_obj = data.read_snapshots[0].dbdata[id].data
             if label in objVal.val.keys():
                 return objVal.val[label][1]
             elif isinstance(label, StrLabel):
                 label_str = label.label
-                # if db.is_projectable(id, label_str):
                 return db.project(id, label_str)
-                # else:
-                #     t_name = db.get_type_for_an_id(id)
-                #     t_def = db.get_schema().val[t_name]
-                #     if label_str in t_def.val.keys():
-                #         target_tp = t_def.val[label_str].tp
-                #         match target_tp:
-                #             case e.ComputableTp(expr=comp_expr, tp=_):
-                #                 new_ctx, comp_expr_body = ctx_extend(ctx, comp_expr, MultiSetVal([subject]))
-                #                 return eval_expr(new_ctx, db, comp_expr_body)
-                #             case _:
-                #                 raise ValueError("Label found, but not computable",
-                #                                 label)
-                #     else:
-                #         raise ValueError("Label not found", label)
             else:
                 raise ValueError("Label not found", label)
         case NamedTupleVal(val=dic):
@@ -164,17 +132,6 @@ def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: 
                     else:
                         raise ValueError("key DNE")
             raise ValueError("Label not Str")
-        # case LinkPropVal(refid=id, linkprop=linkprop):
-        #     match label:
-        #         case LinkPropLabel(label=lp_label):
-        #             return singular_proj(ctx, db,
-        #                 FreeVal(val=linkprop), label=StrLabel(lp_label))
-        #         case StrLabel(_):
-        #             return singular_proj(ctx, db,
-        #                                  RefVal(refid=id, val=ObjectVal({})),
-        #                                  label=label)
-        #         case _:
-        #             raise ValueError(label)
     raise ValueError("Cannot project, unknown subject", subject)
 
 
@@ -195,23 +152,6 @@ def limit_vals(val: Sequence[Val],
             return val
         case _:
             raise ValueError("offset must be an int")
-
-# def object_tp_default_initial_step_with_insert(
-#         tp: e.ObjectTp,
-#         insert_shape: e.ShapeExpr,
-#         initial_var: e.VarExpr
-#         ) -> e.Expr:
-#     step = tops.object_tp_default_step(tp)
-#     result: e.Expr = initial_var
-#     for _ in range(len(tp.val.keys())):
-#         result = eops.ShapedExprExpr(expr=result, shape=step)
-#     post_step = tops.object_tp_default_post_step(tp, insert_shape)
-#     result = e.ShapedExprExpr(expr=result, shape=insert_shape)
-#     for _ in range(len(tp.val.keys())):
-#         result = eops.ShapedExprExpr(expr=result, shape=post_step)
-#     result = e.ShapedExprExpr(expr=result, shape=insert_shape)
-#     return result
-
 
 
 class EvaluationLogsWrapper:
@@ -269,12 +209,6 @@ def eval_expr(ctx: EvalEnv,
                 return MultiSetVal(object_dedup(inner_val.vals))
             else:
                 raise ValueError("Expecting all references or all primitives")
-        # case ObjectExpr(val=dic):
-        #     result: Dict[Label, Tuple[Marker, MultiSetVal]] = {}
-        #     for (key, expr) in dic.items():  # type: ignore[has-type]
-        #         val = eval_expr(ctx, db, expr)
-        #         result = {**result, key: (Visible(), (val))}
-        #     return  MultiSetVal([FreeVal(ObjectVal(result))])
         case InsertExpr(tname, arg):
             id = db.insert(tname, {})
             argv = {k : eval_expr(ctx, db, v) for (k,v) in arg.items()}
@@ -356,14 +290,6 @@ def eval_expr(ctx: EvalEnv,
                 for v in subjectv.vals
                 for p in singular_proj(ctx, db, v, StrLabel(label)).vals]
             return MultiSetVal(projected)
-            # if all([val_is_link_convertible(v) for v in projected]):
-            #     return RTVal(
-            #         new_data, [convert_to_link(v) for v in projected])
-            # elif all([not val_is_link_convertible(v) for v in projected]):
-            #     return RTVal(new_data, projected)
-            # else:
-            #     return eval_error(
-            #         projected, "Returned objects are not uniform")
         case BackLinkExpr(subject=subject, label=label):
             subjectv = eval_expr(ctx, db, subject)
             # subjectv = assume_link_target(subjectv)
@@ -422,31 +348,18 @@ def eval_expr(ctx: EvalEnv,
             return MultiSetVal(arr_result)
         case e.DeleteExpr(subject=subject):
             subjectv = eval_expr(ctx, db, subject)
-            # subjectv = assume_link_target(subjectv)
             if all([val_is_ref_val(v) for v in subjectv.vals]):
-                # old_dbdata = rt.data.cur_db.dbdata
                 delete_ref_ids = [v.refid for v in subjectv.vals]
-                # because write-through model, do not check whether 
-                # the references are valid
-                # deleted: Sequence[Val] = [
-                #     v for v in subjectv.vals
-                #     if v.refid in old_dbdata.keys()]  # type: ignore[misc]
                 for delete_id in delete_ref_ids:
                     db.delete(delete_id)
-                # new_dbdata = {
-                #     k: v for k, v in old_dbdata.items()
-                #     if k not in delete_ref_ids}
                 return subjectv
             else:
                 return eval_error(expr, "expecting all references")
         case UpdateExpr(subject=subject, shape=shape):
             subjectv = eval_expr(ctx, db, subject)
-            # subjectv = assume_link_target(subjectv)
             if all([val_is_ref_val(v) for v in subjectv.vals]):
                 updated: Sequence[Val] = [apply_shape(ctx, db, shape, v)
                             for v in subjectv.vals]  # type: ignore[misc]
-                # the idea is to construct an object type only on the updated properties,
-                # and then perform on the coercion for the new constructed type
                 for u in cast(Sequence[RefVal], updated):
                     full_tp = db.get_schema().val[db.get_type_for_an_id(u.refid)]
                     cut_tp = {k : v for (k,v) in full_tp.val.items() if StrLabel(k) in u.val.val.keys()}

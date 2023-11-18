@@ -203,6 +203,12 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
             new_v[k], 
             eops.abstract_over_expr(result_expr, binder_name)
         )
+
+    # if we are recursing, second time there will not be any dependent keys
+    if dependent_keys:
+        # This is a hack because we did not enforce the default expression's types. So we recheck everything at the end.
+        # TODO: we should optimize checking
+        result_expr = synthesize_type(ctx, result_expr)[1]
     return result_expr
 
 

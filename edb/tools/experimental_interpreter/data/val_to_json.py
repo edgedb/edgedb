@@ -100,9 +100,9 @@ def typed_objectval_to_json_like(objv: ObjectVal,
 
 def typed_val_to_json_like(v: Val, tp: e.Tp,
                            dbschema: e.DBSchema) -> json_like:
-    while isinstance(tp, e.UnifiableTp):
-        assert tp.resolution is not None
-        tp = tp.resolution
+    # while isinstance(tp, e.UnifiableTp):
+    #     assert tp.resolution is not None
+    #     tp = tp.resolution
     match v:
         case StrVal(s):
             return s

@@ -83,16 +83,16 @@ def assert_real_subtype(
                     pass
 
     # Unifications
-    elif isinstance(tp1, e.UnifiableTp):
-        if tp1.resolution is None:
-            tp1.resolution = tp2
-        else:
-            assert_real_subtype(ctx, tp1.resolution, tp2, subtyping_mode)
-    elif isinstance(tp2, e.UnifiableTp):
-        if tp2.resolution is None:
-            tp2.resolution = tp1
-        else:
-            assert_real_subtype(ctx, tp1, tp2.resolution, subtyping_mode)
+    # elif isinstance(tp1, e.UnifiableTp):
+    #     if tp1.resolution is None:
+    #         tp1.resolution = tp2
+    #     else:
+    #         assert_real_subtype(ctx, tp1.resolution, tp2, subtyping_mode)
+    # elif isinstance(tp2, e.UnifiableTp):
+    #     if tp2.resolution is None:
+    #         tp2.resolution = tp1
+    #     else:
+    #         assert_real_subtype(ctx, tp1, tp2.resolution, subtyping_mode)
 
     # Variable expansion
     elif isinstance(tp1, e.VarTp) and isinstance(tp2, e.VarTp):
@@ -190,13 +190,74 @@ def assert_real_subtype(
                 raise ValueError("Not implemented", tp1, tp2,
                                  subtyping_mode)
 
+def check_is_subtype(
+        ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
+        ) -> bool:
+    if tp_is_primitive(tp1) and tp_is_primitive(tp2):
+        return tp1 == tp2
+    else:
+        match tp1, tp2:
+            case _, e.AnyTp():
+                return True
+            case e.ObjectTp(val=tp1_val), e.ObjectTp(val=tp2_val):
+                if set(tp1_val.keys()) != set(tp2_val.keys()):
+                    return False
+                for k in tp1_val.keys():
+                    if not check_is_subtype(ctx, tp1_val[k].tp, tp2_val[k].tp):
+                        return False
+                    if not is_cardinal_subtype(tp1_val[k].mode, tp2_val[k].mode):
+                        return False
+            case (e.NominalLinkTp(name=n_1, subject=s_1, linkprop=lp_1),
+                    e.NominalLinkTp(name=n_2, subject=s_2, linkprop=lp_2)):
+                if n_1 != n_2:
+                    return False
+                else:
+                    return (check_is_subtype(ctx, s_1, s_2) and 
+                        check_is_subtype(ctx, lp_1, lp_2))
+            case (e.NamedNominalLinkTp(name=n_1, linkprop=lp_1),
+                    e.NamedNominalLinkTp(name=n_2, linkprop=lp_2)):
+                if n_1 != n_2:
+                    return False
+                else:
+                    return check_is_subtype(ctx, lp_1, lp_2)
+            case (_, e.NamedNominalLinkTp(name=n_2, linkprop=lp_2)):
+                return check_is_subtype(ctx, tp1, 
+                    e.NominalLinkTp(subject=ctx.schema.val[n_2],
+                                    name=n_2,
+                                    linkprop=lp_2))
+            case (e.NamedNominalLinkTp(name=n_1, linkprop=lp_1), _):
+                return check_is_subtype(ctx, 
+                    e.NominalLinkTp(subject=ctx.schema.val[n_1],
+                                    name=n_1,
+                                    linkprop=lp_1), tp2)
+
+            # Union and intersections
+            case (e.UnionTp(left=tp1_left, right=tp1_right), _):
+                return check_is_subtype(ctx, tp1_left, tp2) and check_is_subtype(ctx, tp1_right, tp2)
+
+            # Other structural typing
+            case (e.ArrTp(tp=tp1_val), e.ArrTp(tp=tp2_val)):
+                return check_is_subtype(ctx, tp1_val, tp2_val)
+
+            # For debugging Purposes
+            # case ((e.ArrTp(_), e.StrTp())
+            #       | (e.ArrTp(_), e.IntTp())
+            #       ):
+            #     raise ValueError("not subtype", tp1, tp2)
+            case _:
+                print("Not Implemented Subtyping Check:",
+                      show_tp(tp1), show_tp(tp2))
+                return False
+        raise ValueError("should not be reachable, check if returns are missing?", tp1, tp2)
+
+
+
+
+def is_cardinal_subtype(cm: e.CMMode, cm2: e.CMMode) -> bool:
+    return cm2.lower <= cm.lower and cm.upper <= cm2.upper 
 
 def assert_cardinal_subtype(cm: e.CMMode, cm2: e.CMMode) -> None:
-    if not (
-        cm2.lower <= cm.lower and
-        cm.upper <= cm2.upper 
-        # and cm.multiplicity <= cm2.multiplicity
-    ):
+    if not (is_cardinal_subtype(cm, cm2)):
         raise ValueError("not subtype", cm, cm2)
 
 
@@ -258,7 +319,7 @@ def tp_is_primitive(tp: e.Tp) -> bool:
             return True
         case (e.ObjectTp(_)
               | e.SomeTp(_)
-              | e.UnifiableTp(_)
+            #   | e.UnifiableTp(_)
               | e.NamedNominalLinkTp(_)
               | e.NominalLinkTp(_)
               | e.VarTp(_)

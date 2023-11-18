@@ -145,15 +145,16 @@ class SomeTp:
 
 
 # implementation trick for synthesizing the empty type
-@dataclass
-class UnifiableTp:
-    id: int
-    resolution: Optional[Tp] = None
+# @dataclass
+# class UnifiableTp:
+#     id: int
+#     resolution: Optional[Tp] = None
 
 
 Tp = (ObjectTp | PrimTp | VarTp | NamedNominalLinkTp  | NominalLinkTp
       | NamedTupleTp | UnnamedTupleTp
-      | ArrTp | AnyTp | SomeTp | UnionTp | IntersectTp | UnifiableTp
+      | ArrTp | AnyTp | SomeTp | UnionTp | IntersectTp 
+    #   | UnifiableTp
       | ComputableTp | DefaultTp | UncheckedComputableTp)
 
 

@@ -10,6 +10,7 @@ from edb.common import debug
 from ..data import path_factor as path_factor
 from .dml_checking import *
 from ..data import expr_to_str as pp
+from .function_checking import *
 # def enforce_singular(expr: e.Expr, card: e.CMMode) -> e.Expr:
 #     """ returns the singular expression of the upper bound
 #     of the cardinality is one"""
@@ -218,10 +219,10 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
 
 def type_cast_tp(from_tp: e.ResultTp, to_tp: e.Tp) -> e.ResultTp:
     match from_tp.tp, from_tp.mode, to_tp:
-        case e.UnifiableTp(id=_, resolution=None), card, _:
-            assert isinstance(from_tp.tp, e.UnifiableTp)  # for mypy
-            from_tp.tp.resolution = to_tp
-            return e.ResultTp(to_tp, card)
+        # case e.UnifiableTp(id=_, resolution=None), card, _:
+        #     assert isinstance(from_tp.tp, e.UnifiableTp)  # for mypy
+        #     from_tp.tp.resolution = to_tp
+        #     return e.ResultTp(to_tp, card)
 
         case e.IntTp(), card, e.IntTp():
             return e.ResultTp(e.IntTp(), card)
@@ -280,89 +281,93 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.FunAppExpr(fun=fname, args=args, overloading_index=idx):
             assert idx is None, ("Overloading should be empty "
                                  "before type checking")
-            fun_tp = ctx.schema.fun_defs[fname].tp
-            if fun_tp.effect_free:
-                assert all(eops.is_effect_free(arg) for arg in args), (
-                    "Expect effectful arguments to effect-free functions")
+            (e_result_tp, e_ck) = func_call_checking(ctx, expr)
+            result_tp = e_result_tp.tp
+            result_card = e_result_tp.mode
+            result_expr = e_ck
+            # fun_tp = ctx.schema.fun_defs[fname].tp
+            # # if fun_tp.effect_free:
+            # #     assert all(eops.is_effect_free(arg) for arg in args), (
+            # #         "Expect effectful arguments to effect-free functions")
             
-            assert len(args) == len(fun_tp.args_mod), "argument count mismatch"
+            # assert len(args) == len(fun_tp.args_mod), "argument count mismatch"
 
-            # if len(fun_tp.args_ret_types) > 1:
-            #     raise ValueError("Overloading not implemented")
-            # assert len(fun_tp.args_ret_types) == 1, "TODO: overloading"
+            # # if len(fun_tp.args_ret_types) > 1:
+            # #     raise ValueError("Overloading not implemented")
+            # # assert len(fun_tp.args_ret_types) == 1, "TODO: overloading"
 
 
-            def try_args_ret_type(args_ret_type: e.FunArgRetType) -> Tuple[
-                    e.Tp, e.CMMode, e.Expr]:
+            # def try_args_ret_type(args_ret_type: e.FunArgRetType) -> Tuple[
+            #         e.Tp, e.CMMode, e.Expr]:
 
-                some_tp_mapping: Dict[int, e.UnifiableTp] = {}
+            #     some_tp_mapping: Dict[int, e.UnifiableTp] = {}
 
-                def instantiate_some_tp(tp: e.Tp) -> Optional[e.Tp]:
-                    nonlocal some_tp_mapping
-                    if isinstance(tp, e.SomeTp):
-                        if tp.index in some_tp_mapping.keys():
-                            return some_tp_mapping[tp.index]
-                        else:
-                            new_tp = e.UnifiableTp(id=e.next_id(),
-                                                   resolution=None)
-                            some_tp_mapping[tp.index] = new_tp
-                            return new_tp
-                    else:
-                        return None
+            #     def instantiate_some_tp(tp: e.Tp) -> Optional[e.Tp]:
+            #         nonlocal some_tp_mapping
+            #         if isinstance(tp, e.SomeTp):
+            #             if tp.index in some_tp_mapping.keys():
+            #                 return some_tp_mapping[tp.index]
+            #             else:
+            #                 new_tp = e.UnifiableTp(id=e.next_id(),
+            #                                        resolution=None)
+            #                 some_tp_mapping[tp.index] = new_tp
+            #                 return new_tp
+            #         else:
+            #             return None
 
-                args_ret_type = e.FunArgRetType(
-                    args_tp=[eops.map_tp(instantiate_some_tp, t)
-                             for t in args_ret_type.args_tp],
-                    ret_tp=e.ResultTp(eops.map_tp(instantiate_some_tp,
-                                                  args_ret_type.ret_tp.tp),
-                                      args_ret_type.ret_tp.mode))
+            #     args_ret_type = e.FunArgRetType(
+            #         args_tp=[eops.map_tp(instantiate_some_tp, t)
+            #                  for t in args_ret_type.args_tp],
+            #         ret_tp=e.ResultTp(eops.map_tp(instantiate_some_tp,
+            #                                       args_ret_type.ret_tp.tp),
+            #                           args_ret_type.ret_tp.mode))
 
-                arg_cards, arg_cks = zip(*[check_type_no_card(
-                        ctx, arg, args_ret_type.args_tp[i])
-                        for i, arg in enumerate(args)])
+            #     arg_cards, arg_cks = zip(*[check_type_no_card(
+            #             ctx, arg, args_ret_type.args_tp[i])
+            #             for i, arg in enumerate(args)])
 
-                # special processing of cardinality inference for certain functions
-                match fname:
-                    case "??":
-                        assert len(arg_cards) == 2
-                        result_card = e.CMMode(
-                            e.min_cardinal(arg_cards[0].lower,
-                                           arg_cards[1].lower),
-                            e.max_cardinal(arg_cards[0].upper,
-                                           arg_cards[1].upper),
-                            # e.max_cardinal(arg_cards[0].multiplicity,
-                            #                arg_cards[1].multiplicity)
-                        )
-                    case _:
-                        # take the product of argument cardinalities
-                        arg_card_product = reduce(
-                            operator.mul,
-                            (tops.match_param_modifier(param_mod, arg_card)
-                             for param_mod, arg_card
-                             in zip(fun_tp.args_mod, arg_cards, strict=True)))
-                        result_card = (arg_card_product
-                                       * args_ret_type.ret_tp.mode)
+            #     # special processing of cardinality inference for certain functions
+            #     match fname:
+            #         case "??":
+            #             assert len(arg_cards) == 2
+            #             result_card = e.CMMode(
+            #                 e.min_cardinal(arg_cards[0].lower,
+            #                                arg_cards[1].lower),
+            #                 e.max_cardinal(arg_cards[0].upper,
+            #                                arg_cards[1].upper),
+            #                 # e.max_cardinal(arg_cards[0].multiplicity,
+            #                 #                arg_cards[1].multiplicity)
+            #             )
+            #         case _:
+            #             # take the product of argument cardinalities
+            #             arg_card_product = reduce(
+            #                 operator.mul,
+            #                 (tops.match_param_modifier(param_mod, arg_card)
+            #                  for param_mod, arg_card
+            #                  in zip(fun_tp.args_mod, arg_cards, strict=True)))
+            #             result_card = (arg_card_product
+            #                            * args_ret_type.ret_tp.mode)
                 
-                result_tp = args_ret_type.ret_tp.tp
-                result_expr = e.FunAppExpr(fun=fname, args=arg_cks,
-                                           overloading_index=idx)
-                return result_tp, result_card, result_expr
+            #     result_tp = args_ret_type.ret_tp.tp
+            #     result_expr = e.FunAppExpr(fun=fname, args=arg_cks,
+            #                                overloading_index=idx)
+            #     return result_tp, result_card, result_expr
 
-            if idx is not None:
-                args_ret_type = fun_tp.args_ret_types[idx]
-                result_tp, result_card, result_expr = try_args_ret_type(
-                    args_ret_type)
-            else:
-                for i, args_ret_type in enumerate(fun_tp.args_ret_types):
-                    try:
-                        result_tp, result_card, result_expr = \
-                            try_args_ret_type(args_ret_type)
-                        break
-                    except ValueError:
-                        if i == len(fun_tp.args_ret_types) - 1:
-                            raise
-                        else:
-                            continue
+            # if idx is not None:
+            #     args_ret_type = fun_tp.args_ret_types[idx]
+            #     result_tp, result_card, result_expr = try_args_ret_type(
+            #         args_ret_type)
+            # else:
+            #     for i, args_ret_type in enumerate(fun_tp.args_ret_types):
+            #         try:
+            #             result_tp, result_card, result_expr = \
+            #                 try_args_ret_type(args_ret_type)
+            #             break
+            #         except ValueError:
+            #             if i == len(fun_tp.args_ret_types) - 1:
+            #                 raise
+            #             else:
+            #                 continue
         case e.FreeObjectExpr():
             result_tp = e.NominalLinkTp(subject=e.ObjectTp({}),
                                         name="std::FreeObject",
@@ -374,26 +379,6 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_tp = inner_tp.tp
             result_card = inner_tp.mode
             result_expr = e.ConditionalDedupExpr(inner_ck)
-        # case e.ObjectExpr(val=dic):
-        #     s_tp = e.ObjectTp({})
-        #     link_tp = e.ObjectTp({})
-        #     dic_ck: Dict[e.Label, e.Expr] = {}
-        #     for k, v in dic.items():
-        #         (v_tp, v_ck) = synthesize_type(ctx, v)
-        #         dic_ck = {**dic_ck, k: v_ck}
-        #         match k:
-        #             case e.StrLabel(s_lbl):
-        #                 s_tp = e.ObjectTp({**s_tp.val,
-        #                                    s_lbl: v_tp})
-        #             case e.LinkPropLabel(s_lbl):
-        #                 link_tp = e.ObjectTp({**link_tp.val,
-        #                                       s_lbl: v_tp})
-        #     if len(link_tp.val.keys()) > 0:
-        #         result_tp = e.LinkPropTp(s_tp, link_tp)
-        #     else:
-        #         result_tp = s_tp
-        #     result_card = e.CardOne
-        #     result_expr = e.ObjectExpr(dic_ck)
         case e.ObjectProjExpr(subject=subject, label=label):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_tp, result_card = tops.tp_project(
