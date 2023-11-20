@@ -112,11 +112,16 @@ Org Settings
 ------------
 
 This tab allows you to add GitHub organizations for which you are an admin. 
-If you don't see your organization's name here, you may need to 
-`update your org settings 
-<https://docs.github.com/en/organizations/managing-oauth-access-to-your-organizations-data/approving-oauth-apps-for-your-organization>`_
-in GitHub to allow EdgeDB Cloud to read your list of organizations, and then
-refresh the org list.
+If you don't see your organization's name here, you may need to update your
+`org settings`_ in GitHub to allow EdgeDB Cloud to read your list of 
+organizations, and then refresh the org list.
+
+.. lint-off
+
+.. _org setings:
+  https://docs.github.com/en/organizations/managing-oauth-access-to-your-organizations-data/approving-oauth-apps-for-your-organization
+
+.. lint-on
 
 Billing
 -------
