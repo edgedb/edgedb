@@ -40,7 +40,7 @@ def empty_dbschema() -> DBSchema:
     return DBSchema({}, {})
 
 def default_dbschema() -> DBSchema:
-    return DBSchema({"std": DBModule({}, all_builtin_funcs)},{})
+    return DBSchema({"std": DBModule({k: e.ModuleEntityFuncDef(v) for (k,v) in all_builtin_funcs.items()})},{})
 
 
 
@@ -207,7 +207,7 @@ def repl(*, init_sdl_file=None,
         (dbschema, db) = sqlite_adapter.schema_and_db_from_sqlite(init_sdl_file_content, sqlite_file)
     else:
         if init_sdl_file is not None:
-            dbschema = add_module_from_sdl_file(init_sdl_file_path=init_sdl_file)
+            dbschema = add_module_from_sdl_file(dbschema, init_sdl_file_path=init_sdl_file)
         else:
             dbschema = empty_dbschema()
         db = empty_db(dbschema)

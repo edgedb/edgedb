@@ -204,7 +204,8 @@ def elab_schema(sdef: qlast.Schema) -> Tuple[str,e.DBModule]:
             case _:
                 print("WARNING: not implemented t_decl", t_decl)
 
-    return ("default", e.DBModule(type_defs, all_builtin_funcs))
+    module_defs = {k: e.ModuleEntityTypeDef(v) for k, v in type_defs.items() if k in type_defs}
+    return ("default", e.DBModule(module_defs))
 
 
 def add_module_from_sdl_defs(

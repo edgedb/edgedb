@@ -17,6 +17,8 @@ from .data_ops import (ArrExpr, ArrVal, BackLinkExpr, BindingExpr, BoolVal,
 from . import data_ops as e
 from  . import expr_to_str as pp
 
+from typing import List
+
 
 def map_tp(
         f: Callable[[Tp],
@@ -635,7 +637,7 @@ def tcctx_add_binding(ctx: e.TcCtx,
     return new_ctx, after_e, bnd_e.var
 
 
-def emtpy_tcctx_from_dbschema(dbschema: e.DBSchema, current_module_name: str) -> e.TcCtx:
+def emtpy_tcctx_from_dbschema(dbschema: e.DBSchema, current_module_name: List[str]) -> e.TcCtx:
     return e.TcCtx(
         schema=dbschema,
         current_module=current_module_name,

@@ -112,7 +112,7 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
     # for breaking circular dependency
     from .typechecking import synthesize_type, check_type
 
-    schema_tp = ctx.schema.val[expr.name]
+    insert_tp_name, schema_tp = mops.resolve_raw_name_and_type_def(ctx, expr.name) 
     new_v: Dict[str, e.Expr] = {}
     for (k, v) in expr.new.items():
         if k not in schema_tp.val:
@@ -197,7 +197,7 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
 
     # now abstract over the dependent keys in order
     result_expr : e.Expr = e.InsertExpr(
-        name=expr.name,
+        name=insert_tp_name,
         new={k: v  
              for (k, v) in new_v.items()
              if k not in dependent_keys})

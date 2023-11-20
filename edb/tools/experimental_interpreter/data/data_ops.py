@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, NamedTuple, Sequence, Tuple, Optional, Callable
+from typing import Dict, NamedTuple, Sequence, Tuple, Optional, Callable, List
 
 from dataclasses import dataclass
 
@@ -106,13 +106,13 @@ class IntersectTp:
 
 @dataclass(frozen=True)
 class NamedNominalLinkTp:
-    name: str
+    name: QualifiedName
     linkprop: ObjectTp
 
 @dataclass(frozen=True)
 class NominalLinkTp:
     subject: ObjectTp
-    name : str
+    name : QualifiedName
     linkprop: ObjectTp
 
 
@@ -408,9 +408,18 @@ class FreeVarExpr:
     var: str
 
 
+
 @dataclass(frozen=True)
 class BoundVarExpr:
     var: str
+
+@dataclass(frozen=True)
+class QualifiedName:
+    names: List[str]
+
+@dataclass(frozen=True)
+class UnqualifiedName:
+    name: str
 
 
 @dataclass(frozen=True)
@@ -491,7 +500,7 @@ class OffsetLimitExpr:
 
 @dataclass(frozen=True)
 class InsertExpr:
-    name: str
+    name: UnqualifiedName | QualifiedName
     new: Dict[str, Expr]
 
 
@@ -628,7 +637,7 @@ Expr = (
     BindingExpr | Val | UnnamedTupleExpr | NamedTupleExpr |
     ArrExpr | Tp | UnionExpr | DetachedExpr | SubqueryExpr
     #   | SingularExpr
-    | IfElseExpr | DeleteExpr)
+    | IfElseExpr | DeleteExpr| QualifiedName)
 
 
 @dataclass(frozen=True)
@@ -651,15 +660,24 @@ class BuiltinFuncDef():
 FuncDef = BuiltinFuncDef
 
 @dataclass(frozen=True)
+class ModuleEntityTypeDef:
+    typedef: ObjectTp
+
+@dataclass(frozen=True)
+class ModuleEntityFuncDef:
+    fundef: FuncDef
+
+ModuleEntity = ModuleEntityTypeDef | ModuleEntityFuncDef
+
+@dataclass(frozen=True)
 class DBModule:
-    type_defs: Dict[str, ObjectTp]
-    fun_defs: Dict[str, FuncDef]
+    defs: Dict[str, ModuleEntity]
 
 @dataclass(frozen=True)
 # @dataclass
 class DBSchema:
-    modules : Dict[str, DBModule]
-    unchecked_modules : Dict[str, DBModule] # modules that are currently under type checking
+    modules : Dict[List[str], DBModule]
+    unchecked_modules : Dict[List[str], DBModule] # modules that are currently under type checking
 
 # RT Stands for Run Time
 
@@ -685,7 +703,7 @@ class RTVal(NamedTuple):
 @dataclass
 class TcCtx:
     schema: DBSchema
-    current_module: str # current module name, TODO: nested modules
+    current_module: List[str] # current module name, TODO: nested modules
     varctx: Dict[str, ResultTp]
 
 

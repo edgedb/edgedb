@@ -32,7 +32,7 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
                           ) -> Tuple[e.Tp, e.ShapeExpr]:
     s_tp: e.ObjectTp
     l_tp: e.ObjectTp
-    s_name: str
+    s_name: e.QualifiedName
     # populate result skeleton
     match tp:
         case e.NominalLinkTp(name=name, subject=subject_tp, linkprop=linkprop_tp):
@@ -165,12 +165,17 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.FreeVarExpr(var=var):
             if var in ctx.varctx.keys():
                 result_tp, result_card = ctx.varctx[var]
-            possible_resolved_tp = mops.try_resolve_type_name(ctx, var)
-            if possible_resolved_tp is not None:
-                result_tp = e.NominalLinkTp(subject=possible_resolved_tp,
-                                            name=var, 
-                                            linkprop=e.ObjectTp({}))
-                result_card = e.CardAny
+            possible_resolved_name = mops.try_resolve_simple_name(ctx, e.UnqualifiedName(var))
+            if possible_resolved_name is not None:
+                module_entity = mops.try_resolve_module_entity(ctx, possible_resolved_name)
+                match module_entity:
+                    case e.ModuleEntityTypeDef(typedef=typedef):
+                        result_tp = e.NominalLinkTp(subject=typedef,
+                                                    name=possible_resolved_name, 
+                                                    linkprop=e.ObjectTp({}))
+                        result_card = e.CardAny
+                    case _:
+                        raise ValueError("Unsupported Module Entity", module_entity)
             else:
                 raise ValueError("Unknown variable", var,
                                  "list of known vars",
@@ -206,7 +211,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_expr = e_ck
         case e.FreeObjectExpr():
             result_tp = e.NominalLinkTp(subject=e.ObjectTp({}),
-                                        name="std::FreeObject",
+                                        name=e.QualifiedName(["std", "FreeObject"]),
                                         linkprop=e.ObjectTp({}))
             result_card = e.CardAtMostOne
             result_expr = expr
@@ -244,7 +249,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.BackLinkExpr(subject=subject, label=label):
             (_, subject_ck) = synthesize_type(ctx, subject)
             candidates: List[e.NamedNominalLinkTp] = []
-            for (name, name_def) in ctx.schema.val.items():
+            for (name, name_def) in mops.enumerate_all_type_defs(ctx):
                 for (name_label, comp_tp) in name_def.val.items():
                     if name_label == label:
                         match comp_tp.tp:
@@ -366,7 +371,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     )
         case e.InsertExpr(name=tname, new=arg):
             result_expr = insert_checking(ctx, expr)
-            result_tp = e.NamedNominalLinkTp(name=tname, linkprop=e.ObjectTp({}))
+            assert isinstance(result_expr, e.InsertExpr) and isinstance(result_expr.name, e.QualifiedName)
+            result_tp = e.NamedNominalLinkTp(name=result_expr.name, linkprop=e.ObjectTp({}))
             result_card = e.CardOne
         case e.UpdateExpr(subject=subject, shape=shape_expr):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
@@ -515,7 +521,7 @@ def check_type(ctx: e.TcCtx, expr: e.Expr, tp: e.ResultTp) -> e.Expr:
 
 def check_object_tp_comp_validity(
         dbschema: e.DBSchema,
-        current_module_name: str,
+        current_module_name: List[str],
         subject_tp: e.Tp,
         tp_comp: e.Tp,
         tp_comp_card: e.CMMode) -> e.Tp:
@@ -597,7 +603,7 @@ def check_object_tp_comp_validity(
 
 
 def check_object_tp_validity(dbschema: e.DBSchema,
-                             current_module_name: str,
+                             current_module_name: List[str],
                              subject_tp: e.Tp,
                              obj_tp: e.ObjectTp) -> e.ObjectTp:
     result_vals: Dict[str, e.ResultTp] = {}
@@ -612,18 +618,24 @@ def check_object_tp_validity(dbschema: e.DBSchema,
     return e.ObjectTp(result_vals)
 
 
-def check_module_validity(dbschema: e.DBSchema, module_name : str) -> e.DBSchema:
+def check_module_validity(dbschema: e.DBSchema, module_name : List[str]) -> e.DBSchema:
     """
     Checks the validity of an unchecked module in dbschema. 
     Modifies the db schema after checking
     """
-    result_vals: Dict[str, e.ObjectTp] = {}
+    result_vals: Dict[str, e.ModuleEntity] = {}
     dbmodule = dbschema.unchecked_modules[module_name]
-    for t_name, obj_tp in dbmodule.type_defs.items():
-        result_vals = {**result_vals, t_name:
-                       check_object_tp_validity(dbschema, module_name,
+    for t_name, t_me in dbmodule.defs.items():
+        match t_me:
+            case e.ModuleEntityTypeDef(typedef=typedef):
+                result_vals = {
+                    **result_vals, 
+                    t_name: e.ModuleEntityTypeDef(typedef=
+                        check_object_tp_validity(
+                            dbschema, 
+                            module_name,
                             e.NamedNominalLinkTp(name=t_name, linkprop=e.ObjectTp({})),
-                            obj_tp)}
+                            typedef))}
     result_dbmodule = e.DBModule(type_defs=result_vals, fun_defs=dbmodule.fun_defs)
     dbschema.modules[module_name] = result_dbmodule
     del dbschema.unchecked_modules[module_name]
