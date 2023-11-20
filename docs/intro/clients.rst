@@ -408,6 +408,8 @@ instance.
 If you have not yet created a secret key, you can do so in the EdgeDB Cloud UI
 or by running :ref:`ref_cli_edgedb_cloud_secretkey_create` via the CLI.
 
+.. lint-off
+
 .. note::
 
     You may also set other environment variables like ``EDGEDB_DSN`` for EdgeDB
@@ -449,6 +451,8 @@ or by running :ref:`ref_cli_edgedb_cloud_secretkey_create` via the CLI.
     .. code-block::
 
         edgedb://myapp:my-password@myinstance--mygithubusername.c-72.i.aws.edgedb.cloud:5656/edgedb
+
+.. lint-on
 
 For self-hosted instances
 ^^^^^^^^^^^^^^^^^^^^^^^^^
