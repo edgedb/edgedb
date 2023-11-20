@@ -21,6 +21,8 @@ import urllib.parse
 import hishel
 import httpx
 
+from edb.common import lru
+
 
 class HttpClient(httpx.AsyncClient):
     def __init__(
@@ -30,7 +32,9 @@ class HttpClient(httpx.AsyncClient):
         if edgedb_test_url:
             self.edgedb_orig_base_url = urllib.parse.quote(base_url, safe='')
             base_url = edgedb_test_url
-        cache = hishel.AsyncCacheTransport(httpx.AsyncHTTPTransport())
+        cache = hishel.AsyncCacheTransport(
+            transport=httpx.AsyncHTTPTransport(), storage=InMemoryStorage()
+        )
         super().__init__(*args, base_url=base_url, transport=cache, **kwargs)
 
     async def post(self, path, *args, **kwargs):
@@ -42,3 +46,18 @@ class HttpClient(httpx.AsyncClient):
         if self.edgedb_orig_base_url:
             path = f'{self.edgedb_orig_base_url}/{path}'
         return await super().get(path, *args, **kwargs)
+
+
+class InMemoryStorage(hishel._async._storages.AsyncBaseStorage):
+    def __init__(self, maxsize=5):
+        super().__init__()
+        self._storage = lru.LRUMapping(maxsize=maxsize)
+
+    def store(self, key: str, response, request, metadata):
+        self._storage[key] = (response, request, metadata)
+
+    async def retreive(self, key: str):
+        return self._storage.get(key, None)
+
+    async def aclose(self):
+        pass
