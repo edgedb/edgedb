@@ -401,7 +401,7 @@ In production, connection information can be securely passed to the client
 library via environment variables. For EdgeDB Cloud instances, the recommended
 variables to set are ``EDGEDB_INSTANCE`` and ``EDGEDB_SECRET_KEY``.
 
-Set ``EDGEDB_INSTANCE`` to ``<github-username>/<instance-name>`` where
+Set ``EDGEDB_INSTANCE`` to ``<org-name>/<instance-name>`` where
 ``<instance-name>`` is the name you set when you created the EdgeDB Cloud
 instance.
 
@@ -414,8 +414,8 @@ or by running :ref:`ref_cli_edgedb_cloud_secretkey_create` via the CLI.
 
     You may also set other environment variables like ``EDGEDB_DSN`` for EdgeDB
     Cloud instances. Run ``edgedb instance credentials --insecure-dsn -I
-    <github-username>/<instance-name>`` to get the DSN with exception of the
-    password. You'll get something like this:
+    <org-name>/<instance-name>`` to get the DSN with exception of the password.
+    You'll get something like this:
 
     .. code-block::
 

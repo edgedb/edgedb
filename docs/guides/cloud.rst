@@ -23,23 +23,23 @@ either :ref:`ref_cli_edgedb_instance_create` or
 create a local project linked to your instance.
 
 * :ref:`ref_cli_edgedb_instance_create` with an instance name of
-  ``<github-username>/<instance-name>``.
+  ``<org-name>/<instance-name>``.
 
   .. code-block:: bash
 
-      $ edgedb instance create <github-username>/<instance-name>
+      $ edgedb instance create <org-name>/<instance-name>
 
 * :ref:`ref_cli_edgedb_project_init` with the ``--server-instance`` option. Set
-  the server instance name to ``<github-username>/<instance-name>``.
+  the server instance name to ``<org-name>/<instance-name>``.
 
   .. code-block:: bash
 
       $ edgedb project init \
-        --server-instance <github-username>/<instance-name>
+        --server-instance <org-name>/<instance-name>
 
   Alternatively, you can run ``edgedb project init`` *without* the
   ``--server-instance`` option and enter an instance name in the
-  ``<github-username>/<instance-name>`` format when prompted interactively.
+  ``<org-name>/<instance-name>`` format when prompted interactively.
 
 .. note::
 
@@ -49,25 +49,25 @@ create a local project linked to your instance.
     * can contain only Latin alpha-numeric characters or ``-``
     * cannot start with a dash (``-``) or contain double dashes (``--``)
     * maximum instance name length is 61 characters minus the length of your
-      GitHub username (i.e., length of GitHub username + length of instance
+      organization name (i.e., length of organization name + length of instance
       name must be fewer than 62 characters)
 
 To use ``edgedb instance create``:
 
 .. code-block:: bash
 
-    $ edgedb instance create <github-username>/<instance-name>
+    $ edgedb instance create <org-name>/<instance-name>
 
 To use ``edgedb project init``:
 
 .. code-block:: bash
 
     $ edgedb project init \
-      --server-instance <github-username>/<instance-name>
+      --server-instance <org-name>/<instance-name>
 
 Alternatively, you can run ``edgedb project init`` *without* the
 ``--server-instance`` option and enter an instance name in the
-``<github-username>/<instance-name>`` format when prompted interactively.
+``<org-name>/<instance-name>`` format when prompted interactively.
 
 
 Web Cloud Interface
@@ -114,7 +114,7 @@ accessible to your production application:
 
 * ``EDGEDB_SECRET_KEY``- contains the secret key you generated
 * ``EDGEDB_INSTANCE``- the name of your EdgeDB Cloud instance
-  (``<github-username>/<instance-name>``)
+  (``<org-name>/<instance-name>``)
 
 
 Questions? Problems? Bugs?

@@ -29,7 +29,7 @@ Connection flags
     info`` to see the location of ``<edgedb_config_dir>`` on your machine.
 
     EdgeDB Cloud instance names are in the format
-    ``<github-username>/<instance-name>``.
+    ``<org-name>/<instance-name>``.
 
     This option overrides host and port.
 

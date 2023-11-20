@@ -56,8 +56,7 @@ EdgeDB Cloud
 
 To provide client connection information for an EdgeDB Cloud instance, set the
 ``EDGEDB_INSTANCE`` variable to the instance name
-(``<github-username>/<instance-name>`` where ``<instance-name>`` is the name
-you set when you created the EdgeDB Cloud instance) and the
-``EDGEDB_SECRET_KEY`` variable to your secret key which can be created in the
-EdgeDB Cloud UI or by running :ref:`ref_cli_edgedb_cloud_secretkey_create` via
-the CLI.
+(``<org-name>/<instance-name>`` where ``<instance-name>`` is the name you set
+when you created the EdgeDB Cloud instance) and the ``EDGEDB_SECRET_KEY``
+variable to your secret key which can be created in the EdgeDB Cloud UI or by
+running :ref:`ref_cli_edgedb_cloud_secretkey_create` via the CLI.

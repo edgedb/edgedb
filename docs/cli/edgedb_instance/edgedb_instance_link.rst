@@ -29,7 +29,7 @@ instance.
     like migrations, dumps, and restores more convenient.
 
     Linking is not required for EdgeDB Cloud instances. They can always be
-    accessed via CLI using ``<github-username>/<instance-name>``.
+    accessed via CLI using ``<org-name>/<instance-name>``.
 
 Options
 =======

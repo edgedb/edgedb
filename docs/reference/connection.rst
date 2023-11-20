@@ -68,7 +68,7 @@ Let's dig into each of these a bit more.
   If you have authenticated with EdgeDB Cloud in the CLI using the
   :ref:`ref_cli_edgedb_cloud_login` command, you can address your own EdgeDB
   Cloud instances using the instance name format
-  ``<github-username>/<instance-name>``. If you are not authenticated,
+  ``<org-name>/<instance-name>``. If you are not authenticated,
 
 .. _ref_reference_connection_secret_key:
 
