@@ -8,7 +8,7 @@ Cloud
 
 EdgeDB Cloud is the easiest way to host your EdgeDB instance. We offer two ways
 to interact with EdgeDB Cloud: via our CLI or through a graphical web
-interface nearly identical to the :ref:`ref_cli_edgedb_ui`.
+interface nearly identical to the :ref:`EdgeDB UI <ref_cli_edgedb_ui>`.
 
 .. edb:youtube-embed:: IG1MggUzzH4
 
@@ -77,21 +77,21 @@ If you'd prefer, you can also manage your account via `the EdgeDB Cloud
 web-based GUI <https://cloud.edgedb.com/>`_.
 
 The first time you access the web UI, you will be prompted to log in. Once you
-log in with your account, you'll be on the Instances tab of the front page
+log in with your account, you'll be on the "Instances" tab of the front page
 which shows your instance list. The other two tabs allow you to manage your
-Org Settings, and Billing.
+organization settings and billing.
 
 Instances
 ---------
 
 If this is your first time accessing EdgeDB Cloud, this list will be empty. To
-create an instance, click "Create new instance". This will pop up a modal
+create an instance, click "Create new instance." This will pop up a modal
 allowing you to name your instance and specify the version of EdgeDB and the
 region for the instance.
 
 Once the instance has been created, you'll see the instance dashboard which
 allows you to monitor your instance, navigate to the management page for its
-database(s), and create secret keys.
+databases, and create secret keys.
 
 You'll also see instructions in the bottom-right for linking your EdgeDB CLI to
 your EdgeDB Cloud account. You do this by running the CLI command ``edgedb
