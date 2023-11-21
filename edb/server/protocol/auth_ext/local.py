@@ -299,11 +299,7 @@ update ext::auth::EmailPasswordFactor
 filter .identity.id = identity_id
 set {
     password_hash := new_hash,
-    verified_at := (
-        if exists .verified_at
-        then .verified_at
-        else datetime_current()
-    )
+    verified_at := .verified_at ?? datetime_current()
 };""",
             variables={
                 'identity_id': identity_id,
