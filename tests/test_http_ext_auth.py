@@ -1824,7 +1824,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(parsed_location.path, "/some/path")
             self.assertEqual(
                 parsed_query,
-                {"code": [str(pkce_challenge.id)]},
+                {
+                    "code": [str(pkce_challenge.id)],
+                    "provider": ["builtin::local_emailpassword"]
+                },
             )
 
             password_credential = await self.con.query(
@@ -2015,7 +2018,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(
                 json.loads(body),
                 {
-                    "code": str(pkce_challenge.id)
+                    "code": str(pkce_challenge.id),
+                    "provider": "builtin::local_emailpassword"
                 },
             )
 
