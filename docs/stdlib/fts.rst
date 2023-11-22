@@ -18,12 +18,6 @@ search functionality in EdgeDB.
     * - :eql:type:`fts::PGLanguage`
       - Postgres languages :eql:type:`enum`
 
-    * - :eql:type:`fts::ElasticLanguage`
-      - ElasticSearch languages :eql:type:`enum`
-
-    * - :eql:type:`fts::LuceneLanguage`
-      - Apache Lucene languages :eql:type:`enum`
-
     * - :eql:type:`fts::Weight`
       - Weight category :eql:type:`enum`
 
@@ -308,33 +302,12 @@ the matching object *must not* contain:
     particular :eql:type:`enum` represents languages that are common across
     several possible [future] backend implementations and thus are "safe" even
     if the backend implementation switches from one of the options to another.
+    This generic enum is the recommended way of specifying the language.
 
     The following `ISO 639-3 <iso639_>`_ language identifiers are available:
-
-    * ``ara``
-    * ``hye``
-    * ``eus``
-    * ``cat``
-    * ``dan``
-    * ``nld``
-    * ``eng``
-    * ``fin``
-    * ``fra``
-    * ``deu``
-    * ``ell``
-    * ``hin``
-    * ``hun``
-    * ``ind``
-    * ``gle``
-    * ``ita``
-    * ``nor``
-    * ``por``
-    * ``ron``
-    * ``rus``
-    * ``spa``
-    * ``swe``
-    * ``tur``
-
+    ``ara``, ``hye``, ``eus``, ``cat``, ``dan``, ``nld``, ``eng``, ``fin``,
+    ``fra``, ``deu``, ``ell``, ``hin``, ``hun``, ``ind``, ``gle``, ``ita``,
+    ``nor``, ``por``, ``ron``, ``rus``, ``spa``, ``swe``, ``tur``.
 
 ----------
 
@@ -349,146 +322,17 @@ the matching object *must not* contain:
     PostgreSQL implementation of full-text search.
 
     The following `ISO 639-3 <iso639_>`_ language identifiers are available:
-
-    * ``ara``
-    * ``hye``
-    * ``eus``
-    * ``cat``
-    * ``dan``
-    * ``nld``
-    * ``eng``
-    * ``fin``
-    * ``fra``
-    * ``deu``
-    * ``ell``
-    * ``hin``
-    * ``hun``
-    * ``ind``
-    * ``gle``
-    * ``ita``
-    * ``lit``
-    * ``npi``
-    * ``nor``
-    * ``por``
-    * ``ron``
-    * ``rus``
-    * ``srp``
-    * ``spa``
-    * ``swe``
-    * ``tam``
-    * ``tur``
-    * ``yid``
+    ``ara``, ``hye``, ``eus``, ``cat``, ``dan``, ``nld``, ``eng``, ``fin``,
+    ``fra``, ``deu``, ``ell``, ``hin``, ``hun``, ``ind``, ``gle``, ``ita``,
+    ``lit``, ``npi``, ``nor``, ``por``, ``ron``, ``rus``, ``srp``, ``spa``,
+    ``swe``, ``tam``, ``tur``, ``yid``.
 
     Additionally, the ``xxx_simple`` identifier is also available to represent
     the ``pg_catalog.simple`` language setting.
 
-
-----------
-
-
-.. eql:type:: fts::ElasticLanguage
-
-    An :eql:type:`enum` for representing languages supported by ElasticSearch.
-
-    When indexing an object for full-text search it is important to specify
-    the expected language by :eql:func:`fts::with_options` function. This
-    particular :eql:type:`enum` represents languages that are available in
-    ElasticSearch implementation of full-text search.
-
-    The following `ISO 639-3 <iso639_>`_ language identifiers are available:
-
-    * ``ara``
-    * ``bul``
-    * ``cat``
-    * ``ces``
-    * ``ckb``
-    * ``dan``
-    * ``deu``
-    * ``ell``
-    * ``eng``
-    * ``eus``
-    * ``fas``
-    * ``fin``
-    * ``fra``
-    * ``gle``
-    * ``glg``
-    * ``hin``
-    * ``hun``
-    * ``hye``
-    * ``ind``
-    * ``ita``
-    * ``lav``
-    * ``nld``
-    * ``nor``
-    * ``por``
-    * ``ron``
-    * ``rus``
-    * ``spa``
-    * ``swe``
-    * ``tha``
-    * ``tur``
-    * ``zho``
-
-    Additionally, the following language identifiers are available:
-
-    * ``edb_Brazilian``
-    * ``edb_ChineseJapanseKorean``
-
-
-----------
-
-
-.. eql:type:: fts::LuceneLanguage
-
-    An :eql:type:`enum` for representing languages supported by Apache Lucene.
-
-    When indexing an object for full-text search it is important to specify
-    the expected language by :eql:func:`fts::with_options` function. This
-    particular :eql:type:`enum` represents languages that are available in
-    Apache Lucene implementation of full-text search.
-
-    The following `ISO 639-3 <iso639_>`_ language identifiers are available:
-
-    * ``ara``
-    * ``ben``
-    * ``bul``
-    * ``cat``
-    * ``ces``
-    * ``ckb``
-    * ``dan``
-    * ``deu``
-    * ``ell``
-    * ``eng``
-    * ``est``
-    * ``eus``
-    * ``fas``
-    * ``fin``
-    * ``fra``
-    * ``gle``
-    * ``glg``
-    * ``hin``
-    * ``hun``
-    * ``hye``
-    * ``ind``
-    * ``ita``
-    * ``lav``
-    * ``lit``
-    * ``nld``
-    * ``nor``
-    * ``por``
-    * ``ron``
-    * ``rus``
-    * ``spa``
-    * ``srp``
-    * ``swe``
-    * ``tha``
-    * ``tur``
-
-    Additionally, the following language identifiers are available:
-
-    * ``edb_Brazilian``
-    * ``edb_ChineseJapanseKorean``
-    * ``edb_Indian``
+    Unless you need some particular language setting that is not available in
+    the :eql:type:`fts::Language`, it is recommended that you use the more
+    general lanuguage enum instead.
 
 
 ----------
