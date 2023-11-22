@@ -5794,7 +5794,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         JOIN edgedbsql.pg_index pi ON pc.oid = pi.indexrelid
         """,
         ),
-        
+
         # Because we hide some columns and
         # because pg_dump expects attnum to be sequential numbers
         # we have to invent new attnums with ROW_NUMBER().
