@@ -297,7 +297,10 @@ with
   new_hash := <str>$new_hash,
 update ext::auth::EmailPasswordFactor
 filter .identity.id = identity_id
-set { password_hash := new_hash };""",
+set {
+    password_hash := new_hash,
+    verified_at := .verified_at ?? datetime_current()
+};""",
             variables={
                 'identity_id': identity_id,
                 'new_hash': ph.hash(password),
