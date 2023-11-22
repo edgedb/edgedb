@@ -5581,7 +5581,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         JOIN edgedbsql.virtual_tables vt ON vt.id::text = isc.table_name
         LEFT JOIN edgedb."_SchemaPointer" sp ON sp.id::text = isc.column_name
         LEFT JOIN edgedb."_SchemaLink" sl ON sl.id::text = isc.column_name
-        WHERE column_name != '__type__'
+        WHERE column_name != '__type__' AND column_name != '__fts_document__'
             '''
             ),
         ),
@@ -5877,7 +5877,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         JOIN edgedbsql.virtual_tables vt ON vt.backend_id = pc.reltype
         LEFT JOIN edgedb."_SchemaPointer" sp ON sp.id::text = pa.attname
         LEFT JOIN edgedb."_SchemaLink" sl ON sl.id::text = pa.attname
-        WHERE pa.attname NOT IN ('__type__')
+        WHERE pa.attname NOT IN ('__type__', '__fts_document__')
         """,
         ),
         dbops.View(
