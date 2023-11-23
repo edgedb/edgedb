@@ -31,6 +31,7 @@ import edgedb
 
 from edb.common import secretkey
 from edb.server import args
+from edb.server import cluster as edbcluster
 from edb.schema import defines as s_def
 from edb.testbase import server as tb
 
@@ -471,6 +472,16 @@ class TestServerAuth(tb.ConnectedTestCase):
 
         subject = "test"
         key_id = "foobar"
+
+        with self.assertRaisesRegex(
+            edbcluster.ClusterError, "cannot load JWT"
+        ):
+            async with tb.start_edgedb_server(
+                jws_key_file=jwk_file,
+                jwt_sub_allowlist_file='/tmp/non_existant',
+                jwt_revocation_list_file='/tmp/non_existant',
+            ):
+                pass
 
         async with tb.start_edgedb_server(
             jws_key_file=jwk_file,
