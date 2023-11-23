@@ -1028,6 +1028,8 @@ class Tenant(ha_base.ClusterProtocol):
                     self._jwt_sub_allowlist_file.read_text().splitlines(),
                 )
             except Exception as e:
+                from . import server as edbserver
+
                 raise edbserver.StartupError(
                     f"cannot load JWT sub allowlist: {e}"
                 ) from e
@@ -1042,6 +1044,8 @@ class Tenant(ha_base.ClusterProtocol):
                     self._jwt_revocation_list_file.read_text().splitlines(),
                 )
             except Exception as e:
+                from . import server as edbserver
+
                 raise edbserver.StartupError(
                     f"cannot load JWT revocation list: {e}"
                 ) from e
