@@ -590,6 +590,20 @@ def compile_TypeCast(
     ir_expr: Union[irast.Set, irast.Expr]
 
     if isinstance(expr.expr, qlast.Parameter):
+        if (
+            # generic types not explicitly allowed
+            not ctx.env.options.allow_generic_type_output and
+            # not compiling a function which hadles its own generic types
+            ctx.env.options.func_name is None and
+            target_stype.is_polymorphic(ctx.env.schema)
+        ):
+            raise errors.QueryError(
+                f'parameter cannot be a generic type '
+                f'{target_stype.get_displayname(ctx.env.schema)!r}',
+                hint="Please ensure you don't use generic "
+                     '"any" types or abstract scalars.',
+                context=expr.context)
+
         pt = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
 
         param_name = expr.expr.name
@@ -684,7 +698,7 @@ def compile_TypeCast(
             target_stype,
             cardinality_mod=expr.cardinality_mod,
             ctx=subctx,
-            srcctx=expr.expr.context,
+            srcctx=expr.context,
         )
 
     return stmt.maybe_add_view(res, ctx=ctx)

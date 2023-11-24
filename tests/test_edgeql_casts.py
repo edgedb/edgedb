@@ -1516,6 +1516,131 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 SELECT <schema::Object>std::Object;
             """)
 
+    async def test_edgeql_casts_illegal_10(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError, r"cannot cast into generic.*anyenum"):
+            await self.con.execute("""
+                SELECT <array<anyenum>>{};
+            """)
+
+    async def test_edgeql_casts_illegal_11(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError, r"cannot cast into generic.*anyenum"):
+            await self.con.execute("""
+                SELECT <tuple<int64, anyenum>>{};
+            """)
+
+    async def test_edgeql_casts_illegal_12(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError, r"cannot cast into generic.*anypoint"):
+            await self.con.execute("""
+                SELECT <range<anypoint>>{};
+            """)
+
+    async def test_edgeql_casts_illegal_13(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError, r"cannot cast into generic.*anypoint"):
+            await self.con.execute("""
+                SELECT <multirange<anypoint>>{};
+            """)
+
+    # abstract scalar params should be illegal
+    async def test_edgeql_casts_illegal_param_01(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*'anytype'"):
+            await self.con.execute("""
+                SELECT <anytype>$0;
+            """, 123)
+
+    async def test_edgeql_casts_illegal_param_02(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anyscalar'"):
+            await self.con.execute("""
+                SELECT <anyscalar>$0;
+            """, 123)
+
+    async def test_edgeql_casts_illegal_param_03(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anyreal'"):
+            await self.con.execute("""
+                SELECT <anyreal>$0;
+            """, 123)
+
+    async def test_edgeql_casts_illegal_param_04(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anyint'"):
+            await self.con.execute("""
+                SELECT <anyint>$0;
+            """, 123)
+
+    async def test_edgeql_casts_illegal_param_05(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anyfloat'"):
+            await self.con.execute("""
+                SELECT <anyfloat>$0;
+            """, 123)
+
+    async def test_edgeql_casts_illegal_param_06(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*sequence'"):
+            await self.con.execute("""
+                SELECT <sequence>$0;
+            """, 123)
+
+    async def test_edgeql_casts_illegal_param_07(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anytype"):
+            await self.con.execute("""
+                SELECT <array<anytype>>$0;
+            """, [123])
+
+    async def test_edgeql_casts_illegal_param_08(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anytype"):
+            await self.con.execute("""
+                SELECT <tuple<int64, anytype>>$0;
+            """, (123, 123))
+
+    async def test_edgeql_casts_illegal_param_10(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anyenum"):
+            await self.con.execute("""
+                SELECT <array<anyenum>>$0;
+            """, [])
+
+    async def test_edgeql_casts_illegal_param_11(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anyenum"):
+            await self.con.execute("""
+                SELECT <optional tuple<int64, anyenum>>$0;
+            """, None)
+
+    async def test_edgeql_casts_illegal_param_12(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anypoint"):
+            await self.con.execute("""
+                SELECT <optional range<anypoint>>$0;
+            """, None)
+
+    async def test_edgeql_casts_illegal_param_13(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                r"parameter cannot be a generic type.*anypoint"):
+            await self.con.execute("""
+                SELECT <optional multirange<anypoint>>$0;
+            """, None)
+
     # NOTE: json is a special type as it has its own type system. A
     # json value can be JSON array, object, boolean, number, string or
     # null. All of these JSON types have their own semantics. Casting
