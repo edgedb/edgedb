@@ -5581,7 +5581,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         JOIN edgedbsql.virtual_tables vt ON vt.id::text = isc.table_name
         LEFT JOIN edgedb."_SchemaPointer" sp ON sp.id::text = isc.column_name
         LEFT JOIN edgedb."_SchemaLink" sl ON sl.id::text = isc.column_name
-        WHERE column_name != '__type__'
+        WHERE column_name != '__type__' AND column_name != '__fts_document__'
             '''
             ),
         ),
@@ -5794,8 +5794,16 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         JOIN edgedbsql.pg_index pi ON pc.oid = pi.indexrelid
         """,
         ),
+
+        # Because we hide some columns and
+        # because pg_dump expects attnum to be sequential numbers
+        # we have to invent new attnums with ROW_NUMBER().
+        # Since attnum is used elsewhere, we need to know the mapping from
+        # constructed attnum into underlying attnum.
+        # To do that, we have pg_attribute_ext view with additional
+        # attnum_internal column.
         dbops.View(
-            name=("edgedbsql", "pg_attribute"),
+            name=("edgedbsql", "pg_attribute_ext"),
             query="""
         SELECT attrelid,
             attname,
@@ -5803,6 +5811,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             attstattarget,
             attlen,
             attnum,
+            attnum as attnum_internal,
             attndims,
             attcacheoff,
             atttypmod,
@@ -5836,7 +5845,9 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
             OR
             tup.backend_id IS NOT NULL
+
         UNION ALL
+
         SELECT attrelid,
             COALESCE(
                 sp.name || case when sl.id is not null then '_id' else '' end,
@@ -5845,7 +5856,17 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             atttypid,
             attstattarget,
             attlen,
-            attnum,
+            (ROW_NUMBER() OVER (
+                PARTITION BY attrelid
+                ORDER BY
+                    CASE
+                        WHEN pa.attnum <= 0 THEN pa.attnum
+                        WHEN pa.attname = 'id' THEN 1
+                        ELSE 2
+                    END,
+                    COALESCE(sp.name, pa.attname)
+            ) - 6)::smallint AS attnum,
+            pa.attnum as attnum_internal,
             attndims,
             attcacheoff,
             atttypmod,
@@ -5877,9 +5898,48 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         JOIN edgedbsql.virtual_tables vt ON vt.backend_id = pc.reltype
         LEFT JOIN edgedb."_SchemaPointer" sp ON sp.id::text = pa.attname
         LEFT JOIN edgedb."_SchemaLink" sl ON sl.id::text = pa.attname
-        WHERE pa.attname NOT IN ('__type__')
+        WHERE pa.attname NOT IN ('__type__', '__fts_document__')
         """,
         ),
+        dbops.View(
+            name=("edgedbsql", "pg_attribute"),
+            query="""
+        SELECT
+          attrelid,
+          attname,
+          atttypid,
+          attstattarget,
+          attlen,
+          attnum,
+          attndims,
+          attcacheoff,
+          atttypmod,
+          attbyval,
+          attstorage,
+          attalign,
+          attnotnull,
+          atthasdef,
+          atthasmissing,
+          attidentity,
+          attgenerated,
+          attisdropped,
+          attislocal,
+          attinhcount,
+          attcollation,
+          attacl,
+          attoptions,
+          attfdwoptions,
+          attmissingval,
+          tableoid,
+          xmin,
+          cmin,
+          xmax,
+          cmax,
+          ctid
+        FROM edgedbsql.pg_attribute_ext
+        """,
+        ),
+
         dbops.View(
             name=("edgedbsql", "pg_database"),
             query="""
@@ -5926,7 +5986,9 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             s.stanumbers1 AS elem_count_histogram
         FROM pg_statistic s
         JOIN pg_class c ON c.oid = s.starelid
-        JOIN pg_attribute a ON c.oid = a.attrelid and a.attnum = s.staattnum
+        JOIN edgedbsql.pg_attribute_ext a ON (
+            c.oid = a.attrelid and a.attnum_internal = s.staattnum
+        )
         LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE FALSE
         """,
@@ -5936,7 +5998,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             query="""
         SELECT
             starelid,
-            staattnum,
+            a.attnum as staattnum,
             stainherit,
             stanullfrac,
             stawidth,
@@ -5967,7 +6029,10 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             NULL::real[] AS stavalues4,
             NULL::real[] AS stavalues5,
             tableoid, xmin, cmin, xmax, cmax, ctid
-        FROM pg_statistic
+        FROM pg_statistic s
+        JOIN edgedbsql.pg_attribute_ext a ON (
+            a.attrelid = s.starelid AND a.attnum_internal = s.staattnum
+        )
         """,
         ),
         dbops.View(
@@ -6287,8 +6352,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             ),
             returns=('bool',),
             text="""
-                SELECT has_column_privilege(tbl, attnum, privilege)
-                FROM edgedbsql.pg_attribute pa
+                SELECT has_column_privilege(tbl, attnum_internal, privilege)
+                FROM edgedbsql.pg_attribute_ext pa
                 WHERE attrelid = tbl AND attname = col
             """
         ),
@@ -6301,9 +6366,9 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             ),
             returns=('bool',),
             text="""
-                SELECT has_column_privilege(pc.oid, attnum, privilege)
+                SELECT has_column_privilege(pc.oid, attnum_internal, privilege)
                 FROM edgedbsql.pg_class pc
-                JOIN edgedbsql.pg_attribute pa ON pa.attrelid = pc.oid
+                JOIN edgedbsql.pg_attribute_ext pa ON pa.attrelid = pc.oid
                 WHERE pc.relname = tbl AND pa.attname = col;
             """
         ),
