@@ -538,3 +538,26 @@ Bug fixes
 
 * Fix DML with constraints on abstract types 
   (:eql:gh:`#6421`)
+
+4.2
+===
+* Fix schema delta for RESET EXPRESSION 
+  (:eql:gh:`#6463`)
+
+* Fix plain references to __old__ in rewrites 
+  (:eql:gh:`#6470`)
+
+* Fix std::range in singleton mode 
+  (:eql:gh:`#6475`)
+
+* Treat password reset as a verification event 
+  (:eql:gh:`#6504`)
+
+* Fixes to auth redirect urls 
+  (:eql:gh:`#6469`)
+
+* Fix SQL introspection of __fts_document__ 
+  (:eql:gh:`#6507`)
+
+* Rewrites typecheck 
+  (:eql:gh:`#6466`)
