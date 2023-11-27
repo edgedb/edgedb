@@ -20,6 +20,7 @@ import csv
 import io
 import os.path
 import unittest
+import uuid
 
 from edb.testbase import server as tb
 from edb.tools import test
@@ -585,6 +586,29 @@ class TestSQL(tb.SQLQueryTestCase):
             [1, None],
             [2, 1],
         ])
+
+    async def test_sql_query_39(self):
+        res = await self.squery_values(
+            '''
+            SELECT pages, __type__ FROM "Book" ORDER BY pages;
+            '''
+        )
+        self.assert_data_shape(res, [
+            [206, str],
+            [374, str],
+        ])
+        # there should be one `Book` and one `novel`
+        self.assertNotEqual(res[0][1], res[1][1])
+
+        res2 = await self.squery_values(
+            '''
+            SELECT pages, __type__ FROM ONLY "Book" ORDER BY pages;
+            '''
+        )
+        self.assert_data_shape(res2, [
+            [206, str],
+        ])
+        self.assertEqual(res[0][1], res2[0][1])
 
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname

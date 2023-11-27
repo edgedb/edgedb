@@ -50,7 +50,6 @@ def infer_alias(res_target: pgast.ResTarget) -> Optional[str]:
 def resolve_ResTarget(
     res_target: pgast.ResTarget, *, ctx: Context
 ) -> Tuple[Sequence[pgast.ResTarget], Sequence[context.Column]]:
-
     alias = infer_alias(res_target)
 
     # special case for ColumnRef for handing wildcards
@@ -87,16 +86,15 @@ def resolve_ResTarget(
 
     col = context.Column(name=alias, reference_as=alias)
     new_target = pgast.ResTarget(
-        val=val,
-        name=alias,
-        context=res_target.context)
+        val=val, name=alias, context=res_target.context
+    )
     return (new_target,), (col,)
 
 
 @dispatch._resolve.register
 def resolve_ColumnRef(
     column_ref: pgast.ColumnRef, *, ctx: Context
-) -> pgast.ColumnRef:
+) -> pgast.BaseExpr:
     res = _lookup_column(column_ref, ctx)
     table, column = res[0]
 
@@ -104,6 +102,12 @@ def resolve_ColumnRef(
         # Lookup can have multiple results only when using *.
         assert table.reference_as
         return pgast.ColumnRef(name=(table.reference_as, pgast.Star()))
+
+    if column.static_val:
+        return pgast.TypeCast(
+            arg=pgast.StringConstant(val=str(column.static_val)),
+            type_name=pgast.TypeName(name=('uuid',)),
+        )
 
     assert column.reference_as
 
@@ -135,9 +139,9 @@ def _lookup_column(
                 for c in t.columns
                 if not c.hidden
             ]
-        else:
-            for table in ctx.scope.tables:
-                matched_columns.extend(_lookup_in_table(col_name, table))
+
+        for table in ctx.scope.tables:
+            matched_columns.extend(_lookup_in_table(col_name, table))
 
         if not matched_columns:
             # is it a reference to a rel var?
@@ -172,15 +176,11 @@ def _lookup_column(
     if len(matched_columns) > 1:
         max_precedence = max(t.precedence for t, _ in matched_columns)
         matched_columns = [
-            (t, c)
-            for t, c in matched_columns
-            if t.precedence == max_precedence
+            (t, c) for t, c in matched_columns if t.precedence == max_precedence
         ]
 
     if len(matched_columns) > 1:
-        potential_tables = ', '.join(
-            [t.name or '' for t, _ in matched_columns]
-        )
+        potential_tables = ', '.join([t.name or '' for t, _ in matched_columns])
         raise errors.QueryError(
             f'ambiguous column `{col_name}` could belong to '
             f'following tables: {potential_tables}',
@@ -321,7 +321,6 @@ def resolve_FuncCall(
     *,
     ctx: Context,
 ) -> pgast.BaseExpr:
-
     # Special case: some function calls (mostly from pg_catalog) are
     # intercepted and statically evaluated.
     if res := static.eval_FuncCall(call, ctx=ctx):
