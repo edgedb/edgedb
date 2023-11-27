@@ -377,10 +377,12 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v3
+      uses: Wandalen/wretry.action@1.3.0
       with:
-        name: shared-artifacts
-        path: .tmp
+        action: actions/download-artifact@v3
+        with:
+          name: shared-artifacts
+          path: .tmp
 
     - name: Set environment variables
       run: |
