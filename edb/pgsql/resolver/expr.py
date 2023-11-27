@@ -20,6 +20,7 @@
 in our internal Postgres instance."""
 
 from typing import *
+import uuid
 
 from edb import errors
 
@@ -62,12 +63,17 @@ def resolve_ResTarget(
             columns.append(column)
 
             assert table.reference_as
-            assert column.reference_as
+            if column.static_val:
+                # special case: __type__ static value
+                val = _uuid_const(column.static_val)
+            else:
+                assert column.reference_as
+                val = pgast.ColumnRef(
+                    name=(table.reference_as, column.reference_as)
+                )
             res.append(
                 pgast.ResTarget(
-                    val=pgast.ColumnRef(
-                        name=(table.reference_as, column.reference_as)
-                    ),
+                    val=val,
                     name=column.name,
                 )
             )
@@ -104,10 +110,7 @@ def resolve_ColumnRef(
         return pgast.ColumnRef(name=(table.reference_as, pgast.Star()))
 
     if column.static_val:
-        return pgast.TypeCast(
-            arg=pgast.StringConstant(val=str(column.static_val)),
-            type_name=pgast.TypeName(name=('uuid',)),
-        )
+        return _uuid_const(column.static_val)
 
     assert column.reference_as
 
@@ -117,6 +120,13 @@ def resolve_ColumnRef(
     else:
         # this is a reference to a local column, so it doesn't need table name
         return pgast.ColumnRef(name=(column.reference_as,))
+
+
+def _uuid_const(val: uuid.UUID):
+    return pgast.TypeCast(
+        arg=pgast.StringConstant(val=str(val)),
+        type_name=pgast.TypeName(name=('uuid',)),
+    )
 
 
 def _lookup_column(

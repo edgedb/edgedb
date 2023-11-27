@@ -66,7 +66,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT * FROM "Content"
             '''
         )
-        self.assert_shape(res, 5, ['id', 'genre_id', 'title'])
+        self.assert_shape(res, 5, ['id', '__type__', 'genre_id', 'title'])
 
     async def test_sql_query_03(self):
         # SELECT FROM parent type only
@@ -75,7 +75,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT * FROM ONLY "Content" -- should have only one result
             '''
         )
-        self.assert_shape(res, 1, ['id', 'genre_id', 'title'])
+        self.assert_shape(res, 1, ['id', '__type__', 'genre_id', 'title'])
 
     async def test_sql_query_04(self):
         # multiple FROMs
@@ -145,7 +145,14 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assert_shape(
             res,
             2,
-            ['id', 'director_id', 'genre_id', 'release_year', 'title'],
+            [
+                'id',
+                '__type__',
+                'director_id',
+                'genre_id',
+                'release_year',
+                'title',
+            ],
         )
 
     async def test_sql_query_11(self):
@@ -156,7 +163,17 @@ class TestSQL(tb.SQLQueryTestCase):
             JOIN "Genre" g ON "Movie".genre_id = g.id
             '''
         )
-        self.assert_shape(res, 2, 7)
+        self.assert_shape(res, 2, [
+            'id',
+            '__type__',
+            'director_id',
+            'genre_id',
+            'release_year',
+            'title',
+            'id',
+            '__type__',
+            'name'
+        ])
 
     async def test_sql_query_12(self):
         # JOIN USING
@@ -166,7 +183,7 @@ class TestSQL(tb.SQLQueryTestCase):
             JOIN (SELECT id as genre_id, name FROM "Genre") g USING (genre_id)
             '''
         )
-        self.assert_shape(res, 2, 7)
+        self.assert_shape(res, 2, 8)
 
     async def test_sql_query_13(self):
         # CTE
@@ -176,7 +193,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT * FROM "Movie" JOIN g USING (genre_id)
             '''
         )
-        self.assert_shape(res, 2, 7)
+        self.assert_shape(res, 2, 8)
 
     async def test_sql_query_14(self):
         # CASE
@@ -543,9 +560,7 @@ class TestSQL(tb.SQLQueryTestCase):
             ORDER BY title
             """
         )
-        self.assertEqual(
-            res, [['Forrest Gump', 1], ['Saving Private Ryan', 1]]
-        )
+        self.assertEqual(res, [['Forrest Gump', 1], ['Saving Private Ryan', 1]])
 
     async def test_sql_query_36(self):
         # ColumnRef to relation
@@ -580,10 +595,13 @@ class TestSQL(tb.SQLQueryTestCase):
             ORDER BY id
             '''
         )
-        self.assertEqual(res, [
-            [1, None],
-            [2, 1],
-        ])
+        self.assertEqual(
+            res,
+            [
+                [1, None],
+                [2, 1],
+            ],
+        )
 
     async def test_sql_query_39(self):
         res = await self.squery_values(
@@ -591,10 +609,13 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT pages, __type__ FROM "Book" ORDER BY pages;
             '''
         )
-        self.assert_data_shape(res, [
-            [206, str],
-            [374, str],
-        ])
+        self.assert_data_shape(
+            res,
+            [
+                [206, str],
+                [374, str],
+            ],
+        )
         # there should be one `Book` and one `novel`
         self.assertNotEqual(res[0][1], res[1][1])
 
@@ -603,9 +624,12 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT pages, __type__ FROM ONLY "Book" ORDER BY pages;
             '''
         )
-        self.assert_data_shape(res2, [
-            [206, str],
-        ])
+        self.assert_data_shape(
+            res2,
+            [
+                [206, str],
+            ],
+        )
         self.assertEqual(res[0][1], res2[0][1])
 
     async def test_sql_query_introspection_00(self):
@@ -849,9 +873,7 @@ class TestSQL(tb.SQLQueryTestCase):
                 ),
                 1,
             )
-            res = await self.squery_values(
-                'show default_transaction_isolation'
-            )
+            res = await self.squery_values('show default_transaction_isolation')
             self.assertEqual(res, [['read committed']])
         finally:
             await con.aclose()
@@ -930,16 +952,17 @@ class TestSQL(tb.SQLQueryTestCase):
             WHERE cols.table_name = 'Movie'
             '''
         )
-        col_map = {name: num - 1 for name, num in res}
-        names = set(
-            row[col_map['title']] for row in csv.reader(out, delimiter="\t"))
-        self.assertEqual(names, {"Forrest Gump", "Saving Private Ryan"})
+        name_to_pos = {name: num - 1 for name, num in res}
+        titles = set(
+            row[name_to_pos['title']] for row in csv.reader(out, delimiter="\t")
+        )
+        self.assertEqual(titles, {"Forrest Gump", "Saving Private Ryan"})
 
     async def test_sql_query_error_01(self):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="12"
+            position="12",
         ):
             await self.scon.execute("SELECT 1 + 'foo'")
 
@@ -947,7 +970,7 @@ class TestSQL(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="10"
+            position="10",
         ):
             await self.scon.execute("SELECT 1+'foo'")
 
@@ -955,34 +978,39 @@ class TestSQL(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="28"
+            position="28",
         ):
-            await self.scon.execute("""SELECT 1 +
-                'foo'""")
+            await self.scon.execute(
+                """SELECT 1 +
+                'foo'"""
+            )
 
     async def test_sql_query_error_04(self):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="12"
+            position="12",
         ):
             await self.scon.execute(
-                '''SELECT 1 + 'foo' FROM "Movie" ORDER BY id''')
+                '''SELECT 1 + 'foo' FROM "Movie" ORDER BY id'''
+            )
 
     async def test_sql_query_error_05(self):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="28"
+            position="28",
         ):
-            await self.scon.execute('''SELECT 1 +
-                'foo' FROM "Movie" ORDER BY id''')
+            await self.scon.execute(
+                '''SELECT 1 +
+                'foo' FROM "Movie" ORDER BY id'''
+            )
 
     async def test_sql_query_error_06(self):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="12"
+            position="12",
         ):
             await self.scon.fetch("SELECT 1 + 'foo'")
 
@@ -990,7 +1018,7 @@ class TestSQL(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="10"
+            position="10",
         ):
             await self.scon.fetch("SELECT 1+'foo'")
 
@@ -998,28 +1026,33 @@ class TestSQL(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="28"
+            position="28",
         ):
-            await self.scon.fetch("""SELECT 1 +
-                'foo'""")
+            await self.scon.fetch(
+                """SELECT 1 +
+                'foo'"""
+            )
 
     async def test_sql_query_error_09(self):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="12"
+            position="12",
         ):
             await self.scon.fetch(
-                '''SELECT 1 + 'foo' FROM "Movie" ORDER BY id''')
+                '''SELECT 1 + 'foo' FROM "Movie" ORDER BY id'''
+            )
 
     async def test_sql_query_error_10(self):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            position="28"
+            position="28",
         ):
-            await self.scon.fetch('''SELECT 1 +
-                'foo' FROM "Movie" ORDER BY id''')
+            await self.scon.fetch(
+                '''SELECT 1 +
+                'foo' FROM "Movie" ORDER BY id'''
+            )
 
     @unittest.skip("this test flakes: #5783")
     async def test_sql_query_prepare_01(self):
