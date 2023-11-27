@@ -43,7 +43,7 @@ class MarkupExceptionContext(
     MarkupCapableMixin,
 ):
 
-    @abc.abstractclassmethod
+    @abc.abstractclassmethod  # type: ignore
     def as_markup(cls, *, ctx):
         pass
 
