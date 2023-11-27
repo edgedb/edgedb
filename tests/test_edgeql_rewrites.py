@@ -1047,3 +1047,30 @@ class TestRewrites(tb.QueryTestCase):
             'select Foo { will_be_true }',
             [{'will_be_true': True}]
         )
+
+    async def test_edgeql_rewrites_28(self):
+        await self.con.execute(
+            '''
+            create type Address {
+                create property coordinates: tuple<lat: float32, lng: float32>;
+                create property updated_at: str {
+                    create rewrite insert using ('now')
+                };
+            };
+            insert Address {
+                coordinates := (
+                    lat := <std::float32>40.07987,
+                    lng := <std::float32>20.56509
+                )
+            };
+            '''
+        )
+        await self.assert_query_result(
+            'select Address { coordinates, updated_at }',
+            [
+                {
+                    'coordinates': {'lat': 40.07987, 'lng': 20.56509},
+                    'updated_at': 'now'
+                }
+            ]
+        )
