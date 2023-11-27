@@ -31,7 +31,7 @@ edgedb = "edb.cli:rustcli"
 
 [project.optional-dependencies]
 test = [
-    'black~=21.7b0',
+    'black~=23.11.0',
     'coverage~=5.5',
     'flake8~=6.0.0',
     'flake8-bugbear~=23.1.20',
@@ -47,7 +47,7 @@ test = [
     'MarkupSafe~=1.1',
     'PyYAML~=6.0',
 
-    'mypy==1.0.0',
+    'mypy~=1.7.1',
     # mypy stub packages; when updating, you can use mypy --install-types
     # to install stub packages and then pip freeze to read out the specifier
     'types-click~=7.1',
