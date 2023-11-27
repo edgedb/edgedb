@@ -429,7 +429,7 @@ jobs:
       uses: Wandalen/wretry.action@1.3.0
       with:
         action: actions/download-artifact@v3
-        with:
+        with: |
           name: shared-artifacts
           path: .tmp
 
@@ -566,7 +566,7 @@ jobs:
       uses: Wandalen/wretry.action@1.3.0
       with:
         action: actions/download-artifact@v3
-        with:
+        with: |
           name: shared-artifacts
           path: .tmp
 
