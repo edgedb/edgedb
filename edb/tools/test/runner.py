@@ -37,6 +37,7 @@ import os
 import pathlib
 import random
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -520,7 +521,7 @@ class MultiLineRenderer(BaseRenderer):
             print_line(' ')
 
         last_render = self.completed_tests == self.total_tests
-        cols, rows = click.get_terminal_size()
+        cols, rows = shutil.get_terminal_size()
         second_col_width = cols - self.first_col_width
 
         def _render_test_list(label, max_lines, tests, style):
@@ -690,7 +691,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
             self.ren = VerboseRenderer(tests=tests, stream=stream)
         elif (output_format is OutputFormat.stacked or
                 (output_format is OutputFormat.auto and stream.isatty() and
-                 click.get_terminal_size()[0] > 60 and
+                 shutil.get_terminal_size()[0] > 60 and
                  os.name != 'nt')):
             self.ren = MultiLineRenderer(tests=tests, stream=stream)
         else:
@@ -1061,7 +1062,7 @@ class ParallelTextTestRunner:
         return result
 
     def _get_term_width(self):
-        return click.get_terminal_size()[0] or 70
+        return shutil.get_terminal_size()[0] or 70
 
     def _echo(self, s='', **kwargs):
         if self.verbosity > 0:
