@@ -2629,7 +2629,7 @@ class ObjectIndexBase(
         self,
         schema: s_schema.Schema,
         name: Key_T,
-        default: Any = NoDefault,
+        default: Optional[Object_T | NoDefaultT] = NoDefault,
     ) -> Optional[Object_T]:
         items = dict(self.items(schema))
         if default is NoDefault:
