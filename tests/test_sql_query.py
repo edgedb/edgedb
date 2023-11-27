@@ -20,7 +20,6 @@ import csv
 import io
 import os.path
 import unittest
-import uuid
 
 from edb.testbase import server as tb
 from edb.tools import test
