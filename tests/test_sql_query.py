@@ -66,7 +66,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT * FROM "Content"
             '''
         )
-        self.assert_shape(res, 5, 3, ['id', 'genre_id', 'title'])
+        self.assert_shape(res, 5, ['id', 'genre_id', 'title'])
 
     async def test_sql_query_03(self):
         # SELECT FROM parent type only
@@ -75,7 +75,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT * FROM ONLY "Content" -- should have only one result
             '''
         )
-        self.assert_shape(res, 1, 3, ['id', 'genre_id', 'title'])
+        self.assert_shape(res, 1, ['id', 'genre_id', 'title'])
 
     async def test_sql_query_04(self):
         # multiple FROMs
@@ -85,7 +85,7 @@ class TestSQL(tb.SQLQueryTestCase):
             FROM "Movie" mve, "Person" WHERE mve.director_id = "Person".id
             '''
         )
-        self.assert_shape(res, 1, 2, ['title', 'first_name'])
+        self.assert_shape(res, 1, ['title', 'first_name'])
 
     async def test_sql_query_05(self):
         res = await self.scon.fetch(
@@ -94,7 +94,7 @@ class TestSQL(tb.SQLQueryTestCase):
             FROM "Movie" mve, "Person" person
             '''
         )
-        self.assert_shape(res, 6, 2, ['tit', 'first_name'])
+        self.assert_shape(res, 6, ['tit', 'first_name'])
 
     async def test_sql_query_06(self):
         # sub relations
@@ -104,7 +104,7 @@ class TestSQL(tb.SQLQueryTestCase):
             FROM "Movie" mve, (SELECT first_name FROM "Person") prs
             '''
         )
-        self.assert_shape(res, 6, 3, ['id', 'title', 'first_name'])
+        self.assert_shape(res, 6, ['id', 'title', 'first_name'])
 
     async def test_sql_query_07(self):
         # quoted case sensitive
@@ -113,7 +113,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT tItLe, release_year "RL year" FROM "Movie" ORDER BY titLe;
             '''
         )
-        self.assert_shape(res, 2, 2, ['title', 'RL year'])
+        self.assert_shape(res, 2, ['title', 'RL year'])
 
     async def test_sql_query_08(self):
         # JOIN
@@ -123,7 +123,7 @@ class TestSQL(tb.SQLQueryTestCase):
             FROM "Movie" JOIN "Genre" ON "Movie".genre_id = "Genre".id
             '''
         )
-        self.assert_shape(res, 2, 2, ['id', 'id'])
+        self.assert_shape(res, 2, ['id', 'id'])
 
     async def test_sql_query_09(self):
         # resolve columns without table names
@@ -133,7 +133,7 @@ class TestSQL(tb.SQLQueryTestCase):
             FROM "Movie" JOIN "Genre" ON "Movie".genre_id = "Genre".id
             '''
         )
-        self.assert_shape(res, 2, 3, ['id', 'title', 'name'])
+        self.assert_shape(res, 2, ['id', 'title', 'name'])
 
     async def test_sql_query_10(self):
         # wildcard SELECT
@@ -145,7 +145,6 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assert_shape(
             res,
             2,
-            5,
             ['id', 'director_id', 'genre_id', 'release_year', 'title'],
         )
 
@@ -384,18 +383,18 @@ class TestSQL(tb.SQLQueryTestCase):
             ORDER BY title
         '''
         )
-        self.assert_shape(res, 2, 2, ['name', 'title'])
+        self.assert_shape(res, 2, ['name', 'title'])
 
     async def test_sql_query_29(self):
         # link tables
 
         # multi
         res = await self.scon.fetch('SELECT * FROM "Movie.actors"')
-        self.assert_shape(res, 3, 3, ['role', 'source', 'target'])
+        self.assert_shape(res, 3, ['role', 'source', 'target'])
 
         # single with properties
         res = await self.scon.fetch('SELECT * FROM "Movie.director"')
-        self.assert_shape(res, 1, 3, ['bar', 'source', 'target'])
+        self.assert_shape(res, 1, ['bar', 'source', 'target'])
 
         # single without properties
         with self.assertRaisesRegex(
@@ -411,7 +410,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT * FROM (VALUES (1, 2), (3, 4)) AS vals(c, d)
             '''
         )
-        self.assert_shape(res, 2, 2, ['c', 'd'])
+        self.assert_shape(res, 2, ['c', 'd'])
 
         with self.assertRaisesRegex(
             asyncpg.InvalidColumnReferenceError, "query resolves to 2"
@@ -430,7 +429,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT * FROM common
             '''
         )
-        self.assert_shape(res, 1, 2, ['a', 'b'])
+        self.assert_shape(res, 1, ['a', 'b'])
 
         res = await self.scon.fetch(
             '''
@@ -438,7 +437,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT * FROM common
             '''
         )
-        self.assert_shape(res, 1, 2, ['c', 'd'])
+        self.assert_shape(res, 1, ['c', 'd'])
 
         res = await self.scon.fetch(
             '''
@@ -446,7 +445,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT * FROM common as cmn(e, f)
             '''
         )
-        self.assert_shape(res, 1, 2, ['e', 'f'])
+        self.assert_shape(res, 1, ['e', 'f'])
 
         with self.assertRaisesRegex(
             asyncpg.InvalidColumnReferenceError, "query resolves to 2"
@@ -476,14 +475,14 @@ class TestSQL(tb.SQLQueryTestCase):
                 LATERAL unnest(a, b)
             '''
         )
-        self.assert_shape(res, 3, 4, ['a', 'b', 'unnest', 'unnest'])
+        self.assert_shape(res, 3, ['a', 'b', 'unnest', 'unnest'])
 
         res = await self.scon.fetch(
             '''
             SELECT unnest(ARRAY[1, 2, 3]) a
             '''
         )
-        self.assert_shape(res, 3, 1, ['a'])
+        self.assert_shape(res, 3, ['a'])
 
         res = await self.scon.fetch(
             '''
@@ -494,7 +493,7 @@ class TestSQL(tb.SQLQueryTestCase):
             '''
         )
         self.assert_shape(
-            res, 3, 5, ['a', 'b', 'unnested_a', 'unnested_b', 'computed']
+            res, 3, ['a', 'b', 'unnested_a', 'unnested_b', 'computed']
         )
 
     async def test_sql_query_33(self):
