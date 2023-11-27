@@ -964,6 +964,7 @@ def process_insert_rewrites(
             val = pathctx.get_path_var(
                 rew_stmt, e.path_id, aspect='value', env=ctx.env
             )
+            val = output.output_as_value(val, env=ctx.env)
             rew_stmt.target_list.append(pgast.ResTarget(
                 name=ptr_info.column_name, val=val))
 
