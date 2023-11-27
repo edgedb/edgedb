@@ -562,11 +562,11 @@ Bug fixes
 * Type check mutation rewrites at migration time
   (:eql:gh:`#6466`)
 
-  Mutation rewrite's `using` expression are now required to be of correct type
-  when the rewrite is created. Up until now, it was possible to migrate to a
-  schema that contained a rewrite rule that would always throw a type error when
-  an object was being inserted or updated.
+  Mutation rewrite's ``using`` expression are now required to be of correct
+  type when the rewrite is created. Up until now, it was possible to migrate to
+  a schema that contained a rewrite rule that would always throw a type error
+  when an object was being inserted or updated.
 
-  This might be considered a breaking change, but as it is clearly a bug in user
-  schema and as it could also be considered a bug in the compiler, we are fixing
-  it in a minor version.
+  This might be considered a breaking change, but as it is clearly a bug in
+  user schema and as it could also be considered a bug in the compiler, we are
+  fixing it in a minor version.
