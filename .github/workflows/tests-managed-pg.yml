@@ -389,7 +389,7 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: Wandalen/wretry.action@1.3.0
+      uses: Wandalen/wretry.action@a163f62ae554a8f3cbe27b23db15b60c0ae2e93c  # v1.3.0
       with:
         action: actions/download-artifact@v3
         with: |
@@ -595,7 +595,7 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: Wandalen/wretry.action@1.3.0
+      uses: Wandalen/wretry.action@a163f62ae554a8f3cbe27b23db15b60c0ae2e93c  # v1.3.0
       with:
         action: actions/download-artifact@v3
         with: |
@@ -849,7 +849,7 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: Wandalen/wretry.action@1.3.0
+      uses: Wandalen/wretry.action@a163f62ae554a8f3cbe27b23db15b60c0ae2e93c  # v1.3.0
       with:
         action: actions/download-artifact@v3
         with: |
@@ -1069,7 +1069,7 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: Wandalen/wretry.action@1.3.0
+      uses: Wandalen/wretry.action@a163f62ae554a8f3cbe27b23db15b60c0ae2e93c  # v1.3.0
       with:
         action: actions/download-artifact@v3
         with: |
@@ -1277,7 +1277,7 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: Wandalen/wretry.action@1.3.0
+      uses: Wandalen/wretry.action@a163f62ae554a8f3cbe27b23db15b60c0ae2e93c  # v1.3.0
       with:
         action: actions/download-artifact@v3
         with: |
