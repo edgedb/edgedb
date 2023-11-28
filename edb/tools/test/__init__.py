@@ -59,7 +59,7 @@ __all__ = ('not_implemented', 'xerror', 'xfail', 'skip')
 @click.option('--debug', is_flag=True,
               help='output internal debug logs')
 @click.option('--output-format',
-              type=click.Choice(runner.OutputFormat.__members__),
+              type=click.Choice(list(runner.OutputFormat.__members__.keys())),
               help='test progress output style',
               default=runner.OutputFormat.auto.value)
 @click.option('--warnings/--no-warnings',

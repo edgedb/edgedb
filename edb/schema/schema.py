@@ -1274,7 +1274,7 @@ class FlatSchema(Schema):
             return frozenset(referrers)  # type: ignore
 
     @functools.lru_cache()
-    def get_referrers_ex(
+    def get_referrers_ex(  # type: ignore
         self,
         scls: so.Object,
         *,

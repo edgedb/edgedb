@@ -2942,7 +2942,7 @@ def _check_force_database_error(
             hint=err.get('hint'),
             details=err.get('details'),
             filename=filename,
-            position=position,  # type: ignore
+            position=position,
         )
     except Exception:
         raise errors.ConfigurationError(
