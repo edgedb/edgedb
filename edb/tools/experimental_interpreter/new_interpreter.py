@@ -84,7 +84,7 @@ def run_statement(db: EdgeDatabaseInterface,
             debug.print(result)
             print(multi_set_val_to_json_like((result)))
             print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Done ")
-        return (result, ResultTp(e.UncheckedNamedNominalLinkTp("NOT AVAILABLE", linkprop=e.ObjectTp({})), CardAny))
+        return (result, ResultTp(e.NamedNominalLinkTp("NOT AVAILABLE", linkprop=e.ObjectTp({})), CardAny))
 
     elif should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Type Checking")

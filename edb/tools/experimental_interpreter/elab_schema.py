@@ -37,8 +37,8 @@ def construct_final_schema_target_tp(base : Tp, linkprops: Dict[str, ResultTp]) 
                              construct_final_schema_target_tp(tp2, linkprops))
         case e.QualifiedName(name):
             return e.NamedNominalLinkTp(name=base, linkprop=ObjectTp(linkprops))
-        case e.UncheckedNamedNominalLinkTp(name=name, linkprop=e.ObjectTp({})):
-            return e.UncheckedNamedNominalLinkTp(name=name, linkprop=ObjectTp(linkprops))
+        case e.NamedNominalLinkTp(name=name, linkprop=e.ObjectTp({})):
+            return e.NamedNominalLinkTp(name=name, linkprop=ObjectTp(linkprops))
         case _:
             if linkprops:
                 raise ValueError("cannot construct schema target type", base, linkprops)

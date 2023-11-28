@@ -106,13 +106,13 @@ class IntersectTp:
 
 @dataclass(frozen=True)
 class NamedNominalLinkTp:
-    name: QualifiedName
+    name: RawName
     linkprop: ObjectTp
 
-@dataclass(frozen=True)
-class UncheckedNamedNominalLinkTp:
-    name: str
-    linkprop: ObjectTp
+# @dataclass(frozen=True)
+# class UncheckedNamedNominalLinkTp:
+#     name: str
+#     linkprop: ObjectTp
 
 @dataclass(frozen=True)
 class NominalLinkTp:
@@ -161,7 +161,8 @@ Tp = (ObjectTp | PrimTp | NamedNominalLinkTp  | NominalLinkTp
       | ArrTp | AnyTp | SomeTp | UnionTp | IntersectTp 
     #   | UnifiableTp
       | ComputableTp | DefaultTp | UncheckedComputableTp 
-      | UncheckedNamedNominalLinkTp)
+    #   | UncheckedNamedNominalLinkTp
+      )
 
 
 @dataclass(frozen=True)
@@ -422,6 +423,11 @@ class BoundVarExpr:
 @dataclass(frozen=True)
 class QualifiedName:
     names: List[str]
+
+    # def __post_init__(self):
+    #     if not isinstance(self.names, list) or not all(isinstance(name, str) for name in self.names):
+    #         raise ValueError("The 'names' attribute must be a non-empty list of strings.")
+
 
 @dataclass(frozen=True)
 class UnqualifiedName:

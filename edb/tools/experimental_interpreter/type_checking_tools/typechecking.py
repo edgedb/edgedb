@@ -165,21 +165,23 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.FreeVarExpr(var=var):
             if var in ctx.varctx.keys():
                 result_tp, result_card = ctx.varctx[var]
-            possible_resolved_name = mops.try_resolve_simple_name(ctx, e.UnqualifiedName(var))
-            if possible_resolved_name is not None:
-                module_entity = mops.try_resolve_module_entity(ctx, possible_resolved_name)
-                match module_entity:
-                    case e.ModuleEntityTypeDef(typedef=typedef):
-                        result_tp = e.NominalLinkTp(subject=typedef,
-                                                    name=possible_resolved_name, 
-                                                    linkprop=e.ObjectTp({}))
-                        result_card = e.CardAny
-                    case _:
-                        raise ValueError("Unsupported Module Entity", module_entity)
             else:
-                raise ValueError("Unknown variable", var,
-                                 "list of known vars",
-                                 list(ctx.varctx.keys()))
+                possible_resolved_name = mops.try_resolve_simple_name(ctx, e.UnqualifiedName(var))
+                if possible_resolved_name is not None:
+                    module_entity = mops.try_resolve_module_entity(ctx, possible_resolved_name)
+                    match module_entity:
+                        case e.ModuleEntityTypeDef(typedef=typedef):
+                            result_tp = e.NominalLinkTp(subject=typedef,
+                                                        name=possible_resolved_name, 
+                                                        linkprop=e.ObjectTp({}))
+                            result_expr = possible_resolved_name
+                            result_card = e.CardAny
+                        case _:
+                            raise ValueError("Unsupported Module Entity", module_entity)
+                else:
+                    raise ValueError("Unknown variable", var,
+                                    "list of known vars",
+                                    list(ctx.varctx.keys()))
         case e.TypeCastExpr(tp=tp, arg=arg):
             if expr_tp_is_not_synthesizable(arg):
                 result_card, result_expr = check_type_no_card(ctx, arg, tp)
@@ -275,7 +277,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.TpIntersectExpr(subject=subject, tp=intersect_tp):
             intersect_tp_name , _ = mops.resolve_raw_name_and_type_def(ctx, intersect_tp)
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
-            result_expr = e.TpIntersectExpr(subject_ck, intersect_tp)
+            result_expr = e.TpIntersectExpr(subject_ck, intersect_tp_name)
             if all(isinstance(t, e.NamedNominalLinkTp)
                    for t in tops.collect_tp_union(subject_tp.tp)):
                 candidates = []
@@ -528,8 +530,12 @@ def check_object_tp_comp_validity(
     root_ctx = eops.emtpy_tcctx_from_dbschema(dbschema, current_module_name)
     match tp_comp:
         case e.NamedNominalLinkTp(name=name, linkprop=l_prop):
+            if isinstance(name, e.UnqualifiedName):
+                name_ck = mops.resolve_simple_name(root_ctx, name)
+            else:
+                name_ck = name
             return e.NamedNominalLinkTp(
-                    name=name,
+                    name=name_ck,
                     linkprop=check_object_tp_validity(
                         dbschema=dbschema,
                         current_module_name=current_module_name,

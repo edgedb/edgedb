@@ -152,15 +152,15 @@ def std_sum_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 
 all_std_funcs: Dict[str, BuiltinFuncDef] = {
-    "std::all": BuiltinFuncDef(tp=std_all_tp, impl=std_all_impl),
-    "std::any": BuiltinFuncDef(tp=std_any_tp, impl=std_any_impl),
-    "std::array_agg": BuiltinFuncDef(tp=std_array_agg_tp,
+    "all": BuiltinFuncDef(tp=std_all_tp, impl=std_all_impl),
+    "any": BuiltinFuncDef(tp=std_any_tp, impl=std_any_impl),
+    "array_agg": BuiltinFuncDef(tp=std_array_agg_tp,
                                      impl=std_array_agg_impl),
-    "std::array_unpack": BuiltinFuncDef(tp=std_array_unpack_tp,
+    "array_unpack": BuiltinFuncDef(tp=std_array_unpack_tp,
                                         impl=std_array_unpack_impl),
-    "std::count": BuiltinFuncDef(tp=std_count_tp, impl=std_count_impl),
-    "std::enumerate": BuiltinFuncDef(tp=std_enumerate_tp,
+    "count": BuiltinFuncDef(tp=std_count_tp, impl=std_count_impl),
+    "enumerate": BuiltinFuncDef(tp=std_enumerate_tp,
                                      impl=std_enumerate_impl),
-    "std::len": BuiltinFuncDef(tp=std_len_tp, impl=std_len_impl),
-    "std::sum": BuiltinFuncDef(tp=std_sum_tp, impl=std_sum_impl),
+    "len": BuiltinFuncDef(tp=std_len_tp, impl=std_len_impl),
+    "sum": BuiltinFuncDef(tp=std_sum_tp, impl=std_sum_impl),
 }

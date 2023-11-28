@@ -113,17 +113,17 @@ def type_equality_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
                     return False
                 else:
                     return recurse(ctx, lp_1, lp_2)
-            case (_, e.NamedNominalLinkTp(name=n_2, linkprop=lp_2)):
-                resolved_type_def = mops.resolve_type_name(ctx, n_2)
+            case (_, e.NamedNominalLinkTp(name=e.QualifiedName(n_2), linkprop=lp_2)):
+                resolved_type_def = mops.resolve_type_name(ctx, e.QualifiedName(n_2))
                 return recurse(ctx, tp1, 
                     e.NominalLinkTp(subject=resolved_type_def,
-                                    name=n_2,
+                                    name=e.QualifiedName(n_2),
                                     linkprop=lp_2))
-            case (e.NamedNominalLinkTp(name=n_1, linkprop=lp_1), _):
-                resolved_type_def = mops.resolve_type_name(ctx, n_1)
+            case (e.NamedNominalLinkTp(name=e.QualifiedName(n_1), linkprop=lp_1), _):
+                resolved_type_def = mops.resolve_type_name(ctx, e.QualifiedName(n_1))
                 return recurse(ctx, 
                     e.NominalLinkTp(subject=resolved_type_def,
-                                    name=n_1,
+                                    name=e.QualifiedName(n_1),
                                     linkprop=lp_1), tp2)
 
             # Union and intersections
@@ -324,9 +324,10 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
                     return tp_project(ctx, e.ResultTp(tp_subject, tp.mode),
                                       e.StrLabel(lbl))
                 case e.NamedNominalLinkTp(name=name, linkprop=_):
+                    _, tp_def = mops.resolve_raw_name_and_type_def(ctx, name)
                     return tp_project(
                         ctx, 
-                        e.ResultTp(mops.resolve_type_name(ctx, name), tp.mode),
+                        e.ResultTp(tp_def, tp.mode),
                                    e.StrLabel(lbl))
                 case e.ObjectTp(val=tp_obj):
                     if lbl in tp_obj.keys():

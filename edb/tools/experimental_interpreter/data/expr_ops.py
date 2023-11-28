@@ -58,9 +58,9 @@ def map_tp(
             case e.NamedNominalLinkTp(name=name, linkprop=linkprop):
                 return e.NamedNominalLinkTp(name=name, 
                                     linkprop=recur(linkprop))
-            case e.UncheckedNamedNominalLinkTp(name=name, linkprop=linkprop):
-                return e.UncheckedNamedNominalLinkTp(name=name, 
-                                    linkprop=recur(linkprop))
+            # case e.UncheckedNamedNominalLinkTp(name=name, linkprop=linkprop):
+            #     return e.UncheckedNamedNominalLinkTp(name=name, 
+            #                         linkprop=recur(linkprop))
             case e.NominalLinkTp(name=name, subject=subject, linkprop=linkprop):
                 return e.NominalLinkTp(name=name, 
                                     subject=recur(subject),
@@ -106,7 +106,7 @@ def map_expr(
         match expr:
             case (FreeVarExpr(_) | BoundVarExpr(_) | StrVal(_) | BoolVal(_) |
                     IntVal(_) | RefVal(_) 
-                    | ArrVal(_) | UnnamedTupleVal(_)):
+                    | ArrVal(_) | UnnamedTupleVal(_) |e.QualifiedName(_) | e.UnqualifiedName(_)):
                 return expr
             case BindingExpr(var=var, body=body):
                 return BindingExpr(var=var, body=map_expr(f, body))

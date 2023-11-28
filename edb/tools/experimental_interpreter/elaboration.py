@@ -9,7 +9,7 @@ from edb.edgeql import ast as qlast
 from edb.schema import pointers as s_pointers
 from edb.schema.pointers import PointerDirection
 
-from .basis.built_ins import all_builtin_funcs
+from .basis.built_ins import all_builtin_funcs, all_std_funcs
 from .data import data_ops as e
 from .data.data_ops import (
     ArrExpr, ArrTp, BackLinkExpr, BindingExpr, BoolVal, BoundVarExpr,
@@ -95,8 +95,8 @@ def elab_Path(p: qlast.Path) -> Expr:
                     raise ValueError("should not be")
                 else:
                     match elab_single_type_expr(tp):
-                        case e.UncheckedNamedNominalLinkTp(name=tp_name, linkprop=e.ObjectTp({})):
-                            result = TpIntersectExpr(result, e.UnqualifiedName(tp_name))
+                        case e.NamedNominalLinkTp(name=tp_name, linkprop=e.ObjectTp({})):
+                            result = TpIntersectExpr(result, tp_name)
                         case _:
                             raise ValueError(
                                 "expecting single type name here")
@@ -335,10 +335,10 @@ def elab_FunctionCall(fcall: qlast.FunctionCall) -> FunAppExpr:
         return elab_not_implemented(fcall)
     if type(fcall.func) is not str:
         return elab_not_implemented(fcall)
-    fname = (fcall.func
+    fname = (e.UnqualifiedName(fcall.func)
              if fcall.func in all_builtin_funcs.keys()
-             else "std::" + fcall.func
-             if ("std::" + fcall.func) in all_builtin_funcs.keys()
+             else e.QualifiedName(["std", fcall.func])
+             if ( fcall.func) in all_std_funcs.keys()
              else elab_error("unknown function name: " +
                              fcall.func, fcall.context))
     args = [elab(arg) for arg in fcall.args]
@@ -383,7 +383,7 @@ def elab_single_type_str(name: str) -> Tp:
         case "json":
             return JsonTp()
         case _:
-            return e.UncheckedNamedNominalLinkTp(name, e.ObjectTp({}))
+            return e.NamedNominalLinkTp(e.UnqualifiedName(name), e.ObjectTp({}))
 
 
 @elab.register(qlast.TypeName)

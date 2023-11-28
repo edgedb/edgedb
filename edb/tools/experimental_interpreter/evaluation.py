@@ -251,10 +251,11 @@ def eval_expr(ctx: EvalEnv,
                 return ctx[name]
             else:
                 raise ValueError("Variable not found", name)
-                # all_ids: Sequence[Val] = [
-                #     RefVal(id, ObjectVal({}))
-                #     for id in db.query_ids_for_a_type(name)]
-                # return MultiSetVal(all_ids)
+        case e.QualifiedName(names=names):
+                all_ids: Sequence[Val] = [
+                    RefVal(id, ObjectVal({}))
+                    for id in db.query_ids_for_a_type(expr)]
+                return MultiSetVal(all_ids)
         case FunAppExpr(fun=fname, args=args, overloading_index=idx):
             assert idx is not None, "overloading index must be set in type checking"
             argsv = eval_expr_list(ctx, db, args)
@@ -305,7 +306,8 @@ def eval_expr(ctx: EvalEnv,
                            for v in subjectv.vals]
             return db.reverse_project(subject_ids, label)
         case TpIntersectExpr(subject=subject, tp=tp_name):
-            assert isinstance(tp_name, e.QualifiedName), "Should be updated during tcking"
+            if not isinstance(tp_name, e.QualifiedName):
+                raise ValueError("Should be updated during tcking")
             subjectv = eval_expr(ctx, db, subject)
             after_intersect: List[Val] = []
             for v in subjectv.vals:

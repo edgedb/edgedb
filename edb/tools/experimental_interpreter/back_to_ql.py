@@ -178,8 +178,14 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
                 return qlast.Path(steps=[], partial=True)
             else:
                 return qlast.Path(steps=[qlast.ObjectRef(name=name)])
+        case e.QualifiedName(names=names):
+            return reverse_elab_raw_name(ir_expr)
+        case e.UnqualifiedName(name=name):
+            return reverse_elab_raw_name(ir_expr)
         case FunAppExpr(fun=fname, args=args, overloading_index=_):
-            if fname in all_builtin_ops.keys() and len(args) == 2:
+            if (isinstance(fname, e.QualifiedName) 
+                and fname.names[0] == "std" 
+                and fname.names[1] in all_builtin_ops.keys() and len(args) == 2):
                 return qlast.BinOp(
                     op=show_raw_name(fname), left=reverse_elab(args[0]),
                     right=reverse_elab(args[1]))
