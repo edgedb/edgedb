@@ -204,7 +204,7 @@ ResponseType = tuple[str, int]
 
 
 class MockAuthProvider:
-    def __init__(self):
+    def __init__(self) -> None:
         self.has_started = threading.Event()
         self.routes: dict[
             tuple[str, str, str],
@@ -971,7 +971,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "error=access_denied",
             )
 
-    async def test_http_auth_ext_google_callback_01(self):
+    async def test_http_auth_ext_google_callback_01(self) -> None:
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
             provider_config = await self.get_builtin_provider_config_by_name(
                 "oauth_google"
@@ -1269,7 +1269,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(len(pkce), 1)
 
-    async def test_http_auth_ext_azure_callback_01(self):
+    async def test_http_auth_ext_azure_callback_01(self) -> None:
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
             provider_config = await self.get_builtin_provider_config_by_name(
                 "oauth_azure"
@@ -1481,7 +1481,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(len(pkce), 1)
 
-    async def test_http_auth_ext_apple_callback_01(self):
+    async def test_http_auth_ext_apple_callback_01(self) -> None:
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
             provider_config = await self.get_builtin_provider_config_by_name(
                 "oauth_apple"
@@ -1622,7 +1622,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 },
             )
 
-    async def test_http_auth_ext_apple_callback_redirect_on_signup_02(self):
+    async def test_http_auth_ext_apple_callback_redirect_on_signup_02(
+        self
+    ) -> None:
         with MockAuthProvider() as mock_provider, self.http_con() as http_con:
             provider_config = await self.get_builtin_provider_config_by_name(
                 "oauth_apple"

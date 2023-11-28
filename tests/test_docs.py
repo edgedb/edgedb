@@ -23,7 +23,7 @@ try:
     import docutils.parsers
     import docutils.utils
     import docutils.frontend
-    import docutils.parsers.rst.directives.body
+    import docutils.parsers.rst.directives.body  # type: ignore
     from edb.tools.docs.shared import make_CodeBlock
 
     docutils.parsers.rst.directives.register_directive(
