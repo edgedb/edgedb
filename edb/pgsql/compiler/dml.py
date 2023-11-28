@@ -1811,7 +1811,7 @@ def process_update_rewrites(
     range_relation: pgast.PathRangeVar,
     single_external: List[irast.Set],
     rewrites: irast.RewritesOfType,
-    elements: List[Tuple[irast.Set, irast.BasePointerRef, qlast.ShapeOp]],
+    elements: Sequence[Tuple[irast.Set, irast.BasePointerRef, qlast.ShapeOp]],
     ctx: context.CompilerContextLevel,
 ) -> tuple[
     pgast.CommonTableExpr,
@@ -1967,7 +1967,7 @@ def process_update_rewrites(
 def process_update_shape(
     ir_stmt: irast.UpdateStmt,
     rel: pgast.SelectStmt,
-    elements: List[Tuple[irast.Set, irast.BasePointerRef, qlast.ShapeOp]],
+    elements: Sequence[Tuple[irast.Set, irast.BasePointerRef, qlast.ShapeOp]],
     typeref: irast.TypeRef,
     ctx: context.CompilerContextLevel,
 ) -> Tuple[

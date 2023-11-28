@@ -1954,7 +1954,7 @@ class TestStaticServerConfig(tb.TestCase):
                 pass
 
     async def test_server_config_args_03(self):
-        with self.assertRaisesRegex(cluster.ClusterError, "no such option"):
+        with self.assertRaisesRegex(cluster.ClusterError, "No such option"):
             async with tb.start_edgedb_server(
                 extra_args=["--config-cfg::non_exist"]
             ):
