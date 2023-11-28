@@ -1,5 +1,5 @@
 
-from typing import Any, Dict, Optional, Sequence, Tuple, Union, cast
+from typing import Any, Dict, Optional, Sequence, Tuple, Union, cast, List
 
 from edb.edgeql import ast as qlast
 
@@ -35,15 +35,17 @@ def construct_final_schema_target_tp(base : Tp, linkprops: Dict[str, ResultTp]) 
         case e.UnionTp(tp1, tp2):
             return e.UnionTp(construct_final_schema_target_tp(tp1, linkprops), 
                              construct_final_schema_target_tp(tp2, linkprops))
-        case e.VarTp(name):
-            return e.NamedNominalLinkTp(name=name, linkprop=ObjectTp(linkprops))
+        case e.QualifiedName(name):
+            return e.NamedNominalLinkTp(name=base, linkprop=ObjectTp(linkprops))
+        case e.UncheckedNamedNominalLinkTp(name=name, linkprop=e.ObjectTp({})):
+            return e.UncheckedNamedNominalLinkTp(name=name, linkprop=ObjectTp(linkprops))
         case _:
             if linkprops:
                 raise ValueError("cannot construct schema target type", base, linkprops)
             else:
                 return base
 
-def elab_schema(sdef: qlast.Schema) -> Tuple[str,e.DBModule]:
+def elab_schema(sdef: qlast.Schema) -> Tuple[Tuple[str, ...],e.DBModule]:
     if (len(sdef.declarations) != 1
             or sdef.declarations[0].name.name != "default"):
         raise ValueError(
@@ -204,8 +206,8 @@ def elab_schema(sdef: qlast.Schema) -> Tuple[str,e.DBModule]:
             case _:
                 print("WARNING: not implemented t_decl", t_decl)
 
-    module_defs = {k: e.ModuleEntityTypeDef(v) for k, v in type_defs.items() if k in type_defs}
-    return ("default", e.DBModule(module_defs))
+    module_defs : Dict[str, e.ModuleEntity]= {k: e.ModuleEntityTypeDef(v) for k, v in type_defs.items() if k in type_defs}
+    return (("default",), e.DBModule(module_defs))
 
 
 def add_module_from_sdl_defs(

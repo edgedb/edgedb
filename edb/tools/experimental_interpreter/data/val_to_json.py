@@ -6,6 +6,7 @@ from .data_ops import (ArrVal, BoolVal, IntVal, Label, LinkPropLabel,
                        StrVal, UnnamedTupleVal, Val, Visible)
 from . import expr_ops as eops
 from . import type_ops as tops
+from . import module_ops as mops
 
 json_like = str | int | bool | Dict[str, Any] | Sequence[Any]
 
@@ -71,8 +72,7 @@ def typed_objectval_to_json_like(objv: ObjectVal,
                                 typed_multi_set_val_to_json_like(
                                     tp_vals[s], v[1], dbschema)
                         case e.NamedNominalLinkTp(name=name, linkprop=_):
-                            subject = tops.dereference_var_tp(
-                                dbschema, e.VarTp(name))
+                            subject = tops.dereference_var_tp(dbschema, name)
                             result[label_to_str(k)] = \
                                 typed_multi_set_val_to_json_like(
                                     subject.val[s], v[1], dbschema)

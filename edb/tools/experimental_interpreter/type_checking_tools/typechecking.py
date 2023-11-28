@@ -40,14 +40,14 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
             s_name = name
             if isinstance(subject_tp, e.ObjectTp):
                 s_tp = subject_tp
-            elif isinstance(subject_tp, e.VarTp):
-                s_tp = tops.dereference_var_tp(ctx.schema, subject_tp)
+            # elif isinstance(subject_tp, e.VarTp):
+            #     s_tp = tops.dereference_var_tp(ctx.schema, subject_tp)
             else:
                 raise ValueError("NI", subject_tp)
         case e.NamedNominalLinkTp(name=name, linkprop=linkprop_tp):
             l_tp = linkprop_tp
             s_name = name
-            s_tp = tops.dereference_var_tp(ctx.schema, e.VarTp(name))
+            s_tp = tops.dereference_var_tp(ctx.schema, name)
         case e.ObjectTp(_):
             s_tp = tp
             l_tp = e.ObjectTp({})
@@ -179,8 +179,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             else:
                 raise ValueError("Unknown variable", var,
                                  "list of known vars",
-                                 list(ctx.varctx.keys())
-                                 + list(ctx.schema))
+                                 list(ctx.varctx.keys()))
         case e.TypeCastExpr(tp=tp, arg=arg):
             if expr_tp_is_not_synthesizable(arg):
                 result_card, result_expr = check_type_no_card(ctx, arg, tp)
@@ -274,6 +273,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     candidates)
             result_card = e.CardAny
         case e.TpIntersectExpr(subject=subject, tp=intersect_tp):
+            intersect_tp_name , _ = mops.resolve_raw_name_and_type_def(ctx, intersect_tp)
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_expr = e.TpIntersectExpr(subject_ck, intersect_tp)
             if all(isinstance(t, e.NamedNominalLinkTp)
@@ -286,14 +286,14 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     candidates = [*candidates, t]
                 if len(candidates) == 0:
                     result_tp = tops.construct_tp_intersection(
-                        subject_tp.tp, e.VarTp(intersect_tp))
+                        subject_tp.tp, e.NamedNominalLinkTp(name=intersect_tp_name, linkprop=e.ObjectTp({})))
                 else:
                     result_tp = reduce(
                         tops.construct_tp_union,  # type: ignore[arg-type]
                         candidates)
             else:
                 result_tp = tops.construct_tp_intersection(
-                    subject_tp.tp, e.VarTp(intersect_tp))
+                    subject_tp.tp, e.NamedNominalLinkTp(name=intersect_tp_name, linkprop=e.ObjectTp({}))) #TODO: get linkprop
             result_card = e.CMMode(
                 e.CardNumZero,
                 subject_tp.mode.upper, 
@@ -521,7 +521,7 @@ def check_type(ctx: e.TcCtx, expr: e.Expr, tp: e.ResultTp) -> e.Expr:
 
 def check_object_tp_comp_validity(
         dbschema: e.DBSchema,
-        current_module_name: List[str],
+        current_module_name: Tuple[str, ...],
         subject_tp: e.Tp,
         tp_comp: e.Tp,
         tp_comp_card: e.CMMode) -> e.Tp:
@@ -553,7 +553,7 @@ def check_object_tp_comp_validity(
                 c_expr,  # type: ignore
                 e.ResultTp(subject_tp, e.CardOne)
             )
-            c_body = path_factor.select_hoist(c_body, dbschema)
+            c_body = path_factor.select_hoist(c_body, new_ctx)
             synth_tp, c_body_ck = synthesize_type(new_ctx, c_body)
             tops.assert_cardinal_subtype(synth_tp.mode, tp_comp_card)
             return e.ComputableTp(
@@ -568,7 +568,7 @@ def check_object_tp_comp_validity(
                 c_expr,  # type: ignore
                 e.ResultTp(subject_tp, e.CardOne)
             )
-            c_body = path_factor.select_hoist(c_body, dbschema)
+            c_body = path_factor.select_hoist(c_body, new_ctx)
             synth_tp, c_body_ck = synthesize_type(new_ctx, c_body)
             tops.assert_cardinal_subtype(synth_tp.mode, tp_comp_card)
             tops.assert_real_subtype(new_ctx, synth_tp.tp, c_tp)
@@ -586,7 +586,7 @@ def check_object_tp_comp_validity(
                 c_expr,  # type: ignore
                 e.ResultTp(subject_tp, e.CardOne)
             )
-            c_body = path_factor.select_hoist(c_body, dbschema)
+            c_body = path_factor.select_hoist(c_body, new_ctx)
             synth_tp, c_body_ck = synthesize_type(new_ctx, c_body)
             tops.assert_cardinal_subtype(synth_tp.mode, tp_comp_card)
             # match c_tp:
@@ -603,7 +603,7 @@ def check_object_tp_comp_validity(
 
 
 def check_object_tp_validity(dbschema: e.DBSchema,
-                             current_module_name: List[str],
+                             current_module_name: Tuple[str, ...],
                              subject_tp: e.Tp,
                              obj_tp: e.ObjectTp) -> e.ObjectTp:
     result_vals: Dict[str, e.ResultTp] = {}
@@ -618,7 +618,7 @@ def check_object_tp_validity(dbschema: e.DBSchema,
     return e.ObjectTp(result_vals)
 
 
-def check_module_validity(dbschema: e.DBSchema, module_name : List[str]) -> e.DBSchema:
+def check_module_validity(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -> e.DBSchema:
     """
     Checks the validity of an unchecked module in dbschema. 
     Modifies the db schema after checking
@@ -634,9 +634,11 @@ def check_module_validity(dbschema: e.DBSchema, module_name : List[str]) -> e.DB
                         check_object_tp_validity(
                             dbschema, 
                             module_name,
-                            e.NamedNominalLinkTp(name=t_name, linkprop=e.ObjectTp({})),
+                            e.NamedNominalLinkTp(name=e.QualifiedName([*module_name,t_name]), linkprop=e.ObjectTp({})),
                             typedef))}
-    result_dbmodule = e.DBModule(type_defs=result_vals, fun_defs=dbmodule.fun_defs)
+            case _:
+                raise ValueError("Unimplemented", t_me)
+    result_dbmodule = e.DBModule(result_vals)
     dbschema.modules[module_name] = result_dbmodule
     del dbschema.unchecked_modules[module_name]
     return dbschema

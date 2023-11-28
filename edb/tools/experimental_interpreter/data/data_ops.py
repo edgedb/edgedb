@@ -73,9 +73,9 @@ class UuidTp:
 PrimTp = StrTp | IntTp | IntInfTp | BoolTp | DateTimeTp | JsonTp | UuidTp
 
 
-@dataclass(frozen=True)
-class VarTp:
-    name: str
+# @dataclass(frozen=True)
+# class VarTp:
+#     name: str
 
 
 @dataclass(frozen=True)
@@ -107,6 +107,11 @@ class IntersectTp:
 @dataclass(frozen=True)
 class NamedNominalLinkTp:
     name: QualifiedName
+    linkprop: ObjectTp
+
+@dataclass(frozen=True)
+class UncheckedNamedNominalLinkTp:
+    name: str
     linkprop: ObjectTp
 
 @dataclass(frozen=True)
@@ -151,11 +156,12 @@ class SomeTp:
 #     resolution: Optional[Tp] = None
 
 
-Tp = (ObjectTp | PrimTp | VarTp | NamedNominalLinkTp  | NominalLinkTp
+Tp = (ObjectTp | PrimTp | NamedNominalLinkTp  | NominalLinkTp
       | NamedTupleTp | UnnamedTupleTp
       | ArrTp | AnyTp | SomeTp | UnionTp | IntersectTp 
     #   | UnifiableTp
-      | ComputableTp | DefaultTp | UncheckedComputableTp)
+      | ComputableTp | DefaultTp | UncheckedComputableTp 
+      | UncheckedNamedNominalLinkTp)
 
 
 @dataclass(frozen=True)
@@ -385,7 +391,7 @@ class TypeCastExpr:
 
 @dataclass(frozen=True)
 class FunAppExpr:
-    fun: str
+    fun: UnqualifiedName | QualifiedName
     overloading_index: Optional[int]
     args: Sequence[Expr]
 
@@ -421,6 +427,7 @@ class QualifiedName:
 class UnqualifiedName:
     name: str
 
+RawName = UnqualifiedName | QualifiedName
 
 @dataclass(frozen=True)
 class ObjectProjExpr:
@@ -437,7 +444,7 @@ class BackLinkExpr:
 @dataclass(frozen=True)
 class TpIntersectExpr:
     subject: Expr
-    tp: str
+    tp: RawName
 
 
 @dataclass(frozen=True)
@@ -642,7 +649,7 @@ Expr = (
 
 @dataclass(frozen=True)
 class DBEntry:
-    tp: str
+    tp: QualifiedName
     data: Dict[str, MultiSetVal]
 
 
@@ -665,7 +672,7 @@ class ModuleEntityTypeDef:
 
 @dataclass(frozen=True)
 class ModuleEntityFuncDef:
-    fundef: FuncDef
+    funcdef: FuncDef
 
 ModuleEntity = ModuleEntityTypeDef | ModuleEntityFuncDef
 
@@ -676,8 +683,8 @@ class DBModule:
 @dataclass(frozen=True)
 # @dataclass
 class DBSchema:
-    modules : Dict[List[str], DBModule]
-    unchecked_modules : Dict[List[str], DBModule] # modules that are currently under type checking
+    modules : Dict[Tuple[str, ...], DBModule]
+    unchecked_modules : Dict[Tuple[str, ...], DBModule] # modules that are currently under type checking
 
 # RT Stands for Run Time
 
@@ -703,7 +710,7 @@ class RTVal(NamedTuple):
 @dataclass
 class TcCtx:
     schema: DBSchema
-    current_module: List[str] # current module name, TODO: nested modules
+    current_module: Tuple[str, ...] # current module name, TODO: nested modules
     varctx: Dict[str, ResultTp]
 
 

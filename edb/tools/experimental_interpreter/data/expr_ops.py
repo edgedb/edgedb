@@ -43,7 +43,7 @@ def map_tp(
 
         match tp:
             case (e.IntTp() | e.BoolTp() | e.StrTp() | e.IntInfTp()
-                  | e.AnyTp() | e.VarTp(_)):
+                  | e.AnyTp() ):
                 return tp
             case e.ObjectTp(val=val):
                 return e.ObjectTp(val={k: e.ResultTp(recur(v), card)
@@ -57,6 +57,9 @@ def map_tp(
                 return e.ArrTp(tp=recur(arr_tp))
             case e.NamedNominalLinkTp(name=name, linkprop=linkprop):
                 return e.NamedNominalLinkTp(name=name, 
+                                    linkprop=recur(linkprop))
+            case e.UncheckedNamedNominalLinkTp(name=name, linkprop=linkprop):
+                return e.UncheckedNamedNominalLinkTp(name=name, 
                                     linkprop=recur(linkprop))
             case e.NominalLinkTp(name=name, subject=subject, linkprop=linkprop):
                 return e.NominalLinkTp(name=name, 
@@ -469,8 +472,8 @@ def make_storage_atomic(val: Val, tp: Tp) -> Val:
             return do_coerce_value_to_linkprop_tp(tp_linkprop=tp_linkprop)
         case e.NominalLinkTp(name=_, subject=_, linkprop=tp_linkprop):
             return do_coerce_value_to_linkprop_tp(tp_linkprop=tp_linkprop)
-        case e.VarTp():
-            return do_coerce_value_to_linkprop_tp(tp_linkprop=ObjectTp({}))
+        # case e.VarTp():
+        #     return do_coerce_value_to_linkprop_tp(tp_linkprop=ObjectTp({}))
         case (e.IntTp() | e.StrTp()):
             return val
         case e.DefaultTp(expr=_, tp=d_tp):
@@ -637,7 +640,7 @@ def tcctx_add_binding(ctx: e.TcCtx,
     return new_ctx, after_e, bnd_e.var
 
 
-def emtpy_tcctx_from_dbschema(dbschema: e.DBSchema, current_module_name: List[str]) -> e.TcCtx:
+def emtpy_tcctx_from_dbschema(dbschema: e.DBSchema, current_module_name: Tuple[str, ...]) -> e.TcCtx:
     return e.TcCtx(
         schema=dbschema,
         current_module=current_module_name,

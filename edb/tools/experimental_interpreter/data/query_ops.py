@@ -90,7 +90,7 @@ def map_query(f: Callable[[Expr, QueryLevel],
                 return TpIntersectExpr(subject=recur(subject), tp=tp_name)
             case FunAppExpr(fun=fname, args=args, overloading_index=idx):
                 mapped_args: Sequence[Expr] = []
-                resolved_fun_def = mops.resolve_func_name(schema, fname)
+                _, resolved_fun_def = mops.resolve_raw_name_and_func_def(schema, fname)
                 args_mods = [resolved_fun_def.tp.args_ret_types[i].args_mod 
                              for i in range(len(resolved_fun_def.tp.args_ret_types))]
                 assert len(args_mods) > 0, "Expecting fun_defs"

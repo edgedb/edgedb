@@ -36,7 +36,7 @@ def path_lexicographic_key(e: Expr) -> str:
         case ObjectProjExpr(subject=subject, label=label):
             return path_lexicographic_key(subject) + "." + label
         case TpIntersectExpr(subject=subject, tp=tp):
-            return path_lexicographic_key(subject) + "[is]" + tp
+            return path_lexicographic_key(subject) + "[is _]"
         case BackLinkExpr(subject=subject, label=label):
             return path_lexicographic_key(subject) + ".<" + label
         case _:
@@ -59,7 +59,7 @@ def get_all_paths(e: Expr) -> List[Expr]:
     return all_paths
 
 
-def get_all_pre_top_level_paths(e: Expr, dbschema: DBSchema) -> List[Expr]:
+def get_all_pre_top_level_paths(e: Expr, dbschema: e.TcCtx) -> List[Expr]:
     all_paths: List[Expr] = []
 
     def populate(sub: Expr, level: QueryLevel) -> Optional[Expr]:
@@ -77,7 +77,7 @@ def get_all_pre_top_level_paths(e: Expr, dbschema: DBSchema) -> List[Expr]:
 
 
 def get_all_proper_top_level_paths(
-        e: Expr, dbschema: DBSchema) -> List[Expr]:
+        e: Expr, dbschema: e.TcCtx) -> List[Expr]:
     definite_top_paths: List[Expr] = []
     semi_sub_paths: List[List[Expr]] = []
     sub_paths: List[Expr] = []
@@ -167,7 +167,7 @@ def separate_common_longest_path_prefix_in_set(
     return result
 
 
-def toppath_for_factoring(expr: Expr, dbschema: DBSchema) -> List[Expr]:
+def toppath_for_factoring(expr: Expr, dbschema: e.TcCtx) -> List[Expr]:
     all_paths = get_all_paths(expr)
     top_level_paths = get_all_proper_top_level_paths(expr, dbschema)
     # print("All Proper Top Level Paths", top_level_paths)
@@ -233,7 +233,7 @@ def trace_input_output(func):
     return wrapper
 
 
-def sub_select_hoist(e: Expr, dbschema: DBSchema) -> Expr:
+def sub_select_hoist(e: Expr, dbschema: e.TcCtx) -> Expr:
     def sub_select_hoist_map_func(e: Expr) -> Expr:
         if isinstance(e, BindingExpr):
             new_fresh_name = next_name()
@@ -252,7 +252,7 @@ def sub_select_hoist(e: Expr, dbschema: DBSchema) -> Expr:
 # @trace_input_output
 
 
-def select_hoist(expr: Expr, dbschema: DBSchema) -> Expr:
+def select_hoist(expr: Expr, dbschema: e.TcCtx) -> Expr:
     # Optimization: do not factor single path, this helps to
     # keep select_hoist as an idempotent operation
     # this is not good for link properties

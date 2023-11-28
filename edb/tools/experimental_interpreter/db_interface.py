@@ -8,10 +8,10 @@ import copy
 EdgeID = int
 class EdgeDatabaseInterface:
 
-    def query_ids_for_a_type(self, tp: str) -> List[EdgeID]:
+    def query_ids_for_a_type(self, tp: e.QualifiedName) -> List[EdgeID]:
         raise NotImplementedError()
 
-    def get_type_for_an_id(self, id: EdgeID) -> str:
+    def get_type_for_an_id(self, id: EdgeID) -> e.QualifiedName:
         raise NotImplementedError()
 
     def get_props_for_id(self, id: EdgeID) -> Dict[str, MultiSetVal]:
@@ -35,7 +35,7 @@ class EdgeDatabaseInterface:
         raise NotImplementedError()
 
     # insert an object into the database, returns the inserted object id
-    def insert(self, tp: str, props : Dict[str, MultiSetVal]) -> EdgeID:
+    def insert(self, tp: e.QualifiedName, props : Dict[str, MultiSetVal]) -> EdgeID:
         raise NotImplementedError()
 
     # updates an object's properties in the database, unspecified properties are not changed
@@ -104,7 +104,7 @@ class InMemoryEdgeDatabase(EdgeDatabaseInterface):
         self.to_insert = copy.copy(dumped_state["to_insert"])
         self.next_id_to_return = dumped_state["next_id_to_return"]
 
-    def query_ids_for_a_type(self, tp: str) -> List[EdgeID]:
+    def query_ids_for_a_type(self, tp: e.QualifiedName) -> List[EdgeID]:
         return [id for id in self.db.dbdata.keys() if self.db.dbdata[id].tp == tp]
 
     def get_props_for_id(self, id: EdgeID) -> Dict[str, MultiSetVal]:
@@ -120,7 +120,7 @@ class InMemoryEdgeDatabase(EdgeDatabaseInterface):
             raise ValueError(f"ID {id} not found in database")
 
     
-    def get_type_for_an_id(self, id: EdgeID) -> str:
+    def get_type_for_an_id(self, id: EdgeID) -> e.QualifiedName:
         if id in self.db.dbdata.keys():
             return self.db.dbdata[id].tp
         elif id in self.to_insert.dbdata.keys():
@@ -161,7 +161,7 @@ class InMemoryEdgeDatabase(EdgeDatabaseInterface):
     def delete(self, id: EdgeID) -> None:
         self.to_delete.append(id)
 
-    def insert(self, tp: str, props : Dict[str, MultiSetVal]) -> EdgeID:
+    def insert(self, tp: e.QualifiedName, props : Dict[str, MultiSetVal]) -> EdgeID:
         id = self.next_id()
         self.to_insert.dbdata[id] = DBEntry(tp, props)
         return id

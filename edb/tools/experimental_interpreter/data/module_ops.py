@@ -2,30 +2,35 @@
 from . import data_ops as e
 from typing import Optional, List, Tuple
 
-default_open_scopes = [["std"]]
+default_open_scopes = [("std",)]
 
-def resolve_module_in_schema(schema: e.DBSchema, name: List[str]) -> e.DBModule:
+def resolve_module_in_schema(schema: e.DBSchema, name: Tuple[str, ...]) -> e.DBModule:
     if name in schema.unchecked_modules:
         assert name not in schema.modules
         return schema.unchecked_modules[name]
     else:
         return schema.modules[name]
 
-def try_resolve_module_entity(ctx: e.TcCtx, name: e.QualifiedName) -> Optional[e.ModuleEntity]:
+def try_resolve_module_entity(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> Optional[e.ModuleEntity]:
     """
     Resolve a module entity using the ABS method.
     https://github.com/edgedb/edgedb/discussions/4883
     """
     assert len(name.names) >= 2
     if name.names[0] == "module":
+        assert isinstance(ctx, e.TcCtx), "qualified names beginning with module cannot be resolved in a schema"
         name = e.QualifiedName([*ctx.current_module, *name.names[1:]])
-    module = resolve_module_in_schema(ctx.schema, name.names[:-1])
+    module: e.DBModule
+    if isinstance(ctx, e.TcCtx):
+        module = resolve_module_in_schema(ctx.schema, tuple(name.names[:-1]))
+    else:
+        module = resolve_module_in_schema(ctx, tuple(name.names[:-1]))
     if name.names[-1] in module.defs:
         return module.defs[name.names[-1]]
     else:
         return None
 
-def try_resolve_type_name(ctx: e.TcCtx, name: e.QualifiedName) -> Optional[e.ObjectTp]:
+def try_resolve_type_name(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> Optional[e.ObjectTp]:
     me = try_resolve_module_entity(ctx, name)
     if me is not None:
         if isinstance(me, e.ModuleEntityTypeDef):
@@ -35,7 +40,7 @@ def try_resolve_type_name(ctx: e.TcCtx, name: e.QualifiedName) -> Optional[e.Obj
     else:
         return None
 
-def resolve_type_name(ctx: e.TcCtx, name: e.QualifiedName) -> e.ObjectTp:
+def resolve_type_name(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> e.ObjectTp:
     resolved = try_resolve_type_name(ctx, name)
     if resolved is None:
         raise ValueError(f"Type {name} not found")
@@ -43,7 +48,7 @@ def resolve_type_name(ctx: e.TcCtx, name: e.QualifiedName) -> e.ObjectTp:
         return resolved
     
 
-def resolve_func_name(ctx: e.TcCtx, name: e.QualifiedName) -> e.FuncDef:
+def resolve_func_name(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> e.FuncDef:
     me = try_resolve_module_entity(ctx, name)
     if me is not None:
         if isinstance(me, e.ModuleEntityFuncDef):
@@ -82,6 +87,12 @@ def resolve_raw_name_and_type_def(ctx: e.TcCtx, name: e.QualifiedName | e.Unqual
     if isinstance(name, e.UnqualifiedName):
         name = resolve_simple_name(ctx, name)
     return (name, resolve_type_name(ctx, name))
+
+def resolve_raw_name_and_func_def(ctx: e.TcCtx, name: e.QualifiedName | e.UnqualifiedName) -> Tuple[e.QualifiedName, e.FuncDef]:
+    if isinstance(name, e.UnqualifiedName):
+        name = resolve_simple_name(ctx, name)
+    return (name, resolve_func_name(ctx, name))
+
 
 
 def enumerate_all_type_defs(ctx: e.TcCtx) -> List[Tuple[e.QualifiedName, e.ObjectTp]]:

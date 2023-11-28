@@ -238,8 +238,8 @@ class SQLiteEdgeDatabase(EdgeDatabaseInterface):
                         result_tp =  "STRING"
                     case IntTp():
                         result_tp =  "INT"
-                    case VarTp(_):
-                        result_tp =  "LINK"
+                    # case VarTp(_):
+                    #     result_tp =  "LINK"
                     case NamedNominalLinkTp(_):
                         result_tp =  "LINK"
                     case _:

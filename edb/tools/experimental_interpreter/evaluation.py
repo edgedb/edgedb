@@ -13,7 +13,7 @@ from .data.data_ops import (
     OrderDescending, OrderLabelSep, ParamOptional, ParamSetOf,
     ParamSingleton, RefVal, ShapedExprExpr, ShapeExpr, StrLabel, StrVal,
     SubqueryExpr, TpIntersectExpr, TypeCastExpr, UnionExpr,
-    UnnamedTupleExpr, UnnamedTupleVal, UpdateExpr, Val, VarTp, Visible,
+    UnnamedTupleExpr, UnnamedTupleVal, UpdateExpr, Val, Visible,
     WithExpr, next_id,  RTExpr, RTVal)
 from .data import data_ops as e
 from .data import expr_ops as eops
@@ -210,11 +210,12 @@ def eval_expr(ctx: EvalEnv,
             else:
                 raise ValueError("Expecting all references or all primitives")
         case InsertExpr(tname, arg):
+            assert isinstance(tname, e.QualifiedName), "Should be updated during tcking"
             id = db.insert(tname, {})
             argv = {k : eval_expr(ctx, db, v) for (k,v) in arg.items()}
             arg_object = ObjectVal({StrLabel(k): (e.Visible(), v) for (k,v) in argv.items()})
             new_object = coerce_to_storage(
-                arg_object, tops.get_storage_tp(db.get_schema().val[tname]))
+                arg_object, tops.get_storage_tp(mops.resolve_type_name(db.get_schema(), tname)))
             db.update(id, {k : v  for k, v in new_object.items() })
             # inserts return empty dict
             return MultiSetVal([RefVal(id, ObjectVal({}))])
@@ -249,15 +250,18 @@ def eval_expr(ctx: EvalEnv,
             if name in ctx.keys():
                 return ctx[name]
             else:
-                all_ids: Sequence[Val] = [
-                    RefVal(id, ObjectVal({}))
-                    for id in db.query_ids_for_a_type(name)]
-                return MultiSetVal(all_ids)
+                raise ValueError("Variable not found", name)
+                # all_ids: Sequence[Val] = [
+                #     RefVal(id, ObjectVal({}))
+                #     for id in db.query_ids_for_a_type(name)]
+                # return MultiSetVal(all_ids)
         case FunAppExpr(fun=fname, args=args, overloading_index=idx):
             assert idx is not None, "overloading index must be set in type checking"
             argsv = eval_expr_list(ctx, db, args)
             # argsv = map_assume_link_target(argsv)
-            looked_up_fun = db.get_schema().fun_defs[fname]
+            assert isinstance(fname, e.QualifiedName), "Should resolve in type checking"
+            looked_up_fun = mops.resolve_func_name(db.get_schema(), fname)
+            # db.get_schema().fun_defs[fname]
             f_modifier = looked_up_fun.tp.args_ret_types[idx].args_mod
             assert len(f_modifier) == len(argsv)
             argv_final: Sequence[Sequence[Sequence[Val]]] = [[]]
@@ -301,6 +305,7 @@ def eval_expr(ctx: EvalEnv,
                            for v in subjectv.vals]
             return db.reverse_project(subject_ids, label)
         case TpIntersectExpr(subject=subject, tp=tp_name):
+            assert isinstance(tp_name, e.QualifiedName), "Should be updated during tcking"
             subjectv = eval_expr(ctx, db, subject)
             after_intersect: List[Val] = []
             for v in subjectv.vals:
@@ -362,7 +367,7 @@ def eval_expr(ctx: EvalEnv,
                 updated: Sequence[Val] = [apply_shape(ctx, db, shape, v)
                             for v in subjectv.vals]  # type: ignore[misc]
                 for u in cast(Sequence[RefVal], updated):
-                    full_tp = db.get_schema().val[db.get_type_for_an_id(u.refid)]
+                    full_tp = tops.dereference_var_tp(db.get_schema(), db.get_type_for_an_id(u.refid))
                     cut_tp = {k : v for (k,v) in full_tp.val.items() if StrLabel(k) in u.val.val.keys()}
                     db.update(
                         u.refid,

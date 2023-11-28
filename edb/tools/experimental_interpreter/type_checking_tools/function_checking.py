@@ -4,6 +4,7 @@ from ..data import expr_ops as eops
 from ..data import type_ops as tops
 from ..data import path_factor as pops
 from ..data import expr_to_str as pp
+from ..data import module_ops as mops
 from typing import List, Tuple, Dict, Optional
 # from itertools import *
 from functools import reduce
@@ -44,7 +45,8 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
 
     match fun_call:
         case e.FunAppExpr(fun=fname, args=args, overloading_index=idx):
-            fun_tp = ctx.schema.fun_defs[fname].tp
+            qualified_fname, fun_def = mops.resolve_raw_name_and_func_def(ctx, fname)
+            fun_tp = fun_def.tp
             # assert len(args) == len(fun_tp.args_mod), "argument count mismatch"
             [res_tps, args_cks] = zip(*[tc.synthesize_type(ctx, v) for v in args])
             [tps, arg_cards] = zip(*res_tps)
@@ -63,7 +65,7 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                     if result_tp is not None:
                         ok_candidates.append((i, result_tp))
                 if len(ok_candidates) == 0:
-                    raise ValueError("No overloading matches", fname, 
+                    raise ValueError("No overloading matches", pp.show_qname(qualified_fname), 
                                      "args type", [pp.show_tp(tp) for tp in tps],
                                      "candidates", [pp.show_func_tps(args_ret_type) for args_ret_type in fun_tp.args_ret_types],
                                      pp.show_expr(fun_call))
@@ -79,8 +81,8 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                     for param_mod, arg_card
                     in zip(fun_tp.args_ret_types[idx].args_mod, arg_cards, strict=True)))
             # special processing of cardinality inference for certain functions
-            match fname:
-                case "??":
+            match qualified_fname:
+                case e.QualifiedName(["std", "??"]):
                     assert len(arg_cards) == 2
                     result_card = e.CMMode(
                         e.min_cardinal(arg_cards[0].lower,
@@ -91,7 +93,7 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                 case _:
                     result_card = (arg_card_product
                                     * fun_tp.args_ret_types[idx].ret_tp.mode)
-            result_expr = e.FunAppExpr(fun=fname, args=args_cks, overloading_index=idx)
+            result_expr = e.FunAppExpr(fun=qualified_fname, args=args_cks, overloading_index=idx)
             return (e.ResultTp(result_tp, result_card), result_expr)
         case _:
             raise ValueError("impossible", fun_call)

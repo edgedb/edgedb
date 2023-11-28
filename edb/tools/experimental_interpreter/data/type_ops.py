@@ -34,7 +34,7 @@ def collect_tp_union(tp1: e.Tp) -> List[e.Tp]:
 
 
 def is_nominal_subtype_in_schema(
-        subtype: str, supertype: str, dbschema: DBSchema):
+        subtype: e.QualifiedName, supertype: e.QualifiedName, dbschema: DBSchema):
     # TODO: properly implement
     return subtype == supertype
 
@@ -47,13 +47,14 @@ def object_tp_is_essentially_optional(tp: e.ObjectTp) -> bool:
     return all(mode_is_optional(md_tp.mode) for md_tp in tp.val.values())
 
 
-def dereference_var_tp(dbschema: e.DBSchema, tp: e.VarTp) -> e.ObjectTp:
-    if tp.name in dbschema.val:
-        res = get_runtime_tp(dbschema.val[tp.name])
-        assert isinstance(res, e.ObjectTp)
-        return res
-    else:
-        raise ValueError("Type not found")
+def dereference_var_tp(dbschema: e.DBSchema, qn: e.QualifiedName) -> e.ObjectTp:
+    return mops.resolve_type_name(dbschema, qn)
+    # if tp.name in dbschema.val:
+    #     res = get_runtime_tp(dbschema.val[tp.name])
+    #     assert isinstance(res, e.ObjectTp)
+    #     return res
+    # else:
+    #     raise ValueError("Type not found")
 
 
 # def assert_insert_subtype(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp) -> None:
@@ -256,7 +257,7 @@ def tp_is_primitive(tp: e.Tp) -> bool:
             #   | e.UnifiableTp(_)
               | e.NamedNominalLinkTp(_)
               | e.NominalLinkTp(_)
-              | e.VarTp(_)
+            #   | e.VarTp(_)
               | e.UnnamedTupleTp(_)
               | e.ArrTp(_)
               | e.AnyTp()
@@ -300,10 +301,10 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
     def post_process_result_base_tp(result_base_tp: e.Tp, 
                                     result_mode: e.CMMode) -> e.ResultTp:
         return e.ResultTp(result_base_tp, result_mode)
-    if isinstance(tp.tp, e.VarTp):
-        target_tp = dereference_var_tp(ctx.schema, tp.tp)
-        return tp_project(ctx, e.ResultTp(target_tp, tp.mode),
-                          label)
+    # if isinstance(tp.tp, e.VarTp):
+    #     target_tp = dereference_var_tp(ctx.schema, tp.tp)
+    #     return tp_project(ctx, e.ResultTp(target_tp, tp.mode),
+    #                       label)
 
     match label:
         case e.LinkPropLabel(label=lbl):
@@ -323,8 +324,10 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
                     return tp_project(ctx, e.ResultTp(tp_subject, tp.mode),
                                       e.StrLabel(lbl))
                 case e.NamedNominalLinkTp(name=name, linkprop=_):
-                    return tp_project(ctx, e.ResultTp(e.VarTp(name), tp.mode),
-                                      e.StrLabel(lbl))
+                    return tp_project(
+                        ctx, 
+                        e.ResultTp(mops.resolve_type_name(ctx, name), tp.mode),
+                                   e.StrLabel(lbl))
                 case e.ObjectTp(val=tp_obj):
                     if lbl in tp_obj.keys():
                         result_base_tp = tp_obj[lbl].tp

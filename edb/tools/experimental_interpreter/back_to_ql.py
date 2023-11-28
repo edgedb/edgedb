@@ -25,6 +25,23 @@ from .elaboration import DEFAULT_HEAD_NAME
 def reverse_elab_error(msg: str, expr: Val | Expr | Sequence[Val]) -> Any:
     raise ValueError("Reverse Elab Error", msg, expr)
 
+def reverse_elab_raw_name(name: e.RawName) -> qlast.ObjectRef:
+    match name:
+        case e.QualifiedName(names=names):
+            return qlast.ObjectRef(name=names[-1], module="::".join(names[:-1]))
+        case e.UnqualifiedName(name=n):
+            return qlast.ObjectRef(name=n)
+        case _:
+            raise ValueError(name)
+
+def show_raw_name(name: e.RawName) -> str:
+    match name:
+        case e.QualifiedName(names=names):
+            return "::".join(names)
+        case e.UnqualifiedName(name=n):
+            return n
+        case _:
+            raise ValueError(name)
 
 def reverse_elab_label(lbl: Label) -> qlast.Path:
     match lbl:
@@ -129,7 +146,7 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
         #                        elements=reverse_elab_shape(
         #                            object_to_shape(ir_expr)))
         case InsertExpr(name=tname, new=arg):
-            return qlast.InsertQuery(subject=qlast.ObjectRef(name=tname),
+            return qlast.InsertQuery(subject=reverse_elab_raw_name(tname),
                                      shape=reverse_elab_shape(
                                          e.ShapeExpr(shape={StrLabel(k):
                                                             abstract_over_expr(v) for (k,v) in arg.items()})))
@@ -164,10 +181,10 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
         case FunAppExpr(fun=fname, args=args, overloading_index=_):
             if fname in all_builtin_ops.keys() and len(args) == 2:
                 return qlast.BinOp(
-                    op=fname, left=reverse_elab(args[0]),
+                    op=show_raw_name(fname), left=reverse_elab(args[0]),
                     right=reverse_elab(args[1]))
             else:
-                return qlast.FunctionCall(func=fname,
+                return qlast.FunctionCall(func=show_raw_name(fname),
                                           args=[reverse_elab(arg)
                                                 for arg in args])
         case e.ConditionalDedupExpr(expr=inner):
@@ -197,7 +214,7 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
                 label_path_component)
         case TpIntersectExpr(subject=subject, tp=tp_name):
             tp_path_component = qlast.TypeIntersection(
-                type=qlast.TypeName(maintype=qlast.ObjectRef(name=tp_name)))
+                type=qlast.TypeName(maintype=reverse_elab_raw_name(tp_name)))
             return append_path_element(
                 reverse_elab(subject),
                 tp_path_component)

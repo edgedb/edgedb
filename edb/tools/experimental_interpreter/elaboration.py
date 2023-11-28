@@ -20,7 +20,7 @@ from .data.data_ops import (
     ObjectProjExpr, OffsetLimitExpr, OptionalForExpr, OrderAscending,
     OrderDescending, OrderLabelSep, ShapedExprExpr, ShapeExpr, StrLabel,
     StrTp, StrVal, SubqueryExpr, Tp, TpIntersectExpr, TypeCastExpr,
-    UnionExpr, UnionTp, UnnamedTupleExpr, UpdateExpr, VarTp, WithExpr,
+    UnionExpr, UnionTp, UnnamedTupleExpr, UpdateExpr, WithExpr,
     next_name)
 from .data.expr_ops import (abstract_over_expr, instantiate_expr, is_path,
                             subst_expr_for_expr)
@@ -95,8 +95,8 @@ def elab_Path(p: qlast.Path) -> Expr:
                     raise ValueError("should not be")
                 else:
                     match elab_single_type_expr(tp):
-                        case VarTp(name=tp_name):
-                            result = TpIntersectExpr(result, tp_name)
+                        case e.UncheckedNamedNominalLinkTp(name=tp_name, linkprop=e.ObjectTp({})):
+                            result = TpIntersectExpr(result, e.UnqualifiedName(tp_name))
                         case _:
                             raise ValueError(
                                 "expecting single type name here")
@@ -209,7 +209,7 @@ def elab_InsertQuery(expr: qlast.InsertQuery) -> InsertExpr:
         InsertExpr,
         elab_aliases(
             expr.aliases,
-            InsertExpr(name=subject_type, new=unshaped)))
+            InsertExpr(name=e.UnqualifiedName(subject_type), new=unshaped))) #TODO: we should allow qualified names here
 
 
 @elab.register(qlast.StringConstant)
@@ -349,7 +349,7 @@ def elab_FunctionCall(fcall: qlast.FunctionCall) -> FunAppExpr:
 def elab_UnaryOp(uop: qlast.UnaryOp) -> FunAppExpr:
     if uop.op in all_builtin_funcs.keys():
         return FunAppExpr(
-            fun=uop.op, args=[elab(uop.operand)],
+            fun=e.UnqualifiedName(uop.op), args=[elab(uop.operand)],
             overloading_index=None)
     else:
         raise ValueError("Unknown Op Name", uop.op)
@@ -366,7 +366,7 @@ def elab_BinOp(binop: qlast.BinOp) -> FunAppExpr | UnionExpr:
     else:
         if binop.op in all_builtin_funcs.keys():
             return FunAppExpr(
-                fun=binop.op, args=[left_expr, right_expr],
+                fun=e.UnqualifiedName(binop.op), args=[left_expr, right_expr],
                 overloading_index=None)
         else:
             raise ValueError("Unknown Op Name", binop.op)
@@ -383,7 +383,7 @@ def elab_single_type_str(name: str) -> Tp:
         case "json":
             return JsonTp()
         case _:
-            return VarTp(name)
+            return e.UncheckedNamedNominalLinkTp(name, e.ObjectTp({}))
 
 
 @elab.register(qlast.TypeName)
@@ -498,13 +498,14 @@ def elab_DetachedExpr(qle: qlast.DetachedExpr):
 
 @elab.register(qlast.NamedTuple)
 def elab_NamedTuple(qle: qlast.NamedTuple) -> NamedTupleExpr:
-    return NamedTupleExpr(
-        val={(element.name.name
-              if (
-                  element.name.module is
-                  None and element.name.itemclass is None) else
-              elab_error("not implemented", qle.context)):
-             elab(element.val) for element in qle.elements})
+    raise ValueError("TODO : FIX MYPY below")
+    # return NamedTupleExpr(
+    #     val={(element.name.name
+    #           if (
+    #               element.name.module is
+    #               None and element.name.itemclass is None) else
+    #           elab_error("not implemented", qle.context)):
+    #           elab(element.val) for element in qle.elements})
 
 
 @elab.register(qlast.Tuple)
@@ -539,14 +540,14 @@ def elab_Indirection(qle: qlast.Indirection) -> FunAppExpr:
         case [qlast.Slice(start=None, stop=stop)]:
             assert stop is not None  # required for mypy
             return FunAppExpr(
-                fun=IndirectionSliceOp,
+                fun=e.UnqualifiedName(IndirectionSliceOp),
                 args=[subject, IntVal(0),
                       elab(stop)],
                 overloading_index=None)
         case [qlast.Slice(start=start, stop=None)]:
             assert start is not None  # required for mypy
             return FunAppExpr(
-                fun=IndirectionSliceOp,
+                fun=e.UnqualifiedName(IndirectionSliceOp),
                 args=[subject, elab(start),
                       IntInfVal()],
                 overloading_index=None)
@@ -554,12 +555,12 @@ def elab_Indirection(qle: qlast.Indirection) -> FunAppExpr:
             assert start is not None  # required for mypy
             assert stop is not None  # required for mypy
             return FunAppExpr(
-                fun=IndirectionSliceOp,
+                fun=e.UnqualifiedName(IndirectionSliceOp),
                 args=[subject, elab(start),
                       elab(stop)],
                 overloading_index=None)
         case [qlast.Index(index=idx)]:
-            return FunAppExpr(fun=IndirectionIndexOp,
+            return FunAppExpr(fun=e.UnqualifiedName(IndirectionIndexOp),
                               args=[subject, elab(idx)],
                               overloading_index=None)
     raise ValueError("Not yet implemented indirection", qle)

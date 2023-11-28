@@ -2,6 +2,7 @@
 
 from . import data_ops as e
 from . import expr_ops as eops
+from typing import *
 
 def show_card(card: e.Cardinal) -> str:
     match card:
@@ -17,6 +18,15 @@ def show_card(card: e.Cardinal) -> str:
 
 def show_cmmode(mode: e.CMMode) -> str:
     return "[" + show_card(mode.lower) + "," + show_card(mode.upper) + "]"
+
+def show_qname(name: e.QualifiedName) -> str:
+    return "::".join(name.names)
+
+def show_raw_name(name: e.QualifiedName | e.UnqualifiedName) -> str:
+    if isinstance(name, e.QualifiedName):
+        return show_qname(name)
+    else:
+        return name.name
 
 
 def show_tp(tp: e.Tp) -> str:
@@ -47,12 +57,14 @@ def show_tp(tp: e.Tp) -> str:
             return f'some_{{{index}}}'
         case e.AnyTp():
             return 'any'
-        case e.VarTp(name=name):
-            return f'{name}'
+        # case e.VarTp(name=name):
+        #     return f'{name}'
         # case e.UnifiableTp(id=id, resolution=resolution):
         #     return (f'unifiable_{{{id}}}_as_' +
         #             (show_tp(resolution) if resolution else 'None'))
         case e.NamedNominalLinkTp(name=name, linkprop=lp_tp):
+            return f'{show_raw_name(name)}@{show_tp(lp_tp)}'
+        case e.UncheckedNamedNominalLinkTp(name=name, linkprop=lp_tp):
             return f'{name}@{show_tp(lp_tp)}'
         case e.NominalLinkTp(name=name, subject=s_tp, linkprop=lp_tp):
             return f'{show_tp(s_tp)}_{name}@{show_tp(lp_tp)}'
@@ -111,7 +123,7 @@ def show_expr(expr: e.Expr) -> str:
         case e.UnionExpr(left=left, right=right):
             return show_expr(left) + " `UNION` " + show_expr(right)
         case e.FunAppExpr(fun=fname, args=args, overloading_index=_):
-            return (fname + "(" + ", ".join(show_expr(el) for el in args) +
+            return (show_raw_name(fname) + "(" + ", ".join(show_expr(el) for el in args) +
                     ")")
         case e.FreeVarExpr(var=var):
             return var
@@ -126,7 +138,7 @@ def show_expr(expr: e.Expr) -> str:
         case e.BackLinkExpr(subject=subject, label=label):
             return show_expr(subject) + ".<" + label
         case e.TpIntersectExpr(subject=subject, tp=tp):
-            return show_expr(subject) + " [is " + tp + "]"
+            return show_expr(subject) + " [is " + show_raw_name(tp) + "]"
         case e.SubqueryExpr(expr=subject):
             return "select " + show_expr(subject)
         case e.FilterOrderExpr(subject=subject, filter=filter, order=order):
@@ -136,7 +148,7 @@ def show_expr(expr: e.Expr) -> str:
             return ("(" + show_expr(subject) + " offset " + show_expr(offset) +
                     " limit " + show_expr(limit) + ")")
         case e.InsertExpr(name=name, new=new):
-            return ("insert " + name + " {" + 
+            return ("insert " + show_raw_name(name) + " {" + 
                     ", ".join([k + " := " + show_expr(n) for (k,n) in new.items()]) + "}")
         case e.UpdateExpr(subject=subject, shape=shape):
             return ("update " + show_expr(subject) + " " + show_expr(shape))
@@ -170,15 +182,26 @@ def show_expr(expr: e.Expr) -> str:
             raise ValueError('Unimplemented', expr)
 
 
-def show_module(dbschema: e.DBModule) -> str:
-    return ("\n".join(name + " := " + show_tp(tp) for name, tp in
-                      dbschema.type_defs.items()))
+def show_me(me: e.ModuleEntity) -> str:
+    match me:
+        case e.ModuleEntityTypeDef(typedef=typedef):
+            return show_tp(typedef)
+        case e.ModuleEntityFuncDef(funcdef=funcdef):
+            return "<func>"
+        case _:
+            raise ValueError('Unimplemented', me)
 
+def show_module(dbschema: e.DBModule) -> str:
+    return ("\n".join(name + " := " + show_me(me) for name, me in
+                      dbschema.defs.items()))
+
+def show_module_name(name: Tuple[str, ...]) -> str:
+    return "::".join(name)
 
 def show_schema(dbschema: e.DBSchema) -> str:
-    return ("\n".join(name + " := " + show_module(module) 
+    return ("\n".join(show_module_name(name) + " := " + show_module(module) 
                       for name, module in dbschema.modules.items())
-            + "\n".join(name + " := " + show_module(module)
+            + "\n".join(show_module_name(name) + " := " + show_module(module)
                         for name, module in dbschema.unchecked_modules.items()))
 
 

@@ -40,7 +40,7 @@ def empty_dbschema() -> DBSchema:
     return DBSchema({}, {})
 
 def default_dbschema() -> DBSchema:
-    return DBSchema({"std": DBModule({k: e.ModuleEntityFuncDef(v) for (k,v) in all_builtin_funcs.items()})},{})
+    return DBSchema({("std",): DBModule({k: e.ModuleEntityFuncDef(v) for (k,v) in all_builtin_funcs.items()})},{})
 
 
 
@@ -51,6 +51,9 @@ def run_statement(db: EdgeDatabaseInterface,
                   logs: Optional[List[Any]],
                   skip_type_checking: bool = False,
                   ) -> Tuple[MultiSetVal, e.ResultTp]:
+
+    dbschema_ctx = e.TcCtx(dbschema, ("default",), {})
+
     if should_print:
         print("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Starting")
         debug.dump_edgeql(stmt)
@@ -65,7 +68,7 @@ def run_statement(db: EdgeDatabaseInterface,
         debug.dump_edgeql(reverse_elab(elaborated))
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Preprocessing")
 
-    factored = select_hoist(elaborated, dbschema)
+    factored = select_hoist(elaborated, dbschema_ctx)
 
     if should_print:
         debug.print(show_expr(factored))
@@ -81,12 +84,12 @@ def run_statement(db: EdgeDatabaseInterface,
             debug.print(result)
             print(multi_set_val_to_json_like((result)))
             print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Done ")
-        return (result, ResultTp(VarTp("NOT AVAILABLE"), CardAny))
+        return (result, ResultTp(e.UncheckedNamedNominalLinkTp("NOT AVAILABLE", linkprop=e.ObjectTp({})), CardAny))
 
     elif should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Type Checking")
 
-    tp, type_checked = tc.synthesize_type(e.TcCtx(dbschema, {}), factored)
+    tp, type_checked = tc.synthesize_type(dbschema_ctx, factored)
 
     if should_print:
         debug.print(show_result_tp(tp))
@@ -243,7 +246,7 @@ def dbschema_and_db_with_initial_schema_and_queries(
     if sqlite_file_name is not None:
         dbschema, db = sqlite_adapter.schema_and_db_from_sqlite(initial_schema_defs, sqlite_file_name)
     else:
-        dbschema = add_module_from_sdl_defs(initial_schema_defs)
+        dbschema = add_module_from_sdl_defs(default_dbschema(), initial_schema_defs)
         db = empty_db(dbschema)
     run_str(db, dbschema, initial_queries,
                       print_asts=debug_print, logs=logs)
