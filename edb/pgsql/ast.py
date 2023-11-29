@@ -105,6 +105,7 @@ class BaseExpr(Base):
         for v in kwargs.values():
             if typeutils.is_container(v):
                 items = typing.cast(typing.Iterable, v)
+                # FIXME: Is this right???
                 nullable = all(getattr(vv, 'nullable', False) for vv in items)
 
             elif getattr(v, 'nullable', None):

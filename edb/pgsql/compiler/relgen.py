@@ -1801,72 +1801,28 @@ def process_set_as_coalesce(
             or ir_set.path_id.is_tuple_path()
         )
 
-        # The cardinality optimizations below apply to non-object
-        # expressions only, because we don't want to have to deal
-        # with the complexity of resolving coalesced sources for
-        # potential link or property references.
-        if right_card is qltypes.Cardinality.ONE and not is_object:
-            # Non-optional singleton RHS, simply use scalar COALESCE
-            # without any precautions.
+        # The cardinality optimization below applies only to
+        # non-object/non-tuple expressions, because we don't want to
+        # have to deal with the complexity of resolving coalesced
+        # sources for potential link or property references.
+        if right_card.is_single() and not is_object:
             left = dispatch.compile(left_ir, ctx=newctx)
-            right = dispatch.compile(right_ir, ctx=newctx)
-            set_expr = pgast.CoalesceExpr(args=[left, right])
-            pathctx.put_path_value_var(
-                ctx.rel,
-                ir_set.path_id,
-                set_expr,
+
+            # If the RHS is optional, we compile it in a subquery so that
+            # it becomes NULL instead of potentially joining in zero rows.
+            # If not, just compile it without any protection.
+            right = (
+                set_as_subquery(right_ir, ctx=newctx)
+                if right_card.can_be_zero()
+                else dispatch.compile(right_ir, ctx=newctx)
             )
 
-        elif right_card is qltypes.Cardinality.AT_MOST_ONE and not is_object:
-            # Optional singleton RHS, use scalar COALESCE, but
-            # be careful not to JOIN the RHS as-is and instead
-            # turn it into a value and make sure to filter out
-            # the potential NULL result if both sides turn out
-            # to be empty:
-            #     SELECT
-            #         q.v
-            #     FROM
-            #         (SELECT
-            #             COALESCE(<lhs>, (SELECT (<rhs>))) AS v
-            #         ) AS q
-            #     WHERE
-            #         q.v IS NOT NULL
-            with newctx.subrel() as subctx:
-                left = dispatch.compile(left_ir, ctx=subctx)
-
-                with subctx.subrel() as rightctx:
-                    dispatch.compile(right_ir, ctx=rightctx)
-                    pathctx.get_path_value_output(
-                        rightctx.rel,
-                        right_ir.path_id,
-                        env=rightctx.env,
-                    )
-                    right = rightctx.rel
-
-                set_expr = pgast.CoalesceExpr(args=[left, right])
-
-                pathctx.put_path_value_var_if_not_exists(
-                    subctx.rel, ir_set.path_id, set_expr
-                )
-
-                sub_rvar = relctx.rvar_for_rel(
-                    subctx.rel,
-                    lateral=True,
-                    ctx=subctx,
-                )
-
-                relctx.include_rvar(
-                    ctx.rel, sub_rvar, ir_set.path_id, ctx=subctx
-                )
-
-            rvar = pathctx.get_path_value_var(
-                ctx.rel, path_id=ir_set.path_id, env=ctx.env
+            # Just use scalar COALESCE now
+            set_expr = pgast.CoalesceExpr(
+                args=[left, right], nullable=right_card.can_be_zero()
             )
+            pathctx.put_path_value_var(ctx.rel, ir_set.path_id, set_expr)
 
-            ctx.rel.where_clause = astutils.extend_binop(
-                ctx.rel.where_clause,
-                pgast.NullTest(arg=rvar, negated=True),
-            )
         else:
             # Things become tricky in cases where the RHS is a non-singleton
             # or where we need to worry about source aspects.
