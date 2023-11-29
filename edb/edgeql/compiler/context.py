@@ -41,7 +41,6 @@ from edb.ir import utils as irutils
 from edb.ir import typeutils as irtyputils
 
 from edb.schema import expraliases as s_aliases
-from edb.schema import functions as s_func
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import pointers as s_pointers
@@ -418,9 +417,6 @@ class ContextLevel(compiler.ContextLevel):
     """A combined list of module name aliases declared in the WITH block,
     or passed to the compiler programmatically.
     """
-
-    func: Optional[s_func.Function]
-    """Schema function object required when compiling functions bodies."""
 
     view_nodes: Dict[s_name.Name, s_types.Type]
     """A dictionary of newly derived Node classes representing views."""
