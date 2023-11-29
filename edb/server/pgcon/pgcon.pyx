@@ -227,11 +227,13 @@ def _set_tcp_keepalive(transport):
 
 
 async def _create_ssl_connection(protocol_factory, host, port, *,
-                                 loop, ssl_context, ssl_is_advisory):
-    tr, pr = await loop.create_connection(
-        lambda: TLSUpgradeProto(loop, host, port,
-                                ssl_context, ssl_is_advisory),
-        host, port)
+                                 loop, ssl_context, ssl_is_advisory,
+                                 connect_timeout):
+    async with asyncio.timeout(connect_timeout):
+        tr, pr = await loop.create_connection(
+            lambda: TLSUpgradeProto(loop, host, port,
+                                    ssl_context, ssl_is_advisory),
+            host, port)
     _set_tcp_keepalive(tr)
 
     tr.write(struct.pack('!ll', 8, 80877103))  # SSLRequest message.
@@ -274,29 +276,31 @@ async def _connect(connargs, dbname, ssl):
     timeout = connargs.get('connect_timeout')
 
     try:
-        async with asyncio.timeout(timeout):
-            if host.startswith('/'):
-                addr = os.path.join(host, f'.s.PGSQL.{port}')
+        if host.startswith('/'):
+            addr = os.path.join(host, f'.s.PGSQL.{port}')
+            async with asyncio.timeout(timeout):
                 _, pgcon = await loop.create_unix_connection(
                     lambda: PGConnection(dbname, loop, connargs), addr)
 
+        else:
+            if ssl:
+                _, pgcon = await _create_ssl_connection(
+                    lambda: PGConnection(dbname, loop, connargs),
+                    host,
+                    port,
+                    loop=loop,
+                    ssl_context=ssl,
+                    ssl_is_advisory=(
+                        sslmode == pgconnparams.SSLMode.prefer
+                    ),
+                    connect_timeout=timeout,
+                )
             else:
-                if ssl:
-                    _, pgcon = await _create_ssl_connection(
-                        lambda: PGConnection(dbname, loop, connargs),
-                        host,
-                        port,
-                        loop=loop,
-                        ssl_context=ssl,
-                        ssl_is_advisory=(
-                            sslmode == pgconnparams.SSLMode.prefer
-                        ),
-                    )
-                else:
+                async with asyncio.timeout(timeout):
                     trans, pgcon = await loop.create_connection(
                         lambda: PGConnection(dbname, loop, connargs),
                         host=host, port=port)
-                    _set_tcp_keepalive(trans)
+                _set_tcp_keepalive(trans)
     except TimeoutError as ex:
         raise pgerror.new(
             pgerror.ERROR_CONNECTION_FAILURE,
