@@ -1824,84 +1824,73 @@ def process_set_as_coalesce(
             #
             # Note that <left> will be compiled with optional wrapping,
             # so it shouldn't ever produce zero rows.
-            #
-            # TODO: subctx maintained to avoid indentation churn in the PR.
-            # Remove once the changes here are finalized.
-            # (We can drop sub2ctx too, with a tiny bit more work.)
-            with newctx.new() as subctx:
-                lhs_rvar = get_set_rvar(left_ir, ctx=subctx)
-                lvar = pathctx.get_rvar_path_var(
-                    lhs_rvar, left_ir.path_id, aspect='value', env=ctx.env
+            lhs_rvar = get_set_rvar(left_ir, ctx=newctx)
+            lvar = pathctx.get_rvar_path_var(
+                lhs_rvar, left_ir.path_id, aspect='value', env=ctx.env
+            )
+            lval = output.output_as_value(lvar, env=ctx.env)
+
+            with newctx.subrel() as lctx:
+                larg = lctx.rel
+                pathctx.put_path_id_map(larg, ir_set.path_id, left_ir.path_id)
+
+                relctx.include_rvar(
+                    larg,
+                    lhs_rvar,
+                    path_id=left_ir.path_id,
+                    ctx=lctx,
+                    # Only include the aspects that got included
+                    # into our rel; it's possible some were explicitly
+                    # left out, and we should respect that.
+                    aspects=pathctx.list_path_aspects(
+                        newctx.rel, left_ir.path_id
+                    ),
                 )
-                lval = output.output_as_value(lvar, env=ctx.env)
 
-                with subctx.subrel() as sub2ctx:
+                # Include the LHS when it is not NULL.
+                larg.where_clause = astutils.extend_binop(
+                    larg.where_clause,
+                    pgast.NullTest(
+                        arg=lval, negated=True
+                    )
+                )
 
-                    with sub2ctx.subrel() as scopectx:
-                        larg = scopectx.rel
-                        pathctx.put_path_id_map(
-                            larg, ir_set.path_id, left_ir.path_id)
+            with newctx.subrel() as rctx:
+                rarg = rctx.rel
+                pathctx.put_path_id_map(rarg, ir_set.path_id, right_ir.path_id)
+                rvar = dispatch.compile(right_ir, ctx=rctx)
 
-                        relctx.include_rvar(
-                            larg,
-                            lhs_rvar,
-                            path_id=left_ir.path_id,
-                            ctx=scopectx,
-                            # Only include the aspects that got included
-                            # into our rel; it's possible some were explicitly
-                            # left out, and we should respect that.
-                            aspects=pathctx.list_path_aspects(
-                                subctx.rel, left_ir.path_id
-                            ),
-                        )
+                # Include the RHS when the LHS is NULL.
+                # Note that an important precondition of this is that
+                # there are not "stray" NULLs in the LHS input set.
+                #
+                # HACK: We need to use IS NOT DISTINCT FROM
+                # because ROW() IS NULL is true, and that
+                # breaks some things.
+                rarg.where_clause = astutils.extend_binop(
+                    rarg.where_clause,
+                    astutils.new_binop(
+                        lval, pgast.NullConstant(),
+                        'IS NOT DISTINCT FROM',
+                    ),
+                )
 
-                        # Include the LHS when it is not NULL.
-                        larg.where_clause = astutils.extend_binop(
-                            larg.where_clause,
-                            pgast.NullTest(
-                                arg=lval, negated=True
-                            )
-                        )
+                if rvar.nullable:
+                    rarg.where_clause = astutils.extend_binop(
+                        rarg.where_clause,
+                        pgast.NullTest(arg=rvar, negated=True)
+                    )
 
-                    with sub2ctx.subrel() as scopectx:
-                        rarg = scopectx.rel
-                        pathctx.put_path_id_map(
-                            rarg, ir_set.path_id, right_ir.path_id)
-                        rvar = dispatch.compile(right_ir, ctx=scopectx)
+            union_rvar = relctx.rvar_for_rel(
+                pgast.SelectStmt(op='UNION', all=True, larg=larg, rarg=rarg),
+                lateral=True,
+                ctx=newctx,
+            )
 
-                        # Include the RHS when the LHS is NULL.
-                        # Note that an important precondition of this is that
-                        # there are not "stray" NULLs in the LHS input set.
-                        #
-                        # HACK: We need to use IS NOT DISTINCT FROM
-                        # because ROW() IS NULL is true, and that
-                        # breaks some things.
-                        rarg.where_clause = astutils.extend_binop(
-                            rarg.where_clause,
-                            astutils.new_binop(
-                                lval, pgast.NullConstant(),
-                                'IS NOT DISTINCT FROM',
-                            ),
-                        )
-
-                        if rvar.nullable:
-                            rarg.where_clause = astutils.extend_binop(
-                                rarg.where_clause,
-                                pgast.NullTest(arg=rvar, negated=True)
-                            )
-
-                    unionqry = sub2ctx.rel
-                    unionqry.op = 'UNION'
-                    unionqry.all = True
-                    unionqry.larg = larg
-                    unionqry.rarg = rarg
-
-                union_rvar = relctx.rvar_for_rel(
-                    unionqry, lateral=True, ctx=subctx)
-
-            aspects = pathctx.list_path_aspects(
-                larg, left_ir.path_id
-            ) & pathctx.list_path_aspects(rarg, right_ir.path_id)
+            aspects = (
+                pathctx.list_path_aspects(larg, left_ir.path_id)
+                & pathctx.list_path_aspects(rarg, right_ir.path_id)
+            )
 
             # No pull_namespace because we don't want the coalesce arguments to
             # escape, just the final result.
