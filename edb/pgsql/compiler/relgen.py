@@ -1818,9 +1818,7 @@ def process_set_as_coalesce(
             )
 
             # Just use scalar COALESCE now
-            set_expr = pgast.CoalesceExpr(
-                args=[left, right], nullable=right_card.can_be_zero()
-            )
+            set_expr = pgast.CoalesceExpr(args=[left, right])
             pathctx.put_path_value_var(ctx.rel, ir_set.path_id, set_expr)
 
         else:
@@ -3399,6 +3397,7 @@ def process_set_as_agg_expr_inner(
                 if for_group_by:
                     arg_ref = set_as_subquery(
                         ir_arg, as_value=True, ctx=argctx)
+                    arg_ref.nullable = False
                 elif aspect == 'serialized':
                     dispatch.visit(ir_arg, ctx=argctx)
 
