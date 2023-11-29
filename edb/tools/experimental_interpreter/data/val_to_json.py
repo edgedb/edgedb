@@ -72,6 +72,7 @@ def typed_objectval_to_json_like(objv: ObjectVal,
                                 typed_multi_set_val_to_json_like(
                                     tp_vals[s], v[1], dbschema)
                         case e.NamedNominalLinkTp(name=name, linkprop=_):
+                            assert isinstance(name, e.QualifiedName)
                             subject = tops.dereference_var_tp(dbschema, name)
                             result[label_to_str(k)] = \
                                 typed_multi_set_val_to_json_like(

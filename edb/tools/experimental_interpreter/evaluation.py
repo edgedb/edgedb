@@ -214,11 +214,15 @@ def eval_expr(ctx: EvalEnv,
             id = db.insert(tname, {})
             argv = {k : eval_expr(ctx, db, v) for (k,v) in arg.items()}
             arg_object = ObjectVal({StrLabel(k): (e.Visible(), v) for (k,v) in argv.items()})
-            new_object = coerce_to_storage(
-                arg_object, tops.get_storage_tp(mops.resolve_type_name(db.get_schema(), tname)))
-            db.update(id, {k : v  for k, v in new_object.items() })
+            type_def = mops.resolve_type_name(db.get_schema(), tname)
+            if isinstance(type_def, e.ObjectTp):
+                new_object = coerce_to_storage(
+                    arg_object, tops.get_storage_tp(type_def))
+                db.update(id, {k : v  for k, v in new_object.items() })
+                return MultiSetVal([RefVal(id, ObjectVal({}))])
+            else:
+                raise ValueError("Cannot insert into scalar types")
             # inserts return empty dict
-            return MultiSetVal([RefVal(id, ObjectVal({}))])
         case FilterOrderExpr(subject=subject, filter=filter, order=order):
             selected = eval_expr(ctx, db, subject)
             # assume data unchaged throught the evaluation of conditions

@@ -8,8 +8,10 @@ def resolve_module_in_schema(schema: e.DBSchema, name: Tuple[str, ...]) -> e.DBM
     if name in schema.unchecked_modules:
         assert name not in schema.modules
         return schema.unchecked_modules[name]
-    else:
+    elif name in schema.modules:
         return schema.modules[name]
+    else:
+        raise ValueError(f"Module {name} not found")
 
 def try_resolve_module_entity(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> Optional[e.ModuleEntity]:
     """
@@ -30,7 +32,7 @@ def try_resolve_module_entity(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) 
     else:
         return None
 
-def try_resolve_type_name(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> Optional[e.ObjectTp]:
+def try_resolve_type_name(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> Optional[e.ObjectTp | e.ScalarTp]:
     me = try_resolve_module_entity(ctx, name)
     if me is not None:
         if isinstance(me, e.ModuleEntityTypeDef):
@@ -40,7 +42,7 @@ def try_resolve_type_name(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> O
     else:
         return None
 
-def resolve_type_name(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> e.ObjectTp:
+def resolve_type_name(ctx: e.TcCtx | e.DBSchema, name: e.QualifiedName) -> e.ObjectTp | e.ScalarTp:
     resolved = try_resolve_type_name(ctx, name)
     if resolved is None:
         raise ValueError(f"Type {name} not found")
@@ -83,7 +85,7 @@ def resolve_simple_name(ctx: e.TcCtx, unq_name: e.UnqualifiedName) -> e.Qualifie
     else:
         raise ValueError(f"Name {name} not found")
 
-def resolve_raw_name_and_type_def(ctx: e.TcCtx, name: e.QualifiedName | e.UnqualifiedName) -> Tuple[e.QualifiedName, e.ObjectTp]:
+def resolve_raw_name_and_type_def(ctx: e.TcCtx, name: e.QualifiedName | e.UnqualifiedName) -> Tuple[e.QualifiedName, e.ObjectTp | e.ScalarTp]:
     if isinstance(name, e.UnqualifiedName):
         name = resolve_simple_name(ctx, name)
     return (name, resolve_type_name(ctx, name))
@@ -95,14 +97,14 @@ def resolve_raw_name_and_func_def(ctx: e.TcCtx, name: e.QualifiedName | e.Unqual
 
 
 
-def enumerate_all_type_defs(ctx: e.TcCtx) -> List[Tuple[e.QualifiedName, e.ObjectTp]]:
+def enumerate_all_object_type_defs(ctx: e.TcCtx) -> List[Tuple[e.QualifiedName, e.ObjectTp]]:
     """
     Enumerate all type definitions in the current module and the default `std` module.
     """
     result: List[Tuple[e.QualifiedName, e.ObjectTp]] = []
     for (module_name, module_def) in [*ctx.schema.modules.items(), *ctx.schema.unchecked_modules.items()]:
         for (tp_name, me) in module_def.defs.items():
-            if isinstance(me, e.ModuleEntityTypeDef):
+            if isinstance(me, e.ModuleEntityTypeDef) and isinstance(me.typedef, e.ObjectTp):
                 result.append((e.QualifiedName([*module_name, tp_name]), me.typedef))
 
         

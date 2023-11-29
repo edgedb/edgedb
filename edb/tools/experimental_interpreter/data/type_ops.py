@@ -48,7 +48,9 @@ def object_tp_is_essentially_optional(tp: e.ObjectTp) -> bool:
 
 
 def dereference_var_tp(dbschema: e.DBSchema, qn: e.QualifiedName) -> e.ObjectTp:
-    return mops.resolve_type_name(dbschema, qn)
+    resolved = mops.resolve_type_name(dbschema, qn)
+    assert isinstance(resolved, e.ObjectTp)
+    return resolved
     # if tp.name in dbschema.val:
     #     res = get_runtime_tp(dbschema.val[tp.name])
     #     assert isinstance(res, e.ObjectTp)
@@ -115,12 +117,14 @@ def type_equality_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
                     return recurse(ctx, lp_1, lp_2)
             case (_, e.NamedNominalLinkTp(name=e.QualifiedName(n_2), linkprop=lp_2)):
                 resolved_type_def = mops.resolve_type_name(ctx, e.QualifiedName(n_2))
+                assert isinstance(resolved_type_def, e.ObjectTp)
                 return recurse(ctx, tp1, 
                     e.NominalLinkTp(subject=resolved_type_def,
                                     name=e.QualifiedName(n_2),
                                     linkprop=lp_2))
             case (e.NamedNominalLinkTp(name=e.QualifiedName(n_1), linkprop=lp_1), _):
                 resolved_type_def = mops.resolve_type_name(ctx, e.QualifiedName(n_1))
+                assert isinstance(resolved_type_def, e.ObjectTp)
                 return recurse(ctx, 
                     e.NominalLinkTp(subject=resolved_type_def,
                                     name=e.QualifiedName(n_1),
@@ -325,6 +329,7 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
                                       e.StrLabel(lbl))
                 case e.NamedNominalLinkTp(name=name, linkprop=_):
                     _, tp_def = mops.resolve_raw_name_and_type_def(ctx, name)
+                    assert isinstance(tp_def, e.ObjectTp)
                     return tp_project(
                         ctx, 
                         e.ResultTp(tp_def, tp.mode),

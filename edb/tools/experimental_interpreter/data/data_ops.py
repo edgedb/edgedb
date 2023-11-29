@@ -35,6 +35,10 @@ class ObjectTp:
     """ Object Type encapsulating val: Dict[str, ResultTp] """
     val: Dict[str, ResultTp]
 
+@dataclass(frozen=True)
+class ScalarTp:
+    kind: str
+
 
 @dataclass(frozen=True)
 class StrTp:
@@ -70,7 +74,7 @@ class UuidTp:
     pass
 
 
-PrimTp = StrTp | IntTp | IntInfTp | BoolTp | DateTimeTp | JsonTp | UuidTp
+PrimTp = StrTp | IntTp | IntInfTp | BoolTp | DateTimeTp | JsonTp | UuidTp | ScalarTp
 
 
 # @dataclass(frozen=True)
@@ -674,13 +678,18 @@ FuncDef = BuiltinFuncDef
 
 @dataclass(frozen=True)
 class ModuleEntityTypeDef:
-    typedef: ObjectTp
+    typedef: ObjectTp | ScalarTp
+    isabstract: bool
+
+@dataclass(frozen=True)
+class ModuleEntityScalarTypeDef:
+    isabstract: bool
 
 @dataclass(frozen=True)
 class ModuleEntityFuncDef:
     funcdef: FuncDef
 
-ModuleEntity = ModuleEntityTypeDef | ModuleEntityFuncDef
+ModuleEntity = ModuleEntityTypeDef | ModuleEntityFuncDef | ModuleEntityScalarTypeDef
 
 @dataclass(frozen=True)
 class DBModule:

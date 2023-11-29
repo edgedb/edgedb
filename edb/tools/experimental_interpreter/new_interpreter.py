@@ -3,6 +3,7 @@
 import json
 import sys
 import traceback
+import os
 from typing import *
 from typing import Tuple
 
@@ -40,7 +41,16 @@ def empty_dbschema() -> DBSchema:
     return DBSchema({}, {})
 
 def default_dbschema() -> DBSchema:
-    return DBSchema({("std",): DBModule({k: e.ModuleEntityFuncDef(v) for (k,v) in all_builtin_funcs.items()})},{})
+    initial_db = empty_dbschema()
+    relative_path_to_std = os.path.join("..", "..", "lib", "std")
+    std_path = os.path.join(os.path.dirname(__file__), relative_path_to_std)
+    print("Loading standard library at", std_path)
+    return add_ddl_library(
+        initial_db,
+        [std_path]
+    )
+
+    # return DBSchema({("std",): DBModule({k: e.ModuleEntityFuncDef(v) for (k,v) in all_builtin_funcs.items()})},{})
 
 
 
@@ -193,11 +203,9 @@ def repl(*, init_sdl_file=None,
     db: EdgeDatabaseInterface
     logs: List[Any] = []  # type: ignore[var]
 
+    dbschema = default_dbschema()
     if library_ddl_files:
-        dbschema = empty_dbschema()
         dbschema = add_ddl_library(dbschema, library_ddl_files)
-    else:
-        dbschema = default_dbschema()
 
 
 
@@ -212,7 +220,7 @@ def repl(*, init_sdl_file=None,
         if init_sdl_file is not None:
             dbschema = add_module_from_sdl_file(dbschema, init_sdl_file_path=init_sdl_file)
         else:
-            dbschema = empty_dbschema()
+            dbschema = dbschema
         db = empty_db(dbschema)
 
     if init_ql_file is not None:

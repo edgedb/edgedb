@@ -36,6 +36,7 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
     # populate result skeleton
     match tp:
         case e.NominalLinkTp(name=name, subject=subject_tp, linkprop=linkprop_tp):
+            assert isinstance(name, e.QualifiedName), "should have been resolved"
             l_tp = linkprop_tp
             s_name = name
             if isinstance(subject_tp, e.ObjectTp):
@@ -45,6 +46,7 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
             else:
                 raise ValueError("NI", subject_tp)
         case e.NamedNominalLinkTp(name=name, linkprop=linkprop_tp):
+            assert isinstance(name, e.QualifiedName), "should have been resolved"
             l_tp = linkprop_tp
             s_name = name
             s_tp = tops.dereference_var_tp(ctx.schema, name)
@@ -171,6 +173,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     module_entity = mops.try_resolve_module_entity(ctx, possible_resolved_name)
                     match module_entity:
                         case e.ModuleEntityTypeDef(typedef=typedef):
+                            assert isinstance(typedef, e.ObjectTp), "Cannot select Scalar type"
                             result_tp = e.NominalLinkTp(subject=typedef,
                                                         name=possible_resolved_name, 
                                                         linkprop=e.ObjectTp({}))
@@ -250,7 +253,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.BackLinkExpr(subject=subject, label=label):
             (_, subject_ck) = synthesize_type(ctx, subject)
             candidates: List[e.NamedNominalLinkTp] = []
-            for (name, name_def) in mops.enumerate_all_type_defs(ctx):
+            for (name, name_def) in mops.enumerate_all_object_type_defs(ctx):
                 for (name_label, comp_tp) in name_def.val.items():
                     if name_label == label:
                         match comp_tp.tp:
@@ -634,6 +637,7 @@ def check_module_validity(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -
     for t_name, t_me in dbmodule.defs.items():
         match t_me:
             case e.ModuleEntityTypeDef(typedef=typedef):
+                assert isinstance(typedef, e.ObjectTp), "Scalar type definitions not supported"
                 result_vals = {
                     **result_vals, 
                     t_name: e.ModuleEntityTypeDef(typedef=

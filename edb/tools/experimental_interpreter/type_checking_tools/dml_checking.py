@@ -113,6 +113,7 @@ def insert_checking(ctx: e.TcCtx, expr: e.InsertExpr) -> e.Expr:
     from .typechecking import synthesize_type, check_type
 
     insert_tp_name, schema_tp = mops.resolve_raw_name_and_type_def(ctx, expr.name) 
+    assert isinstance(schema_tp, e.ObjectTp), "Cannot insert into Scalar Types"
     new_v: Dict[str, e.Expr] = {}
     for (k, v) in expr.new.items():
         if k not in schema_tp.val:
@@ -220,7 +221,8 @@ def update_checking(ctx: e.TcCtx, update_shape: e.ShapeExpr, subject_tp: e.Tp) -
     from . import typechecking as tc
     assert isinstance(subject_tp, e.NamedNominalLinkTp) or isinstance(subject_tp, e.NominalLinkTp), "Expecting link type"
     tp_name = subject_tp.name
-    full_tp = mops.resolve_type_name(ctx, tp_name)
+    tp_name_ck, full_tp = mops.resolve_raw_name_and_type_def(ctx, tp_name)
+    assert isinstance(full_tp, e.ObjectTp), "Cannot update scalar types"
     assert all(isinstance(k, e.StrLabel) for k in update_shape.shape.keys()), "Expecting string labels"
     cut_tp = {k : v for (k,v) in full_tp.val.items() 
               if e.StrLabel(k) in update_shape.shape.keys()}
