@@ -26,6 +26,7 @@ import os
 import pathlib
 import pickle
 import shutil
+import socket
 import ssl
 import stat
 import sys
@@ -38,6 +39,7 @@ import urllib.parse
 import click
 from click.testing import CliRunner
 
+from edb.pgsql import params as pg_params
 from edb.server import args as edb_args
 from edb.server import bootstrap
 from edb.server import pgcluster
@@ -408,14 +410,17 @@ class TestConnectParams(tb.TestCase):
                 'PGDATABASE': 'testdb',
                 'PGPASSWORD': 'passw',
                 'PGHOST': 'host',
-                'PGPORT': '123'
+                'PGPORT': '123',
+                'PGCONNECT_TIMEOUT': '8',
             },
             'result': ([('host', 123)], {
                 'user': 'user',
                 'password': 'passw',
                 'database': 'testdb',
                 'ssl': True,
-                'sslmode': SSLMode.prefer})
+                'sslmode': SSLMode.prefer,
+                'connect_timeout': 8,
+            })
         },
 
         {
@@ -425,15 +430,18 @@ class TestConnectParams(tb.TestCase):
                 'PGDATABASE': 'testdb',
                 'PGPASSWORD': 'passw',
                 'PGHOST': 'host',
-                'PGPORT': '123'
+                'PGPORT': '123',
+                'PGCONNECT_TIMEOUT': '8',
             },
 
-            'dsn': 'postgres://user2:passw2@host2:456/db2',
+            'dsn': 'postgres://user2:passw2@host2:456/db2?connect_timeout=6',
 
             'result': ([('host2', 456)], {
                 'user': 'user2',
                 'password': 'passw2',
-                'database': 'db2'})
+                'database': 'db2',
+                'connect_timeout': 6,
+            })
         },
 
         {
@@ -747,6 +755,29 @@ class TestConnectParams(tb.TestCase):
                 }
             )
         },
+        *[
+            {
+                'name': f'connect_timeout_{given}',
+                'dsn': f'postgres://spam@127.0.0.1:5432/postgres?'
+                       f'connect_timeout={given}',
+                'result': (
+                    [('127.0.0.1', 5432)],
+                    {
+                        'user': 'spam',
+                        'database': 'postgres',
+                        'connect_timeout': expected,
+                    }
+                )
+            }
+            for given, expected in [
+                ('-8', None),
+                ('-1', None),
+                ('0', None),
+                ('1', 2),
+                ('2', 2),
+                ('3', 3),
+            ]
+        ],
     ]
 
     @contextlib.contextmanager
@@ -1102,6 +1133,56 @@ class TestConnectParams(tb.TestCase):
                     })
                 finally:
                     os.chmod(passdir, stat.S_IRWXU)
+
+    async def test_connection_connect_timeout(self):
+        server = socket.socket()
+        gc = []
+        try:
+            server.bind(('localhost', 0))
+            server.listen(0)
+            host, port = server.getsockname()
+            conn_spec = {
+                'host': host,
+                'port': port,
+                'user': 'foo',
+                'server_settings': {},
+                'connect_timeout': 2,
+            }
+
+            async def placeholder():
+                async with asyncio.timeout(2):
+                    _, w = await asyncio.open_connection(host, port)
+                gc.append(w)
+
+            # Fill up the TCP server backlog so that our future pgcon.connect
+            # could time out reliably
+            i = 0
+            while i < 8:
+                i += 1
+                try:
+                    async with asyncio.TaskGroup() as tg:
+                        for _ in range(4):
+                            tg.create_task(placeholder())
+                except* TimeoutError:
+                    i = 10
+            if i < 10:
+                self.fail("Couldn't fill TCP server backlog within 32 tries")
+
+            with self.assertRaises(errors.BackendConnectionError):
+                async with asyncio.timeout(4):  # failsafe
+                    await pgcon.connect(
+                        conn_spec,
+                        'foo',
+                        pg_params.get_default_runtime_params(),
+                    )
+
+        finally:
+            server.close()
+            for writer in gc:
+                writer.close()
+            await asyncio.wait(
+                [asyncio.create_task(w.wait_closed()) for w in gc]
+            )
 
 
 class TestConnection(ClusterTestCase):
