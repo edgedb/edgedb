@@ -271,27 +271,37 @@ async def _connect(connargs, dbname, ssl):
     host = connargs.get("host")
     port = connargs.get("port")
     sslmode = connargs.get('sslmode', pgconnparams.SSLMode.prefer)
+    timeout = connargs.get('connect_timeout')
 
-    if host.startswith('/'):
-        addr = os.path.join(host, f'.s.PGSQL.{port}')
-        _, pgcon = await loop.create_unix_connection(
-            lambda: PGConnection(dbname, loop, connargs), addr)
+    try:
+        async with asyncio.timeout(timeout):
+            if host.startswith('/'):
+                addr = os.path.join(host, f'.s.PGSQL.{port}')
+                _, pgcon = await loop.create_unix_connection(
+                    lambda: PGConnection(dbname, loop, connargs), addr)
 
-    else:
-        if ssl:
-            _, pgcon = await _create_ssl_connection(
-                lambda: PGConnection(dbname, loop, connargs),
-                host,
-                port,
-                loop=loop,
-                ssl_context=ssl,
-                ssl_is_advisory=(sslmode == pgconnparams.SSLMode.prefer),
-            )
-        else:
-            trans, pgcon = await loop.create_connection(
-                lambda: PGConnection(dbname, loop, connargs),
-                host=host, port=port)
-            _set_tcp_keepalive(trans)
+            else:
+                if ssl:
+                    _, pgcon = await _create_ssl_connection(
+                        lambda: PGConnection(dbname, loop, connargs),
+                        host,
+                        port,
+                        loop=loop,
+                        ssl_context=ssl,
+                        ssl_is_advisory=(
+                            sslmode == pgconnparams.SSLMode.prefer
+                        ),
+                    )
+                else:
+                    trans, pgcon = await loop.create_connection(
+                        lambda: PGConnection(dbname, loop, connargs),
+                        host=host, port=port)
+                    _set_tcp_keepalive(trans)
+    except TimeoutError as ex:
+        raise pgerror.new(
+            pgerror.ERROR_CONNECTION_FAILURE,
+            "timed out connecting to backend",
+        ) from ex
 
     try:
         await pgcon.connect()
