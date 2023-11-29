@@ -482,9 +482,9 @@ def parse_dsn(
                 passfile=passfile_path)
 
     if connect_timeout is None:
-        val = os.getenv('PGCONNECT_TIMEOUT')
-        if val:
-            connect_timeout = int(val)
+        env_val = os.getenv('PGCONNECT_TIMEOUT')
+        if env_val:
+            connect_timeout = int(env_val)
 
     if connect_timeout is not None:
         # Match the same behavior of libpq

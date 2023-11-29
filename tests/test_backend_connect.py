@@ -770,12 +770,12 @@ class TestConnectParams(tb.TestCase):
                 )
             }
             for given, expected in [
-                ['-8', None],
-                ['-1', None],
-                ['0', None],
-                ['1', 2],
-                ['2', 2],
-                ['3', 3],
+                ('-8', None),
+                ('-1', None),
+                ('0', None),
+                ('1', 2),
+                ('2', 2),
+                ('3', 3),
             ]
         ],
     ]
