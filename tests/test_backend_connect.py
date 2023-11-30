@@ -25,6 +25,7 @@ import ipaddress
 import os
 import pathlib
 import pickle
+import platform
 import shutil
 import socket
 import ssl
@@ -1139,7 +1140,9 @@ class TestConnectParams(tb.TestCase):
         gc = []
         try:
             server.bind(('localhost', 0))
-            server.listen(0)
+            if platform.system() != "Darwin":
+                # The backlog on macOS is different from Linux
+                server.listen(0)
             host, port = server.getsockname()
             conn_spec = {
                 'host': host,
@@ -1178,11 +1181,12 @@ class TestConnectParams(tb.TestCase):
 
         finally:
             server.close()
-            for writer in gc:
-                writer.close()
-            await asyncio.wait(
-                [asyncio.create_task(w.wait_closed()) for w in gc]
-            )
+            if gc:
+                for writer in gc:
+                    writer.close()
+                await asyncio.wait(
+                    [asyncio.create_task(w.wait_closed()) for w in gc]
+                )
 
 
 class TestConnection(ClusterTestCase):
