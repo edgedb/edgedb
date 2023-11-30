@@ -126,7 +126,10 @@ To configure via query or script:
 
     CONFIGURE CURRENT DATABASE SET
     ext::auth::AuthConfig::allowed_redirect_urls := {
-        'https://example.com'
+        'https://example.com',
+        'https://example.com/auth',
+        'https://localhost:3000',
+        'https://localhost:3000/auth'
     };
 
 
