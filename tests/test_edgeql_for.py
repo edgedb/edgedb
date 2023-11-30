@@ -1106,3 +1106,22 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ''',
             [{"key": "Earth"}, {"key": "Water"}]
         )
+
+    async def test_edgeql_for_tuple_optional_01(self):
+        await self.assert_query_result(
+            r'''
+                for user in User union (
+                  ((select (1,) filter false) ?? (2,)).0
+                );
+            ''',
+            [2, 2, 2, 2],
+        )
+
+        await self.assert_query_result(
+            r'''
+                for user in User union (
+                  ((select (1,) filter user.name = 'Alice') ?? (2,)).0
+                );
+            ''',
+            tb.bag([1, 2, 2, 2]),
+        )

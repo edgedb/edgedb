@@ -818,7 +818,7 @@ def update_scope(
     # with some DML linkprop cases (probably easy to fix) and a number
     # of materialization cases (possibly hard to fix), so I'm going
     # with a more conservative approach.
-    if scope_tree.optional:
+    if scope_tree.is_optional(ir_set.path_id):
         # Since compilation is done, anything visible to us *will* be
         # up on the spine. Anything tucked away under a node must have
         # been pulled up.
