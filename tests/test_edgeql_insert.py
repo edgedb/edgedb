@@ -6462,3 +6462,46 @@ class TestInsert(tb.QueryTestCase):
             ],
             variables=([0, 1, 2, 3],)
         )
+
+    async def test_edgeql_insert_coalesce_05(self):
+        await self.con.execute('''
+            insert Subordinate { name := "foo" };
+        ''')
+
+        Q = '''
+        for sub in Subordinate union (
+          (select Note filter .subject = sub) ??
+          (insert Note { name := "", subject := sub })
+        );
+        '''
+
+        await self.assert_query_result(
+            Q,
+            [{}],
+        )
+        await self.assert_query_result(
+            Q,
+            [{}],
+        )
+        await self.assert_query_result(
+            'select count(Note)',
+            [1],
+        )
+
+        await self.con.execute('''
+            insert Subordinate { name := "bar" };
+            insert Subordinate { name := "baz" };
+        ''')
+
+        await self.assert_query_result(
+            Q,
+            [{}] * 3,
+        )
+        await self.assert_query_result(
+            Q,
+            [{}] * 3,
+        )
+        await self.assert_query_result(
+            'select count(Note)',
+            [3],
+        )
