@@ -725,7 +725,7 @@ def finalize_optional_rel(
 
         if lvar.nullable:
             # The left var is still nullable, which may be the
-            # case for non-required singleton scalar links.
+            # case for non-required singleton properties.
             # Filter out NULLs.
             setrel.where_clause = astutils.extend_binop(
                 setrel.where_clause,
@@ -1808,121 +1808,100 @@ def process_set_as_coalesce(
             pathctx.put_path_value_var(ctx.rel, ir_set.path_id, set_expr)
 
         else:
-            # Things become tricky in cases where the RHS is a non-singleton.
+            # Things become tricky in cases where the RHS is a non-singleton
+            # or where we need to worry about source aspects.
             # We cannot use the regular scalar COALESCE over a JOIN,
-            # as that'll blow up the result cardinality. Instead, we
-            # compute a UNION of both sides and annotate each side with
-            # a marker.  We then select only rows that match the marker
-            # of the first row:
+            # as that'll blow up the result cardinality. Instead, we do
+            # something like:
             #
-            #     SELECT
-            #         q.*
-            #     FROM
-            #         (SELECT
-            #             marker = first_value(marker) OVER () AS marker,
-            #             ...
-            #          FROM
-            #             (SELECT 1 AS marker, * FROM left
-            #              UNION ALL
-            #              SELECT 2 AS marker, * FROM right) AS u
-            #         ) AS q
-            #     WHERE marker
-            with newctx.subrel() as subctx:
-                subqry = subctx.rel
+            #     CROSS JOIN LATERAL
+            #       (<left>) as lhs
+            #     CROSS JOIN LATERAL (
+            #       SELECT * FROM lhs WHERE lhs.value IS NOT NULL
+            #       UNION ALL
+            #       SELECT * FROM <right> as rhs WHERE lhs.value IS NULL
+            #     ) as q
+            #
+            # Note that <left> will be compiled with optional wrapping,
+            # so it shouldn't ever produce zero rows.
+            lhs_rvar = get_set_rvar(left_ir, ctx=newctx)
+            lvar = pathctx.get_rvar_path_var(
+                lhs_rvar, left_ir.path_id, aspect='value', env=ctx.env
+            )
+            lval = output.output_as_value(lvar, env=ctx.env)
 
-                with subctx.subrel() as sub2ctx:
-
-                    with sub2ctx.subrel() as scopectx:
-                        larg = scopectx.rel
-                        pathctx.put_path_id_map(
-                            larg, ir_set.path_id, left_ir.path_id)
-                        lvar = dispatch.compile(left_ir, ctx=scopectx)
-
-                        if lvar.nullable:
-                            # The left var is still nullable, which may be the
-                            # case for non-required singleton scalar links.
-                            # Filter out NULLs.
-                            larg.where_clause = astutils.extend_binop(
-                                larg.where_clause,
-                                pgast.NullTest(
-                                    arg=lvar, negated=True
-                                )
-                            )
-
-                    with sub2ctx.subrel() as scopectx:
-                        rarg = scopectx.rel
-                        pathctx.put_path_id_map(
-                            rarg, ir_set.path_id, right_ir.path_id)
-                        rvar = dispatch.compile(right_ir, ctx=scopectx)
-
-                        if rvar.nullable:
-                            rarg.where_clause = astutils.extend_binop(
-                                rarg.where_clause,
-                                pgast.NullTest(arg=rvar, negated=True)
-                            )
-
-                    marker = sub2ctx.env.aliases.get('m')
-
-                    larg.target_list.insert(
-                        0,
-                        pgast.ResTarget(val=pgast.NumericConstant(val='1'),
-                                        name=marker))
-                    rarg.target_list.insert(
-                        0,
-                        pgast.ResTarget(val=pgast.NumericConstant(val='2'),
-                                        name=marker))
-
-                    unionqry = sub2ctx.rel
-                    unionqry.op = 'UNION'
-                    unionqry.all = True
-                    unionqry.larg = larg
-                    unionqry.rarg = rarg
-
-                union_rvar = relctx.rvar_for_rel(
-                    unionqry, lateral=True, ctx=subctx)
+            with newctx.subrel() as lctx:
+                larg = lctx.rel
+                pathctx.put_path_id_map(larg, ir_set.path_id, left_ir.path_id)
 
                 relctx.include_rvar(
-                    subqry, union_rvar, path_id=ir_set.path_id, ctx=subctx)
-
-                lagged_marker = pgast.FuncCall(
-                    name=('first_value',),
-                    args=[pgast.ColumnRef(name=[marker])],
-                    over=pgast.WindowDef()
+                    larg,
+                    lhs_rvar,
+                    path_id=left_ir.path_id,
+                    ctx=lctx,
+                    # Only include the aspects that got included
+                    # into our rel; it's possible some were explicitly
+                    # left out, and we should respect that.
+                    aspects=pathctx.list_path_aspects(
+                        newctx.rel, left_ir.path_id
+                    ),
                 )
 
-                marker_ok = astutils.new_binop(
-                    pgast.ColumnRef(name=[marker]),
-                    lagged_marker,
-                    op='=',
-                )
-
-                subqry.target_list.append(
-                    pgast.ResTarget(
-                        name=marker,
-                        val=marker_ok
+                # Include the LHS when it is not NULL.
+                larg.where_clause = astutils.extend_binop(
+                    larg.where_clause,
+                    pgast.NullTest(
+                        arg=lval, negated=True
                     )
                 )
 
-            aspects = pathctx.list_path_aspects(
-                larg, left_ir.path_id
-            ) & pathctx.list_path_aspects(rarg, right_ir.path_id)
+            with newctx.subrel() as rctx:
+                rarg = rctx.rel
+                pathctx.put_path_id_map(rarg, ir_set.path_id, right_ir.path_id)
+                rvar = dispatch.compile(right_ir, ctx=rctx)
 
-            subrvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=newctx)
+                # Include the RHS when the LHS is NULL.
+                # Note that an important precondition of this is that
+                # there are not "stray" NULLs in the LHS input set.
+                #
+                # HACK: We need to use IS NOT DISTINCT FROM
+                # because ROW() IS NULL is true, and that
+                # breaks some things.
+                rarg.where_clause = astutils.extend_binop(
+                    rarg.where_clause,
+                    astutils.new_binop(
+                        lval, pgast.NullConstant(),
+                        'IS NOT DISTINCT FROM',
+                    ),
+                )
+
+                if rvar.nullable:
+                    rarg.where_clause = astutils.extend_binop(
+                        rarg.where_clause,
+                        pgast.NullTest(arg=rvar, negated=True)
+                    )
+
+            union_rvar = relctx.rvar_for_rel(
+                pgast.SelectStmt(op='UNION', all=True, larg=larg, rarg=rarg),
+                lateral=True,
+                ctx=newctx,
+            )
+
+            aspects = (
+                pathctx.list_path_aspects(larg, left_ir.path_id)
+                & pathctx.list_path_aspects(rarg, right_ir.path_id)
+            )
 
             # No pull_namespace because we don't want the coalesce arguments to
             # escape, just the final result.
             relctx.include_rvar(
                 ctx.rel,
-                subrvar,
+                union_rvar,
                 path_id=ir_set.path_id,
                 aspects=aspects,
                 pull_namespace=False,
                 ctx=newctx,
             )
-
-            ctx.rel.where_clause = astutils.extend_binop(
-                ctx.rel.where_clause,
-                astutils.get_column(subrvar, marker, nullable=False))
 
     return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
 
