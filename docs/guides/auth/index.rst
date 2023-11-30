@@ -167,6 +167,10 @@ To enable via query or script:
         require_verification := false,
     };
 
+.. note::
+
+    ``require_verification`` defaults to ``true``.
+
 If you use the Email and Password provider, in addition to the
 ``require_verification`` configuration, you’ll need to configure SMTP to allow
 EdgeDB to send email verification and password reset emails on your behalf.
