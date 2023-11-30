@@ -78,7 +78,7 @@ To configure via query or script:
 .. code-block:: edgeql
 
     CONFIGURE CURRENT DATABASE SET
-    ext::auth::AuthConfig::token_time_to_live := 1209600;
+    ext::auth::AuthConfig::token_time_to_live := <duration>"336 hours";
 
 allowed_redirect_urls
 ---------------------
