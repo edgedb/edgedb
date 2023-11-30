@@ -184,12 +184,6 @@ great for testing in development:
     ext::auth::SMTPConfig::port := <int32>1025;
 
     CONFIGURE CURRENT DATABASE SET
-    ext::auth::SMTPConfig::username := 'smtpuser';
-
-    CONFIGURE CURRENT DATABASE SET
-    ext::auth::SMTPConfig::password := 'smtppassword';
-
-    CONFIGURE CURRENT DATABASE SET
     ext::auth::SMTPConfig::security := 'STARTTLSOrPlainText';
 
     CONFIGURE CURRENT DATABASE SET
