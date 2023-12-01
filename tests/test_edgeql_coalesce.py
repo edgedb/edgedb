@@ -1890,3 +1890,19 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ''',
             [True],
         )
+
+    async def test_edgeql_optional_array_cast_01(self):
+        await self.assert_query_result(
+            '''
+            select <array<str>>to_json('null') ?? [];
+            ''',
+            [[]],
+        )
+
+    async def test_edgeql_optional_array_cast_02(self):
+        await self.assert_query_result(
+            '''
+            select {<array<str>>to_json('null')} ?? [];
+            ''',
+            [[]],
+        )
