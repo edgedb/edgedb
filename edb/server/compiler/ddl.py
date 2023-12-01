@@ -255,6 +255,12 @@ def compile_and_apply_ddl_stmt(
         create_db = stmt.name.name
         create_db_template = stmt.template.name if stmt.template else None
 
+    if debug.flags.delta_execute_ddl:
+        debug.header('Delta Script (DDL Only)')
+        # The schema updates are always the last statement, so grab
+        # everything but
+        code = '\n\n'.join(block.get_statements()[:-1])
+        debug.dump_code(code, lexer='sql')
     if debug.flags.delta_execute:
         debug.header('Delta Script')
         debug.dump_code(b'\n'.join(sql), lexer='sql')
