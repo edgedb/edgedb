@@ -36,6 +36,7 @@ from edb.schema import sources as s_sources
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import utils as qlutils
 
 
 NamedObject_T = TypeVar("NamedObject_T", bound="NamedObject")
@@ -965,7 +966,7 @@ def trace_TypeOf(node: qlast.TypeOf, *, ctx: TracerContext) -> None:
 
 @trace.register
 def trace_TypeName(node: qlast.TypeName, *, ctx: TracerContext) -> None:
-    if node.subtypes:
+    if node.subtypes and qlutils.is_enum(node):
         for st in node.subtypes:
             trace(st, ctx=ctx)
     elif isinstance(node.maintype, qlast.ObjectRef):
