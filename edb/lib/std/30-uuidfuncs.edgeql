@@ -134,3 +134,11 @@ CREATE CAST FROM std::uuid TO std::str {
     SET volatility := 'Immutable';
     USING SQL CAST;
 };
+
+
+## Bytes casts.
+
+CREATE CAST FROM std::uuid TO std::bytes {
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'uuid_send';
+};

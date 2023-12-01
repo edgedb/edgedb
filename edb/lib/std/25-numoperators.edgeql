@@ -2680,3 +2680,23 @@ CREATE CAST FROM std::decimal TO std::str {
     SET volatility := 'Immutable';
     USING SQL CAST;
 };
+
+
+## Bytes casts.
+
+CREATE CAST FROM std::int16 TO std::bytes {
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'int2send';
+};
+
+
+CREATE CAST FROM std::int32 TO std::bytes {
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'int4send';
+};
+
+
+CREATE CAST FROM std::int64 TO std::bytes {
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'int8send';
+};
