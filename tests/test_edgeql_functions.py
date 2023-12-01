@@ -3116,6 +3116,57 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 ''',
             )
 
+    async def test_edgeql_functions_int16_bytes_conversion(self):
+        number = 1
+
+        await self.assert_query_result(
+            r'''
+            WITH
+                input := <bytes><int16>$input,
+                binary := to_bytes(input),
+            SELECT
+                binary = input;
+            ''',
+            {True},
+            variables={
+                "input": number,
+            },
+        )
+
+    async def test_edgeql_functions_int32_bytes_conversion(self):
+        number = 32768
+
+        await self.assert_query_result(
+            r'''
+            WITH
+                input := <bytes><int32>$input,
+                binary := to_bytes(input),
+            SELECT
+                binary = input;
+            ''',
+            {True},
+            variables={
+                "input": number,
+            },
+        )
+
+    async def test_edgeql_functions_int64_bytes_conversion(self):
+        number = 2147483648
+
+        await self.assert_query_result(
+            r'''
+            WITH
+                input := <bytes><int64>$input,
+                binary := to_bytes(input),
+            SELECT
+                binary = input;
+            ''',
+            {True},
+            variables={
+                "input": number,
+            },
+        )
+
     async def test_edgeql_functions_array_join_01(self):
         await self.assert_query_result(
             r'''SELECT array_join(['one', 'two', 'three'], ', ');''',
