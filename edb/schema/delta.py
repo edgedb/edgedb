@@ -2123,7 +2123,9 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 delta_drop, cmd_drop, _ = ref.init_delta_branch(
                     schema, context, cmdtype=AlterObject)
                 delta_create, cmd_create, ctx_stack = ref.init_delta_branch(
-                    schema, context, cmdtype=AlterObject)
+                    schema, context, cmdtype=AlterObject,
+                    possible_parent=self,  # type: ignore
+                )
 
                 cmd_drop.from_expr_propagation = True
                 cmd_create.from_expr_propagation = True
