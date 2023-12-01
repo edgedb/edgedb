@@ -78,7 +78,6 @@ def _is_view_from_alias(
         return True
     name_prefix = f'__{our_name.name}__'
 
-    name = obj.get_name(schema)
     return (
         isinstance(name, sn.QualName)
         and name.module == our_name.module
@@ -508,7 +507,6 @@ def define_alias(
     is_global: bool,
     parser_context: Optional[parsing.ParserContext] = None,
 ) -> Tuple[sd.Command, s_types.TypeShell[s_types.Type]]:
-    from edb.ir import ast as irast
     from . import ordering as s_ordering
 
     ir = expr.irast
