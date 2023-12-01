@@ -526,6 +526,18 @@ std::to_int64(s: std::str, fmt: OPTIONAL str={}) -> std::int64
 
 
 CREATE FUNCTION
+std::to_int64(val: std::bytes) -> std::int64
+{
+    CREATE ANNOTATION std::description :=
+        'Convert binary number into `int64` value.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT ('x' || right(val::bytea::text, 16))::bit(24)::bigint;
+    $$;
+}
+
+
+CREATE FUNCTION
 std::to_int32(s: std::str, fmt: OPTIONAL str={}) -> std::int32
 {
     CREATE ANNOTATION std::description := 'Create a `int32` value.';
@@ -555,6 +567,18 @@ std::to_int32(s: std::str, fmt: OPTIONAL str={}) -> std::int32
 
 
 CREATE FUNCTION
+std::to_int32(val: std::bytes) -> std::int32
+{
+    CREATE ANNOTATION std::description :=
+        'Convert binary number into `int32` value.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT ('x' || right(val::bytea::text, 8))::bit(24)::int;
+    $$;
+}
+
+
+CREATE FUNCTION
 std::to_int16(s: std::str, fmt: OPTIONAL str={}) -> std::int16
 {
     CREATE ANNOTATION std::description := 'Create a `int16` value.';
@@ -581,6 +605,18 @@ std::to_int16(s: std::str, fmt: OPTIONAL str={}) -> std::int16
     )
     $$;
 };
+
+
+CREATE FUNCTION
+std::to_int16(val: std::bytes) -> std::int16
+{
+    CREATE ANNOTATION std::description :=
+        'Convert binary number into `int16` value.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT ('x' || right(val::bytea::text, 4))::bit(24)::int::smallint;
+    $$;
+}
 
 
 CREATE FUNCTION
