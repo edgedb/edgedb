@@ -25,6 +25,7 @@ import functools
 import json
 import hashlib
 import pickle
+import textwrap
 import uuid
 
 import immutables
@@ -1360,6 +1361,9 @@ def compile_schema_storage_in_delta(
     current_tx = ctx.state.current_tx()
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
 
+    funcblock = block.add_block()
+    cmdblock = block.add_block()
+
     meta_blocks: List[Tuple[str, Dict[str, Any]]] = []
 
     # Use a provided context if one was passed in, which lets us
@@ -1407,10 +1411,10 @@ def compile_schema_storage_in_delta(
                 df = pg_dbops.DropFunction(
                     name=func.name, args=func.args or (), if_exists=True
                 )
-                df.generate(block)
+                df.generate(funcblock)
 
                 cf = pg_dbops.CreateFunction(func)
-                cf.generate(block)
+                cf.generate(funcblock)
 
                 cache_mm[eql_hash] = argnames
 
@@ -1418,9 +1422,9 @@ def compile_schema_storage_in_delta(
             for argname in argnames:
                 argvals.append(pg_common.quote_literal(args[argname]))
 
-            block.add_command(f'''
+            cmdblock.add_command(textwrap.dedent(f'''\
                 PERFORM {pg_common.qname(*fname)}({", ".join(argvals)});
-            ''')
+            '''))
 
     ctx.state.current_tx().update_cached_reflection(cache_mm.finish())
 

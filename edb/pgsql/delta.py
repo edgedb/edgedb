@@ -3071,9 +3071,9 @@ class CompositeMetaCommand(MetaCommand):
         if dbops.AlterTable not in self._multicommands:
             mod, name = common.get_backend_name(
                 schema, self.scls, aspect='inhview', catenate=False)
-            self.pgops.add(dbops.Query(f'''\
+            self.pgops.add(dbops.Query(textwrap.dedent(f'''\
                 ALTER VIEW IF EXISTS {mod}."{name}" SET SCHEMA {mod};
-            '''))
+            ''')))
 
         return self._get_multicommand(
             context, dbops.AlterTable, tabname,
