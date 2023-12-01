@@ -136,13 +136,18 @@ Bytes
 ---------
 
 .. eql:function:: std::to_bytes(s: str) -> bytes
+                  std::to_bytes(val: int16) -> bytes
+                  std::to_bytes(val: int32) -> bytes
+                  std::to_bytes(val: int64) -> bytes
+                  std::to_bytes(val: int64) -> bytes
+                  std::to_bytes(val: uuid) -> bytes
 
     :index: encode stringencoder
 
     .. versionadded:: 4.0
 
-    Converts a :eql:type:`str` value to :eql:type:`bytes` using
-    UTF-8 encoding.
+    Converts a given value to :eql:type:`bytes` into
+    bytes representation.
 
     .. code-block:: edgeql-repl
 
@@ -187,7 +192,7 @@ Bytes
     .. versionadded:: 4.0
 
     Returns the :eql:type:`bytes` of a Base64-encoded :eql:type:`str`.
-    
+
     Returns an InvalidValueError if input is not valid Base64.
 
     .. code-block:: edgeql-repl

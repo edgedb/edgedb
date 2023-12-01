@@ -814,10 +814,11 @@ from :eql:type:`str` and :eql:type:`json`.
 
 
 .. eql:function:: std::to_int16(s: str, fmt: optional str={}) -> int16
+                  std::to_int16(val: bytes) -> int16
 
     :index: parse int16
 
-    Returns an :eql:type:`int16` value parsed from the given string.
+    Returns an :eql:type:`int16` value parsed from the given input.
 
     The function will use an optional format string passed as *fmt*. See the
     :ref:`number formatting options <ref_std_converters_number_fmt>` for help
@@ -827,10 +828,11 @@ from :eql:type:`str` and :eql:type:`json`.
 
 
 .. eql:function:: std::to_int32(s: str, fmt: optional str={}) -> int32
+                  std::to_int32(val: bytes) -> int32
 
     :index: parse int32
 
-    Returns an :eql:type:`int32` value parsed from the given string.
+    Returns an :eql:type:`int32` value parsed from the given input.
 
     The function will use an optional format string passed as *fmt*. See the
     :ref:`number formatting options <ref_std_converters_number_fmt>` for help
@@ -841,10 +843,11 @@ from :eql:type:`str` and :eql:type:`json`.
 
 
 .. eql:function:: std::to_int64(s: str, fmt: optional str={}) -> int64
+                  std::to_int64(val: bytes) -> int64
 
     :index: parse int64
 
-    Returns an :eql:type:`int64` value parsed from the given string.
+    Returns an :eql:type:`int64` value parsed from the given input.
 
     The function will use an optional format string passed as *fmt*. See the
     :ref:`number formatting options <ref_std_converters_number_fmt>` for help
