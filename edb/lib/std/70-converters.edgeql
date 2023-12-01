@@ -271,6 +271,54 @@ std::to_bytes(s: std::str) -> std::bytes {
 
 
 CREATE FUNCTION
+std::to_bytes(val: std::int16) -> std::bytes
+{
+    CREATE ANNOTATION std::description :=
+        'Convert an int16 to binary format';
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT int2send(val);
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_bytes(val: std::int32) -> std::bytes
+{
+    CREATE ANNOTATION std::description :=
+        'Convert an int32 to binary format';
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT int4send(val);
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_bytes(val: std::int64) -> std::bytes
+{
+    CREATE ANNOTATION std::description :=
+        'Convert an int64 to binary format';
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT int8send(val);
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_bytes(val: std::uuid) -> std::bytes
+{
+    CREATE ANNOTATION std::description :=
+        'Convert an UUID to binary format';
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT uuid_send(val);
+    $$;
+};
+
+
+CREATE FUNCTION
 std::to_json(str: std::str) -> std::json
 {
     CREATE ANNOTATION std::description :=
