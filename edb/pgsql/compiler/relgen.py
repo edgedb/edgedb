@@ -601,9 +601,13 @@ def can_omit_optional_wrapper(
             ctx=ctx,
         )
 
+    if isinstance(ir_set.rptr, irast.TupleIndirectionPointer):
+        return can_omit_optional_wrapper(ir_set.rptr.source, new_scope, ctx=ctx)
+
     return bool(
         ir_set.expr is None
         and not ir_set.path_id.is_objtype_path()
+        and not ir_set.path_id.is_type_intersection_path()
         and ir_set.rptr
         and new_scope.is_visible(ir_set.rptr.source.path_id)
         and not ir_set.rptr.is_inbound

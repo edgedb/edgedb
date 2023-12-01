@@ -5925,6 +5925,16 @@ class TestInsert(tb.QueryTestCase):
                 }
             ''')
 
+    async def test_edgeql_insert_optional_cast_01(self):
+        await self.assert_query_result(
+            r'''
+                insert CollectionTest {
+                    str_array := <array<str>>to_json('null')
+                };
+            ''',
+            [{}],
+        )
+
     async def test_edgeql_insert_except_constraint_01(self):
         # Test basic behavior of a constraint using except
         await self.con.execute('''

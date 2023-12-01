@@ -1116,11 +1116,12 @@ def _cast_array(
             correlated_elements = astutils.extend_path(
                 qlast.Tuple(elements=[source_path, elements]), '1'
             )
+            correlated_query = qlast.SelectQuery(result=correlated_elements)
 
             if el_type.contains_json(subctx.env.schema):
                 subctx.inhibit_implicit_limit = True
 
-            array_ir = dispatch.compile(correlated_elements, ctx=subctx)
+            array_ir = dispatch.compile(correlated_query, ctx=subctx)
             assert isinstance(array_ir, irast.Set)
 
             if direct_cast is not None:
