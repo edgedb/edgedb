@@ -2700,3 +2700,27 @@ CREATE CAST FROM std::int64 TO std::bytes {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'int8send';
 };
+
+
+CREATE CAST FROM std::bytes TO std::int16 {
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT ('x' || right(val::bytea::text, 4))::bit(24)::int::smallint;
+    $$;
+}
+
+
+CREATE CAST FROM std::bytes TO std::int32 {
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT ('x' || right(val::bytea::text, 8))::bit(24)::int;
+    $$;
+}
+
+
+CREATE CAST FROM std::bytes TO std::int64 {
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT ('x' || right(val::bytea::text, 16))::bit(24)::bigint;
+    $$;
+}
