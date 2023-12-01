@@ -1069,18 +1069,8 @@ def compile_insert_shape_element(
     ctx: context.CompilerContextLevel,
 ) -> None:
 
-    with ctx.newscope() as insvalctx:
-        # This method is only called if the upper cardinality of
-        # the expression is one, so we check for AT_MOST_ONE
-        # to determine nullability.
-        # FIXME: Doing force_optional for all rewrites is kind of a bummer.
-        # (The issue is that the rewrites are compiled without fully
-        # understanding which of the pointers might not have been truly
-        # present in the original DML shape.)
+    with ctx.new() as insvalctx:
         assert shape_el.rptr is not None
-        if (shape_el.rptr.dir_cardinality
-                is qltypes.Cardinality.AT_MOST_ONE) or force_optional:
-            insvalctx.force_optional |= {shape_el.path_id}
 
         if iterator_id is not None:
             id = iterator_id
@@ -1094,7 +1084,14 @@ def compile_insert_shape_element(
 
         insvalctx.current_insert_path_id = ir_stmt.subject.path_id
 
-        dispatch.visit(shape_el, ctx=insvalctx)
+        if shape_el.rptr.dir_cardinality.can_be_zero() or force_optional:
+            # If the element can be empty, compile it in a subquery to force it
+            # to be NULL.
+            value = relgen.set_as_subquery(
+                shape_el, as_value=True, ctx=insvalctx)
+            pathctx.put_path_value_var(insvalctx.rel, shape_el.path_id, value)
+        else:
+            dispatch.visit(shape_el, ctx=insvalctx)
 
 
 def merge_overlays_globally(
