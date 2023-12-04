@@ -421,7 +421,7 @@ class Query(Command):
         else:
             return self.text
 
-    def code(self, block: PLBlock) -> str:
+    def code(self, block: Any) -> str:
         return self.text
 
     def __repr__(self):

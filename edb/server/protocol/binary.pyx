@@ -1512,7 +1512,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 ''',
             )
 
-            schema_sql_units, restore_blocks, tables = \
+            schema_sql_units, restore_blocks, tables, repopulate_units = \
                 await compiler_pool.describe_database_restore(
                     user_schema_pickle,
                     global_schema_pickle,
@@ -1620,6 +1620,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
                 else:
                     self.fallthrough()
+
+            for repopulate_unit in repopulate_units:
+                await pgcon.sql_execute(repopulate_unit.encode())
 
             await pgcon.sql_execute(enable_trigger_q.encode())
 

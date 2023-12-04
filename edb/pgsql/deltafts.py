@@ -107,14 +107,9 @@ def delete_fts_index(
             return dbops.CommandGroup()
 
 
-def _create_fts_document(
-    index: s_indexes.Index,
-    index_expr: irast.Set,
-    predicate_src: Optional[str],
-    sql_kwarg_exprs: Dict[str, str],
-    schema: s_schema.Schema,
-    context: sd.CommandContext,
-) -> dbops.Command:
+def _compile_ir_index_exprs(
+    index: s_indexes.Index, index_expr: irast.Set, schema: s_schema.Schema
+):
     subject = index.get_subject(schema)
     assert isinstance(subject, s_types.Type)
 
@@ -129,7 +124,18 @@ def _create_fts_document(
             )
         },
     )
-    exprs = astutils.maybe_unpack_row(sql_res.ast)
+    return astutils.maybe_unpack_row(sql_res.ast)
+
+
+def _create_fts_document(
+    index: s_indexes.Index,
+    index_expr: irast.Set,
+    predicate_src: Optional[str],
+    sql_kwarg_exprs: Dict[str, str],
+    schema: s_schema.Schema,
+    context: sd.CommandContext,
+) -> dbops.Command:
+    exprs = _compile_ir_index_exprs(index, index_expr, schema)
 
     from edb.common import debug
 
@@ -181,6 +187,35 @@ def _delete_fts_document(
     return ops
 
 
+def update_fts_document(
+    index: s_indexes.Index,
+    options: qlcompiler.CompilerOptions,
+    schema: s_schema.Schema,
+) -> dbops.Query:
+    table_name = _index_table_name(index, schema)
+
+    # compile the expression
+    index_sexpr: Optional[s_expr.Expression] = index.get_expr(schema)
+    assert index_sexpr
+    index_expr = index_sexpr.ensure_compiled(
+        schema=schema,
+        options=options,
+    )
+    exprs = _compile_ir_index_exprs(index, index_expr.irast.expr, schema)
+
+    from edb.common import debug
+    if debug.flags.zombodb:
+        raise NotImplementedError('zombo refresh index not implemented')
+    else:
+        # to avoid code duplication, we call code for creating triggers and
+        # extract the first UPDATE command
+        create_trigger_ops = _pg_create_trigger(table_name, exprs)
+        assert isinstance(create_trigger_ops, dbops.CommandGroup)
+        update_fts_document_op = create_trigger_ops.commands[0]
+
+        return update_fts_document_op
+
+
 def _refresh_fts_document(
     index: s_indexes.Index,
     options: qlcompiler.CompilerOptions,
@@ -197,20 +232,7 @@ def _refresh_fts_document(
         options=options,
     )
 
-    subject = index.get_subject(schema)
-    assert isinstance(subject, s_types.Type)
-    subject_id = irast.PathId.from_type(schema, subject)
-    sql_res = compiler.compile_ir_to_sql_tree(
-        index_expr.irast,
-        singleton_mode=True,
-        external_rvars={
-            (subject_id, 'source'): pgast.RelRangeVar(
-                alias=pgast.Alias(aliasname='NEW'),
-                relation=pgast.Relation(name='NEW'),
-            )
-        },
-    )
-    exprs = astutils.maybe_unpack_row(sql_res.ast)
+    exprs = _compile_ir_index_exprs(index, index_expr.irast.expr, schema)
 
     ops = dbops.CommandGroup()
 

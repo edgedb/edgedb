@@ -96,3 +96,5 @@ INSERT ext::auth::EmailPasswordProviderConfig {
 CONFIGURE CURRENT DATABASE INSERT ext::auth::UIConfig {
     redirect_to := 'http://example.edgedb.com'
 };
+
+INSERT L3 { x := 'satisfied customer' };
