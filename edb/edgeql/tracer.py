@@ -36,7 +36,6 @@ from edb.schema import sources as s_sources
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
-from edb.edgeql import utils as qlutils
 
 
 NamedObject_T = TypeVar("NamedObject_T", bound="NamedObject")
