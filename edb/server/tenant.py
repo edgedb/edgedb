@@ -112,9 +112,6 @@ class Tenant(ha_base.ClusterProtocol):
         instance_name: str,
         max_backend_connections: int,
         backend_adaptive_ha: bool = False,
-        readiness_state_file: pathlib.Path | None = None,
-        jwt_sub_allowlist_file: pathlib.Path | None = None,
-        jwt_revocation_list_file: pathlib.Path | None = None,
     ):
         self._cluster = cluster
         self._tenant_id = self.get_backend_runtime_params().tenant_id
@@ -140,7 +137,7 @@ class Tenant(ha_base.ClusterProtocol):
             )
         else:
             self._backend_adaptive_ha = None
-        self._readiness_state_file = readiness_state_file
+        self._readiness_state_file = None
         self._readiness = srvargs.ReadinessState.Default
         self._readiness_reason = ""
 
@@ -166,10 +163,26 @@ class Tenant(ha_base.ClusterProtocol):
 
         self._roles = immutables.Map()
         self._sys_auth = tuple()
-        self._jwt_sub_allowlist_file = jwt_sub_allowlist_file
+        self._jwt_sub_allowlist_file = None
         self._jwt_sub_allowlist = None
-        self._jwt_revocation_list_file = jwt_revocation_list_file
+        self._jwt_revocation_list_file = None
         self._jwt_revocation_list = None
+
+    def set_reloadable_files(
+        self,
+        readiness_state_file: str | pathlib.Path | None = None,
+        jwt_sub_allowlist_file: str | pathlib.Path | None = None,
+        jwt_revocation_list_file: str | pathlib.Path | None = None,
+    ) -> None:
+        if isinstance(readiness_state_file, str):
+            readiness_state_file = pathlib.Path(readiness_state_file)
+        self._readiness_state_file = readiness_state_file
+        if isinstance(jwt_sub_allowlist_file, str):
+            jwt_sub_allowlist_file = pathlib.Path(jwt_sub_allowlist_file)
+        self._jwt_sub_allowlist_file = jwt_sub_allowlist_file
+        if isinstance(jwt_revocation_list_file, str):
+            jwt_revocation_list_file = pathlib.Path(jwt_revocation_list_file)
+        self._jwt_revocation_list_file = jwt_revocation_list_file
 
     def set_server(self, server: edbserver.BaseServer) -> None:
         self._server = server

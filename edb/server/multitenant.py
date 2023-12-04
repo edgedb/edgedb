@@ -220,30 +220,16 @@ class MultiTenantServer(server.BaseServer):
         )
         cluster.set_connection_params(conn_params)
 
-        if "jwt-sub-allowlist-file" in conf:
-            jwt_sub_allowlist_file = pathlib.Path(
-                conf["jwt-sub-allowlist-file"]
-            )
-        else:
-            jwt_sub_allowlist_file = None
-        if "jwt-revocation-list-file" in conf:
-            jwt_revocation_list_file = pathlib.Path(
-                conf["jwt-revocation-list-file"]
-            )
-        else:
-            jwt_revocation_list_file = None
-        if "readiness-state-file" in conf:
-            readiness_state_file = pathlib.Path(conf["readiness-state-file"])
-        else:
-            readiness_state_file = None
         tenant = edbtenant.Tenant(
             cluster,
             instance_name=conf["instance-name"],
             max_backend_connections=max_conns,
             backend_adaptive_ha=conf.get("backend-adaptive-ha", False),
-            readiness_state_file=readiness_state_file,
-            jwt_sub_allowlist_file=jwt_sub_allowlist_file,
-            jwt_revocation_list_file=jwt_revocation_list_file,
+        )
+        tenant.set_reloadable_files(
+            readiness_state_file=conf.get("readiness-state-file"),
+            jwt_sub_allowlist_file=conf.get("jwt-sub-allowlist-file"),
+            jwt_revocation_list_file=conf.get("jwt-revocation-list-file"),
         )
         tenant.set_server(self)
         tenant.load_jwcrypto()
