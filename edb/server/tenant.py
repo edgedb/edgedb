@@ -1134,6 +1134,18 @@ class Tenant(ha_base.ClusterProtocol):
 
         self._accepting_connections = self.is_online()
 
+    def reload(self):
+        # In multi-tenant mode, the file paths for the following states may be
+        # unset in a reload, while it's impossible in a regular server.
+        # Therefore, we are clearing the states here first, rather than doing
+        # so in reload_readiness_state() or load_jwcrypto().
+        self._readiness = srvargs.ReadinessState.Default
+        self._jwt_sub_allowlist = None
+        self._jwt_revocation_list = None
+
+        self.reload_readiness_state()
+        self.load_jwcrypto()
+
     async def on_before_drop_db(
         self, dbname: str, current_dbname: str
     ) -> None:
