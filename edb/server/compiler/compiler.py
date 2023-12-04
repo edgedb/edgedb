@@ -73,6 +73,7 @@ from edb.pgsql import dbops as pg_dbops
 from edb.pgsql import params as pg_params
 from edb.pgsql import patches as pg_patches
 from edb.pgsql import types as pg_types
+from edb.pgsql import delta as pg_delta
 
 from . import dbstate
 from . import enums
@@ -1221,6 +1222,7 @@ class Compiler:
 
         restore_blocks = []
         tables = []
+        repopulate_units = []
         for schema_object_id_bytes, typedesc in blocks:
             schema_object_id = uuidgen.from_bytes(schema_object_id_bytes)
             obj = schema.get_by_id(schema_object_id)
@@ -1310,6 +1312,10 @@ class Compiler:
                         mending_desc.append(
                             _get_ptr_mending_desc(schema, ptr))
 
+                cmd = pg_delta.get_reindex_sql(obj, schema)
+                if cmd:
+                    repopulate_units.append(cmd)
+
             else:
                 raise AssertionError(
                     f'unexpected object type in restore '
@@ -1356,6 +1362,7 @@ class Compiler:
             units=units,
             blocks=restore_blocks,
             tables=tables,
+            repopulate_units=repopulate_units,
         )
 
     def analyze_explain_output(
@@ -3070,6 +3077,7 @@ class RestoreDescriptor(NamedTuple):
     units: Sequence[dbstate.QueryUnit]
     blocks: Sequence[RestoreBlockDescriptor]
     tables: Sequence[str]
+    repopulate_units: Sequence[str]
 
 
 class DataMendingDescriptor(NamedTuple):
