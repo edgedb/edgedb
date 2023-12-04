@@ -24,6 +24,7 @@ import contextlib
 import functools
 import json
 import logging
+import os
 import pathlib
 import pickle
 import struct
@@ -371,13 +372,15 @@ class Tenant(ha_base.ClusterProtocol):
 
         if self._readiness_state_file is not None:
 
-            def reload_state_file(_file_modified, _event):
-                self.reload_readiness_state()
-
             self.reload_readiness_state()
-            self._server.monitor_fs(
-                self._readiness_state_file, reload_state_file
-            )
+
+            if not os.getenv("EDGEDB_SERVER_DISABLE_MONITOR_FS"):
+                def reload_state_file(_file_modified, _event):
+                    self.reload_readiness_state()
+
+                self._server.monitor_fs(
+                    self._readiness_state_file, reload_state_file
+                )
 
         self._initing = False
 
