@@ -52,7 +52,6 @@ from edb.schema import ddl as s_ddl
 from edb.schema import delta as s_delta
 from edb.schema import extensions as s_ext
 from edb.schema import functions as s_func
-from edb.schema import indexes as s_indexes
 from edb.schema import links as s_links
 from edb.schema import properties as s_props
 from edb.schema import modules as s_mod
@@ -74,7 +73,6 @@ from edb.pgsql import dbops as pg_dbops
 from edb.pgsql import params as pg_params
 from edb.pgsql import patches as pg_patches
 from edb.pgsql import types as pg_types
-from edb.pgsql import deltafts as pg_deltafts
 from edb.pgsql import delta as pg_delta
 
 from . import dbstate
@@ -1297,9 +1295,7 @@ class Compiler:
                         mending_desc.append(
                             _get_ptr_mending_desc(schema, ptr))
 
-                cmd = pg_delta.get_reindex_command(
-                    obj, schema, ctx.state.current_tx().get_modaliases()
-                )
+                cmd = pg_delta.get_reindex_sql(obj, schema)
                 if cmd:
                     repopulate_units.append(cmd)
 
