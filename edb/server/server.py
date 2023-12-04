@@ -847,10 +847,9 @@ class BaseServer:
                 )
                 self.request_shutdown()
 
-        if not os.getenv("EDGEDB_SERVER_DISABLE_MONITOR_FS"):
-            self.monitor_fs(tls_cert_file, reload_tls)
-            if tls_cert_file != tls_key_file:
-                self.monitor_fs(tls_key_file, reload_tls)
+        self.monitor_fs(tls_cert_file, reload_tls)
+        if tls_cert_file != tls_key_file:
+            self.monitor_fs(tls_key_file, reload_tls)
 
     def load_jwcrypto(self, jws_key_file: pathlib.Path) -> None:
         try:
