@@ -966,7 +966,7 @@ def trace_TypeOf(node: qlast.TypeOf, *, ctx: TracerContext) -> None:
 
 @trace.register
 def trace_TypeName(node: qlast.TypeName, *, ctx: TracerContext) -> None:
-    if node.subtypes and qlutils.is_enum(node):
+    if node.subtypes:
         for st in node.subtypes:
             trace(st, ctx=ctx)
     elif isinstance(node.maintype, qlast.ObjectRef):
