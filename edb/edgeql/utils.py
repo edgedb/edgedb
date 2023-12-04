@@ -214,3 +214,11 @@ def contains_dml(ql_expr: qlast.Base) -> bool:
     )
 
     return bool(res)
+
+
+def is_enum(type_name: qlast.TypeName):
+    return (
+        isinstance(type_name.maintype, (qlast.TypeName, qlast.ObjectRef))
+        and type_name.maintype.name == "enum"
+        and type_name.subtypes
+    )

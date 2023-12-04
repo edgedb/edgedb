@@ -676,6 +676,17 @@ class TestSchema(tb.BaseSchemaLoadTest):
         };
         """
 
+    @tb.must_fail(
+        errors.InvalidPropertyDefinitionError,
+        "this type cannot be anonymous",
+    )
+    def test_schema_bad_type_18(self):
+        """
+        type Foo {
+            property val -> enum<VariantA, VariantB>;
+        };
+        """
+
     def test_schema_computable_cardinality_inference_01(self):
         schema = self.load_schema("""
             type Object {
