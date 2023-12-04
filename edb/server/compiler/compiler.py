@@ -1297,18 +1297,11 @@ class Compiler:
                         mending_desc.append(
                             _get_ptr_mending_desc(schema, ptr))
 
-                (fts_index, _) = s_indexes.get_effective_fts_index(obj, schema)
-                if fts_index:
-                    options = pg_delta.get_index_compile_options(
-                        fts_index,
-                        schema,
-                        ctx.state.current_tx().get_modaliases(),
-                        None
-                    )
-                    update_fts_doc = pg_deltafts.update_fts_document(
-                        fts_index, options, schema
-                    )
-                    repopulate_units.append(update_fts_doc.code(None))
+                cmd = pg_delta.get_reindex_command(
+                    obj, schema, ctx.state.current_tx().get_modaliases()
+                )
+                if cmd:
+                    repopulate_units.append(cmd)
 
             else:
                 raise AssertionError(

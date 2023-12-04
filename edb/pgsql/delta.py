@@ -3547,6 +3547,25 @@ def get_index_compile_options(
     )
 
 
+def get_reindex_command(
+    obj: s_objtypes.ObjectType,
+    schema: s_schema.Schema,
+    modalises: Mapping[Optional[str], str],
+) -> Optional[str]:
+    "Generate SQL statement that repopulates the index after a restore."
+    "Currently this only applies to FTS indexes."
+
+    (fts_index, _) = s_indexes.get_effective_fts_index(obj, schema)
+    if fts_index:
+        options = get_index_compile_options(
+            fts_index, schema, modalises, None
+        )
+        update_fts_doc = deltafts.update_fts_document(
+            fts_index, options, schema
+        )
+        return update_fts_doc.code(None)
+
+
 class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
     @classmethod
     def create_index(
