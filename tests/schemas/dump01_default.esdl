@@ -200,8 +200,6 @@ type L {
     required property l0 -> str;
     required property l1 -> str;
     index on (.l0 ++ .l1);
-
-    index fts::index on (fts::with_options(.l0, language := fts::Language.eng));
 }
 
 
