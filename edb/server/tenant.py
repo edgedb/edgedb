@@ -90,7 +90,7 @@ class Tenant(ha_base.ClusterProtocol):
 
     _ha_master_serial: int
     _backend_adaptive_ha: adaptive_ha.AdaptiveHASupport | None
-    _readiness_state_file: str | None
+    _readiness_state_file: pathlib.Path | None
     _readiness: srvargs.ReadinessState
     _readiness_reason: str
 
@@ -112,7 +112,7 @@ class Tenant(ha_base.ClusterProtocol):
         instance_name: str,
         max_backend_connections: int,
         backend_adaptive_ha: bool = False,
-        readiness_state_file: str | None = None,
+        readiness_state_file: pathlib.Path | None = None,
         jwt_sub_allowlist_file: pathlib.Path | None = None,
         jwt_revocation_list_file: pathlib.Path | None = None,
     ):
@@ -1081,7 +1081,7 @@ class Tenant(ha_base.ClusterProtocol):
         if self._readiness_state_file is None:
             return
         try:
-            with open(self._readiness_state_file, "rt") as rt:
+            with self._readiness_state_file.open("rt") as rt:
                 line = rt.readline().strip()
                 try:
                     state, _, reason = line.partition(":")

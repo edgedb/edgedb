@@ -210,7 +210,7 @@ class ServerConfig(NamedTuple):
     emit_server_status: str
     temp_dir: bool
     auto_shutdown_after: float
-    readiness_state_file: Optional[str]
+    readiness_state_file: Optional[pathlib.Path]
     disable_dynamic_system_config: bool
 
     startup_script: Optional[StartupScript]

@@ -232,12 +232,16 @@ class MultiTenantServer(server.BaseServer):
             )
         else:
             jwt_revocation_list_file = None
+        if "readiness-state-file" in conf:
+            readiness_state_file = pathlib.Path(conf["readiness-state-file"])
+        else:
+            readiness_state_file = None
         tenant = edbtenant.Tenant(
             cluster,
             instance_name=conf["instance-name"],
             max_backend_connections=max_conns,
             backend_adaptive_ha=conf.get("backend-adaptive-ha", False),
-            readiness_state_file=conf.get("readiness-state-file"),
+            readiness_state_file=readiness_state_file,
             jwt_sub_allowlist_file=jwt_sub_allowlist_file,
             jwt_revocation_list_file=jwt_revocation_list_file,
         )
