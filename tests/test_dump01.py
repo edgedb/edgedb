@@ -432,8 +432,12 @@ class DumpTestCaseMixin:
                 },
                 {
                     'name': 'default::L',
-                    'indexes': [{'expr': '(.l0 ++ .l1)'}],
-                }
+                    'indexes': [
+                        {'expr': '(.l0 ++ .l1)'},
+                        {'expr': ('fts::with_options(.l0, '
+                                  'language := fts::Language.eng)')}
+                    ],
+                },
             ]
         )
 
@@ -1069,6 +1073,18 @@ class DumpTestCaseMixin:
                 l0,
                 l1,
             };
+            ''',
+            [
+                {
+                    'l0': 'l0_0',
+                    'l1': 'l1_0',
+                },
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT fts::search(L, 'l0_0').object { l0, l1 }
             ''',
             [
                 {

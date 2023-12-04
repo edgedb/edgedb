@@ -3522,28 +3522,29 @@ class CompositeMetaCommand(MetaCommand):
 
 
 class IndexCommand(MetaCommand):
-    @classmethod
-    def get_compile_options(
-        cls,
-        index: s_indexes.Index,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        schema_object_context: Type[so.Object_T],
-    ) -> qlcompiler.CompilerOptions:
-        subject = index.get_subject(schema)
-        assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
+    pass
 
-        singletons = [subject]
-        path_prefix_anchor = ql_ast.Subject().name
 
-        return qlcompiler.CompilerOptions(
-            modaliases=context.modaliases,
-            schema_object_context=schema_object_context,
-            anchors={ql_ast.Subject().name: subject},
-            path_prefix_anchor=path_prefix_anchor,
-            singletons=singletons,
-            apply_query_rewrites=False,
-        )
+def get_index_compile_options(
+    index: s_indexes.Index,
+    schema: s_schema.Schema,
+    modaliases: Mapping[Optional[str], str],
+    schema_object_context: Type[so.Object_T],
+) -> qlcompiler.CompilerOptions:
+    subject = index.get_subject(schema)
+    assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
+
+    singletons = [subject]
+    path_prefix_anchor = ql_ast.Subject().name
+
+    return qlcompiler.CompilerOptions(
+        modaliases=modaliases,
+        schema_object_context=schema_object_context,
+        anchors={ql_ast.Subject().name: subject},
+        path_prefix_anchor=path_prefix_anchor,
+        singletons=singletons,
+        apply_query_rewrites=False,
+    )
 
 
 class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
@@ -3556,8 +3557,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
     ):
         from .compiler import astutils
 
-        options = cls.get_compile_options(
-            index, schema, context, cls.get_schema_metaclass()
+        options = get_index_compile_options(
+            index, schema, context.modaliases, cls.get_schema_metaclass()
         )
 
         index_sexpr: Optional[s_expr.Expression] = index.get_expr(schema)
@@ -3777,8 +3778,11 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
         if index.has_base_with_name(orig_schema, sn.QualName('fts', 'index')):
 
             # compile commands for index drop
-            options = self.get_compile_options(
-                index, orig_schema, context, self.get_schema_metaclass()
+            options = get_index_compile_options(
+                index,
+                orig_schema,
+                context.modaliases,
+                self.get_schema_metaclass()
             )
             drop_ops = deltafts.delete_fts_index(
                 index, drop_index, options, schema, orig_schema, context

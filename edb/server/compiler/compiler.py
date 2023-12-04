@@ -52,6 +52,7 @@ from edb.schema import ddl as s_ddl
 from edb.schema import delta as s_delta
 from edb.schema import extensions as s_ext
 from edb.schema import functions as s_func
+from edb.schema import indexes as s_indexes
 from edb.schema import links as s_links
 from edb.schema import properties as s_props
 from edb.schema import modules as s_mod
@@ -73,6 +74,8 @@ from edb.pgsql import dbops as pg_dbops
 from edb.pgsql import params as pg_params
 from edb.pgsql import patches as pg_patches
 from edb.pgsql import types as pg_types
+from edb.pgsql import deltafts as pg_deltafts
+from edb.pgsql import delta as pg_delta
 
 from . import dbstate
 from . import enums
@@ -1204,6 +1207,7 @@ class Compiler:
 
         restore_blocks = []
         tables = []
+        repopulate_units = []
         for schema_object_id_bytes, typedesc in blocks:
             schema_object_id = uuidgen.from_bytes(schema_object_id_bytes)
             obj = schema.get_by_id(schema_object_id)
@@ -1293,6 +1297,19 @@ class Compiler:
                         mending_desc.append(
                             _get_ptr_mending_desc(schema, ptr))
 
+                (fts_index, _) = s_indexes.get_effective_fts_index(obj, schema)
+                if fts_index:
+                    options = pg_delta.get_index_compile_options(
+                        fts_index,
+                        schema,
+                        ctx.state.current_tx().get_modaliases(),
+                        None
+                    )
+                    update_fts_doc = pg_deltafts.update_fts_document(
+                        fts_index, options, schema
+                    )
+                    repopulate_units.append(update_fts_doc.code(None))
+
             else:
                 raise AssertionError(
                     f'unexpected object type in restore '
@@ -1339,6 +1356,7 @@ class Compiler:
             units=units,
             blocks=restore_blocks,
             tables=tables,
+            repopulate_units=repopulate_units,
         )
 
     def analyze_explain_output(
@@ -3053,6 +3071,7 @@ class RestoreDescriptor(NamedTuple):
     units: Sequence[dbstate.QueryUnit]
     blocks: Sequence[RestoreBlockDescriptor]
     tables: Sequence[str]
+    repopulate_units: Sequence[str]
 
 
 class DataMendingDescriptor(NamedTuple):
