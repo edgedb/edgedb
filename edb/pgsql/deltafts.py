@@ -201,7 +201,7 @@ def update_fts_document(
         schema=schema,
         options=options,
     )
-    exprs = _compile_ir_index_exprs(index, index_expr.irast, schema)
+    exprs = _compile_ir_index_exprs(index, index_expr.irast.expr, schema)
 
     from edb.common import debug
     if debug.flags.zombodb:
@@ -232,7 +232,7 @@ def _refresh_fts_document(
         options=options,
     )
 
-    exprs = _compile_ir_index_exprs(index, index_expr.irast, schema)
+    exprs = _compile_ir_index_exprs(index, index_expr.irast.expr, schema)
 
     ops = dbops.CommandGroup()
 

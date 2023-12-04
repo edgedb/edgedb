@@ -3529,7 +3529,7 @@ def get_index_compile_options(
     index: s_indexes.Index,
     schema: s_schema.Schema,
     modaliases: Mapping[Optional[str], str],
-    schema_object_context: Type[so.Object_T],
+    schema_object_context: Optional[Type[so.Object_T]],
 ) -> qlcompiler.CompilerOptions:
     subject = index.get_subject(schema)
     assert isinstance(subject, (s_types.Type, s_pointers.Pointer))
