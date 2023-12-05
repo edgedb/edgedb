@@ -70,6 +70,8 @@ type Comment extending Text, Owned {
     optional parent: Comment;
 }
 
+function frob(s: str) -> str using (s ++ '!');
+
 type Issue extending Named, Owned, Text {
     overloaded required link owner {
         property since: datetime;
@@ -99,6 +101,10 @@ type Issue extending Named, Owned, Text {
     multi references: File | URL {
         list_order: int64;
     };
+
+    # Pure index testing stuff
+    number2 := frob(.number);
+    index on (.number2);
 }
 
 type File extending Named;
