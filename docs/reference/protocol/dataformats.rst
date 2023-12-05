@@ -12,7 +12,7 @@ This section describes the data wire format of standard EdgeDB types.
 Sets and array<>
 ================
 
-The set and array values are represented as the following structure:
+Set and array values are represented as the following structure:
 
 .. code-block:: c
 
@@ -105,7 +105,7 @@ Envelope. The full structure follows:
 tuple<>,  namedtuple<>, and object<>
 ====================================
 
-The values are represented as the following structure:
+Values are represented as the following structure:
 
 .. code-block:: c
 
@@ -138,7 +138,7 @@ means an empty set.
 Sparse Objects
 ==============
 
-The values are represented as the following structure:
+Values are represented as the following structure:
 
 .. code-block:: c
 
@@ -167,7 +167,7 @@ The values are represented as the following structure:
 Ranges
 ====================================
 
-The ranges are represented as the following structure:
+Ranges are represented as the following structure:
 
 .. code-block:: c
 
@@ -208,12 +208,38 @@ The ranges are represented as the following structure:
     };
 
 
+.. _ref_protocol_fmt_multirange:
+
+MultiRanges
+====================================
+
+Multi ranges are represented as the following structure:
+
+.. code-block:: c
+
+    struct MultiRange {
+        // Number of elements
+        int32       nelems;
+
+        // Element data.
+        Element     elements[nelems];
+    };
+
+    struct Element {
+        // Encoded element data length in bytes.
+        int32       length;
+
+        // Element data.
+        uint8       data[length];
+    };
+
+
 .. _ref_protocol_fmt_uuid:
 
 std::uuid
 =========
 
-The :eql:type:`std::uuid` values are represented as a sequence of 16 unsigned
+:eql:type:`std::uuid` values are represented as a sequence of 16 unsigned
 byte values.
 
 For example, the UUID value ``b9545c35-1fe7-485f-a6ea-f8ead251abd3`` is
@@ -230,7 +256,7 @@ represented as:
 std::str
 ========
 
-The :eql:type:`std::str` values are represented as a UTF-8 encoded byte string.
+:eql:type:`std::str` values are represented as a UTF-8 encoded byte string.
 For example, the ``str`` value ``'Hello! 🙂'`` is encoded as:
 
 .. code-block:: c
@@ -243,7 +269,7 @@ For example, the ``str`` value ``'Hello! 🙂'`` is encoded as:
 std::bytes
 ==========
 
-The :eql:type:`std::bytes` values are represented as-is.
+:eql:type:`std::bytes` values are represented as-is.
 
 
 .. _ref_protocol_fmt_int16:
@@ -251,7 +277,7 @@ The :eql:type:`std::bytes` values are represented as-is.
 std::int16
 ==========
 
-The :eql:type:`std::int16` values are represented as two bytes, most
+:eql:type:`std::int16` values are represented as two bytes, most
 significant byte first.
 
 For example, the ``int16`` value ``6556`` is represented as:
@@ -266,7 +292,7 @@ For example, the ``int16`` value ``6556`` is represented as:
 std::int32
 ==========
 
-The :eql:type:`std::int32` values are represented as four bytes, most
+:eql:type:`std::int32` values are represented as four bytes, most
 significant byte first.
 
 For example, the ``int32`` value ``655665`` is represented as:
@@ -281,7 +307,7 @@ For example, the ``int32`` value ``655665`` is represented as:
 std::int64
 ==========
 
-The :eql:type:`std::int64` values are represented as eight bytes, most
+:eql:type:`std::int64` values are represented as eight bytes, most
 significant byte first.
 
 For example, the ``int64`` value ``123456789987654321`` is represented as:
@@ -296,7 +322,7 @@ For example, the ``int64`` value ``123456789987654321`` is represented as:
 std::float32
 ============
 
-The :eql:type:`std::float32` values are represented as a IEEE 754-2008 binary
+:eql:type:`std::float32` values are represented as a IEEE 754-2008 binary
 32-bit value, most significant byte first.
 
 For example, the ``float32`` value ``-15.625`` is represented as:
@@ -311,7 +337,7 @@ For example, the ``float32`` value ``-15.625`` is represented as:
 std::float64
 ============
 
-The :eql:type:`std::float32` values are represented as a IEEE 754-2008 binary
+:eql:type:`std::float32` values are represented as a IEEE 754-2008 binary
 64-bit value, most significant byte first.
 
 For example, the ``float64`` value ``-15.625`` is represented as:
@@ -326,7 +352,7 @@ For example, the ``float64`` value ``-15.625`` is represented as:
 std::decimal
 ============
 
-The :eql:type:`std::decimal` values are represented as the following structure:
+:eql:type:`std::decimal` values are represented as the following structure:
 
 .. code-block:: c
 
@@ -355,7 +381,7 @@ The :eql:type:`std::decimal` values are represented as the following structure:
         NEG     = 0x4000;
     };
 
-The decimal values are represented as a sequence of base-10000 *digits*.  The
+Decimal values are represented as a sequence of base-10000 *digits*.  The
 first digit is assumed to be multiplied by *weight* * 10000, i.e. there might
 be up to weight + 1 digits before the decimal point. Trailing zeros can be
 absent. It is possible to have negative weight.
@@ -393,7 +419,7 @@ For example, the decimal value ``-15000.6250000`` is represented as:
 std::bool
 =========
 
-The :eql:type:`std::bool` values are represented as an int8 with
+:eql:type:`std::bool` values are represented as an int8 with
 only two valid values: ``0x01`` for ``true`` and ``0x00`` for ``false``.
 
 
@@ -402,7 +428,7 @@ only two valid values: ``0x01`` for ``true`` and ``0x00`` for ``false``.
 std::datetime
 =============
 
-The :eql:type:`std::datetime` values are represented as a 64-bit integer,
+:eql:type:`std::datetime` values are represented as a 64-bit integer,
 most sigificant byte first.  The value is the number of *microseconds*
 between the encoded datetime and January 1st 2000, 00:00 UTC.  A Unix
 timestamp can be converted into an EdgeDB ``datetime`` value using this
@@ -428,7 +454,7 @@ about how to handle different precision when encoding data.
 cal::local_datetime
 ===================
 
-The :eql:type:`cal::local_datetime` values are represented as a 64-bit integer,
+:eql:type:`cal::local_datetime` values are represented as a 64-bit integer,
 most sigificant byte first.  The value is the number of *microseconds*
 between the encoded datetime and January 1st 2000, 00:00.
 
@@ -448,7 +474,7 @@ about how to handle different precision when encoding data.
 cal::local_date
 ===============
 
-The :eql:type:`cal::local_date` values are represented as a 32-bit integer,
+:eql:type:`cal::local_date` values are represented as a 32-bit integer,
 most sigificant byte first.  The value is the number of *days*
 between the encoded date and January 1st 2000.
 
@@ -465,7 +491,7 @@ encoded as:
 cal::local_time
 ===============
 
-The :eql:type:`cal::local_time` values are represented as a 64-bit integer,
+:eql:type:`cal::local_time` values are represented as a 64-bit integer,
 most sigificant byte first.  The value is the number of *microseconds*
 since midnight.
 
@@ -485,7 +511,7 @@ about how to handle different precision when encoding data.
 std::duration
 =============
 
-The :eql:type:`std::duration` values are represented as the following
+:eql:type:`std::duration` values are represented as the following
 structure:
 
 .. code-block:: c
@@ -523,7 +549,7 @@ about how to handle different precision when encoding data.
 cal::relative_duration
 ======================
 
-The :eql:type:`cal::relative_duration` values are represented as the following
+:eql:type:`cal::relative_duration` values are represented as the following
 structure:
 
 .. code-block:: c
@@ -557,7 +583,7 @@ about how to handle different precision when encoding data.
 cal::date_duration
 ======================
 
-The :eql:type:`cal::date_duration` values are represented as the following
+:eql:type:`cal::date_duration` values are represented as the following
 structure:
 
 .. code-block:: c
@@ -588,7 +614,7 @@ as:
 std::json
 =========
 
-The :eql:type:`std::json` values are represented as the following structure:
+:eql:type:`std::json` values are represented as the following structure:
 
 .. code-block:: c
 
@@ -606,7 +632,7 @@ string.
 std::bigint
 ============
 
-The :eql:type:`std::bigint` values are represented as the following structure:
+:eql:type:`std::bigint` values are represented as the following structure:
 
 .. code-block:: c
 
@@ -635,7 +661,7 @@ The :eql:type:`std::bigint` values are represented as the following structure:
         NEG     = 0x4000;
     };
 
-The decimal values are represented as a sequence of base-10000 *digits*.
+Decimal values are represented as a sequence of base-10000 *digits*.
 The first digit is assumed to be multiplied by *weight* * 10000, i.e. there
 might be up to weight + 1 digits.  Trailing zeros can be absent.
 
@@ -664,7 +690,7 @@ For example, the bigint value ``-15000`` is represented as:
 cfg::memory
 ===========
 
-The :eql:type:`cfg::memory` values are represented as a number of *bytes*
+:eql:type:`cfg::memory` values are represented as a number of *bytes*
 encoded as a 64-bit integer, most sigificant byte first.
 
 For example, the ``cfg::memory`` value ``123MiB`` is represented as:
