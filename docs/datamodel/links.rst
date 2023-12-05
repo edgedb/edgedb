@@ -287,8 +287,8 @@ Use a ``multi`` link if:
   For example, a list of postal addresses in a user profile.
 - The number of elements in the link tends to be small.
 
-Otherwise, prefer a single link from one object coupled with a computed backlink
-on the other:
+Otherwise, prefer a single link from one object coupled with a computed
+backlink on the other:
 
 .. code-block:: sdl
 
