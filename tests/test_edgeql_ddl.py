@@ -14081,6 +14081,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             CREATE TYPE Foo {
                 CREATE REQUIRED LINK bar -> Tgt;
             };
+            CREATE TYPE Bar EXTENDING Foo;
         ''')
 
         await self.con.execute(r'''
@@ -14121,6 +14122,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             CREATE TYPE Foo {
                 CREATE REQUIRED MULTI LINK bar -> Tgt;
             };
+            CREATE TYPE Bar EXTENDING Foo;
         ''')
 
         await self.con.execute(r'''
@@ -14161,6 +14163,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             CREATE TYPE Foo {
                 CREATE PROPERTY bar -> str;
             };
+            CREATE TYPE Bar EXTENDING Foo;
             INSERT Foo { bar := "hello" };
             ALTER TYPE Foo { ALTER PROPERTY bar { USING ("world") } };
             ALTER TYPE Foo { ALTER PROPERTY bar RESET expression };
@@ -14181,6 +14184,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             CREATE TYPE Foo {
                 CREATE MULTI PROPERTY bar -> str;
             };
+            CREATE TYPE Bar EXTENDING Foo;
             INSERT Foo { bar := {"foo", "bar"} };
             ALTER TYPE Foo { ALTER PROPERTY bar { USING ({"a", "b"}) } };
             ALTER TYPE Foo { ALTER PROPERTY bar RESET expression };
@@ -14202,6 +14206,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             CREATE TYPE Foo {
                 CREATE MULTI LINK bar -> Tgt;
             };
+            CREATE TYPE Bar EXTENDING Foo;
             INSERT Foo { bar := (INSERT Tgt) };
             ALTER TYPE Foo { ALTER LINK bar { USING (Tgt) } };
             ALTER TYPE Foo { ALTER LINK bar RESET expression };
@@ -14222,6 +14227,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             CREATE TYPE Foo {
                 CREATE MULTI PROPERTY bar -> str;
             };
+            CREATE TYPE Bar EXTENDING Foo;
             INSERT Foo { bar := {"foo", "bar"} };
             ALTER TYPE Foo { ALTER PROPERTY bar { USING ({"a", "b"}) } };
         ''')
@@ -14281,6 +14287,86 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             POPULATE MIGRATION;
             COMMIT MIGRATION;
         ''')
+
+    async def test_edgeql_ddl_adjust_computed_13(self):
+        await self.con.execute(r'''
+            create type X {
+                create property bar -> int64 {
+                    create constraint std::exclusive
+                }
+            };
+        ''')
+        await self.con.execute(r'''
+            alter type X alter property bar using ('1');
+        ''')
+
+    async def test_edgeql_ddl_adjust_computed_14(self):
+        await self.con.execute(r'''
+            create type X {
+                create property bar -> int64;
+                create constraint std::exclusive on (.bar);
+            };
+        ''')
+        await self.con.execute(r'''
+            alter type X alter property bar using ('1');
+        ''')
+
+    async def test_edgeql_ddl_adjust_computed_15(self):
+        await self.con.execute(r'''
+            create type Away {
+                create property x -> str;
+                create property y {
+                    using (.x ++ "!");
+                    create constraint exclusive;
+                }
+            };
+            create type Away2 extending Away;
+        ''')
+        await self.con.execute(r'''
+            alter type Away alter property y reset expression;
+        ''')
+
+        await self.con.execute("""
+            insert Away { x := '1', y := '1' }
+        """)
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            '',
+        ):
+            await self.con.execute("""
+                insert Away { x := '2', y := '1' }
+            """)
+
+    @test.xerror('''
+        This fails because of the alias nonsense in pointers
+    ''')
+    async def test_edgeql_ddl_adjust_computed_16(self):
+        # this is caused by the annoying thing where pointers that are
+        # a simple alias like this just inherit from the other point.
+        await self.con.execute(r'''
+            create type Away {
+                create property x -> str;
+                create property y {
+                    using (.x);
+                    create constraint exclusive;
+                }
+            };
+            create type Away2 extending Away;
+        ''')
+        await self.con.execute(r'''
+            alter type Away alter property y reset expression;
+        ''')
+
+        await self.con.execute("""
+            insert Away { x := '2', y := '1' }
+        """)
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            '',
+        ):
+            await self.con.execute("""
+                insert Away { x := '1', y := '1' }
+            """)
 
     async def test_edgeql_ddl_captured_as_migration_01(self):
 

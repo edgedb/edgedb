@@ -1595,8 +1595,9 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         *,
         classname: Optional[sn.Name] = None,
         referrer: Optional[Object] = None,
+        possible_parent: Optional[sd.ObjectCommand[Object]] = None,
         **kwargs: Any,
-    ) -> Tuple[sd.CommandGroup, sd.ObjectCommand_T, sd.ContextStack]:
+    ) -> Tuple[sd.Command, sd.ObjectCommand_T, sd.ContextStack]:
         """Make a command subtree for this object.
 
         This returns a tuple containing:
@@ -1608,12 +1609,12 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         - a ``ContextStack`` instance representing the nested CommandContext
           corresponding to the returned command tree.
         """
+        root_cmd: sd.Command
         root_cmd, parent_cmd, ctx_stack = self.init_parent_delta_branch(
             schema=schema,
             context=context,
             referrer=referrer,
         )
-
         self_cmd = self.init_delta_command(
             schema,
             cmdtype=cmdtype,
@@ -1621,7 +1622,21 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             **kwargs,
         )
 
-        parent_cmd.add(self_cmd)
+        from . import delta as sd
+
+        # possible_parent allows the caller to tell us what *they* are,
+        # so we can reuse that Alter if we can. The big advantage here is
+        # that it saves needing to do validate_object on the intermediate
+        # objects.
+        if (
+            isinstance(possible_parent, sd.AlterObject)
+            and isinstance(parent_cmd, sd.ObjectCommand)
+            and possible_parent.classname == parent_cmd.classname
+        ):
+            root_cmd = parent_cmd = self_cmd
+        else:
+            parent_cmd.add(self_cmd)
+
         ctx_stack.push(self_cmd.new_context(schema, context, self))
         return root_cmd, self_cmd, ctx_stack
 
