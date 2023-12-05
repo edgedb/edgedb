@@ -2103,12 +2103,23 @@ class AlterPointer(
 
         if not context.canonical and (
             self.get_attribute_value('expr') is not None
+            or self.get_orig_attribute_value('expr') is not None
             or bool(self.get_subcommands(type=constraints.ConstraintCommand))
             or (
                 self.get_attribute_value('default') is not None
                 and self.scls.is_link_property(schema)
             )
         ):
+            extras: dict[so.Object, list[str]] = {}
+            if (
+                self.get_attribute_value('expr') is not None
+                or self.get_orig_attribute_value('expr') is not None
+            ):
+                for constr in (
+                    self.scls.get_constraints(schema).objects(schema)
+                ):
+                    extras[constr] = ['finalexpr']
+
             # If the expression gets changed, we need to propagate
             # this change to other expressions referring to this one,
             # in case there are any cycles caused by this change.
@@ -2119,10 +2130,15 @@ class AlterPointer(
             # Also when setting a default on a link property, since
             # access policies need to be prevented from accessing them.
             # (Ugh.)
+            #
+            # FIXME: sometimes this can cause a constraint to get
+            # altered because we've created another constraint, which
+            # could change inference
             schema = self._propagate_if_expr_refs(
                 schema,
                 context,
                 action=self.get_friendly_description(schema=schema),
+                extra_refs=extras,
             )
 
         return schema
@@ -2463,10 +2479,7 @@ class SetPointerType(
                 context=self.source_context,
             )
 
-        if orig_target == new_target:
-            return schema
-
-        if not context.canonical:
+        if not context.canonical and orig_target != new_target:
             assert orig_target is not None
             assert new_target is not None
             ptr_op = self.get_parent_op(context)
@@ -2546,6 +2559,7 @@ class SetPointerType(
                     parent_op = self.get_parent_op(context)
                     parent_op.add_caused(cleanup_op)
 
+        if not context.canonical:
             if context.enable_recursion:
                 self._propagate_ref_field_alter_in_inheritance(
                     schema,

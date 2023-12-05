@@ -955,7 +955,7 @@ class AlterInheritingObjectOrFragment(
                 schema = d_alter_cmd.inherit_fields(
                     schema, context, d_bases, fields=props)
 
-            self.add(d_root_cmd)
+            self.add_caused(d_root_cmd)
 
     def _update_inherited_fields(
         self,
