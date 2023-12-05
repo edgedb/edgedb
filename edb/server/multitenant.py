@@ -402,6 +402,10 @@ async def run_server(
                 args.compiler_pool_tenant_cache_size
             ),
             compiler_state=compiler_state,
+            use_monitor_fs=args.reload_config_files in [
+                srvargs.ReloadTrigger.Default,
+                srvargs.ReloadTrigger.FileSystemEvent,
+            ],
         )
         # This coroutine runs as long as the server,
         # and compiler_state is *heavy*, so make sure we don't
@@ -418,6 +422,15 @@ async def run_server(
         ss.init_jwcrypto(args.jws_key_file, jws_keys_newly_generated)
 
         def load_configuration(_signum):
+            if args.reload_config_files not in [
+                srvargs.ReloadTrigger.Default,
+                srvargs.ReloadTrigger.Signal,
+            ]:
+                logger.info(
+                    "SIGHUP received, but reload on signal is disabled"
+                )
+                return
+
             logger.info("reloading configuration")
             try:
                 ss.reload_tls(args.tls_cert_file, args.tls_key_file)
