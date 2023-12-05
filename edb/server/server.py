@@ -337,11 +337,23 @@ class BaseServer:
     def monitor_fs(
         self, path: str | pathlib.Path,
         cb: Callable[[str, int], None],
-    ) -> None:
-        self._file_watch_handles.append(
-            # ... we depend on an event loop internal _monitor_fs
-            self.__loop._monitor_fs(str(path), cb)  # type: ignore
-        )
+    ) -> Callable[[], None]:
+        # ... we depend on an event loop internal _monitor_fs
+        handle = self.__loop._monitor_fs(str(path), cb)  # type: ignore
+
+        def finalizer():
+            try:
+                self._file_watch_handles.remove(handle)
+            except ValueError:
+                # The server may have cleared _file_watch_handles before the
+                # tenants do, so we can skip the double cancel here.
+                pass
+            else:
+                handle.cancel()
+
+        self._file_watch_handles.append(handle)
+
+        return finalizer
 
     def _get_sys_config(self) -> Mapping[str, config.SettingValue]:
         raise NotImplementedError

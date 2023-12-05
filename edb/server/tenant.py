@@ -78,6 +78,7 @@ class Tenant(ha_base.ClusterProtocol):
     _task_group: taskgroup.TaskGroup | None
     _tasks: Set[asyncio.Task]
     _accept_new_tasks: bool
+    _file_watch_finalizers: list[Callable[[], None]]
 
     __sys_pgcon: pgcon.PGConnection | None
     _sys_pgcon_waiter: asyncio.Lock
@@ -124,6 +125,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._task_group = None
         self._tasks = set()
         self._accept_new_tasks = False
+        self._file_watch_finalizers = []
 
         # Never use `self.__sys_pgcon` directly; get it via
         # `async with self.use_sys_pgcon()`.
@@ -375,8 +377,10 @@ class Tenant(ha_base.ClusterProtocol):
                 self.reload_readiness_state()
 
             self.reload_readiness_state()
-            self._server.monitor_fs(
-                self._readiness_state_file, reload_state_file
+            self._file_watch_finalizers.append(
+                self._server.monitor_fs(
+                    self._readiness_state_file, reload_state_file
+                )
             )
 
         self._initing = False
@@ -427,6 +431,8 @@ class Tenant(ha_base.ClusterProtocol):
         self._running = False
         self._accept_new_tasks = False
         self._cluster.stop_watching()
+        while self._file_watch_finalizers:
+            self._file_watch_finalizers.pop()()
 
     async def wait_stopped(self) -> None:
         if self._task_group is not None:
