@@ -288,7 +288,8 @@ Use a ``multi`` link if:
 - The number of elements in the link tends to be small.
 
 Otherwise, prefer a single link from one object coupled with a computed
-backlink on the other:
+backlink on the other. This is marginally more efficient and generally
+recommended when modeling 1:N relations:
 
 .. code-block:: sdl
 
