@@ -1856,6 +1856,8 @@ def range_for_ptrref(
         refs = {next(iter((ptrref.intersection_components)))}
     elif ptrref.computed_backlink:
         refs = {ptrref.computed_backlink}
+    elif ptrref.computed_link:
+        refs = {ptrref.computed_link}
     else:
         refs = {ptrref}
         assert isinstance(ptrref, irast.PointerRef), \

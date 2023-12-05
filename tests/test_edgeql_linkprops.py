@@ -1300,6 +1300,27 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         )
 
+    @test.xerror('Stack overflow!')
+    async def test_edgeql_props_back_09(self):
+        await self.assert_query_result(
+            r'''
+            select assert_exists((
+                select Card { name, z := .<deck[IS User] {
+                  name, @count := @count }}
+                filter .name = 'Dragon'
+            ));
+            ''',
+            [
+                {
+                    "name": "Dragon",
+                    "z": tb.bag([
+                        {"x": 2, "name": "Alice"},
+                        {"x": 1, "name": "Dave"},
+                    ])
+                }
+            ]
+        )
+
     async def test_edgeql_props_schema_back_00(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,

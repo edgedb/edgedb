@@ -589,6 +589,12 @@ def ptrref_from_ptrcls(
                 ptrcls=backlink, schema=schema,
                 cache=cache, typeref_cache=typeref_cache,
             )
+        if backlink := ptrcls.get_computed_link(schema):
+            assert isinstance(backlink, s_pointers.Pointer)
+            kwargs['computed_link'] = ptrref_from_ptrcls(
+                ptrcls=backlink, schema=schema,
+                cache=cache, typeref_cache=typeref_cache,
+            )
 
     else:
         raise AssertionError(f'unexpected pointer class: {ptrcls}')

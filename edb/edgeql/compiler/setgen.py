@@ -762,8 +762,11 @@ def resolve_ptr_with_intersections(
         # when the backlink has been stuck in a computed.
         if (
             ptr is None
-            and isinstance(near_endpoint, s_pointers.Pointer)
-            and (back := near_endpoint.get_computed_backlink(ctx.env.schema))
+            and isinstance(near_endpoint, s_links.Link)
+            and (
+                (back := near_endpoint.get_computed_backlink(ctx.env.schema))
+                or (back := near_endpoint.get_computed_link(ctx.env.schema))
+            )
             and isinstance(back, s_links.Link)
             and (nptr := back.maybe_get_ptr(
                 ctx.env.schema,

@@ -1177,55 +1177,15 @@ class PointerCommandOrFragment(
             )
 
         if isinstance(target_ref, ComputableRef):
-            schema, inf_target_ref, base = self._parse_computable(
+            schema, inf_target_ref = self._parse_computable(
                 target_ref.expr, schema, context)
         elif (expr := self.get_local_attribute_value('expr')) is not None:
             schema = s_types.materialize_type_in_attribute(
                 schema, context, self, 'target')
-            schema, inf_target_ref, base = self._parse_computable(
+            schema, inf_target_ref = self._parse_computable(
                 expr.qlast, schema, context)
         else:
             inf_target_ref = None
-            base = None
-
-        if base is not None:
-            self.set_attribute_value(
-                'bases', so.ObjectList.create(schema, [base]),
-            )
-
-            self.set_attribute_value(
-                'is_derived', True
-            )
-            if isinstance(self, inheriting.AlterInheritingObject):
-                self._propagate_is_derived(schema, context, True)
-
-            if context.declarative:
-                self.set_attribute_value(
-                    'declared_overloaded', True
-                )
-
-        # If we *were* an aliased computed but are changing to not be
-        # one, we need to update our base and is_derived to not be.
-        elif (
-            isinstance(self, inheriting.AlterInheritingObject)
-            and self.has_attribute_value('expr')
-            and (
-                (cur_base := self.scls.get_bases(schema).objects(schema)[0])
-                and (subj := cur_base.get_subject(schema))
-                and subj == self.scls.get_subject(schema)
-            )
-        ):
-            mcls = self.get_schema_metaclass()
-            base = schema.get(
-                not_none(mcls.get_default_base_name()),
-                type=mcls,
-            )
-
-            self.set_attribute_value(
-                'bases', so.ObjectList.create(schema, [base]),
-            )
-
-            self._propagate_is_derived(schema, context, None)
 
         if inf_target_ref is not None:
             srcctx = self.get_attribute_source_context('target')
@@ -1244,19 +1204,6 @@ class PointerCommandOrFragment(
             # There is an expression, therefore it is a computable.
             self.set_attribute_value('computable', True)
 
-        # If a change to the computable definition might be changing
-        # the bases, we need to create a rebase.
-        if base is not None and isinstance(self, sd.AlterObject):
-            assert isinstance(self, inheriting.InheritingObjectCommand)
-            assert isinstance(base, Pointer)
-            _, cmd = self._rebase_ref_cmd(
-                schema, context, self.scls,
-                self.scls.get_bases(schema).objects(schema),
-                [base],
-            )
-            if cmd:
-                self.add(cmd)
-
         return schema
 
     def _parse_computable(
@@ -1267,7 +1214,6 @@ class PointerCommandOrFragment(
     ) -> Tuple[
         s_schema.Schema,
         s_types.TypeShell[s_types.Type],
-        Optional[PointerLike],
     ]:
         from edb.ir import ast as irast
         from edb.ir import typeutils as irtyputils
@@ -1331,6 +1277,8 @@ class PointerCommandOrFragment(
                 ):
                     base = aliased_ptr
                     schema = new_schema
+
+        self.set_attribute_value('computed_link', base)
 
         # Do similar logic, but in reverse, to see if the computed pointer
         # is a computed backlink that we need to keep track of.
@@ -1466,7 +1414,7 @@ class PointerCommandOrFragment(
 
         self.set_attribute_value('computable', True)
 
-        return schema, target_shell, base
+        return schema, target_shell
 
     def _compile_expr(
         self,
@@ -2237,6 +2185,7 @@ class AlterPointer(
                     and not self.has_attribute_value('cardinality')
                 ):
                     self.set_attribute_value('cardinality', None)
+                self.set_attribute_value('computed_link', None)
                 self.set_attribute_value('computed_backlink', None)
 
             # Clear the placeholder value for 'expr'.
