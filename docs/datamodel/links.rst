@@ -277,6 +277,29 @@ table <https://en.wikipedia.org/wiki/Associative_entity>`_, whereas a
 As a result, single links are marginally more efficient. Generally ``single``
 links are recommended when modeling 1:N relations.
 
+Another decision often faced by EdgeDB users is whether to use a ``multi``
+link on the linking object or a backlink on the other (the linked object).
+A general rule of thumb in this case is as follows.
+
+Use a ``multi`` link if:
+
+- The relationship is relatively stable and thus not updated very frequently.
+  For example, a list of postal addresses in a user profile.
+- The number of elements in the link tends to be small.
+
+Otherwise, prefer a single link from one object coupled with a computed backlink
+on the other:
+
+.. code-block:: sdl
+
+    type Post {
+      required author: User;
+    }
+
+    type User {
+      link posts := (.<author[is Post])
+    }
+
 .. _ref_guide_one_to_one:
 
 One-to-one
