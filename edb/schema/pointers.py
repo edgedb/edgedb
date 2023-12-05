@@ -1191,11 +1191,36 @@ class PointerCommandOrFragment(
             self.set_attribute_value(
                 'is_derived', True
             )
+            if isinstance(self, inheriting.AlterInheritingObject):
+                self._propagate_is_derived(schema, context, True)
 
             if context.declarative:
                 self.set_attribute_value(
                     'declared_overloaded', True
                 )
+
+        # If we *were* an aliased computed but are changing to not be
+        # one, we need to update our base and is_derived to not be.
+        elif (
+            isinstance(self, inheriting.AlterInheritingObject)
+            and self.has_attribute_value('expr')
+            and (
+                (cur_base := self.scls.get_bases(schema).objects(schema)[0])
+                and (subj := cur_base.get_subject(schema))
+                and subj == self.scls.get_subject(schema)
+            )
+        ):
+            mcls = self.get_schema_metaclass()
+            base = schema.get(
+                not_none(mcls.get_default_base_name()),
+                type=mcls,
+            )
+
+            self.set_attribute_value(
+                'bases', so.ObjectList.create(schema, [base]),
+            )
+
+            self._propagate_is_derived(schema, context, None)
 
         if inf_target_ref is not None:
             srcctx = self.get_attribute_source_context('target')
