@@ -535,6 +535,11 @@ class Pointer(referencing.NamedReferencedInheritingObject,
         type_is_generic_self=True,
     )
 
+    computed_link = so.SchemaField(
+        so.Object,
+        default=None,
+        compcoef=0.99,
+    )
     computed_backlink = so.SchemaField(
         so.Object,
         default=None,
