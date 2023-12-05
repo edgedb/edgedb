@@ -274,8 +274,6 @@ same "shirt owner" relationship is represented with a ``multi`` link.
 Under the hood, a ``multi`` link is stored in an intermediate `association
 table <https://en.wikipedia.org/wiki/Associative_entity>`_, whereas a
 ``single`` link is stored as a column in the object type where it is declared.
-As a result, single links are marginally more efficient. Generally ``single``
-links are recommended when modeling 1:N relations.
 
 Another decision often faced by EdgeDB users is whether to use a ``multi``
 link on the linking object or a backlink on the other (the linked object).
