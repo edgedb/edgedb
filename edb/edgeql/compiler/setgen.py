@@ -2024,7 +2024,9 @@ def get_globals_as_json(
         globs = ()
 
     objctx = ctx.env.options.schema_object_context
-    if globs and objctx in (s_constr.Constraint, s_indexes.Index):
+    is_constraint_like = objctx in (s_constr.Constraint, s_indexes.Index)
+    if globs and is_constraint_like:
+        assert objctx
         typname = objctx.get_schema_class_displayname()
         # XXX: or should we pass in empty globals, in this situation?
         raise errors.SchemaDefinitionError(
@@ -2092,7 +2094,7 @@ def get_globals_as_json(
         if (
             not ctx.env.options.apply_user_access_policies
             or not ctx.env.options.apply_query_rewrites
-        ):
+        ) and not is_constraint_like:
             full_objs.append(qlast.FunctionCall(
                 func=('__std__', 'to_json'),
                 args=[qlast.StringConstant(
