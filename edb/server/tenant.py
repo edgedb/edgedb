@@ -370,20 +370,21 @@ class Tenant(ha_base.ClusterProtocol):
         self._sys_pgcon_ready_evt.set()
 
         self.populate_sys_auth()
+        self.reload_readiness_state()
+        self._start_watching_files()
+        self._initing = False
 
+    def _start_watching_files(self):
         if self._readiness_state_file is not None:
 
             def reload_state_file(_file_modified, _event):
                 self.reload_readiness_state()
 
-            self.reload_readiness_state()
             self._file_watch_finalizers.append(
                 self._server.monitor_fs(
                     self._readiness_state_file, reload_state_file
                 )
             )
-
-        self._initing = False
 
     async def start_accepting_new_tasks(self) -> None:
         assert self._task_group is None
@@ -431,6 +432,9 @@ class Tenant(ha_base.ClusterProtocol):
         self._running = False
         self._accept_new_tasks = False
         self._cluster.stop_watching()
+        self._stop_watching_files()
+
+    def _stop_watching_files(self):
         while self._file_watch_finalizers:
             self._file_watch_finalizers.pop()()
 
@@ -1149,8 +1153,13 @@ class Tenant(ha_base.ClusterProtocol):
         self._jwt_sub_allowlist = None
         self._jwt_revocation_list = None
 
+        # Re-add the fs watchers in case the path changed
+        self._stop_watching_files()
+
         self.reload_readiness_state()
         self.load_jwcrypto()
+
+        self._start_watching_files()
 
     async def on_before_drop_db(
         self, dbname: str, current_dbname: str
