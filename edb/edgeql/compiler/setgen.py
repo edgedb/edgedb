@@ -776,8 +776,23 @@ def resolve_ptr_with_intersections(
             # around a bunch of stuff inside them.
             and not nptr.is_pure_computable(ctx.env.schema)
         ):
-            ptr = schemactx.derive_ptr(nptr, near_endpoint, ctx=ctx)
-            path_id_ptr = ptr
+            src_type = downcast(
+                s_types.Type, near_endpoint.get_source(ctx.env.schema)
+            )
+            if not src_type.is_view(ctx.env.schema):
+                # XXX: This is *beyond* sketchy.
+                # And we should only do it once!
+                new_source = downcast(
+                    s_objtypes.ObjectType,
+                    schemactx.derive_view(src_type, ctx=ctx),
+                )
+                new_endpoint = downcast(s_links.Link, schemactx.derive_ptr(
+                    near_endpoint, new_source, ctx=ctx))
+            else:
+                new_endpoint = near_endpoint
+
+            ptr = schemactx.derive_ptr(nptr, new_endpoint, ctx=ctx)
+            path_id_ptr = nptr
 
         if ptr is not None:
             ref = ptr.get_nearest_non_derived_parent(ctx.env.schema)
