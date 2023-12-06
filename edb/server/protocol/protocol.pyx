@@ -582,6 +582,15 @@ cdef class HttpProtocol:
                     response.close_connection = True
 
             else:
+                if (
+                    debug.flags.http_inject_cors
+                    and request.method == b'OPTIONS'
+                ):
+                    response.status = http.HTTPStatus.NO_CONTENT
+                    response.custom_headers['Access-Control-Allow-Methods'] = \
+                        'GET, POST, OPTIONS'
+                    return
+
                 # Check if this is a request to a registered extension
                 if extname == 'edgeql':
                     extname = 'edgeql_http'
