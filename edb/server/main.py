@@ -210,6 +210,8 @@ async def _run_server(
             instance_name=args.instance_name,
             max_backend_connections=args.max_backend_connections,
             backend_adaptive_ha=args.backend_adaptive_ha,
+        )
+        tenant.set_reloadable_files(
             readiness_state_file=args.readiness_state_file,
             jwt_sub_allowlist_file=args.jwt_sub_allowlist_file,
             jwt_revocation_list_file=args.jwt_revocation_list_file,
@@ -238,6 +240,10 @@ async def _run_server(
             disable_dynamic_system_config=args.disable_dynamic_system_config,
             compiler_state=compiler_state,
             tenant=tenant,
+            use_monitor_fs=args.reload_config_files in [
+                srvargs.ReloadTrigger.Default,
+                srvargs.ReloadTrigger.FileSystemEvent,
+            ],
         )
         # This coroutine runs as long as the server,
         # and compiler_state is *heavy*, so make sure we don't
@@ -260,6 +266,15 @@ async def _run_server(
         ss.init_jwcrypto(args.jws_key_file, jws_keys_newly_generated)
 
         def load_configuration(_signum):
+            if args.reload_config_files not in [
+                srvargs.ReloadTrigger.Default,
+                srvargs.ReloadTrigger.Signal,
+            ]:
+                logger.info(
+                    "SIGHUP received, but reload on signal is disabled"
+                )
+                return
+
             logger.info("reloading configuration")
             try:
                 if args.readiness_state_file:

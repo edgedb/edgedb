@@ -173,7 +173,11 @@ class MultiTenantServer(server.BaseServer):
                     self._create_task(self._add_tenant, sni, tenant_conf)
                 )
         for sni in self._tenants_conf:
-            if sni not in conf:
+            if sni in conf:
+                rv.append(
+                    self._create_task(self._reload_tenant, sni, conf[sni])
+                )
+            else:
                 rv.append(self._create_task(self._remove_tenant, sni))
         self._tenants_conf = conf
         return rv
@@ -220,26 +224,16 @@ class MultiTenantServer(server.BaseServer):
         )
         cluster.set_connection_params(conn_params)
 
-        if "jwt-sub-allowlist-file" in conf:
-            jwt_sub_allowlist_file = pathlib.Path(
-                conf["jwt-sub-allowlist-file"]
-            )
-        else:
-            jwt_sub_allowlist_file = None
-        if "jwt-revocation-list-file" in conf:
-            jwt_revocation_list_file = pathlib.Path(
-                conf["jwt-revocation-list-file"]
-            )
-        else:
-            jwt_revocation_list_file = None
         tenant = edbtenant.Tenant(
             cluster,
             instance_name=conf["instance-name"],
             max_backend_connections=max_conns,
             backend_adaptive_ha=conf.get("backend-adaptive-ha", False),
+        )
+        tenant.set_reloadable_files(
             readiness_state_file=conf.get("readiness-state-file"),
-            jwt_sub_allowlist_file=jwt_sub_allowlist_file,
-            jwt_revocation_list_file=jwt_revocation_list_file,
+            jwt_sub_allowlist_file=conf.get("jwt-sub-allowlist-file"),
+            jwt_revocation_list_file=conf.get("jwt-revocation-list-file"),
         )
         tenant.set_server(self)
         tenant.load_jwcrypto()
@@ -325,6 +319,32 @@ class MultiTenantServer(server.BaseServer):
         except Exception:
             logger.critical("Failed to remove Tenant %s", sni, exc_info=True)
 
+    async def _reload_tenant(self, serial: int, sni: str, conf: TenantConfig):
+        try:
+            async with self._tenants_lock[sni]:
+                if serial > self._tenants_serial.get(sni, 0):
+                    if tenant := self._tenants.get(sni):
+                        tenant.set_reloadable_files(
+                            readiness_state_file=conf.get(
+                                "readiness-state-file"),
+                            jwt_sub_allowlist_file=conf.get(
+                                "jwt-sub-allowlist-file"),
+                            jwt_revocation_list_file=conf.get(
+                                "jwt-revocation-list-file"),
+                        )
+                        # XXX: Changing other config values like `backend-dsn`
+                        # is NOT supported currently. Ideally we should raise
+                        # warnings here if unsupported changes are detected.
+
+                        tenant.reload()
+                        logger.info("Reloaded Tenant %s", sni)
+
+                    # GOTCHA: reloading tenant doesn't increase the tenant
+                    # serial because a reload shouldn't prevent a concurrent
+                    # removing of the tenant.
+        except Exception:
+            logger.critical("Failed to reload Tenant %s", sni, exc_info=True)
+
     def get_debug_info(self):
         parent = super().get_debug_info()
         parent["tenants"] = {
@@ -382,6 +402,10 @@ async def run_server(
                 args.compiler_pool_tenant_cache_size
             ),
             compiler_state=compiler_state,
+            use_monitor_fs=args.reload_config_files in [
+                srvargs.ReloadTrigger.Default,
+                srvargs.ReloadTrigger.FileSystemEvent,
+            ],
         )
         # This coroutine runs as long as the server,
         # and compiler_state is *heavy*, so make sure we don't
@@ -398,6 +422,15 @@ async def run_server(
         ss.init_jwcrypto(args.jws_key_file, jws_keys_newly_generated)
 
         def load_configuration(_signum):
+            if args.reload_config_files not in [
+                srvargs.ReloadTrigger.Default,
+                srvargs.ReloadTrigger.Signal,
+            ]:
+                logger.info(
+                    "SIGHUP received, but reload on signal is disabled"
+                )
+                return
+
             logger.info("reloading configuration")
             try:
                 ss.reload_tls(args.tls_cert_file, args.tls_key_file)
