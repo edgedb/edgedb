@@ -58,9 +58,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         object _startup_msg_waiter
 
-        dbview.CompiledQuery _last_anon_compiled
-        int _last_anon_compiled_hash
-
         bint query_cache_enabled
 
         tuple protocol_version

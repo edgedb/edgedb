@@ -166,8 +166,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self._dbview = None
 
-        self._last_anon_compiled = None
-
         self.query_cache_enabled = not (debug.flags.disable_qcache or
                                         debug.flags.edgeql_compile)
 
@@ -793,8 +791,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             WriteBuffer parse_complete
             WriteBuffer buf
 
-        self._last_anon_compiled = None
-
         self.ignore_headers()
 
         _dbview = self.get_dbview()
@@ -804,14 +800,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         compiled = await self._parse(query_req)
 
         buf = self.make_command_data_description_msg(compiled)
-
-        # Cache compilation result in anticipation that the client
-        # will follow up with an Execute immediately.
-        #
-        # N.B.: we cannot rely on query cache because not all units
-        # are cacheable.
-        self._last_anon_compiled = compiled
-        self._last_anon_compiled_hash = hash(query_req)
 
         self.write(buf)
         self.flush()
@@ -836,39 +824,25 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.buffer.finish_message()
 
-        if (
-            self._last_anon_compiled is not None and
-            hash(query_req) == self._last_anon_compiled_hash and
-            in_tid == self._last_anon_compiled.query_unit_group.in_type_id and
-            out_tid == self._last_anon_compiled.query_unit_group.out_type_id
-        ):
-            compiled = self._last_anon_compiled
+        query_unit_group = _dbview.lookup_compiled_query(query_req)
+        if query_unit_group is None:
+            if self.debug:
+                self.debug_print('EXECUTE /CACHE MISS', query_req.source.text())
+
+            compiled = await self._parse(query_req)
             query_unit_group = compiled.query_unit_group
+            if self._cancelled:
+                raise ConnectionAbortedError
         else:
-            query_unit_group = _dbview.lookup_compiled_query(query_req)
-            if query_unit_group is None:
-                if self.debug:
-                    self.debug_print('EXECUTE /CACHE MISS', query_req.source.text())
-
-                compiled = await self._parse(query_req)
-                query_unit_group = compiled.query_unit_group
-                if self._cancelled:
-                    raise ConnectionAbortedError
-            else:
-                metrics.edgeql_query_compilations.inc(
-                    1.0, self.get_tenant_label(), 'cache'
-                )
-                compiled = dbview.CompiledQuery(
-                    query_unit_group=query_unit_group,
-                    first_extra=query_req.source.first_extra(),
-                    extra_counts=query_req.source.extra_counts(),
-                    extra_blobs=query_req.source.extra_blobs(),
-                )
-
-        # Clear the _last_anon_compiled so that the next Execute - if
-        # identical - will always lookup in the cache and honor the
-        # `cacheable` flag to compile the query again.
-        self._last_anon_compiled = None
+            metrics.edgeql_query_compilations.inc(
+                1.0, self.get_tenant_label(), 'cache'
+            )
+            compiled = dbview.CompiledQuery(
+                query_unit_group=query_unit_group,
+                first_extra=query_req.source.first_extra(),
+                extra_counts=query_req.source.extra_counts(),
+                extra_blobs=query_req.source.extra_blobs(),
+            )
 
         _dbview.check_capabilities(
             query_unit_group.capabilities,
