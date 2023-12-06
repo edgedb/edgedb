@@ -359,6 +359,19 @@ constraint, each movie can be liked by multiple users. Thus this is a
   objects twice.
 
   .. code-block:: sdl
+    :version-lt: 3.0
+
+    type User {
+      required property name -> str;
+      multi link watch_history -> Movie {
+        seen_at: datetime;
+      };
+    }
+    type Movie {
+      required property title -> str;
+    }
+
+  .. code-block:: sdl
 
     type User {
       required name: str;
@@ -373,6 +386,19 @@ constraint, each movie can be liked by multiple users. Thus this is a
   With this model it's not possible to watch the same movie twice. Instead, you
   might change your ``seen_at`` link property to an array to store multiple
   watch times.
+
+  .. code-block:: sdl
+    :version-lt: 3.0
+
+    type User {
+      required property name -> str;
+      multi link watch_history -> Movie {
+        seen_at: array<datetime>;
+      };
+    }
+    type Movie {
+      required property title -> str;
+    }
 
   .. code-block:: sdl
 
@@ -390,6 +416,23 @@ constraint, each movie can be liked by multiple users. Thus this is a
   own type.
 
   .. code-block:: sdl
+    :version-lt: 3.0
+
+    type User {
+      required property name -> str;
+      multi link watch_history := .<user[Is WatchHistory];
+    }
+    type Movie {
+      required property title: str;
+    }
+    type WatchHistory {
+      required link user -> User;
+      required link movie -> Movie;
+      property seen_at -> datetime;
+    }
+
+  .. code-block:: sdl
+    :version-lt: 4.0
 
     type User {
       required name: str;
@@ -399,9 +442,24 @@ constraint, each movie can be liked by multiple users. Thus this is a
       required title: str;
     }
     type WatchHistory {
-      required link user: User;
-      required link movie: Movie;
-      property seen_at: datetime;
+      required user: User;
+      required movie: Movie;
+      seen_at: datetime;
+    }
+
+  .. code-block:: sdl
+
+    type User {
+      required name: str;
+      multi watch_history := .<user[Is WatchHistory];
+    }
+    type Movie {
+      required title: str;
+    }
+    type WatchHistory {
+      required user: User;
+      required movie: Movie;
+      seen_at: datetime;
     }
 
   Be sure to use single links in the join table instead of a multi link
