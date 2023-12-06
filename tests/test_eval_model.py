@@ -22,12 +22,11 @@ import unittest
 from edb.tools import toy_eval_model as model
 
 from edb.common import assert_data_shape
-from edb.testbase.lang import PreloadParserGrammarMixin
 
 bag = assert_data_shape.bag
 
 
-class TestModelSmokeTests(unittest.TestCase, PreloadParserGrammarMixin):
+class TestModelSmokeTests(unittest.TestCase):
     """Unit tests for the toy evaluator model.
 
     These are intended as smoke tests. Since obviously we don't want

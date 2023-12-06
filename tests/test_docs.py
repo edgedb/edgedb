@@ -41,14 +41,13 @@ except ImportError:
 from graphql.language import parser as graphql_parser
 
 from edb.edgeql import parser as ql_parser
-from edb.testbase import lang
 
 
 def find_edgedb_root():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-class TestDocSnippets(unittest.TestCase, lang.PreloadParserGrammarMixin):
+class TestDocSnippets(unittest.TestCase):
     """Lint and validate EdgeDB documentation files.
 
     Checks:

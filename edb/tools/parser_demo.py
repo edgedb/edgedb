@@ -31,8 +31,6 @@ from edb.tools.edb import edbcommands
 @edbcommands.command("parser-demo")
 def main():
 
-    qlparser.preload_spec()
-
     for q in QUERIES[-10:]:
         sdl = q.startswith('sdl')
         if sdl:
