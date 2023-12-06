@@ -248,8 +248,8 @@ class BasePointerRef(ImmutableBase):
     # Inbound cardinality of the pointer.
     in_cardinality: qltypes.Cardinality = qltypes.Cardinality.MANY
     defined_here: bool = False
-    computed_link: typing.Optional[BasePointerRef] = None
-    computed_backlink: typing.Optional[BasePointerRef] = None
+    computed_link_alias: typing.Optional[BasePointerRef] = None
+    computed_link_alias_is_backward: typing.Optional[bool] = None
 
     def dir_target(self, direction: s_pointers.PointerDirection) -> TypeRef:
         if direction is s_pointers.PointerDirection.Outbound:

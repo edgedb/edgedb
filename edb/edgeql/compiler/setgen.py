@@ -756,17 +756,15 @@ def resolve_ptr_with_intersections(
             s_name.UnqualName(pointer_name),
         )
 
-        # If we couldn't anything, but the source is a computed backlink,
-        # look for a link property on the reverse side of it. This allows
-        # us to access link properties in both directions on links, including
-        # when the backlink has been stuck in a computed.
+        # If we couldn't anything, but the source is a computed link
+        # that aliases some other link, look for a link property on
+        # it. This allows us to access link properties in both
+        # directions on links, including when the backlink has been
+        # stuck in a computed.
         if (
             ptr is None
             and isinstance(near_endpoint, s_links.Link)
-            and (
-                (back := near_endpoint.get_computed_backlink(ctx.env.schema))
-                or (back := near_endpoint.get_computed_link(ctx.env.schema))
-            )
+            and (back := near_endpoint.get_computed_link_alias(ctx.env.schema))
             and isinstance(back, s_links.Link)
             and (nptr := back.maybe_get_ptr(
                 ctx.env.schema,
