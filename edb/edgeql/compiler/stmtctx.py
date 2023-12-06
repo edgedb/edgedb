@@ -727,8 +727,7 @@ def declare_view(
             view_set.path_id = view_set.path_id.replace_namespace(
                 path_id_namespace)
 
-        view_type = setgen.get_set_type(view_set, ctx=ctx)
-        ctx.aliased_views[alias] = view_type
+        ctx.aliased_views[alias] = view_set
         ctx.env.expr_view_cache[expr, alias] = view_set
 
     return view_set
@@ -758,8 +757,9 @@ def _declare_view_from_schema(
         # The view path id _itself_ should not be in the nested namespace.
         view_set.path_id = view_set.path_id.replace_namespace(frozenset())
 
-        vc = subctx.aliased_views[viewcls_name]
-        assert vc is not None
+        vs = subctx.aliased_views[viewcls_name]
+        assert vs is not None
+        vc = setgen.get_set_type(vs, ctx=ctx)
         ctx.env.schema_view_cache[viewcls] = vc, view_set
 
     return vc, view_set
@@ -772,7 +772,7 @@ def declare_view_from_schema(
 
     viewcls_name = viewcls.get_name(ctx.env.schema)
 
-    ctx.aliased_views[viewcls_name] = vc
+    ctx.aliased_views[viewcls_name] = view_set
     ctx.view_nodes[vc.get_name(ctx.env.schema)] = vc
     ctx.view_sets[vc] = view_set
 
