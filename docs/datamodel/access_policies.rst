@@ -188,7 +188,9 @@ Let's add a policy to our sample schema.
 
     +     access policy author_has_full_access
     +       allow all
-    +       using (global current_user ?= .author.id);
+    +       using (global current_user ?= .author.id) {
+    +          errmessage := "User must have same ID as blog author";
+    +       }
         }
 
 .. code-block:: sdl-diff
@@ -205,7 +207,9 @@ Let's add a policy to our sample schema.
 
     +     access policy author_has_full_access
     +       allow all
-    +       using (global current_user ?= .author.id);
+    +       using (global current_user ?= .author.id) {
+    +          errmessage := "User must have same ID as blog author";
+    +       }
         }
 
 
@@ -227,6 +231,10 @@ one else will be able to edit, delete, or view this post.
   ``update read``, ``update write``.
 - ``using (<expr>)``: A boolean expression. Think of this as a ``filter``
   expression that defines the set of objects to which the policy applies.
+- ``errmessage``: Here we have added an error message that will show in case
+  the policy expression returns ``false``. We could have added other
+  annotations of our own inside this code block instead of, or in addition
+  to ``errmessage``.
 
 Let's do some experiments.
 
@@ -253,7 +261,35 @@ we'll see the post we just created.
   db> select count(BlogPost);
   {1}
 
-Now let's unset ``current_user`` and see what happens.
+Next, let's set the ``global current_user`` to some other id. This user has
+yet to write any posts, so the number of ``BlogPost`` objects returned via
+the ``count`` function is now zero:
+
+.. code-block:: edgeql-repl
+
+  db> set global current_user := <uuid>'d1c64b84-8e3c-11ee-86f0-d7ddecf3e9bd';
+  OK: SET GLOBAL
+  db> select count(BlogPost);
+  {0}
+
+Now let's see what happens when we try to insert a ``BlogPost`` under this new
+id. This might represent a situation where our app is misconfigured to allow a
+user to switch accounts while still remaining on the blog editing page used
+for the previous account. Fortunately, the access policy prevents this post
+from being published under the wrong id:
+
+.. code-block:: edgeql-repl
+  db> set global current_user := <uuid>'d1c64b84-8e3c-11ee-86f0-d7ddecf3e9bd';
+  OK: SET GLOBAL
+  db> insert BlogPost {
+  ...    title := "My post",
+  ...    author := (select User filter .id = global current_user)
+  ...  };
+  edgedb error: AccessPolicyError: access policy violation on insert of
+  default::BlogPost (User must have same ID as blog author)
+
+Finally, let's unset ``current_user`` and see how many blog posts are returned
+when we count them.
 
 .. code-block:: edgeql-repl
 
@@ -264,9 +300,10 @@ Now let's unset ``current_user`` and see what happens.
   db> select count(BlogPost);
   {0}
 
-Now ``select BlogPost`` returns zero results. We can only ``select`` the
-*posts* written by the *user* specified by ``current_user``. When
-``current_user`` has no value, we can't read any posts.
+``select BlogPost`` returns zero results in this case as well. We can only
+``select`` the *posts* written by the *user* specified by ``current_user``.
+When ``current_user`` has no value, or a different value from existing
+``BlogPost`` objects, we can't read any posts.
 
 The access policies use global variables to define a "subgraph" of data that
 is visible to a particular query.
