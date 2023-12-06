@@ -279,6 +279,7 @@ for the previous account. Fortunately, the access policy prevents this post
 from being published under the wrong id:
 
 .. code-block:: edgeql-repl
+
   db> set global current_user := <uuid>'d1c64b84-8e3c-11ee-86f0-d7ddecf3e9bd';
   OK: SET GLOBAL
   db> insert BlogPost {
