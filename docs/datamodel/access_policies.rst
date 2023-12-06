@@ -231,8 +231,8 @@ one else will be able to edit, delete, or view this post.
   ``update read``, ``update write``.
 - ``using (<expr>)``: A boolean expression. Think of this as a ``filter``
   expression that defines the set of objects to which the policy applies.
-- ``errmessage``: Here we have added an error message that will show in case
-  the policy expression returns ``false``. We could have added other
+- ``errmessage``: Here we have added an error message that will be shown in
+  case the policy expression returns ``false``. We could have added other
   annotations of our own inside this code block instead of, or in addition
   to ``errmessage``.
 
@@ -267,7 +267,8 @@ the ``count`` function is now zero:
 
 .. code-block:: edgeql-repl
 
-  db> set global current_user := <uuid>'d1c64b84-8e3c-11ee-86f0-d7ddecf3e9bd';
+  db> set global current_user :=
+  ...   <uuid>'d1c64b84-8e3c-11ee-86f0-d7ddecf3e9bd';
   OK: SET GLOBAL
   db> select count(BlogPost);
   {0}
@@ -280,7 +281,8 @@ from being published under the wrong id:
 
 .. code-block:: edgeql-repl
 
-  db> set global current_user := <uuid>'d1c64b84-8e3c-11ee-86f0-d7ddecf3e9bd';
+  db> set global current_user :=
+  ...   <uuid>'d1c64b84-8e3c-11ee-86f0-d7ddecf3e9bd';
   OK: SET GLOBAL
   db> insert BlogPost {
   ...    title := "My post",
@@ -303,8 +305,8 @@ when we count them.
 
 ``select BlogPost`` returns zero results in this case as well. We can only
 ``select`` the *posts* written by the *user* specified by ``current_user``.
-When ``current_user`` has no value, or a different value from existing
-``BlogPost`` objects, we can't read any posts.
+When ``current_user`` has no value or has a different value from the
+``.author.id`` of any existing ``BlogPost`` objects, we can't read any posts.
 
 The access policies use global variables to define a "subgraph" of data that
 is visible to a particular query.
