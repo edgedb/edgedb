@@ -28,6 +28,9 @@ There are several ways to uniquely identify an EdgeDB instance.
   * - Instance name
     - ``--instance/-I <name>``
     - ``EDGEDB_INSTANCE``
+  * - Secret key (required in some EdgeDB Cloud scenarios; see description)
+    - ``--secret-key``
+    - ``EDGEDB_SECRET_KEY``
   * - DSN
     - ``--dsn <dsn>``
     - ``EDGEDB_DSN``
@@ -61,6 +64,26 @@ Let's dig into each of these a bit more.
   link <ref_cli_edgedb_instance_link>`. The CLI will save the credentials
   locally, so you can connect to a remote instance using just its name, just
   like a local instance.
+
+  If you have authenticated with EdgeDB Cloud in the CLI using the
+  :ref:`ref_cli_edgedb_cloud_login` command, you can address your own EdgeDB
+  Cloud instances using the instance name format
+  ``<org-name>/<instance-name>``. If you are not authenticated,
+
+.. _ref_reference_connection_secret_key:
+
+**Secret key**
+  If you want to connect to an EdgeDB Cloud instance in either of these
+  scenarios:
+
+  - from a client binding
+  - from the CLI to an instance not belonging to the currently authenticated
+    EdgeDB Cloud user
+
+  you will need to provide a secret key in addition to the instance name.
+  Generate a dedicated secret key for the instance via the CLI with
+  :ref:`ref_cli_edgedb_cloud_secretkey_create` or via the web UI's "Secret
+  Keys" pane in your instance dashboard.
 
 **DSN**
   DSNs (data source names, also referred to as "connection strings") are a

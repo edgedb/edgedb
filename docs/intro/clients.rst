@@ -11,9 +11,12 @@ with EdgeDB. These libraries provide a common set of functionality.
   internally manages a pool of physical connections to your EdgeDB instance.
 - *Resolving connections.* All client libraries implement a standard protocol
   for determining how to connect to your database. In most cases, this will
-  involve checking for special environment variables like ``EDGEDB_DSN``.
-  (More on this in the Connection section below.)
-- *Executing queries.* A  ``Client`` will provide some methods for executing
+  involve checking for special environment variables like ``EDGEDB_DSN`` or, in
+  the case of EdgeDB Cloud instances, ``EDGEDB_INSTANCE`` and
+  ``EDGEDB_SECRET_KEY``.
+  (More on this in :ref:`the Connection section below
+  <ref_intro_clients_connection>`.)
+- *Executing queries.* A ``Client`` will provide some methods for executing
   queries against your database. Under the hood, this query is executed using
   EdgeDB's efficient binary protocol.
 
@@ -26,7 +29,7 @@ with EdgeDB. These libraries provide a common set of functionality.
   choice.
 
 Available libraries
--------------------
+===================
 
 To execute queries from your application code, use one of EdgeDB's *client
 libraries* for the following languages.
@@ -41,7 +44,7 @@ libraries* for the following languages.
 - `Elixir <https://github.com/edgedb/edgedb-elixir>`_
 
 Usage
------
+=====
 
 To follow along with the guide below, first create a new directory and
 initialize a project.
@@ -368,13 +371,13 @@ generated inside your EdgeDB instance using EdgeQL's built-in
 .. _ref_intro_clients_connection:
 
 Connection
-----------
+==========
 
 All client libraries implement a standard protocol for determining how to
 connect to your database.
 
 Using projects
-^^^^^^^^^^^^^^
+--------------
 
 In development, we recommend :ref:`initializing a
 project <ref_intro_projects>` in the root of your codebase.
@@ -388,12 +391,74 @@ will automatically connect to the project-linked instance—no need for
 environment variables or hard-coded credentials. Follow the :ref:`Using
 projects <ref_guide_using_projects>` guide to get started.
 
-Using ``EDGEDB_DSN``
-^^^^^^^^^^^^^^^^^^^^
+Using environment variables
+---------------------------
+
+For EdgeDB Cloud
+^^^^^^^^^^^^^^^^
 
 In production, connection information can be securely passed to the client
-library via environment variables. Most commonly, you set a value for
-``EDGEDB_DSN``.
+library via environment variables. For EdgeDB Cloud instances, the recommended
+variables to set are ``EDGEDB_INSTANCE`` and ``EDGEDB_SECRET_KEY``.
+
+Set ``EDGEDB_INSTANCE`` to ``<org-name>/<instance-name>`` where
+``<instance-name>`` is the name you set when you created the EdgeDB Cloud
+instance.
+
+If you have not yet created a secret key, you can do so in the EdgeDB Cloud UI
+or by running :ref:`ref_cli_edgedb_cloud_secretkey_create` via the CLI.
+
+.. lint-off
+
+.. note::
+
+    You may also set other environment variables like ``EDGEDB_DSN`` for EdgeDB
+    Cloud instances. Run ``edgedb instance credentials --insecure-dsn -I
+    <org-name>/<instance-name>`` to get the DSN with exception of the password.
+    You'll get something like this:
+
+    .. code-block::
+
+        edgedb://edgedb@myinstance--mygithubusername.c-72.i.aws.edgedb.cloud:5656/edgedb
+
+    Then, either set a password for your existing role by running a
+    query against your EdgeDB Cloud database:
+
+    .. code-block:: edgeql-repl
+
+        db> alter role edgedb {
+        ...   set password := 'my-password'
+        ... };
+        OK: ALTER ROLE
+
+    or create a new role for this application:
+
+    .. code-block:: edgeql-repl
+
+        db> create superuser role myapp {
+        ...   set password := 'my-password'
+        ... };
+        OK: CREATE ROLE
+
+    Once you have a known password, insert that into your DSN:
+
+    .. code-block::
+
+        edgedb://edgedb:my-password@myinstance--mygithubusername.c-72.i.aws.edgedb.cloud:5656/edgedb
+
+    If you created a new role, replace the role name as well:
+
+    .. code-block::
+
+        edgedb://myapp:my-password@myinstance--mygithubusername.c-72.i.aws.edgedb.cloud:5656/edgedb
+
+.. lint-on
+
+For self-hosted instances
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Most commonly for self-hosted remote instances, you set a value for the
+``EDGEDB_DSN`` environment variable.
 
 .. note::
 
@@ -476,7 +541,7 @@ specified independently.
   If a value for ``EDGEDB_DSN`` is defined, it will override these variables!
 
 Other mechanisms
-^^^^^^^^^^^^^^^^
+----------------
 
 ``EDGEDB_CREDENTIALS_FILE``
   A path to a ``.json`` file containing connection information. In some
@@ -498,7 +563,7 @@ Other mechanisms
   The name of a local instance. Only useful in development.
 
 Reference
-^^^^^^^^^
+---------
 
 These are the most common ways to connect to an instance, however EdgeDB
 supports several other options for advanced use cases. For a complete reference
