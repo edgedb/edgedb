@@ -448,9 +448,6 @@ class Field(struct.ProtoField, Generic[T]):
     def is_schema_field(self) -> bool:
         return False
 
-    def maybe_get_default(self) -> Any:
-        return NoDefault
-
     def get_default(self) -> Any:
         raise ValueError(f'field {self.name!r} is required and has no default')
 
@@ -476,7 +473,8 @@ class Field(struct.ProtoField, Generic[T]):
 
 class SchemaField(Field[Type_T]):
 
-    __slots__ = ('default', 'hashable', 'allow_ddl_set', 'index')
+    __slots__ = ('default', 'hashable', 'allow_ddl_set', 'index',
+                 'get_default_specialized')
 
     #: The default value to use for the field.
     default: Any
@@ -486,6 +484,8 @@ class SchemaField(Field[Type_T]):
     allow_ddl_set: bool
     #: Field index within the object data tuple
     index: int
+    #: Specialized get_default function
+    get_default_specialized: Callable[[], Any]
 
     def __init__(
         self,
@@ -501,6 +501,9 @@ class SchemaField(Field[Type_T]):
         self.hashable = hashable
         self.allow_ddl_set = allow_ddl_set
         self.index = -1
+        # Use this instead of get_default if you can; get_default has to
+        # be a method because it comes from the parent
+        self.get_default_specialized = self._make_get_default()
 
     @property
     def required(self) -> bool:
@@ -510,23 +513,27 @@ class SchemaField(Field[Type_T]):
     def is_schema_field(self) -> bool:
         return True
 
-    def maybe_get_default(self) -> Any:
-        if self.default is DEFAULT_CONSTRUCTOR:
-            if issubclass(self.type, ObjectCollection):
-                value = self.type.create_empty()
-            else:
-                value = self.type()  # type: ignore
-        else:
-            value = self.default
-        return value
-
     def get_default(self) -> Any:
-        value = self.maybe_get_default()
-        if value is NoDefault:
-            raise ValueError(
-                f'field {self.name!r} is required and has no default')
+        return self.get_default_specialized()
+
+    def _make_get_default(self) -> Callable[[], Any]:
+        if self.default is NoDefault:
+            def _get_error() -> Any:
+                raise ValueError(
+                    f'field {self.name!r} is required and has no default')
+            return _get_error
+        elif self.default is DEFAULT_CONSTRUCTOR:
+            # ObjectCollection might not be defined yet when we first need
+            # to call this, so we hack it around a bit.
+            if getattr(self.type, 'is_object_collection', False):
+                return self.type.create_empty  # type: ignore
+            else:
+                return self.type
         else:
-            return value
+            def _get_simple(value: Any=self.default) -> Any:
+                return value
+
+            return _get_simple
 
     def __get__(
         self,
@@ -704,12 +711,12 @@ class ObjectMeta(type):
                     self: Any,
                     schema: s_schema.Schema,
                     *,
-                    _f: SchemaField[Any] = field,
                     _fn: str = field.name,
                     _fi: int = findex,
                     _sr: Callable[[Any], s_abc.Reducible] = (
                         ftype.schema_restore
                     ),
+                    _fd: Callable[[], Any] = field.get_default,
                 ) -> Any:
                     data = schema.get_obj_data_raw(self)
                     v = data[_fi]
@@ -717,7 +724,7 @@ class ObjectMeta(type):
                         return _sr(v)
                     else:
                         try:
-                            return _f.get_default()
+                            return _fd()
                         except ValueError:
                             pass
 
@@ -727,14 +734,35 @@ class ObjectMeta(type):
                         )
 
                 setattr(cls, getter_name, reducible_getter)
+
+            elif (
+                field.default is not NoDefault
+                and field.default is not DEFAULT_CONSTRUCTOR
+            ):
+                def regular_default_getter(
+                    self: Any,
+                    schema: s_schema.Schema,
+                    *,
+                    _fi: int = findex,
+                    _fd: Any = field.default,
+                ) -> Any:
+                    data = schema.get_obj_data_raw(self)
+                    v = data[_fi]
+                    if v is not None:
+                        return v
+                    else:
+                        return _fd
+
+                setattr(cls, getter_name, regular_default_getter)
+
             else:
                 def regular_getter(
                     self: Any,
                     schema: s_schema.Schema,
                     *,
-                    _f: SchemaField[Any] = field,
                     _fn: str = field.name,
                     _fi: int = findex,
+                    _fd: Callable[[], Any] = field.get_default,
                 ) -> Any:
                     data = schema.get_obj_data_raw(self)
                     v = data[_fi]
@@ -742,7 +770,7 @@ class ObjectMeta(type):
                         return v
                     else:
                         try:
-                            return _f.get_default()
+                            return _fd()
                         except ValueError:
                             pass
 
@@ -2204,6 +2232,7 @@ class ObjectCollection(
     Generic[Object_T],
 ):
     __slots__ = ('_ids',)
+    is_object_collection = True
 
     # Even though Object_T would be a correct annotation below,
     # we want the type to default to base `Object` for cases
