@@ -2415,9 +2415,12 @@ class ObjectCollection(
         return type(self)._container(result)
 
     def objects(self, schema: s_schema.Schema) -> Tuple[Object_T, ...]:
-        return tuple(
+        # Calling tuple on a list produced by a comprehension instead
+        # of on a generator comprehension is tragically a slight
+        # performance improvement, and this is a hot path.
+        return tuple([
             schema.get_by_id(iid) for iid in self._ids  # type: ignore
-        )
+        ])
 
     def _object_keys(self, schema: s_schema.Schema) -> Set[
             Tuple[Type[Object], sn.Name]]:
@@ -2644,16 +2647,18 @@ class ObjectIndexBase(
         result = []
         keyfunc = type(self)._key
 
-        for obj in self.objects(schema):
+        for item_id in self._ids:
+            obj = schema.get_by_id(item_id)
             result.append((keyfunc(schema, obj), obj))
 
-        return tuple(result)
+        return tuple(result)  # type: ignore
 
     def keys(self, schema: s_schema.Schema) -> Tuple[Key_T, ...]:
         result = []
         keyfunc = type(self)._key
 
-        for obj in self.objects(schema):
+        for item_id in self._ids:
+            obj = schema.get_by_id(item_id)
             result.append(keyfunc(schema, obj))
 
         return tuple(result)
