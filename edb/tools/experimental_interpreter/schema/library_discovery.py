@@ -7,7 +7,7 @@ import os
 
 def process_edgeql_file(
     schema: e.DBSchema, 
-    path: str) -> e.DBSchema:
+    path: str) -> None:
     """
     Process an edgeql file as ddl.
     """
@@ -15,13 +15,13 @@ def process_edgeql_file(
     with open(path) as f:
         content = f.read()
         ddls = parse_ddl(content)
-        return process_ddls(schema, ddls)
+        process_ddls(schema, ddls)
 
 
 
 def add_ddl_library(
     schema: e.DBSchema, 
-    libpaths: List[str]) -> e.DBSchema:
+    libpaths: List[str]) -> None :
     """
     Add a library to the schema.
 
@@ -35,10 +35,10 @@ def add_ddl_library(
         if os.path.isdir(libpath):
             for filename in sorted(os.listdir(libpath)):
                 if filename.endswith(".edgeql"):
-                    schema = process_edgeql_file(schema, os.path.join(libpath, filename))
+                    process_edgeql_file(schema, os.path.join(libpath, filename))
         elif libpath.endswith(".edgeql"):
-            schema = process_edgeql_file(schema, libpath)
+            process_edgeql_file(schema, libpath)
         else:
             raise ValueError(f"Invalid library path {libpath}")
 
-    return schema
+    # return schema

@@ -53,8 +53,8 @@ def map_tp(
                                            for k, v in val.items()})
             case e.UnnamedTupleTp(val=val):
                 return e.UnnamedTupleTp(val=[recur(v) for v in val])
-            case e.ArrTp(tp=arr_tp):
-                return e.ArrTp(tp=recur(arr_tp))
+            case e.CompositeTp(kind=k, tps=tps):
+                return e.CompositeTp(kind=k, tps=[recur(v) for v in tps])
             case e.NamedNominalLinkTp(name=name, linkprop=linkprop):
                 return e.NamedNominalLinkTp(name=name, 
                                     linkprop=recur(linkprop))

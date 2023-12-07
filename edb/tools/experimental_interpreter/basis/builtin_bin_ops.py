@@ -166,9 +166,9 @@ concatenate_tp = FunType(
         FunArgRetType(
             args_mod=[ParamSingleton(),
                     ParamSingleton()],
-            args_tp=[ArrTp(SomeTp(0)),
-                     ArrTp(SomeTp(0))],
-            ret_tp=e.ResultTp(ArrTp(SomeTp(0)), CardOne))])
+            args_tp=[e.CompositeTp(kind=e.CompositeTpKind.Array, tps=[SomeTp(0)]),
+                     e.CompositeTp(kind=e.CompositeTpKind.Array, tps=[SomeTp(0)])],
+            ret_tp=e.ResultTp(e.CompositeTp(kind=e.CompositeTpKind.Array, tps=[SomeTp(0)]), CardOne))])
 
 
 def concatenate_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:

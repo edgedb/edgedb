@@ -37,7 +37,7 @@ class ObjectTp:
 
 @dataclass(frozen=True)
 class ScalarTp:
-    kind: str
+    kind: QualifiedName
 
 
 @dataclass(frozen=True)
@@ -91,11 +91,24 @@ class NamedTupleTp:
 class UnnamedTupleTp:
     val: Sequence[Tp]
 
+class CompositeTpKind(Enum):
+    Array = "array"
+    Tuple = "tuple"
+    Enum = "enum"
+    Range = "range"
+    MultiRange = "multirange"
+    
 
 @dataclass(frozen=True)
-class ArrTp:
-    tp: Tp
+class CompositeTp:
+    kind: CompositeTpKind
+    tps: List[Tp]
 
+# @dataclass(frozen=True)
+# class TupleTp:
+#     tps: List[Tp]
+def ArrTp(tp: Tp):
+    return CompositeTp(CompositeTpKind.Array, [tp])
 
 @dataclass(frozen=True)
 class UnionTp:
@@ -145,7 +158,7 @@ class DefaultTp:
 
 @dataclass(frozen=True)
 class AnyTp:
-    pass
+    specifier: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -162,7 +175,7 @@ class SomeTp:
 
 Tp = (ObjectTp | PrimTp | NamedNominalLinkTp  | NominalLinkTp
       | NamedTupleTp | UnnamedTupleTp
-      | ArrTp | AnyTp | SomeTp | UnionTp | IntersectTp 
+      | CompositeTp | AnyTp | SomeTp | UnionTp | IntersectTp 
     #   | UnifiableTp
       | ComputableTp | DefaultTp | UncheckedComputableTp 
     #   | UncheckedNamedNominalLinkTp
@@ -329,7 +342,7 @@ class FunArgRetType:
 
 @dataclass(frozen=True)
 class FunType:
-    args_ret_types: Sequence[FunArgRetType]
+    args_ret_types: List[FunArgRetType]
     # effect_free: bool = False
 
 # DEFINE PRIM VALUES
@@ -427,6 +440,9 @@ class BoundVarExpr:
 @dataclass(frozen=True)
 class QualifiedName:
     names: List[str]
+
+    def __hash__(self):
+        return hash(tuple(self.names))
 
     # def __post_init__(self):
     #     if not isinstance(self.names, list) or not all(isinstance(name, str) for name in self.names):
@@ -679,17 +695,14 @@ FuncDef = BuiltinFuncDef
 @dataclass(frozen=True)
 class ModuleEntityTypeDef:
     typedef: ObjectTp | ScalarTp
-    isabstract: bool
+    is_abstract: bool
 
-@dataclass(frozen=True)
-class ModuleEntityScalarTypeDef:
-    isabstract: bool
 
 @dataclass(frozen=True)
 class ModuleEntityFuncDef:
     funcdef: FuncDef
 
-ModuleEntity = ModuleEntityTypeDef | ModuleEntityFuncDef | ModuleEntityScalarTypeDef
+ModuleEntity = ModuleEntityTypeDef | ModuleEntityFuncDef 
 
 @dataclass(frozen=True)
 class DBModule:
@@ -700,6 +713,7 @@ class DBModule:
 class DBSchema:
     modules : Dict[Tuple[str, ...], DBModule]
     unchecked_modules : Dict[Tuple[str, ...], DBModule] # modules that are currently under type checking
+    subtyping_relations: Dict[QualifiedName, List[QualifiedName]] # subtyping: indexed by subtypes, subtype -> immediate super types mapping
 
 # RT Stands for Run Time
 

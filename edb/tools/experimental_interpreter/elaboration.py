@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple, cast
 from edb import errors
 from edb.common import debug, parsing
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes as qltypes
 from edb.schema import pointers as s_pointers
 from edb.schema.pointers import PointerDirection
 
@@ -334,13 +335,15 @@ def elab_FunctionCall(fcall: qlast.FunctionCall) -> FunAppExpr:
     if fcall.window or fcall.kwargs:
         return elab_not_implemented(fcall)
     if type(fcall.func) is not str:
-        return elab_not_implemented(fcall)
-    fname = (e.UnqualifiedName(fcall.func)
-             if fcall.func in all_builtin_funcs.keys()
-             else e.QualifiedName(["std", fcall.func])
-             if ( fcall.func) in all_std_funcs.keys()
-             else elab_error("unknown function name: " +
-                             fcall.func, fcall.context))
+        assert type(fcall.func) is tuple
+        fname = e.QualifiedName(list(fcall.func))
+    else:
+        fname = (e.UnqualifiedName(fcall.func)
+                if fcall.func in all_builtin_funcs.keys()
+                else e.QualifiedName(["std", fcall.func])
+                if ( fcall.func) in all_std_funcs.keys()
+                else elab_error("unknown function name: " +
+                                fcall.func, fcall.context))
     args = [elab(arg) for arg in fcall.args]
     return FunAppExpr(fname, None, args)
 
@@ -372,18 +375,37 @@ def elab_BinOp(binop: qlast.BinOp) -> FunAppExpr | UnionExpr:
             raise ValueError("Unknown Op Name", binop.op)
 
 
-def elab_single_type_str(name: str) -> Tp:
-    match name:
-        case "int64":
-            return IntTp()
-        case "str":
-            return StrTp()
-        case "datetime":
-            return DateTimeTp()
-        case "json":
-            return JsonTp()
+def elab_param_modifier(mod: qltypes.TypeModifier) -> e.ParamModifier:
+    match mod:
+        case qltypes.TypeModifier.OptionalType:
+            return e.ParamOptional()
+        case qltypes.TypeModifier.SingletonType:
+            return e.ParamSingleton()
+        case qltypes.TypeModifier.SetOfType:
+            return e.ParamSetOf()
         case _:
-            return e.NamedNominalLinkTp(e.UnqualifiedName(name), e.ObjectTp({}))
+            raise ValueError("Unknown Param Modifier", mod)
+
+
+def elab_single_type_str(name: str, module_name: Optional[str]) -> Tp:
+    match name:
+        # case "int64":
+        #     return IntTp()
+        # case "str":
+        #     return StrTp()
+        # case "datetime":
+        #     return DateTimeTp()
+        # case "json":
+        #     return JsonTp()
+        case _:
+            if name.startswith("any") and module_name is None:
+                return e.AnyTp(name[3:])
+            else:
+                if module_name:
+                    assert "::" not in module_name
+                    return e.NamedNominalLinkTp(e.QualifiedName([module_name, name]), e.ObjectTp({}))
+                else:
+                    return e.NamedNominalLinkTp(e.UnqualifiedName(name), e.ObjectTp({}))
 
 
 @elab.register(qlast.TypeName)
@@ -392,17 +414,30 @@ def elab_TypeName(qle: qlast.TypeName) -> Tp:
         return elab_not_implemented(qle)
     if qle.dimensions:
         return elab_not_implemented(qle)
-    basetp: qlast.ObjectRef = cast(qlast.ObjectRef, qle.maintype)
-    if basetp.module != "std" and basetp.module:
-        return elab_not_implemented(qle)
-    if basetp.itemclass:
-        return elab_not_implemented(qle)
-    if qle.subtypes:
-        match (basetp.name, qle.subtypes):
-            case ("array", [single_arg]):
-                return ArrTp(tp=elab_single_type_expr(single_arg))
-        return elab_not_implemented(qle)
-    return elab_single_type_str(basetp.name)
+        
+    basetp = qle.maintype
+    if isinstance(basetp, qlast.ObjectRef):
+        if basetp.module != "std" and basetp.module:
+            return elab_not_implemented(qle)
+        if basetp.itemclass:
+            return elab_not_implemented(qle)
+        if qle.subtypes:
+            sub_tps = [elab_single_type_expr(subtype) for subtype in qle.subtypes]
+            if basetp.name in {k.value for k in e.CompositeTpKind}:
+                return e.CompositeTp(kind=e.CompositeTpKind(basetp.name), tps=sub_tps)  
+            else:
+                raise ValueError("Unknown Composite Type", basetp.name)
+
+            return elab_not_implemented(qle)
+        return elab_single_type_str(basetp.name, basetp.module)
+    elif isinstance(basetp, qlast.PseudoObjectRef):
+        if basetp.name.startswith("any"):
+            return e.AnyTp(basetp.name[3:])
+        else:
+            return elab_not_implemented(qle)
+    else:
+        raise ValueError("Unknown Type Name", qle)
+
     # raise ValueError("Unrecognized conversion type", basetp.name)
     # return elab_not_implemented(basetp, "unrecognized type " + basetp.name)
 

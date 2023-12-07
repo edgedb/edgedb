@@ -38,17 +38,18 @@ def empty_db(schema : DBSchema) -> EdgeDatabaseInterface:
     return InMemoryEdgeDatabase(schema)
 
 def empty_dbschema() -> DBSchema:
-    return DBSchema({}, {})
+    return DBSchema({}, {}, {})
 
 def default_dbschema() -> DBSchema:
     initial_db = empty_dbschema()
     relative_path_to_std = os.path.join("..", "..", "lib", "std")
     std_path = os.path.join(os.path.dirname(__file__), relative_path_to_std)
     print("Loading standard library at", std_path)
-    return add_ddl_library(
+    add_ddl_library(
         initial_db,
         [std_path]
     )
+    return initial_db
 
     # return DBSchema({("std",): DBModule({k: e.ModuleEntityFuncDef(v) for (k,v) in all_builtin_funcs.items()})},{})
 
@@ -205,7 +206,7 @@ def repl(*, init_sdl_file=None,
 
     dbschema = default_dbschema()
     if library_ddl_files:
-        dbschema = add_ddl_library(dbschema, library_ddl_files)
+        add_ddl_library(dbschema, library_ddl_files)
 
 
 

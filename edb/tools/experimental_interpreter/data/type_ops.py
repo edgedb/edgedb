@@ -135,8 +135,11 @@ def type_equality_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
                 return recurse(ctx, tp1_left, tp2) and recurse(ctx, tp1_right, tp2)
 
             # Other structural typing
-            case (e.ArrTp(tp=tp1_val), e.ArrTp(tp=tp2_val)):
-                return recurse(ctx, tp1_val, tp2_val)
+            case (e.CompositeTp(kind=kind1, tps=tps1), e.CompositeTp(kind=kind2, tps=tps2)):
+                if kind1 != kind2 or len(tps1) != len(tps2):
+                    return False
+                else:
+                    return all(recurse(ctx, tp1, tp2) for tp1, tp2 in zip(tps1, tps2))
 
             # For debugging Purposes
             # case ((e.ArrTp(_), e.StrTp())

@@ -43,8 +43,8 @@ def show_tp(tp: e.Tp) -> str:
             return 'bool'
         case e.StrTp():
             return 'str'
-        case e.ArrTp(tp=tp):
-            return f'arr({show_tp(tp)})'
+        case e.CompositeTp(kind=kind, tps=tps):
+            return f'{kind}<{",".join(show_tp(tp) for tp in tps)}>'
         case e.NamedTupleTp(val=tp_val):
             return ('prod(' + ', '.join(
                 f'{lbl}: {show_tp(md_tp)}'

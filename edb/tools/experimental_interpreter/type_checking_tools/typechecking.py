@@ -636,7 +636,7 @@ def check_module_validity(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -
     dbmodule = dbschema.unchecked_modules[module_name]
     for t_name, t_me in dbmodule.defs.items():
         match t_me:
-            case e.ModuleEntityTypeDef(typedef=typedef):
+            case e.ModuleEntityTypeDef(typedef=typedef, is_abstract=is_abstract):
                 assert isinstance(typedef, e.ObjectTp), "Scalar type definitions not supported"
                 result_vals = {
                     **result_vals, 
@@ -645,7 +645,7 @@ def check_module_validity(dbschema: e.DBSchema, module_name : Tuple[str, ...]) -
                             dbschema, 
                             module_name,
                             e.NamedNominalLinkTp(name=e.QualifiedName([*module_name,t_name]), linkprop=e.ObjectTp({})),
-                            typedef))}
+                            typedef), is_abstract=is_abstract)}
             case _:
                 raise ValueError("Unimplemented", t_me)
     result_dbmodule = e.DBModule(result_vals)
