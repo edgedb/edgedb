@@ -49,7 +49,7 @@ create a local project linked to your instance.
     * can contain only Latin alpha-numeric characters or ``-``
     * cannot start with a dash (``-``) or contain double dashes (``--``)
     * maximum instance name length is 61 characters minus the length of your
-      Org name (i.e., length of Org name + length of instance
+      organization name (i.e., length of organization name + length of instance
       name must be fewer than 62 characters)
 
 To use ``edgedb instance create``:

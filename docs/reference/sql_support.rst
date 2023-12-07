@@ -30,6 +30,21 @@ You'll then be prompted for a password. If you don't have it, you can run
 command returns. (It's the string between the second colon and the "at" symbol:
 ``edgedb://edgedb:PASSWORD_IS_HERE@<host>:<port>/<database>``)
 
+.. note::
+
+    The insecure DSN returned by the CLI for EdgeDB Cloud instances will not
+    contain the password. You will need to either :ref:`create a new role and
+    set the password <ref_sql_support_new_role>`, using those values to connect
+    to your SQL client, or change the password of the existing role, using that
+    role name along with the newly created password.
+
+    .. code-block:: edgeql-repl
+
+        db> alter role edgedb {
+        ...   set password := 'my-password'
+        ... };
+        OK: ALTER ROLE
+
 .. warning::
 
     Connecting to an EdgeDB Cloud instance via a Postgres client requires SNI
@@ -42,6 +57,11 @@ command returns. (It's the string between the second colon and the "at" symbol:
     navigate to ``bin`` under your Postgres installation location, right-click
     ``libpq.dll``, click "Properties," and find the version on the "Details"
     tab.
+
+.. _ref_sql_support_new_role:
+
+Creating a new role
+-------------------
 
 This works well to test SQL support, but if you are going to be using it on an
 ongoing basis, you may want to create a new role and use it to authenticate
