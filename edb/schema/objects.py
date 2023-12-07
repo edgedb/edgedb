@@ -2564,9 +2564,10 @@ class ObjectIndexBase(
         return coll
 
     def _check_duplicates(self, schema: s_schema.Schema) -> None:
-        counts = collections.Counter(self.keys(schema))
-        duplicates = [v for v, count in counts.items() if count > 1]
-        if duplicates:
+        uniq = set(self.keys(schema))
+        if len(uniq) != len(self._ids):
+            counts = collections.Counter(self.keys(schema))
+            duplicates = [v for v, count in counts.items() if count > 1]
             raise ObjectCollectionDuplicateNameError(
                 'object index contains duplicate key(s): ' +
                 ', '.join(repr(duplicates)))
