@@ -31,7 +31,6 @@ from edb.schema import links as s_links
 from edb.schema import name as s_name
 from edb.schema import properties as s_props
 from edb.schema import pointers as s_pointers
-from edb.schema import pseudo as s_pseudo
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 from edb.schema import objtypes as s_objtypes
@@ -477,14 +476,11 @@ def ir_typeref_to_type(
         a :class:`schema.types.Type` instance corresponding to the
         given *typeref*.
     """
-    if is_anytuple(typeref):
-        return schema, s_pseudo.PseudoType.get(schema, 'anytuple')
-
-    if is_anyobject(typeref):
-        return schema, s_pseudo.PseudoType.get(schema, 'anyobject')
-
-    elif is_any(typeref):
-        return schema, s_pseudo.PseudoType.get(schema, 'anytype')
+    # Optimistically try to lookup the type by id. Sometimes for
+    # arrays and tuples this will fail, and we'll need to create it.
+    t = schema.get_by_id(typeref.id, default=None, type=s_types.Type)
+    if t:
+        return schema, t
 
     elif is_tuple(typeref):
         named = False
@@ -511,9 +507,7 @@ def ir_typeref_to_type(
         return s_types.Array.from_subtypes(schema, array_subtypes)
 
     else:
-        t = schema.get_by_id(typeref.id)
-        assert isinstance(t, s_types.Type), 'expected a Type instance'
-        return schema, t
+        raise AssertionError("couldn't find type from typeref")
 
 
 @overload
