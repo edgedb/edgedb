@@ -126,9 +126,9 @@ organizations, and then refresh the org list.
 Billing
 -------
 
-On this page you can manage your account type, payment methods, and set your
-email to send billing info. Optionally, you can also save your payment info
-using `Link <https://link.com/>`_, `Stripe's <https://stripe.com/>`_
+On this page you can manage your account type and payment methods, and set your
+email for receiving billing info. Optionally, you can also save your payment
+info using `Link <https://link.com/>`_, `Stripe's <https://stripe.com/>`_
 fast-checkout solution.
 
 Deploying your application
