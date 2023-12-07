@@ -1215,12 +1215,6 @@ class Rewrites:
 
 
 class UpdateStmt(MutatingStmt, FilteredStmt):
-    # The pgsql DML compilation needs to be able to access __type__
-    # fields on link fields for doing covariant assignment checking.
-    # To enable this, we just make sure that update has access to
-    # BaseObject's __type__, from which we can derive whatever we need.
-    # This is at least a bit of a hack.
-    dunder_type_ptrref: BasePointerRef
     _material_type: TypeRef | None = None
 
     @property
