@@ -317,13 +317,13 @@ class TupleIndirectionLink(s_pointers.PseudoPointer):
             module='__tuple__', name=str(element_name))
 
     def __hash__(self) -> int:
-        return hash((self.__class__, self._name))
+        return hash((self.__class__, self._source, self._name))
 
     def __eq__(self, other: typing.Any) -> bool:
         if not isinstance(other, self.__class__):
             return False
 
-        return self._name == other._name
+        return self._source == other._source and self._name == other._name
 
     def get_name(self, schema: s_schema.Schema) -> sn.QualName:
         return self._name

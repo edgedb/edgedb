@@ -330,6 +330,7 @@ class Query(MetaCommand, adapts=sd.Query):
             explicit_top_cast=irtyputils.type_to_typeref(
                 schema,
                 schema.get('std::str', type=s_types.Type),
+                cache=None,
             ),
             backend_runtime_params=context.backend_runtime_params,
         )
@@ -1242,7 +1243,7 @@ class FunctionCommand(MetaCommand):
             nativecode.irast,
             ignore_shapes=True,
             explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
-                schema, func.get_return_type(schema)),
+                schema, func.get_return_type(schema), cache=None),
             output_format=compiler.OutputFormat.NATIVE,
             named_param_prefix=self.get_pgname(func, schema)[-1:],
         )
@@ -1368,7 +1369,7 @@ class FunctionCommand(MetaCommand):
                 nativecode.irast,
                 ignore_shapes=True,
                 explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
-                    schema, func.get_return_type(schema)),
+                    schema, func.get_return_type(schema), cache=None),
                 output_format=compiler.OutputFormat.NATIVE,
                 named_param_prefix=self.get_pgname(func, schema)[-1:],
                 backend_runtime_params=context.backend_runtime_params,
@@ -4846,8 +4847,7 @@ class PointerMetaCommand(
             tgt_path_id = ir.singletons[0]
         else:
             tgt_path_id = irpathid.PathId.from_pointer(
-                orig_schema,
-                pointer,
+                orig_schema, pointer, env=None
             )
 
         refs = irutils.get_longest_paths(ir.expr)
@@ -4906,7 +4906,7 @@ class PointerMetaCommand(
         # generate a unique path id for the outer scope
         typ = orig_schema.get(f'schema::ObjectType', type=s_types.Type)
         outer_path = irast.PathId.from_type(
-            orig_schema, typ, typename=sn.QualName("std", "obj")
+            orig_schema, typ, typename=sn.QualName("std", "obj"), env=None,
         )
 
         root_uid = -1

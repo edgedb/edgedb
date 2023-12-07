@@ -113,7 +113,7 @@ def _compile_ir_index_exprs(
     subject = index.get_subject(schema)
     assert isinstance(subject, s_types.Type)
 
-    subject_id = irast.PathId.from_type(schema, subject)
+    subject_id = irast.PathId.from_type(schema, subject, env=None)
     sql_res = compiler.compile_ir_to_sql_tree(
         index_expr,
         singleton_mode=True,
