@@ -946,12 +946,12 @@ def _compile_rewrites(
             target = element.target_set
             assert target and target.expr
 
-            ptrref = irtypeutils.ptrref_from_ptrcls(
-                schema=schema, ptrcls=element.ptrcls
-            )
+            ptrref = typegen.ptr_to_ptrref(element.ptrcls, ctx=ctx)
             actual_ptrref = irtypeutils.find_actual_ptrref(ty, ptrref)
             pn = actual_ptrref.shortname.name
-            path_id = irast.PathId.from_pointer(schema, element.ptrcls)
+            path_id = irast.PathId.from_pointer(
+                schema, element.ptrcls, env=ctx.env
+            )
 
             # construct a new set with correct path_id
             ptr_set = setgen.new_set_from_set(
@@ -1183,7 +1183,8 @@ def prepare_rewrite_anchors(
     # TODO: Do we really need a separate path id for __subject__?
     subject_name = sn.QualName("__derived__", "__subject__")
     subject_path_id = irast.PathId.from_type(
-        schema, stype, typename=subject_name, namespace=ctx.path_id_namespace
+        schema, stype, typename=subject_name, namespace=ctx.path_id_namespace,
+        env=ctx.env,
     )
     subject_set = setgen.new_set(
         stype=stype, path_id=subject_path_id, ctx=ctx
@@ -1195,6 +1196,7 @@ def prepare_rewrite_anchors(
         schema,
         bool_type,
         typename=sn.QualName(module="std", name="bool"),
+        env=ctx.env,
     )
 
     # init set for __specified__
@@ -1205,6 +1207,7 @@ def prepare_rewrite_anchors(
             bool_type,
             typename=sn.QualName(module="__derived__", name=pn.name),
             namespace=ctx.path_id_namespace,
+            env=ctx.env,
         )
 
         specified_pointers.append(
@@ -1228,7 +1231,8 @@ def prepare_rewrite_anchors(
     if rewrite_kind == qltypes.RewriteKind.Update:
         old_name = sn.QualName("__derived__", "__old__")
         old_path_id = irast.PathId.from_type(
-            schema, stype, typename=old_name, namespace=ctx.path_id_namespace
+            schema, stype, typename=old_name, namespace=ctx.path_id_namespace,
+            env=ctx.env,
         )
         old_set = setgen.new_set(
             stype=stype, path_id=old_path_id, ctx=ctx

@@ -68,8 +68,10 @@ def compile_trigger(
 
         anchors = {}
         new_path = irast.PathId.from_type(
-            schema, source, typename=sn.QualName(
-                module='__derived__', name='__new__')
+            schema,
+            source,
+            typename=sn.QualName(module='__derived__', name='__new__'),
+            env=ctx.env,
         )
         new_set = setgen.class_set(
             source, path_id=new_path, ignore_rewrites=True, ctx=sctx)
@@ -78,8 +80,10 @@ def compile_trigger(
         old_set = None
         if qltypes.TriggerKind.Insert not in kinds:
             old_path = irast.PathId.from_type(
-                schema, source, typename=sn.QualName(
-                    module='__derived__', name='__old__')
+                schema,
+                source,
+                typename=sn.QualName(module='__derived__', name='__old__'),
+                env=ctx.env,
             )
             old_set = setgen.class_set(
                 source, path_id=old_path, ignore_rewrites=True, ctx=sctx)

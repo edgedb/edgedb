@@ -46,8 +46,10 @@ if TYPE_CHECKING:
 
 
 TypeRefCacheKey = Tuple[uuid.UUID, bool, bool]
-
 PtrRefCacheKey = s_pointers.PointerLike
+
+PtrRefCache = dict[PtrRefCacheKey, 'irast.BasePointerRef']
+TypeRefCache = dict[TypeRefCacheKey, 'irast.TypeRef']
 
 
 def is_scalar(typeref: irast.TypeRef) -> bool:
@@ -182,7 +184,7 @@ def type_to_typeref(
     schema: s_schema.Schema,
     t: s_types.Type,
     *,
-    cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
+    cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]],
     typename: Optional[s_name.QualName] = None,
     include_children: bool = False,
     include_ancestors: bool = False,
@@ -217,6 +219,42 @@ def type_to_typeref(
         A ``TypeRef`` instance corresponding to the given schema type.
     """
 
+    if cache is not None and typename is None:
+        key = (t.id, include_children, include_ancestors)
+
+        cached_result = cache.get(key)
+        if cached_result is not None:
+            # If the schema changed due to an ongoing compilation, the name
+            # hint might be outdated.
+            if cached_result.name_hint == t.get_name(schema):
+                return cached_result
+
+    # We separate the uncached version into another function because
+    # it makes it easy to tell in a profiler when the cache isn't
+    # operating, and because if the cache *is* operating it is no
+    # great loss.
+    return _type_to_typeref(
+        schema,
+        t,
+        cache=cache,
+        typename=typename,
+        include_children=include_children,
+        include_ancestors=include_ancestors,
+        _name=_name,
+    )
+
+
+def _type_to_typeref(
+    schema: s_schema.Schema,
+    t: s_types.Type,
+    *,
+    cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
+    typename: Optional[s_name.QualName] = None,
+    include_children: bool = False,
+    include_ancestors: bool = False,
+    _name: Optional[str] = None,
+) -> irast.TypeRef:
+
     def _typeref(
         t: s_types.Type, *,
         include_children: bool = include_children,
@@ -232,16 +270,6 @@ def type_to_typeref(
 
     result: irast.TypeRef
     material_type: s_types.Type
-
-    key = (t.id, include_children, include_ancestors)
-
-    if cache is not None and typename is None:
-        cached_result = cache.get(key)
-        if cached_result is not None:
-            # If the schema changed due to an ongoing compilation, the name
-            # hint might be outdated.
-            if cached_result.name_hint == t.get_name(schema):
-                return cached_result
 
     name_hint = typename or t.get_name(schema)
     orig_name_hint = None if not typename else t.get_name(schema)
@@ -388,7 +416,8 @@ def type_to_typeref(
             collection=t.get_schema_name(),
             in_schema=t.get_is_persistent(schema),
             subtypes=tuple(
-                type_to_typeref(schema, st, _name=sn)  # note: no cache
+                # ??? no cache
+                type_to_typeref(schema, st, _name=sn, cache=None)
                 for sn, st in t.iter_subtypes(schema)
             )
         )
@@ -416,6 +445,8 @@ def type_to_typeref(
         )
 
     if cache is not None and typename is None and _name is None:
+        key = (t.id, include_children, include_ancestors)
+
         # Note: there is no cache for `_name` variants since they are only used
         # for Tuple subtypes and thus they will be cached on the outer level
         # anyway.
@@ -490,8 +521,8 @@ def ptrref_from_ptrcls(
     *,
     schema: s_schema.Schema,
     ptrcls: s_pointers.Pointer,
-    cache: Optional[Dict[PtrRefCacheKey, irast.BasePointerRef]] = None,
-    typeref_cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
+    cache: Optional[PtrRefCache],
+    typeref_cache: Optional[TypeRefCache],
 ) -> irast.PointerRef:
     ...
 
@@ -501,8 +532,8 @@ def ptrref_from_ptrcls(
     *,
     schema: s_schema.Schema,
     ptrcls: s_pointers.PointerLike,
-    cache: Optional[Dict[PtrRefCacheKey, irast.BasePointerRef]] = None,
-    typeref_cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
+    cache: Optional[PtrRefCache],
+    typeref_cache: Optional[TypeRefCache],
 ) -> irast.BasePointerRef:
     ...
 
@@ -511,8 +542,8 @@ def ptrref_from_ptrcls(
     *,
     schema: s_schema.Schema,
     ptrcls: s_pointers.PointerLike,
-    cache: Optional[Dict[PtrRefCacheKey, irast.BasePointerRef]] = None,
-    typeref_cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
+    cache: Optional[PtrRefCache],
+    typeref_cache: Optional[TypeRefCache],
 ) -> irast.BasePointerRef:
     """Return an IR pointer descriptor for a given schema pointer.
 
