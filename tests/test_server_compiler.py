@@ -379,7 +379,7 @@ class TestServerCompilerPool(tbs.TestCase):
             self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
 
 
-class TestCompilerPool(tbs.TestCase, tb.PreloadParserGrammarMixin):
+class TestCompilerPool(tbs.TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

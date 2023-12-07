@@ -55,7 +55,6 @@ import click
 import edgedb
 
 from edb.common import devmode
-from edb.testbase import lang as tb_lang
 from edb.testbase import server as tb
 
 from . import cpython_state
@@ -840,8 +839,7 @@ class ParallelTextTestRunner:
         )
         setup = tb.get_test_cases_setup(cases)
         server_used = tb.test_cases_use_server(cases)
-        should_preload_parser = tb_lang.should_preload_parser(cases)
-        worker_init = tb_lang.preload_parser if should_preload_parser else None
+        worker_init = None
         bootstrap_time_taken = 0
         tests_time_taken = 0
         result = None

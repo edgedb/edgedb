@@ -175,24 +175,7 @@ class BaseDocTest(unittest.TestCase, metaclass=DocTestMeta):
         )
 
 
-class PreloadParserGrammarMixin:
-    pass
-
-
-def should_preload_parser(
-    cases: Iterable[unittest.TestCase],
-) -> bool:
-    for cas in cases:
-        if issubclass(cas, PreloadParserGrammarMixin):
-            return True
-    return False
-
-
-def preload_parser() -> None:
-    qlparser.preload_spec()
-
-
-class BaseSyntaxTest(BaseDocTest, PreloadParserGrammarMixin):
+class BaseSyntaxTest(BaseDocTest):
     ast_to_source: Optional[Any] = None
     markup_dump_lexer: Optional[str] = None
 
@@ -300,7 +283,7 @@ def new_compiler():
     )
 
 
-class BaseSchemaTest(BaseDocTest, PreloadParserGrammarMixin):
+class BaseSchemaTest(BaseDocTest):
     DEFAULT_MODULE = 'default'
     SCHEMA: Optional[str] = None
 
