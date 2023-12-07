@@ -948,6 +948,8 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
 
     __slots__ = ('id',)
 
+    is_global_object = False
+
     # Unique ID for this schema item.
     id = Field(
         uuid.UUID,
@@ -1075,9 +1077,9 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         self.id = _private_id
 
     def __eq__(self, other: Any) -> bool:
-        if isinstance(other, Object):
-            return self.id == other.id
-        else:
+        try:
+            return self.id == other.id  # type: ignore
+        except AttributeError:
             return NotImplemented
 
     def __hash__(self) -> int:
@@ -2044,7 +2046,7 @@ class ObjectFragment(QualifiedObject):
 
 
 class GlobalObject(Object):
-    pass
+    is_global_object = True
 
 
 GlobalObject_T = TypeVar('GlobalObject_T', bound='GlobalObject')
@@ -2693,7 +2695,6 @@ def _unqualified_object_key(
     schema: s_schema.Schema,
     o: QualifiedObject,
 ) -> sn.UnqualName:
-    assert isinstance(o, QualifiedObject)
     return sn.UnqualName(o.get_shortname(schema).name)
 
 
