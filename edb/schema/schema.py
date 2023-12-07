@@ -293,9 +293,9 @@ class Schema(abc.ABC):
     def _get_by_id(
         self,
         obj_id: uuid.UUID,
-        default: Union[so.Object_T, so.NoDefaultT, None],
+        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
         *,
-        type: Optional[Type[so.Object_T]],
+        type: Optional[Type[so.Object_T]] = None,
     ) -> Optional[so.Object_T]:
         raise NotImplementedError
 
@@ -1305,9 +1305,9 @@ class FlatSchema(Schema):
     def _get_by_id(
         self,
         obj_id: uuid.UUID,
-        default: Union[so.Object_T, so.NoDefaultT, None],
+        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
         *,
-        type: Optional[Type[so.Object_T]],
+        type: Optional[Type[so.Object_T]] = None,
     ) -> Optional[so.Object_T]:
         try:
             sclass_name = self._id_to_type[obj_id]
@@ -1330,6 +1330,10 @@ class FlatSchema(Schema):
 
             # Avoid the overhead of cast(Object_T) below
             return obj  # type: ignore
+
+    # Important micro-optimization
+    if not TYPE_CHECKING:
+        get_by_id = _get_by_id
 
     def _get_global(
         self,
@@ -1968,9 +1972,9 @@ class ChainedSchema(Schema):
     def _get_by_id(
         self,
         obj_id: uuid.UUID,
-        default: Union[so.Object_T, so.NoDefaultT, None],
+        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
         *,
-        type: Optional[Type[so.Object_T]],
+        type: Optional[Type[so.Object_T]] = None,
     ) -> Optional[so.Object_T]:
         obj = self._top_schema.get_by_id(obj_id, type=type, default=None)
         if obj is None:
@@ -1980,6 +1984,10 @@ class ChainedSchema(Schema):
                 obj = self._global_schema.get_by_id(
                     obj_id, default=default, type=type)
         return obj
+
+    # Important micro-optimization
+    if not TYPE_CHECKING:
+        get_by_id = _get_by_id
 
     def _get_global(
         self,
