@@ -63,9 +63,8 @@ def get_tuple_indirection_path_id(
     ptrref = irtyputils.ptrref_from_ptrcls(
         schema=ctx.env.schema,
         ptrcls=ptrcls,
-        # FIXME: caching disabled here since it breaks tests
-        # cache=ctx.env.ptr_ref_cache,
-        # typeref_cache=ctx.env.type_ref_cache,
+        cache=ctx.env.ptr_ref_cache,
+        typeref_cache=ctx.env.type_ref_cache,
     )
 
     return tuple_path_id.extend(ptrref=ptrref)

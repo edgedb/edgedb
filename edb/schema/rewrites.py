@@ -170,6 +170,7 @@ class RewriteCommand(
                 schema,
                 subject,
                 typename=sn.QualName(module="__derived__", name="__subject__"),
+                env=None,
             )
             # __specified__
             bool_type = schema.get("std::bool", type=s_types.Type)
@@ -189,6 +190,7 @@ class RewriteCommand(
                     schema,
                     subject,
                     typename=sn.QualName(module='__derived__', name='__old__'),
+                    env=None,
                 )
 
             singletons = frozenset(anchors.values())

@@ -1624,6 +1624,7 @@ def _get_schema_computed_ctx(
             ):
                 inner_path_id = not_none(irast.PathId.from_pointer(
                     ctx.env.schema, ptr, namespace=subctx.path_id_namespace,
+                    env=ctx.env,
                 ).src_path())
                 remapped_source = new_set_from_set(
                     rptr.source, rptr=rptr.source.rptr, ctx=ctx

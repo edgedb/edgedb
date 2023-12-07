@@ -158,7 +158,8 @@ def translate_type(
                     sn.QualName('std', 'int32'), type=s_types.Type)
                 nschema, array_styp = s_types.Array.from_subtypes(
                     schema, [int_typeref])
-                typs.append(irtypeutils.type_to_typeref(nschema, array_styp))
+                typs.append(irtypeutils.type_to_typeref(
+                    nschema, array_styp, cache=None))
 
             return irast.ParamArray(
                 typeref=typ,
@@ -185,7 +186,7 @@ def translate_type(
             if in_array:
                 nschema, styp = irtypeutils.ir_typeref_to_type(schema, typ)
                 nschema, styp = s_types.Array.from_subtypes(nschema, [styp])
-                nt = irtypeutils.type_to_typeref(nschema, styp)
+                nt = irtypeutils.type_to_typeref(nschema, styp, cache=None)
             typs.append(nt)
             return irast.ParamScalar(typeref=typ, idx=start)
 
