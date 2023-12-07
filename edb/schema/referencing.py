@@ -1333,13 +1333,20 @@ class RenameReferencedInheritingObject(
         schema = super()._alter_begin(schema, context)
         scls = self.scls
 
-        if not context.canonical and not scls.generic(schema):
-            referrer_ctx = self.get_referrer_context_or_die(context)
-            referrer_class = referrer_ctx.op.get_schema_metaclass()
+        referrer_ctx = self.get_referrer_context(context)
+        if referrer_ctx:
             mcls = self.get_schema_metaclass()
+            referrer_class = referrer_ctx.op.get_schema_metaclass()
             refdict = referrer_class.get_refdict_for_class(mcls)
             reftype = referrer_class.get_field(refdict.attr).type
 
+            # Force a refresh of the refdict, since the rename may
+            # have invalidated its cache of names.
+            referrer = referrer_ctx.scls
+            schema = referrer.refresh_classref(schema, refdict.attr)
+
+        if not context.canonical and not scls.generic(schema):
+            assert referrer_ctx
             orig_ref_fqname = scls.get_name(orig_schema)
             orig_ref_lname = reftype.get_key_for_name(schema, orig_ref_fqname)
 

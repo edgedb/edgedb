@@ -1485,6 +1485,24 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         else:
             return 1.0
 
+    def refresh_classref(
+        self,
+        schema: s_schema.Schema,
+        collection: str,
+    ) -> s_schema.Schema:
+        refdict = type(self).get_refdict(collection)
+        attr = refdict.attr
+
+        colltype = type(self).get_field(attr).type
+
+        coll = self.get_explicit_field_value(schema, attr, None)
+        if coll is not None:
+            # breakpoint()
+            all_coll = colltype.create(schema, coll.objects(schema))
+            schema = self.set_field_value(schema, attr, all_coll)
+
+        return schema
+
     def add_classref(
         self,
         schema: s_schema.Schema,
@@ -2386,7 +2404,7 @@ class ObjectCollection(
     def create(
         cls: Type[ObjectCollection[Object_T]],
         schema: s_schema.Schema,
-        data: Iterable[Object_T],
+        data: Collection[Object_T],
         **kwargs: Any,
     ) -> ObjectCollection[Object_T]:
         ids: List[uuid.UUID] = []
@@ -2526,6 +2544,15 @@ class ObjectIndexBase(
     ObjectCollection[Object_T],
     container=tuple,
 ):
+    # The keys here are derived, but caching them is a big performance
+    # win (-14% when it was implemented).
+    #
+    # N.B: Because the keys are cached, if the value of the key is
+    # changed, a new collection must be created!
+    # Currently, ObjectIndexBase is used only for refdicts, and so
+    # this update is done in RenameReferencedInheritingObject._alter_begin().
+
+    __slots__ = ('_ids', '_keys')
     _key: KeyFunction[Object_T, Key_T]
 
     def __init_subclass__(
@@ -2553,15 +2580,28 @@ class ObjectIndexBase(
     def create(
         cls: Type[ObjectIndexBase[Key_T, Object_T]],
         schema: s_schema.Schema,
-        data: Iterable[Object_T],
+        data: Collection[Object_T],
         **kwargs: Any,
     ) -> ObjectIndexBase[Key_T, Object_T]:
+        _k = cls._key
+        keys = tuple([_k(schema, x) for x in data])
+
         coll = cast(
             ObjectIndexBase[Key_T, Object_T],
-            super().create(schema, data, **kwargs)
+            super().create(schema, data, _keys=keys, **kwargs)
         )
         coll._check_duplicates(schema)
         return coll
+
+    def __init__(
+        self,
+        _ids: Collection[uuid.UUID],
+        _keys: Optional[Tuple[Key_T, ...]] = None,
+        *,
+        _private_init: bool,
+    ) -> None:
+        super().__init__(_ids, _private_init=_private_init)
+        self._keys = _keys
 
     def _check_duplicates(self, schema: s_schema.Schema) -> None:
         uniq = set(self.keys(schema))
@@ -2570,7 +2610,7 @@ class ObjectIndexBase(
             duplicates = [v for v, count in counts.items() if count > 1]
             raise ObjectCollectionDuplicateNameError(
                 'object index contains duplicate key(s): ' +
-                ', '.join(repr(duplicates)))
+                ', '.join(repr(d) for d in duplicates))
 
     @classmethod
     def compare_values(
@@ -2661,23 +2701,22 @@ class ObjectIndexBase(
         schema: s_schema.Schema,
     ) -> Tuple[Tuple[Key_T, Object_T], ...]:
         result = []
-        keyfunc = type(self)._key
 
-        for item_id in self._ids:
+        for key, item_id in zip(self.keys(schema), self._ids):
             obj = schema.get_by_id(item_id)
-            result.append((keyfunc(schema, obj), obj))
+            result.append((key, obj))
 
         return tuple(result)  # type: ignore
 
     def keys(self, schema: s_schema.Schema) -> Tuple[Key_T, ...]:
-        result = []
-        keyfunc = type(self)._key
+        # To support existing pickled schemas that don't have _keys in them,
+        # lazily compute them if they are missing.
+        # FUTURE: Can drop in 5.0.
+        if self._keys is None:
+            _k = type(self)._key
+            self._keys = tuple([_k(schema, x) for x in self.objects(schema)])
 
-        for item_id in self._ids:
-            obj = schema.get_by_id(item_id)
-            result.append(keyfunc(schema, obj))
-
-        return tuple(result)
+        return self._keys
 
     def has(self, schema: s_schema.Schema, name: Key_T) -> bool:
         return name in self.keys(schema)
@@ -2688,11 +2727,15 @@ class ObjectIndexBase(
         name: Key_T,
         default: Optional[Object_T | NoDefaultT] = NoDefault,
     ) -> Optional[Object_T]:
-        items = dict(self.items(schema))
+        # TODO: Should we store an actual dict?
+        for key, item_id in zip(self.keys(schema), self._ids):
+            if name == key:
+                return schema.get_by_id(item_id)  # type: ignore
+
         if default is NoDefault:
-            return items[name]
+            raise KeyError(name)
         else:
-            return items.get(name, default)
+            return default
 
 
 def _fullname_object_key(schema: s_schema.Schema, o: Object) -> sn.Name:
