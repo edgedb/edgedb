@@ -158,5 +158,5 @@ better!
 * Report any bugs you find by `submitting a support ticket
   <https://edgedb.com/p/cloud-support>`_. Note: when using EdgeDB Cloud
   through the CLI, setting the ``RUST_LOG`` environment variable to ``info``,
-  ``debug``, or ``trace`` may also provide further info on what is happening
-  behind the scenes.
+  ``debug``, or ``trace`` may provide additional debugging information
+  which will be useful to include with your ticket.
