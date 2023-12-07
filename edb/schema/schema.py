@@ -1308,6 +1308,10 @@ class FlatSchema(Schema):
         default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
         *,
         type: Optional[Type[so.Object_T]] = None,
+        # Deep u-optimization; this is the hottest path in the system,
+        # so avoid needing to do lookups for this function.
+        _raw_schema_restore: Callable[[str, uuid.UUID], so.Object] = (
+            so.Object.raw_schema_restore),
     ) -> Optional[so.Object_T]:
         try:
             sclass_name = self._id_to_type[obj_id]
@@ -1320,7 +1324,7 @@ class FlatSchema(Schema):
             else:
                 return default
         else:
-            obj = so.Object.schema_restore((sclass_name, obj_id))
+            obj = _raw_schema_restore(sclass_name, obj_id)
             if type is not None and not isinstance(obj, type):
                 raise TypeError(
                     f'schema object {obj_id!r} exists, but is a '

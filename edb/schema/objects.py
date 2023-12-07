@@ -1001,15 +1001,21 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
     def schema_reduce(self) -> Tuple[str, uuid.UUID]:
         return type(self).__name__, self.id
 
-    @classmethod
+    @staticmethod
     @functools.lru_cache(maxsize=10240)
+    def raw_schema_restore(
+        sclass_name: str,
+        obj_id: uuid.UUID,
+    ) -> Object:
+        sclass = ObjectMeta.get_schema_class(sclass_name)
+        return sclass(_private_id=obj_id)
+
+    @staticmethod
     def schema_restore(
-        cls,
         data: Tuple[str, uuid.UUID],
     ) -> Object:
         sclass_name, obj_id = data
-        sclass = ObjectMeta.get_schema_class(sclass_name)
-        return sclass(_private_id=obj_id)
+        return Object.raw_schema_restore(sclass_name, obj_id)
 
     @classmethod
     def schema_refs_from_data(
@@ -2273,10 +2279,9 @@ class ObjectCollection(
             clsname = cls.__name__
         return (clsname, typeargs, ids, tuple(attrs.items()))
 
-    @classmethod
+    @staticmethod
     @functools.lru_cache(maxsize=10240)
     def schema_restore(
-        cls,
         data: Tuple[
             str,
             Optional[Union[Tuple[builtins.type, ...], builtins.type]],
