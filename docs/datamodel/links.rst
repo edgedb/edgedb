@@ -275,29 +275,33 @@ Under the hood, a ``multi`` link is stored in an intermediate `association
 table <https://en.wikipedia.org/wiki/Associative_entity>`_, whereas a
 ``single`` link is stored as a column in the object type where it is declared.
 
-Another decision often faced by EdgeDB users is whether to use a ``multi``
-link on the linking object or a backlink on the other (the linked object).
-A general rule of thumb in this case is as follows.
+.. note::
 
-Use a ``multi`` link if:
+  Choosing a link direction can be tricky when dealing with these kinds of
+  links. Should you model the link as a one-to-many using ``multi``, or should
+  you model a many-to-one (single) link and use backlinks to traverse in the
+  other direction? A general rule of thumb in this case is as follows.
 
-- The relationship is relatively stable and thus not updated very frequently.
-  For example, a list of postal addresses in a user profile.
-- The number of elements in the link tends to be small.
+  Use a ``multi`` link if:
 
-Otherwise, prefer a single link from one object coupled with a computed
-backlink on the other. This is marginally more efficient and generally
-recommended when modeling 1:N relations:
+  - The relationship is relatively stable and thus not updated very
+    frequently. For example, a list of postal addresses in a
+    user profile.
+  - The number of elements in the link tends to be small.
 
-.. code-block:: sdl
+  Otherwise, prefer a single link from one object type coupled with a
+  computed backlink on the other. This is marginally more efficient
+  and generally recommended when modeling 1:N relations:
 
-    type Post {
-      required author: User;
-    }
+  .. code-block:: sdl
 
-    type User {
-      link posts := (.<author[is Post])
-    }
+      type Post {
+        required author: User;
+      }
+
+      type User {
+        link posts := (.<author[is Post])
+      }
 
 .. _ref_guide_one_to_one:
 
