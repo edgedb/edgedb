@@ -5,6 +5,7 @@ from ..data import type_ops as tops
 from ..data import path_factor as pops
 from ..data import module_ops as mops
 from typing import List, Tuple, Dict
+from ..data import expr_to_str as pp
 
 
 def get_key_dependency(tp : e.DefaultTp) -> List[str]:

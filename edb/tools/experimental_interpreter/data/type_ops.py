@@ -19,6 +19,7 @@ def construct_tp_intersection(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
 
 def construct_tp_union(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
     # TODO: optimize so that if tp1 is a subtype of tp2, we return tp2
+    assert not isinstance(tp1, e.UncheckedTypeName) and not isinstance(tp2, e.UncheckedTypeName)
     if tp1 == tp2:
         return tp1
     else:
@@ -271,6 +272,8 @@ def tp_is_primitive(tp: e.Tp) -> bool:
             return tp_is_primitive(under_tp)
         case e.DefaultTp(tp=under_tp, expr=_):
             return tp_is_primitive(under_tp)
+        case e.CompositeTp(_):
+            return False
         case _:
             raise ValueError("Not implemented", tp)
 

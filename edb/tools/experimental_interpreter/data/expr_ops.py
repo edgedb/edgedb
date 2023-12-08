@@ -475,7 +475,7 @@ def make_storage_atomic(val: Val, tp: Tp) -> Val:
             return do_coerce_value_to_linkprop_tp(tp_linkprop=tp_linkprop)
         # case e.VarTp():
         #     return do_coerce_value_to_linkprop_tp(tp_linkprop=ObjectTp({}))
-        case (e.IntTp() | e.StrTp()):
+        case e.ScalarTp(_):
             return val
         case e.DefaultTp(expr=_, tp=d_tp):
             return make_storage_atomic(val, d_tp)

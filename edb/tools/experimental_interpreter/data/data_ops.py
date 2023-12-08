@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, NamedTuple, Sequence, Tuple, Optional, Callable, List
+from typing import Dict, NamedTuple, Sequence, Tuple, Optional, Callable, List, Any
 
 from dataclasses import dataclass
 
@@ -40,6 +40,12 @@ class ScalarTp:
     name: QualifiedName
 
 
+def BoolTp():
+    return ScalarTp(QualifiedName(["std", "bool"]))
+def StrTp():
+    return ScalarTp(QualifiedName(["std", "str"]))
+def IntTp():
+    return ScalarTp(QualifiedName(["std", "int64"]))
 # @dataclass(frozen=True)
 # class StrTp:
 #     pass
@@ -353,44 +359,60 @@ class FunType:
 # DEFINE PRIM VALUES
 
 
-@dataclass(frozen=True, order=True)
-class StrVal:
-    val: str
+# @dataclass(frozen=True, order=True)
+# class StrVal:
+#     val: str
 
 
-@dataclass(frozen=True, order=True)
-class IntVal:
-    val: int
+# @dataclass(frozen=True, order=True)
+# class IntVal:
+#     val: int
 
 
-@dataclass(frozen=True)
-class DateTimeVal:
-    val: str
+# @dataclass(frozen=True)
+# class DateTimeVal:
+#     val: str
 
 
-@dataclass(frozen=True)
-class JsonVal:
-    val: str
+# @dataclass(frozen=True)
+# class JsonVal:
+#     val: str
 
 
-@dataclass(frozen=True)
-class FunVal:
-    fname: str
-
-
-@dataclass(frozen=True)
-class IntInfVal:
-    """ the infinite integer, used as the default value for limit """
-    pass
-
+# @dataclass(frozen=True)
+# class FunVal:
+#     fname: str
 
 @dataclass(frozen=True)
-class BoolVal:
-    val: bool
+class ScalarVal:
+    tp: ScalarTp
+    val: Any
+
+def IntVal(val: int):
+    return ScalarVal(IntTp(), val)
+
+def StrVal(val: str):
+    return ScalarVal(StrTp(), val)
+
+def BoolVal(val: bool):
+    return ScalarVal(BoolTp(), val)
 
 
-PrimVal = (StrVal | IntVal | FunVal | IntInfVal | BoolVal
-           | DateTimeVal | JsonVal)
+
+
+
+# @dataclass(frozen=True)
+# class IntInfVal:
+#     """ the infinite integer, used as the default value for limit """
+#     pass
+
+
+# @dataclass(frozen=True)
+# class BoolVal:
+#     val: bool
+
+
+# PrimVal = (Scalar)
 
 # DEFINE EXPRESSIONS
 
@@ -448,6 +470,7 @@ class QualifiedName:
 
     def __hash__(self):
         return hash(tuple(self.names))
+
 
     # def __post_init__(self):
     #     if not isinstance(self.names, list) or not all(isinstance(name, str) for name in self.names):
@@ -659,14 +682,14 @@ class MultiSetVal:
     # singleton: bool = False
 
 
-Val = (PrimVal | RefVal | UnnamedTupleVal | NamedTupleVal | ArrVal )  
+Val = (ScalarVal | RefVal | UnnamedTupleVal | NamedTupleVal | ArrVal )  
 
 # MultiSetVal = Sequence[Val]
 
 VarExpr = (FreeVarExpr | BoundVarExpr)
 
 Expr = (
-    PrimVal | TypeCastExpr | FunAppExpr | FreeVarExpr | BoundVarExpr |
+    ScalarVal | TypeCastExpr | FunAppExpr | FreeVarExpr | BoundVarExpr |
     ObjectProjExpr | LinkPropProjExpr | WithExpr | ForExpr | OptionalForExpr |
     TpIntersectExpr | BackLinkExpr | FilterOrderExpr | OffsetLimitExpr |
     InsertExpr | UpdateExpr | MultiSetExpr | ShapedExprExpr | ShapeExpr |

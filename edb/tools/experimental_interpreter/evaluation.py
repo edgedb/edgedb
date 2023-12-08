@@ -6,7 +6,7 @@ from .data.casts import type_cast
 from .data.data_ops import (
     DB, ArrExpr, ArrVal, BackLinkExpr, BoolVal, DBEntry,
     DetachedExpr, Expr, FilterOrderExpr, ForExpr, FreeVarExpr,
-    FunAppExpr, InsertExpr, IntInfVal, IntVal, Invisible, Label,
+    FunAppExpr, InsertExpr, IntVal, Invisible, Label,
     LinkPropLabel, LinkPropProjExpr, Marker, MultiSetExpr,
     MultiSetVal, NamedTupleExpr, NamedTupleVal, ObjectProjExpr,
     ObjectVal, OffsetLimitExpr, OptionalForExpr, OrderAscending,

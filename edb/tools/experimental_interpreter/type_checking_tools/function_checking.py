@@ -66,6 +66,12 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                     result_tp = check_args_ret_type_match(ctx, tps, args_ret_type)
                     if result_tp is not None:
                         ok_candidates.append((i, result_tp))
+                
+                if len(ok_candidates) > 1 :
+                    print("WARNING: Ambiguous overloading", pp.show_qname(qualified_fname),
+                          "picking the first one")
+                    ok_candidates = ok_candidates[0:1]
+
                 if len(ok_candidates) == 0:
                     raise ValueError("No overloading matches", pp.show_qname(qualified_fname), 
                                      "args type", [pp.show_tp(tp) for tp in tps],
@@ -74,7 +80,10 @@ def func_call_checking(ctx: e.TcCtx, fun_call: e.FunAppExpr) -> Tuple[e.ResultTp
                 elif len(ok_candidates) == 1:
                     idx, result_tp = ok_candidates[0]
                 else:
-                    raise ValueError("Ambiguous overloading", fun_call)
+                    raise ValueError("Ambiguous overloading", pp.show_qname(qualified_fname), 
+                                     "args type", [pp.show_tp(tp) for tp in tps],
+                                     "candidates", [pp.show_func_tps(fun_tp.args_ret_types[i]) for i,args_ret_type in ok_candidates],
+                                     pp.show_expr(fun_call))
 
             # take the product of argument cardinalities
             arg_card_product = reduce(

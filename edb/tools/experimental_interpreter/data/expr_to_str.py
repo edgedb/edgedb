@@ -51,8 +51,8 @@ def show_tp(tp: e.Tp) -> str:
                 for md_tp in tp_val) + ')')
         case e.SomeTp(index=index):
             return f'some_{{{index}}}'
-        case e.AnyTp():
-            return 'any'
+        case e.AnyTp(name):
+            return 'any' + name
         # case e.VarTp(name=name):
         #     return f'{name}'
         # case e.UnifiableTp(id=id, resolution=resolution):
@@ -102,7 +102,7 @@ def show_expr(expr: e.Expr) -> str:
         case e.BoolVal(val=val):
             return str(val)
         case e.StrVal(val=val):
-            return val
+            return '"' + (val) + '"'
         case e.BindingExpr(var=var, body=_):
             return "λ" + var + ". " + show_expr(
                 eops.instantiate_expr(e.FreeVarExpr(var), expr))

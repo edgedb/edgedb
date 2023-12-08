@@ -72,13 +72,18 @@ def reverse_elab_shape(expr: ShapeExpr) -> List[qlast.ShapeElement]:
 
 def reverse_elab_type_name(tp: Tp) -> qlast.TypeName:
     match tp:
-        case StrTp():
-            return qlast.TypeName(maintype=qlast.ObjectRef(name="str"))
-        case JsonTp():
-            return qlast.TypeName(maintype=qlast.ObjectRef(name="json"))
-        case DateTimeTp():
-            return qlast.TypeName(
-                maintype=qlast.ObjectRef(name="datetime"))
+        case (e.ScalarTp(qname) | e.UncheckedTypeName(qname)):
+            if isinstance(qname, e.QualifiedName):
+                if len(qname.names) == 2:
+                    return qlast.TypeName(maintype=qlast.ObjectRef(name=qname.names[0]), module="::".join(qname.names[:-1]))
+                elif len(qname.names) == 1:
+                    return qlast.TypeName(maintype=qlast.ObjectRef(name=qname.names[0]))
+                else:
+                    raise ValueError("Unimplemented")
+            elif isinstance(qname, e.UnqualifiedName):
+                return qlast.TypeName(maintype=qlast.ObjectRef(name=qname.name))
+            else:
+                raise ValueError("Unimplemented")
     raise ValueError("Unimplemented")
 
 
@@ -183,16 +188,16 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
         case e.UnqualifiedName(name=name):
             return reverse_elab_raw_name(ir_expr)
         case FunAppExpr(fun=fname, args=args, overloading_index=_):
-            if (isinstance(fname, e.QualifiedName) 
-                and fname.names[0] == "std" 
-                and fname.names[1] in all_builtin_ops.keys() and len(args) == 2):
-                return qlast.BinOp(
-                    op=show_raw_name(fname), left=reverse_elab(args[0]),
-                    right=reverse_elab(args[1]))
-            else:
-                return qlast.FunctionCall(func=show_raw_name(fname),
-                                          args=[reverse_elab(arg)
-                                                for arg in args])
+            # if (isinstance(fname, e.QualifiedName) 
+            #     and fname.names[0] == "std" 
+            #     and fname.names[1] in all_builtin_ops.keys() and len(args) == 2):
+            #     return qlast.BinOp(
+            #         op=show_raw_name(fname), left=reverse_elab(args[0]),
+            #         right=reverse_elab(args[1]))
+            # else:
+            return qlast.FunctionCall(func=show_raw_name(fname),
+                                        args=[reverse_elab(arg)
+                                            for arg in args])
         case e.ConditionalDedupExpr(expr=inner):
             return qlast.FunctionCall(func="cond_dedup",
                                         args=[reverse_elab(inner)])

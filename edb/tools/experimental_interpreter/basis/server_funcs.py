@@ -4,9 +4,24 @@ from typing import *
 from ..data import data_ops as e
 from .errors import FunCallErr
 from .std_funcs import *
+from .builtin_bin_ops import *
 
 
 all_server_std_funcs: Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e.Val]]] = {
+    "+": add_impl,
+    "-": subtract_impl,
+    "*": multiply_impl,
+    "%": mod_impl,
+    "=": eq_impl,
+    "!=": not_eq_impl,
+    "?=": opt_eq_impl,
+    "?!=": opt_not_eq_impl,
+    ">": gt_impl,
+    "++": concatenate_impl,
+    "??": coalescing_impl,
+    "IN": in_impl,
+    "EXISTS": exists_impl,
+    "OR": or_impl,
     "all": std_all_impl,
     "any": std_any_impl,
     "array_agg": std_array_agg_impl,

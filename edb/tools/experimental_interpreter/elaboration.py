@@ -16,7 +16,7 @@ from .data.data_ops import (
     ArrExpr, ArrTp, BackLinkExpr, BindingExpr, BoolVal, BoundVarExpr,
      DetachedExpr, Expr, FilterOrderExpr, ForExpr, FreeVarExpr,
     FunAppExpr,  IndirectionIndexOp, IndirectionSliceOp,
-    InsertExpr, IntInfVal,  IntVal,  Label, LinkPropLabel,
+    InsertExpr,  IntVal,  Label, LinkPropLabel,
     LinkPropProjExpr, MultiSetExpr, NamedTupleExpr,
     ObjectProjExpr, OffsetLimitExpr, OptionalForExpr, OrderAscending,
     OrderDescending, OrderLabelSep, ShapedExprExpr, ShapeExpr, StrLabel,
