@@ -50,10 +50,10 @@ def map_tp(
             case e.NamedTupleTp(val=val):
                 return e.NamedTupleTp(val={k: recur(v)
                                            for k, v in val.items()})
-            case e.UnnamedTupleTp(val=val):
-                return e.UnnamedTupleTp(val=[recur(v) for v in val])
-            case e.CompositeTp(kind=k, tps=tps):
-                return e.CompositeTp(kind=k, tps=[recur(v) for v in tps])
+            # case e.UnnamedTupleTp(val=val):
+            #     return e.UnnamedTupleTp(val=[recur(v) for v in val])
+            case e.CompositeTp(kind=k, tps=tps, labels=labels):
+                return e.CompositeTp(kind=k, tps=[recur(v) for v in tps], labels=labels)
             case e.NamedNominalLinkTp(name=name, linkprop=linkprop):
                 return e.NamedNominalLinkTp(name=name, 
                                     linkprop=recur(linkprop))
@@ -105,8 +105,7 @@ def map_expr(
             return map_expr(f, expr)
 
         match expr:
-            case (FreeVarExpr(_) | BoundVarExpr(_) | StrVal(_) | BoolVal(_) |
-                    IntVal(_) | RefVal(_) 
+            case (FreeVarExpr(_) | BoundVarExpr(_) | e.ScalarVal(_) | RefVal(_) 
                     | ArrVal(_) | UnnamedTupleVal(_) |e.QualifiedName(_) | e.UnqualifiedName(_)):
                 return expr
             case BindingExpr(var=var, body=body):
@@ -377,8 +376,7 @@ def get_object_val(val: Val) -> ObjectVal:
 
 def val_is_primitive(rt: Val) -> bool:
     match rt:
-        case (StrVal(_) | IntVal(_) | ArrVal(_)
-                | UnnamedTupleVal(_) | BoolVal(_)):
+        case (e.ScalarVal(_)):
             return True
         case RefVal(_):
             return False

@@ -12,10 +12,9 @@ from .errors import FunCallErr
 
 def val_is_true(v: Val) -> bool:
     match v:
-        case BoolVal(val=True):
-            return True
-        case BoolVal(val=False):
-            return False
+        case e.ScalarVal(_, v):
+            assert isinstance(v, bool)
+            return v
         case _:
             raise ValueError("not a boolean")
 
@@ -124,8 +123,8 @@ def std_enumerate_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 def std_len_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
-        case [[StrVal(s)]]:
-            return [IntVal(len(s))]
+        case [[e.ScalarVal(t, v)]]:
+            return [IntVal(len(v))]
         case [[ArrVal(arr)]]:
             return [IntVal(len(arr))]
     raise FunCallErr()
@@ -142,10 +141,10 @@ def std_len_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 def std_sum_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [l]:
-            if all(isinstance(elem, e.IntVal) for elem in l):
+            if all(isinstance(elem, e.ScalarVal) and isinstance(elem.val, int) for elem in l):
                 return [IntVal(sum(elem.val
                                    for elem in l
-                                   if isinstance(elem, e.IntVal)))]
+                                   ))]
             else:
                 raise ValueError("not implemented: std::sum")
     raise FunCallErr()

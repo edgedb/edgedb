@@ -46,6 +46,9 @@ def StrTp():
     return ScalarTp(QualifiedName(["std", "str"]))
 def IntTp():
     return ScalarTp(QualifiedName(["std", "int64"]))
+def UuidTp():
+    return ScalarTp(QualifiedName(["std", "uuid"]))
+
 # @dataclass(frozen=True)
 # class StrTp:
 #     pass
@@ -94,9 +97,9 @@ class NamedTupleTp:
     val: Dict[str, Tp]
 
 
-@dataclass(frozen=True)
-class UnnamedTupleTp:
-    val: Sequence[Tp]
+# @dataclass(frozen=True)
+# class UnnamedTupleTp:
+#     val: Sequence[Tp]
 
 class CompositeTpKind(Enum):
     Array = "array"
@@ -110,12 +113,17 @@ class CompositeTpKind(Enum):
 class CompositeTp:
     kind: CompositeTpKind
     tps: List[Tp]
+    labels: List[str]
 
 # @dataclass(frozen=True)
 # class TupleTp:
 #     tps: List[Tp]
 def ArrTp(tp: Tp):
-    return CompositeTp(CompositeTpKind.Array, [tp])
+    return CompositeTp(CompositeTpKind.Array, [tp], [])
+
+def UnnamedTupleTp(tps: List[Tp]):
+    return CompositeTp(CompositeTpKind.Tuple, tps, [])
+
 
 @dataclass(frozen=True)
 class UnionTp:
@@ -185,7 +193,7 @@ class SomeTp:
 
 
 Tp = (ObjectTp | NamedNominalLinkTp  | NominalLinkTp | ScalarTp | UncheckedTypeName
-      | NamedTupleTp | UnnamedTupleTp
+      | NamedTupleTp 
       | CompositeTp | AnyTp | SomeTp | UnionTp | IntersectTp 
     #   | UnifiableTp
       | ComputableTp | DefaultTp | UncheckedComputableTp 
@@ -383,7 +391,7 @@ class FunType:
 # class FunVal:
 #     fname: str
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class ScalarVal:
     tp: ScalarTp
     val: Any
@@ -742,6 +750,7 @@ class DBSchema:
     modules : Dict[Tuple[str, ...], DBModule]
     unchecked_modules : Dict[Tuple[str, ...], DBModule] # modules that are currently under type checking
     subtyping_relations: Dict[QualifiedName, List[QualifiedName]] # subtyping: indexed by subtypes, subtype -> immediate super types mapping
+    casts: List[Tuple[Tp, Tp]] 
 
 # RT Stands for Run Time
 
@@ -804,5 +813,7 @@ OrderDescending = "descending"
 
 
 IndirectionIndexOp = "_[_]"
-IndirectionSliceOp = "_[_:_]"
+IndirectionSliceStartStopOp = "_[_:_]"
+IndirectionSliceStartOp = "_[_:]"
+IndirectionSliceStopOp = "_[:_]"
 # IfElseOp = "std::IF:_if_else_"

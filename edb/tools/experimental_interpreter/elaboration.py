@@ -15,7 +15,7 @@ from .data import data_ops as e
 from .data.data_ops import (
     ArrExpr, ArrTp, BackLinkExpr, BindingExpr, BoolVal, BoundVarExpr,
      DetachedExpr, Expr, FilterOrderExpr, ForExpr, FreeVarExpr,
-    FunAppExpr,  IndirectionIndexOp, IndirectionSliceOp,
+    FunAppExpr,  IndirectionIndexOp, 
     InsertExpr,  IntVal,  Label, LinkPropLabel,
     LinkPropProjExpr, MultiSetExpr, NamedTupleExpr,
     ObjectProjExpr, OffsetLimitExpr, OptionalForExpr, OrderAscending,
@@ -96,7 +96,7 @@ def elab_Path(p: qlast.Path) -> Expr:
                     raise ValueError("should not be")
                 else:
                     match elab_single_type_expr(tp):
-                        case e.NamedNominalLinkTp(name=tp_name, linkprop=e.ObjectTp({})):
+                        case e.UncheckedTypeName(name=tp_name):
                             result = TpIntersectExpr(result, tp_name)
                         case _:
                             raise ValueError(
@@ -350,12 +350,12 @@ def elab_FunctionCall(fcall: qlast.FunctionCall) -> FunAppExpr:
 
 @elab.register
 def elab_UnaryOp(uop: qlast.UnaryOp) -> FunAppExpr:
-    if uop.op in all_builtin_funcs.keys():
-        return FunAppExpr(
-            fun=e.UnqualifiedName(uop.op), args=[elab(uop.operand)],
-            overloading_index=None)
-    else:
-        raise ValueError("Unknown Op Name", uop.op)
+    # if uop.op in all_builtin_funcs.keys():
+    return FunAppExpr(
+        fun=e.UnqualifiedName(uop.op), args=[elab(uop.operand)],
+        overloading_index=None)
+    # else:
+    #     raise ValueError("Unknown Op Name", uop.op)
 
 
 @elab.register(qlast.BinOp)
@@ -408,6 +408,11 @@ def elab_single_type_str(name: str, module_name: Optional[str]) -> Tp:
                     return e.UncheckedTypeName(e.UnqualifiedName(name))
 
 
+def elab_CompositeTp(basetp: qlast.ObjectRef, sub_tps: Sequence[Tp]) -> Tp:
+    if basetp.name in {k.value for k in e.CompositeTpKind}:
+        return e.CompositeTp(kind=e.CompositeTpKind(basetp.name), tps=sub_tps, labels=[])  
+    else:
+        raise ValueError("Unknown Composite Type", basetp.name)
 @elab.register(qlast.TypeName)
 def elab_TypeName(qle: qlast.TypeName) -> Tp:
     if qle.name:
@@ -423,12 +428,7 @@ def elab_TypeName(qle: qlast.TypeName) -> Tp:
             return elab_not_implemented(qle)
         if qle.subtypes:
             sub_tps = [elab_single_type_expr(subtype) for subtype in qle.subtypes]
-            if basetp.name in {k.value for k in e.CompositeTpKind}:
-                return e.CompositeTp(kind=e.CompositeTpKind(basetp.name), tps=sub_tps)  
-            else:
-                raise ValueError("Unknown Composite Type", basetp.name)
-
-            return elab_not_implemented(qle)
+            return elab_CompositeTp(basetp, sub_tps)
         return elab_single_type_str(basetp.name, basetp.module)
     elif isinstance(basetp, qlast.PseudoObjectRef):
         if basetp.name.startswith("any"):
@@ -575,22 +575,20 @@ def elab_Indirection(qle: qlast.Indirection) -> FunAppExpr:
         case [qlast.Slice(start=None, stop=stop)]:
             assert stop is not None  # required for mypy
             return FunAppExpr(
-                fun=e.UnqualifiedName(IndirectionSliceOp),
-                args=[subject, IntVal(0),
-                      elab(stop)],
+                fun=e.UnqualifiedName(e.IndirectionSliceStopOp),
+                args=[subject, elab(stop)],
                 overloading_index=None)
         case [qlast.Slice(start=start, stop=None)]:
             assert start is not None  # required for mypy
             return FunAppExpr(
-                fun=e.UnqualifiedName(IndirectionSliceOp),
-                args=[subject, elab(start),
-                      IntInfVal()],
+                fun=e.UnqualifiedName(e.IndirectionSliceStartOp),
+                args=[subject, elab(start)],
                 overloading_index=None)
         case [qlast.Slice(start=start, stop=stop)]:
             assert start is not None  # required for mypy
             assert stop is not None  # required for mypy
             return FunAppExpr(
-                fun=e.UnqualifiedName(IndirectionSliceOp),
+                fun=e.UnqualifiedName(e.IndirectionSliceStartStopOp),
                 args=[subject, elab(start),
                       elab(stop)],
                 overloading_index=None)

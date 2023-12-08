@@ -38,7 +38,7 @@ def empty_db(schema : DBSchema) -> EdgeDatabaseInterface:
     return InMemoryEdgeDatabase(schema)
 
 def empty_dbschema() -> DBSchema:
-    return DBSchema({}, {}, {})
+    return DBSchema({}, {}, {}, [])
 
 def default_dbschema() -> DBSchema:
     initial_db = empty_dbschema()

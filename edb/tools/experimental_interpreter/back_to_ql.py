@@ -131,14 +131,20 @@ def append_path_element(
 def reverse_elab(ir_expr: Expr) -> qlast.Expr:
     expr: Expr
     match ir_expr:
-        case StrVal(s):
-            return qlast.StringConstant(value=s)
-        case IntVal(i):
-            return qlast.IntegerConstant(
-                value=str(abs(i)),
-                is_negative=(i < 0))
-        case BoolVal(b):
-            return qlast.BooleanConstant(value=str(b))
+        case e.ScalarVal(tp, s):
+            match tp.name.names:
+                case ["std", "str"]:
+                    return qlast.StringConstant(value=s)
+                case ["std", "int64"]:
+                    i = s
+                    return qlast.IntegerConstant(
+                        value=str(abs(i)),
+                        is_negative=(i < 0))
+                case ["std", "bool"]:
+                    b = s
+                    return qlast.BooleanConstant(value=str(b))
+                case _:
+                    raise ValueError("Unimplemented", tp.name)
         case RefVal(_):
             return qlast.StringConstant(
                 value=str("<REFVAL, TODO: UUID_CASTING>"))

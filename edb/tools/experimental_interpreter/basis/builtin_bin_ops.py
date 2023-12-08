@@ -8,7 +8,8 @@ from ..data.data_ops import (
     FunType, IntTp, IntVal, Val, ParamOptional, ParamSetOf,
     ParamSingleton, RefVal, SomeTp, StrVal, CardAny, ArrVal, StrTp, ArrTp)
 from .errors import FunCallErr
-
+from .built_ins import *
+import operator
 add_tp = FunType(args_ret_types=[FunArgRetType(
                     args_mod=[ParamSingleton(), ParamSingleton()],
                     args_tp=[IntTp(), IntTp()],
@@ -18,8 +19,9 @@ add_tp = FunType(args_ret_types=[FunArgRetType(
 
 def add_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
-        case [[IntVal(v1)], [IntVal(v2)]]:
-            return [IntVal(v1 + v2)]
+        case [[e.ScalarVal(t1, v1)], [e.ScalarVal(t2, v2)]]:
+            assert t1 == t2
+            return [e.ScalarVal(t1, v1 + v2)]
     raise FunCallErr()
 
 
@@ -33,8 +35,9 @@ subtract_tp = FunType(
 
 def subtract_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
-        case [[IntVal(v1)], [IntVal(v2)]]:
-            return [IntVal(v1 - v2)]
+        case [[e.ScalarVal(t1, v1)], [e.ScalarVal(t2, v2)]]:
+            assert t1 == t2
+            return [e.ScalarVal(t1, v1 - v2)]
     raise FunCallErr()
 
 multiply_tp = FunType(
@@ -45,11 +48,8 @@ multiply_tp = FunType(
                       )
 
 
-def multiply_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
-    match arg:
-        case [[IntVal(v1)], [IntVal(v2)]]:
-            return [IntVal(v1 * v2)]
-    raise FunCallErr()
+multiply_impl = lift_binary_scalar_op(operator.mul)
+
 
 
 mod_tp = FunType(
@@ -60,11 +60,7 @@ mod_tp = FunType(
                  )
 
 
-def mod_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
-    match arg:
-        case [[IntVal(v1)], [IntVal(v2)]]:
-            return [IntVal(v1 % v2)]
-    raise FunCallErr()
+mod_impl = lift_binary_scalar_op(operator.mod)
 
 
 eq_tp = FunType(
@@ -76,12 +72,11 @@ eq_tp = FunType(
 
 def eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
-        case [[StrVal(s1)], [StrVal(s2)]]:
-            return [BoolVal(s1 == s2)]
-        case [[IntVal(i1)], [IntVal(i2)]]:
-            return [BoolVal(i1 == i2)]
-        case [[BoolVal(b1)], [BoolVal(b2)]]:
-            return [BoolVal(b1 == b2)]
+        case [[
+            e.ScalarVal(t1, v1)], [
+            e.ScalarVal(t2, v2)]]:
+            assert t1 == t2
+            return [BoolVal(v1 == v2)]
     raise FunCallErr(arg)
 
 
@@ -94,10 +89,9 @@ not_eq_tp = FunType(
 
 def not_eq_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
-        case [[StrVal(s1)], [StrVal(s2)]]:
-            return [BoolVal(s1 != s2)]
-        case [[IntVal(i1)], [IntVal(i2)]]:
-            return [BoolVal(i1 != i2)]
+        case [[e.ScalarVal(t1, v1)], [e.ScalarVal(t2, v2)]]:
+            assert t1 == t2
+            return [BoolVal(v1 != v2)]
         case [[RefVal(_) as r1], [RefVal(_) as r2]]:
             return [BoolVal(r1 != r2)]
     raise FunCallErr(arg)
@@ -166,14 +160,14 @@ concatenate_tp = FunType(
         FunArgRetType(
             args_mod=[ParamSingleton(),
                     ParamSingleton()],
-            args_tp=[e.CompositeTp(kind=e.CompositeTpKind.Array, tps=[SomeTp(0)]),
-                     e.CompositeTp(kind=e.CompositeTpKind.Array, tps=[SomeTp(0)])],
-            ret_tp=e.ResultTp(e.CompositeTp(kind=e.CompositeTpKind.Array, tps=[SomeTp(0)]), CardOne))])
+            args_tp=[e.ArrTp(SomeTp(0)),
+                     e.ArrTp(SomeTp(0))],
+            ret_tp=e.ResultTp(e.ArrTp(SomeTp(0)), CardOne))])
 
 
 def concatenate_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
-        case [[StrVal(s1)], [StrVal(s2)]]:
+        case [[e.ScalarVal(_, s1)], [e.ScalarVal(_, s2)]]:
             return [StrVal(s1 + s2)]
         case [[ArrVal(arr1)], [ArrVal(arr2)]]:
             return [ArrVal([*arr1, *arr2])]
@@ -235,8 +229,8 @@ or_tp = FunType(
 
 def or_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
-        case [[BoolVal(b1)], [BoolVal(b2)]]:
-            return [BoolVal(b1 or b2)]
+        case [[e.ScalarVal(_, b1)], [e.ScalarVal(_, b2)]]:
+            return [e.BoolVal(b1 or b2)]
         case [_]:
             return [BoolVal(True)]
     raise FunCallErr()

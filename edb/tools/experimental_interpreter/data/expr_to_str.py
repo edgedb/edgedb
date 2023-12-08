@@ -45,10 +45,10 @@ def show_tp(tp: e.Tp) -> str:
             return ('prod(' + ', '.join(
                 f'{lbl}: {show_tp(md_tp)}'
                 for lbl, md_tp in tp_val.items()) + ')')
-        case e.UnnamedTupleTp(val=tp_val):
-            return ('prod(' + ', '.join(
-                f'{show_tp(md_tp)}'
-                for md_tp in tp_val) + ')')
+        # case e.UnnamedTupleTp(val=tp_val):
+        #     return ('prod(' + ', '.join(
+        #         f'{show_tp(md_tp)}'
+        #         for md_tp in tp_val) + ')')
         case e.SomeTp(index=index):
             return f'some_{{{index}}}'
         case e.AnyTp(name):
@@ -95,14 +95,23 @@ def show_label(lbl: e.Label) -> str:
             raise ValueError('Unimplemented', lbl)
 
 
+def show_scalar_val(val: e.ScalarVal) -> str:
+    tp = val.tp
+    v = val.val
+    match tp.name:
+        case e.QualifiedName(["std", "str"]):
+            return '"' + v + '"'
+        case e.QualifiedName(["std", "int64"]):
+            return str(v)
+        case e.QualifiedName(["std", "bool"]):
+            return str(v)
+        case _:
+            raise ValueError('Unimplemented', tp)
+
 def show_expr(expr: e.Expr) -> str:
     match expr:
-        case e.IntVal(val=val):
-            return str(val)
-        case e.BoolVal(val=val):
-            return str(val)
-        case e.StrVal(val=val):
-            return '"' + (val) + '"'
+        case e.ScalarVal(tp, v):
+            return show_scalar_val(expr)
         case e.BindingExpr(var=var, body=_):
             return "λ" + var + ". " + show_expr(
                 eops.instantiate_expr(e.FreeVarExpr(var), expr))
@@ -247,12 +256,8 @@ def show_visibility_marker(maker: e.Marker) -> str:
 
 def show_val(val: e.Val | e.ObjectVal | e.MultiSetVal) -> str:
     match val:
-        case e.IntVal(val=v):
-            return str(v)
-        case e.BoolVal(val=v):
-            return str(v)
-        case e.StrVal(val=v):
-            return v
+        case e.ScalarVal(_, _):
+            return show_scalar_val(val)
         case e.ObjectVal(val=elems):
             return "{" + ", ".join(f'{show_label(lbl)} ({show_visibility_marker(m)}): {show_val(el)}'
                                    for (lbl, (m, el)) in elems.items()) + "}"

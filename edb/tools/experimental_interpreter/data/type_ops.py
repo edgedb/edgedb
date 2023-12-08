@@ -145,8 +145,8 @@ def type_equality_walk(recurse : Callable[[e.TcCtx, e.Tp, e.Tp], bool],
             #       ):
             #     raise ValueError("not subtype", tp1, tp2)
             case _:
-                print("Not Implemented Subtyping Check:",
-                      show_tp(tp1), show_tp(tp2))
+                # print("Not Implemented Subtyping Check:",
+                #       show_tp(tp1), show_tp(tp2))
                 return False
         raise ValueError("should not be reachable, check if returns are missing?", tp1, tp2)
 
@@ -259,7 +259,7 @@ def tp_is_primitive(tp: e.Tp) -> bool:
               | e.NamedNominalLinkTp(_)
               | e.NominalLinkTp(_)
             #   | e.VarTp(_)
-              | e.UnnamedTupleTp(_)
+            #   | e.UnnamedTupleTp(_)
               | e.AnyTp()
               ):
             return False
@@ -357,7 +357,7 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
                             result_base_tp, result_mode)
                     else:
                         raise ValueError("Label not found")
-                case e.UnnamedTupleTp(val=tp_tuple):
+                case e.CompositeTp(kind=e.CompositeTpKind.Tuple, tps=tp_tuple):
                     if lbl.isdigit():
                         result_base_tp = tp_tuple[int(lbl)]
                         result_mode = tp.mode

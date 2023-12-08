@@ -137,7 +137,7 @@ def singular_proj(ctx: EvalEnv, db: EdgeDatabaseInterface, subject: Val, label: 
 
 def offset_vals(val: Sequence[Val], offset: Val):
     match offset:
-        case IntVal(val=v):
+        case e.ScalarVal(_, v):
             return val[v:]
         case _:
             raise ValueError("offset must be an int")
@@ -146,10 +146,8 @@ def offset_vals(val: Sequence[Val], offset: Val):
 def limit_vals(val: Sequence[Val],
                limit: Val) -> Sequence[Val]:
     match limit:
-        case IntVal(val=v):
+        case e.ScalarVal(_,v):
             return val[:v]
-        case IntInfVal():
-            return val
         case _:
             raise ValueError("offset must be an int")
 
@@ -194,10 +192,7 @@ def eval_expr(ctx: EvalEnv,
                 db: EdgeDatabaseInterface,
                 expr: Expr) -> MultiSetVal:
     match expr:
-        case (StrVal(_)
-              | IntVal(_)
-              | BoolVal(_)
-              ):
+        case ScalarVal(_):
             return MultiSetVal([expr])
         case e.FreeObjectExpr():
             return MultiSetVal(vals=[e.RefVal(next_id(), val=e.ObjectVal(val={}))])

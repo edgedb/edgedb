@@ -15,14 +15,8 @@ from .function_checking import *
 
 def synthesize_type_for_val(val: e.Val) -> e.Tp:
     match val:
-        case e.StrVal(_):
-            return e.ScalarTp(e.QualifiedName(["std", "str"]))
-        case e.IntVal(_):
-            return e.ScalarTp(e.QualifiedName(["std", "int64"]))
-        case e.IntInfVal():
-            raise ValueError("Cannot synthesize type for IntInfVal")
-        case e.BoolVal(_):
-            return e.ScalarTp(e.QualifiedName(["std", "bool"]))
+        case e.ScalarVal(tp, v):
+            return tp
         case _:
             raise ValueError("Not implemented", val)
 
@@ -135,20 +129,22 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
     return e.NominalLinkTp(subject=result_s_tp, name=s_name, linkprop=result_l_tp), result_expr
 
 
-def type_cast_tp(from_tp: e.ResultTp, to_tp: e.Tp) -> e.ResultTp:
-    match from_tp.tp, from_tp.mode, to_tp:
+def type_cast_tp(ctx: e.TcCtx, from_tp: e.ResultTp, to_tp: e.Tp) -> e.ResultTp:
+        # match from_tp.tp, from_tp.mode, to_tp:
         # case e.UnifiableTp(id=_, resolution=None), card, _:
         #     assert isinstance(from_tp.tp, e.UnifiableTp)  # for mypy
         #     from_tp.tp.resolution = to_tp
         #     return e.ResultTp(to_tp, card)
 
-        case e.IntTp(), card, e.IntTp():
-            return e.ResultTp(e.IntTp(), card)
-        case e.UuidTp(), card, e.StrTp():
-            return e.ResultTp(e.StrTp(), card)
-        case e.IntTp(), card, e.StrTp():
-            return e.ResultTp(e.StrTp(), card)
-        case _:
+        # case e.IntTp(), card, e.IntTp():
+        #     return e.ResultTp(e.IntTp(), card)
+        # case e.UuidTp(), card, e.StrTp():
+        #     return e.ResultTp(e.StrTp(), card)
+        # case e.IntTp(), card, e.StrTp():
+        #     return e.ResultTp(e.StrTp(), card)
+        if (from_tp.tp, to_tp) in ctx.schema.casts:
+            return e.ResultTp(to_tp, from_tp.mode)
+        else:
             raise ValueError("Not Implemented", from_tp, to_tp)
 
 
@@ -158,10 +154,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
     result_expr: e.Expr = expr  # by default we don't change expr
 
     match expr:
-        case (e.StrVal(_)
-              | e.IntVal(_)
-              | e.BoolVal(_)
-              ):
+        case (e.ScalarVal(_)):
             result_tp = synthesize_type_for_val(expr)
             result_card = e.CardOne
         case e.FreeVarExpr(var=var):
@@ -192,7 +185,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 result_tp = tp_ck
             else:
                 (arg_tp, arg_v) = synthesize_type(ctx, arg)
-                (result_tp, result_card) = type_cast_tp(arg_tp, tp_ck)
+                (result_tp, result_card) = type_cast_tp(ctx, arg_tp, tp_ck)
                 result_expr = e.TypeCastExpr(tp_ck, arg_v)
         case e.ShapedExprExpr(expr=subject, shape=shape):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
@@ -361,20 +354,33 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                                   e.ResultTp(e.IntTp(), e.CardAtMostOne))
             result_expr = e.OffsetLimitExpr(subject_ck, offset_ck, limit_ck)
             result_tp = subject_tp.tp
+            if isinstance(limit_ck, e.ScalarVal):
+                v = limit_ck.val
+                assert isinstance(limit_ck.val, int), "Expecting int"
+                if v > 1:
+                    upper_card_bound = subject_tp.mode.upper
+                else:
+                    upper_card_bound = e.CardNumOne
+            else:
+                upper_card_bound = subject_tp.mode.upper
+
+
+
             result_card = e.CMMode(
                 e.CardNumZero,
-                subject_tp.mode.upper,
+                upper_card_bound,
                 # subject_tp.mode.multiplicity
-            )
-            if isinstance(limit_ck, e.IntVal):
-                lim_num = limit_ck.val
-                result_card = e.CMMode(
-                    e.CardNumZero,
-                    e.min_cardinal(result_card.upper, 
-                                   e.CardNumInf if lim_num > 1 else 
-                                   (e.CardNumOne if lim_num == 0 else e.CardNumZero)),
-                    # e.min_cardinal(result_card.multiplicity, e.Fin(lim_num))
-                    )
+            ) 
+            
+            # if isinstance(limit_ck, e.IntVal):
+            #     lim_num = limit_ck.val
+            #     result_card = e.CMMode(
+            #         e.CardNumZero,
+            #         e.min_cardinal(result_card.upper, 
+            #                        e.CardNumInf if lim_num > 1 else 
+            #                        (e.CardNumOne if lim_num == 0 else e.CardNumZero)),
+            #         # e.min_cardinal(result_card.multiplicity, e.Fin(lim_num))
+            #         )
         case e.InsertExpr(name=tname, new=arg):
             result_expr = insert_checking(ctx, expr)
             assert isinstance(result_expr, e.InsertExpr) and isinstance(result_expr.name, e.QualifiedName)
@@ -542,7 +548,7 @@ def check_type_valid(ctx: e.TcCtx | e.DBSchema, tp : e.Tp) -> e.Tp:
                     raise ValueError("Not Implemented", resolved_tp)
         case e.AnyTp(_):
             return tp
-        case e.CompositeTp(kind=kind, tps=tps):
-            return e.CompositeTp(kind=kind, tps=[check_type_valid(ctx, t) for t in tps])
+        case e.CompositeTp(kind=kind, tps=tps, labels=labels):
+            return e.CompositeTp(kind=kind, tps=[check_type_valid(ctx, t) for t in tps], labels=labels)
         case _:
             raise ValueError("Not Implemented", tp)

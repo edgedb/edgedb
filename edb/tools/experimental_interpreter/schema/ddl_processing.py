@@ -150,8 +150,25 @@ def process_ddl(
         ):
             process_fun_def(schema, name, params, ret_tp, ret_typemod)
             
-        case qlast.CreateCast():
-            print("WARNING: not supported yet", ddl)
+        case qlast.CreateCast(
+            from_type = from_type,
+            to_type = to_type,
+            commands = commands,
+        ):
+            from_tp = elab.elab_TypeName(from_type)
+            to_tp = elab.elab_TypeName(to_type)
+            from_tp_ck = tck.check_type_valid(schema, from_tp)
+            to_tp_ck = tck.check_type_valid(schema, to_tp)
+            schema.casts.append((from_tp_ck, to_tp_ck))
+            # match from_tp, to_tp:
+            #     case e.UncheckedTypeName(name=from_name), e.UncheckedTypeName(name=to_name):
+            #         assert isinstance(from_name, e.QualifiedName)
+            #         assert isinstance(to_name, e.QualifiedName)
+            #         if from_name not in schema.casts:
+            #             schema.casts[from_name] = []
+            #         schema.casts[from_name].append(to_name)
+            #     case _:
+            #         raise ValueError("TODO", from_tp, to_tp)
         case qlast.CreateConstraint():
             print("WARNING: not supported yet", ddl)
         case qlast.CreateProperty():

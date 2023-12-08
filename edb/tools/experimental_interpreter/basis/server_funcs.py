@@ -5,6 +5,7 @@ from ..data import data_ops as e
 from .errors import FunCallErr
 from .std_funcs import *
 from .builtin_bin_ops import *
+from .reserved_ops import *
 
 
 all_server_std_funcs: Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e.Val]]] = {
@@ -30,6 +31,10 @@ all_server_std_funcs: Dict[str, Callable[[Sequence[Sequence[e.Val]]], Sequence[e
     "enumerate": std_enumerate_impl,
     "len": std_len_impl,
     "sum": std_sum_impl,
+    e.IndirectionIndexOp: indirection_index_impl,
+    e.IndirectionSliceStartStopOp: indirection_slice_start_stop_impl,
+    e.IndirectionSliceStartOp: indirection_slice_start_impl,
+    e.IndirectionSliceStopOp: indirection_slice_stop_impl,
 }
 
 

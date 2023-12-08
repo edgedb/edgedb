@@ -28,12 +28,11 @@ def objectval_to_json_like(objv: ObjectVal) -> json_like:
 
 def val_to_json_like(v: Val) -> json_like:
     match v:
-        case StrVal(s):
-            return s
-        case IntVal(i):
-            return i
-        case BoolVal(b):
-            return b
+        case e.ScalarVal(_, v):
+            if isinstance(v, int) or isinstance(v, str) or isinstance(v, bool):
+                return v
+            else:
+                raise ValueError("not implemented")
         case RefVal(_, object):
             return objectval_to_json_like(object)
         # case FreeVal(object):
@@ -105,12 +104,11 @@ def typed_val_to_json_like(v: Val, tp: e.Tp,
     #     assert tp.resolution is not None
     #     tp = tp.resolution
     match v:
-        case StrVal(s):
-            return s
-        case IntVal(i):
-            return i
-        case BoolVal(b):
-            return b
+        case e.ScalarVal(_, v):
+            if isinstance(v, int) or isinstance(v, str) or isinstance(v, bool):
+                return v
+            else:
+                raise ValueError("not implemented")
         case RefVal(_, object):
             # if (isinstance(tp, e.NominalLinkTp)
             #         and tp.linkprop == e.ObjectTp({})):
@@ -122,13 +120,14 @@ def typed_val_to_json_like(v: Val, tp: e.Tp,
         #     assert isinstance(tp, e.ObjectTp)
         #     return typed_objectval_to_json_like(object, tp, dbschema)
         case ArrVal(val=array):
-            assert isinstance(tp, e.ArrTp)
-            return [typed_val_to_json_like(v, tp.tp, dbschema) for v in array]
+            if not isinstance(tp, e.CompositeTp) or tp.kind != e.CompositeTpKind.Array:
+                raise ValueError("Expecing array tp", tp)
+            return [typed_val_to_json_like(v, tp.tps[0], dbschema) for v in array]
         case UnnamedTupleVal(val=array):
-            if not isinstance(tp, e.UnnamedTupleTp):
+            if not isinstance(tp, e.CompositeTp) or tp.kind != e.CompositeTpKind.Tuple:
                 raise ValueError("Expecing unnamed tuple tp", tp)
             return [typed_val_to_json_like(v, t, dbschema)
-                    for (v, t) in zip(array, tp.val, strict=True)]
+                    for (v, t) in zip(array, tp.tps, strict=True)]
         case NamedTupleVal(val=dic):
             assert isinstance(tp, e.NamedTupleTp)
             return {k: typed_val_to_json_like(v, tp.val[k], dbschema)

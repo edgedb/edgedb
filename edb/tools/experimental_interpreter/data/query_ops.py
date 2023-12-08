@@ -64,11 +64,7 @@ def map_query(f: Callable[[Expr, QueryLevel],
                 return expr
             case BoundVarExpr(_):
                 return expr
-            case StrVal(_):
-                return expr
-            case BoolVal(_):
-                return expr
-            case IntVal(_):
+            case e.ScalarVal(_):
                 return expr
             case BindingExpr(var=var, body=body):
                 # type: ignore[has-type]
