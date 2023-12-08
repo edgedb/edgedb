@@ -37,8 +37,8 @@ Let's start with a simple schema without any access policies.
     }
 
 When no access policies are defined, object-level security is not activated.
-Any properly authenticated client can select or modify any object in the
-database.
+Any properly authenticated client can carry out any operation on any object
+in the database.
 
 .. warning::
 
